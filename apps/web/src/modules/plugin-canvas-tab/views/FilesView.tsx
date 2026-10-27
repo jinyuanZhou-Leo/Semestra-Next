@@ -50,6 +50,11 @@ import { FileActions } from './FilePreview'
 /** Canvas needs two characters to search (`search_term`). */
 const MIN_TERM = 2
 
+/** "1 item", "5 items": what a folder holds, files and folders together. */
+function folderItems(count: number): string {
+  return count === 1 ? m.canvas_tab_folder_item() : m.canvas_tab_folder_items({ count })
+}
+
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
 const column = createColumnHelper<typeof features, FileMeta>()
 type CellProps = CellContext<typeof features, FileMeta>
@@ -325,9 +330,7 @@ function FileTable({
                 </button>
               </TableCell>
               <TableCell className={cn(EDGE, CELL_CLASS.size)}>
-                {m.canvas_tab_module_items({
-                  count: (f.files_count ?? 0) + (f.folders_count ?? 0),
-                })}
+                {folderItems((f.files_count ?? 0) + (f.folders_count ?? 0))}
               </TableCell>
               <TableCell className={EDGE} />
               <TableCell className={EDGE}>

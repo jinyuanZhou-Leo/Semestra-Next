@@ -6,7 +6,7 @@ import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { countdown } from '../countdown'
-import { useNow } from '../hooks'
+import { useNow } from '@/lib/now'
 import { useToday } from '../queries'
 
 function endOf(o: Occurrence): number {

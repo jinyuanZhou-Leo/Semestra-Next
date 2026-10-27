@@ -108,7 +108,8 @@ export function useInternalLinks() {
   }
 }
 
-/** Images of course files in Canvas HTML load through the file proxy (M09 §2.1). */
+/** Images of course files in Canvas HTML load through the file proxy (M09 §2.1); when that fails
+ * (another course's file, one the token can't read) `SafeHtml` goes back to Canvas's address. */
 export function useFileImages() {
   const { courseId } = useCanvasPage()
   return (link: InternalLink) => (link.kind === 'file' ? fileContentUrl(courseId, link.ref) : null)

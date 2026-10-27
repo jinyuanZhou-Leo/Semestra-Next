@@ -19,6 +19,7 @@ import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
+import { useNow } from '@/lib/now'
 import { cn } from '@/lib/utils'
 import { LmsUpdatesBanner } from '@/modules/lms/components/LmsUpdatesBanner'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
@@ -193,19 +194,22 @@ const NAV_ICONS: Record<NativeView, LucideIcon> = {
 }
 
 /** When the course was read from Canvas: "Updated just now", "Updated 3 minutes ago". */
-function fetchedLabel(at: string): string {
-  return Date.now() - new Date(at).getTime() < 60_000
+function fetchedLabel(at: string, now: number): string {
+  return now - new Date(at).getTime() < 60_000
     ? m.canvas_tab_fetched_just_now()
-    : m.canvas_tab_fetched_at({ time: formatTimeAgo(at) })
+    : m.canvas_tab_fetched_at({ time: formatTimeAgo(at, now) })
 }
 
-/** "Updated 3 minutes ago", refresh and "Open in Canvas" (M16 §3). */
+/** "Updated 3 minutes ago" (kept current while the page stays open), refresh and "Open in
+ * Canvas" (M16 §3). */
 function SyncControls({ overview, fetching, onRefresh }: { overview: CourseOverview } & Sync) {
   const url = overview.link.web_url ?? overview.course.web_url
+  const now = useNow(30_000)
+  const at = overview.fetched_at
   return (
     <div className="flex min-w-0 items-center gap-0.5">
       <span className="line-clamp-2 min-w-0 flex-1 text-xs text-muted-foreground">
-        {overview.fetched_at ? fetchedLabel(overview.fetched_at) : null}
+        {at ? <time dateTime={at}>{fetchedLabel(at, now)}</time> : null}
       </span>
       <IconAction label={m.canvas_tab_refresh()} disabled={fetching} onClick={onRefresh}>
         <RefreshCw

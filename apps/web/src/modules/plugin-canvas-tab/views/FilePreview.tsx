@@ -1,4 +1,4 @@
-import { lmsFileContent, lmsFileSaveToCourse } from '@semestra/api-client'
+import { type FileMeta, lmsFileContent, lmsFileSaveToCourse } from '@semestra/api-client'
 import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
@@ -22,7 +22,7 @@ import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { fileContentUrl } from '../open-in-canvas'
-import { IconAction } from './common'
+import { IconAction, LockNote } from './common'
 
 /** What the browser shows inline; the backend streams anything else as a download (M09). */
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
@@ -109,26 +109,27 @@ function TextPreview({ fileId }: { fileId: string }) {
 
 /**
  * An inline preview loads the file in an `<img>` or `<iframe>`, which can't tell a failed load:
- * the file is asked for first (and the download stopped once it starts), so a locked file or an
+ * the proxy is asked first whether the file opens (`check`, no content), so a locked file or an
  * unreachable Canvas shows the same message as the other reads instead of an error page.
  */
-function ContentCheck({ fileId, children }: { fileId: string; children: ReactNode }) {
+function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode }) {
   const { courseId } = useCanvasPage()
   const check = useQuery({
-    queryKey: ['canvas-tab', 'content-check', courseId, fileId],
+    queryKey: ['canvas-tab', 'content-check', courseId, file.external_id],
     queryFn: async ({ signal }) => {
-      const { data } = await lmsFileContent({
-        path: { course_id: courseId, file_id: fileId },
-        parseAs: 'stream',
+      await lmsFileContent({
+        path: { course_id: courseId, file_id: file.external_id },
+        query: { check: true },
         signal,
         throwOnError: true,
       })
-      await (data as unknown as ReadableStream | null)?.cancel()
       return true
     },
+    enabled: !file.locked,
     retry: false,
     staleTime: 5 * 60_000,
   })
+  if (file.locked) return <LockNote title={m.canvas_tab_item_locked()} />
   return (
     <CanvasBoundary query={check} skeleton={<Skeleton className="h-[65vh] w-full rounded-lg" />}>
       {() => children}
@@ -239,7 +240,7 @@ function PreviewBody({ fileId }: { fileId: string }) {
             const kind = previewKind(file)
             if (kind === 'image') {
               return (
-                <ContentCheck fileId={fileId}>
+                <ContentCheck file={file}>
                   <img
                     src={src}
                     alt={file.name}
@@ -250,7 +251,7 @@ function PreviewBody({ fileId }: { fileId: string }) {
             }
             if (kind === 'frame') {
               return (
-                <ContentCheck fileId={fileId}>
+                <ContentCheck file={file}>
                   {/* The API serves it with `Content-Security-Policy: default-src 'none'`; a
                       sandbox would stop the browser's PDF viewer. */}
                   {/* oxlint-disable-next-line react/iframe-missing-sandbox */}

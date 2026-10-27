@@ -2410,6 +2410,8 @@
   "canvas_tab_files_no_match_hint": "Canvas searches file names only.",
   "canvas_tab_files_truncated": "Only the first files are shown. Open the folder in Canvas to see the rest.",
   "canvas_tab_folder_empty": "This folder is empty",
+  "canvas_tab_folder_item": "1 item",
+  "canvas_tab_folder_items": "{count} items",
   "canvas_tab_preview_page": "Page {number}",
   "canvas_tab_preview_slide": "Slide {number}",
   "canvas_tab_preview_sheet": "Sheet {number}",

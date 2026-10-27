@@ -200,6 +200,9 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert r.headers["content-disposition"].startswith("inline")
     r = await api.client.get(f"/courses/{course}/lms/files/f1/content?download=true")
     assert r.headers["content-disposition"].startswith("attachment")
+    r = await api.client.get(f"/courses/{course}/lms/files/f1/content?check=true")
+    assert r.status_code == 204
+    assert r.content == b""
 
 
 async def test_unsupported_feature(api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch):

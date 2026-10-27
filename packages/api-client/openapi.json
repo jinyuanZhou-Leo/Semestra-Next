@@ -1126,6 +1126,18 @@
               "title": "Download"
             },
             "description": "Send as an attachment"
+          },
+          {
+            "name": "check",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only check that the file opens (204, or the same errors)",
+              "default": false,
+              "title": "Check"
+            },
+            "description": "Only check that the file opens (204, or the same errors)"
           }
         ],
         "responses": {

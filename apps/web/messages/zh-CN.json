@@ -2410,6 +2410,8 @@
   "canvas_tab_files_no_match_hint": "Canvas 只按文件名搜索。",
   "canvas_tab_files_truncated": "只显示了前面一部分文件，其余的请在 Canvas 中打开文件夹查看。",
   "canvas_tab_folder_empty": "这个文件夹是空的",
+  "canvas_tab_folder_item": "1 项",
+  "canvas_tab_folder_items": "{count} 项",
   "canvas_tab_preview_page": "第 {number} 页",
   "canvas_tab_preview_slide": "第 {number} 张幻灯片",
   "canvas_tab_preview_sheet": "第 {number} 个工作表",

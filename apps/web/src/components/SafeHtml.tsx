@@ -26,7 +26,10 @@ function sanitize(html: string): string {
   })
 }
 
-/** Points marked images (`img[data-lms-kind]`) at the app's own address for them. */
+/**
+ * Points marked images (`img[data-lms-kind]`) at the app's own address for them, keeping the
+ * platform's address in `data-original-src` for `fallBackToOriginal`.
+ */
 function withImages(html: string, imageSrc: (link: InternalLink) => string | null): string {
   const template = document.createElement('template')
   template.innerHTML = html
@@ -35,9 +38,32 @@ function withImages(html: string, imageSrc: (link: InternalLink) => string | nul
       kind: img.getAttribute('data-lms-kind') ?? '',
       ref: img.getAttribute('data-lms-ref') ?? '',
     })
-    if (src) img.setAttribute('src', src)
+    if (!src) continue
+    const original = img.getAttribute('src')
+    if (original && /^https?:/i.test(original)) img.setAttribute('data-original-src', original)
+    img.setAttribute('src', src)
   }
   return template.innerHTML
+}
+
+/**
+ * An image the app can't load (a file of another course, one the user's token can't read) goes
+ * back to the platform's own address, which a browser signed in to the platform may still load.
+ * `error` doesn't bubble and React doesn't see nodes set as HTML, so this listens in the capture
+ * phase on the container.
+ */
+function fallBackToOriginal(node: HTMLDivElement | null) {
+  if (!node) return
+  const onError = (event: Event) => {
+    const img = event.target
+    if (!(img instanceof HTMLImageElement)) return
+    const original = img.dataset.originalSrc
+    if (!original) return
+    img.removeAttribute('data-original-src')
+    img.src = original
+  }
+  node.addEventListener('error', onError, true)
+  return () => node.removeEventListener('error', onError, true)
 }
 
 /**
@@ -45,7 +71,7 @@ function withImages(html: string, imageSrc: (link: InternalLink) => string | nul
  * although the backend already did (M00, M16 §4). Images load lazily, wide tables scroll
  * sideways, links open in a new tab; `onInternalLink` takes over links into the platform that the
  * app can open itself, and `imageSrc` loads marked images from the app (a platform file whose own
- * address needs a platform session).
+ * address needs a platform session), falling back to their own address when that fails.
  */
 export function SafeHtml({
   html,
@@ -88,6 +114,7 @@ export function SafeHtml({
         className,
       )}
       onClick={onClick}
+      ref={imageSrc ? fallBackToOriginal : undefined}
       // oxlint-disable-next-line react/no-danger -- sanitized just above
       dangerouslySetInnerHTML={{ __html: imageSrc ? withImages(clean, imageSrc) : clean }}
     />

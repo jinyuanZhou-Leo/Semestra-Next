@@ -11591,6 +11591,12 @@ export type LmsFileContentData = {
          * Send as an attachment
          */
         download?: boolean;
+        /**
+         * Check
+         *
+         * Only check that the file opens (204, or the same errors)
+         */
+        check?: boolean;
     };
     url: '/courses/{course_id}/lms/files/{file_id}/content';
 };

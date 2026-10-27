@@ -163,13 +163,13 @@ function ModuleSection({
   ].filter(Boolean)
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div ref={ref} className="rounded-xl border">
+      <div ref={ref} className="rounded-2xl border">
         <CollapsibleTrigger
           render={
             // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left hover:bg-muted/50"
+              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-muted/50"
             />
           }
         >

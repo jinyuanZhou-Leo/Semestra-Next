@@ -4,7 +4,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.modules.lms import reads
@@ -25,12 +25,21 @@ async def file_content(
     file_id: str,
     ctx: Annotated[Ctx, Depends(get_ctx)],
     download: Annotated[bool, Query(description="Send as an attachment")] = False,
-) -> StreamingResponse:
+    check: Annotated[
+        bool, Query(description="Only check that the file opens (204, or the same errors)")
+    ] = False,
+) -> Response:
     meta, chunks = await reads.open_file(ctx, course_id, file_id)
+    if check:
+        # The first chunk is already read; closing the stream stops the transfer from the LMS.
+        await anext(chunks, None)
+        await chunks.aclose()  # pyright: ignore[reportAttributeAccessIssue]
     # End the transaction before streaming (the connection is not held while the file flows);
     # what the read cached is stored after it.
     await ctx.db.commit()
     await run_after_commit(ctx)
+    if check:
+        return Response(status_code=204)
     mime = meta.mime_type or "application/octet-stream"
     inline = not download and mime in INLINE
     disposition = "inline" if inline else "attachment"

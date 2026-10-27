@@ -133,7 +133,7 @@ function Total({ items }: { items: GradeItem[] }) {
   const total = items.find((g) => g.kind === 'total')
   if (!total || (total.score == null && !total.grade)) return null
   return (
-    <div className="flex items-baseline gap-3 rounded-xl border px-4 py-3">
+    <div className="flex items-baseline gap-3 rounded-2xl border px-4 py-3">
       <span className="text-sm text-muted-foreground">{m.canvas_tab_grades_current()}</span>
       {total.score != null ? (
         <span className="font-heading text-2xl font-semibold tabular-nums">

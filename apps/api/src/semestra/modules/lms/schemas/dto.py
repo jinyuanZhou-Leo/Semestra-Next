@@ -5,7 +5,15 @@ from datetime import datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+)
+from pydantic_core import to_jsonable_python
 
 from semestra.core.agent_output import ForAgents
 from semestra.modules.lms.markdown import to_markdown
@@ -78,10 +86,30 @@ def _web_only(value: object) -> object:
 WebUrl = Annotated[str | None, BeforeValidator(_web_only)]
 
 
+# Serialization context that keeps `exclude=True` fields (a file's download address): the
+# module's server-side cache stores DTOs whole, and reads rebuild them from it.
+INTERNAL = {"internal": True}
+
+
 class Dto(BaseModel):
     external_id: str
     web_url: WebUrl = Field(default=None, description="Opens the item on the platform")
     raw_kind: str | None = Field(default=None, description="The platform's own type (debugging)")
+
+    @model_serializer(mode="wrap")
+    def _keep_internal(self, handler: SerializerFunctionWrapHandler, info: SerializationInfo):
+        data = handler(self)
+        if not (info.context or {}).get("internal"):
+            return data
+        for name, field in type(self).model_fields.items():
+            value = getattr(self, name)
+            if field.exclude is True and value is not None:
+                data[name] = (
+                    to_jsonable_python(value, context=info.context)
+                    if info.mode_is_json()
+                    else value
+                )
+        return data
 
 
 class ConnectionSummary(BaseModel):
