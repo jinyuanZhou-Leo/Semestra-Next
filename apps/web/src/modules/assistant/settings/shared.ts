@@ -8,12 +8,6 @@ import { useModules } from '@/app/registry'
 import { useReportSectionStatus } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 
-export const EFFECT_TITLES: Record<AgentToolInfo['effect'], () => string> = {
-  read: m.assistant_effect_read,
-  write: m.assistant_effect_write,
-  destructive: m.assistant_effect_destructive,
-}
-
 /**
  * Names for backend modules that provide tools but have no frontend module of their own (or one
  * under another id), so the lists never show a raw id like `layouts`.
@@ -26,14 +20,25 @@ const BACKEND_MODULE_TITLES: Record<string, () => string> = {
   layouts: m.assistant_module_layouts,
 }
 
+/**
+ * Tools listed under another module than the one that defines them, where that is the module a
+ * user would look in: saving a chat attachment puts a file into a course.
+ */
+const TOOL_GROUPS: Record<string, string> = {
+  'agent.attachment.save': 'files',
+}
+
 export type ToolGroup = { id: string; title: string; tools: AgentToolInfo[] }
 
-/** Tools by the module or plugin that provides them, named as the app names it. */
+/**
+ * Tools by the module or plugin that provides them, named as the app names it: the modules with
+ * the most tools first, plugins last.
+ */
 export function useToolGroups(tools: readonly AgentToolInfo[]): ToolGroup[] {
   const modules = useModules()
   const groups = new Map<string, ToolGroup>()
   for (const tool of tools) {
-    const id = tool.plugin_id ?? tool.module
+    const id = tool.plugin_id ?? TOOL_GROUPS[tool.name] ?? tool.module
     let group = groups.get(id)
     if (!group) {
       const title =
@@ -43,7 +48,10 @@ export function useToolGroups(tools: readonly AgentToolInfo[]): ToolGroup[] {
     }
     group.tools.push(tool)
   }
-  return [...groups.values()]
+  const isPlugin = (group: ToolGroup) => group.tools.some((tool) => tool.plugin_id !== null)
+  return [...groups.values()].toSorted(
+    (a, b) => Number(isPlugin(a)) - Number(isPlugin(b)) || b.tools.length - a.tools.length,
+  )
 }
 
 /** Saves the assistant preferences at once (the cache first), reporting beside the title. */

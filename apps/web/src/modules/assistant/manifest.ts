@@ -1,4 +1,4 @@
-import { Bookmark, ListChecks, MessageCircle, Plug, Trash2, Wrench } from 'lucide-react'
+import { Bookmark, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { AssistantDock } from './components/AssistantDock'
@@ -8,7 +8,7 @@ const settings = () => import('./settings/sections')
 
 /**
  * M12 AI 助手 (shown as Sem): the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
- * the settings for auto-approval, MCP and the tool catalog. The app shell docks the panel through
+ * the settings for approvals (Sem and MCP clients) and connecting MCP clients. The app shell docks the panel through
  * `assistant.Dock`.
  */
 export default defineModule({
@@ -57,6 +57,16 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.ApprovalsSection }))),
     },
     {
+      id: 'assistant-mcp-permissions',
+      level: 'account',
+      group: 'ai-permissions',
+      title: m.assistant_settings_mcp_permissions,
+      description: m.assistant_settings_mcp_permissions_description,
+      icon: PlugZap,
+      order: 30,
+      component: preloadable(() => settings().then((s) => ({ default: s.McpPermissionsSection }))),
+    },
+    {
       id: 'assistant-memory-enabled',
       level: 'account',
       group: 'ai-memory',
@@ -95,16 +105,6 @@ export default defineModule({
       icon: Plug,
       order: 21,
       component: preloadable(() => settings().then((s) => ({ default: s.McpSection }))),
-    },
-    {
-      id: 'assistant-tools',
-      level: 'account',
-      group: 'ai-mcp',
-      title: m.assistant_settings_tools,
-      description: m.assistant_settings_tools_description,
-      icon: Wrench,
-      order: 22,
-      component: preloadable(() => settings().then((s) => ({ default: s.ToolsSection }))),
     },
   ],
   realtimeInvalidations: {

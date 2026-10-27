@@ -207,10 +207,9 @@ test('old links to the single AI page open the AI page that now holds the sectio
 test('an old AI link with a section lands on the page holding it', async () => {
   mount('/?settings=account/ai#assistant-mcp')
   const nav = await screen.findByRole('navigation', { name: 'Settings' })
-  expect(within(nav).getByRole('button', { name: 'MCP and tools' })).toHaveAttribute(
-    'aria-current',
-    'page',
-  )
-  expect(await screen.findByRole('heading', { name: 'MCP' }, { timeout: 5000 })).toBeInTheDocument()
+  expect(within(nav).getByRole('button', { name: 'MCP' })).toHaveAttribute('aria-current', 'page')
+  expect(
+    await screen.findByRole('heading', { name: 'MCP server' }, { timeout: 5000 }),
+  ).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'AI providers' })).not.toBeInTheDocument()
 })

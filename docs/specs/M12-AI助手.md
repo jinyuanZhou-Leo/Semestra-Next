@@ -124,12 +124,10 @@ agent_preferences
 - AI 未配置时面板显示 `<AiRequired purpose="chat">` 引导。
 
 ### 6.2 设置分区（账户设置「AI」小标题下的两页，M11 §5.2）
-- **权限**（分组 `ai-permissions`，分区 `assistant-approvals`）：按 effect 分三行，每行说明这一类的规则，展开后按模块列出具体工具（默认折叠）。
-  - 读取：徽标「无需确认」，只列工具。
-  - 修改：总开关「自动批准所有修改」+「已自动批准 n/总数」；部分开启时开关为关，旁边徽标「部分开启 · n/总数」。从关闭或部分开启到全部开启要先确认（ConfirmDialog「自动批准全部 N 个修改？」，提醒 Sem 读到的内容也可能触发），关闭不用确认。展开后每个模块一个开关（同样的规则与确认）和每个工具一个开关；工具行用 `Item size="sm"`。没有前端模块的后端模块（account、agent、calendar、core、layouts）用 `assistant_module_<id>` 文案命名。
-  - 分区标题「Sem 可以做什么」，说明「按效果决定哪些操作需要你确认」。
-  - 删除：徽标「始终询问」（destructive 不能自动批准），附「设置 MCP 客户端能否删除」链接跳到 MCP 页。
-- **MCP 与工具**（分组 `ai-mcp`）：`assistant-mcp`（允许删除类操作开关、端点地址、配置示例）与 `assistant-tools`（可用工具目录，只读；每个模块一行可展开，行内显示"读取 n · 修改 n · 删除 n"，展开后是本地化名称、说明与 effect 徽标）。
+- **权限**（分组 `ai-permissions`）：两个分区，行名统一为「读取数据 / 修改数据 / 删除数据」，文案用正式用语（2026-10-27 方案 A，`discussions/2026-10-27-AI权限与MCP工具方案.md`）。
+  - **Sem**（`assistant-approvals`）：读取一行写「无需批准」；删除一行带锁写「每次批准」（destructive 不能自动批准）；修改一行是分段控件「每次批准 / 按模块设置 / 全部自动批准」。三档是同一份 `auto_approve` 列表的三种状态（空 / 部分 / 全部，只算 `confirm` 为真的写操作）：部分开启时显示「按模块设置」；在空或全部时选「按模块设置」只在本页记住，刷新后按列表重新推断。选「全部自动批准」先确认（ConfirmDialog「自动批准全部 N 项修改操作？」，提醒 Sem 读到的内容也可能触发），回到「每次批准」不用确认。「按模块设置」时下方是模块表（`SettingsTable`）：名称 + 第二行「共 n 项修改操作 · 需要批准 / 自动批准」或「已自动批准 m/n 项」，开关（部分开启时旁边徽标「部分开启」，模块开关不再确认），行末 ⋯「设置单项操作…」打开该模块的工具开关对话框（只显示本地化标题，不显示英文说明）。模块按修改操作数从多到少排，插件在最后；`agent.attachment.save` 归在「文件」下（`shared.ts` 的 `TOOL_GROUPS`）；没有前端模块的后端模块用 `assistant_module_<id>` 命名。不是「每次批准」时下方提示自动批准的操作也可能被 Sem 读到的内容触发。
+  - **MCP 客户端**（`assistant-mcp-permissions`）：读取「允许」（任何 API 令牌）；修改需要读写令牌，按钮「管理 API 令牌」打开安全 → API 令牌；删除是 `mcp_allow_destructive` 开关（还需读写令牌，默认关）。提示执行前是否再次确认由客户端决定。
+- **MCP**（分组 `ai-mcp`，原「MCP 与工具」）：`assistant-mcp`（服务地址、创建 API 令牌、Claude Desktop / Claude Code / Cursor 配置示例，末尾一行「工具与提示词参考」链接文档站 `/<lang>/mcp/tools`）。原来的「可用工具」目录已删除：它列的是 Sem 的工具（含 MCP 拿不到的 Sem 专用工具、不含 MCP 提示词），也不反映令牌权限，与权限页重复；完整清单以文档站为准。
 
 ## 7. 本地化
 - 能力与 skill 的界面显示名：`messages` 中 `capability_<name 下划线化>_title`；由各模块在实现 capability 时一并提供（M00 CI 检查：每个 expose 含 agent 的 capability 都有中英标题）。
@@ -199,7 +197,7 @@ agent_preferences
 - 流式事件直接写入 `agentSessionGet` 的查询缓存，回合结束后重新读取服务器版本。
 - 工作范围：新会话默认用当前页面的范围，用户选过之后以选择为准；已有会话显示并修改会话自己的范围（`agent.session.update`）。
 - 提案卡片的参数编辑只覆盖模型已给出的简单字段（字符串、数字、布尔、枚举），字段名优先用 `assistant_field_<字段>` 文案。
-- 设置分区（账户设置「AI」小标题，第三轮拆页）：`assistant-approvals` 在「权限」页（按 effect 分组 + 总开关，见 §6.2），`assistant-mcp`（地址、Claude Desktop / Claude Code / Cursor 配置示例、允许删除类操作）与 `assistant-tools`（工具目录）在「MCP 与工具」页。
+- 设置分区（账户设置「AI」小标题，第三轮拆页；2026-10-27 按方案 A 重做，见 §6.2）：「权限」页是 `assistant-approvals`（Sem）与 `assistant-mcp-permissions`（MCP 客户端），「MCP」页是 `assistant-mcp`（地址、配置示例、文档站工具清单链接）。
 - 附件解析（Sem 重构 PR 2）：上传时用 M07 的解析器（`files.parse`，PDF/Office 在限时限内存的子进程里）按内容识别类型并读成按页 markdown，存 `agent_attachment_pages`（附件 id、页码、markdown、`needs_ocr`），附件行记下 `doc_kind`、`page_count`、`parse_error`；不切块、不建索引，读不了的文件照样保存并记下原因。agent 专用的只读 capability `agent.attachment.read(attachment_id, page_from, page_to)` 一次最多 10 页、约 4 万字符，返回 `next_page`。类型按内容判断（`detect`，不信浏览器给的 MIME，Windows 上 `.ics`、`.md` 常是 `application/octet-stream`），收图片（png/jpeg/webp/gif）和 M07 能读的文档（PDF、DOCX、PPTX、XLSX、CSV、HTML、文本、Markdown、ICS），其他 415；配额先粗查一次再解析，免得满额时还白跑一分钟子进程。ICS 不存页、不给模型原文，`agent.attachment.read` 返回 `note` 提示交给 `imports.session.create`。单页超过 2 万字符时截断并标 `truncated`；`page_to` 早于 `page_from` 返回 `common.validation`；解析之前就存在的附件（`doc_kind` 为空）返回 `agent.attachment_not_read`。代码在 `agent/attachments.py`。
 - 附件进上下文（Sem 重构 PR 2b，`agent/attachment_context.py`，由 `history.attachment_content` 调用）：每个附件先给一行清单 `<attachment id name type pages chars>`。全文不超过约 6k token（`FULL_TEXT_CHARS` 2.4 万字符）的文档逐页全文给出（`--- page N ---`，`wrap_untrusted` 包装）；更大的只给前 2 页和目录（markdown 标题及页码，最多 60 条；标题是文档内容，同样 `wrap_untrusted`，提示语在包装外），并提示用 `agent.attachment.read` 读其他页；`agent.attachment.read` 的结果也在 `tools.UNTRUSTED_RESULTS` 里，被截断的页末写明截断。ICS 摘要按（附件, 时区）在工作线程里解析一次并缓存。`agent.attachment.read` 读到没有文字的扫描页时，`note` 说明读不了、让模型向用户要文字或截图。PDF 一律给解析出的文字，不再整份作为文档块发送。扫描页（无文字层）：模型能看图时附上页面图片（每个附件最多 5 页，150 DPI，进程内缓存），否则写明是扫描页、当前模型看不了图。图片：能看图给原图，否则给说明。ICS 只给摘要（识别到的课程代码、每周课次与单次活动数量、日期范围，按会话所在 Program 的时区），不给原文，并提示交给 `imports.session.create`。读不了的文件说明原因，并让模型请用户粘贴文字或换格式。只依赖存好的行和模型能力，同一附件每次请求渲染结果相同（提示缓存）。
 - 附件保存与清理（Sem 重构 PR 4）：`agent.attachment.save`（`POST /agent/attachments/{id}:save`，也给 agent）把附件存成课程文件（`save_bytes_as_file`，`source_kind: agent`，记在 `file_item_id`，同一课程再存一次返回同一文件）；聊天里已发送消息的附件右侧有「保存到课程文件」按钮，列出会话所在学期的课程；已保存的附件图标变为已保存，提示「已保存到 X」，菜单里给那门课打勾，并可打开已保存的文件（M07 预览对话框）。没被任何消息引用、超过 24 小时的附件由 `@periodic("agent.attachments.cleanup")` 每小时删除，连同文件，释放配额。

@@ -1112,7 +1112,7 @@ test('MCP setups carry the address and the token', () => {
   expect(mcpConfig('claude-desktop', url, 'spat_x')).toContain('mcp-remote')
 })
 
-test('assistant permissions group tools by effect, with a master switch for changes', async () => {
+test('Sem changes ask every time, by module or all auto-approved', async () => {
   const tool = (name: string, effect: string, module = 'grading', confirm = effect !== 'read') => ({
     name,
     module,
@@ -1150,48 +1150,56 @@ test('assistant permissions group tools by effect, with a master switch for chan
     }),
   )
   renderWithRouter(<ApprovalsSection />)
-  // Tools are grouped by effect; only changes have switches, and the lists start folded.
-  const all = await screen.findByRole('switch', { name: 'Auto-approve all changes' })
-  expect(all).not.toBeChecked()
-  expect(screen.getByText('0/3 auto-approved')).toBeInTheDocument()
-  expect(screen.getByText('No confirmation')).toBeInTheDocument()
-  expect(screen.getByText('Always asks')).toBeInTheDocument()
-  expect(screen.queryByRole('switch', { name: 'Update an assessment' })).not.toBeInTheDocument()
+  const segment = (name: string) => screen.getByRole('button', { name })
+  expect(await screen.findByRole('button', { name: 'Ask every time' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
-  const [, changeTools, deleteTools] = screen.getAllByRole('button', { name: /^\d tools/ })
-  await userEvent.click(deleteTools!)
-  expect(await screen.findByText('Delete an assessment')).toBeInTheDocument()
-  expect(screen.queryByRole('switch', { name: 'Delete an assessment' })).not.toBeInTheDocument()
+  // By module: a table of modules; a backend module without a frontend module is still named.
+  await userEvent.click(segment('By module'))
+  const table = await screen.findByRole('table', { name: 'Auto-approval by module' })
+  expect(within(table).getByText('Pages and cards')).toBeInTheDocument()
+  await userEvent.click(
+    within(table).getByRole('switch', { name: 'Auto-approve modifications in Pages and cards' }),
+  )
+  await waitFor(() => expect(patches).toEqual([{ auto_approve: ['layouts.card.add'] }]))
 
-  await userEvent.click(changeTools!)
-  // A backend module without a frontend module still gets a readable name.
-  expect(
-    screen.getByRole('switch', { name: 'Auto-approve changes in Pages and cards' }),
-  ).toBeInTheDocument()
-  const update = await screen.findByRole('switch', { name: 'Update an assessment' })
-  await userEvent.click(update)
-  await waitFor(() => expect(patches).toEqual([{ auto_approve: ['grading.assessment.update'] }]))
-  expect(update).toBeChecked()
-  // Partly on: the master switch stays off but says so.
-  expect(await screen.findByText('Partly on · 1/3')).toBeInTheDocument()
-  expect(all).not.toBeChecked()
+  // Single actions are set in a dialog from the row's menu.
+  const grades = within(table).getByRole('row', { name: /Grades/ })
+  await userEvent.click(within(grades).getByRole('button', { name: 'More actions' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Choose actions…' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Grades: auto-approved actions' })
+  await userEvent.click(within(dialog).getByRole('switch', { name: 'Update an assessment' }))
+  await waitFor(() =>
+    expect(patches.at(-1)).toEqual({
+      auto_approve: ['grading.assessment.update', 'layouts.card.add'],
+    }),
+  )
+  expect(await within(table).findByText('1 of 2 actions auto-approved')).toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
 
-  // Turning many changes on at once asks first; cancelling changes nothing.
-  await userEvent.click(all)
-  let confirm = await screen.findByRole('alertdialog', { name: 'Auto-approve all 3 changes?' })
+  // Auto-approving everything asks first; cancelling changes nothing.
+  await userEvent.click(segment('Auto-approve all'))
+  let confirm = await screen.findByRole('alertdialog', {
+    name: 'Auto-approve all 3 modifications?',
+  })
   await userEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
-  expect(patches).toHaveLength(1)
-  await userEvent.click(all)
-  confirm = await screen.findByRole('alertdialog', { name: 'Auto-approve all 3 changes?' })
+  expect(patches).toHaveLength(2)
+  await userEvent.click(segment('Auto-approve all'))
+  confirm = await screen.findByRole('alertdialog', { name: 'Auto-approve all 3 modifications?' })
   await userEvent.click(within(confirm).getByRole('button', { name: 'Auto-approve' }))
   await waitFor(() =>
     expect(patches.at(-1)).toEqual({
       auto_approve: ['grading.assessment.create', 'grading.assessment.update', 'layouts.card.add'],
     }),
   )
-  await waitFor(() => expect(all).toBeChecked())
-  // Turning them off needs no confirmation.
-  await userEvent.click(all)
+  await waitFor(() => expect(segment('Auto-approve all')).toHaveAttribute('aria-pressed', 'true'))
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+
+  // Going back needs no confirmation.
+  await userEvent.click(segment('Ask every time'))
   await waitFor(() => expect(patches.at(-1)).toEqual({ auto_approve: [] }))
 })
 
