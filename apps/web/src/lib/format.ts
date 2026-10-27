@@ -33,7 +33,12 @@ function hourCycle(opts: { hour12?: boolean }): { hourCycle?: 'h12' | 'h23' } {
 
 /** The first day of the week as 1 (Monday) … 7 (Sunday). */
 export function firstDayOfWeek(): 1 | 7 {
-  if (preferences.weekStart !== 0) return preferences.weekStart
+  return firstDayFor(preferences.weekStart)
+}
+
+/** The first day of the week (1 Monday, 7 Sunday) for a `week_start` preference; 0 follows the language. */
+export function firstDayFor(weekStart: FormatPreferences['weekStart']): 1 | 7 {
+  if (weekStart !== 0) return weekStart
   return getLocale().startsWith('zh') ? 1 : 7
 }
 

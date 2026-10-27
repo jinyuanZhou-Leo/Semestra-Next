@@ -22,6 +22,7 @@ type CalendarProps = {
   events: { id: string; title: string; display?: string }[]
   eventDrop: (info: unknown) => void
   datesSet: (info: unknown) => void
+  initialDate: string
   weekNumberContent: (arg: { date: Date }) => string
 }
 const calendar = vi.hoisted(() => ({ props: null as CalendarProps | null }))
@@ -34,9 +35,9 @@ vi.mock('@fullcalendar/react', () => ({
     useImperativeHandle(ref, () => ({
       getApi: () => ({ prev() {}, next() {}, gotoDate() {}, changeView() {} }),
     }))
-    // Like FullCalendar, report the visible dates once when mounted.
+    // Like FullCalendar, report the visible dates once when mounted: the week of `initialDate`.
     const reported = useRef(false)
-    const { datesSet } = props
+    const { datesSet, initialDate } = props
     useEffect(() => {
       if (reported.current) return
       reported.current = true
@@ -46,10 +47,10 @@ vi.mock('@fullcalendar/react', () => ({
         view: {
           type: 'timeGridWeek',
           title: 'Jan 11 – 17, 2026',
-          calendar: { getDate: () => new Date(2026, 0, 12) },
+          calendar: { getDate: () => new Date(`${initialDate}T00:00`) },
         },
       })
-    }, [datesSet])
+    }, [datesSet, initialDate])
     return (
       <ul data-testid="calendar">
         {props.events
@@ -288,6 +289,34 @@ test('the week view asks for no meetings, events or feeds before they are needed
   }
   expect(gets).toContain('/programs/p1/calendar')
   expect(gets.filter((path) => /\/meetings$|\/events$|\/calendar-feeds$/.test(path))).toEqual([])
+})
+
+test('the calendar asks for the week it opens on without waiting for it to draw, then the weeks either side', async () => {
+  const ranges: string[] = []
+  const listen = ({ request }: { request: Request }) => {
+    const url = new URL(request.url)
+    // The route's prefetch reads the sources of every module in the app; this test registers a
+    // few, so only the page's own requests (its two sources) are counted.
+    if (
+      url.pathname === '/programs/p1/calendar' &&
+      url.searchParams.getAll('sources').length === 2
+    ) {
+      ranges.push(`${url.searchParams.get('start')}..${url.searchParams.get('end')}`)
+    }
+  }
+  server.events.on('request:start', listen)
+  try {
+    await openCalendar()
+    await waitFor(() => expect(ranges).toHaveLength(3))
+  } finally {
+    server.events.removeListener('request:start', listen)
+  }
+  // The term starts on Tue Jan 6, 2026; weeks start on Sunday in English.
+  expect(ranges).toEqual([
+    '2026-01-04..2026-01-11',
+    '2025-12-28..2026-01-04',
+    '2026-01-11..2026-01-18',
+  ])
 })
 
 test('dragging a class asks whether to move only this one, which saves an exception', async () => {

@@ -129,7 +129,7 @@ test("preloadPage starts the page's data with its code", () => {
   const queryClient = new QueryClient()
 
   void preloadPage(COURSE, 'files', queryClient, { modules })
-  expect(prefetch).toHaveBeenCalledWith(COURSE, queryClient, { preload: false })
+  expect(prefetch).toHaveBeenCalledWith(COURSE, queryClient, { preload: false, modules })
 })
 
 test('installedModules leaves out plugins the account has not installed', () => {

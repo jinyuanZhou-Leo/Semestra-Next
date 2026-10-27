@@ -42,31 +42,29 @@ import { DragChoiceDialog } from '../components/DragChoiceDialog'
 import { EventDialog, type EventSlot } from '../components/EventDialog'
 import { ExportDialog } from '../components/ExportDialog'
 import { FeedsDialog } from '../components/FeedsDialog'
-import {
-  type CalendarFilters,
-  DEFAULT_FILTERS,
-  FilterPanel,
-  visibleSources,
-} from '../components/FilterPanel'
+import { FilterPanel } from '../components/FilterPanel'
 import { MeetingDialog } from '../components/MeetingDialog'
 import { MoveDialog, type MoveTarget } from '../components/MoveDialog'
 import { OccurrenceDetails } from '../components/OccurrenceDetails'
 import { TimetableView } from '../components/TimetableView'
+import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from '../filters'
 import { useProgramTimezone } from '../hooks'
 import { weekLabel } from '../labels'
 import { isMeeting, isOneOff, occurrenceColor, weekOf } from '../occurrence'
 import {
-  type CalendarSettings,
+  type CalendarNav,
+  type CalendarView,
+  calendarAnchor,
   invalidateSchedule,
+  occurrenceOptions,
+  occurrenceRange,
+  stepPeriod,
   useCalendarInfo,
   useCalendarSettings,
   useOccurrences,
   useTermMeetings,
 } from '../queries'
 import { hhmm, isoDay, isoWeekday, markerDay, plusDays, toWall, todayIn, wall } from '../time'
-
-export type CalendarView = CalendarSettings['default_view']
-type Nav = { view: CalendarView; date: string }
 
 const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
   week: 'timeGridWeek',
@@ -109,7 +107,7 @@ function TermCalendar({
   const sources = useCalendarSources()
   const courses = useCourses(programId, term.id).data?.items ?? []
   const weeks = useCalendarInfo(term.id).data?.weeks ?? []
-  const [nav, setNav] = useUiPref<Nav | null>('calendar.nav', null, { scope: term.id })
+  const [nav, setNav] = useUiPref<CalendarNav | null>('calendar.nav', null, { scope: term.id })
   const [filters, setFilters] = useUiPref<CalendarFilters>('calendar.filters', DEFAULT_FILTERS, {
     scope: term.id,
   })
@@ -117,9 +115,9 @@ function TermCalendar({
   // FullCalendar gets Program wall-clock times, so its "now" (today, the now line) must be too.
   const now = useCallback(() => toWall(new Date().toISOString(), timezone), [timezone])
   const view: CalendarView = nav?.view ?? settings.default_view
-  const anchor =
-    nav?.date ?? (today >= term.start_date && today <= term.end_date ? today : term.start_date)
-  const [range, setRange] = useState<{ start: string; end: string } | null>(null)
+  const anchor = calendarAnchor(nav, term, today)
+  // The day the calendar reports showing; until it has drawn, the one it opens on.
+  const [shownDate, setShownDate] = useState<string | null>(null)
   const [title, setTitle] = useState('')
 
   const [details, setDetails] = useState<Occurrence | null>(null)
@@ -152,11 +150,34 @@ function TermCalendar({
   }
 
   const wanted = visibleSources(filters, sources)
+  // Worked out from the day shown rather than waiting for the calendar to report its dates, so
+  // the first request starts with the page (and matches the page's prefetch).
+  const params = (shown: Exclude<CalendarView, 'timetable'>, date: string) => ({
+    ...occurrenceRange(shown, date, firstDayOfWeek()),
+    term_id: term.id,
+    sources: wanted,
+  })
   const occurrences = useOccurrences(
     programId,
-    { start: range?.start ?? '', end: range?.end ?? '', term_id: term.id, sources: wanted },
-    range !== null && view !== 'timetable' && wanted.length > 0,
+    params(view === 'timetable' ? 'week' : view, shownDate ?? anchor),
+    view !== 'timetable' && wanted.length > 0,
   ).data
+  // Once the days shown have loaded, the periods either side load too, so an arrow shows its
+  // days at once instead of an empty week first.
+  const loadNeighbours = (shown: Exclude<CalendarView, 'timetable'>, date: string) => {
+    if (wanted.length === 0) return
+    queryClient
+      .fetchQuery(occurrenceOptions(programId, params(shown, date)))
+      .then(() => {
+        for (const step of [-1, 1] as const) {
+          void queryClient.prefetchQuery(
+            occurrenceOptions(programId, params(shown, stepPeriod(shown, date, step))),
+          )
+        }
+      })
+      // The calendar's own query reports errors.
+      .catch(() => undefined)
+  }
   const showCancelled = filters.showCancelled ?? settings.cancelled_display === 'strike'
   const hidden = new Set(filters.hiddenCourses)
   const items = (wanted.length > 0 ? (occurrences?.items ?? []) : []).filter(
@@ -168,7 +189,7 @@ function TermCalendar({
   const upsertException = useMutation({ ...scheduleExceptionUpsertMutation() })
   const updateMeeting = useMutation({ ...scheduleMeetingUpdateMutation() })
 
-  const saveNav = (next: Nav) => {
+  const saveNav = (next: CalendarNav) => {
     if (next.view !== nav?.view || next.date !== nav?.date) setNav(next)
   }
   // The calendar is keyed by its view, so storing the new one is the switch (one mount).
@@ -473,14 +494,14 @@ function TermCalendar({
                 eventResize={onChange}
                 eventContent={renderEventContent}
                 datesSet={(arg) => {
-                  const start = isoDay(arg.start)
-                  const end = isoDay(arg.end)
-                  setRange((r) => (r?.start === start && r.end === end ? r : { start, end }))
                   setTitle(arg.view.title)
                   const type = arg.view.type
                   const nextView =
                     type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
-                  saveNav({ view: nextView, date: isoDay(arg.view.calendar.getDate()) })
+                  const date = isoDay(arg.view.calendar.getDate())
+                  setShownDate(date)
+                  saveNav({ view: nextView, date })
+                  loadNeighbours(nextView, date)
                 }}
               />
             </div>
