@@ -111,32 +111,39 @@ function ProgramUnbound() {
   const settings = useSettingsDialog()
   const openConnections = useOpenConnections()
   const connections = useQuery(lmsConnectionListOptions())
-  if (!connections.data) return null
-  const none = connections.data.items.length === 0
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Link2 aria-hidden />
-        </EmptyMedia>
-        <EmptyTitle>{none ? m.lms_connections_empty() : m.lms_course_program_unbound()}</EmptyTitle>
-        <EmptyDescription>
-          {none ? m.lms_course_needs_connection() : m.lms_course_program_unbound_hint()}
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button
-          size="sm"
-          onClick={
-            none
-              ? openConnections
-              : () => settings.open({ level: 'program', group: 'integrations' })
-          }
-        >
-          {none ? m.lms_connection_add() : m.lms_course_open_program_settings()}
-        </Button>
-      </EmptyContent>
-    </Empty>
+    <AsyncBoundary query={connections}>
+      {(data) => {
+        const none = data.items.length === 0
+        return (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Link2 aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>
+                {none ? m.lms_connections_empty() : m.lms_course_program_unbound()}
+              </EmptyTitle>
+              <EmptyDescription>
+                {none ? m.lms_course_needs_connection() : m.lms_course_program_unbound_hint()}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                size="sm"
+                onClick={
+                  none
+                    ? openConnections
+                    : () => settings.open({ level: 'program', group: 'integrations' })
+                }
+              >
+                {none ? m.lms_connection_add() : m.lms_course_open_program_settings()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        )
+      }}
+    </AsyncBoundary>
   )
 }
 
@@ -179,7 +186,7 @@ function LinkedCourse({
     ...lmsCourseLinkDeleteMutation(),
     onSuccess: async () => {
       setUnlinking(false)
-      await queryClient.invalidateQueries()
+      await invalidateLms(queryClient, { courseId })
     },
     onError: (err) => (setUnlinking(false), toastError(err)),
   })
@@ -208,7 +215,8 @@ function LinkedCourse({
               ) : (
                 <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
               )}
-              {link.last_synced_at ? formatTimeAgo(link.last_synced_at, now) : null}
+              {/* The last successful refresh: next to an error it would read as when it broke. */}
+              {link.last_synced_at && !code ? formatTimeAgo(link.last_synced_at, now) : null}
             </span>
             {link.web_url ? (
               <Tooltip>
@@ -340,7 +348,7 @@ export function pickerGroups(
 
 /**
  * One searchable list of the platform's courses. Picking a course links it; moving an existing
- * link drops what was imported through it, so that is confirmed first.
+ * link drops the tracking of what was imported through it, so that is confirmed first.
  */
 function CoursePicker({
   programId,
@@ -370,7 +378,7 @@ function CoursePicker({
     ...lmsCourseLinkSetMutation(),
     onSuccess: async () => {
       setReplacing(null)
-      await queryClient.invalidateQueries()
+      await invalidateLms(queryClient, { courseId })
       toast.success(m.lms_course_linked())
       onDone()
     },

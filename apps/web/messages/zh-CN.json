@@ -2252,7 +2252,7 @@
   "lms_course_change_menu": "更换课程…",
   "lms_course_unlink_menu": "解除关联…",
   "lms_course_actions": "{course} 的操作",
-  "lms_course_error_title": "暂时读不到这门课在 {provider} 上的内容",
+  "lms_course_error_title": "读不到这门课在 {provider} 上的内容",
   "lms_course_open_connections": "打开 LMS 连接",
   "lms_course_needs_connection": "先添加一个 LMS 连接，再把本课程关联到平台上的课程。",
   "lms_course_linked_to": "已关联到 {course}",
