@@ -175,4 +175,4 @@ docs/
 - [模块规格](docs/specs/README.md)：每个模块的设计与实现说明
 - [CLAUDE.md](CLAUDE.md)：开发约定与已知的坑
 - [文档站](apps/docs)（本地运行 `pnpm docs:dev` 后打开 `http://localhost:3001/docs`）：自部署、AI 服务商、MCP、Canvas、API 参考与[插件开发指南](apps/docs/content/docs/plugins.zh.mdx)
-- [部署](deploy/README.md)与[上线安全清单](deploy/SECURITY-CHECKLIST.md)
+- [部署](deploy/README.md)

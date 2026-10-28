@@ -15,7 +15,6 @@ apps/api/data
 **/test-results
 apps/web/src/paraglide
 docs
-deploy/hosted
 deploy/selfhost
 .env
 .env.*

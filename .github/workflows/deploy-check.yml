@@ -10,12 +10,6 @@ on:
       - deploy/**
       - .dockerignore
       - .github/workflows/**
-      # Inputs of the edge image that can break its build.
-      - apps/site/package.json
-      - apps/site/astro.config.mjs
-      - apps/docs/package.json
-      - apps/docs/next.config.*
-      - apps/docs/src/components/mcp-catalog.tsx
   # Draft PRs skip this; marking the PR ready for review runs it.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -23,12 +17,6 @@ on:
       - deploy/**
       - .dockerignore
       - .github/workflows/**
-      # Inputs of the edge image that can break its build.
-      - apps/site/package.json
-      - apps/site/astro.config.mjs
-      - apps/docs/package.json
-      - apps/docs/next.config.*
-      - apps/docs/src/components/mcp-catalog.tsx
   workflow_dispatch:
 
 concurrency:
@@ -45,32 +33,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: shellcheck
-        run: shellcheck deploy/docker/entrypoint.sh deploy/hosted/deploy.sh deploy/hosted/bootstrap-vm.sh
+        run: shellcheck deploy/docker/entrypoint.sh
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
       - name: Compose files
         run: |
-          cp deploy/hosted/.env.example deploy/hosted/.env
-          sed -i 's/^ACME_EMAIL=$/ACME_EMAIL=ci@example.com/' deploy/hosted/.env
-          docker compose --project-directory deploy/hosted -f deploy/hosted/docker-compose.yml --profile staging config -q
           cp deploy/selfhost/.env.example deploy/selfhost/.env
           docker compose --project-directory deploy/selfhost -f deploy/selfhost/docker-compose.yml config -q
           docker compose --project-directory deploy/selfhost -f deploy/selfhost/docker-compose.yml \
             --profile https --profile ai-local config -q
-      - name: Caddyfiles
+      - name: Caddyfile
         run: |
-          cp deploy/hosted/conf.d/staging.caddy.example deploy/hosted/conf.d/staging.caddy
-          docker run --rm -e ACME_EMAIL=ci@example.com -e SEMESTRA_DOMAIN=semestra.example.com \
-            -v "$PWD/deploy/hosted/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            -v "$PWD/deploy/hosted/conf.d:/etc/caddy/conf.d:ro" \
-            caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
           docker run --rm -e SEMESTRA_DOMAIN=semestra.example.com \
             -v "$PWD/deploy/selfhost/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-      - name: JSON configs
-        run: |
-          jq empty deploy/hosted/gcs-lifecycle.json
-
   images:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -143,50 +119,11 @@ jobs:
           test "$code" = 404
           docker rm -f allinone
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: deploy/docker/Dockerfile
-          target: edge
-          load: true
-          tags: semestra-edge:ci
-          cache-from: type=gha,scope=edge
-          cache-to: type=gha,scope=edge,mode=max,ignore-error=true
-
-      - name: Edge image routes the landing page, the docs and the app
-        run: |
-          docker network create semestra-ci
-          docker run -d --name api --network semestra-ci -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci
-          for _ in $(seq 1 30); do
-            if docker exec api python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"; then break; fi
-            sleep 2
-          done
-          docker run -d --name edge --network semestra-ci -p 8080:80 \
-            -e ACME_EMAIL=ci@example.com -e SEMESTRA_DOMAIN=http://localhost \
-            -v "$PWD/deploy/hosted/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            -v "$PWD/deploy/hosted/conf.d:/etc/caddy/conf.d:ro" semestra-edge:ci
-          sleep 3
-          base=http://localhost:8080
-          test "$(curl -s -o /dev/null -w '%{redirect_url}' "$base/")" = "$base/landing/"
-          curl -fsS "$base/landing/" | grep -q '<html lang="en"'
-          curl -fsS "$base/landing/zh/" | grep -q '<html lang="zh-CN"'
-          curl -fsS "$base/docs/en" | grep -qi '<html'
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/docs/en/definitely-missing")" = 404
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/landing/definitely-missing")" = 404
-          curl -s "$base/landing/definitely-missing" | grep -q 'Page not found'
-          curl -fsSI "$base/landing/" | grep -qi '^cache-control: public, max-age=0, must-revalidate'
-          curl -fsSI "$base/docs/en" | grep -qi '^cache-control: public, max-age=0, must-revalidate'
-          curl -fsS -b semestra_session=x -H 'Accept: text/html' "$base/" | grep -qi '<div id="root">'
-          curl -fsS -H 'Accept: text/html' "$base/login" | grep -qi '<div id="root">'
-          curl -fsS "$base/readyz"
-          docker rm -f edge api
-
       - name: Logs on failure
         if: failure()
         run: |
           docker logs api || true
           docker logs allinone || true
-          docker logs edge || true
 
   # The default self-hosted image. Releases build it for arm64 too; amd64 is enough to catch a
   # broken build, a missing system library or a model download that no longer works.
