@@ -1,15 +1,18 @@
 import type { BreakIn } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import { createContext, use } from 'react'
+import { createContext, use, useState } from 'react'
 import { ActionRow, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { DateRangeField } from './DateRangeField'
 
-/** A break with its position: breaks have no id until saved, so the row id is the index. */
-type Row = { index: number; value: BreakIn }
+/**
+ * A break with its position. Breaks have no id until saved, so each row gets a key here that
+ * stays with it when an earlier row is removed (a half-picked range must not move rows).
+ */
+type Row = { index: number; key: string; value: BreakIn }
 type CellProps = CellContext<typeof settingsTableFeatures, Row>
 
 /**
@@ -81,6 +84,9 @@ function RemoveCell({ row }: CellProps) {
 
 const RemoveHeader = () => <span className="sr-only">{m.common_remove()}</span>
 
+let lastKey = 0
+const newKey = () => `break-${++lastKey}`
+
 const column = createColumnHelper<typeof settingsTableFeatures, Row>()
 const columns = column.columns([
   column.display({ id: 'name', header: () => m.academics_break_name_header(), cell: NameCell }),
@@ -111,24 +117,33 @@ export function BreaksTable({
   min?: string
   max?: string
 }) {
+  const [keys, setKeys] = useState(() => value.map(newKey))
+  // Breaks the table did not add itself (a reset draft) get keys by position.
+  const keyOf = (index: number) => keys[index] ?? `break-at-${index}`
   const state: BreaksState = {
     min,
     max,
     update: (index, patch) => onChange(value.map((b, i) => (i === index ? { ...b, ...patch } : b))),
-    remove: (index) => onChange(value.filter((_, i) => i !== index)),
+    remove: (index) => {
+      setKeys(value.map((_, i) => keyOf(i)).filter((_, i) => i !== index))
+      onChange(value.filter((_, i) => i !== index))
+    },
   }
   return (
     <BreaksContext value={state}>
       <SettingsTable
         label={m.academics_term_breaks()}
-        data={value.map((b, index) => ({ index, value: b }))}
+        data={value.map((b, index) => ({ index, key: keyOf(index), value: b }))}
         columns={columns}
-        getRowId={(row) => String(row.index)}
+        getRowId={(row) => row.key}
         columnClassName={COLUMN_CLASS}
         footer={
           <ActionRow
             icon={Plus}
-            onClick={() => onChange([...value, { name: '', start_date: '', end_date: '' }])}
+            onClick={() => {
+              setKeys([...value.map((_, i) => keyOf(i)), newKey()])
+              onChange([...value, { name: '', start_date: '', end_date: '' }])
+            }}
           >
             {m.academics_break_add()}
           </ActionRow>

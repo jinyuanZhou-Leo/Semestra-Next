@@ -87,10 +87,13 @@ function breaksProblem(draft: WizardDraft): string | null {
 export function TermWizard({
   programId,
   onCreated,
+  onSkip,
 }: {
   programId: string
   /** Default: open the new term. Onboarding passes its own and has no "Cancel". */
   onCreated?: (result: TermCreateResult) => void
+  /** Onboarding: "Add later" in place of "Cancel", leaving the Program without a term. */
+  onSkip?: () => void
 }) {
   const id = useId()
   const router = useRouter()
@@ -440,7 +443,11 @@ export function TermWizard({
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
         {step === 0 ? (
-          onCreated ? (
+          onSkip ? (
+            <Button variant="ghost" onClick={onSkip}>
+              {m.academics_onboarding_term_later()}
+            </Button>
+          ) : onCreated ? (
             <span />
           ) : (
             <Button
@@ -481,7 +488,7 @@ export function TermWizard({
           <AlertDialogFooter>
             <AlertDialogCancel variant="ghost">{m.academics_wizard_leave_stay()}</AlertDialogCancel>
             <AlertDialogAction
-              variant="outline"
+              variant="destructive"
               onClick={() => {
                 done.current = true
                 clearDraft(programId)

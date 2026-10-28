@@ -1,5 +1,6 @@
 import { TZDate } from '@date-fns/tz'
 import { addDays, format } from 'date-fns'
+import { isoDay } from '@/lib/day'
 import { intl } from '@/lib/format'
 
 /**
@@ -38,10 +39,7 @@ export function wallDate(iso: string, tz: string): string {
   return format(new TZDate(iso, tz), 'yyyy-MM-dd')
 }
 
-/** `yyyy-MM-dd` of a browser-local `Date` (FullCalendar's range bounds). */
-export function isoDay(local: Date): string {
-  return format(local, 'yyyy-MM-dd')
-}
+export { isoDay }
 
 /**
  * `yyyy-MM-dd` of a FullCalendar date marker. A few callbacks (`weekNumberContent`) pass the

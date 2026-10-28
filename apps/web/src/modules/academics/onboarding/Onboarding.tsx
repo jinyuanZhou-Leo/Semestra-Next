@@ -14,7 +14,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { ChoiceControl } from '@/app/settings/choice'
 import { ProgramForm } from '../components/ProgramForm'
-import { termPath } from '../paths'
+import { programPath, termPath } from '../paths'
 import { invalidateAcademics } from '../queries'
 import { TOUR_DONE_KEY } from '../shell/Tour'
 import { ONBOARDING_STEPS, type OnboardingStep } from '../types'
@@ -58,7 +58,10 @@ export function Onboarding() {
     store(null)
     setTourDone(false)
     const { programId, termId } = progress
-    router.history.replace(programId && termId ? termPath(programId, termId) : '/')
+    // Without a term, Today: it has cards for the tour, and the sidebar offers "New term".
+    router.history.replace(
+      programId ? (termId ? termPath(programId, termId) : `${programPath(programId)}/today`) : '/',
+    )
   }
 
   const extraStep = step >= 3 && step < finishIndex ? extra[step - 3] : undefined
@@ -150,6 +153,7 @@ export function Onboarding() {
           <TermWizard
             programId={progress.programId}
             onCreated={(result) => advance({ termId: result.term.id })}
+            onSkip={() => advance({ termId: undefined })}
           />
         </section>
       ) : null}
@@ -174,9 +178,17 @@ export function Onboarding() {
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
               {m.academics_onboarding_done_title()}
             </h1>
-            <p className="text-muted-foreground">{m.academics_onboarding_done_body()}</p>
+            <p className="text-muted-foreground">
+              {progress.termId
+                ? m.academics_onboarding_done_body()
+                : m.academics_onboarding_done_body_no_term()}
+            </p>
           </div>
-          <Button onClick={finish}>{m.academics_onboarding_start()}</Button>
+          <Button onClick={finish}>
+            {progress.termId
+              ? m.academics_onboarding_start()
+              : m.academics_onboarding_start_no_term()}
+          </Button>
         </section>
       ) : null}
     </main>
