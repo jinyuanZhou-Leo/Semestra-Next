@@ -115,8 +115,8 @@ async def test_scanned_pages_without_vision_are_counted_as_skipped(fx: Fx, fake_
     assert fake_ai.ocr_calls == 0
 
 
-async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
-    fake_ai.enabled.add("vision")
+async def test_scanned_pages_use_the_ocr_model_when_available(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("ocr")
     item = await fx.upload_ready("photo.png", make_png())
     assert item["ocr_skipped_pages"] == 0
     assert fake_ai.ocr_calls == 1
@@ -125,8 +125,8 @@ async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
     assert hits[0]["heading_path"] == ["Scanned heading"]
 
 
-async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
-    fake_ai.enabled.add("vision")
+async def test_a_page_the_ocr_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("ocr")
     fake_ai.ocr_fail_calls = {2}
     scanned = make_pdf(["scan one", "scan two", "scan three"], scanned={0, 1, 2})
     item = await fx.upload_ready("scan.pdf", scanned)
@@ -136,11 +136,31 @@ async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: Fake
     assert (await fx.search("photosynthesis"))["results"]
 
 
+async def test_local_ocr_reads_scanned_pages_without_a_model(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    from semestra.modules.ai import local_ocr
+
+    pages: list[bytes] = []
+
+    def recognize(settings: Settings, png: bytes) -> str:
+        pages.append(png)
+        return "Photosynthesis\nturns light into sugar"
+
+    monkeypatch.setattr(local_ocr, "available", lambda settings: True)
+    monkeypatch.setattr(local_ocr, "recognize", recognize)
+    item = await fx.upload_ready("photo.png", make_png())
+    assert item["ocr_skipped_pages"] == 0
+    assert len(pages) == 1
+    assert fake_ai.ocr_calls == 0
+    assert (await fx.search("photosynthesis"))["results"][0]["item_id"] == item["id"]
+
+
 async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):
     from semestra.modules.files import pipeline
 
     monkeypatch.setattr(pipeline, "OCR_CONCURRENCY", 1)
-    fake_ai.enabled.add("vision")
+    fake_ai.enabled.add("ocr")
     fake_ai.ocr_fail_calls = {1}
     fake_ai.ocr_fail_code = "ai.invalid_key"
     scanned = make_pdf([f"scan {n}" for n in range(10)], scanned=set(range(10)))

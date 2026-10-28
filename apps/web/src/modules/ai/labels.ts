@@ -109,6 +109,7 @@ export const PURPOSE_TITLES: Record<AiPurpose, Message> = {
   chat: m.ai_purpose_chat,
   extraction: m.ai_purpose_extraction,
   vision: m.ai_purpose_vision,
+  ocr: m.ai_purpose_ocr,
   embedding: m.ai_purpose_embedding,
   title: m.ai_purpose_title,
 }
@@ -117,6 +118,7 @@ export const PURPOSE_HINTS: Record<AiPurpose, Message> = {
   chat: m.ai_purpose_chat_hint,
   extraction: m.ai_purpose_extraction_hint,
   vision: m.ai_purpose_vision_hint,
+  ocr: m.ai_purpose_ocr_hint,
   embedding: m.ai_purpose_embedding_hint,
   title: m.ai_purpose_title_hint,
 }
@@ -134,6 +136,7 @@ export const PURPOSE_NEEDS: Record<AiPurpose, Capability> = {
   chat: 'chat',
   extraction: 'chat',
   vision: 'vision',
+  ocr: 'vision',
   embedding: 'embedding',
   title: 'chat',
 }

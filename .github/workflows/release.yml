@@ -38,6 +38,8 @@ jobs:
           - { image: semestra-api, target: api, suffix: "" }
           - { image: semestra-api, target: api-office, suffix: "-office" }
           - { image: semestra-allinone, target: allinone, suffix: "" }
+          # Self-hosting with local OCR; arm64 too, for Docker on Apple Silicon.
+          - { image: semestra-allinone, target: allinone-ocr, suffix: "-ocr", platforms: "linux/amd64,linux/arm64" }
           - { image: semestra-edge, target: edge, suffix: "" }
     steps:
       - uses: actions/checkout@v6
@@ -59,6 +61,8 @@ jobs:
             if [[ "$version" != *-* ]]; then echo "${ref}:latest${{ matrix.suffix }}"; fi
             echo "EOF"
           } >>"$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+        if: ${{ matrix.platforms }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -70,6 +74,7 @@ jobs:
           context: .
           file: deploy/docker/Dockerfile
           target: ${{ matrix.target }}
+          platforms: ${{ matrix.platforms || 'linux/amd64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.target }}

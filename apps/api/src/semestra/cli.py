@@ -25,6 +25,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("openapi", help="print the OpenAPI schema as JSON")
     sub.add_parser("capabilities", help="print the MCP tools and prompts as JSON (docs site)")
 
+    ocr = sub.add_parser("ocr-models", help="download the local OCR models (needs the ocr extra)")
+    ocr.add_argument("--model", help="model pair (default SEMESTRA_LOCAL_OCR_MODEL)")
+
     check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
     check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
     check.add_argument("--since", help="only sessions updated at or after this ISO date")
@@ -91,6 +94,17 @@ def main(argv: list[str] | None = None) -> None:
                 data = catalog()
             json.dump(data, sys.stdout, indent=2, ensure_ascii=False)
             sys.stdout.write("\n")
+        case "ocr-models":
+            import os
+
+            from semestra.core.config import Settings
+            from semestra.modules.ai import local_ocr
+
+            # Not get_settings(): an image build has no secrets yet.
+            default = str(Settings.model_fields["local_ocr_model"].default)
+            model = args.model or os.environ.get("SEMESTRA_LOCAL_OCR_MODEL", default)
+            local_ocr.download_models(model)
+            sys.stdout.write(f"{model}: ready\n")
         case "check-sessions":
             from pathlib import Path
 

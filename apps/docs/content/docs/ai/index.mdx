@@ -33,7 +33,8 @@ Each AI call has a purpose, and each purpose needs one capability from the provi
 | ---------------- | ----------------------------------------------------- | ----------- |
 | Sem              | Conversations with the assistant, and compacting them | `chat`      |
 | Reading documents| Course details, deadlines and grades from syllabi     | `chat`      |
-| Reading images   | Timetable screenshots and scanned pages               | `vision`    |
+| Reading images   | Timetable screenshots                                 | `vision`    |
+| Scanned pages    | Text in scanned PDFs and photos of pages              | `vision`    |
 | Search           | Finding passages in your course files                 | `embedding` |
 | Light tasks      | Conversation titles, tidying Sem's memory              | `chat`      |
 
@@ -74,6 +75,9 @@ Recommended models (used in step 2):
 | OpenAI    | `gpt-5`; `gpt-5-mini` for documents and images | `gpt-5-nano` | `text-embedding-3-small` |
 | Gemini    | `gemini-2.5-pro`; `gemini-2.5-flash` for documents and images | `gemini-2.5-flash-lite` | `gemini-embedding-001` |
 | Ollama    | `qwen3:8b` (no images)         | `qwen3:8b`               | `nomic-embed-text`       |
+
+Scanned pages use the light-task model (Ollama has none). A self-hosted server can read scanned
+pages itself instead, with no model at all: see [Scanned pages](/docs/self-hosting/configuration#scanned-pages).
 
 Compatible endpoints have no recommendation: pick a model on **Models**, or type its name when
 the endpoint cannot list its models.

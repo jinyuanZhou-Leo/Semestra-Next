@@ -17508,6 +17508,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -17810,6 +17811,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -29140,6 +29142,7 @@
                 "chat",
                 "extraction",
                 "vision",
+                "ocr",
                 "embedding",
                 "title"
               ]
@@ -29299,6 +29302,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -29315,7 +29319,8 @@
                 "enum": [
                   "assignment",
                   "default",
-                  "instance"
+                  "instance",
+                  "local"
                 ]
               },
               {
@@ -34165,6 +34170,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],

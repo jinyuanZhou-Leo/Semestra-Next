@@ -129,13 +129,14 @@ class AssignmentUpdateInput(BaseModel):
 
 # --- status and usage -----------------------------------------------------------------------
 
-Source = Literal["assignment", "default", "instance"]
+Source = Literal["assignment", "default", "instance", "local"]
 
 
 class PurposeStatus(BaseModel):
     purpose: Purpose
     available: bool
-    # How the model was chosen: the user's choice, a provider default, or the instance provider.
+    # How the model was chosen: the user's choice, a provider default, the instance provider, or
+    # (OCR only) the self-hosted install's own OCR engine, which `model` then names.
     source: Source | None
     provider_id: str | None
     provider_kind: ProviderKind | None

@@ -52,6 +52,7 @@ const PURPOSE_SHADES: Record<AiPurpose, number> = {
   chat: 1,
   extraction: 4,
   vision: 2,
+  ocr: 4,
   embedding: 5,
   title: 3,
 }

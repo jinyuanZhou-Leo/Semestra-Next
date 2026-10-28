@@ -14,6 +14,7 @@ from semestra.core.events import events
 from semestra.core.http import safe_client
 from semestra.core.security import encrypt, mask
 from semestra.modules.ai import catalog
+from semestra.modules.ai import local_ocr as ocr_local
 from semestra.modules.ai.adapters import adapter_for
 from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
 from semestra.modules.ai.llm import PURPOSE_NEEDS, PURPOSES, Purpose
@@ -346,6 +347,19 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 async def status(ctx: Ctx) -> AiStatusGet:
     items: list[PurposeStatus] = []
     for purpose in PURPOSES:
+        if purpose == "ocr" and ocr_local.available(ctx.settings):
+            items.append(
+                PurposeStatus(
+                    purpose=purpose,
+                    available=True,
+                    source="local",
+                    provider_id=None,
+                    provider_kind=None,
+                    provider_name=None,
+                    model=ctx.settings.local_ocr_model,
+                )
+            )
+            continue
         resolved = await try_resolve(ctx, purpose, with_key=False)
         if resolved is None:
             items.append(

@@ -359,15 +359,29 @@ export function ModelsSection() {
       {(data) => (
         <div className="space-y-3">
           <SettingsGroup>
-            {data.items.map((assignment) => (
-              <PurposeRow
-                key={assignment.purpose}
-                assignment={assignment}
-                providers={providers.data?.items ?? []}
-                lists={lists}
-                status={status.data?.items.find((s) => s.purpose === assignment.purpose)}
-              />
-            ))}
+            {data.items.map((assignment) => {
+              const purposeStatus = status.data?.items.find((s) => s.purpose === assignment.purpose)
+              // A self-hosted server that reads scanned pages itself: no model to choose.
+              return purposeStatus?.source === 'local' ? (
+                <SettingRow
+                  key={assignment.purpose}
+                  label={PURPOSE_TITLES[assignment.purpose as AiPurpose]()}
+                  description={PURPOSE_HINTS[assignment.purpose as AiPurpose]()}
+                >
+                  <span className="text-sm text-muted-foreground">
+                    {m.ai_models_local_ocr({ model: purposeStatus.model ?? '' })}
+                  </span>
+                </SettingRow>
+              ) : (
+                <PurposeRow
+                  key={assignment.purpose}
+                  assignment={assignment}
+                  providers={providers.data?.items ?? []}
+                  lists={lists}
+                  status={purposeStatus}
+                />
+              )
+            })}
           </SettingsGroup>
           <SettingsNote>{m.ai_models_intro()}</SettingsNote>
         </div>

@@ -65,6 +65,24 @@ loopback or link-local address: AI base URLs with `common.egress_blocked`, Canva
 
 See [Instance-wide provider](/docs/ai/instance-provider).
 
+## Scanned pages
+
+The default image (tag ending in `-ocr`) reads scanned PDF pages and photos on the server with
+[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) on ONNX Runtime, CPU only, so no AI model
+is called for them and the **Scanned pages** row in AI settings shows the local model instead of a
+picker. The models are inside the image; it runs on amd64 and arm64 (including Docker on Apple
+Silicon). Set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` to use the smaller image without it.
+
+| Variable                   | Default           | Meaning                                                       |
+| -------------------------- | ----------------- | ------------------------------------------------------------- |
+| `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
+| `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
+
+The image downloads its models at build time, so another model needs a rebuild with
+`--build-arg LOCAL_OCR_MODEL=…`. Running the server without Docker (for example on a Mac):
+`uv sync --extra ocr` in `apps/api`, then start it with `SEMESTRA_LOCAL_OCR=true`; the models
+download to `~/.paddlex` on first use.
+
 ## Background work and backups
 
 | Variable                   | Default | Meaning                                                       |

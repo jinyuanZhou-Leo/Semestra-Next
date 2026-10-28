@@ -518,7 +518,7 @@ test('a task whose provider is failing says so under it', async () => {
   renderWithQuery(<ModelsSection />)
   expect(
     await screen.findAllByText('Anthropic: Out of credit. This task fails until it is fixed.'),
-  ).toHaveLength(4)
+  ).toHaveLength(5)
 })
 
 test('with no provider the models page is one empty state that leads to adding one', async () => {

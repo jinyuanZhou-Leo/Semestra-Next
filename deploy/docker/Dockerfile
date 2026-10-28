@@ -4,17 +4,20 @@
 #   docker build -f deploy/docker/Dockerfile --target api         -t semestra-api .
 #   docker build -f deploy/docker/Dockerfile --target api-office  -t semestra-api:office .
 #   docker build -f deploy/docker/Dockerfile --target allinone    -t semestra-allinone .
+#   docker build -f deploy/docker/Dockerfile --target allinone-ocr -t semestra-allinone:ocr .
 #   docker build -f deploy/docker/Dockerfile --target edge        -t semestra-edge .
 #
 # Targets:
 #   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
 #   allinone    api + the built SPA served from the same origin (self-hosting and the hosted app)
+#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime, models baked
+#               in); for self-hosting, amd64 and arm64
 #   edge        Caddy with the landing page (/landing) and the docs (/docs) baked in; the hosted
 #               stack's reverse proxy in front of allinone (deploy/hosted/Caddyfile)
 
 # trixie: its SQLite (3.46) has the FTS5 contentless_delete option the files index needs (>= 3.43).
-ARG PYTHON_IMAGE=python:3.15-slim-trixie
+ARG PYTHON_IMAGE=python:3.14-slim-trixie
 ARG NODE_IMAGE=node:26-slim
 
 # ---- backend dependencies ------------------------------------------------------------------
@@ -31,6 +34,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY apps/api/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
+
+# The same plus the `ocr` extra (PaddleOCR, ONNX Runtime) for the allinone-ocr image.
+FROM api-builder AS api-builder-ocr
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable --extra ocr
 
 # ---- backend runtime -----------------------------------------------------------------------
 FROM ${PYTHON_IMAGE} AS api
@@ -105,6 +113,26 @@ FROM api AS allinone
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web
+
+# ---- all-in-one with local OCR (self-hosting) ----------------------------------------------
+FROM allinone AS allinone-ocr
+USER root
+# OpenCV (pulled in by PaddleOCR) links against these.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/paddlex \
+    && chown semestra:semestra /opt/paddlex
+COPY --from=api-builder-ocr /opt/venv /opt/venv
+# The models are fetched at build time, so the server never downloads anything at run time; pick
+# another pair (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server) with --build-arg.
+ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
+ENV SEMESTRA_LOCAL_OCR=true \
+    SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
+    PADDLE_PDX_CACHE_HOME=/opt/paddlex \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+USER semestra
+RUN semestra ocr-models
 
 # ---- landing page and docs (static) --------------------------------------------------------
 FROM ${NODE_IMAGE} AS sites-builder

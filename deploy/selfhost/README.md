@@ -18,7 +18,7 @@ docker compose up -d
 Open <http://localhost:8000> (or `http://<server-ip>:8000`). The first start takes under a minute: the container creates its secrets, migrates the database and starts.
 打开 <http://localhost:8000>（或 `http://<服务器 IP>:8000`）。首次启动不到一分钟：容器会生成密钥、迁移数据库并启动。
 
-> The repository is private for now. Until the image is published publicly, run `docker login ghcr.io` with a token that has `read:packages`, or build locally: `docker build -f deploy/docker/Dockerfile --target allinone -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest .` from the repository root.
+> The repository is private for now. Until the image is published publicly, run `docker login ghcr.io` with a token that has `read:packages`, or build locally: `docker build -f deploy/docker/Dockerfile --target allinone-ocr -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest-ocr .` from the repository root.
 > 仓库目前是私有的。镜像公开之前，用有 `read:packages` 权限的 token 执行 `docker login ghcr.io`，或在仓库根目录自行构建（命令见上）。
 
 ### Verification codes / 验证码
@@ -131,6 +131,22 @@ SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
 
 An Ollama running elsewhere on your network works too: set its URL as `SEMESTRA_INSTANCE_AI_BASE_URL` (private addresses are allowed by default in self-hosted mode). Ollama on the GPU needs the NVIDIA container toolkit and an override file; see the Ollama docs.
 网络里别处运行的 Ollama 同样可用：把它的地址填进 `SEMESTRA_INSTANCE_AI_BASE_URL`（自部署默认允许访问私网地址）。要让 Ollama 用 GPU，需要安装 NVIDIA container toolkit 并写 override 文件，参见 Ollama 文档。
+
+## Scanned pages / 扫描页识别
+
+The default image (`semestra-allinone:<version>-ocr`) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. The models are inside the image. It runs on amd64 and arm64, including Docker on Apple Silicon. To use the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env`; users then choose a model for **Scanned pages** in their AI settings.
+默认镜像（`semestra-allinone:<版本>-ocr`）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。模型已打包在镜像里，支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。想用不带 OCR 的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空）；用户之后在 AI 设置的 **扫描识别** 里选模型。
+
+Running the API natively on a Mac (no Docker) works the same / 在 Mac 上不用 Docker、直接运行后端也可以：
+
+```bash
+cd apps/api
+uv sync --extra ocr
+SEMESTRA_LOCAL_OCR=true uv run semestra serve   # models download to ~/.paddlex on first use
+```
+
+Smaller or faster models: `SEMESTRA_LOCAL_OCR_MODEL=PP-OCRv6_small` (or `_tiny`, `PP-OCRv5_mobile`, `PP-OCRv5_server`). In Docker, build the image with `--build-arg LOCAL_OCR_MODEL=…`, since the models are fetched at build time.
+更小或更快的模型：`SEMESTRA_LOCAL_OCR_MODEL=PP-OCRv6_small`（或 `_tiny`、`PP-OCRv5_mobile`、`PP-OCRv5_server`）。Docker 里模型在构建时下载，要换模型需用 `--build-arg LOCAL_OCR_MODEL=…` 重新构建。
 
 ## Troubleshooting / 排错
 

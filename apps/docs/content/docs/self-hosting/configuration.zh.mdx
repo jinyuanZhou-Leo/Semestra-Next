@@ -63,6 +63,20 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 
 见[全实例服务商](/docs/ai/instance-provider)。
 
+## 扫描页识别
+
+默认镜像（标签以 `-ocr` 结尾）在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（ONNX Runtime，只用
+CPU）识别扫描版 PDF 和照片，不会为此调用 AI 模型；AI 设置里的**扫描识别**一行会显示本机模型，而不是模型选择框。模型已打包在镜像里，支持
+amd64 与 arm64（包括 Apple Silicon 上的 Docker）。在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空）可换成不带 OCR 的小镜像。
+
+| 变量                       | 默认值              | 含义                                                         |
+| -------------------------- | ------------------- | ------------------------------------------------------------ |
+| `SEMESTRA_LOCAL_OCR`       | `-ocr` 镜像里为 `true` | 在服务器上识别扫描页                                      |
+| `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium`   | `PP-OCRv6_tiny`、`_small`、`_medium`、`PP-OCRv5_mobile`、`PP-OCRv5_server` |
+
+镜像在构建时下载模型，换模型需要用 `--build-arg LOCAL_OCR_MODEL=…` 重新构建。不用 Docker 直接运行（例如在 Mac 上）：在
+`apps/api` 下 `uv sync --extra ocr`，再带 `SEMESTRA_LOCAL_OCR=true` 启动；首次使用时模型下载到 `~/.paddlex`。
+
 ## 后台任务与备份
 
 | 变量                       | 默认值 | 含义                                       |

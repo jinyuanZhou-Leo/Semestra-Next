@@ -1027,7 +1027,7 @@ export type Assignment = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Provider Id
      */
@@ -1169,7 +1169,7 @@ export type AssignmentUpdateInputBody = {
      *
      * Which purpose to configure.
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Provider Id
      *
@@ -7695,7 +7695,7 @@ export type ProviderDeleted = {
     /**
      * Cleared Purposes
      */
-    cleared_purposes: Array<'chat' | 'extraction' | 'vision' | 'embedding' | 'title'>;
+    cleared_purposes: Array<'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title'>;
 };
 
 /**
@@ -7775,7 +7775,7 @@ export type PurposeStatus = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Available
      */
@@ -7783,7 +7783,7 @@ export type PurposeStatus = {
     /**
      * Source
      */
-    source: 'assignment' | 'default' | 'instance' | null;
+    source: 'assignment' | 'default' | 'instance' | 'local' | null;
     /**
      * Provider Id
      */
@@ -10589,7 +10589,7 @@ export type UsageDay = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Calls
      */

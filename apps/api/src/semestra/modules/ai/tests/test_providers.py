@@ -157,12 +157,13 @@ async def test_status_assignments_and_delete(ai: Ai, mock: respx.MockRouter, app
     types = [e["type"] for e in seen]
     assert "ai.provider.created" in types
     changed = {e["data"]["purpose"] for e in seen if e["type"] == "ai.assignment.updated"}
-    assert changed == {"chat", "extraction", "vision", "title"}
+    assert changed == {"chat", "extraction", "vision", "ocr", "title"}
 
     status = {s["purpose"]: s for s in (await ai.call("GET", "/ai/status"))["items"]}
     assert status["chat"]["available"]
     assert status["chat"]["source"] == "default"
     assert status["chat"]["model"] == "claude-sonnet-5-5"
+    assert status["ocr"]["model"] == "claude-haiku-5-5"  # a cheaper model reads scanned pages
     assert status["title"]["model"] == "claude-haiku-5-5"
     assert not status["embedding"]["available"]  # Anthropic has no embeddings
 
