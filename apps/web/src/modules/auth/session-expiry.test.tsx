@@ -132,7 +132,7 @@ test('the dialog shows over the page and offers sign-in with the same email', as
 
   expect(await screen.findByRole('dialog')).toBeInTheDocument()
   expect(screen.getByText('Your session expired')).toBeInTheDocument()
-  expect(screen.getByLabelText('Email')).toHaveValue('ada@example.com')
+  expect(await screen.findByLabelText('Email')).toHaveValue('ada@example.com')
   expect(screen.getByText('unsaved page')).toBeInTheDocument()
   act(() => settleReauth(false))
   await pending

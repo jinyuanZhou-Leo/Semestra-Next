@@ -3,7 +3,7 @@ import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api
 import { useQuery } from '@tanstack/react-query'
 import { ClipboardList, Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
-import { useSettingsDialog } from '@/app/settings'
+import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AiAction } from '@/components/AiAction'
 import { errorMessage } from '@/lib/errors'

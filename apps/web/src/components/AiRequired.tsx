@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
-import { useSettingsDialog } from '@/app/settings'
+import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { type AiPurpose, useAiStatus } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
