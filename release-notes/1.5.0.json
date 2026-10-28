@@ -1,0 +1,55 @@
+{
+  "version": "1.5.0",
+  "date": "2026-10-28",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "new",
+      "area": "files",
+      "en": "You can turn off automatic indexing of new files for a Program or a course, and index a file only when you need it.",
+      "zh": "可以为学业项目或单门课程关闭新文件的自动索引，需要时再为某个文件建立索引。"
+    },
+    {
+      "kind": "improved",
+      "area": "sem",
+      "en": "Hover the context ring to see what fills the conversation, and compact it from the bottom of that card; while it compacts, the messages being summarized fade in place.",
+      "zh": "鼠标移到上下文圆环上可以看到对话的各部分占用，并在卡片底部压缩对话；压缩时，正在总结的消息会在原处变淡。"
+    },
+    {
+      "kind": "improved",
+      "area": "courses",
+      "en": "When you sign up you can choose \"Add later\" instead of creating your first term, and add it from Terms & courses once the term starts.",
+      "zh": "注册时可以选择“稍后添加”跳过创建第一个学期，开学后再在“学期与课程”里添加。"
+    },
+    {
+      "kind": "improved",
+      "area": "tasks",
+      "en": "A task you check off now stays in place for 5 seconds with a short animation before it moves to Completed, so you can uncheck it if you tapped by mistake.",
+      "zh": "勾选完成的待办会带着一个简短的动画在原处停留 5 秒，再移到“已完成”，点错了可以直接取消勾选。"
+    },
+    {
+      "kind": "fixed",
+      "area": "courses",
+      "en": "The number of weeks shown next to a term's dates now counts calendar weeks, so a term that starts mid-week is no longer a week short.",
+      "zh": "学期日期旁的周数现在按日历周计算，学期不从一周第一天开始时不再少算一周。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "When a file can't be processed, the file list says why next to the retry button.",
+      "zh": "文件处理失败时，文件列表会在重试按钮旁写明原因。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "While a file is being processed, the file list shows which step it is on (such as reading pages 12/48) next to its progress bar.",
+      "zh": "文件处理中时，文件列表会在进度条旁显示当前步骤（例如“读取页面 12/48”）。"
+    },
+    {
+      "kind": "fixed",
+      "area": "account",
+      "en": "The \"Continue with Google\" button on the sign-in page no longer overlaps the \"or\" divider or shows a white box in dark mode, and it now matches the width of the form.",
+      "zh": "登录页的“使用 Google 继续”按钮不再压住“或”分隔线，深色模式下也不再有白色方底，宽度与表单一致。"
+    }
+  ]
+}
