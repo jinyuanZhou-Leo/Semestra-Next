@@ -566,8 +566,8 @@ test('a local OCR model downloads from its row, which then shows the progress', 
   expect(await screen.findByText(/PP-OCRv6_medium isn't on this server yet/)).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Download now' }))
   expect(requests.at(-1)).toMatchObject({ body: { model: 'PP-OCRv6_medium' } })
-  expect(await screen.findByText('45/133')).toBeInTheDocument()
-  expect(screen.getByText('Downloading, MB')).toBeInTheDocument()
+  expect(await screen.findByText('45/133 MB')).toBeInTheDocument()
+  expect(screen.getByText('Downloading the OCR model')).toBeInTheDocument()
   expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
 
   // The picker says which models still need a download.

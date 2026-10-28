@@ -76,9 +76,7 @@ export function JobProgress({
         >
           <span className="truncate">{status === 'running' && count ? stageName : text}</span>
           {status === 'running' && count ? (
-            <span className="shrink-0 tabular-nums">
-              {count.current}/{count.total}
-            </span>
+            <span className="shrink-0 tabular-nums">{count.text}</span>
           ) : null}
         </span>
         <span className="shrink-0 text-muted-foreground tabular-nums">{percent}</span>
