@@ -15,6 +15,8 @@ from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
 PROCESS_STAGES = [
     ("detecting", 3),
     ("parsing", 25),
+    # Only on a self-hosted server whose local OCR model has not been downloaded yet.
+    ("ocr_model", 10),
     ("ocr", 30),
     ("chunking", 5),
     ("indexing", 7),

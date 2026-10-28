@@ -157,12 +157,13 @@ async def test_status_assignments_and_delete(ai: Ai, mock: respx.MockRouter, app
     types = [e["type"] for e in seen]
     assert "ai.provider.created" in types
     changed = {e["data"]["purpose"] for e in seen if e["type"] == "ai.assignment.updated"}
-    assert changed == {"chat", "extraction", "vision", "title"}
+    assert changed == {"chat", "extraction", "vision", "ocr", "title"}
 
     status = {s["purpose"]: s for s in (await ai.call("GET", "/ai/status"))["items"]}
     assert status["chat"]["available"]
     assert status["chat"]["source"] == "default"
     assert status["chat"]["model"] == "claude-sonnet-5-5"
+    assert status["ocr"]["model"] == "claude-haiku-5-5"  # a cheaper model reads scanned pages
     assert status["title"]["model"] == "claude-haiku-5-5"
     assert not status["embedding"]["available"]  # Anthropic has no embeddings
 
@@ -240,13 +241,16 @@ async def test_assignment_falls_back_when_its_capability_is_unticked(
         json={"purpose": "vision", "provider_id": created["id"], "model": "m"},
     )
 
-    async def vision_available() -> bool:
+    async def available(purpose: str) -> bool:
         status = await ai.call("GET", "/ai/status")
-        return next(s for s in status["items"] if s["purpose"] == "vision")["available"]
+        return next(s for s in status["items"] if s["purpose"] == purpose)["available"]
 
-    assert await vision_available()
+    assert await available("vision")
+    # Scanned pages follow the vision model when no OCR model is set.
+    assert await available("ocr")
     await ai.call("PATCH", f"/ai/providers/{created['id']}", json={"capabilities": ["chat"]})
-    assert not await vision_available()
+    assert not await available("vision")
+    assert not await available("ocr")
 
 
 async def test_test_and_models_endpoints(ai: Ai, mock: respx.MockRouter):
@@ -279,6 +283,7 @@ async def test_capabilities_are_http_only():
         "ai.provider.create",
         "ai.provider.update",
         "ai.provider.delete",
+        "ai.local_ocr.download",
         "ai.provider.test",
         "ai.provider.list_models",
         "ai.assignment.get",

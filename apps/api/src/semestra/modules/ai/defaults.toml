@@ -6,12 +6,14 @@
 chat = "claude-sonnet-5-5"
 extraction = "claude-sonnet-5-5"
 vision = "claude-sonnet-5-5"
+ocr = "claude-haiku-5-5"
 title = "claude-haiku-5-5"
 
 [openai]
 chat = "gpt-5"
 extraction = "gpt-5-mini"
 vision = "gpt-5-mini"
+ocr = "gpt-5-nano"
 title = "gpt-5-nano"
 embedding = "text-embedding-3-small"
 
@@ -19,6 +21,7 @@ embedding = "text-embedding-3-small"
 chat = "gemini-2.5-pro"
 extraction = "gemini-2.5-flash"
 vision = "gemini-2.5-flash"
+ocr = "gemini-2.5-flash-lite"
 title = "gemini-2.5-flash-lite"
 embedding = "gemini-embedding-001"
 

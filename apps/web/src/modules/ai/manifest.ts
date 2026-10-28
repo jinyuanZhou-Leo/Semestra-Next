@@ -9,6 +9,7 @@ const EVENTS = [
   'ai.provider.updated',
   'ai.provider.deleted',
   'ai.assignment.updated',
+  'ai.local_ocr.downloaded',
 ] as const
 
 const settings = () => import('./settings/sections')
@@ -65,6 +66,7 @@ export default defineModule({
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },
+  jobKinds: [{ kind: 'ai.local_ocr.download', title: m.ai_job_local_ocr_download }],
   uiPrefPrefixes: ['ai.'],
   realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, AI_QUERIES])),
 })

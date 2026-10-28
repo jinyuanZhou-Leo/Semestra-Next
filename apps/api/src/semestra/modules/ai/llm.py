@@ -9,8 +9,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-Purpose = Literal["chat", "extraction", "vision", "embedding", "title"]
-PURPOSES: tuple[Purpose, ...] = ("chat", "extraction", "vision", "embedding", "title")
+Purpose = Literal["chat", "extraction", "vision", "ocr", "embedding", "title"]
+PURPOSES: tuple[Purpose, ...] = ("chat", "extraction", "vision", "ocr", "embedding", "title")
 
 ProviderCapability = Literal["chat", "tools", "vision", "structured", "embedding"]
 CAPABILITIES: tuple[ProviderCapability, ...] = (
@@ -27,6 +27,7 @@ PURPOSE_NEEDS: dict[Purpose, ProviderCapability] = {
     "chat": "chat",
     "extraction": "chat",
     "vision": "vision",
+    "ocr": "vision",
     "embedding": "embedding",
     "title": "chat",
 }
