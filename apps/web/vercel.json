@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/landing/",
+      "destination": "https://semestra-site.vercel.app/"
+    },
+    {
       "source": "/landing/:path*",
       "destination": "https://semestra-site.vercel.app/:path*"
     },
