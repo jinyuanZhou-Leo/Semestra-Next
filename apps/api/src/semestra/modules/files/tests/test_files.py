@@ -73,7 +73,9 @@ async def test_with_auto_index_off_files_wait_until_asked(fx: Fx):
     assert item["doc_status"] == "none"
     assert item["job_id"] is None
     await fx.run_jobs()
-    assert not (await fx.search("Recursion"))["results"]
+    found = await fx.search("Recursion")
+    assert not found["results"]
+    assert [i["display_name"] for i in found["unindexed_items"]] == ["notes.docx"]
     error = await fx.call("GET", f"/files/{item['id']}/document", status=409)
     assert error["error"]["code"] == "files.not_indexed"
 

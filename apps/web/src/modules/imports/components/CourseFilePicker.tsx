@@ -81,7 +81,9 @@ export function CourseFilePicker({
                     folderPath(file.folder_id).join(' / '),
                     file.doc_status === 'pending' || file.doc_status === 'processing'
                       ? m.files_status_processing()
-                      : '',
+                      : file.doc_status === 'none'
+                        ? m.imports_file_not_indexed()
+                        : '',
                     formatBytes(file.size_bytes),
                     formatDate(file.created_at),
                   ]

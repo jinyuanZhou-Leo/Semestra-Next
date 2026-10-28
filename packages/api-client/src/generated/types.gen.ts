@@ -8305,6 +8305,12 @@ export type SearchResult = {
      */
     pending_items: Array<PendingItem>;
     /**
+     * Unindexed Items
+     *
+     * Files in scope that are stored but not indexed (automatic indexing is off); the user can index them from the file list
+     */
+    unindexed_items?: Array<PendingItem>;
+    /**
      * Unreadable Items
      *
      * Files in scope whose text could not be read; search never covers them

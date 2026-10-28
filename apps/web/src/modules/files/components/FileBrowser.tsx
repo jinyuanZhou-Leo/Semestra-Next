@@ -17,6 +17,7 @@ import {
   ArrowDown,
   ArrowUp,
   Download,
+  FileSearch,
   Folder,
   FolderInput,
   MoreHorizontal,
@@ -114,7 +115,12 @@ function UpdatedCell({ row }: CellProps) {
 }
 
 function StatusColumnCell({ row }: CellProps) {
-  return <StatusCell item={row.original} />
+  // A fixed height, so a row does not grow or shrink as its file moves through the pipeline.
+  return (
+    <div className="flex h-8 items-center">
+      <StatusCell item={row.original} />
+    </div>
+  )
 }
 
 export function PinButton({ item }: { item: ItemOut }) {
@@ -153,6 +159,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
   const actions = useExtensions<FileItemAction>(FILE_ITEM_ACTIONS).filter((a) => a.accepts(item))
   const canReprocess =
     item.kind === 'file' && (item.doc_status === 'ready' || item.doc_status === 'failed')
+  const canIndex = item.kind === 'file' && item.doc_status === 'none'
   return (
     <DropdownMenu>
       <Tooltip>
@@ -194,7 +201,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {canReprocess ? <ReprocessItem item={item} /> : null}
+        {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>
             <DropdownMenuSeparator />
@@ -239,8 +246,8 @@ function ReprocessItem({ item }: { item: ItemOut }) {
   })
   return (
     <DropdownMenuItem onClick={() => reprocess.mutate({ path: { item_id: item.id } })}>
-      <RotateCw aria-hidden />
-      {m.files_reprocess()}
+      {item.doc_status === 'none' ? <FileSearch aria-hidden /> : <RotateCw aria-hidden />}
+      {item.doc_status === 'none' ? m.files_index_now() : m.files_reprocess()}
     </DropdownMenuItem>
   )
 }
