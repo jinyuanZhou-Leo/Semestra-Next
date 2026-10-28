@@ -460,7 +460,11 @@ function NoProviders() {
 export function ModelsSection() {
   const assignments = useQuery(aiAssignmentGetOptions())
   const providers = useQuery(aiProviderListOptions())
-  const status = useQuery(aiStatusGetOptions())
+  const status = useQuery({
+    ...aiStatusGetOptions(),
+    // Only the user whose job it is hears that a download finished: poll while one runs.
+    refetchInterval: (query) => (query.state.data?.local_ocr_downloading?.length ? 3000 : false),
+  })
   const enabled = (providers.data?.items ?? []).filter((p) => p.enabled)
   // Shared by every task's box; the server caches each provider's list.
   const results = useQueries({

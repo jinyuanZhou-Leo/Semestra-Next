@@ -149,7 +149,7 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     pages: list[tuple[str, bytes]] = []
     fetched: list[str] = []
 
-    async def ocr_isolated(model: str, pngs: list[bytes], *, time_limit: float):
+    async def ocr_isolated(model: str, pngs: list[bytes], **limits: float):
         assert local_ocr.downloaded(model)
         for index, png in enumerate(pngs):
             pages.append((model, png))
@@ -207,8 +207,19 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     await fx.run_jobs()
     job = await fx.call("GET", f"/jobs/{job_id}")
     assert (job["status"], job["error_code"]) == ("failed", "ai.local_ocr_download_failed")
+    # The OCR row keeps showing the failure (and a retry) after a reload.
+    assert (await fx.call("GET", "/ai/status"))["local_ocr_download_job"] == job_id
+    fake_ai.enabled.add("ocr")
     item = await fx.upload_ready("photo3.png", make_png("third"))
     assert item["ocr_skipped_pages"] == 1
+    assert fake_ai.ocr_calls == 0
+
+    # On Auto, the user's AI model reads the pages when the local model can't be downloaded.
+    monkeypatch.setattr(local_ocr, "default_model", lambda settings: "PP-OCRv6_small")
+    await fx.call("PUT", "/ai/assignments", json={"purpose": "ocr", "provider_id": None})
+    item = await fx.upload_ready("photo4.png", make_png("fourth"))
+    assert item["ocr_skipped_pages"] == 0
+    assert fake_ai.ocr_calls == 1
 
 
 async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):

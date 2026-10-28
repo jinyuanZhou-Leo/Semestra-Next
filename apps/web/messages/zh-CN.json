@@ -1033,7 +1033,7 @@
   "ai_models_local_download_note": "{model} 还没有下载到本服务器，第一次识别扫描页时会自动下载。",
   "ai_models_local_download": "现在下载",
   "ai_models_local_downloading": "正在下载 {model}…",
-  "ai_job_local_ocr_download": "下载 OCR 模型",
+  "ai_job_local_ocr_download": "OCR 模型下载",
   "job_step_ai_local_ocr_download_downloading": "下载 OCR 模型",
   "job_step_ai_local_ocr_download_downloading_count": "{current}/{total} MB",
   "ai_usage_calls": "请求数",

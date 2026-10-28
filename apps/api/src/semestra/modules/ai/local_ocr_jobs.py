@@ -70,15 +70,21 @@ async def start_download(ctx: Ctx, model: str) -> CoreJob | None:
     )
 
 
-async def active_download(ctx: Ctx) -> str | None:
-    """The ctx user's unfinished model download, if any."""
-    return await ctx.db.scalar(
-        select(CoreJob.id)
-        .where(
-            CoreJob.user_id == ctx.user_id,
-            CoreJob.kind == DOWNLOAD_KIND,
-            CoreJob.status.in_(("pending", "running")),
+async def latest_download(ctx: Ctx, model: str) -> str | None:
+    """The ctx user's latest download of `model` while it runs, or after it failed (so the OCR
+    row can show why and offer a retry); None once the model is on disk."""
+    if local_ocr.downloaded(model):
+        return None
+    job = (
+        await ctx.db.execute(
+            select(CoreJob.id, CoreJob.status)
+            .where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.kind == DOWNLOAD_KIND,
+                CoreJob.payload["model"].as_string() == model,
+            )
+            .order_by(CoreJob.id.desc())
+            .limit(1)
         )
-        .order_by(CoreJob.id.desc())
-        .limit(1)
-    )
+    ).first()
+    return job.id if job and job.status in ("pending", "running", "failed") else None

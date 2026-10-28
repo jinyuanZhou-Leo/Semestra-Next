@@ -62,8 +62,9 @@ class Settings(BaseSettings):
     # The model used when a user picks none, `<name>_det` + `<name>_rec`: PP-OCRv6_tiny|small|
     # medium or PP-OCRv5_mobile|server.
     local_ocr_model: str = "PP-OCRv6_medium"
-    # OCR runs in a child process (one at a time) with a deadline of this much per page, plus two
-    # minutes to load the model; generous so a slow CPU still finishes. No address-space limit:
+    # OCR runs in a child process (one at a time); each page must be read within this much of the
+    # one before (the first gets two more minutes to load the model); generous so a slow CPU still
+    # finishes. No address-space limit:
     # ONNX Runtime reserves far more virtual memory than it uses.
     local_ocr_page_timeout_seconds: float = 60
 

@@ -73,6 +73,12 @@ async def choice(ctx: Ctx) -> str | None:
     return row.model if row.model in MODELS else default_model(ctx.settings)
 
 
+async def picked(ctx: Ctx) -> bool:
+    """Whether the user chose a local model for OCR themselves, rather than leaving it on Auto."""
+    row = await ctx.db.get(AiModelAssignment, (ctx.user_id, "ocr"))
+    return row is not None and row.provider_id is None
+
+
 def model_tag(model: str) -> str:
     """Goes into the parser fingerprint, so changing the model re-reads documents."""
     return f"local:{model}"
@@ -195,6 +201,8 @@ def _fetch_from_hugging_face(parts: list[str], state: _Download) -> None:
     state.total = sum(s.size or 0 for info in infos for s in info.siblings or []) or None
     for part, repo in zip(parts, repos, strict=True):
         snapshot_download(repo_id=repo, local_dir=state.staging / part, endpoint=endpoint)
+        # huggingface_hub's own bookkeeping for the download; the model does not need it.
+        shutil.rmtree(state.staging / part / ".cache", ignore_errors=True)
 
 
 def _fetch_from_mirrors(parts: list[str]) -> None:

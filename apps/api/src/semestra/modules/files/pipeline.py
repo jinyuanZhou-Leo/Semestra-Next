@@ -281,7 +281,8 @@ async def _ocr(
     """Fills in pages that need OCR; returns the model used and how many pages were skipped
     (no OCR engine or model, or it failed on that page: the rest of the file is still read).
     A self-hosted install with local OCR reads them on this machine; otherwise the user's model
-    for the `ocr` purpose does."""
+    for the `ocr` purpose does (also when the local model it would use on Auto fails to
+    download)."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
     if not needed or kind not in ("pdf", "image"):
         await _skip_ocr(ctx)
@@ -296,8 +297,11 @@ async def _ocr(
             await ai.local_ocr_jobs.download_with_progress(ctx, local, "ocr_model")
         except AppError as exc:
             log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
-            await _skip_ocr(ctx)
-            return None, len(needed)
+            # On Auto, the user's AI model reads the pages instead; a model they picked does not.
+            if await ai.local_ocr.picked(ctx) or not await ai.available(ctx, "ocr"):
+                await _skip_ocr(ctx)
+                return None, len(needed)
+            local = None
     else:
         await ctx.skip_stage("ocr_model")
     resolved = None if local is not None else await ai.resolve_provider(ctx, "ocr")
@@ -333,11 +337,12 @@ async def _ocr(
 
     async def read_locally(model: str, batch: list[int], pngs: list[bytes], done: int) -> None:
         nonlocal read_pages, stopped
+        page_limit = ctx.settings.local_ocr_page_timeout_seconds
         try:
-            time_limit = LOCAL_OCR_LOAD_SECONDS + ctx.settings.local_ocr_page_timeout_seconds * len(
-                pngs
+            pages = ocr_isolated(
+                model, pngs, load_limit=LOCAL_OCR_LOAD_SECONDS, page_limit=page_limit
             )
-            async for page in ocr_isolated(model, pngs, time_limit=time_limit):
+            async for page in pages:
                 parsed.pages[batch[page.index]].markdown = page.text.strip()
                 read_pages += 1
                 # A page can take seconds: keep the bar moving and stop the child on cancel.

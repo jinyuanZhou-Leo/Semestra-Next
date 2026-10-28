@@ -1033,7 +1033,7 @@
   "ai_models_local_download_note": "{model} isn't on this server yet. It downloads the first time a scanned page is read.",
   "ai_models_local_download": "Download now",
   "ai_models_local_downloading": "Downloading {model}…",
-  "ai_job_local_ocr_download": "Downloading an OCR model",
+  "ai_job_local_ocr_download": "OCR model download",
   "job_step_ai_local_ocr_download_downloading": "Downloading the OCR model",
   "job_step_ai_local_ocr_download_downloading_count": "{current}/{total} MB",
   "ai_usage_calls": "Requests",

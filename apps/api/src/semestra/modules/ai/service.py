@@ -411,13 +411,15 @@ async def status(ctx: Ctx) -> AiStatusGet:
         )
     if not ocr_local.available(ctx.settings):
         return AiStatusGet(items=items)
+    # The download shown in the OCR row is for the model that row uses.
+    local = await ocr_local.choice(ctx)
     return AiStatusGet(
         items=items,
         local_ocr_models=list(ocr_local.MODELS),
         local_ocr_default=ocr_local.default_model(ctx.settings),
         local_ocr_downloaded=[m for m in ocr_local.MODELS if ocr_local.downloaded(m)],
         local_ocr_downloading=ocr_local.downloading(),
-        local_ocr_download_job=await local_ocr_jobs.active_download(ctx),
+        local_ocr_download_job=await local_ocr_jobs.latest_download(ctx, local) if local else None,
     )
 
 

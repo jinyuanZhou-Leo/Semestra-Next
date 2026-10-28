@@ -158,11 +158,14 @@ def _ocr_child(conn: Connection, model: str, pngs: Sequence[bytes]) -> None:
 
 
 async def ocr_isolated(
-    model: str, pngs: Sequence[bytes], *, time_limit: float
+    model: str, pngs: Sequence[bytes], *, load_limit: float, page_limit: float
 ) -> AsyncGenerator[Recognized]:
     """Text of each page image, read by local OCR in a child process, one child at a time
-    (each holds a gigabyte or more). Raises `ParseError` when it fails or runs out of time."""
-    async with _ocr_limiter(), aclosing(_run(_ocr_child, (model, list(pngs)), time_limit)) as m:
+    (each holds a gigabyte or more). The first page gets `load_limit` more to load the model;
+    each later one `page_limit` from the page before. Raises `ParseError` when it fails or runs
+    out of time."""
+    run = _run(_ocr_child, (model, list(pngs)), load_limit + page_limit, step_limit=page_limit)
+    async with _ocr_limiter(), aclosing(run) as m:
         async for message in m:
             if isinstance(message, Recognized):
                 yield message
@@ -217,10 +220,16 @@ async def parse_isolated(
 
 
 async def _run(
-    target: Callable[..., None], args: tuple[object, ...], time_limit: float
+    target: Callable[..., None],
+    args: tuple[object, ...],
+    time_limit: float,
+    *,
+    step_limit: float | None = None,
 ) -> AsyncGenerator[object]:
-    """Runs `target(conn, *args)` in a child process and yields what it sends until `None`."""
-    async with _limiter(), aclosing(_child_messages(target, args, time_limit)) as messages:
+    """Runs `target(conn, *args)` in a child process and yields what it sends until `None`.
+    With `step_limit`, each message moves the deadline to that long after it."""
+    child = _child_messages(target, args, time_limit, step_limit)
+    async with _limiter(), aclosing(child) as messages:
         async for message in messages:
             yield message
 
@@ -233,7 +242,10 @@ def _limiter() -> anyio.CapacityLimiter:
 
 
 async def _child_messages(
-    target: Callable[..., None], args: tuple[object, ...], time_limit: float
+    target: Callable[..., None],
+    args: tuple[object, ...],
+    time_limit: float,
+    step_limit: float | None = None,
 ) -> AsyncGenerator[object]:
     receiver, sender = multiprocessing.Pipe(duplex=False)
     process = _context().Process(target=target, args=(sender, *args), daemon=True)
@@ -259,6 +271,8 @@ async def _child_messages(
                 return
             if isinstance(message, _Failed):
                 raise ParseError(message.code, **message.params)
+            if step_limit is not None:
+                deadline = time.monotonic() + step_limit
             yield message
     finally:
         receiver.close()
