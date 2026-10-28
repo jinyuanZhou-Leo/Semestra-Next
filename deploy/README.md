@@ -5,7 +5,7 @@
 | `docker/Dockerfile` | 多阶段构建，目标 `api`（后端）、`api-office`（后端 + LibreOffice）、`allinone`（后端 + 前端静态文件，同源提供）、`edge`（Caddy + 官网 + 文档）；构建上下文是仓库根目录 |
 | `docker/entrypoint.sh` | 容器入口：可选自动生成密钥 → `alembic upgrade head` → 启动 |
 | `selfhost/` | 自部署版：一条命令启动的 compose，中英文 README |
-| `hosted/`、`vm/` | 官方托管版用的部署脚本（运维手册不在仓库里） |
+| `hosted/` | 官方托管版的 Docker 部署脚本 |
 | `.env.example` | 所有后端环境变量的完整说明 |
 | `SECURITY-CHECKLIST.md` | 上线前逐项确认的安全清单 |
 
