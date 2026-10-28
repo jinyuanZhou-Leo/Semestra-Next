@@ -62,6 +62,12 @@ async def compact(
     messages = _applied(turn, messages)
     window = turn.model.context_window
     tokens = history.prompt_tokens(messages)
+    if not history.counted(messages):
+        # Before the first answer the estimate is of the messages only; the provider's count
+        # (used once there is one) holds the instructions and tools too.
+        tokens += sum(overhead.values())
+    # Kept as estimated (not scaled) for compacting on demand, which sends neither.
+    turn.memo["overhead"] = overhead
     if tokens > COMPACT_RATIO * window:
         smaller = await _smaller(turn, messages, KEEP_USER_TURNS, tokens, focus=None)
         if not isinstance(smaller, str):
@@ -236,7 +242,6 @@ async def compact_now(
     if isinstance(smaller, str):
         return smaller
     # The instructions and tools are what the last request sent; this compaction sends none.
-    before = (memo.get("context") or {}).get("parts") or {}
-    overhead = {k: int(before.get(k, 0)) for k in ("instructions", "tools")}
+    overhead = {k: int(v) for k, v in (memo.get("overhead") or {}).items()}
     memo["context"] = _usage(smaller[0], smaller[1], model.context_window, overhead)
     return "done"

@@ -614,7 +614,7 @@ async def compact_session(
         return  # when stopped, compaction announced it
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
-        keys = ("summary", "summarized_until", "revealed", "cleared_until", "context")
+        keys = ("summary", "summarized_until", "revealed", "cleared_until", "context", "overhead")
         st = {k: v for k, v in (session.state or {}).items() if k not in keys}
         session.state = {**st, **{k: memo[k] for k in keys if k in memo}}
         await ctx.db.commit()

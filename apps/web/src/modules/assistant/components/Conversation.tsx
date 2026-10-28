@@ -784,7 +784,7 @@ export function Conversation({
                 // Answers wait for their renderer together (see `Markdown`).
                 <Suspense fallback={<ConversationSkeleton />}>
                   <ChipCourses value={courses}>
-                    {items.map((item) => [
+                    {items.flatMap((item) => [
                       <MessageScrollerItem
                         key={item.id}
                         messageId={item.id}
@@ -852,11 +852,14 @@ export function Conversation({
                           />
                         )}
                       </MessageScrollerItem>,
-                      item.id === lastCompacted ? (
-                        <MessageScrollerItem key="compacting" messageId="compacting">
-                          <CompactingDivider />
-                        </MessageScrollerItem>
-                      ) : null,
+                      // Below what is being compacted; one flat list keeps the keys on one level.
+                      ...(item.id === lastCompacted
+                        ? [
+                            <MessageScrollerItem key="compacting" messageId="compacting">
+                              <CompactingDivider />
+                            </MessageScrollerItem>,
+                          ]
+                        : []),
                     ])}
                   </ChipCourses>
                 </Suspense>

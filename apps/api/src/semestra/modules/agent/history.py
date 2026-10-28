@@ -304,20 +304,26 @@ PART_KINDS = ("instructions", "tools", "summary", "conversation", "reads", "atta
 
 
 def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> ContextParts:
-    """Estimated tokens of each kind: what read tools returned (`reads`), files and images the
-    user attached, the compaction summary, and the rest of the conversation."""
+    """Estimated tokens of each kind: what tools returned (`reads`; tool definitions found by
+    search count as `tools`), files and images the user attached, the compaction summary, and
+    the rest of the conversation."""
     chars = dict.fromkeys(PART_KINDS, 0)
     images = 0
     for msg in messages:
         for part in msg.parts:
             if isinstance(part, UserPromptPart):
                 items = [part.content] if isinstance(part.content, str) else part.content
+                # A message's attachments come after its text, each opening with its manifest
+                # (`attachment_context.manifest`); what follows one (outline, hints, page
+                # text) is the attachment's too.
+                attached = False
                 for item in items:
                     if not isinstance(item, str):
                         images += 1
                     elif item.startswith(SUMMARY_HEADER):
                         chars["summary"] += len(item)
-                    elif item.startswith("<attachment "):
+                    elif attached or item.startswith("<attachment "):
+                        attached = True
                         chars["attachments"] += len(item)
                     else:
                         chars["conversation"] += len(item)
@@ -326,13 +332,15 @@ def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> C
             elif isinstance(part, ToolCallPart):
                 chars["conversation"] += len(part.args_as_json_str()) + len(part.tool_name)
             elif isinstance(part, ToolReturnPart):
-                chars["reads"] += len(part.model_response_str())
+                # What `search_tools`/`load_capability` return are tool definitions.
+                found = part.tool_name in (tools.SEARCH_TOOLS, tools.LOAD_CAPABILITY)
+                chars["tools" if found else "reads"] += len(part.model_response_str())
             elif isinstance(part, RetryPromptPart):
                 chars["reads"] += len(part.model_response())
     parts = {k: v // CHARS_PER_TOKEN for k, v in chars.items()}
     parts["attachments"] += images * IMAGE_TOKENS
     for kind in ("instructions", "tools"):
-        parts[kind] = overhead.get(kind, 0)
+        parts[kind] += overhead.get(kind, 0)
     return parts
 
 
