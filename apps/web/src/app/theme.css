@@ -300,8 +300,7 @@
 /*
  * Checking a task off (M05 §5.1). The row waits in place for a few seconds (`data-completing`):
  * the circle fills with a small pop, the check draws itself, the title is struck through left to
- * right and a faint ring spreads from the circle; the row fades out just before it moves to
- * "Completed".
+ * right; the row fades out just before it moves to "Completed".
  */
 [data-completing] .task-check {
   animation: task-check-pop 0.36s cubic-bezier(0.3, 1.4, 0.6, 1);
@@ -318,14 +317,6 @@
 [data-completing='leaving'] {
   opacity: 0;
   transition: opacity 0.25s ease-in;
-}
-[data-completing] .task-check::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  pointer-events: none;
-  animation: task-check-ring 0.6s ease-out forwards;
 }
 @keyframes task-check-pop {
   0% {
@@ -354,17 +345,8 @@
     background-size: 0% 1px;
   }
 }
-@keyframes task-check-ring {
-  from {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 45%, transparent);
-  }
-  to {
-    box-shadow: 0 0 0 10px color-mix(in oklab, var(--primary) 0%, transparent);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   [data-completing] .task-check,
-  [data-completing] .task-check::before,
   [data-completing] .task-check svg path,
   [data-completing] .task-title {
     animation: none;
