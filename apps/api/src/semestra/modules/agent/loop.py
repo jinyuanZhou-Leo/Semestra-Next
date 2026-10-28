@@ -29,6 +29,7 @@ from pydantic_ai.exceptions import ApprovalRequired, SkipToolExecution, Unexpect
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    InstructionPart,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -310,12 +311,20 @@ class _Hooks(AbstractCapability[Turn]):
     ) -> ModelRequestContext:
         turn = ctx.deps
         messages = [m for m in (_replayable(m, turn) for m in request_context.messages) if m]
-        request_context.messages = await compact(turn, messages)
+        params = request_context.model_request_parameters
+        instructions = (
+            InstructionPart.join(params.instruction_parts)
+            if params.instruction_parts is not None
+            else next(
+                (m.instructions for m in reversed(messages) if isinstance(m, ModelRequest)), None
+            )
+        )
+        overhead = history.request_overhead(instructions, params.function_tools)
+        request_context.messages = await compact(turn, messages, overhead)
         if turn.cancel.is_set():
             # Stopped while compacting: the turn ends here, before the request goes out.
             raise _Stopped
         if not _defers_tools(request_context.model):
-            params = request_context.model_request_parameters
             params.function_tools = _tool_order(params.function_tools, request_context.messages)
         return request_context
 
@@ -605,7 +614,7 @@ async def compact_session(
         return  # when stopped, compaction announced it
     async with agent_ctx(state, user_id, scope=None) as ctx:
         session = await service.get_session_row(ctx, session_id)
-        keys = ("summary", "summarized_until", "revealed", "cleared_until", "context")
+        keys = ("summary", "summarized_until", "revealed", "cleared_until", "context", "overhead")
         st = {k: v for k, v in (session.state or {}).items() if k not in keys}
         session.state = {**st, **{k: memo[k] for k in keys if k in memo}}
         await ctx.db.commit()

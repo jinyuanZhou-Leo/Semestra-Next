@@ -42,6 +42,7 @@ PENDING = "Waiting for the user's decision on the confirmation card; not execute
 EXPIRED = "The confirmation card expired without a decision; the action was not executed."
 CHARS_PER_TOKEN = 4
 IMAGE_TOKENS = 1_200
+SUMMARY_HEADER = "[Summary of the earlier conversation]"
 
 
 # --- stored messages ------------------------------------------------------------------------
@@ -296,6 +297,83 @@ def prompt_tokens(messages: Sequence[ModelMessage]) -> int:
     return estimate_tokens(messages)
 
 
+# What fills the context, by kind, for the chat's context card (M12 §3.4). `instructions` and
+# `tools` come from the request's parameters; the rest from the messages.
+type ContextParts = dict[str, int]
+PART_KINDS = ("instructions", "tools", "summary", "conversation", "reads", "attachments")
+
+
+def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> ContextParts:
+    """Estimated tokens of each kind: what tools returned (`reads`; tool definitions found by
+    search count as `tools`), files and images the user attached, the compaction summary, and
+    the rest of the conversation."""
+    chars = dict.fromkeys(PART_KINDS, 0)
+    images = 0
+    for msg in messages:
+        for part in msg.parts:
+            if isinstance(part, UserPromptPart):
+                items = [part.content] if isinstance(part.content, str) else part.content
+                # A message's attachments come after its text, each opening with its manifest
+                # (`attachment_context.manifest`); what follows one (outline, hints, page
+                # text) is the attachment's too.
+                attached = False
+                for item in items:
+                    if not isinstance(item, str):
+                        images += 1
+                    elif item.startswith(SUMMARY_HEADER):
+                        chars["summary"] += len(item)
+                    elif attached or item.startswith("<attachment "):
+                        attached = True
+                        chars["attachments"] += len(item)
+                    else:
+                        chars["conversation"] += len(item)
+            elif isinstance(part, TextPart | ThinkingPart):
+                chars["conversation"] += len(part.content)
+            elif isinstance(part, ToolCallPart):
+                chars["conversation"] += len(part.args_as_json_str()) + len(part.tool_name)
+            elif isinstance(part, ToolReturnPart):
+                # What `search_tools`/`load_capability` return are tool definitions.
+                found = part.tool_name in (tools.SEARCH_TOOLS, tools.LOAD_CAPABILITY)
+                chars["tools" if found else "reads"] += len(part.model_response_str())
+            elif isinstance(part, RetryPromptPart):
+                chars["reads"] += len(part.model_response())
+    parts = {k: v // CHARS_PER_TOKEN for k, v in chars.items()}
+    parts["attachments"] += images * IMAGE_TOKENS
+    for kind in ("instructions", "tools"):
+        parts[kind] += overhead.get(kind, 0)
+    return parts
+
+
+def request_overhead(instructions: str | None, tool_defs: Sequence[Any]) -> ContextParts:
+    """Estimated tokens of the instructions and the tool definitions a request sends. A deferred
+    tool (native tool search) sends only its name until it is revealed."""
+    tool_chars = 0
+    for d in tool_defs:
+        tool_chars += len(d.name)
+        if not getattr(d, "defer_loading", False):
+            tool_chars += len(d.description or "") + len(json.dumps(d.parameters_json_schema))
+    return {
+        "instructions": len(instructions or "") // CHARS_PER_TOKEN,
+        "tools": tool_chars // CHARS_PER_TOKEN,
+    }
+
+
+def counted(messages: Sequence[ModelMessage]) -> bool:
+    """Whether the provider counted an earlier request of these (`prompt_tokens` builds on it)."""
+    return any(isinstance(m, ModelResponse) and m.usage.input_tokens for m in messages)
+
+
+def scaled(parts: ContextParts, total: int) -> ContextParts:
+    """`parts` in proportion, adding up to `total` (the provider's count with the estimate)."""
+    sum_ = sum(parts.values())
+    if sum_ <= 0:
+        return parts
+    out = {k: v * total // sum_ for k, v in parts.items()}
+    biggest = max(out, key=lambda k: out[k])
+    out[biggest] += total - sum(out.values())
+    return out
+
+
 def transcript_text(messages: Sequence[ModelMessage]) -> str:
     """Plain text of messages for the summarizer (attachments and tool payloads abbreviated)."""
     lines: list[str] = []
@@ -324,9 +402,7 @@ def revealed_tools(messages: Sequence[ModelMessage]) -> list[str]:
 
 
 def summary_request(summary: str, revealed: list[str]) -> ModelRequest:
-    parts: list[ModelRequestPart] = [
-        UserPromptPart(f"[Summary of the earlier conversation]\n{summary}")
-    ]
+    parts: list[ModelRequestPart] = [UserPromptPart(f"{SUMMARY_HEADER}\n{summary}")]
     if revealed:
         parts.append(ToolAvailabilityDeltaPart(tools_added=revealed))
     return ModelRequest(parts=parts)

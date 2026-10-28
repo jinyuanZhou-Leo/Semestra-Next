@@ -81,9 +81,23 @@ class AgentAttachmentOut(BaseModel):
     file_item_id: str | None = None
 
 
+class ContextParts(BaseModel):
+    """Estimated tokens of each kind in the last request."""
+
+    instructions: int = Field(default=0, description="Sem's instructions and memory index.")
+    tools: int = Field(default=0, description="Tool definitions.")
+    summary: int = Field(default=0, description="The summary of compacted turns.")
+    conversation: int = Field(default=0, description="Messages, answers and tool calls.")
+    reads: int = Field(default=0, description="What tools returned: files, pages, records.")
+    attachments: int = Field(default=0, description="Files and images the user attached.")
+
+
 class ContextUsage(BaseModel):
     used: int = Field(description="Tokens the last request took, as estimated after compaction.")
     window: int = Field(description="The chat model's context window.")
+    parts: ContextParts | None = Field(
+        default=None, description="What fills it, by kind; absent before this was recorded."
+    )
 
 
 class CompactionOut(BaseModel):
