@@ -131,16 +131,14 @@ COPY --from=api-builder-ocr /opt/venv /opt/venv
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 # No model is in the image: each downloads into the data volume the first time it is needed,
 # with progress in the app. This one is used until a user picks another in settings
-# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server). Plain HTTPS rather than Xet for Hugging
-# Face: each file grows on disk as it arrives (what the progress measures), with no chunk cache.
+# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server).
 ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web \
     SEMESTRA_LOCAL_OCR=true \
     SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
     PADDLE_PDX_CACHE_HOME=/data/ocr-models \
-    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True \
-    HF_HUB_DISABLE_XET=1
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
 
 # ---- landing page and docs (static) --------------------------------------------------------
 FROM ${NODE_IMAGE} AS sites-builder

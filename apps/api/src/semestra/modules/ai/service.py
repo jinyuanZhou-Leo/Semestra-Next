@@ -416,6 +416,7 @@ async def status(ctx: Ctx) -> AiStatusGet:
         local_ocr_models=list(ocr_local.MODELS),
         local_ocr_default=ocr_local.default_model(ctx.settings),
         local_ocr_downloaded=[m for m in ocr_local.MODELS if ocr_local.downloaded(m)],
+        local_ocr_downloading=ocr_local.downloading(),
         local_ocr_download_job=await local_ocr_jobs.active_download(ctx),
     )
 

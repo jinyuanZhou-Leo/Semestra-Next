@@ -153,6 +153,8 @@ class AiStatusGet(BaseModel):
     local_ocr_models: list[str] = Field(default_factory=list)
     local_ocr_default: str | None = None
     local_ocr_downloaded: list[str] = Field(default_factory=list)
+    # Models downloading now for anyone (a file being processed, another user's pick).
+    local_ocr_downloading: list[str] = Field(default_factory=list)
     local_ocr_download_job: str | None = None
 
 

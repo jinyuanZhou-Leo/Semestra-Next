@@ -16586,6 +16586,13 @@
             "type": "array",
             "title": "Local Ocr Downloaded"
           },
+          "local_ocr_downloading": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Local Ocr Downloading"
+          },
           "local_ocr_download_job": {
             "anyOf": [
               {

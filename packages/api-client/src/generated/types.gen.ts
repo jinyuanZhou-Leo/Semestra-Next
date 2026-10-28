@@ -513,6 +513,10 @@ export type AiStatusGet = {
      */
     local_ocr_downloaded?: Array<string>;
     /**
+     * Local Ocr Downloading
+     */
+    local_ocr_downloading?: Array<string>;
+    /**
      * Local Ocr Download Job
      */
     local_ocr_download_job?: string | null;

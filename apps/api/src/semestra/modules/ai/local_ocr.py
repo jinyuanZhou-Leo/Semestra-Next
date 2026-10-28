@@ -17,6 +17,7 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from functools import cache
@@ -157,6 +158,9 @@ _DOWNLOADS_LOCK = threading.Lock()
 
 # Seconds between progress reports while a model downloads.
 DOWNLOAD_POLL_SECONDS = 0.5
+# A staging directory this old was left by a server that stopped mid-download; a younger one may
+# belong to another process downloading the same model (`semestra ocr-models` next to the server).
+STALE_STAGING_SECONDS = 3600
 
 
 def _fetch(model: str, state: _Download) -> None:
@@ -179,6 +183,9 @@ def _fetch(model: str, state: _Download) -> None:
 
 
 def _fetch_from_hugging_face(parts: list[str], state: _Download) -> None:
+    # Plain HTTPS rather than Xet: each file grows on disk as it arrives (what the progress
+    # measures), and no chunk cache is left behind. Read when huggingface_hub is first imported.
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
     from huggingface_hub import HfApi, snapshot_download  # pyright: ignore[reportMissingImports]
 
     endpoint = os.environ.get("PADDLE_PDX_HUGGING_FACE_ENDPOINT", "https://huggingface.co")
@@ -225,9 +232,11 @@ async def download(
         state = _DOWNLOADS.get(model)
         if state is None:
             models_dir().mkdir(parents=True, exist_ok=True)
-            # Left by a server that stopped mid-download.
+            cutoff = time.time() - STALE_STAGING_SECONDS
             for stale in models_dir().glob(f".{model}-*"):
-                shutil.rmtree(stale, ignore_errors=True)
+                with contextlib.suppress(OSError):
+                    if stale.stat().st_mtime < cutoff:
+                        shutil.rmtree(stale, ignore_errors=True)
             # On the same file system as the cache, so finished packages move in one rename.
             staging = Path(tempfile.mkdtemp(prefix=f".{model}-", dir=models_dir()))
             state = _DOWNLOADS[model] = _Download(staging)
@@ -242,6 +251,12 @@ async def download(
         raise RuntimeError(f"{model} is still missing after its download")
     if progress is not None and state.total is not None:
         await progress(state.total, state.total)
+
+
+def downloading() -> list[str]:
+    """The models this process is downloading now, whoever asked for them."""
+    with _DOWNLOADS_LOCK:
+        return [m for m in MODELS if m in _DOWNLOADS]
 
 
 def download_blocking(model: str) -> None:

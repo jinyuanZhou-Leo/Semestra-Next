@@ -222,6 +222,16 @@ jobs:
           docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
           test "$(docker exec ocr id -u)" = 10001
           docker exec ocr sh -c 'test ! -d "$PADDLE_PDX_CACHE_HOME/official_models"'
+          # Every model users can pick still exists on Hugging Face (the source with progress).
+          docker exec ocr python -c "
+          from huggingface_hub import HfApi
+          from semestra.modules.ai import local_ocr
+          api = HfApi()
+          for model in local_ocr.MODELS:
+              for part in local_ocr._parts(model):
+                  info = api.model_info(f'PaddlePaddle/{part}', files_metadata=True)
+                  print(part, sum(s.size or 0 for s in info.siblings or []) // 1_000_000, 'MB')
+          "
           docker exec ocr python -c "
           import io
           import anyio

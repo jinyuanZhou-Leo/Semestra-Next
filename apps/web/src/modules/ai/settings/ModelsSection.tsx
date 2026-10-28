@@ -42,6 +42,7 @@ import {
 } from '@/ui/empty'
 import { ItemDescription } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
+import { Spinner } from '@/ui/spinner'
 import {
   LOCAL_OCR_HINTS,
   PROVIDER_ERROR_LABEL,
@@ -123,10 +124,13 @@ function modelName(lists: ModelLists, providerId: string | null, model: string |
 function LocalModelDownload({
   model,
   downloaded,
+  downloading,
   jobId,
 }: {
   model: string
   downloaded: boolean
+  /** Downloading for someone else, e.g. inside a file's processing. */
+  downloading: boolean
   jobId: string | null
 }) {
   const queryClient = useQueryClient()
@@ -156,6 +160,14 @@ function LocalModelDownload({
     )
   }
   if (downloaded) return null
+  if (downloading) {
+    return (
+      <ItemDescription className="flex items-center gap-1.5">
+        <Spinner className="size-3.5" />
+        {m.ai_models_local_downloading({ model })}
+      </ItemDescription>
+    )
+  }
   return (
     <ItemDescription>
       {m.ai_models_local_download_note({ model })} {button}
@@ -186,6 +198,7 @@ function PurposeRow({
   localModels,
   localDefault,
   localDownloaded,
+  localDownloading,
   downloadJob,
 }: {
   assignment: Assignment
@@ -197,6 +210,7 @@ function PurposeRow({
   localDefault: string | null
   /** The local models already on this server, and the user's unfinished model download. */
   localDownloaded: readonly string[]
+  localDownloading: readonly string[]
   downloadJob: string | null
 }) {
   const queryClient = useQueryClient()
@@ -325,6 +339,7 @@ function PurposeRow({
           <LocalModelDownload
             model={status.model}
             downloaded={localDownloaded.includes(status.model)}
+            downloading={localDownloading.includes(status.model)}
             jobId={downloadJob}
           />
         ) : (
@@ -483,6 +498,7 @@ export function ModelsSection() {
                   }
                   localDefault={status.data?.local_ocr_default ?? null}
                   localDownloaded={status.data?.local_ocr_downloaded ?? []}
+                  localDownloading={status.data?.local_ocr_downloading ?? []}
                   downloadJob={status.data?.local_ocr_download_job ?? null}
                 />
               )
