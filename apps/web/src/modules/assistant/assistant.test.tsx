@@ -887,7 +887,11 @@ function compactable() {
     msg('u2', 'user', [{ type: 'text', text: 'Move Wednesday' }]),
     msg('a2', 'assistant', [{ type: 'text', text: 'Moved it to Thursday.' }]),
   ]
-  srv.detail.context = { used: 90_000, window: 128_000 }
+  srv.detail.context = {
+    used: 90_000,
+    window: 128_000,
+    parts: { instructions: 12_000, tools: 10_000, conversation: 28_000, reads: 40_000 },
+  }
   srv.detail.compactable = true
   const sent: unknown[] = []
   server.use(
@@ -896,7 +900,7 @@ function compactable() {
       srv.detail.compaction = { until: 'a1', summary: 'Three review weeks are planned.' }
       srv.detail.compactable = false
       return sse([
-        ['compaction', { status: 'running' }],
+        ['compaction', { status: 'running', until: 'a1' }],
         ['compaction', { status: 'done', until: 'a1' }],
       ])
     }),
@@ -910,12 +914,12 @@ test('/compact keeps what the user names, and the summary shows under a divider'
   const input = await messageInput()
   await userEvent.type(input, '/comp')
   await userEvent.click(await screen.findByRole('option', { name: /Compact conversation/ }))
-  expect(input).toHaveTextContent('What to keep (optional); press Enter to compact')
+  expect(input).toHaveTextContent('Anything the summary must keep (optional). Press Enter to compact')
   await userEvent.type(input, 'the study times{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'the study times' }]))
-  const divider = await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  const divider = await screen.findByRole('button', { name: 'Compacted · View summary' })
   // Between the turns it covers and the ones kept as they are.
-  const texts = ['Planned three weeks.', 'Earlier turns compacted', 'Move Wednesday']
+  const texts = ['Planned three weeks.', 'Compacted · View summary', 'Move Wednesday']
   const order = texts.map((t) => screen.getByText(t))
   for (let i = 1; i < order.length; i++) {
     const prev = order[i - 1] as Node
@@ -933,18 +937,22 @@ test('the context ring shows how full the conversation is and compacts from ther
   const input = await messageInput()
   await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
   expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
+  // What fills it, by kind, and what is left.
+  expect(screen.getByText('Files and pages read').nextSibling).toHaveTextContent('40K')
+  expect(screen.getByText('Free').nextSibling).toHaveTextContent('38K')
+  expect(screen.queryByText('Attachments')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
   // Compacting starts in the composer, as `/compact` does.
-  expect(input).toHaveTextContent('What to keep (optional); press Enter to compact')
+  expect(input).toHaveTextContent('Anything the summary must keep (optional). Press Enter to compact')
   await userEvent.type(input, 'deadlines{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
   // After it, only the last turn is left: nothing more to compact.
-  await screen.findByRole('button', { name: 'Earlier turns compacted' })
+  await screen.findByRole('button', { name: 'Compacted · View summary' })
   await userEvent.type(input, '/comp')
   expect(screen.queryByRole('option', { name: /Compact conversation/ })).not.toBeInTheDocument()
 })
 
-test('compacting before an answer shows on the line of that answer', async () => {
+test('while compacting, a divider runs below the turns being compacted', async () => {
   compactable()
   let finish: (() => void) | undefined
   srv.reply = () => {
@@ -952,7 +960,7 @@ test('compacting before an answer shows on the line of that answer', async () =>
       start(controller) {
         const encode = (text: string) => controller.enqueue(new TextEncoder().encode(text))
         encode('event: message_start\ndata: {"message_id":"a3"}\n\n')
-        encode('event: compaction\ndata: {"status":"running"}\n\n')
+        encode('event: compaction\ndata: {"status":"running","until":"a1"}\n\n')
         finish = () => {
           srv.detail.messages = [
             ...srv.detail.messages,
@@ -970,11 +978,14 @@ test('compacting before an answer shows on the line of that answer', async () =>
   }
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   await userEvent.type(await messageInput(), 'And the labs?{Enter}')
-  expect(await screen.findAllByText('Compacting earlier turns…')).toHaveLength(1)
-  expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
+  const running = await screen.findByText('Compacting conversation…')
+  const before = screen.getByText('Planned three weeks.')
+  const after = screen.getByText('Move Wednesday')
+  expect(before.compareDocumentPosition(running) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(running.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   finish?.()
   expect(await screen.findByText('Here it is.')).toBeInTheDocument()
-  expect(screen.queryByText('Compacting earlier turns…')).not.toBeInTheDocument()
+  expect(screen.queryByText('Compacting conversation…')).not.toBeInTheDocument()
 })
 
 test('the editor closes as soon as the edit is sent, while the answer streams', async () => {

@@ -19599,6 +19599,49 @@
         "type": "object",
         "title": "ConnectionValidateInputBody"
       },
+      "ContextParts": {
+        "properties": {
+          "instructions": {
+            "type": "integer",
+            "title": "Instructions",
+            "description": "Sem's instructions and memory index.",
+            "default": 0
+          },
+          "tools": {
+            "type": "integer",
+            "title": "Tools",
+            "description": "Tool definitions.",
+            "default": 0
+          },
+          "summary": {
+            "type": "integer",
+            "title": "Summary",
+            "description": "The summary of compacted turns.",
+            "default": 0
+          },
+          "conversation": {
+            "type": "integer",
+            "title": "Conversation",
+            "description": "Messages, answers and tool calls.",
+            "default": 0
+          },
+          "reads": {
+            "type": "integer",
+            "title": "Reads",
+            "description": "What tools returned: files, pages, records.",
+            "default": 0
+          },
+          "attachments": {
+            "type": "integer",
+            "title": "Attachments",
+            "description": "Files and images the user attached.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "ContextParts",
+        "description": "Estimated tokens of each kind in the last request."
+      },
       "ContextUsage": {
         "properties": {
           "used": {
@@ -19610,6 +19653,17 @@
             "type": "integer",
             "title": "Window",
             "description": "The chat model's context window."
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextParts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What fills it, by kind; absent before this was recorded."
           }
         },
         "type": "object",

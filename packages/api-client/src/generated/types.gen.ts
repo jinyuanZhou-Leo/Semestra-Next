@@ -2283,6 +2283,50 @@ export type ConnectionValidateInputBody = {
 };
 
 /**
+ * ContextParts
+ *
+ * Estimated tokens of each kind in the last request.
+ */
+export type ContextParts = {
+    /**
+     * Instructions
+     *
+     * Sem's instructions and memory index.
+     */
+    instructions?: number;
+    /**
+     * Tools
+     *
+     * Tool definitions.
+     */
+    tools?: number;
+    /**
+     * Summary
+     *
+     * The summary of compacted turns.
+     */
+    summary?: number;
+    /**
+     * Conversation
+     *
+     * Messages, answers and tool calls.
+     */
+    conversation?: number;
+    /**
+     * Reads
+     *
+     * What tools returned: files, pages, records.
+     */
+    reads?: number;
+    /**
+     * Attachments
+     *
+     * Files and images the user attached.
+     */
+    attachments?: number;
+};
+
+/**
  * ContextUsage
  */
 export type ContextUsage = {
@@ -2298,6 +2342,10 @@ export type ContextUsage = {
      * The chat model's context window.
      */
     window: number;
+    /**
+     * What fills it, by kind; absent before this was recorded.
+     */
+    parts?: ContextParts | null;
 };
 
 /**

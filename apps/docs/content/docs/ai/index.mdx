@@ -31,11 +31,24 @@ Each AI call has a purpose, and each purpose needs one capability from the provi
 
 | Purpose          | Used for                                              | Needs       |
 | ---------------- | ----------------------------------------------------- | ----------- |
-| Sem              | Conversations with the assistant                      | `chat`      |
+| Sem              | Conversations with the assistant, and compacting them | `chat`      |
 | Reading documents| Course details, deadlines and grades from syllabi     | `chat`      |
 | Reading images   | Timetable screenshots and scanned pages               | `vision`    |
 | Search           | Finding passages in your course files                 | `embedding` |
-| Light tasks      | Conversation titles, long-conversation summaries, tidying Sem's memory | `chat` |
+| Light tasks      | Conversation titles, tidying Sem's memory              | `chat`      |
+
+## Long conversations
+
+The ring next to Sem's message box shows how much of the model's context the conversation
+fills. Hover it to see what takes the space: Sem's instructions and memory, tools, your
+messages and Sem's answers, files and pages Sem read, and attachments.
+
+When the context is nearly full, Sem compacts the conversation on its own before answering:
+it summarizes earlier messages and keeps the latest ones word for word. To do it yourself,
+choose **Compact conversation** at the bottom of that card, or type `/compact`, optionally
+followed by what the summary must keep. A conversation with a single message has nothing
+to compact yet. While it runs, the messages being compacted fade and you can't send a new
+message; afterwards **Compacted · View summary** in the conversation shows the summary.
 
 ## Which model answers
 

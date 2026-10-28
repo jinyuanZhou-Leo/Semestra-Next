@@ -67,13 +67,20 @@ import {
 import { Label } from '@/ui/label'
 import { Separator } from '@/ui/separator'
 import { Skeleton } from '@/ui/skeleton'
+import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
 import { scopeKind, useProgramEntities } from '../scope'
-import { buildItems, citationsOf, pausedReason, type ViewItem } from '../transcript'
+import {
+  buildItems,
+  citationsOf,
+  compactingItems,
+  pausedReason,
+  type ViewItem,
+} from '../transcript'
 import type { PauseReason } from '../stream'
 import { type Decision, useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
@@ -312,7 +319,6 @@ function AssistantMessage({
   citations,
   busy,
   active,
-  compacting,
   showReasoning,
   onDecide,
   footer,
@@ -323,8 +329,6 @@ function AssistantMessage({
   busy: boolean
   /** This answer is being written now. */
   active: boolean
-  /** Its request is being compacted first. */
-  compacting: boolean
   showReasoning: boolean
   onDecide: (decisions: Decision[]) => void
   /** Copy and regenerate under the answer; `null` while there is nothing to act on. */
@@ -336,12 +340,7 @@ function AssistantMessage({
   return (
     <Message>
       <MessageContent className="gap-3">
-        <Thinking
-          item={item}
-          active={active}
-          compacting={compacting}
-          showReasoning={showReasoning}
-        />
+        <Thinking item={item} active={active} showReasoning={showReasoning} />
         {item.answer ? (
           <Markdown text={item.answer} citations={citations} streaming={active} />
         ) : null}
@@ -454,20 +453,21 @@ function ThinkingPlaceholder() {
   )
 }
 
-function CompactingNotice() {
+/** Where compacting is happening: below what is being compacted (dimmed above it). */
+function CompactingDivider() {
   return (
-    <Trace aria-live="polite">
-      <TraceLine status="running">
-        <TraceIcon>
-          <Minimize2 />
-        </TraceIcon>
-        <TraceTitle>{m.assistant_compacting()}</TraceTitle>
-      </TraceLine>
-    </Trace>
+    <div aria-live="polite" className="flex items-center gap-3 text-xs text-muted-foreground">
+      <Separator className="flex-1" />
+      <span className="flex items-center gap-1.5">
+        <Spinner className="size-3.5" />
+        <span className="shimmer motion-reduce:shimmer-none">{m.assistant_compacting()}</span>
+      </span>
+      <Separator className="flex-1" />
+    </div>
   )
 }
 
-/** Where earlier turns were compacted; opened, what Sem keeps of them (M12 §3.4). */
+/** Where earlier turns were compacted; opened, the summary Sem works from (M12 §3.4). */
 function CompactedDivider({ summary }: { summary: string }) {
   return (
     <Collapsible className="flex flex-col gap-2">
@@ -492,9 +492,6 @@ function CompactedDivider({ summary }: { summary: string }) {
         <Separator className="flex-1" />
       </div>
       <CollapsibleContent className="rounded-2xl bg-muted/60 px-4 py-3 text-sm">
-        <p className="mb-1 text-xs font-medium text-muted-foreground">
-          {m.assistant_compacted_summary()}
-        </p>
         <p className="whitespace-pre-wrap">{summary}</p>
       </CollapsibleContent>
     </Collapsible>
@@ -737,6 +734,12 @@ export function Conversation({
   }
 
   const lastAssistant = items.findLast((item) => item.kind === 'assistant')
+  // What is being compacted now is dimmed, with a running divider below it.
+  const compacted =
+    detail && chat.compacting
+      ? compactingItems(detail, items, chat.compactingUntil)
+      : new Set<string>()
+  const lastCompacted = items.findLast((item) => compacted.has(item.id))?.id
 
   return (
     <section
@@ -781,8 +784,15 @@ export function Conversation({
                 // Answers wait for their renderer together (see `Markdown`).
                 <Suspense fallback={<ConversationSkeleton />}>
                   <ChipCourses value={courses}>
-                    {items.map((item) => (
-                      <MessageScrollerItem key={item.id} messageId={item.id}>
+                    {items.map((item) => [
+                      <MessageScrollerItem
+                        key={item.id}
+                        messageId={item.id}
+                        className={cn(
+                          'transition-opacity duration-300',
+                          compacted.has(item.id) && 'opacity-40',
+                        )}
+                      >
                         {item.kind === 'compacted' ? (
                           <CompactedDivider summary={item.summary} />
                         ) : item.kind === 'user' ? (
@@ -804,9 +814,6 @@ export function Conversation({
                             citations={citations}
                             busy={chat.generating}
                             active={item === lastAssistant && chat.generating}
-                            compacting={
-                              item === lastAssistant && chat.generating && chat.compacting
-                            }
                             showReasoning={showReasoning}
                             onDecide={(decisions) => void chat.decide(decisions)}
                             latest={item === lastAssistant}
@@ -844,17 +851,17 @@ export function Conversation({
                             }
                           />
                         )}
-                      </MessageScrollerItem>
-                    ))}
+                      </MessageScrollerItem>,
+                      item.id === lastCompacted ? (
+                        <MessageScrollerItem key="compacting" messageId="compacting">
+                          <CompactingDivider />
+                        </MessageScrollerItem>
+                      ) : null,
+                    ])}
                   </ChipCourses>
                 </Suspense>
               )}
-              {/* Compacting before an answer shows on that answer's line, so one line runs. */}
-              {chat.compacting && !(chat.generating && items.at(-1)?.kind === 'assistant') ? (
-                <CompactingNotice />
-              ) : chat.generating && items.at(-1)?.kind === 'user' ? (
-                <ThinkingPlaceholder />
-              ) : null}
+              {chat.generating && items.at(-1)?.kind === 'user' ? <ThinkingPlaceholder /> : null}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
@@ -934,6 +941,7 @@ export function Conversation({
           onContentChange={onContentChange}
           context={sessionId ? (detail?.context ?? null) : null}
           canCompact={canCompact}
+          compacting={chat.compacting}
           onCompact={compact}
         />
       </div>

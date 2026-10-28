@@ -1,4 +1,4 @@
-import type { AgentScope, AgentSkillInfo } from '@semestra/api-client'
+import type { AgentScope, AgentSkillInfo, ContextUsage } from '@semestra/api-client'
 import { agentSkillListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import type { JSONContent } from '@tiptap/core'
@@ -77,6 +77,7 @@ export function Composer({
   onContentChange,
   context,
   canCompact = false,
+  compacting: compactingNow = false,
   onCompact,
 }: {
   programId: string | undefined
@@ -95,9 +96,11 @@ export function Composer({
   /** Reports what is being written. */
   onContentChange?: (doc: JSONContent) => void
   /** How full the conversation's context is, once a request measured it. */
-  context?: { used: number; window: number } | null
+  context?: ContextUsage | null
   /** There are turns before the last message to compact. */
   canCompact?: boolean
+  /** Earlier turns are being compacted now (sending waits: `generating` is set too). */
+  compacting?: boolean
   /** Compacts the conversation now (`/compact` or the context ring's button), keeping `focus`. */
   onCompact?: (focus: string) => Promise<boolean>
 }) {
@@ -224,7 +227,9 @@ export function Composer({
               <ContextMeter
                 used={context.used}
                 window={context.window}
+                parts={context.parts ?? null}
                 canCompact={canCompact && !generating && !disabled}
+                compacting={compactingNow}
                 onCompact={() => {
                   // Like `/compact`: what to keep is typed here, and sending compacts.
                   editor.current?.startCompact()

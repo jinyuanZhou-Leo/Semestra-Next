@@ -219,6 +219,26 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
   return items
 }
 
+/**
+ * The items being compacted now: those after the last summary, up to the message `until` (the
+ * compaction's `running` event). Empty until the server says which.
+ */
+export function compactingItems(
+  detail: AgentSessionDetail,
+  items: readonly ViewItem[],
+  until: string | null,
+): Set<string> {
+  const at = new Map(detail.messages.map((msg, i) => [msg.id, i]))
+  const end = until === null ? -1 : (at.get(until) ?? -1)
+  const start = detail.compaction ? (at.get(detail.compaction.until) ?? -1) : -1
+  return new Set(
+    items.flatMap((item) => {
+      const i = at.get(item.id)
+      return item.kind !== 'compacted' && i !== undefined && i > start && i <= end ? [item.id] : []
+    }),
+  )
+}
+
 function userItem(message: AgentMessageOut): ViewItem {
   const content = message.content
   return {

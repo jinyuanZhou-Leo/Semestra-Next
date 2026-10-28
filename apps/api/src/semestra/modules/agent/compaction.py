@@ -54,7 +54,11 @@ class Compacting(Protocol):
 type Smaller = tuple[list[ModelMessage], int] | Literal["nothing", "stopped"]
 
 
-async def compact(turn: Compacting, messages: list[ModelMessage]) -> list[ModelMessage]:
+async def compact(
+    turn: Compacting, messages: list[ModelMessage], overhead: history.ContextParts
+) -> list[ModelMessage]:
+    """`overhead`: the request's instructions and tools (`history.request_overhead`), for the
+    context card."""
     messages = _applied(turn, messages)
     window = turn.model.context_window
     tokens = history.prompt_tokens(messages)
@@ -62,8 +66,21 @@ async def compact(turn: Compacting, messages: list[ModelMessage]) -> list[ModelM
         smaller = await _smaller(turn, messages, KEEP_USER_TURNS, tokens, focus=None)
         if not isinstance(smaller, str):
             messages, tokens = smaller
-    turn.memo["context"] = {"used": tokens, "window": window}
+    turn.memo["context"] = _usage(messages, tokens, window, overhead)
     return messages
+
+
+def _usage(
+    messages: list[ModelMessage], tokens: int, window: int, overhead: history.ContextParts
+) -> dict[str, Any]:
+    """What the context card shows: the request's size and what fills it, by kind. With the
+    provider's count the kinds are scaled to it; before the first answer `tokens` is only the
+    messages' estimate, so the kinds' sum (instructions and tools too) is the size."""
+    parts = history.context_parts(messages, overhead)
+    if history.counted(messages):
+        parts = history.scaled(parts, tokens)
+    used = sum(parts.values())
+    return {"used": used, "window": window, "parts": parts}
 
 
 def _applied(turn: Compacting, messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -146,7 +163,8 @@ async def _smaller(
     if prior:
         text = f"Earlier summary:\n{prior}\n\n{text}"
     rt = turn.state.agent
-    await rt.announce(turn.session_id, sse(event("compaction", status="running")))
+    # `until`: the chat dims what is being compacted, up to that message.
+    await rt.announce(turn.session_id, sse(event("compaction", status="running", until=last)))
     summary = await _unless_stopped(turn.cancel, _summarize(turn, prompt, text))
     if not summary:
         await rt.announce(turn.session_id, sse(event("compaction", status="skipped")))
@@ -217,5 +235,8 @@ async def compact_now(
     smaller = await _smaller(job, messages, 1, history.prompt_tokens(messages), focus=focus or "")
     if isinstance(smaller, str):
         return smaller
-    memo["context"] = {"used": smaller[1], "window": model.context_window}
+    # The instructions and tools are what the last request sent; this compaction sends none.
+    before = (memo.get("context") or {}).get("parts") or {}
+    overhead = {k: int(before.get(k, 0)) for k in ("instructions", "tools")}
+    memo["context"] = _usage(smaller[0], smaller[1], model.context_window, overhead)
     return "done"

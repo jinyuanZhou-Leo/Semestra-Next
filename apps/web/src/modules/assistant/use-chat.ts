@@ -130,7 +130,7 @@ function eventHandler(
   id: string,
   restart: boolean,
   setError: (error: ChatError) => void,
-  onCompaction: (status: 'running' | 'done' | 'skipped') => void,
+  onCompaction: (status: 'running' | 'done' | 'skipped', until: string | null) => void,
 ) {
   const batch = batcher((events) =>
     queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
@@ -151,7 +151,7 @@ function eventHandler(
       return
     }
     if (event.event === 'compaction') {
-      onCompaction(event.data.status)
+      onCompaction(event.data.status, event.data.until ?? null)
       return
     }
     batch.push(event)
@@ -202,8 +202,10 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ChatError | null>(null)
-  // Older turns are being compacted (a turn's own, or one the user asked for).
+  // Older turns are being compacted (a turn's own, or one the user asked for), up to
+  // `compactingUntil` once the server says which.
   const [compacting, setCompacting] = useState(false)
+  const [compactingUntil, setCompactingUntil] = useState<string | null>(null)
   const skipped = useRef(false)
   const stopped = useRef(false)
   const controller = useRef<AbortController | null>(null)
@@ -242,12 +244,14 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     )
     setBusy(false)
     setCompacting(false)
+    setCompactingUntil(null)
     await settle(queryClient, id)
     return result.started
   }
 
-  function onCompaction(status: 'running' | 'done' | 'skipped') {
+  function onCompaction(status: 'running' | 'done' | 'skipped', until: string | null) {
     setCompacting(status === 'running')
+    setCompactingUntil(status === 'running' ? until : null)
     if (status === 'skipped') skipped.current = true
   }
 
@@ -258,13 +262,21 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     const abort = new AbortController()
     streaming.add(sessionId)
     const follow = (attempt: number, round = 1): Promise<void> => {
-      const { onEvent, flush } = eventHandler(queryClient, sessionId, true, setError, (status) =>
-        setCompacting(status === 'running'),
+      const { onEvent, flush } = eventHandler(
+        queryClient,
+        sessionId,
+        true,
+        setError,
+        (status, until) => {
+          setCompacting(status === 'running')
+          setCompactingUntil(status === 'running' ? until : null)
+        },
       )
       return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
         async () => {
           flush()
           setCompacting(false)
+          setCompactingUntil(null)
           if (abort.signal.aborted) return
           await settle(queryClient, sessionId)
           // Another turn began as this one ended (a card decided in another tab): follow it
@@ -462,6 +474,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     busy,
     generating,
     compacting,
+    compactingUntil,
     error,
     clearError: () => setError(null),
     ensureSession,

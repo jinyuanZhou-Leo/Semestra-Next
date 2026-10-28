@@ -1433,6 +1433,10 @@ async def test_compaction_clears_old_tool_results_first(
     detail = await agent.detail(session_id)
     assert detail["compaction"] is None
     assert detail["context"]["window"] == 4_000
+    # The kinds add up to the size; what the searches returned was cleared, so it is small.
+    parts = detail["context"]["parts"]
+    assert sum(parts.values()) == detail["context"]["used"]
+    assert parts["instructions"] > 0 and parts["reads"] < parts["conversation"] + parts["tools"]
     # Reused on the next request, so the prompt stays the same.
     model.then(say("again"))
     await agent.send(session_id, "question 4")
