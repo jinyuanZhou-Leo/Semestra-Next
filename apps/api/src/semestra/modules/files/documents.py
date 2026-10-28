@@ -29,6 +29,8 @@ async def _active_document(ctx: Ctx, item_id: str) -> tuple[FilesItem, FilesDocu
     # While a file is processed again, or after that failed, the previous version is still the
     # active one: search returns it, so it must stay readable too.
     if item.active_document_id is None:
+        if item.doc_status == "none":  # auto-indexing was off when it was added
+            raise AppError("files.not_indexed", 409)
         raise AppError("files.not_ready", 409, doc_status=item.doc_status)
     document = await ctx.db.get(FilesDocument, item.active_document_id)
     if document is None:

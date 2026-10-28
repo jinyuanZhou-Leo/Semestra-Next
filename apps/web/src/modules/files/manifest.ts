@@ -1,4 +1,4 @@
-import { FileClock, FolderOpen, Star } from 'lucide-react'
+import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
 import { defineModule, preloadable, type QueryKeyPrefix } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { QuickOpenPicker } from './cards/QuickOpenPicker'
@@ -69,6 +69,26 @@ export default defineModule({
       defaultSize: 'm',
       component: preloadable(() => import('./cards/RecentCard')),
       multiple: false,
+    },
+  ],
+  settingsSections: [
+    {
+      id: 'files',
+      level: 'program',
+      group: 'data',
+      title: m.files_settings_title,
+      icon: FileSearch,
+      order: 10,
+      namespace: 'files',
+    },
+    {
+      id: 'course-files',
+      level: 'course',
+      group: 'general',
+      title: m.files_settings_title,
+      icon: FileSearch,
+      order: 50,
+      namespace: 'files',
     },
   ],
   jobKinds: [

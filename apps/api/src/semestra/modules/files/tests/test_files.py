@@ -63,6 +63,25 @@ async def test_unsupported_files_are_stored_but_not_indexed(fx: Fx):
     await fx.call("GET", f"/files/{item['id']}/document", status=409)
 
 
+async def test_with_auto_index_off_files_wait_until_asked(fx: Fx):
+    await fx.call(
+        "PATCH",
+        "/me/settings/files",
+        json={"scope_type": "program", "scope_id": fx.program_id, "values": {"auto_index": False}},
+    )
+    item = await fx.upload("notes.docx", make_docx([("Normal", "Recursion basics")]))
+    assert item["doc_status"] == "none"
+    assert item["job_id"] is None
+    await fx.run_jobs()
+    assert not (await fx.search("Recursion"))["results"]
+    error = await fx.call("GET", f"/files/{item['id']}/document", status=409)
+    assert error["error"]["code"] == "files.not_indexed"
+
+    await fx.call("POST", f"/files/{item['id']}:reprocess")
+    await fx.run_jobs()
+    assert (await fx.search("Recursion"))["results"]
+
+
 async def test_broken_file_fails_with_a_code_and_can_be_retried(fx: Fx):
     item = await fx.upload("broken.pdf", b"%PDF-1.7 this is not really a pdf")
     await fx.run_jobs()

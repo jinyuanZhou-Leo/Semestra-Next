@@ -37,6 +37,12 @@ Each AI call has a purpose, and each purpose needs one capability from the provi
 | Search           | Finding passages in your course files                 | `embedding` |
 | Light tasks      | Conversation titles, long-conversation summaries, tidying Sem's memory | `chat` |
 
+New course files are read and indexed as soon as they are added, which is when scanned pages go
+to the image model and passages to the search model. To control that spending, turn off
+**File indexing → Index new files automatically** in the Program's (or a course's) settings. Files
+added while it is off show **Not indexed** with an **Index** button, and an import that needs one of
+them indexes it on its own.
+
 ## Which model answers
 
 For each purpose, Semestra takes the first of:
