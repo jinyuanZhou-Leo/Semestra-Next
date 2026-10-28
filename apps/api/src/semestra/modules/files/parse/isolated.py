@@ -32,6 +32,9 @@ MAX_CHILDREN = 3
 _limiters: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, anyio.CapacityLimiter] = (
     weakref.WeakKeyDictionary()
 )
+_ocr_limiters: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, anyio.CapacityLimiter] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,12 @@ class Rendered:
 
 
 @dataclass(frozen=True)
+class Recognized:
+    index: int
+    text: str
+
+
+@dataclass(frozen=True)
 class _Failed:  # ParseError itself does not survive pickling with its params
     code: str
     params: dict[str, object]
@@ -69,6 +78,8 @@ def _context() -> ForkServerContext | SpawnContext:
 
 
 def _limit_memory(limit: int) -> None:
+    if limit <= 0:
+        return
     try:
         import resource
 
@@ -126,6 +137,42 @@ def _render_child(
         conn.send(_Failed("files.parse_failed", {}))
     finally:
         conn.close()
+
+
+def _ocr_child(conn: Connection, model: str, pngs: Sequence[bytes]) -> None:
+    """Local OCR (M06 `local_ocr`) of the given page images. The engine loads here, so its
+    memory goes when the child ends and a crash takes only the child down."""
+    try:
+        from semestra.modules.ai import local_ocr
+
+        for index, png in enumerate(pngs):
+            conn.send(Recognized(index, local_ocr.recognize(model, png)))
+        conn.send(None)
+    except MemoryError:
+        conn.send(_Failed("files.too_complex", {}))
+    except Exception:
+        traceback.print_exc()
+        conn.send(_Failed("files.parse_failed", {}))
+    finally:
+        conn.close()
+
+
+async def ocr_isolated(
+    model: str, pngs: Sequence[bytes], *, time_limit: float
+) -> AsyncGenerator[Recognized]:
+    """Text of each page image, read by local OCR in a child process, one child at a time
+    (each holds a gigabyte or more). Raises `ParseError` when it fails or runs out of time."""
+    async with _ocr_limiter(), aclosing(_run(_ocr_child, (model, list(pngs)), time_limit)) as m:
+        async for message in m:
+            if isinstance(message, Recognized):
+                yield message
+
+
+def _ocr_limiter() -> anyio.CapacityLimiter:
+    loop = asyncio.get_running_loop()
+    if (limiter := _ocr_limiters.get(loop)) is None:
+        limiter = _ocr_limiters[loop] = anyio.CapacityLimiter(1)
+    return limiter
 
 
 async def render_isolated(

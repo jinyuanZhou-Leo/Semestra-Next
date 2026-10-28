@@ -5,7 +5,7 @@ Semestra-Next 是 Semestra 的从零重写版（独立仓库）。设计与规�
 ## 目录
 
 ```
-apps/api/            FastAPI 后端（uv，Python 3.15）  → src/semestra/{core,modules}
+apps/api/            FastAPI 后端（uv，Python 3.14）  → src/semestra/{core,modules}
 apps/web/            React SPA（Vite + TanStack Router）→ src/{routes,app,modules,ui,components,lib}
 packages/api-client/ 由 OpenAPI 生成的客户端，禁止手改 src/generated
 deploy/              环境变量示例与部署文件
@@ -53,9 +53,9 @@ docs/                设计稿与模块规格
 
 ## 环境注意事项（M00 搭建时发现）
 
-- **Python 必须是 3.15.0 正式版**。3.15.0a7 与 Cython 构建的扩展（SQLAlchemy 的 `_collections_cy` 等）不兼容，会报 `unknown slot ID 84`。用 `uv python install 3.15`（需要 uv ≥ 0.13）。
-- 已验证有 3.15 wheel 的 C 扩展依赖：pydantic-core、cryptography、argon2-cffi-bindings、greenlet、SQLAlchemy 的 Cython 扩展、uvloop、httptools、watchfiles、orjson、pymupdf、sqlite-vec。
-- **PyYAML 没有 3.15 wheel**，所以不能用 `uvicorn[standard]`；`pyproject.toml` 里手动列出 httptools、uvloop、watchfiles、websockets、python-dotenv 代替。
+- **Python 是 3.14**（2026-10-28 从 3.15 降下来）：本地 OCR 依赖的 onnxruntime 没有 3.15 wheel（paddlepaddle 更是只到 3.13）。用 `uv python install 3.14`。不要再升到 3.15，除非 `ocr` extra 的依赖都有了 3.15 wheel。
+- **可选依赖 `ocr`**（`uv sync --extra ocr`）：PaddleOCR 3.x + onnxruntime，只用 CPU，`engine="onnxruntime"`，不装 paddlepaddle；macOS arm64 与 Linux amd64/arm64 都有 wheel。CI 不装它，所以 `ai/local_ocr.py` 里只在函数内 import paddleocr/numpy（带 pyright ignore），测试 monkeypatch `local_ocr.available` 和 `files.pipeline.ocr_isolated`。识别在 `files/parse/isolated.py` 的 `ocr_isolated` 子进程里跑（一次一个、按页数算超时、不限地址空间，每页更新进度并检查取消），每个用户可在 AI 设置的 OCR 一行选本机模型（`ai_model_assignments.provider_id` 为空的行）。镜像不带模型：`local_ocr.download` 在第一次用到时把模型下载到 `PADDLE_PDX_CACHE_HOME`（镜像里是 `/data/ocr-models`），优先从 Hugging Face（先取文件大小，再按暂存目录大小报进度），失败再走 PaddleX 自己的镜像源；选模型时排 `ai.local_ocr.download` 任务，文件管线在 `ocr_model` 阶段先下载再识别（不算进 OCR 超时）。测试 monkeypatch `local_ocr._fetch_from_hugging_face` 并把 `PADDLE_PDX_CACHE_HOME` 指到 `tmp_path`。离线部署先跑 `semestra ocr-models --all`。它会拉 opencv（Docker 里要 `libgl1`、`libglib2.0-0t64`，见 `allinone-ocr` 目标）和被 paddlex 钉死的 PyYAML 6.0.2。2026-10-28 在 Apple Silicon 上实测：`uv sync --extra ocr` 约 11 s；PP-OCRv6_medium 首次约 5 s、之后每页约 2 s、峰值内存约 1.7 GB，PP-OCRv5_mobile 每页约 0.4 s、约 1.1 GB。
+- 仍然手动列出 httptools、uvloop、watchfiles、websockets、python-dotenv，不写 `uvicorn[standard]`（历史原因，见下）。
 - `@hey-api/openapi-ts` 依赖 TypeScript 的 JS API，而 TS 7（原生版）没有它，所以 `packages/api-client` 单独固定 `typescript@6.0.3` 仅供代码生成使用；应用本身用 TS 7。
 - 前端依赖精确版本锁定（`pnpm-workspace.yaml` 里 `savePrefix: ''`）。
 - 根目录 `oxlint` 不带路径会异常变慢，lint 脚本都显式指定目录。
@@ -63,8 +63,8 @@ docs/                设计稿与模块规格
 ## 已知坑（别再踩）
 
 - **拉了新提交后 `pnpm dev` 报 `no such table: core_jobs` 等**：本地 SQLite 没迁移到最新 head（新模块带来新迁移）。`semestra dev` 现在启动前会自动 `alembic upgrade head`（`--no-migrate` 可跳过）；单独起服务或用 `serve` 时需手动 `pnpm --filter @semestra/api migrate`。
-- **Python 版本**：见上，a7 不能用；`apps/api/.python-version` 是 `3.15`，uv 会选已安装的最新 3.15.x。装不上时先 `uv self update`。
-- **uvicorn**：不要写 `uvicorn[standard]`（会拉 PyYAML，没有 3.15 wheel，会退回源码编译并失败）。
+- **Python 版本**：见上；`apps/api/.python-version` 是 `3.14`，uv 会选已安装的最新 3.14.x。
+- **uvicorn**：不要写 `uvicorn[standard]`（在 3.15 时代 PyYAML 没有 wheel；现在保持手动列出的依赖，免得多拉包）。
 - **OpenAPI 生成器与 TS 7**：`@hey-api/openapi-ts` 在 TS 7 下直接崩（`Cannot read properties of undefined (reading 'AnyKeyword')`）。生成器依赖的 `typescript@6.0.3` 只放在 `packages/api-client`，不要升级或删除；也不要把它引入 `apps/web`。
 - **`@hey-api/client-fetch` 包已内置**，不要再单独安装这个依赖，配置里直接写插件名即可。
 - **改了后端接口后必须跑 `pnpm gen:api` 并提交生成结果**，否则 CI 的 contract 检查会失败。
@@ -132,7 +132,7 @@ docs/                设计稿与模块规格
 - M14 小插件合集：五个第一方插件（计数器、习惯打卡、番茄钟、便签、世界时钟）。前端 `apps/web/src/modules/plugin-<id>/`，共用的小工具在 `plugin-kit/`（`useCardSettings`、`useOptimisticSettings`、`Ring`、`Burst`、`colors`、`duration`）；后端 `apps/api/src/semestra/modules/plugins_builtin/`：`habit_streak/`（表 `plugin_habit_checkins`；纯连续天数规则在 `streak.py`）、`pomodoro/`（表 `plugin_pomodoro_sessions`）、`sticky_note/`（只有 Agent capability，文本在卡片设置里）；计数器与世界时钟没有后端。`instances.py` 是插件读取 M10 卡片实例的唯一入口，`portability.py` 是 M13 导出适配器。插件开发指南在文档站 [apps/docs/content/docs/plugins.zh.mdx](apps/docs/content/docs/plugins.zh.mdx)（英文版 `plugins.mdx`），模板是 `_template-plugin/`（前端）与 `plugins_builtin/_template/`（后端），都不注册进应用。
   给其它模块的约定：习惯打卡的"今天"与周起点由后端按卡片所在 Program 的时区给出，前端不做时区计算；番茄钟计时状态存 `useUiPref('pomodoro.<instanceId>')`，以 `endsAt` 推算剩余时间，`pomodoro.active` 指向状态条要显示的那个计时；新的内置插件照着模板和指南写。
 - M07 文件与文档管线：后端 `apps/api/src/semestra/modules/files/`（表 `files_folders`/`_items`/`_documents`/`_document_pages`/`_chunks`/`_index_state`，FTS5 trigram 表 `files_chunks_fts`，向量表 `files_vec_<指纹>`（sqlite-vec，每个连接在 `core/db.py` 加载）；解析器在 `parse/`，切块 `chunking.py`，检索 `search.py`（关键词 + 语义 + RRF），处理任务 `pipeline.py`；Skill 在 `skills/`）。前端 `apps/web/src/modules/files/`：课程/学期 `files` 页（TanStack Table、网格缩略图、上传浮层、内容搜索）、预览（`react-pdf`）、卡片"快速打开"与"最近文件"。
-  给其它模块的约定：要引用课程文件内容（M08/M12）用 capability `files.document.search`、`files.document.read`、`files.document.outline`，回答里的出处写 `citation_id`（`<item>:p<from>-<to>`），前端用 `modules/files/components/Citation.tsx` 的 `<Citation id=… />` 显示（点开预览并定位到页）；其它模块产生的文件用 `from semestra.modules.files import save_bytes_as_file` 存进课程（会自动走处理管线）。文档管线不依赖 AI：没有 embedding 模型时只有关键词检索，没有图像模型时扫描页跳过并在 `ocr_skipped_pages` 里标出。迁移 `env.py` 的 `include_object` 忽略 FTS 与向量虚表；pdf.js 的 cmaps/standard_fonts/wasm/iccs 由 `vite.config.ts` 复制到 `/pdfjs/`（CSP 需要 `'wasm-unsafe-eval'`）。文件解析在限内存、限时长的子进程里（`parse/isolated.py`），测试里换掉 `isolated._child` 模拟卡死或崩溃。测配额时别假设已用为 0：`tests/test_storage.py` 在全量测试里注册了一个固定 1000 字节的 usage provider。后端测试用 `modules/files/tests/conftest.py` 的 `make_pdf`/`make_docx`/`make_png` 与 `fx` fixture（含假 embedding）；前端测试要 `vi.mock('react-pdf')`（jsdom 跑不了 pdf.js）。细节与偏离见 M07 规格末尾的"实现说明"。
+  给其它模块的约定：要引用课程文件内容（M08/M12）用 capability `files.document.search`、`files.document.read`、`files.document.outline`，回答里的出处写 `citation_id`（`<item>:p<from>-<to>`），前端用 `modules/files/components/Citation.tsx` 的 `<Citation id=… />` 显示（点开预览并定位到页）；其它模块产生的文件用 `from semestra.modules.files import save_bytes_as_file` 存进课程（会自动走处理管线）。文档管线不依赖 AI：没有 embedding 模型时只有关键词检索，扫描页用 M06 的 `ocr` 用途（自托管开了 `SEMESTRA_LOCAL_OCR` 时走 `ai.local_ocr`，本机 PaddleOCR），两者都没有时扫描页跳过并在 `ocr_skipped_pages` 里标出。迁移 `env.py` 的 `include_object` 忽略 FTS 与向量虚表；pdf.js 的 cmaps/standard_fonts/wasm/iccs 由 `vite.config.ts` 复制到 `/pdfjs/`（CSP 需要 `'wasm-unsafe-eval'`）。文件解析在限内存、限时长的子进程里（`parse/isolated.py`），测试里换掉 `isolated._child` 模拟卡死或崩溃。测配额时别假设已用为 0：`tests/test_storage.py` 在全量测试里注册了一个固定 1000 字节的 usage provider。后端测试用 `modules/files/tests/conftest.py` 的 `make_pdf`/`make_docx`/`make_png` 与 `fx` fixture（含假 embedding）；前端测试要 `vi.mock('react-pdf')`（jsdom 跑不了 pdf.js）。细节与偏离见 M07 规格末尾的"实现说明"。
 - M08 导入中心：后端 `apps/api/src/semestra/modules/imports/`（表 `imports_sessions`/`_items`/`_uploads`；ICS 解析 `ics.py`，相对日期 `dates.py`，抽取结果 → item 的纯函数 `build.py` + `extraction.py`，问题校验 `validate.py`，提交顺序与回滚 `service.py`；job `imports.extract`；8 个 capability，`imports.item.add_many` 只给 agent/MCP；skill `imports/skills/import-from-documents.md`）。对 M05/M07 的依赖在 `deps.py` 里按名字晚绑定（`deps.call(ctx, "<capability>", args)` 与 `importlib`），缺了只让对应 item/文件失败。前端 `apps/web/src/modules/imports/`：任意处调用 `openImport(request)`（`launcher.ts`）打开导入对话框（manifest 新字段 `overlays` 渲染的 `ImportHost`），审核视图 `SessionView` 同时用于对话框和 `/p/$programId/imports/$sessionId`；Program 设置"数据"下的导入历史。
   给其它模块的约定：要在提交导入时做额外写入用 `register_commit_hook(source_kind, fn)`（同一事务，抛错会让整个提交回滚）；新的导入来源在前端调用 `openImport`，不要自己写审核界面。SQLite 坑：pysqlite 只在第一条 DML 才开事务，第一个 `begin_nested()` 会变成外层事务并在 release 时提交，所以 savepoint 前先 flush 一次写入（见 `service.commit`）。细节与偏离见 M08 规格末尾的"实现说明"。
 - M13 数据导出导入与账户删除：后端 `modules/portability/`（`registry.py` 的 `register_portability`、`tables.py` 的 `table_adapter`/`Table`、备份 zip `archive.py`、表 `portability_archives`；导出/导入/删除账户三个任务；上传与下载是 `routes.py`）；每个有数据的模块在自己的 `portability.py` 注册适配器。前端 `modules/portability/`（账户设置"数据"组）与公开路由 `/account-deleted`。

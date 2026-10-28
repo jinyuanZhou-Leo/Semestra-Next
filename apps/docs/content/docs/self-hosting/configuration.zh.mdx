@@ -63,6 +63,30 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 
 见[全实例服务商](/docs/ai/instance-provider)。
 
+## 本机 OCR
+
+默认镜像（标签以 `-ocr` 结尾）在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（ONNX Runtime，只用
+CPU）识别扫描版 PDF 和照片，不会为此调用 AI 模型。每个用户可以在 AI 设置 → 模型的 **OCR** 一行里选择本机的 PaddleOCR
+模型（默认是下表的模型），也可以改用某个服务商的模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用
+本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。
+
+镜像里不带模型。每个模型在第一次用到时（用户选中它，或有扫描文件要识别）从 Hugging Face（或 PaddleOCR 的其他镜像源）下载到
+数据卷，应用会在 AI 设置和文件状态里显示下载进度。所有用户共用下载好的模型，升级后也不用重新下载。服务器之后不能联网的话，
+请趁还能联网时先下载：
+
+```sh
+docker compose exec semestra semestra ocr-models --all
+```
+
+要换成不带它的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空），再运行 `docker compose up -d`；用户之后在 **OCR**
+一行里选服务商的模型。改回 `-ocr` 即可换回来。
+
+| 变量                       | 默认值              | 含义                                                         |
+| -------------------------- | ------------------- | ------------------------------------------------------------ |
+| `SEMESTRA_LOCAL_OCR`       | `-ocr` 镜像里为 `true` | 在服务器上识别扫描页                                      |
+| `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium`   | 默认模型：`PP-OCRv6_tiny`、`_small`、`_medium`、`PP-OCRv5_mobile`、`PP-OCRv5_server` |
+| `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | 每页允许的时间（另加两分钟加载模型）；CPU 很慢时调大 |
+
 ## 后台任务与备份
 
 | 变量                       | 默认值 | 含义                                       |

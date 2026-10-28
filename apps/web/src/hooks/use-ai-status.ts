@@ -8,6 +8,7 @@ export const AI_PURPOSES: readonly AiPurpose[] = [
   'chat',
   'extraction',
   'vision',
+  'ocr',
   'embedding',
   'title',
 ]

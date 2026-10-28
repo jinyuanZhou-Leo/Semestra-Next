@@ -212,7 +212,7 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
         return ai.Completion(text=fake.ocr_text)
 
     async def complete_with(ctx: Any, resolved: Any, messages: Any, **kwargs: Any) -> Any:
-        return await complete(ctx, "vision", messages, **kwargs)
+        return await complete(ctx, "ocr", messages, **kwargs)
 
     async def embed(ctx: Any, texts: list[str], *, source_module: str) -> ai.EmbeddingResult:
         if fake.fail_embedding or (

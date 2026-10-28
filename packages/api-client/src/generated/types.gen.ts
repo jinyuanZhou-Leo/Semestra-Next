@@ -500,6 +500,26 @@ export type AiStatusGet = {
      * Items
      */
     items: Array<PurposeStatus>;
+    /**
+     * Local Ocr Models
+     */
+    local_ocr_models?: Array<string>;
+    /**
+     * Local Ocr Default
+     */
+    local_ocr_default?: string | null;
+    /**
+     * Local Ocr Downloaded
+     */
+    local_ocr_downloaded?: Array<string>;
+    /**
+     * Local Ocr Downloading
+     */
+    local_ocr_downloading?: Array<string>;
+    /**
+     * Local Ocr Download Job
+     */
+    local_ocr_download_job?: string | null;
 };
 
 /**
@@ -1027,7 +1047,7 @@ export type Assignment = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Provider Id
      */
@@ -1169,11 +1189,11 @@ export type AssignmentUpdateInputBody = {
      *
      * Which purpose to configure.
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Provider Id
      *
-     * Provider to use; null removes the choice (the recommended default applies).
+     * Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model.
      */
     provider_id: string | null;
     /**
@@ -5641,6 +5661,28 @@ export type LmsCourse = {
 };
 
 /**
+ * LocalOcrDownload
+ */
+export type LocalOcrDownload = {
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+};
+
+/**
+ * LocalOcrDownloadInputBody
+ */
+export type LocalOcrDownloadInputBody = {
+    /**
+     * Model
+     *
+     * A local OCR model; defaults to the one that reads this user's scanned pages.
+     */
+    model?: string | null;
+};
+
+/**
  * Meeting
  */
 export type Meeting = {
@@ -7695,7 +7737,7 @@ export type ProviderDeleted = {
     /**
      * Cleared Purposes
      */
-    cleared_purposes: Array<'chat' | 'extraction' | 'vision' | 'embedding' | 'title'>;
+    cleared_purposes: Array<'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title'>;
 };
 
 /**
@@ -7775,7 +7817,7 @@ export type PurposeStatus = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Available
      */
@@ -7783,7 +7825,7 @@ export type PurposeStatus = {
     /**
      * Source
      */
-    source: 'assignment' | 'default' | 'instance' | null;
+    source: 'assignment' | 'default' | 'instance' | 'local' | null;
     /**
      * Provider Id
      */
@@ -10589,7 +10631,7 @@ export type UsageDay = {
     /**
      * Purpose
      */
-    purpose: 'chat' | 'extraction' | 'vision' | 'embedding' | 'title';
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
     /**
      * Calls
      */
@@ -13402,6 +13444,31 @@ export type AiAssignmentUpdateResponses = {
 };
 
 export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
+
+export type AiLocalOcrDownloadData = {
+    body: LocalOcrDownloadInputBody;
+    path?: never;
+    query?: never;
+    url: '/ai/local-ocr/download';
+};
+
+export type AiLocalOcrDownloadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiLocalOcrDownloadError = AiLocalOcrDownloadErrors[keyof AiLocalOcrDownloadErrors];
+
+export type AiLocalOcrDownloadResponses = {
+    /**
+     * Successful Response
+     */
+    200: LocalOcrDownload;
+};
+
+export type AiLocalOcrDownloadResponse = AiLocalOcrDownloadResponses[keyof AiLocalOcrDownloadResponses];
 
 export type AiProviderListData = {
     body?: never;

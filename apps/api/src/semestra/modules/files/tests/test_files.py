@@ -1,5 +1,8 @@
 """End-to-end behaviour of the files module over HTTP (M07 §9)."""
 
+from pathlib import Path
+from typing import Any
+
 import pytest
 
 from semestra.core.config import Settings
@@ -115,8 +118,8 @@ async def test_scanned_pages_without_vision_are_counted_as_skipped(fx: Fx, fake_
     assert fake_ai.ocr_calls == 0
 
 
-async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
-    fake_ai.enabled.add("vision")
+async def test_scanned_pages_use_the_ocr_model_when_available(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("ocr")
     item = await fx.upload_ready("photo.png", make_png())
     assert item["ocr_skipped_pages"] == 0
     assert fake_ai.ocr_calls == 1
@@ -125,8 +128,8 @@ async def test_scanned_pages_use_vision_when_available(fx: Fx, fake_ai: FakeAi):
     assert hits[0]["heading_path"] == ["Scanned heading"]
 
 
-async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
-    fake_ai.enabled.add("vision")
+async def test_a_page_the_ocr_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("ocr")
     fake_ai.ocr_fail_calls = {2}
     scanned = make_pdf(["scan one", "scan two", "scan three"], scanned={0, 1, 2})
     item = await fx.upload_ready("scan.pdf", scanned)
@@ -136,11 +139,83 @@ async def test_a_page_the_vision_model_fails_on_is_skipped(fx: Fx, fake_ai: Fake
     assert (await fx.search("photosynthesis"))["results"]
 
 
+async def test_local_ocr_reads_scanned_pages_without_a_model(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    from semestra.modules.ai import local_ocr
+    from semestra.modules.files import pipeline
+    from semestra.modules.files.parse.isolated import Recognized
+
+    pages: list[tuple[str, bytes]] = []
+    fetched: list[str] = []
+
+    async def ocr_isolated(model: str, pngs: list[bytes], *, time_limit: float):
+        assert local_ocr.downloaded(model)
+        for index, png in enumerate(pngs):
+            pages.append((model, png))
+            yield Recognized(index, "Photosynthesis\nturns light into sugar")
+
+    def fetch(parts: list[str], state: Any) -> None:
+        state.total = 2_000_000 * len(parts)
+        for part in parts:
+            fetched.append(part)
+            (state.staging / part).mkdir()
+            (state.staging / part / "inference.onnx").write_bytes(b"0" * 2_000_000)
+
+    monkeypatch.setenv("PADDLE_PDX_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr(local_ocr, "DOWNLOAD_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("semestra.core.jobs.PROGRESS_THROTTLE_SECONDS", 0)
+    monkeypatch.setattr(local_ocr, "_fetch_from_hugging_face", fetch)
+    monkeypatch.setattr(local_ocr, "available", lambda settings: True)
+    monkeypatch.setattr(pipeline, "ocr_isolated", ocr_isolated)
+
+    # The first scanned file downloads the default model inside its own job.
+    item = await fx.upload_ready("photo.png", make_png())
+    assert item["ocr_skipped_pages"] == 0
+    assert fetched == ["PP-OCRv6_medium_det_onnx", "PP-OCRv6_medium_rec_onnx"]
+    assert [model for model, _ in pages] == ["PP-OCRv6_medium"]
+    assert fake_ai.ocr_calls == 0
+    assert (await fx.search("photosynthesis"))["results"][0]["item_id"] == item["id"]
+
+    # Picking a smaller model in the AI settings downloads it right away, as a job of its own.
+    body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv5_mobile"}
+    await fx.call("PUT", "/ai/assignments", json=body)
+    status = await fx.call("GET", "/ai/status")
+    assert status["local_ocr_downloaded"] == ["PP-OCRv6_medium"]
+    job_id = status["local_ocr_download_job"]
+    await fx.run_jobs()
+    job = await fx.call("GET", f"/jobs/{job_id}")
+    assert (job["status"], job["step"], job["step_current"]) == ("succeeded", "downloading", 4)
+    status = await fx.call("GET", "/ai/status")
+    assert status["local_ocr_downloaded"] == ["PP-OCRv6_medium", "PP-OCRv5_mobile"]
+    assert status["local_ocr_download_job"] is None
+    assert (await fx.call("POST", "/ai/local-ocr/download", json={}))["job_id"] is None
+
+    await fx.upload_ready("photo2.png", make_png("second"))
+    assert pages[-1][0] == "PP-OCRv5_mobile"
+    assert len(fetched) == 4
+
+    # With no model source reachable, the scanned pages are skipped and the job says why.
+    def unreachable(*args: Any) -> None:
+        raise OSError("offline")
+
+    monkeypatch.setattr(local_ocr, "_fetch_from_hugging_face", unreachable)
+    monkeypatch.setattr(local_ocr, "_fetch_from_mirrors", unreachable)
+    body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv6_tiny"}
+    await fx.call("PUT", "/ai/assignments", json=body)
+    job_id = (await fx.call("GET", "/ai/status"))["local_ocr_download_job"]
+    await fx.run_jobs()
+    job = await fx.call("GET", f"/jobs/{job_id}")
+    assert (job["status"], job["error_code"]) == ("failed", "ai.local_ocr_download_failed")
+    item = await fx.upload_ready("photo3.png", make_png("third"))
+    assert item["ocr_skipped_pages"] == 1
+
+
 async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):
     from semestra.modules.files import pipeline
 
     monkeypatch.setattr(pipeline, "OCR_CONCURRENCY", 1)
-    fake_ai.enabled.add("vision")
+    fake_ai.enabled.add("ocr")
     fake_ai.ocr_fail_calls = {1}
     fake_ai.ocr_fail_code = "ai.invalid_key"
     scanned = make_pdf([f"scan {n}" for n in range(10)], scanned=set(range(10)))

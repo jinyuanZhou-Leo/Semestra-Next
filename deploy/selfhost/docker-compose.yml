@@ -15,7 +15,10 @@ x-logging: &logging
 
 services:
   semestra:
-    image: ghcr.io/jinyuanzhou-leo/semestra-allinone:${SEMESTRA_VERSION:-latest}
+    # The -ocr image reads scanned pages on this machine (PaddleOCR; each model downloads into
+    # the data volume the first time it is needed). Set
+    # SEMESTRA_IMAGE_VARIANT= (empty) in .env for the smaller image without it.
+    image: ghcr.io/jinyuanzhou-leo/semestra-allinone:${SEMESTRA_VERSION:-latest}${SEMESTRA_IMAGE_VARIANT--ocr}
     restart: unless-stopped
     init: true
     env_file:

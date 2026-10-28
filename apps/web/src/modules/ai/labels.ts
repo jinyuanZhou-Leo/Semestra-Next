@@ -109,6 +109,7 @@ export const PURPOSE_TITLES: Record<AiPurpose, Message> = {
   chat: m.ai_purpose_chat,
   extraction: m.ai_purpose_extraction,
   vision: m.ai_purpose_vision,
+  ocr: m.ai_purpose_ocr,
   embedding: m.ai_purpose_embedding,
   title: m.ai_purpose_title,
 }
@@ -117,8 +118,18 @@ export const PURPOSE_HINTS: Record<AiPurpose, Message> = {
   chat: m.ai_purpose_chat_hint,
   extraction: m.ai_purpose_extraction_hint,
   vision: m.ai_purpose_vision_hint,
+  ocr: m.ai_purpose_ocr_hint,
   embedding: m.ai_purpose_embedding_hint,
   title: m.ai_purpose_title_hint,
+}
+
+/** What sets the self-hosted server's PaddleOCR models apart (`local_ocr.MODELS`). */
+export const LOCAL_OCR_HINTS: Record<string, Message> = {
+  'PP-OCRv6_tiny': m.ai_local_ocr_v6_tiny,
+  'PP-OCRv6_small': m.ai_local_ocr_v6_small,
+  'PP-OCRv6_medium': m.ai_local_ocr_v6_medium,
+  'PP-OCRv5_mobile': m.ai_local_ocr_v5_mobile,
+  'PP-OCRv5_server': m.ai_local_ocr_v5_server,
 }
 
 export const CAPABILITY_TITLES: Record<Capability, Message> = {
@@ -134,6 +145,7 @@ export const PURPOSE_NEEDS: Record<AiPurpose, Capability> = {
   chat: 'chat',
   extraction: 'chat',
   vision: 'vision',
+  ocr: 'vision',
   embedding: 'embedding',
   title: 'chat',
 }

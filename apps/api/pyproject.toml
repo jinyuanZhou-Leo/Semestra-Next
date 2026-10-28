@@ -2,7 +2,7 @@
 name = "semestra-api"
 version = "1.4.0"
 description = "Semestra-Next backend (FastAPI)"
-requires-python = ">=3.15.0"
+requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22.1",
     "alembic>=1.20.0",
@@ -45,6 +45,10 @@ dependencies = [
     "websockets>=16.0",
 ]
 
+[project.optional-dependencies]
+# Local OCR of scanned pages (PaddleOCR's PP-OCRv6/v5 models on ONNX Runtime), for self-hosted images.
+ocr = ["onnxruntime>=1.31.1", "paddleocr>=3.7.0"]
+
 [project.scripts]
 semestra = "semestra.cli:main"
 
@@ -76,14 +80,14 @@ markers = [
 ]
 addopts = "-m 'not live' -p semestra.testing"
 filterwarnings = [
-    # Third-party code that Python 3.15 flags for removal in 3.17; nothing for us to change.
+    # Third-party code using APIs that Python deprecates for removal in 3.17; nothing for us to change.
     "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
     "ignore:'typing.ByteString' and 'collections.abc.ByteString' are deprecated:DeprecationWarning:pymupdf",
 ]
 
 [tool.ruff]
 line-length = 100
-target-version = "py315"
+target-version = "py314"
 src = ["src", "tests"]
 extend-exclude = ["migrations/versions"]
 
@@ -96,7 +100,7 @@ ignore = ["S101"]
 
 [tool.pyright]
 include = ["src", "tests"]
-pythonVersion = "3.15"
+pythonVersion = "3.14"
 typeCheckingMode = "basic"
 strict = ["src/semestra/core"]
 venvPath = "."

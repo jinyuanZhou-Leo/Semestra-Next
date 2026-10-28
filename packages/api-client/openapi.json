@@ -4179,6 +4179,56 @@
         ]
       }
     },
+    "/ai/local-ocr/download": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Download a local OCR model to this self-hosted server.",
+        "description": "Defaults to the user's OCR model. Returns the download job's id, or null when\nthe model is already here. Not for agents.",
+        "operationId": "aiLocalOcrDownload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalOcrDownloadInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalOcrDownload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/ai/providers": {
       "get": {
         "tags": [
@@ -16510,6 +16560,49 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "local_ocr_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Local Ocr Models"
+          },
+          "local_ocr_default": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Ocr Default"
+          },
+          "local_ocr_downloaded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Local Ocr Downloaded"
+          },
+          "local_ocr_downloading": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Local Ocr Downloading"
+          },
+          "local_ocr_download_job": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Ocr Download Job"
           }
         },
         "type": "object",
@@ -17508,6 +17601,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -17810,6 +17904,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -17826,7 +17921,7 @@
               }
             ],
             "title": "Provider Id",
-            "description": "Provider to use; null removes the choice (the recommended default applies)."
+            "description": "Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model."
           },
           "model": {
             "anyOf": [
@@ -25477,6 +25572,44 @@
         ],
         "title": "LmsCourse"
       },
+      "LocalOcrDownload": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "LocalOcrDownload"
+      },
+      "LocalOcrDownloadInputBody": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "A local OCR model; defaults to the one that reads this user's scanned pages."
+          }
+        },
+        "type": "object",
+        "title": "LocalOcrDownloadInputBody"
+      },
       "Meeting": {
         "properties": {
           "id": {
@@ -29140,6 +29273,7 @@
                 "chat",
                 "extraction",
                 "vision",
+                "ocr",
                 "embedding",
                 "title"
               ]
@@ -29299,6 +29433,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
@@ -29315,7 +29450,8 @@
                 "enum": [
                   "assignment",
                   "default",
-                  "instance"
+                  "instance",
+                  "local"
                 ]
               },
               {
@@ -34165,6 +34301,7 @@
               "chat",
               "extraction",
               "vision",
+              "ocr",
               "embedding",
               "title"
             ],
