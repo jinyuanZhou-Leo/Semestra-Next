@@ -187,3 +187,54 @@ jobs:
           docker logs api || true
           docker logs allinone || true
           docker logs edge || true
+
+  # The default self-hosted image. Releases build it for arm64 too; amd64 is enough to catch a
+  # broken build, a missing system library or a model that isn't baked in.
+  ocr-image:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: allinone-ocr
+          platforms: linux/amd64
+          load: true
+          tags: semestra-allinone:ci-ocr
+          cache-from: type=gha,scope=allinone-ocr
+          cache-to: type=gha,scope=allinone-ocr,mode=max,ignore-error=true
+
+      - name: Image size
+        run: docker image ls semestra-allinone:ci-ocr
+
+      # No network: every model must already be in the image.
+      - name: Serves and reads a page offline
+        run: |
+          docker run -d --name ocr --network none -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci-ocr
+          for _ in $(seq 1 60); do
+            if docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"; then break; fi
+            sleep 2
+          done
+          docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+          test "$(docker exec ocr id -u)" = 10001
+          docker exec ocr python -c "
+          import io
+          from PIL import Image, ImageDraw, ImageFont
+          from semestra.modules.ai import local_ocr
+          image = Image.new('RGB', (900, 200), 'white')
+          ImageDraw.Draw(image).text((40, 60), 'Semestra 2026', fill='black', font=ImageFont.load_default(64))
+          png = io.BytesIO()
+          image.save(png, 'PNG')
+          for model in local_ocr.MODELS:
+              text = local_ocr.recognize(model, png.getvalue())
+              print(model, repr(text))
+              assert 'Semestra' in text, model
+          "
+          docker rm -f ocr
+
+      - name: Logs on failure
+        if: failure()
+        run: docker logs ocr || true

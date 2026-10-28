@@ -123,6 +123,15 @@ export const PURPOSE_HINTS: Record<AiPurpose, Message> = {
   title: m.ai_purpose_title_hint,
 }
 
+/** What sets the self-hosted server's PaddleOCR models apart (`local_ocr.MODELS`). */
+export const LOCAL_OCR_HINTS: Record<string, Message> = {
+  'PP-OCRv6_tiny': m.ai_local_ocr_v6_tiny,
+  'PP-OCRv6_small': m.ai_local_ocr_v6_small,
+  'PP-OCRv6_medium': m.ai_local_ocr_v6_medium,
+  'PP-OCRv5_mobile': m.ai_local_ocr_v5_mobile,
+  'PP-OCRv5_server': m.ai_local_ocr_v5_server,
+}
+
 export const CAPABILITY_TITLES: Record<Capability, Message> = {
   chat: m.ai_capability_chat,
   tools: m.ai_capability_tools,

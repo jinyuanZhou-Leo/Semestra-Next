@@ -16510,6 +16510,24 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "local_ocr_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Local Ocr Models"
+          },
+          "local_ocr_default": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Ocr Default"
           }
         },
         "type": "object",
@@ -17828,7 +17846,7 @@
               }
             ],
             "title": "Provider Id",
-            "description": "Provider to use; null removes the choice (the recommended default applies)."
+            "description": "Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model."
           },
           "model": {
             "anyOf": [

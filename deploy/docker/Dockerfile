@@ -11,8 +11,8 @@
 #   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
 #   allinone    api + the built SPA served from the same origin (self-hosting and the hosted app)
-#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime, models baked
-#               in); for self-hosting, amd64 and arm64
+#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime, every model
+#               baked in); for self-hosting, amd64 and arm64
 #   edge        Caddy with the landing page (/landing) and the docs (/docs) baked in; the hosted
 #               stack's reverse proxy in front of allinone (deploy/hosted/Caddyfile)
 
@@ -40,8 +40,32 @@ FROM api-builder AS api-builder-ocr
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable --extra ocr
 
+# ---- local OCR models (arch-independent ONNX files) ----------------------------------------
+# Runs on the build machine's own platform, so a multi-arch build doesn't load every model under
+# emulation. Fetches every model users can pick: the server never downloads anything at run time.
+FROM --platform=$BUILDPLATFORM ${PYTHON_IMAGE} AS ocr-models
+COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /usr/local/bin/uv
+# OpenCV (pulled in by PaddleOCR) links against these.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
+    && rm -rf /var/lib/apt/lists/*
+ENV UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PADDLE_PDX_CACHE_HOME=/opt/paddlex \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+WORKDIR /build
+COPY apps/api/pyproject.toml apps/api/uv.lock apps/api/.python-version ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project --extra ocr
+COPY apps/api/src ./src
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable --extra ocr \
+    && /opt/venv/bin/semestra ocr-models --all
+
 # ---- backend runtime -----------------------------------------------------------------------
-FROM ${PYTHON_IMAGE} AS api
+# Everything but the virtualenv, shared by api and allinone-ocr (which has its own).
+FROM ${PYTHON_IMAGE} AS runtime
 # System libraries for the document pipeline (M07) belong in this layer.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates tzdata \
@@ -50,7 +74,6 @@ RUN apt-get update \
     && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin semestra \
     && mkdir -p /app /data \
     && chown semestra:semestra /app /data
-COPY --from=api-builder /opt/venv /opt/venv
 COPY --chown=semestra:semestra apps/api/alembic.ini /app/alembic.ini
 COPY --chown=semestra:semestra apps/api/migrations /app/migrations
 COPY deploy/docker/entrypoint.sh /usr/local/bin/semestra-entrypoint
@@ -70,6 +93,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 ENTRYPOINT ["semestra-entrypoint"]
 CMD ["semestra", "serve", "--host", "0.0.0.0", "--port", "8000"]
 
+FROM runtime AS api
+COPY --from=api-builder /opt/venv /opt/venv
+
 # ---- backend + LibreOffice -----------------------------------------------------------------
 FROM api AS api-office
 USER root
@@ -80,7 +106,8 @@ RUN apt-get update \
 USER semestra
 
 # ---- frontend build ------------------------------------------------------------------------
-FROM ${NODE_IMAGE} AS web-builder
+# Static files, so it runs on the build machine's platform even in a multi-arch build.
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS web-builder
 # Keep in sync with "packageManager" in the root package.json.
 ARG PNPM_VERSION=12.14.0
 RUN npm install --global "pnpm@${PNPM_VERSION}"
@@ -115,24 +142,26 @@ ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web
 
 # ---- all-in-one with local OCR (self-hosting) ----------------------------------------------
-FROM allinone AS allinone-ocr
+# Built from the shared runtime rather than allinone, so the image has one virtualenv, not two.
+FROM runtime AS allinone-ocr
 USER root
 # OpenCV (pulled in by PaddleOCR) links against these.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /opt/paddlex \
-    && chown semestra:semestra /opt/paddlex
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
+    && rm -rf /var/lib/apt/lists/*
+USER semestra
 COPY --from=api-builder-ocr /opt/venv /opt/venv
-# The models are fetched at build time, so the server never downloads anything at run time; pick
-# another pair (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server) with --build-arg.
+COPY --from=ocr-models --chown=semestra:semestra /opt/paddlex /opt/paddlex
+COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
+# Every model is in the image; this one is used until a user picks another in settings
+# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server).
 ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
-ENV SEMESTRA_LOCAL_OCR=true \
+ENV SEMESTRA_SERVE_WEB=true \
+    SEMESTRA_WEB_DIST_DIR=/app/web \
+    SEMESTRA_LOCAL_OCR=true \
     SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
     PADDLE_PDX_CACHE_HOME=/opt/paddlex \
     PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
-USER semestra
-RUN semestra ocr-models
 
 # ---- landing page and docs (static) --------------------------------------------------------
 FROM ${NODE_IMAGE} AS sites-builder

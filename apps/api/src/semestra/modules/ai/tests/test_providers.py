@@ -241,13 +241,16 @@ async def test_assignment_falls_back_when_its_capability_is_unticked(
         json={"purpose": "vision", "provider_id": created["id"], "model": "m"},
     )
 
-    async def vision_available() -> bool:
+    async def available(purpose: str) -> bool:
         status = await ai.call("GET", "/ai/status")
-        return next(s for s in status["items"] if s["purpose"] == "vision")["available"]
+        return next(s for s in status["items"] if s["purpose"] == purpose)["available"]
 
-    assert await vision_available()
+    assert await available("vision")
+    # Scanned pages follow the vision model when no OCR model is set.
+    assert await available("ocr")
     await ai.call("PATCH", f"/ai/providers/{created['id']}", json={"capabilities": ["chat"]})
-    assert not await vision_available()
+    assert not await available("vision")
+    assert not await available("ocr")
 
 
 async def test_test_and_models_endpoints(ai: Ai, mock: respx.MockRouter):

@@ -308,7 +308,7 @@ test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for
   // Nothing served these tasks yet, so the typed model now does (embedding was not ticked).
   const assigned = requests.filter((r) => r.method === 'PUT').map((r) => r.body)
   expect(assigned).toEqual(
-    ['chat', 'extraction', 'title', 'vision'].map((purpose) => ({
+    ['chat', 'extraction', 'title', 'vision', 'ocr'].map((purpose) => ({
       purpose,
       provider_id: 'pv1',
       model: 'deepseek-chat',

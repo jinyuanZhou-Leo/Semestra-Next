@@ -4,7 +4,8 @@ description: 一个容器同时提供 API 和网页应用。启动、登录、�
 ---
 
 `semestra-allinone` 镜像在 8000 端口上用同一个源提供 API 和网页应用，全部数据都在一个 Docker 卷里。你需要装有
-Compose 插件的 Docker，以及大约 1 GB 内存。
+Compose 插件的 Docker，以及大约 3 GB 内存：默认镜像（约 2 GB）会在服务器上识别扫描页，识别时最多占用 2 GB。
+不带这个功能的小镜像只要约 1 GB（见[扫描页识别](/docs/self-hosting/configuration#扫描页识别)）。
 
 ## 启动
 

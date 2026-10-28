@@ -140,20 +140,29 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
 ):
     from semestra.modules.ai import local_ocr
+    from semestra.modules.files import pipeline
+    from semestra.modules.files.parse.isolated import Recognized
 
-    pages: list[bytes] = []
+    pages: list[tuple[str, bytes]] = []
 
-    def recognize(settings: Settings, png: bytes) -> str:
-        pages.append(png)
-        return "Photosynthesis\nturns light into sugar"
+    async def ocr_isolated(model: str, pngs: list[bytes], *, time_limit: float):
+        for index, png in enumerate(pngs):
+            pages.append((model, png))
+            yield Recognized(index, "Photosynthesis\nturns light into sugar")
 
     monkeypatch.setattr(local_ocr, "available", lambda settings: True)
-    monkeypatch.setattr(local_ocr, "recognize", recognize)
+    monkeypatch.setattr(pipeline, "ocr_isolated", ocr_isolated)
     item = await fx.upload_ready("photo.png", make_png())
     assert item["ocr_skipped_pages"] == 0
-    assert len(pages) == 1
+    assert [model for model, _ in pages] == ["PP-OCRv6_medium"]
     assert fake_ai.ocr_calls == 0
     assert (await fx.search("photosynthesis"))["results"][0]["item_id"] == item["id"]
+
+    # The user picks a smaller local model in their AI settings.
+    body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv5_mobile"}
+    await fx.call("PUT", "/ai/assignments", json=body)
+    await fx.upload_ready("photo2.png", make_png("second"))
+    assert pages[-1][0] == "PP-OCRv5_mobile"
 
 
 async def test_ocr_stops_when_the_key_is_rejected(fx: Fx, fake_ai: FakeAi, monkeypatch):

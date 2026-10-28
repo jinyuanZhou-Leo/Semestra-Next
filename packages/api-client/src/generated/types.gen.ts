@@ -500,6 +500,14 @@ export type AiStatusGet = {
      * Items
      */
     items: Array<PurposeStatus>;
+    /**
+     * Local Ocr Models
+     */
+    local_ocr_models?: Array<string>;
+    /**
+     * Local Ocr Default
+     */
+    local_ocr_default?: string | null;
 };
 
 /**
@@ -1173,7 +1181,7 @@ export type AssignmentUpdateInputBody = {
     /**
      * Provider Id
      *
-     * Provider to use; null removes the choice (the recommended default applies).
+     * Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model.
      */
     provider_id: string | null;
     /**

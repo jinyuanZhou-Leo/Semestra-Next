@@ -31,7 +31,12 @@ from semestra.modules.files.models import (
     FilesItem,
 )
 from semestra.modules.files.parse import ParsedDocument, ParseError, detect
-from semestra.modules.files.parse.isolated import Parsed, parse_isolated, render_isolated
+from semestra.modules.files.parse.isolated import (
+    Parsed,
+    ocr_isolated,
+    parse_isolated,
+    render_isolated,
+)
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
 
@@ -42,6 +47,8 @@ THUMBNAIL_PAGES = 1
 # Scanned pages are rendered (in the child process) this many at a time, and this many are with
 # the OCR model at once (local OCR reads one page at a time).
 OCR_BATCH = 8
+# Local OCR loads its engine once per batch (a few seconds), so it takes bigger ones.
+LOCAL_OCR_BATCH = 32
 OCR_CONCURRENCY = 4
 # Errors that would be the same for every page or document: OCR stops and the rest are
 # skipped, a reindex stops.
@@ -272,56 +279,61 @@ async def _ocr(
     if not needed or kind not in ("pdf", "image"):
         await ctx.skip_stage("ocr")
         return None, 0
-    local = ai.local_ocr.available(ctx.settings)
-    if not local and not await ai.available(ctx, "ocr"):
+    local = await ai.local_ocr.choice(ctx)
+    if local is None and not await ai.available(ctx, "ocr"):
         await ctx.skip_stage("ocr")
         return None, len(needed)
-    resolved = None if local else await ai.resolve_provider(ctx, "ocr")
-    limiter = anyio.CapacityLimiter(1 if local else OCR_CONCURRENCY)
+    resolved = None if local is not None else await ai.resolve_provider(ctx, "ocr")
+    limiter = anyio.CapacityLimiter(OCR_CONCURRENCY)
     read_pages = 0
     stopped = False
 
     async def read(index: int, png: bytes) -> None:
         nonlocal read_pages, stopped
         async with limiter:
-            if stopped:
+            if stopped or resolved is None:
                 return
-            if resolved is None:
-                try:
-                    text = await anyio.to_thread.run_sync(ai.local_ocr.recognize, ctx.settings, png)
-                except Exception:
-                    # A broken install or a missing model fails every page alike.
-                    log.exception("files_local_ocr_failed", page=index + 1)
-                    stopped = True
-                    return
-            else:
-                try:
-                    completion = await ai.complete_with(
-                        ctx,
-                        resolved,
-                        [
-                            ai.Message.system(OCR_PROMPT),
-                            ai.Message.user(ai.Image(png, "image/png")),
-                        ],
-                        source_module="files",
-                        source_ref=work.item_id,
-                    )
-                except AppError as exc:
-                    log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
-                    # The key, the model or the provider failing would fail every page alike.
-                    stopped = stopped or exc.code in OCR_STOP_CODES
-                    return
-                assert isinstance(completion, ai.Completion)
-                text = re.sub(r"^```(?:markdown|md)?\s*\n|\n```\s*$", "", completion.text.strip())
+            try:
+                completion = await ai.complete_with(
+                    ctx,
+                    resolved,
+                    [
+                        ai.Message.system(OCR_PROMPT),
+                        ai.Message.user(ai.Image(png, "image/png")),
+                    ],
+                    source_module="files",
+                    source_ref=work.item_id,
+                )
+            except AppError as exc:
+                log.warning("files_ocr_page_failed", code=exc.code, page=index + 1)
+                # The key, the model or the provider failing would fail every page alike.
+                stopped = stopped or exc.code in OCR_STOP_CODES
+                return
+            assert isinstance(completion, ai.Completion)
+            text = re.sub(r"^```(?:markdown|md)?\s*\n|\n```\s*$", "", completion.text.strip())
         parsed.pages[index].markdown = text.strip()
         read_pages += 1
 
-    for start in range(0, len(needed), OCR_BATCH):
+    async def read_locally(model: str, batch: list[int], pngs: list[bytes]) -> None:
+        nonlocal read_pages, stopped
+        try:
+            async for page in ocr_isolated(
+                model, pngs, time_limit=ctx.settings.local_ocr_timeout_seconds
+            ):
+                parsed.pages[batch[page.index]].markdown = page.text.strip()
+                read_pages += 1
+        except ParseError as exc:
+            # A broken install, a missing model or running out of time fails every batch alike.
+            log.warning("files_local_ocr_failed", code=exc.code, model=model)
+            stopped = True
+
+    size = OCR_BATCH if local is None else LOCAL_OCR_BATCH
+    for start in range(0, len(needed), size):
         if stopped:
             break
         await ctx.check_cancelled()
         await ctx.stage("ocr", current=start, total=len(needed))
-        batch = needed[start : start + OCR_BATCH]
+        batch = needed[start : start + size]
         try:
             pngs = await render_isolated(
                 data,
@@ -333,11 +345,16 @@ async def _ocr(
         except ParseError as exc:
             log.warning("files_ocr_render_failed", code=exc.code)
             continue
+        if local is not None:
+            await read_locally(local, batch, pngs)
+            continue
         async with anyio.create_task_group() as group:
             for index, png in zip(batch, pngs, strict=False):
                 group.start_soon(read, index, png)
     await ctx.stage("ocr", current=len(needed), total=len(needed))
-    model = ai.local_ocr.model_tag(ctx.settings) if resolved is None else resolved.model
+    model = (
+        ai.local_ocr.model_tag(local) if local is not None else resolved.model if resolved else ""
+    )
     return model, len(needed) - read_pages
 
 

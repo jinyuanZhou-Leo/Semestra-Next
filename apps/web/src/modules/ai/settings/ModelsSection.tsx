@@ -39,7 +39,13 @@ import {
 } from '@/ui/empty'
 import { ItemDescription } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
-import { PROVIDER_ERROR_LABEL, PURPOSE_HINTS, PURPOSE_TITLES, canServe } from '../labels'
+import {
+  LOCAL_OCR_HINTS,
+  PROVIDER_ERROR_LABEL,
+  PURPOSE_HINTS,
+  PURPOSE_TITLES,
+  canServe,
+} from '../labels'
 import { providerLogo } from '../presets'
 import { invalidateAi } from '../queries'
 import { ProviderMark } from './ProviderForm'
@@ -47,11 +53,13 @@ import { ProviderMark } from './ProviderForm'
 /** The models each enabled provider offers, by provider id. */
 type ModelLists = ReadonlyMap<string, { data?: ModelList; isError: boolean }>
 
-/** One choice in a task's model box: "Auto", or a model of one provider. */
+/** One choice in a task's model box: "Auto", a model of one provider, or a local OCR model. */
 type ModelOption = {
   key: string
-  /** Null for "Auto". */
+  /** Null for "Auto" and for local OCR models. */
   providerId: string | null
+  /** A PaddleOCR model this self-hosted server runs itself (OCR only). */
+  local?: boolean
   model: string
   label: string
   /** The model's id under its name, when the two differ. */
@@ -70,6 +78,19 @@ type ModelGroup = {
 }
 
 const AUTO_KEY = 'auto'
+const LOCAL_KEY = 'local'
+
+function localOption(model: string): ModelOption {
+  return {
+    key: `${LOCAL_KEY}/${model}`,
+    providerId: null,
+    local: true,
+    model,
+    label: model,
+    detail: LOCAL_OCR_HINTS[model]?.() ?? null,
+    search: `${model} paddleocr ocr`.toLowerCase(),
+  }
+}
 
 function modelOption(provider: Provider, model: string, name?: string | null): ModelOption {
   return {
@@ -109,11 +130,16 @@ function PurposeRow({
   providers,
   lists,
   status,
+  localModels,
+  localDefault,
 }: {
   assignment: Assignment
   providers: readonly Provider[]
   lists: ModelLists
   status: PurposeStatus | undefined
+  /** OCR on a self-hosted server with local OCR: the PaddleOCR models it can run. */
+  localModels: readonly string[]
+  localDefault: string | null
 }) {
   const queryClient = useQueryClient()
   const purpose = assignment.purpose as AiPurpose
@@ -128,9 +154,12 @@ function PurposeRow({
 
   // "Auto" follows the recommendation, which may change as providers come and go.
   const recommended = assignment.recommended
-  const autoWhere = recommended
-    ? `${providerOf(recommended.provider_id)?.display_name ?? ''} · ${modelName(lists, recommended.provider_id, recommended.model)}`
-    : null
+  const autoWhere =
+    localModels.length > 0 && localDefault
+      ? `${m.ai_models_local_group()} · ${localDefault}`
+      : recommended
+        ? `${providerOf(recommended.provider_id)?.display_name ?? ''} · ${modelName(lists, recommended.provider_id, recommended.model)}`
+        : null
   const auto: ModelOption = {
     key: AUTO_KEY,
     providerId: null,
@@ -177,16 +206,29 @@ function PurposeRow({
       }
     })
     .filter((group) => group.items.length > 0)
+  if (localModels.length > 0) {
+    groups.unshift({
+      id: LOCAL_KEY,
+      label: m.ai_models_local_group(),
+      logo: null,
+      items: localModels.map(localOption),
+    })
+  }
   const all = [{ id: AUTO_KEY, label: '', logo: null, items: [auto] }, ...groups]
   const anyManual =
     groups.some((group) => group.items.some((item) => item.typed)) ||
     providers.some((p) => canServe(p, purpose) && lists.get(p.id)?.data?.manual_entry)
 
-  const selected = assignment.provider_id
-    ? (groups
-        .flatMap((group) => group.items)
-        .find((item) => item.key === `${assignment.provider_id}/${assignment.model}`) ?? auto)
-    : auto
+  const selectedKey = assignment.provider_id
+    ? `${assignment.provider_id}/${assignment.model}`
+    : assignment.model
+      ? `${LOCAL_KEY}/${assignment.model}`
+      : null
+  const selected =
+    (selectedKey &&
+      groups.flatMap((group) => group.items).find((item) => item.key === selectedKey)) ||
+    auto
+  const chosen = selected.key !== AUTO_KEY
 
   // What the box shows: the chosen model, or the one "Auto" resolves to now.
   const shownProvider = providerOf(selected.providerId ?? status?.provider_id)
@@ -195,7 +237,7 @@ function PurposeRow({
     : status?.provider_kind
       ? providerLogo({ kind: status.provider_kind, base_url: null })
       : null
-  const shownLabel = selected.providerId
+  const shownLabel = chosen
     ? selected.label
     : status?.available
       ? modelName(lists, status.provider_id, status.model)
@@ -207,7 +249,9 @@ function PurposeRow({
     update.mutate({
       body: next.providerId
         ? { purpose, provider_id: next.providerId, model: next.model }
-        : { purpose, provider_id: null },
+        : next.local
+          ? { purpose, provider_id: null, model: next.model }
+          : { purpose, provider_id: null },
     })
   }
 
@@ -252,7 +296,7 @@ function PurposeRow({
                 {shownLabel ?? m.ai_models_none()}
               </span>
             )}
-            {selected.providerId ? null : (
+            {chosen ? null : (
               <Badge variant="secondary" className="shrink-0">
                 {m.ai_models_auto()}
               </Badge>
@@ -285,7 +329,7 @@ function PurposeRow({
                         {item.detail ? (
                           <span
                             className={
-                              item.providerId
+                              item.providerId && !item.local
                                 ? 'truncate font-mono text-xs text-muted-foreground'
                                 : 'truncate text-xs text-muted-foreground'
                             }
@@ -349,9 +393,11 @@ export function ModelsSection() {
   const lists: ModelLists = new Map(
     enabled.flatMap((p, i) => (results[i] ? [[p.id, results[i]] as const] : [])),
   )
+  // This server's OCR counts as a model: its row stays visible with no provider.
   const noProviders =
     providers.data?.items.length === 0 &&
-    !status.data?.items.some((item) => item.source === 'instance')
+    !status.data?.items.some((item) => item.source === 'instance') &&
+    !status.data?.local_ocr_models?.length
   if (noProviders) return <NoProviders />
 
   return (
@@ -361,24 +407,17 @@ export function ModelsSection() {
           <SettingsGroup>
             {data.items.map((assignment) => {
               const purposeStatus = status.data?.items.find((s) => s.purpose === assignment.purpose)
-              // A self-hosted server that reads scanned pages itself: no model to choose.
-              return purposeStatus?.source === 'local' ? (
-                <SettingRow
-                  key={assignment.purpose}
-                  label={PURPOSE_TITLES[assignment.purpose as AiPurpose]()}
-                  description={PURPOSE_HINTS[assignment.purpose as AiPurpose]()}
-                >
-                  <span className="text-sm text-muted-foreground">
-                    {m.ai_models_local_ocr({ model: purposeStatus.model ?? '' })}
-                  </span>
-                </SettingRow>
-              ) : (
+              return (
                 <PurposeRow
                   key={assignment.purpose}
                   assignment={assignment}
                   providers={providers.data?.items ?? []}
                   lists={lists}
                   status={purposeStatus}
+                  localModels={
+                    assignment.purpose === 'ocr' ? (status.data?.local_ocr_models ?? []) : []
+                  }
+                  localDefault={status.data?.local_ocr_default ?? null}
                 />
               )
             })}

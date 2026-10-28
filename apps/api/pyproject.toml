@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Local OCR of scanned pages (PP-OCRv5 through RapidOCR on ONNX Runtime), for self-hosted images.
+# Local OCR of scanned pages (PaddleOCR's PP-OCRv6/v5 models on ONNX Runtime), for self-hosted images.
 ocr = ["onnxruntime>=1.31.1", "paddleocr>=3.7.0"]
 
 [project.scripts]

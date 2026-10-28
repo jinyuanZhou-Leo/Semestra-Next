@@ -119,6 +119,10 @@ async def _effective(ctx: Ctx) -> dict[Purpose, tuple[str | None, str] | None]:
     """Which provider and model each purpose resolves to now, to see what a change affected."""
     out: dict[Purpose, tuple[str | None, str] | None] = {}
     for purpose in PURPOSES:
+        local = await ocr_local.choice(ctx) if purpose == "ocr" else None
+        if local is not None:
+            out[purpose] = (None, ocr_local.model_tag(local))
+            continue
         resolved = await try_resolve(ctx, purpose, with_key=False)
         out[purpose] = (resolved.endpoint.provider_id, resolved.model) if resolved else None
     return out
@@ -313,7 +317,21 @@ async def list_assignments(ctx: Ctx) -> AssignmentList:
 async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentList:
     before = await _effective(ctx)
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, inp.purpose))
-    if inp.provider_id is None:
+    if inp.provider_id is None and inp.model is not None and inp.purpose == "ocr":
+        # A local OCR model (self-hosted with local OCR only).
+        if not ocr_local.available(ctx.settings) or inp.model not in ocr_local.MODELS:
+            raise _invalid("model", "unknown")
+        if row is None:
+            ctx.db.add(
+                AiModelAssignment(
+                    user_id=ctx.user_id, purpose="ocr", provider_id=None, model=inp.model
+                )
+            )
+        else:
+            row.provider_id = None
+            row.model = inp.model
+            row.params = {}
+    elif inp.provider_id is None:
         if row is not None:
             await ctx.db.delete(row)
     else:
@@ -347,7 +365,8 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 async def status(ctx: Ctx) -> AiStatusGet:
     items: list[PurposeStatus] = []
     for purpose in PURPOSES:
-        if purpose == "ocr" and ocr_local.available(ctx.settings):
+        local = await ocr_local.choice(ctx) if purpose == "ocr" else None
+        if local is not None:
             items.append(
                 PurposeStatus(
                     purpose=purpose,
@@ -356,7 +375,7 @@ async def status(ctx: Ctx) -> AiStatusGet:
                     provider_id=None,
                     provider_kind=None,
                     provider_name=None,
-                    model=ctx.settings.local_ocr_model,
+                    model=local,
                 )
             )
             continue
@@ -386,7 +405,12 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 model=resolved.model,
             )
         )
-    return AiStatusGet(items=items)
+    installed = ocr_local.available(ctx.settings)
+    return AiStatusGet(
+        items=items,
+        local_ocr_models=list(ocr_local.MODELS) if installed else [],
+        local_ocr_default=ocr_local.default_model(ctx.settings) if installed else None,
+    )
 
 
 # --- usage ----------------------------------------------------------------------------------

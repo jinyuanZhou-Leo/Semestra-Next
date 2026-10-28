@@ -1,7 +1,7 @@
 # Self-hosting Semestra / 自部署 Semestra
 
-One container serves both the API and the web app. You need Docker with the Compose plugin and about 1 GB of RAM.
-一个容器同时提供 API 和网页，只需要装有 Compose 插件的 Docker 和约 1 GB 内存。
+One container serves both the API and the web app. You need Docker with the Compose plugin and about 3 GB of RAM: the default image (about 2 GB) reads scanned pages on the server, which takes up to 2 GB while it runs. Without that, the smaller image needs about 1 GB ([Scanned pages](#scanned-pages--扫描页识别)).
+一个容器同时提供 API 和网页，需要装有 Compose 插件的 Docker 和约 3 GB 内存：默认镜像（约 2 GB）会在服务器上识别扫描页，识别时最多占用 2 GB。不需要这个功能时，换成小镜像只要约 1 GB（见[扫描页识别](#scanned-pages--扫描页识别)）。
 
 The full guide (HTTPS, email, backups, AI, every setting) is in the docs site: `apps/docs/content/docs/self-hosting`, or run `pnpm docs:dev`.
 完整指南（HTTPS、邮件、备份、AI、全部设置）在文档站里：`apps/docs/content/docs/self-hosting`，或运行 `pnpm docs:dev`。
@@ -134,19 +134,14 @@ An Ollama running elsewhere on your network works too: set its URL as `SEMESTRA_
 
 ## Scanned pages / 扫描页识别
 
-The default image (`semestra-allinone:<version>-ocr`) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. The models are inside the image. It runs on amd64 and arm64, including Docker on Apple Silicon. To use the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env`; users then choose a model for **Scanned pages** in their AI settings.
-默认镜像（`semestra-allinone:<版本>-ocr`）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。模型已打包在镜像里，支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。想用不带 OCR 的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空）；用户之后在 AI 设置的 **扫描识别** 里选模型。
+The default image (`semestra-allinone:<version>-ocr`, about 2 GB) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. It runs on amd64 and arm64, including Docker on Apple Silicon. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per page with the default model.
+默认镜像（`semestra-allinone:<版本>-ocr`，约 2 GB）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。
 
-Running the API natively on a Mac (no Docker) works the same / 在 Mac 上不用 Docker、直接运行后端也可以：
+Every model is inside the image. Each user can pick another one (PP-OCRv6 tiny/small/medium, PP-OCRv5 mobile/server) or a provider's model in the **OCR** row of AI settings; `SEMESTRA_LOCAL_OCR_MODEL` sets the one used until they do.
+所有模型都已打包在镜像里。每个用户可以在 AI 设置的 **OCR** 一行换成别的模型（PP-OCRv6 tiny/small/medium、PP-OCRv5 mobile/server）或某个服务商的模型；`SEMESTRA_LOCAL_OCR_MODEL` 设定用户没选时用的模型。
 
-```bash
-cd apps/api
-uv sync --extra ocr
-SEMESTRA_LOCAL_OCR=true uv run semestra serve   # models download to ~/.paddlex on first use
-```
-
-Smaller or faster models: `SEMESTRA_LOCAL_OCR_MODEL=PP-OCRv6_small` (or `_tiny`, `PP-OCRv5_mobile`, `PP-OCRv5_server`). In Docker, build the image with `--build-arg LOCAL_OCR_MODEL=…`, since the models are fetched at build time.
-更小或更快的模型：`SEMESTRA_LOCAL_OCR_MODEL=PP-OCRv6_small`（或 `_tiny`、`PP-OCRv5_mobile`、`PP-OCRv5_server`）。Docker 里模型在构建时下载，要换模型需用 `--build-arg LOCAL_OCR_MODEL=…` 重新构建。
+To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run `docker compose up -d`; users then choose a provider's model for **OCR**. Set it back to `-ocr` to return.
+要换成不带它的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空），再运行 `docker compose up -d`；用户之后在 **OCR** 一行里选服务商的模型。改回 `-ocr` 即可换回来。
 
 ## Troubleshooting / 排错
 

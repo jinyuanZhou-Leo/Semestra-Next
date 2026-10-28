@@ -47,14 +47,17 @@ const RANGE_TITLES: Record<UsageRange, () => string> = {
   all: m.ai_usage_range_all,
 }
 
-/** `--chart-N` per purpose: light and dark shades alternate up the stack so neighbours differ. */
-const PURPOSE_SHADES: Record<AiPurpose, number> = {
-  chat: 1,
-  extraction: 4,
-  vision: 2,
-  ocr: 4,
-  embedding: 5,
-  title: 3,
+/**
+ * Chart colour per purpose: light and dark shades alternate up the stack so neighbours differ.
+ * There are six purposes and five `--chart-N` tokens, so OCR takes a blend of two of them.
+ */
+const PURPOSE_COLORS: Record<AiPurpose, string> = {
+  chat: 'var(--chart-1)',
+  extraction: 'var(--chart-4)',
+  vision: 'var(--chart-2)',
+  ocr: 'color-mix(in oklch, var(--chart-3), var(--chart-4))',
+  embedding: 'var(--chart-5)',
+  title: 'var(--chart-3)',
 }
 
 /** Longer ranges are drawn a week per bar. */
@@ -199,7 +202,7 @@ function UsageChart({
       purpose,
       {
         label: PURPOSE_TITLES[purpose](),
-        color: `var(--chart-${PURPOSE_SHADES[purpose]})`,
+        color: PURPOSE_COLORS[purpose],
       },
     ]),
   )

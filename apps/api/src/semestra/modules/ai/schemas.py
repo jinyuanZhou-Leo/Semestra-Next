@@ -119,7 +119,8 @@ class AssignmentList(BaseModel):
 class AssignmentUpdateInput(BaseModel):
     purpose: Purpose = Field(description="Which purpose to configure.")
     provider_id: str | None = Field(
-        description="Provider to use; null removes the choice (the recommended default applies)."
+        description="Provider to use; null removes the choice (the recommended default applies), "
+        "or, for ocr with a local model name in `model`, picks that local OCR model."
     )
     model: str | None = Field(
         default=None, min_length=1, max_length=200, description="Model name at that provider."
@@ -146,6 +147,10 @@ class PurposeStatus(BaseModel):
 
 class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
+    # Self-hosted installs with local OCR: the PaddleOCR models a user can pick for OCR, and the
+    # one used when they pick nothing. Empty and null elsewhere.
+    local_ocr_models: list[str] = Field(default_factory=list)
+    local_ocr_default: str | None = None
 
 
 class UsageInput(BaseModel):

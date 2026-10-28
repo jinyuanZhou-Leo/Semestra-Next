@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> None:
 
     ocr = sub.add_parser("ocr-models", help="download the local OCR models (needs the ocr extra)")
     ocr.add_argument("--model", help="model pair (default SEMESTRA_LOCAL_OCR_MODEL)")
+    ocr.add_argument("--all", action="store_true", help="every model pair users can pick")
 
     check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
     check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
@@ -103,8 +104,9 @@ def main(argv: list[str] | None = None) -> None:
             # Not get_settings(): an image build has no secrets yet.
             default = str(Settings.model_fields["local_ocr_model"].default)
             model = args.model or os.environ.get("SEMESTRA_LOCAL_OCR_MODEL", default)
-            local_ocr.download_models(model)
-            sys.stdout.write(f"{model}: ready\n")
+            for name in local_ocr.MODELS if args.all else (model,):
+                local_ocr.download_models(name)
+                sys.stdout.write(f"{name}: ready\n")
         case "check-sessions":
             from pathlib import Path
 

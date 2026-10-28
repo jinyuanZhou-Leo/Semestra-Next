@@ -37,7 +37,9 @@ class AiModelAssignment(Base):
         String, ForeignKey("auth_users.id", ondelete="CASCADE"), primary_key=True
     )
     purpose: Mapped[str] = mapped_column(String, primary_key=True)
-    provider_id: Mapped[str] = mapped_column(
+    # Null only for OCR on a self-hosted install with local OCR: `model` then names a local
+    # PaddleOCR model (`local_ocr.MODELS`).
+    provider_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("ai_providers.id", ondelete="CASCADE"), index=True
     )
     model: Mapped[str] = mapped_column(String)
