@@ -5,11 +5,13 @@ type MessageFn = (params?: Record<string, unknown>) => string
 
 /** Messages whose key starts with `job_step_`, for lookups by a computed key. */
 export const jobStepMessages = {
+  job_step_ai_local_ocr_download_downloading: m.job_step_ai_local_ocr_download_downloading,
   job_step_files_process_chunking: m.job_step_files_process_chunking,
   job_step_files_process_detecting: m.job_step_files_process_detecting,
   job_step_files_process_embedding: m.job_step_files_process_embedding,
   job_step_files_process_indexing: m.job_step_files_process_indexing,
   job_step_files_process_ocr: m.job_step_files_process_ocr,
+  job_step_files_process_ocr_model: m.job_step_files_process_ocr_model,
   job_step_files_process_parsing: m.job_step_files_process_parsing,
   job_step_files_reindex_vectors_embedding: m.job_step_files_reindex_vectors_embedding,
   job_step_imports_extract_checking: m.job_step_imports_extract_checking,

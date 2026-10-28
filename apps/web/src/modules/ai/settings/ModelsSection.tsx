@@ -2,6 +2,7 @@ import type { Assignment, ModelList, Provider, PurposeStatus } from '@semestra/a
 import {
   aiAssignmentGetOptions,
   aiAssignmentUpdateMutation,
+  aiLocalOcrDownloadMutation,
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiStatusGetOptions,
@@ -11,7 +12,9 @@ import { CircleAlert, KeyRound, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { JobProgress } from '@/components/JobProgress'
 import type { AiPurpose } from '@/hooks/use-ai-status'
+import { useJob } from '@/hooks/use-job'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -80,14 +83,17 @@ type ModelGroup = {
 const AUTO_KEY = 'auto'
 const LOCAL_KEY = 'local'
 
-function localOption(model: string): ModelOption {
+function localOption(model: string, downloaded: boolean): ModelOption {
+  const hint = LOCAL_OCR_HINTS[model]?.() ?? null
   return {
     key: `${LOCAL_KEY}/${model}`,
     providerId: null,
     local: true,
     model,
     label: model,
-    detail: LOCAL_OCR_HINTS[model]?.() ?? null,
+    detail: downloaded
+      ? hint
+      : [hint, m.ai_models_local_needs_download()].filter(Boolean).join(' · '),
     search: `${model} paddleocr ocr`.toLowerCase(),
   }
 }
@@ -108,6 +114,53 @@ function modelName(lists: ModelLists, providerId: string | null, model: string |
   if (!providerId || !model) return model ?? ''
   const listed = lists.get(providerId)?.data?.items.find((item) => item.id === model)
   return listed?.display_name || model
+}
+
+/**
+ * A local OCR model that is not on this server yet: its download's progress, or a note that it
+ * downloads on first use with a button to fetch it now (and to try again after a failure).
+ */
+function LocalModelDownload({
+  model,
+  downloaded,
+  jobId,
+}: {
+  model: string
+  downloaded: boolean
+  jobId: string | null
+}) {
+  const queryClient = useQueryClient()
+  const { status } = useJob(jobId)
+  const start = useMutation({
+    ...aiLocalOcrDownloadMutation(),
+    onSuccess: () => invalidateAi(queryClient),
+    onError: toastError,
+  })
+  const button = (
+    <Button
+      variant="link"
+      size="sm"
+      className="h-auto p-0"
+      disabled={start.isPending}
+      onClick={() => start.mutate({ body: { model } })}
+    >
+      {m.ai_models_local_download()}
+    </Button>
+  )
+  if (jobId && status !== 'succeeded') {
+    return (
+      <div className="space-y-1">
+        <JobProgress jobId={jobId} className="sm:max-w-72" />
+        {status === 'failed' || status === 'cancelled' ? button : null}
+      </div>
+    )
+  }
+  if (downloaded) return null
+  return (
+    <ItemDescription>
+      {m.ai_models_local_download_note({ model })} {button}
+    </ItemDescription>
+  )
 }
 
 /** The problem with the provider a task is using right now, if it has one. */
@@ -132,6 +185,8 @@ function PurposeRow({
   status,
   localModels,
   localDefault,
+  localDownloaded,
+  downloadJob,
 }: {
   assignment: Assignment
   providers: readonly Provider[]
@@ -140,6 +195,9 @@ function PurposeRow({
   /** OCR on a self-hosted server with local OCR: the PaddleOCR models it can run. */
   localModels: readonly string[]
   localDefault: string | null
+  /** The local models already on this server, and the user's unfinished model download. */
+  localDownloaded: readonly string[]
+  downloadJob: string | null
 }) {
   const queryClient = useQueryClient()
   const purpose = assignment.purpose as AiPurpose
@@ -211,7 +269,7 @@ function PurposeRow({
       id: LOCAL_KEY,
       label: m.ai_models_local_group(),
       logo: null,
-      items: localModels.map(localOption),
+      items: localModels.map((model) => localOption(model, localDownloaded.includes(model))),
     })
   }
   const all = [{ id: AUTO_KEY, label: '', logo: null, items: [auto] }, ...groups]
@@ -263,6 +321,12 @@ function PurposeRow({
         // Nothing until the status arrives, so no row flashes "Unavailable" on first load.
         status === undefined ? null : !status.available ? (
           <ItemDescription>{m.ai_models_unavailable()}</ItemDescription>
+        ) : status.source === 'local' && status.model ? (
+          <LocalModelDownload
+            model={status.model}
+            downloaded={localDownloaded.includes(status.model)}
+            jobId={downloadJob}
+          />
         ) : (
           <ProviderProblem provider={providerOf(status.provider_id)} />
         )
@@ -418,6 +482,8 @@ export function ModelsSection() {
                     assignment.purpose === 'ocr' ? (status.data?.local_ocr_models ?? []) : []
                   }
                   localDefault={status.data?.local_ocr_default ?? null}
+                  localDownloaded={status.data?.local_ocr_downloaded ?? []}
+                  downloadJob={status.data?.local_ocr_download_job ?? null}
                 />
               )
             })}

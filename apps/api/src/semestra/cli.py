@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> None:
             default = str(Settings.model_fields["local_ocr_model"].default)
             model = args.model or os.environ.get("SEMESTRA_LOCAL_OCR_MODEL", default)
             for name in local_ocr.MODELS if args.all else (model,):
-                local_ocr.download_models(name)
+                local_ocr.download_blocking(name)
                 sys.stdout.write(f"{name}: ready\n")
         case "check-sessions":
             from pathlib import Path

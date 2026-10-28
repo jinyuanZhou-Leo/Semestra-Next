@@ -13,7 +13,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.http import safe_client
 from semestra.core.security import encrypt, mask
-from semestra.modules.ai import catalog
+from semestra.modules.ai import catalog, local_ocr_jobs
 from semestra.modules.ai import local_ocr as ocr_local
 from semestra.modules.ai.adapters import adapter_for
 from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
@@ -31,6 +31,8 @@ from semestra.modules.ai.schemas import (
     Assignment,
     AssignmentList,
     AssignmentUpdateInput,
+    LocalOcrDownload,
+    LocalOcrDownloadInput,
     ModelList,
     ModelOption,
     ModelParams,
@@ -331,6 +333,8 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
             row.provider_id = None
             row.model = inp.model
             row.params = {}
+        # Picking a model fetches it now, so the first scanned file does not wait for it.
+        await local_ocr_jobs.start_download(ctx, inp.model)
     elif inp.provider_id is None:
         if row is not None:
             await ctx.db.delete(row)
@@ -405,12 +409,24 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 model=resolved.model,
             )
         )
-    installed = ocr_local.available(ctx.settings)
+    if not ocr_local.available(ctx.settings):
+        return AiStatusGet(items=items)
     return AiStatusGet(
         items=items,
-        local_ocr_models=list(ocr_local.MODELS) if installed else [],
-        local_ocr_default=ocr_local.default_model(ctx.settings) if installed else None,
+        local_ocr_models=list(ocr_local.MODELS),
+        local_ocr_default=ocr_local.default_model(ctx.settings),
+        local_ocr_downloaded=[m for m in ocr_local.MODELS if ocr_local.downloaded(m)],
+        local_ocr_download_job=await local_ocr_jobs.active_download(ctx),
     )
+
+
+async def download_local_ocr(ctx: Ctx, inp: LocalOcrDownloadInput) -> LocalOcrDownload:
+    """Starts downloading a local OCR model, unless it is already on this server."""
+    model = inp.model or await ocr_local.choice(ctx)
+    if not ocr_local.available(ctx.settings) or model not in ocr_local.MODELS:
+        raise _invalid("model", "unknown")
+    job = await local_ocr_jobs.start_download(ctx, model)
+    return LocalOcrDownload(job_id=job.id if job is not None else None)
 
 
 # --- usage ----------------------------------------------------------------------------------

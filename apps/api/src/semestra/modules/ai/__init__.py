@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from semestra.modules.ai import (  # noqa: F401  (registers on import)
     capabilities,
     local_ocr,
+    local_ocr_jobs,
     models,
     portability,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "embed",
     "extract",
     "local_ocr",
+    "local_ocr_jobs",
     "register",
     "resolve_provider",
     "structured",

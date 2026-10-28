@@ -521,6 +521,63 @@ test('a task whose provider is failing says so under it', async () => {
   ).toHaveLength(5)
 })
 
+test('a local OCR model downloads from its row, which then shows the progress', async () => {
+  let jobId: string | null = null
+  const local = { ...statusItems().find((s) => s.purpose === 'ocr')! }
+  Object.assign(local, { available: true, source: 'local', model: 'PP-OCRv6_medium' })
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [...statusItems().filter((s) => s.purpose !== 'ocr'), local],
+        local_ocr_models: ['PP-OCRv6_tiny', 'PP-OCRv6_medium'],
+        local_ocr_default: 'PP-OCRv6_medium',
+        local_ocr_downloaded: ['PP-OCRv6_tiny'],
+        local_ocr_download_job: jobId,
+      }),
+    ),
+    http.post(`${API}/ai/local-ocr/download`, async ({ request }) => {
+      requests.push({ method: 'POST', path: '/ai/local-ocr/download', body: await request.json() })
+      jobId = 'j1'
+      return HttpResponse.json({ job_id: jobId })
+    }),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'ai.local_ocr.download',
+        status: 'running',
+        progress: 34,
+        step: 'downloading',
+        step_current: 45,
+        step_total: 133,
+        result: null,
+        error_code: null,
+        error_params: null,
+        attempts: 1,
+        max_attempts: 1,
+        cancel_requested: false,
+        created_at: '2026-01-15T12:00:00Z',
+        started_at: '2026-01-15T12:00:00Z',
+        finished_at: null,
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  expect(await screen.findByText(/PP-OCRv6_medium isn't on this server yet/)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Download now' }))
+  expect(requests.at(-1)).toMatchObject({ body: { model: 'PP-OCRv6_medium' } })
+  expect(await screen.findByText('45/133')).toBeInTheDocument()
+  expect(screen.getByText('Downloading, MB')).toBeInTheDocument()
+  expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
+
+  // The picker says which models still need a download.
+  await user.click(modelBox('OCR'))
+  expect(await screen.findByRole('option', { name: /^PP-OCRv6_medium/ })).toHaveTextContent(
+    "Downloads the first time it's used",
+  )
+  expect(screen.getByRole('option', { name: /^PP-OCRv6_tiny/ })).not.toHaveTextContent('Downloads')
+})
+
 test('with no provider the models page is one empty state that leads to adding one', async () => {
   renderWithRouter(<ModelsSection />)
   expect(await screen.findByText('No provider connected yet.')).toBeInTheDocument()

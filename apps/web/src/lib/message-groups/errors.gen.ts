@@ -31,6 +31,7 @@ export const errorMessages = {
   error_ai_capability_unsupported: m.error_ai_capability_unsupported,
   error_ai_context_too_long: m.error_ai_context_too_long,
   error_ai_invalid_key: m.error_ai_invalid_key,
+  error_ai_local_ocr_download_failed: m.error_ai_local_ocr_download_failed,
   error_ai_model_not_found: m.error_ai_model_not_found,
   error_ai_not_configured: m.error_ai_not_configured,
   error_ai_out_of_credit: m.error_ai_out_of_credit,

@@ -189,7 +189,7 @@ jobs:
           docker logs edge || true
 
   # The default self-hosted image. Releases build it for arm64 too; amd64 is enough to catch a
-  # broken build, a missing system library or a model that isn't baked in.
+  # broken build, a missing system library or a model download that no longer works.
   ocr-image:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -210,29 +210,39 @@ jobs:
       - name: Image size
         run: docker image ls semestra-allinone:ci-ocr
 
-      # No network: every model must already be in the image.
-      - name: Serves and reads a page offline
+      # The image has no model: the smallest one downloads (with a known size, so the app can show
+      # progress) into the data volume, then reads a page.
+      - name: Serves, downloads a model and reads a page
         run: |
-          docker run -d --name ocr --network none -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci-ocr
+          docker run -d --name ocr -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci-ocr
           for _ in $(seq 1 60); do
             if docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"; then break; fi
             sleep 2
           done
           docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
           test "$(docker exec ocr id -u)" = 10001
+          docker exec ocr sh -c 'test ! -d "$PADDLE_PDX_CACHE_HOME/official_models"'
           docker exec ocr python -c "
           import io
+          import anyio
           from PIL import Image, ImageDraw, ImageFont
           from semestra.modules.ai import local_ocr
+          model = 'PP-OCRv6_tiny'
+          seen = []
+          async def progress(received, total):
+              seen.append((received, total))
+          anyio.run(local_ocr.download, model, progress)
+          print(model, 'progress reports:', len(seen), 'last:', seen[-1])
+          assert local_ocr.downloaded(model) and seen[-1][1] and seen[-1][0] == seen[-1][1]
           image = Image.new('RGB', (900, 200), 'white')
           ImageDraw.Draw(image).text((40, 60), 'Semestra 2026', fill='black', font=ImageFont.load_default(64))
           png = io.BytesIO()
           image.save(png, 'PNG')
-          for model in local_ocr.MODELS:
-              text = local_ocr.recognize(model, png.getvalue())
-              print(model, repr(text))
-              assert 'Semestra' in text, model
+          text = local_ocr.recognize(model, png.getvalue())
+          print(model, repr(text))
+          assert 'Semestra' in text, model
           "
+          docker exec ocr sh -c 'du -sh $PADDLE_PDX_CACHE_HOME/official_models/*'
           docker rm -f ocr
 
       - name: Logs on failure

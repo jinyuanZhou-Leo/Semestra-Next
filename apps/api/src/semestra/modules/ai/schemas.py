@@ -147,10 +147,25 @@ class PurposeStatus(BaseModel):
 
 class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
-    # Self-hosted installs with local OCR: the PaddleOCR models a user can pick for OCR, and the
-    # one used when they pick nothing. Empty and null elsewhere.
+    # Self-hosted installs with local OCR: the PaddleOCR models a user can pick for OCR, the one
+    # used when they pick nothing, the ones already on this server, and the user's unfinished
+    # model download (a `core.job`). Empty and null elsewhere.
     local_ocr_models: list[str] = Field(default_factory=list)
     local_ocr_default: str | None = None
+    local_ocr_downloaded: list[str] = Field(default_factory=list)
+    local_ocr_download_job: str | None = None
+
+
+class LocalOcrDownloadInput(BaseModel):
+    model: str | None = Field(
+        default=None,
+        description="A local OCR model; defaults to the one that reads this user's scanned pages.",
+    )
+
+
+class LocalOcrDownload(BaseModel):
+    # The download's job id; null when the model is already on this server.
+    job_id: str | None
 
 
 class UsageInput(BaseModel):

@@ -11,8 +11,8 @@
 #   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
 #   allinone    api + the built SPA served from the same origin (self-hosting and the hosted app)
-#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime, every model
-#               baked in); for self-hosting, amd64 and arm64
+#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime; models are
+#               downloaded into /data when first needed); for self-hosting, amd64 and arm64
 #   edge        Caddy with the landing page (/landing) and the docs (/docs) baked in; the hosted
 #               stack's reverse proxy in front of allinone (deploy/hosted/Caddyfile)
 
@@ -39,29 +39,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM api-builder AS api-builder-ocr
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable --extra ocr
-
-# ---- local OCR models (arch-independent ONNX files) ----------------------------------------
-# Runs on the build machine's own platform, so a multi-arch build doesn't load every model under
-# emulation. Fetches every model users can pick: the server never downloads anything at run time.
-FROM --platform=$BUILDPLATFORM ${PYTHON_IMAGE} AS ocr-models
-COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /usr/local/bin/uv
-# OpenCV (pulled in by PaddleOCR) links against these.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
-    && rm -rf /var/lib/apt/lists/*
-ENV UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never \
-    UV_PROJECT_ENVIRONMENT=/opt/venv \
-    PADDLE_PDX_CACHE_HOME=/opt/paddlex \
-    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
-WORKDIR /build
-COPY apps/api/pyproject.toml apps/api/uv.lock apps/api/.python-version ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project --extra ocr
-COPY apps/api/src ./src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable --extra ocr \
-    && /opt/venv/bin/semestra ocr-models --all
 
 # ---- backend runtime -----------------------------------------------------------------------
 # Everything but the virtualenv, shared by api and allinone-ocr (which has its own).
@@ -151,17 +128,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 USER semestra
 COPY --from=api-builder-ocr /opt/venv /opt/venv
-COPY --from=ocr-models --chown=semestra:semestra /opt/paddlex /opt/paddlex
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
-# Every model is in the image; this one is used until a user picks another in settings
-# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server).
+# No model is in the image: each downloads into the data volume the first time it is needed,
+# with progress in the app. This one is used until a user picks another in settings
+# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server). Plain HTTPS rather than Xet for Hugging
+# Face: each file grows on disk as it arrives (what the progress measures), with no chunk cache.
 ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web \
     SEMESTRA_LOCAL_OCR=true \
     SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
-    PADDLE_PDX_CACHE_HOME=/opt/paddlex \
-    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+    PADDLE_PDX_CACHE_HOME=/data/ocr-models \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True \
+    HF_HUB_DISABLE_XET=1
 
 # ---- landing page and docs (static) --------------------------------------------------------
 FROM ${NODE_IMAGE} AS sites-builder

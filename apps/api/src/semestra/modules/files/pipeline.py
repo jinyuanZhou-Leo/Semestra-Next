@@ -270,6 +270,11 @@ async def _once(data: bytes):
     yield data
 
 
+async def _skip_ocr(ctx: JobCtx) -> None:
+    await ctx.skip_stage("ocr_model")
+    await ctx.skip_stage("ocr")
+
+
 async def _ocr(
     ctx: JobCtx, work: _Work, parsed: ParsedDocument, data: bytes, kind: str
 ) -> tuple[str | None, int]:
@@ -279,12 +284,22 @@ async def _ocr(
     for the `ocr` purpose does."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
     if not needed or kind not in ("pdf", "image"):
-        await ctx.skip_stage("ocr")
+        await _skip_ocr(ctx)
         return None, 0
     local = await ai.local_ocr.choice(ctx)
     if local is None and not await ai.available(ctx, "ocr"):
-        await ctx.skip_stage("ocr")
+        await _skip_ocr(ctx)
         return None, len(needed)
+    if local is not None and not ai.local_ocr.downloaded(local):
+        # Fetched before the OCR deadline starts; the job shows megabytes received.
+        try:
+            await ai.local_ocr_jobs.download_with_progress(ctx, local, "ocr_model")
+        except AppError as exc:
+            log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
+            await _skip_ocr(ctx)
+            return None, len(needed)
+    else:
+        await ctx.skip_stage("ocr_model")
     resolved = None if local is not None else await ai.resolve_provider(ctx, "ocr")
     limiter = anyio.CapacityLimiter(OCR_CONCURRENCY)
     read_pages = 0

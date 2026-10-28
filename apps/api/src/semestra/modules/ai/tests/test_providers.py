@@ -283,6 +283,7 @@ async def test_capabilities_are_http_only():
         "ai.provider.create",
         "ai.provider.update",
         "ai.provider.delete",
+        "ai.local_ocr.download",
         "ai.provider.test",
         "ai.provider.list_models",
         "ai.assignment.get",

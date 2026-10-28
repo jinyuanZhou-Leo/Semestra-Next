@@ -508,6 +508,14 @@ export type AiStatusGet = {
      * Local Ocr Default
      */
     local_ocr_default?: string | null;
+    /**
+     * Local Ocr Downloaded
+     */
+    local_ocr_downloaded?: Array<string>;
+    /**
+     * Local Ocr Download Job
+     */
+    local_ocr_download_job?: string | null;
 };
 
 /**
@@ -5646,6 +5654,28 @@ export type LmsCourse = {
      * Is Current
      */
     is_current?: boolean;
+};
+
+/**
+ * LocalOcrDownload
+ */
+export type LocalOcrDownload = {
+    /**
+     * Job Id
+     */
+    job_id: string | null;
+};
+
+/**
+ * LocalOcrDownloadInputBody
+ */
+export type LocalOcrDownloadInputBody = {
+    /**
+     * Model
+     *
+     * A local OCR model; defaults to the one that reads this user's scanned pages.
+     */
+    model?: string | null;
 };
 
 /**
@@ -13410,6 +13440,31 @@ export type AiAssignmentUpdateResponses = {
 };
 
 export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
+
+export type AiLocalOcrDownloadData = {
+    body: LocalOcrDownloadInputBody;
+    path?: never;
+    query?: never;
+    url: '/ai/local-ocr/download';
+};
+
+export type AiLocalOcrDownloadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiLocalOcrDownloadError = AiLocalOcrDownloadErrors[keyof AiLocalOcrDownloadErrors];
+
+export type AiLocalOcrDownloadResponses = {
+    /**
+     * Successful Response
+     */
+    200: LocalOcrDownload;
+};
+
+export type AiLocalOcrDownloadResponse = AiLocalOcrDownloadResponses[keyof AiLocalOcrDownloadResponses];
 
 export type AiProviderListData = {
     body?: never;
