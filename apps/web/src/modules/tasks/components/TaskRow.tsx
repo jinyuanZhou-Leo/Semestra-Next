@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import type { TaskActions } from '../actions'
+import { useCompleting } from '../completion'
 import { dueLabel } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
@@ -330,7 +331,9 @@ export const TaskRow = memo(function TaskRow({
   const rowRef = useRef<HTMLLIElement | null>(null)
   // Set when the editor closes from the keyboard; the title button takes focus as it returns.
   const refocusTitle = useRef(false)
-  const done = task.completed_at !== null
+  // Just checked off: shown done, still in its place until it is saved (`completion.ts`).
+  const completing = useCompleting(task.id)
+  const done = task.completed_at !== null || completing !== null
   const course = courses.find((c) => c.id === task.course_id)
   const note = task.notes.split('\n')[0]?.trim()
   const hasMeta = Boolean(note) || task.due_date !== null || (course !== undefined && !hideCourse)
@@ -357,6 +360,7 @@ export const TaskRow = memo(function TaskRow({
       data-selected={selected || undefined}
       data-editing={editing ? true : undefined}
       data-task-id={task.id}
+      data-completing={completing ?? undefined}
       onClick={() => onSelect(task.id)}
       className={cn(
         'group/row flex items-start gap-3 rounded-2xl px-3 py-2.5 hover:bg-muted/40 data-selected:bg-muted/70 data-editing:bg-muted/70',
@@ -366,7 +370,7 @@ export const TaskRow = memo(function TaskRow({
       <Checkbox
         checked={done}
         aria-label={m.tasks_complete({ title: task.title })}
-        className="mt-0.5 size-5 rounded-full"
+        className="task-check mt-0.5 size-5 rounded-full"
         onClick={(event) => event.stopPropagation()}
         onCheckedChange={(checked) => {
           // The row leaves the list; the editor saves what was typed as it goes.
@@ -403,8 +407,10 @@ export const TaskRow = memo(function TaskRow({
                 type="button"
                 aria-label={m.tasks_edit_title({ title: task.title })}
                 className={cn(
-                  'min-w-0 cursor-text truncate rounded-sm text-left text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                  done && 'text-muted-foreground line-through',
+                  'task-title min-w-0 cursor-text truncate rounded-sm text-left text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  done && 'text-muted-foreground',
+                  // Struck through by a drawn line while it waits (theme.css).
+                  done && !completing && 'line-through',
                 )}
                 onClick={start('title')}
               >

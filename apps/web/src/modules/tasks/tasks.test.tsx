@@ -10,6 +10,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
 import { TasksSidebarNav } from './components/TasksSidebar'
+import { flushCompletions } from './completion'
 import TasksPage from './pages/TasksPage'
 
 /** Without the app sidebar the page title is the menu of lists. */
@@ -136,13 +137,19 @@ test('the page lists the tasks and adds one from the quick-add box', async () =>
   expect(await screen.findByText('Write essay')).toBeTruthy()
 })
 
-test('checking a task off completes it', async () => {
+test('a checked-off task waits in place, can be unchecked, and is then completed', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  await userEvent.click(await screen.findByRole('checkbox', { name: 'Complete Lab report' }))
-  await waitFor(() => expect(log.completes).toHaveLength(1))
-  expect(log.completes[0]).toEqual({ id: 't2', body: { completed: true } })
+  const check = await screen.findByRole('checkbox', { name: 'Complete Lab report' })
+  await userEvent.click(check)
+  expect(check).toBeChecked()
+  // Unchecked while it waits: nothing is saved, even once the waits are flushed.
+  await userEvent.click(check)
+  expect(check).not.toBeChecked()
+  await act(() => flushCompletions())
+  await userEvent.click(check)
+  await act(() => flushCompletions())
+  expect(log.completes).toEqual([{ id: 't2', body: { completed: true } }])
 })
-
 test('an empty list says so, with the add box above the empty state', async () => {
   items = []
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
@@ -277,6 +284,7 @@ test('checking off a row being edited keeps what was typed', async () => {
   await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
   await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
   await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
+  await act(() => flushCompletions())
   expect(log.completes).toHaveLength(1)
 })
 

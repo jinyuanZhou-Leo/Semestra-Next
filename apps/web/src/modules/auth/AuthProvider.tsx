@@ -7,6 +7,7 @@ import { clearCollapsedMirror } from '@/app/boot'
 import { setSignedIn } from '@/app/session-expiry'
 import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
+import { dropCompletions, flushCompletions } from '@/modules/tasks/completion'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext, type AuthState } from './useAuth'
 
@@ -28,8 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: me.isPending,
     signOut: async ({ to = '/login', flush = true } = {}) => {
       // Interface state changed in the last moments belongs to this session: save it first.
-      if (flush) await flushUiPrefs(queryClient)
-      else setSignedIn(false) // the session is already gone; a 401 now is not "expired"
+      // So are tasks checked off in the last seconds, still waiting in place.
+      if (flush) await Promise.all([flushUiPrefs(queryClient), flushCompletions()])
+      else {
+        dropCompletions()
+        setSignedIn(false) // the session is already gone; a 401 now is not "expired"
+      }
       try {
         await logOut({})
       } catch (err) {
