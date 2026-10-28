@@ -12,6 +12,7 @@ import { setupServer } from 'msw/node'
 import type { ReactElement } from 'react'
 import '@/app/api'
 import { QUERY_DEFAULTS } from '@/app/query-client'
+import { ThemeProvider } from '@/app/theme'
 
 export const API = 'http://localhost:8000'
 
@@ -64,7 +65,9 @@ export function renderWithRouter(ui: ReactElement, queryClient = newQueryClient(
     router,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <ThemeProvider>
+          <RouterProvider router={router} />
+        </ThemeProvider>
       </QueryClientProvider>,
     ),
   }
