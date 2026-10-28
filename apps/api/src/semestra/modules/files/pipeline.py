@@ -49,6 +49,8 @@ THUMBNAIL_PAGES = 1
 OCR_BATCH = 8
 # Local OCR loads its engine once per batch (a few seconds), so it takes bigger ones.
 LOCAL_OCR_BATCH = 32
+# Time to start the OCR child and load its model, on top of the per-page deadline.
+LOCAL_OCR_LOAD_SECONDS = 120
 OCR_CONCURRENCY = 4
 # Errors that would be the same for every page or document: OCR stops and the rest are
 # skipped, a reindex stops.
@@ -314,14 +316,18 @@ async def _ocr(
         parsed.pages[index].markdown = text.strip()
         read_pages += 1
 
-    async def read_locally(model: str, batch: list[int], pngs: list[bytes]) -> None:
+    async def read_locally(model: str, batch: list[int], pngs: list[bytes], done: int) -> None:
         nonlocal read_pages, stopped
         try:
-            async for page in ocr_isolated(
-                model, pngs, time_limit=ctx.settings.local_ocr_timeout_seconds
-            ):
+            time_limit = LOCAL_OCR_LOAD_SECONDS + ctx.settings.local_ocr_page_timeout_seconds * len(
+                pngs
+            )
+            async for page in ocr_isolated(model, pngs, time_limit=time_limit):
                 parsed.pages[batch[page.index]].markdown = page.text.strip()
                 read_pages += 1
+                # A page can take seconds: keep the bar moving and stop the child on cancel.
+                await ctx.stage("ocr", current=done + page.index + 1, total=len(needed))
+                await ctx.check_cancelled()
         except ParseError as exc:
             # A broken install, a missing model or running out of time fails every batch alike.
             log.warning("files_local_ocr_failed", code=exc.code, model=model)
@@ -346,7 +352,7 @@ async def _ocr(
             log.warning("files_ocr_render_failed", code=exc.code)
             continue
         if local is not None:
-            await read_locally(local, batch, pngs)
+            await read_locally(local, batch, pngs, start)
             continue
         async with anyio.create_task_group() as group:
             for index, png in zip(batch, pngs, strict=False):

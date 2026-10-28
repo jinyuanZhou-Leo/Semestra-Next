@@ -1,7 +1,7 @@
 # Self-hosting Semestra / 自部署 Semestra
 
-One container serves both the API and the web app. You need Docker with the Compose plugin and about 3 GB of RAM: the default image (about 2 GB) reads scanned pages on the server, which takes up to 2 GB while it runs. Without that, the smaller image needs about 1 GB ([Scanned pages](#scanned-pages--扫描页识别)).
-一个容器同时提供 API 和网页，需要装有 Compose 插件的 Docker 和约 3 GB 内存：默认镜像（约 2 GB）会在服务器上识别扫描页，识别时最多占用 2 GB。不需要这个功能时，换成小镜像只要约 1 GB（见[扫描页识别](#scanned-pages--扫描页识别)）。
+One container serves both the API and the web app. You need Docker with the Compose plugin and about 3 GB of RAM: the default image (about 2 GB) reads scanned pages on the server, which takes up to 2 GB while it runs. Without that, the smaller image needs about 1 GB ([Local OCR](#local-ocr--本机-ocr)).
+一个容器同时提供 API 和网页，需要装有 Compose 插件的 Docker 和约 3 GB 内存：默认镜像（约 2 GB）会在服务器上识别扫描页，识别时最多占用 2 GB。不需要这个功能时，换成小镜像只要约 1 GB（见[本机 OCR](#local-ocr--本机-ocr)）。
 
 The full guide (HTTPS, email, backups, AI, every setting) is in the docs site: `apps/docs/content/docs/self-hosting`, or run `pnpm docs:dev`.
 完整指南（HTTPS、邮件、备份、AI、全部设置）在文档站里：`apps/docs/content/docs/self-hosting`，或运行 `pnpm docs:dev`。
@@ -132,7 +132,7 @@ SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
 An Ollama running elsewhere on your network works too: set its URL as `SEMESTRA_INSTANCE_AI_BASE_URL` (private addresses are allowed by default in self-hosted mode). Ollama on the GPU needs the NVIDIA container toolkit and an override file; see the Ollama docs.
 网络里别处运行的 Ollama 同样可用：把它的地址填进 `SEMESTRA_INSTANCE_AI_BASE_URL`（自部署默认允许访问私网地址）。要让 Ollama 用 GPU，需要安装 NVIDIA container toolkit 并写 override 文件，参见 Ollama 文档。
 
-## Scanned pages / 扫描页识别
+## Local OCR / 本机 OCR
 
 The default image (`semestra-allinone:<version>-ocr`, about 2 GB) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. It runs on amd64 and arm64, including Docker on Apple Silicon. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per page with the default model.
 默认镜像（`semestra-allinone:<版本>-ocr`，约 2 GB）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。

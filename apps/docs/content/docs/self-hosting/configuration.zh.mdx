@@ -63,7 +63,7 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 
 见[全实例服务商](/docs/ai/instance-provider)。
 
-## 扫描页识别
+## 本机 OCR
 
 默认镜像（标签以 `-ocr` 结尾）在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（ONNX Runtime，只用
 CPU）识别扫描版 PDF 和照片，不会为此调用 AI 模型。每个用户可以在 AI 设置 → 模型的 **OCR** 一行里选择本机的 PaddleOCR
@@ -77,6 +77,7 @@ Apple Silicon 上的 Docker）。识别时在应用本身约 1 GB 之外再占�
 | -------------------------- | ------------------- | ------------------------------------------------------------ |
 | `SEMESTRA_LOCAL_OCR`       | `-ocr` 镜像里为 `true` | 在服务器上识别扫描页                                      |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium`   | 默认模型：`PP-OCRv6_tiny`、`_small`、`_medium`、`PP-OCRv5_mobile`、`PP-OCRv5_server` |
+| `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | 每页允许的时间（另加两分钟加载模型）；CPU 很慢时调大 |
 
 ## 后台任务与备份
 

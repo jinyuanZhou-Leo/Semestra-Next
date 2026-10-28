@@ -65,7 +65,7 @@ loopback or link-local address: AI base URLs with `common.egress_blocked`, Canva
 
 See [Instance-wide provider](/docs/ai/instance-provider).
 
-## Scanned pages
+## Local OCR
 
 The default image (tag ending in `-ocr`) reads scanned PDF pages and photos on the server with
 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) on ONNX Runtime, CPU only, so no AI model
@@ -83,6 +83,7 @@ return.
 | -------------------------- | ----------------- | ------------------------------------------------------------- |
 | `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | Default model: `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
+| `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | Time allowed per page (plus two minutes to load the model); raise it on a very slow CPU |
 
 ## Background work and backups
 
