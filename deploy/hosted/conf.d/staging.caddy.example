@@ -1,8 +1,0 @@
-# Copy to staging.caddy on the VM (and `docker compose --profile staging up -d`) to serve the
-# staging app (no landing page or docs). The DNS record for the hostname must already point at
-# this VM.
-semestra-staging.jyleo.cc {
-	import security_headers
-	import access_log
-	import app_site api-staging:8000
-}
