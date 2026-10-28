@@ -3,6 +3,27 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.4.0 (2026-10-27)
+
+### Improved
+
+- **Terms & courses:** Creating a term now takes two steps: pick the term's dates in one range calendar that shows the number of weeks, edit breaks in a table, and create the term right from the course list, where continuing year-long courses and each imported course's source are shown. Date pickers now follow your language and first day of the week.
+- **Import:** Add from a syllabus, screenshot or calendar file right in each page's Add menu, read a file already in the course with "Read with AI…", and watch each file's upload progress.
+- **Canvas:** Link a course to Canvas from its settings by searching one list, with the matching course suggested first, and see its status and actions in a single row.
+- **Settings:** The "What's new" dialog and the release notes in Settings → About mark New, Improved and Fixed with their own icon and color, and within each, notes are listed under the part of the app they are about.
+
+### Fixed
+
+- **General:** While the app loads, an outline of the sidebar (or the Semestra logo) shows right away instead of a blank page.
+- **General:** The app downloads less code when it starts and asks for your data sooner, so it opens faster on slow connections.
+- **General:** Pages opened from a link or after a refresh show their data sooner, and the term calendar shows a week's classes as soon as you move to it.
+- **General:** Pages stay responsive in the seconds after they load, and changing a preference no longer reloads your preferences twice.
+- **Sem:** The Sem side panel opens faster, and the full Sem page shows your conversation list sooner.
+- **Overview & Today:** Cards on Today and on a term's overview show their content sooner.
+- **Tasks:** Selecting and checking off tasks in a long list responds faster, and task due dates show weekdays in the app's language.
+- **Canvas:** In the Canvas tab's assignments, the columns no longer shift when you open an assignment or fold a group.
+- **Canvas:** In the Canvas tab, assignments you already imported now show a dimmed checkbox, so it is clear they can't be ticked again.
+
 ## 1.3.0 (2026-10-27)
 
 ### New

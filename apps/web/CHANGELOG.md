@@ -1,5 +1,99 @@
 # @semestra/web
 
+## 1.4.0
+
+### Minor Changes
+
+- 2522629: <!-- improved -->
+  <!-- area: imports -->
+  <!-- en -->
+  Add from a syllabus, screenshot or calendar file right in each page's Add menu, read a file already in the course with "Read with AI…", and watch each file's upload progress.
+  <!-- zh -->
+  在各页的“添加”菜单里直接从 syllabus、截图或日历文件添加，课程里已有的文件可以用“用这个文件识别…”直接读取，上传时每个文件都有自己的进度。
+- 1030b7e: <!-- improved -->
+  <!-- area: settings -->
+  <!-- en -->
+  The "What's new" dialog and the release notes in Settings → About mark New, Improved and Fixed with their own icon and color, and within each, notes are listed under the part of the app they are about.
+  <!-- zh -->
+  「更新了什么」弹窗和设置 → 关于里的更新日志，新功能、改进和修复各有图标和颜色，每类里的条目再按模块分开列出。
+- 6a5106e: <!-- improved -->
+  <!-- area: canvas -->
+  <!-- en -->
+  Link a course to Canvas from its settings by searching one list, with the matching course suggested first, and see its status and actions in a single row.
+  <!-- zh -->
+  在课程设置里通过一个可搜索的列表把课程关联到 Canvas，代码对得上的课程排在最前，关联后的状态和操作都在一行里。
+- b413c3c: <!-- improved -->
+  <!-- area: courses -->
+  <!-- en -->
+  Creating a term now takes two steps: pick the term's dates in one range calendar that shows the number of weeks, edit breaks in a table, and create the term right from the course list, where continuing year-long courses and each imported course's source are shown. Date pickers now follow your language and first day of the week.
+  <!-- zh -->
+  新建学期改成两步：在一个日历里选好学期起止日期并直接看到周数，假期用表格编辑，在课程列表里直接创建学期，延续的全年课程和导入课程的来源都会显示。日期选择器现在跟随界面语言和每周起始日。
+
+### Patch Changes
+
+- 8c22188: <!-- area: overview -->
+  <!-- en -->
+
+  Cards on Today and on a term's overview show their content sooner.
+
+  <!-- zh -->
+
+  “今天”和学期概览页上的卡片内容显示得更快。
+
+- e3fc326: <!-- area: general -->
+  <!-- en -->
+  While the app loads, an outline of the sidebar (or the Semestra logo) shows right away instead of a blank page.
+  <!-- zh -->
+  应用加载时会立即显示侧边栏轮廓（或 Semestra 标志），不再是一片空白。
+- cb8d030: <!-- area: canvas -->
+  <!-- en -->
+
+  In the Canvas tab's assignments, the columns no longer shift when you open an assignment or fold a group.
+
+  <!-- zh -->
+
+  Canvas 页签的作业表里，展开作业或折叠分组时列不再左右移动。
+
+- f55c7ab: <!-- area: canvas -->
+  <!-- en -->
+
+  In the Canvas tab, assignments you already imported now show a dimmed checkbox, so it is clear they can't be ticked again.
+
+  <!-- zh -->
+
+  Canvas 页签里已导入的作业，勾选框现在会变淡，一眼就能看出不能再勾选。
+
+- 8d35540: <!-- area: general -->
+  <!-- en -->
+  The app downloads less code when it starts and asks for your data sooner, so it opens faster on slow connections.
+  <!-- zh -->
+  应用启动时下载的代码更少、数据请求发得更早，网络较慢时打开更快。
+- bc3f36a: <!-- area: general -->
+  <!-- en -->
+  Pages opened from a link or after a refresh show their data sooner, and the term calendar shows a week's classes as soon as you move to it.
+  <!-- zh -->
+  从链接打开或刷新后，页面数据显示得更快；学期日历翻周时课程会立刻出现。
+- 8542c96: <!-- area: general -->
+  <!-- en -->
+  Pages stay responsive in the seconds after they load, and changing a preference no longer reloads your preferences twice.
+  <!-- zh -->
+  页面加载后的几秒内操作更跟手；修改偏好设置时不再重复加载两次。
+- 8c22188: <!-- area: sem -->
+  <!-- en -->
+
+  The Sem side panel opens faster, and the full Sem page shows your conversation list sooner.
+
+  <!-- zh -->
+
+  Sem 侧边面板打开得更快，Sem 全屏页的对话列表也显示得更早。
+
+- bc3bb6b: <!-- area: tasks -->
+  <!-- en -->
+  Selecting and checking off tasks in a long list responds faster, and task due dates show weekdays in the app's language.
+  <!-- zh -->
+  在长待办列表里选中和勾选任务响应更快；待办截止日期里的星期按应用语言显示。
+- @semestra/api-client@1.4.0
+
 ## 1.3.0
 
 ### Minor Changes
