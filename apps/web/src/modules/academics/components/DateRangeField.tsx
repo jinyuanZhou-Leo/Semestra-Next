@@ -1,7 +1,9 @@
 import { CalendarIcon } from 'lucide-react'
+import { differenceInCalendarWeeks } from 'date-fns'
 import { useId, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
 import { calendarLocale } from '@/lib/calendar'
+import { isoDay, parseDay } from '@/lib/day'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -9,33 +11,12 @@ import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 
-/** A `yyyy-MM-dd` day as a local date, or undefined when it is not a real day. */
-export function parseIsoDate(value: string): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return undefined
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(year, month - 1, day)
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return undefined
-  }
-  return date
-}
-
-export function toIsoDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
-
-/** Calendar weeks a range touches, counting a started week (Sep 8 – Dec 18 is 15). */
+/** Calendar weeks a range touches, counted like the API's week numbers (M02 §3). */
 export function rangeWeeks(start: string, end: string): number | null {
-  const from = parseIsoDate(start)
-  const to = parseIsoDate(end)
+  const from = parseDay(start)
+  const to = parseDay(end)
   if (!from || !to || to < from) return null
-  const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1
-  return Math.ceil(days / 7)
+  return differenceInCalendarWeeks(to, from, { weekStartsOn: calendarLocale().weekStartsOn }) + 1
 }
 
 /**
@@ -87,15 +68,15 @@ export function DateRangeField({
   // `onChange`, so autosaving callers never store a half-picked range.
   const [pending, setPending] = useState<DateRange | null>(null)
   const buttonId = id ?? generated
-  const from = parseIsoDate(start)
-  const to = parseIsoDate(end)
-  const minDate = min ? parseIsoDate(min) : undefined
-  const maxDate = max ? parseIsoDate(max) : undefined
+  const from = parseDay(start)
+  const to = parseDay(end)
+  const minDate = min ? parseDay(min) : undefined
+  const maxDate = max ? parseDay(max) : undefined
   const show = (iso: string) => formatDate(iso, { short })
   const count = weeks ? rangeWeeks(start, end) : null
   const struck = holidays.flatMap((h) => {
-    const hFrom = parseIsoDate(h.start)
-    const hTo = parseIsoDate(h.end)
+    const hFrom = parseDay(h.start)
+    const hTo = parseDay(h.end)
     return hFrom && hTo ? [{ from: hFrom, to: hTo }] : []
   })
   const disabled = [
@@ -151,7 +132,7 @@ export function DateRangeField({
           onSelect={(range) => {
             if (range?.from && range.to) {
               setPending(null)
-              onChange(toIsoDate(range.from), toIsoDate(range.to))
+              onChange(isoDay(range.from), isoDay(range.to))
             } else setPending(range)
           }}
         />

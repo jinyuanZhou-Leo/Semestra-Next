@@ -22,7 +22,8 @@ import { readUiPref } from '@/app/ui-pref'
 import { firstDayFor } from '@/lib/format'
 import { courseListOptions } from '@/modules/academics/queries'
 import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from './filters'
-import { isoDay, localDay, plusDays, todayIn, weekStartOf } from './time'
+import { isoDay } from '@/lib/day'
+import { localDay, plusDays, todayIn, weekStartOf } from './time'
 
 export function useEventTypes(programId: string) {
   return useQuery({

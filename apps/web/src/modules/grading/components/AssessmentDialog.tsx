@@ -9,6 +9,7 @@ import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { calendarLocale } from '@/lib/calendar'
+import { isoDay, parseDay } from '@/lib/day'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -33,19 +34,6 @@ import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch, scoreText } from '../score'
 
 const NO_CATEGORY = '__none__'
-
-/** A stored `yyyy-MM-dd` as a local calendar day. The picker never sees the string. */
-function dueDateToDate(value: string): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return undefined
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-}
-
-function dateToDueDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}
 
 /** Add or edit an assessment with every field (M03 §5.1); quick edits happen in the table. */
 export function AssessmentDialog({
@@ -227,9 +215,9 @@ function AssessmentForm({
                 <Calendar
                   {...calendarLocale()}
                   mode="single"
-                  selected={dueDateToDate(dueDate)}
-                  onSelect={(day) => setDueDate(day ? dateToDueDate(day) : '')}
-                  defaultMonth={dueDateToDate(dueDate)}
+                  selected={parseDay(dueDate)}
+                  onSelect={(day) => setDueDate(day ? isoDay(day) : '')}
+                  defaultMonth={parseDay(dueDate)}
                 />
               </PopoverContent>
             </Popover>

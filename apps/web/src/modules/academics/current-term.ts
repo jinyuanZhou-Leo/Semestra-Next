@@ -3,16 +3,11 @@ import { academicsTermListOptions } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { readUiPref, useUiPref } from '@/app/ui-pref'
+import { todayDay } from '@/lib/day'
 import { courseListOptions, useTerms } from './queries'
 
 /** UI state `academics.current_term.<programId>`: a term id the user chose, null for "by date". */
 export const CURRENT_TERM_KEY = 'academics.current_term'
-
-const localToday = () => {
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
 
 /**
  * The term today's date points at: the one the server marks `is_current`, else (between terms)
@@ -38,7 +33,7 @@ export function termByDate(terms: readonly Term[] | undefined, today: string): T
 export function useCurrentTerm(programId: string) {
   const termsQuery = useTerms(programId)
   const terms = termsQuery.data?.items
-  const [today] = useState(localToday)
+  const [today] = useState(todayDay)
   const [chosenId, setChosenId] = useUiPref<string | null>(CURRENT_TERM_KEY, null, {
     scope: programId,
   })
@@ -62,6 +57,6 @@ export async function prefetchCurrentTermCourses(queryClient: QueryClient, progr
     queryClient.ensureQueryData(academicsTermListOptions({ path: { program_id: programId } })),
     readUiPref<string | null>(queryClient, `${CURRENT_TERM_KEY}.${programId}`),
   ])
-  const term = terms.items.find((t) => t.id === chosenId) ?? termByDate(terms.items, localToday())
+  const term = terms.items.find((t) => t.id === chosenId) ?? termByDate(terms.items, todayDay())
   if (term) await queryClient.ensureQueryData(courseListOptions(programId, term.id))
 }

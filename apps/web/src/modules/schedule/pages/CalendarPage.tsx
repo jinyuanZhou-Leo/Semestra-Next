@@ -64,7 +64,8 @@ import {
   useOccurrences,
   useTermMeetings,
 } from '../queries'
-import { hhmm, isoDay, isoWeekday, markerDay, plusDays, toWall, todayIn, wall } from '../time'
+import { isoDay } from '@/lib/day'
+import { hhmm, isoWeekday, markerDay, plusDays, toWall, todayIn, wall } from '../time'
 
 const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
   week: 'timeGridWeek',

@@ -16,7 +16,8 @@ import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Textarea } from '@/ui/textarea'
 import { invalidateSchedule } from '../queries'
-import { isoDay, localDay } from '../time'
+import { isoDay } from '@/lib/day'
+import { localDay } from '../time'
 
 export type MoveTarget = {
   meetingId: string
