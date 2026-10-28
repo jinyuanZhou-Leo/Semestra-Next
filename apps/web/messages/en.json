@@ -2738,5 +2738,6 @@
   "assistant_context_conversation": "Messages",
   "assistant_context_reads": "Files and pages read",
   "assistant_context_attachments": "Attachments",
-  "assistant_context_free": "Free"
+  "assistant_context_free": "Free",
+  "assistant_context_button": "{percent} context"
 }

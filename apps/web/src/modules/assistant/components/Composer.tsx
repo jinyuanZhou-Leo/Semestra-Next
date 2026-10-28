@@ -101,7 +101,7 @@ export function Composer({
   canCompact?: boolean
   /** Earlier turns are being compacted now (sending waits: `generating` is set too). */
   compacting?: boolean
-  /** Compacts the conversation now (`/compact` or the context ring's button), keeping `focus`. */
+  /** Compacts the conversation now (`/compact` or the context card's button), keeping `focus`. */
   onCompact?: (focus: string) => Promise<boolean>
 }) {
   const [value, setValue] = useState<PromptValue>(() =>

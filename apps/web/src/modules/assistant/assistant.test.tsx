@@ -914,7 +914,9 @@ test('/compact keeps what the user names, and the summary shows under a divider'
   const input = await messageInput()
   await userEvent.type(input, '/comp')
   await userEvent.click(await screen.findByRole('option', { name: /Compact conversation/ }))
-  expect(input).toHaveTextContent('Anything the summary must keep (optional). Press Enter to compact')
+  expect(input).toHaveTextContent(
+    'Anything the summary must keep (optional). Press Enter to compact',
+  )
   await userEvent.type(input, 'the study times{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'the study times' }]))
   const divider = await screen.findByRole('button', { name: 'Compacted · View summary' })
@@ -935,7 +937,7 @@ test('the context ring shows how full the conversation is and compacts from ther
   const sent = compactable()
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   const input = await messageInput()
-  await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
+  await userEvent.hover(await screen.findByRole('button', { name: '70% context' }))
   expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
   // What fills it, by kind, and what is left.
   expect(screen.getByText('Files and pages read').nextSibling).toHaveTextContent('40K')
@@ -943,7 +945,9 @@ test('the context ring shows how full the conversation is and compacts from ther
   expect(screen.queryByText('Attachments')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
   // Compacting starts in the composer, as `/compact` does.
-  expect(input).toHaveTextContent('Anything the summary must keep (optional). Press Enter to compact')
+  expect(input).toHaveTextContent(
+    'Anything the summary must keep (optional). Press Enter to compact',
+  )
   await userEvent.type(input, 'deadlines{Enter}')
   await waitFor(() => expect(sent).toEqual([{ focus: 'deadlines' }]))
   // After it, only the last turn is left: nothing more to compact.
