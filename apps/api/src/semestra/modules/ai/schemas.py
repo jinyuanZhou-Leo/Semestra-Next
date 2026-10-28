@@ -119,8 +119,7 @@ class AssignmentList(BaseModel):
 class AssignmentUpdateInput(BaseModel):
     purpose: Purpose = Field(description="Which purpose to configure.")
     provider_id: str | None = Field(
-        description="Provider to use; null removes the choice (the recommended default applies), "
-        "or, for ocr with a local model name in `model`, picks that local OCR model."
+        description="Provider to use; null removes the choice (the recommended default applies)."
     )
     model: str | None = Field(
         default=None, min_length=1, max_length=200, description="Model name at that provider."
@@ -130,14 +129,13 @@ class AssignmentUpdateInput(BaseModel):
 
 # --- status and usage -----------------------------------------------------------------------
 
-Source = Literal["assignment", "default", "instance", "local"]
+Source = Literal["assignment", "default", "instance"]
 
 
 class PurposeStatus(BaseModel):
     purpose: Purpose
     available: bool
-    # How the model was chosen: the user's choice, a provider default, the instance provider, or
-    # (OCR only) the self-hosted install's own OCR engine, which `model` then names.
+    # How the model was chosen: the user's choice, a provider default, or the instance provider.
     source: Source | None
     provider_id: str | None
     provider_kind: ProviderKind | None
@@ -147,27 +145,6 @@ class PurposeStatus(BaseModel):
 
 class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
-    # Self-hosted installs with local OCR: the PaddleOCR models a user can pick for OCR, the one
-    # used when they pick nothing, the ones already on this server, and the user's unfinished
-    # model download (a `core.job`). Empty and null elsewhere.
-    local_ocr_models: list[str] = Field(default_factory=list)
-    local_ocr_default: str | None = None
-    local_ocr_downloaded: list[str] = Field(default_factory=list)
-    # Models downloading now for anyone (a file being processed, another user's pick).
-    local_ocr_downloading: list[str] = Field(default_factory=list)
-    local_ocr_download_job: str | None = None
-
-
-class LocalOcrDownloadInput(BaseModel):
-    model: str | None = Field(
-        default=None,
-        description="A local OCR model; defaults to the one that reads this user's scanned pages.",
-    )
-
-
-class LocalOcrDownload(BaseModel):
-    # The download's job id; null when the model is already on this server.
-    job_id: str | None
 
 
 class UsageInput(BaseModel):

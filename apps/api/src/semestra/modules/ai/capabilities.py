@@ -7,8 +7,6 @@ from semestra.modules.ai.schemas import (
     AiStatusGet,
     AssignmentList,
     AssignmentUpdateInput,
-    LocalOcrDownload,
-    LocalOcrDownloadInput,
     ModelList,
     Provider,
     ProviderCheck,
@@ -141,20 +139,6 @@ async def assignment_update(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 )
 async def status(ctx: Ctx, inp: NoInput) -> AiStatusGet:
     return await service.status(ctx)
-
-
-@capability(
-    name="ai.local_ocr.download",
-    summary="Download a local OCR model to this self-hosted server.",
-    description="""Defaults to the user's OCR model. Returns the download job's id, or null when
-the model is already here. Not for agents.""",
-    effect="write",
-    http=Http("POST", "/ai/local-ocr/download"),
-    expose=HTTP_ONLY,
-    tags=TAGS,
-)
-async def local_ocr_download(ctx: Ctx, inp: LocalOcrDownloadInput) -> LocalOcrDownload:
-    return await service.download_local_ocr(ctx, inp)
 
 
 @capability(

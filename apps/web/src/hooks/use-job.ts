@@ -15,33 +15,18 @@ export type JobCount = { current: number; total: number }
  * Text for the job's current stage: `job_step_<kind>_<step>` (dots in `kind` become underscores),
  * with the count inside the stage when the job reports one, and a prefix when it is a retry.
  * Progress percentages always come from the backend (M00 §3.6). Pass `withCount: false` where the
- * count is shown on its own, so a narrow label can be cut without losing it. A step whose count has
- * a unit names it in `job_step_<kind>_<step>_count` (e.g. `{current}/{total} MB`).
+ * count is shown on its own, so a narrow label can be cut without losing it.
  */
 export function jobStageLabel(
   job: Pick<JobOut, 'kind' | 'step' | 'step_current' | 'step_total' | 'attempts'>,
   withCount = true,
 ) {
-  const key = stepKey(job)
+  const key = job.step ? `job_step_${job.kind.replaceAll('.', '_')}_${job.step}` : null
   let label = (key && jobStepMessages[key]?.()) || m.job_running()
   if (withCount && job.step_current != null && job.step_total != null) {
-    const count = { current: job.step_current, total: job.step_total }
-    const text = countText(job, count)
-    label = text
-      ? m.job_stage_count_text({ stage: label, count: text })
-      : m.job_stage_count({ stage: label, ...count })
+    label = m.job_stage_count({ stage: label, current: job.step_current, total: job.step_total })
   }
   return job.attempts > 1 ? m.job_retry_prefix({ label }) : label
-}
-
-function stepKey(job: Pick<JobOut, 'kind' | 'step'>) {
-  return job.step ? `job_step_${job.kind.replaceAll('.', '_')}_${job.step}` : null
-}
-
-/** The count with the step's unit, when the step names one. */
-function countText(job: Pick<JobOut, 'kind' | 'step'>, count: JobCount) {
-  const key = stepKey(job)
-  return (key && jobStepMessages[`${key}_count`]?.(count)) || null
 }
 
 /**
@@ -62,20 +47,16 @@ export function useJob(jobId: string | null | undefined, seed?: JobOut) {
       queryClient.setQueryData(coreJobGetQueryKey({ path: { job_id: job.id } }), job),
   })
   const job = query.data
-  const counted: JobCount | null =
+  const count: JobCount | null =
     job?.step_current != null && job.step_total != null
       ? { current: job.step_current, total: job.step_total }
-      : null
-  const count =
-    job && counted
-      ? { ...counted, text: countText(job, counted) ?? `${counted.current}/${counted.total}` }
       : null
   return {
     job,
     status: job?.status,
     progress: job?.progress ?? 0,
     stageLabel: job ? jobStageLabel(job) : '',
-    /** The stage without its count, for layouts that show `count.text` separately. */
+    /** The stage without its count, for layouts that show `count` separately. */
     stageName: job ? jobStageLabel(job, false) : '',
     count,
     /** True when this run is a retry after a failed attempt. */

@@ -40,8 +40,7 @@ ADAPTER = table_adapter(
             AiModelAssignment,
             "model_assignments",
             id_column=None,
-            # Null is a local OCR model (no provider); otherwise dropped with its provider.
-            refs={"provider_id": "scope"},
+            refs={"provider_id": "required"},
             preferences=True,
             upsert_on=("purpose",),
         ),

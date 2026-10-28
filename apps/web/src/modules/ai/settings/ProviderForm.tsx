@@ -252,7 +252,7 @@ function ProviderForm({
       const status = await queryClient.fetchQuery({ ...aiStatusGetOptions(), staleTime: 0 })
       const purposes = [
         ...MODEL_PURPOSES,
-        ...(capabilities.includes('vision') ? (['vision', 'ocr'] as const) : []),
+        ...(capabilities.includes('vision') ? (['vision'] as const) : []),
       ]
       for (const purpose of purposes) {
         const current = status.items.find((s) => s.purpose === purpose)

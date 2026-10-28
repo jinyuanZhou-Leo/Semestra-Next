@@ -30,8 +30,7 @@ Semestra 不转售模型调用，所以没有 AI 额度，Semestra 也不会收 
 | -------- | -------------------------------------------- | ------------- |
 | Sem      | 与助手对话，以及压缩对话                     | `chat`        |
 | 读取文档 | 从 syllabus 中提取课程信息、截止日期和成绩构成 | `chat`      |
-| 读取图片 | 课表截图                                     | `vision`      |
-| OCR      | 扫描版 PDF 和照片里的文字                    | `vision`      |
+| 读取图片 | 课表截图和扫描页                             | `vision`      |
 | 搜索     | 在课程文件中查找段落                         | `embedding`   |
 | 轻量任务 | 对话标题、整理 Sem 的记忆                    | `chat`        |
 
@@ -61,8 +60,6 @@ Sem 输入框旁的圆环显示这段对话占用了模型上下文的多少。�
 | OpenAI    | `gpt-5`；读取文档和图片用 `gpt-5-mini` | `gpt-5-nano`     | `text-embedding-3-small` |
 | Gemini    | `gemini-2.5-pro`；读取文档和图片用 `gemini-2.5-flash` | `gemini-2.5-flash-lite` | `gemini-embedding-001` |
 | Ollama    | `qwen3:8b`（不读图片）         | `qwen3:8b`               | `nomic-embed-text`       |
-
-OCR 使用轻量任务的模型（Ollama 没有）。自部署的服务器也可以在本机用 PaddleOCR 识别、完全不用模型，见[本机 OCR](/docs/self-hosting/configuration#本机-ocr)。
 
 兼容接口没有推荐模型：请在**模型**页选择；接口不能列出模型时，直接输入模型名。
 

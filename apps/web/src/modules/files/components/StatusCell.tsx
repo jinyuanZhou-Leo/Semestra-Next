@@ -3,7 +3,6 @@ import { filesItemReprocessMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, FileSearch, RotateCw, ScanText } from 'lucide-react'
 import { JobProgress } from '@/components/JobProgress'
-import { useAiStatus } from '@/hooks/use-ai-status'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -110,28 +109,16 @@ export function StatusCell({ item, compact = false }: { item: ItemOut; compact?:
     )
   }
   if (item.doc_status === 'ready' && item.ocr_skipped_pages > 0) {
-    return <OcrSkipped count={item.ocr_skipped_pages} />
+    const text = m.files_ocr_skipped({ count: item.ocr_skipped_pages })
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex text-muted-foreground" />}>
+          <ScanText aria-hidden className="size-4" />
+          <span className="sr-only">{text}</span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">{text}</TooltipContent>
+      </Tooltip>
+    )
   }
   return null
-}
-
-/**
- * Scanned pages that were not read. With this server's own OCR the usual cause is that its model
- * could not be downloaded, not a missing model choice, so the hint says so.
- */
-function OcrSkipped({ count }: { count: number }) {
-  const { status } = useAiStatus('ocr')
-  const text =
-    status?.source === 'local'
-      ? m.files_ocr_skipped_local({ count })
-      : m.files_ocr_skipped({ count })
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="inline-flex text-muted-foreground" />}>
-        <ScanText aria-hidden className="size-4" />
-        <span className="sr-only">{text}</span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-64">{text}</TooltipContent>
-    </Tooltip>
-  )
 }

@@ -6,7 +6,7 @@
 
 [English](README.md) · [快速开始](#快速开始) · [自部署](deploy/selfhost/README.md) · [文档](docs/specs/README.md)
 
-![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.14-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.15-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React_19-TanStack_Router-61DAFB?logo=react&logoColor=black)
 ![SQLite](https://img.shields.io/badge/SQLite-Alembic-003B57?logo=sqlite&logoColor=white)
 ![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-Base_UI-000000?logo=shadcnui&logoColor=white)
@@ -96,7 +96,7 @@ Semestra 是给大学生用的学期规划工具。建好 Program，加上学期
 
 | 层 | 选型 |
 |---|---|
-| 后端 | FastAPI、SQLAlchemy 2、Alembic、SQLite（FTS5 与 sqlite-vec），Python 3.14（uv） |
+| 后端 | FastAPI、SQLAlchemy 2、Alembic、SQLite（FTS5 与 sqlite-vec），Python 3.15（uv） |
 | AI | 基于官方 SDK 的 Pydantic AI agent 循环，出站请求走防 SSRF 的 HTTP 客户端 |
 | 前端 | React 19、TypeScript 7、Vite 8、TanStack Router（SPA）、TanStack Query / Table / Form、React Compiler |
 | UI | shadcn/ui（Base UI）、Tailwind CSS 4、AI Elements、FullCalendar |
@@ -113,7 +113,7 @@ Semestra 是给大学生用的学期规划工具。建好 Program，加上学期
 git clone https://github.com/jinyuanZhou-Leo/Semestra-Next.git
 cd Semestra-Next
 
-uv python install 3.14
+uv python install 3.15
 pnpm install
 uv sync --project apps/api
 pnpm --filter @semestra/api migrate

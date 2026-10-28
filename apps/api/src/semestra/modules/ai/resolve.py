@@ -1,6 +1,6 @@
 """Which provider and model serve a purpose for the current user (M06 §4)."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from cryptography.fernet import InvalidToken
 from sqlalchemy import select
@@ -97,8 +97,7 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
     # 1. The user's choice for this purpose (ignored while its provider is turned off, or once
     #    the capability it needs was unticked on an editable provider).
     assignment = await ctx.db.get(AiModelAssignment, (ctx.user_id, purpose))
-    # (A local OCR choice has no provider; `local_ocr.choice` handles it before this.)
-    row = by_id.get(assignment.provider_id or "") if assignment is not None else None
+    row = by_id.get(assignment.provider_id) if assignment is not None else None
     if (
         assignment is not None
         and row is not None
@@ -132,12 +131,6 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
     model = _instance_model(ctx.settings, purpose)
     if instance is not None and model and can_serve(instance.capabilities, purpose):
         return Resolved(purpose, instance, model, ModelParams(), "instance")
-
-    # OCR split off from vision later: whatever reads images can read scanned pages, e.g. a
-    # compatible endpoint the user gave a vision model but no OCR model.
-    if purpose == "ocr":
-        vision = await try_resolve(ctx, "vision", with_key=with_key)
-        return replace(vision, purpose="ocr") if vision is not None else None
     return None
 
 
