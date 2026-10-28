@@ -4,7 +4,8 @@
 |---|---|
 | `docker/Dockerfile` | 多阶段构建，目标 `api`（后端）、`api-office`（后端 + LibreOffice）、`allinone`（后端 + 前端静态文件，同源提供）、`edge`（Caddy + 官网 + 文档）；构建上下文是仓库根目录 |
 | `docker/entrypoint.sh` | 容器入口：可选自动生成密钥 → `alembic upgrade head` → 启动 |
-| `hosted/` | 托管版（GCP VM：应用 + Caddy + Litestream）：compose、部署/回滚脚本、VM 初始化、GCS 备份、恢复手册 |
+| `vm/` | **托管版（现用）**：GCP 免费 e2-micro 上用 uv + systemd 跑 API（只有 IPv6，Cloudflare Tunnel 对外，WARP 处理只有 IPv4 的出站），前端在 Vercel；见 [`vm/README.md`](vm/README.md) |
+| `hosted/` | 托管版的 Docker 路线（GCP VM：应用 + Caddy + Litestream）：compose、部署/回滚脚本、VM 初始化、GCS 备份、恢复手册 |
 | `selfhost/` | 自部署版：一条命令启动的 compose，中英文 README |
 | `.env.example` | 所有后端环境变量的完整说明 |
 | `SECURITY-CHECKLIST.md` | 上线前逐项确认的安全清单 |

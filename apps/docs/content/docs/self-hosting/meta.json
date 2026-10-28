@@ -1,1 +1,1 @@
-{ "title": "Self-hosting", "icon": "Server", "pages": ["index", "configuration", "https", "email", "backup"] }
+{ "title": "Self-hosting", "icon": "Server", "pages": ["index", "configuration", "https", "email", "backup", "without-docker"] }
