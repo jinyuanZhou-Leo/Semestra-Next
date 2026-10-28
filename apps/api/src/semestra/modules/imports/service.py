@@ -1389,8 +1389,9 @@ def _jsonable(params: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
-    """A syllabus becomes a file of its course (M07), once that course exists."""
-    if row.source_kind != "syllabus":
+    """A syllabus becomes a file of its course (M07), once that course exists, unless the user
+    unticked "Also save to the course files" (`source_meta.keep_files: false`)."""
+    if row.source_kind != "syllabus" or row.source_meta.get("keep_files") is False:
         return
     uploads = await session_uploads(ctx, row.id)
     if not uploads:

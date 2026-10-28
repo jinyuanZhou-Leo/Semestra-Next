@@ -1,1 +1,1 @@
-{ "title": "AI 与 BYOK", "icon": "Sparkles", "pages": ["index", "providers", "ollama", "instance-provider"] }
+{ "title": "AI 与 BYOK", "icon": "Sparkles", "pages": ["index", "providers", "imports", "ollama", "instance-provider"] }

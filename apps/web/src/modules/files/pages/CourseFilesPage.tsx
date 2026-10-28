@@ -274,7 +274,7 @@ function CourseFiles({
           folders={childFolders}
           items={childItems}
           view={view}
-          handlers={{ open, openFolder: setFolderId, act: setAction }}
+          handlers={{ open, openFolder: setFolderId, act: setAction, programId }}
         />
       )}
 

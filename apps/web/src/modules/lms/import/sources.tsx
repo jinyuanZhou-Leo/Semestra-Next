@@ -88,6 +88,7 @@ export const assignmentSource: AssessmentImportSource = {
   Title: AssignmentsTitle,
   query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   icon: ClipboardList,
+  description: m.lms_import_assignments_hint,
   launch: async ({ programId, courseId }) => {
     void preload(AssignmentPicker)
     await openImport({

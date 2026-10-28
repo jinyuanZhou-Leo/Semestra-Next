@@ -17,7 +17,10 @@ export type AssessmentDraft = AssessmentCreateInputBody & {
 
 export type AssessmentImportContext = { programId: string; courseId: string }
 
-/** An entry of the gradebook's "Import from…" menu (M09 LMS assignments, M08 syllabus grading scheme). */
+/**
+ * An entry of the gradebook's "Add" menu, under "From existing material" (M09 LMS assignments,
+ * M08 syllabus grading scheme).
+ */
 export type AssessmentImportSource = {
   id: string
   title: Message
@@ -27,6 +30,8 @@ export type AssessmentImportSource = {
   // oxlint-disable-next-line no-explicit-any
   query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
+  /** One line under the title: what the source brings in. */
+  description?: Message
   launch: (ctx: AssessmentImportContext) => Promise<AssessmentDraft[]>
 }
 

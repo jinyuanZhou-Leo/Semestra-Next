@@ -107,6 +107,8 @@ export type ImportRequest = {
       target: SessionTarget
       /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
       sourceMeta?: Record<string, unknown>
+      /** Course files picked beforehand (a file's "Read with AI…"); the dialog opens on them. */
+      fileItemIds?: string[]
     }
   | { source: 'picker'; picker: ImportPicker }
   /** A session created elsewhere (e.g. M09's review of changed assignments): straight to the review. */
