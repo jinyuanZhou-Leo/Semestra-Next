@@ -7,7 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ChevronDownIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
-import { firstDayOfWeek, formatDate } from '@/lib/format'
+import { formatDate } from '@/lib/format'
+import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -224,11 +225,11 @@ function AssessmentForm({
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
+                  {...calendarLocale()}
                   mode="single"
                   selected={dueDateToDate(dueDate)}
                   onSelect={(day) => setDueDate(day ? dateToDueDate(day) : '')}
                   defaultMonth={dueDateToDate(dueDate)}
-                  weekStartsOn={(firstDayOfWeek() % 7) as 0 | 1}
                 />
               </PopoverContent>
             </Popover>

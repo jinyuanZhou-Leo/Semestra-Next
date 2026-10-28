@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
+import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -77,6 +78,7 @@ export function TaskChips({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
+            {...calendarLocale()}
             mode="single"
             selected={task.due_date ? localDate(task.due_date) : undefined}
             defaultMonth={task.due_date ? localDate(task.due_date) : undefined}

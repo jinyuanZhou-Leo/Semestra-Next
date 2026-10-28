@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { isoDay, localDay } from '@/modules/schedule/time'
+import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -148,6 +149,7 @@ export function TaskDetail({
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
+                    {...calendarLocale()}
                     mode="single"
                     selected={draft.due_date ? localDay(draft.due_date) : undefined}
                     defaultMonth={draft.due_date ? localDay(draft.due_date) : undefined}

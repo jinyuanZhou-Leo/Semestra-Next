@@ -8,7 +8,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { formatDate, firstDayOfWeek } from '@/lib/format'
+import { calendarLocale } from '@/lib/calendar'
+import { formatDate } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { courseLabel } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
@@ -207,7 +208,7 @@ export function EventDialog({
     { value: NONE, label: m.schedule_no_type() },
     ...types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` })),
   ]
-  const weekStartsOn = firstDayOfWeek() === 1 ? 1 : 0
+  const calendar = calendarLocale()
   const startSelected = startDay ? localDay(startDay) : undefined
   const endSelected = endDay ? localDay(endDay) : undefined
 
@@ -305,7 +306,7 @@ export function EventDialog({
                     mode="single"
                     selected={startSelected}
                     defaultMonth={startSelected}
-                    weekStartsOn={weekStartsOn}
+                    {...calendar}
                     onSelect={(next) => {
                       const day = next ? isoDay(next) : ''
                       set(
@@ -358,7 +359,7 @@ export function EventDialog({
                     mode="single"
                     selected={endSelected}
                     defaultMonth={endSelected}
-                    weekStartsOn={weekStartsOn}
+                    {...calendar}
                     onSelect={(next) => {
                       const day = next ? isoDay(next) : ''
                       set('end', day ? withDay(draft.end, day) : withClock('', clock(draft.end)))

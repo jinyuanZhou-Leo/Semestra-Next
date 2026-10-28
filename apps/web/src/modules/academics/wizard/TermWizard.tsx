@@ -2,16 +2,15 @@ import type { CourseFields, TermCreateResult } from '@semestra/api-client'
 import { academicsTermCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useRouter } from '@tanstack/react-router'
-import { Check, ChevronDownIcon, Import, Plus, Repeat } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, Import, Plus } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { ImportSourceItems } from '@/components/ImportSourceItems'
-import { errorMessage, toastError } from '@/lib/errors'
-import { formatCredits, formatDate } from '@/lib/format'
+import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
+import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,17 +22,23 @@ import {
   AlertDialogTitle,
 } from '@/ui/alert-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
-import { Calendar } from '@/ui/calendar'
-import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Switch } from '@/ui/switch'
-import { courseLabel } from '../color'
-import { BreaksEditor, completeBreaks } from '../components/BreaksEditor'
-import { termPath } from '../paths'
+import { BreaksTable, completeBreaks } from '../components/BreaksTable'
+import { DateRangeField } from '../components/DateRangeField'
+import { termPath, termsAndCoursesPath } from '../paths'
 import { invalidateAcademics, useCourses, useProgram, useTerms } from '../queries'
 import { TERM_WIZARD_IMPORT_SOURCES, type TermWizardImportSource } from '../types'
-import { CourseRowsTable } from './CourseRowsTable'
+import { CourseRowsTable, type WizardRow } from './CourseRowsTable'
 import {
   type DraftRow,
   type WizardDraft,
@@ -48,37 +53,43 @@ import {
   suggestTermName,
 } from './draft'
 
-const STEPS = [
-  m.academics_wizard_step_basics,
-  m.academics_wizard_step_courses,
-  m.academics_wizard_step_confirm,
-]
-
-const day = (iso: string) => formatDate(`${iso}T00:00`)
+const STEPS = [m.academics_wizard_step_basics, m.academics_wizard_step_courses]
 
 function basicsProblems(draft: WizardDraft) {
   return {
     name: draft.name.trim() ? null : m.academics_required(),
-    start: draft.start ? null : m.academics_required(),
-    end: !draft.end
-      ? m.academics_required()
-      : draft.start && draft.end < draft.start
-        ? m.error_academics_term_date_range_invalid()
-        : null,
+    dates: draft.start && draft.end ? null : m.academics_required(),
+    breaks: breaksProblem(draft),
   }
 }
 
+/** The checks `academics.term.create` makes on breaks, shown before the last step. */
+function breaksProblem(draft: WizardDraft): string | null {
+  const breaks = completeBreaks(draft.breaks).toSorted((a, b) =>
+    a.start_date.localeCompare(b.start_date),
+  )
+  if (draft.start && draft.end) {
+    const outside = breaks.some((b) => b.start_date < draft.start || b.end_date > draft.end)
+    if (outside) return m.error_academics_break_out_of_range()
+  }
+  const overlaps = breaks.some((b, i) => {
+    const prev = breaks[i - 1]
+    return prev !== undefined && b.start_date <= prev.end_date
+  })
+  return overlaps ? m.error_academics_breaks_overlap() : null
+}
+
 /**
- * Creating a term (M02 §5.6): basics → courses (typed, imported or continued) → confirm, then a
- * single `academics.term.create`. The draft lives in sessionStorage until it is created or
- * discarded.
+ * Creating a term (M02 §5.6): the term (dates, name, breaks) → its courses (typed, imported or
+ * continued), then a single `academics.term.create` from the second step; the button is the
+ * confirmation (M00 §4.8). The draft lives in sessionStorage until it is created or discarded.
  */
 export function TermWizard({
   programId,
   onCreated,
 }: {
   programId: string
-  /** Default: open the new term. */
+  /** Default: open the new term. Onboarding passes its own and has no "Cancel". */
   onCreated?: (result: TermCreateResult) => void
 }) {
   const id = useId()
@@ -108,15 +119,17 @@ export function TermWizard({
   const setDates = (start: string, end: string) =>
     patch({ start, end, ...(draft.nameEdited ? {} : { name: suggestTermName(start) }) })
 
+  // A draft saved by the three-step wizard may still be on its last step.
+  const step = Math.min(draft.step, STEPS.length - 1)
   const candidates = continuationCandidates(terms, courses, draft.start)
   const continueIds = candidates.filter((c) => !draft.skipContinue.includes(c.id)).map((c) => c.id)
   const filledRows = draft.rows.filter((row) => !rowIsEmpty(row))
   const problems = basicsProblems(draft)
   const rowsInvalid = filledRows.some((row) => !row.title.trim() || creditsProblem(row.credits))
   const defaultCredits = program?.default_course_credits ?? 0.5
-  const startError = touched ? problems.start : null
-  const endError = touched ? problems.end : null
+  const datesError = touched ? problems.dates : null
   const nameError = touched ? problems.name : null
+  const breaks = completeBreaks(draft.breaks)
 
   const create = useMutation({
     ...academicsTermCreateMutation(),
@@ -150,6 +163,10 @@ export function TermWizard({
   }
 
   const submit = () => {
+    if (rowsInvalid) {
+      setTouched(true)
+      return
+    }
     const body: CourseFields[] = filledRows.map((row) => ({
       code: row.code.trim() || null,
       title: row.title.trim(),
@@ -164,7 +181,7 @@ export function TermWizard({
         name: draft.name.trim(),
         start_date: draft.start,
         end_date: draft.end,
-        breaks: completeBreaks(draft.breaks),
+        breaks,
         count_break_weeks: draft.countBreakWeeks,
         courses: body,
         continue_course_ids: continueIds,
@@ -173,16 +190,10 @@ export function TermWizard({
   }
 
   const next = () => {
-    if (draft.step === 0) {
-      setTouched(true)
-      if (problems.name || problems.start || problems.end) return
-    }
-    if (draft.step === 1 && rowsInvalid) {
-      setTouched(true)
-      return
-    }
+    setTouched(true)
+    if (problems.name || problems.dates || problems.breaks) return
     setTouched(false)
-    patch({ step: draft.step + 1 })
+    patch({ step: 1 })
   }
 
   const launch = async (source: TermWizardImportSource) => {
@@ -221,6 +232,48 @@ export function TermWizard({
         { key: newRowKey(), code: '', title: '', credits: '', yearLong: false },
       ],
     })
+  const tableRows: WizardRow[] = [
+    ...candidates.map((course) => ({
+      kind: 'continue' as const,
+      course,
+      kept: !draft.skipContinue.includes(course.id),
+    })),
+    ...draft.rows.map((row) => ({ kind: 'draft' as const, row })),
+  ]
+
+  const importMenu = (trigger: 'outline' | 'empty') =>
+    sources.length > 0 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size={trigger === 'outline' ? 'sm' : 'default'}
+              disabled={importing !== null}
+            />
+          }
+        >
+          <Import aria-hidden />
+          {importing ? m.common_loading() : m.common_add_from_sources()}
+          <ChevronDown aria-hidden data-icon="inline-end" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={trigger === 'outline' ? 'end' : 'center'} className="w-72">
+          <ImportSourceItems
+            sources={sources}
+            onPick={(source) => void launch(source)}
+            titleProps={{ programId }}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null
+
+  const summary = [
+    draft.name.trim(),
+    m.academics_wizard_summary_courses({ count: filledRows.length }),
+    ...(continueIds.length > 0
+      ? [m.academics_wizard_summary_continuing({ count: continueIds.length })]
+      : []),
+  ].join(' · ')
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -229,21 +282,21 @@ export function TermWizard({
           <li
             key={title()}
             className="flex items-center gap-2"
-            aria-current={index === draft.step ? 'step' : undefined}
+            aria-current={index === step ? 'step' : undefined}
           >
             <span
               className={cn(
                 'flex size-6 items-center justify-center rounded-full text-xs',
-                index < draft.step
+                index < step
                   ? 'bg-primary text-primary-foreground'
-                  : index === draft.step
+                  : index === step
                     ? 'border-2 border-primary font-medium text-primary'
                     : 'border border-border text-muted-foreground',
               )}
             >
-              {index < draft.step ? <Check aria-hidden className="size-3.5" /> : index + 1}
+              {index < step ? <Check aria-hidden className="size-3.5" /> : index + 1}
             </span>
-            <span className={index === draft.step ? 'font-medium' : 'text-muted-foreground'}>
+            <span className={index === step ? 'font-medium' : 'text-muted-foreground'}>
               {title()}
             </span>
             {index < STEPS.length - 1 ? (
@@ -253,204 +306,164 @@ export function TermWizard({
         ))}
       </ol>
 
-      {draft.step === 0 ? (
-        <section className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field data-invalid={startError ? true : undefined}>
-              <FieldLabel htmlFor={`${id}-start`}>{m.academics_term_start()}</FieldLabel>
-              <IsoDateField
-                id={`${id}-start`}
-                value={draft.start}
-                invalid={Boolean(startError)}
-                describedBy={startError ? `${id}-start-error` : undefined}
-                onChange={(start) => setDates(start, draft.end)}
+      {step === 0 ? (
+        <section className="space-y-6">
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <Field data-invalid={datesError ? true : undefined}>
+              <FieldLabel htmlFor={`${id}-dates`}>{m.academics_term_dates()}</FieldLabel>
+              <DateRangeField
+                id={`${id}-dates`}
+                className="w-full"
+                start={draft.start}
+                end={draft.end}
+                weeks
+                holidays={breaks.map((b) => ({ start: b.start_date, end: b.end_date }))}
+                placeholder={m.academics_term_dates_placeholder()}
+                invalid={Boolean(datesError)}
+                describedBy={datesError ? `${id}-dates-error` : undefined}
+                onChange={setDates}
               />
-              {startError ? <FieldError id={`${id}-start-error`}>{startError}</FieldError> : null}
+              {datesError ? <FieldError id={`${id}-dates-error`}>{datesError}</FieldError> : null}
             </Field>
-            <Field data-invalid={endError ? true : undefined}>
-              <FieldLabel htmlFor={`${id}-end`}>{m.academics_term_end()}</FieldLabel>
-              <IsoDateField
-                id={`${id}-end`}
-                value={draft.end}
-                min={draft.start || undefined}
-                invalid={Boolean(endError)}
-                describedBy={endError ? `${id}-end-error` : undefined}
-                onChange={(end) => setDates(draft.start, end)}
+            <Field data-invalid={nameError ? true : undefined}>
+              <FieldLabel htmlFor={`${id}-name`}>{m.academics_term_name()}</FieldLabel>
+              <Input
+                id={`${id}-name`}
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={
+                  nameError
+                    ? `${id}-name-error`
+                    : draft.nameEdited || !draft.start
+                      ? undefined
+                      : `${id}-name-hint`
+                }
+                placeholder={draft.start ? undefined : m.academics_term_name_after_dates()}
+                value={draft.name}
+                onChange={(event) => patch({ name: event.target.value, nameEdited: true })}
               />
-              {endError ? <FieldError id={`${id}-end-error`}>{endError}</FieldError> : null}
+              {nameError ? (
+                <FieldError id={`${id}-name-error`}>{nameError}</FieldError>
+              ) : draft.nameEdited || !draft.start ? null : (
+                <FieldDescription id={`${id}-name-hint`}>
+                  {m.academics_term_name_suggested()}
+                </FieldDescription>
+              )}
             </Field>
           </div>
-          <Field data-invalid={nameError ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-name`}>{m.academics_term_name()}</FieldLabel>
-            <Input
-              id={`${id}-name`}
-              aria-invalid={nameError ? true : undefined}
-              aria-describedby={
-                nameError ? `${id}-name-error` : draft.nameEdited ? undefined : `${id}-name-hint`
-              }
-              placeholder={m.academics_term_name_placeholder()}
-              value={draft.name}
-              onChange={(event) => patch({ name: event.target.value, nameEdited: true })}
-            />
-            {nameError ? (
-              <FieldError id={`${id}-name-error`}>{nameError}</FieldError>
-            ) : draft.nameEdited ? null : (
-              <FieldDescription id={`${id}-name-hint`}>
-                {m.academics_term_name_suggested()}
-              </FieldDescription>
-            )}
-          </Field>
-          <Field>
-            <FieldLabel>{m.academics_term_breaks()}</FieldLabel>
-            <BreaksEditor
+          <SettingsBlock title={m.academics_term_breaks()}>
+            <BreaksTable
               value={draft.breaks}
-              onChange={(breaks) => patch({ breaks })}
+              onChange={(value) => patch({ breaks: value })}
               min={draft.start || undefined}
               max={draft.end || undefined}
             />
-          </Field>
-          <Field orientation="horizontal">
-            <Switch
-              id={`${id}-count-break-weeks`}
-              checked={draft.countBreakWeeks}
-              onCheckedChange={(on) => patch({ countBreakWeeks: on })}
-            />
-            <FieldLabel htmlFor={`${id}-count-break-weeks`} className="font-normal">
-              {m.academics_term_count_break_weeks()}
-            </FieldLabel>
-          </Field>
+            {problems.breaks ? <FieldError>{problems.breaks}</FieldError> : null}
+          </SettingsBlock>
+          <SettingsGroup>
+            <SettingRow
+              label={m.academics_term_count_break_weeks()}
+              description={m.academics_term_count_break_weeks_hint()}
+            >
+              {(labelId) => (
+                <Switch
+                  aria-labelledby={labelId}
+                  checked={draft.countBreakWeeks}
+                  onCheckedChange={(on) => patch({ countBreakWeeks: on })}
+                />
+              )}
+            </SettingRow>
+          </SettingsGroup>
         </section>
       ) : null}
 
-      {draft.step === 1 ? (
+      {step === 1 ? (
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex min-h-8 items-center justify-between gap-2">
             <h2 className="font-heading text-lg font-medium">
               {m.academics_wizard_courses_title()}
             </h2>
-            {sources.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button variant="outline" size="sm" disabled={importing !== null} />}
-                >
-                  <Import aria-hidden />
-                  {importing ? m.common_loading() : m.common_add_from_sources()}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
-                  <ImportSourceItems
-                    sources={sources}
-                    onPick={(source) => void launch(source)}
-                    titleProps={{ programId }}
-                  />
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
+            {tableRows.length > 0 ? importMenu('outline') : null}
           </div>
 
-          {candidates.length > 0 ? (
-            <FieldSet className="gap-2 rounded-2xl border border-border p-4">
-              <FieldLegend variant="label" className="mb-0 flex items-center gap-2 px-1">
-                <Repeat aria-hidden className="size-4" />
-                {m.academics_wizard_continue_title()}
-              </FieldLegend>
-              <FieldDescription className="text-xs">
-                {m.academics_wizard_continue_hint()}
-              </FieldDescription>
-              {candidates.map((course) => (
-                <Field key={course.id} orientation="horizontal">
-                  <Checkbox
-                    id={`${id}-continue-${course.id}`}
-                    checked={!draft.skipContinue.includes(course.id)}
-                    onCheckedChange={(on) =>
-                      patch({
-                        skipContinue: on
-                          ? draft.skipContinue.filter((cid) => cid !== course.id)
-                          : [...draft.skipContinue, course.id],
-                      })
-                    }
-                  />
-                  <FieldLabel htmlFor={`${id}-continue-${course.id}`} className="font-normal">
-                    <span className="font-medium">{courseLabel(course)}</span>
-                    {course.code ? (
-                      <span className="text-muted-foreground">{course.title}</span>
-                    ) : null}
-                  </FieldLabel>
-                </Field>
-              ))}
-            </FieldSet>
-          ) : null}
-
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <CourseRowsTable
-              rows={draft.rows}
-              touched={touched}
-              defaultCredits={defaultCredits}
-              onChange={updateRow}
-              onRemove={(key) => patch({ rows: draft.rows.filter((r) => r.key !== key) })}
-            />
-            <div className="border-t border-border p-2">
-              <Button variant="ghost" size="sm" onClick={addRow}>
-                <Plus aria-hidden />
-                {m.academics_wizard_add_row()}
-              </Button>
+          {tableRows.length === 0 ? (
+            <Empty className="rounded-2xl border border-solid border-border p-6">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <BookOpen aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.academics_wizard_courses_empty()}</EmptyTitle>
+                <EmptyDescription>
+                  {sources.length > 0
+                    ? m.academics_wizard_courses_empty_description()
+                    : m.academics_wizard_courses_empty_manual()}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent className="flex-row justify-center">
+                <Button onClick={addRow}>
+                  <Plus aria-hidden />
+                  {m.academics_wizard_add_row()}
+                </Button>
+                {importMenu('empty')}
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <CourseRowsTable
+                rows={tableRows}
+                programId={programId}
+                sources={sources}
+                touched={touched}
+                defaultCredits={defaultCredits}
+                onChange={updateRow}
+                onRemove={(key) => patch({ rows: draft.rows.filter((r) => r.key !== key) })}
+                onContinue={(courseId, kept) =>
+                  patch({
+                    skipContinue: kept
+                      ? draft.skipContinue.filter((cid) => cid !== courseId)
+                      : [...draft.skipContinue, courseId],
+                  })
+                }
+              />
+              <div className="border-t border-border p-2">
+                <Button variant="ghost" size="sm" onClick={addRow}>
+                  <Plus aria-hidden />
+                  {m.academics_wizard_add_row()}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
           <FieldError>
             {touched && rowsInvalid ? m.academics_wizard_rows_invalid() : null}
           </FieldError>
         </section>
       ) : null}
 
-      {draft.step === 2 ? (
-        <section className="space-y-3 text-sm" aria-labelledby={`${id}-summary`}>
-          <h2 id={`${id}-summary`} className="font-heading text-lg font-medium">
-            {draft.name}
-          </h2>
-          <p className="text-muted-foreground">
-            {day(draft.start)} – {day(draft.end)}
-          </p>
-          {completeBreaks(draft.breaks).length > 0 ? (
-            <ul className="list-inside list-disc text-muted-foreground">
-              {completeBreaks(draft.breaks).map((b) => (
-                <li key={`${b.name}:${b.start_date}`}>
-                  {b.name}: {day(b.start_date)} – {day(b.end_date)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p>{m.academics_wizard_summary_new({ count: filledRows.length })}</p>
-          {filledRows.length > 0 ? (
-            <ul className="space-y-0.5 text-muted-foreground">
-              {filledRows.map((row) => (
-                <li key={row.key}>
-                  {[row.code, row.title].filter(Boolean).join(' · ')} ·{' '}
-                  {formatCredits(row.credits.trim() ? Number(row.credits) : defaultCredits)}
-                  {row.yearLong ? ` · ${m.academics_course_year_long()}` : ''}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {continueIds.length > 0 ? (
-            <p>{m.academics_wizard_summary_continued({ count: continueIds.length })}</p>
-          ) : null}
-          <FieldError>{create.error ? errorMessage(create.error) : null}</FieldError>
-        </section>
-      ) : null}
-
-      <div className="flex justify-between gap-2 border-t border-border pt-4">
-        <Button
-          variant="ghost"
-          disabled={draft.step === 0 || create.isPending}
-          onClick={() => patch({ step: draft.step - 1 })}
-        >
-          {m.academics_wizard_back()}
-        </Button>
-        {draft.step < STEPS.length - 1 ? (
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+        {step === 0 ? (
+          onCreated ? (
+            <span />
+          ) : (
+            <Button
+              variant="ghost"
+              onClick={() => router.history.push(termsAndCoursesPath(programId))}
+            >
+              {m.common_cancel()}
+            </Button>
+          )
+        ) : (
+          <Button variant="ghost" disabled={create.isPending} onClick={() => patch({ step: 0 })}>
+            {m.academics_wizard_back()}
+          </Button>
+        )}
+        {step === 0 ? (
           <Button onClick={next}>{m.academics_wizard_next()}</Button>
         ) : (
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending ? m.common_saving() : m.academics_wizard_create()}
-          </Button>
+          <div className="flex min-w-0 items-center gap-4">
+            <span className="truncate text-sm text-muted-foreground">{summary}</span>
+            <Button onClick={submit} disabled={create.isPending}>
+              {create.isPending ? m.common_saving() : m.academics_wizard_create()}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -484,93 +497,5 @@ export function TermWizard({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
-
-function parseIsoDate(value: string): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return undefined
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const datePart = Number(match[3])
-  const date = new Date(year, month - 1, datePart)
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== datePart) {
-    return undefined
-  }
-  return date
-}
-
-function toIsoDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const datePart = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${datePart}`
-}
-
-function dayNumber(date: Date): number {
-  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
-}
-
-/** One `yyyy-MM-dd` day, edited with the base-luma date picker. */
-function IsoDateField({
-  id,
-  value,
-  onChange,
-  invalid,
-  describedBy,
-  min,
-  max,
-}: {
-  id: string
-  value: string
-  onChange: (value: string) => void
-  invalid?: boolean
-  describedBy?: string
-  min?: string
-  max?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const selected = parseIsoDate(value)
-  const minDate = min ? parseIsoDate(min) : undefined
-  const maxDate = max ? parseIsoDate(max) : undefined
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            id={id}
-            aria-invalid={invalid || undefined}
-            aria-describedby={describedBy}
-            data-empty={!selected}
-            className="w-full justify-between text-left font-normal data-[empty=true]:text-muted-foreground"
-          />
-        }
-      >
-        {value && selected ? formatDate(value) : <span>{m.academics_date_placeholder()}</span>}
-        <ChevronDownIcon data-icon="inline-end" />
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selected}
-          defaultMonth={selected}
-          disabled={
-            minDate || maxDate
-              ? (date) => {
-                  const selectedDay = dayNumber(date)
-                  if (minDate && selectedDay < dayNumber(minDate)) return true
-                  if (maxDate && selectedDay > dayNumber(maxDate)) return true
-                  return false
-                }
-              : undefined
-          }
-          onSelect={(next) => {
-            onChange(next ? toIsoDate(next) : '')
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
   )
 }

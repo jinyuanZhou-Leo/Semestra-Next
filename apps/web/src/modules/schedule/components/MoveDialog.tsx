@@ -2,8 +2,9 @@ import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-quer
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
-import { formatDate, firstDayOfWeek } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 import { toastError } from '@/lib/errors'
+import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
@@ -102,10 +103,10 @@ export function MoveDialog({
               </PopoverTrigger>
               <PopoverContent align="start" className="w-auto p-0">
                 <Calendar
+                  {...calendarLocale()}
                   mode="single"
                   selected={picked}
                   defaultMonth={picked}
-                  weekStartsOn={firstDayOfWeek() === 1 ? 1 : 0}
                   onSelect={(next) => {
                     setDate(next ? isoDay(next) : '')
                     setDateOpen(false)
