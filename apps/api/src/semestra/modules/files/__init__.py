@@ -13,6 +13,7 @@ from semestra.modules.files import (  # noqa: F401  (registers on import)
     labels,
     models,
     portability,
+    settings,
     subscribers,
     upload,
 )

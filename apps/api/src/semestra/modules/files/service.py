@@ -41,6 +41,7 @@ from semestra.modules.files.schemas import (
     SourceKind,
     TypeUsage,
 )
+from semestra.modules.files.settings import auto_index
 from semestra.modules.files.vectors import get_vector_store
 
 PARSEABLE = frozenset({"pdf", "docx", "pptx", "xlsx", "csv", "text", "markdown", "html", "image"})
@@ -555,6 +556,12 @@ async def add_staged_files(
         raise AppError(
             "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
         )
+    # With auto-indexing off, supported files wait as "none" until the user (or an import that
+    # needs the text) asks for them to be read.
+    if any(row.doc_status == "pending" for row in rows) and not await auto_index(ctx, course_id):
+        for row in rows:
+            if row.doc_status == "pending":
+                row.doc_status = "none"
     for row in rows:
         if row.doc_status == "pending":
             await enqueue_processing(ctx, row)

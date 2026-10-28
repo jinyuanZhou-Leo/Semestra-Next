@@ -57,6 +57,8 @@ export const settingsMessages = {
   settings_description: m.settings_description,
   settings_dialog_description: m.settings_dialog_description,
   settings_empty: m.settings_empty,
+  settings_files_auto_index_description: m.settings_files_auto_index_description,
+  settings_files_auto_index_label: m.settings_files_auto_index_label,
   settings_follow: m.settings_follow,
   settings_follow_option: m.settings_follow_option,
   settings_group_about: m.settings_group_about,

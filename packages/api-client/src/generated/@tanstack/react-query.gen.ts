@@ -272,8 +272,9 @@ export const filesItemListQueryKey = (options: Options<FilesItemListData>) => cr
  * List the files, links and folders of a course.
  *
  * Use to see what a course has: its files and saved links in one folder (or every
- * folder with recursive=true), with their processing status. Do not use to look for what the files
- * say; use files.document.search for that.
+ * folder with recursive=true), with their processing status (doc_status "none" means the file is
+ * stored but not indexed because automatic indexing is off; the user can index it from the file
+ * list). Do not use to look for what the files say; use files.document.search for that.
  */
 export const filesItemListOptions = (options: Options<FilesItemListData>) => queryOptions<FilesItemListResponse, FilesItemListError, FilesItemListResponse, ReturnType<typeof filesItemListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -323,8 +324,9 @@ export const filesItemListInfiniteQueryKey = (options: Options<FilesItemListData
  * List the files, links and folders of a course.
  *
  * Use to see what a course has: its files and saved links in one folder (or every
- * folder with recursive=true), with their processing status. Do not use to look for what the files
- * say; use files.document.search for that.
+ * folder with recursive=true), with their processing status (doc_status "none" means the file is
+ * stored but not indexed because automatic indexing is off; the user can index it from the file
+ * list). Do not use to look for what the files say; use files.document.search for that.
  */
 export const filesItemListInfiniteOptions = (options: Options<FilesItemListData>) => {
     const opts = infiniteQueryOptions<FilesItemListResponse, FilesItemListError, InfiniteData<FilesItemListResponse>, QueryKey<Options<FilesItemListData>>, string | null | Pick<QueryKey<Options<FilesItemListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2038,9 +2040,10 @@ export const filesDocumentReadOptions = (options: Options<FilesDocumentReadData>
  * Use to answer questions about course content (syllabus rules, dates, lecture
  * material): finds the passages of the user's files that match, with page numbers. Narrow it with
  * course_ids or term_id. Quote results with their citation_id. If pending_items is not empty, some
- * files are still being processed; if unreadable_items is not empty, those files could not be read
- * at all. In both cases tell the user the answer may be incomplete. Do not use to find a file by its
- * name; use files.item.list.
+ * files are still being processed; if unindexed_items is not empty, those files are not indexed yet
+ * (tell the user they can index them with "Index" in the file list); if unreadable_items is not
+ * empty, those files could not be read at all. In all these cases tell the user the answer may be
+ * incomplete. Do not use to find a file by its name; use files.item.list.
  */
 export const filesDocumentSearchMutation = (options?: Partial<Options<FilesDocumentSearchData>>): UseMutationOptions<FilesDocumentSearchResponse, FilesDocumentSearchError, Options<FilesDocumentSearchData>> => {
     const mutationOptions: UseMutationOptions<FilesDocumentSearchResponse, FilesDocumentSearchError, Options<FilesDocumentSearchData>> = {

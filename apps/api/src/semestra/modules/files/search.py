@@ -253,12 +253,15 @@ def make_snippet(chunk_text: str, needles: Sequence[str]) -> str:
 
 
 async def _pending(
-    ctx: Ctx, course_ids: Sequence[str], item_ids: Sequence[str] | None
+    ctx: Ctx,
+    course_ids: Sequence[str],
+    item_ids: Sequence[str] | None,
+    statuses: Sequence[str] = ("pending", "processing"),
 ) -> list[PendingItem]:
     stmt = select(FilesItem.id, FilesItem.display_name, FilesItem.course_id).where(
         FilesItem.user_id == ctx.user_id,
         FilesItem.course_id.in_(course_ids),
-        FilesItem.doc_status.in_(("pending", "processing")),
+        FilesItem.doc_status.in_(statuses),
     )
     if item_ids is not None:
         stmt = stmt.where(FilesItem.id.in_(item_ids))
@@ -334,10 +337,16 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     mode: SearchMode = inp.mode
     if not course_ids:
         return SearchResult(
-            results=[], pending_items=[], unreadable_items=[], mode_used=mode, citations=[]
+            results=[],
+            pending_items=[],
+            unindexed_items=[],
+            unreadable_items=[],
+            mode_used=mode,
+            citations=[],
         )
     terms = query_terms(inp.query)
     pending = await _pending(ctx, course_ids, inp.item_ids)
+    unindexed = await _pending(ctx, course_ids, inp.item_ids, ("none",))
     unreadable = await _unreadable(ctx, course_ids, inp.item_ids)
 
     rankings: list[list[str]] = []
@@ -355,6 +364,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
         return SearchResult(
             results=[],
             pending_items=pending,
+            unindexed_items=unindexed,
             unreadable_items=unreadable,
             mode_used=mode_used,
             citations=[],
@@ -373,6 +383,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResult:
     return SearchResult(
         results=hits,
         pending_items=pending,
+        unindexed_items=unindexed,
         unreadable_items=unreadable,
         mode_used=mode_used,
         citations=[citation(h) for h in hits],

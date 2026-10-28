@@ -14,14 +14,16 @@ export type JobCount = { current: number; total: number }
 /**
  * Text for the job's current stage: `job_step_<kind>_<step>` (dots in `kind` become underscores),
  * with the count inside the stage when the job reports one, and a prefix when it is a retry.
- * Progress percentages always come from the backend (M00 §3.6).
+ * Progress percentages always come from the backend (M00 §3.6). Pass `withCount: false` where the
+ * count is shown on its own, so a narrow label can be cut without losing it.
  */
 export function jobStageLabel(
   job: Pick<JobOut, 'kind' | 'step' | 'step_current' | 'step_total' | 'attempts'>,
+  withCount = true,
 ) {
   const key = job.step ? `job_step_${job.kind.replaceAll('.', '_')}_${job.step}` : null
   let label = (key && jobStepMessages[key]?.()) || m.job_running()
-  if (job.step_current != null && job.step_total != null) {
+  if (withCount && job.step_current != null && job.step_total != null) {
     label = m.job_stage_count({ stage: label, current: job.step_current, total: job.step_total })
   }
   return job.attempts > 1 ? m.job_retry_prefix({ label }) : label
@@ -54,6 +56,8 @@ export function useJob(jobId: string | null | undefined, seed?: JobOut) {
     status: job?.status,
     progress: job?.progress ?? 0,
     stageLabel: job ? jobStageLabel(job) : '',
+    /** The stage without its count, for layouts that show `count` separately. */
+    stageName: job ? jobStageLabel(job, false) : '',
     count,
     /** True when this run is a retry after a failed attempt. */
     retry: (job?.attempts ?? 0) > 1,

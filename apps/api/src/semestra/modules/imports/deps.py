@@ -197,9 +197,12 @@ def _limits(settings: Settings) -> dict[str, Any]:
 
 async def course_file_ready(ctx: Ctx, item_id: str) -> bool:
     """False while M07 is still processing the file (a missing file is "ready": reading it
-    fails that file with its own error)."""
+    fails that file with its own error). A file added while auto-indexing was off is read now:
+    the import needs its text."""
     try:
         item = await call(ctx, "files.item.get", {"item_id": item_id})
+        if item.get("doc_status") == "none":
+            item = await call(ctx, "files.item.reprocess", {"item_id": item_id})
     except AppError:
         return True
     return item.get("doc_status") not in PROCESSING

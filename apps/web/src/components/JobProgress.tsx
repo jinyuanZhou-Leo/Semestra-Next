@@ -23,7 +23,7 @@ export function JobProgress({
   variant?: 'bar' | 'ring' | 'inline'
   className?: string
 }) {
-  const { job, status, progress, stageLabel } = useJob(jobId, seed)
+  const { job, status, progress, stageLabel, stageName, count } = useJob(jobId, seed)
   const active = status === 'pending' || status === 'running'
   const displayed = Math.round(useSmoothedProgress(progress, status === 'running'))
   if (!job) return null
@@ -66,15 +66,22 @@ export function JobProgress({
   return (
     <div className={cn('space-y-1', className)}>
       <div className="flex justify-between gap-2 text-xs">
+        {/* The count sits outside the label so a narrow column cuts the words, not the count. */}
         <span
+          title={text}
           className={cn(
-            'truncate',
+            'flex min-w-0 gap-1',
             tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {text}
+          <span className="truncate">{status === 'running' && count ? stageName : text}</span>
+          {status === 'running' && count ? (
+            <span className="shrink-0 tabular-nums">
+              {count.current}/{count.total}
+            </span>
+          ) : null}
         </span>
-        <span className="text-muted-foreground tabular-nums">{percent}</span>
+        <span className="shrink-0 text-muted-foreground tabular-nums">{percent}</span>
       </div>
       <Progress
         value={value}

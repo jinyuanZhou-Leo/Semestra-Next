@@ -274,6 +274,11 @@ class SearchResult(BaseModel):
     pending_items: list[PendingItem] = Field(
         description="Files in scope that are still being processed and are not searchable yet"
     )
+    unindexed_items: list[PendingItem] = Field(
+        default_factory=list,
+        description="Files in scope that are stored but not indexed (automatic indexing is off); "
+        "the user can index them from the file list",
+    )
     unreadable_items: list[UnreadableItem] = Field(
         description="Files in scope whose text could not be read; search never covers them"
     )

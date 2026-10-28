@@ -1,7 +1,7 @@
 import type { ItemOut } from '@semestra/api-client'
 import { filesItemReprocessMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, RotateCw, ScanText } from 'lucide-react'
+import { CircleAlert, FileSearch, RotateCw, ScanText } from 'lucide-react'
 import { JobProgress } from '@/components/JobProgress'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -12,9 +12,13 @@ import { invalidateFiles } from '../queries'
 
 /**
  * Where a file is in the document pipeline (M07 §6.1). Ready and unsupported files show nothing:
- * the column only speaks up while processing, on failure, or when scanned pages were skipped.
+ * the column only speaks up while processing, on failure, when scanned pages were skipped, or
+ * for a file that was never indexed.
+ * In the list a processing file shows its step (with page or batch counts) over a thin bar, and a
+ * failed one says why next to the retry button; grid tiles have room only for icons, with the
+ * text in their tooltips.
  */
-export function StatusCell({ item }: { item: ItemOut }) {
+export function StatusCell({ item, compact = false }: { item: ItemOut; compact?: boolean }) {
   const queryClient = useQueryClient()
   const retry = useMutation({
     ...filesItemReprocessMutation(),
@@ -24,7 +28,11 @@ export function StatusCell({ item }: { item: ItemOut }) {
 
   if (item.doc_status === 'pending' || item.doc_status === 'processing') {
     return item.job_id ? (
-      <JobProgress jobId={item.job_id} variant="ring" />
+      <JobProgress
+        jobId={item.job_id}
+        variant={compact ? 'ring' : 'bar'}
+        className={compact ? undefined : 'w-full'}
+      />
     ) : (
       <Spinner aria-label={m.files_status_processing()} />
     )
@@ -34,13 +42,21 @@ export function StatusCell({ item }: { item: ItemOut }) {
       error: { code: item.doc_error_code ?? 'files.parse_failed', params: {} },
     })
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="flex min-w-0 items-center gap-1">
         <Tooltip>
-          <TooltipTrigger render={<span className="inline-flex text-destructive" />}>
-            <CircleAlert aria-hidden className="size-4" />
-            <span className="sr-only">{reason}</span>
+          <TooltipTrigger
+            render={<span className="flex min-w-0 items-center gap-1.5 text-destructive" />}
+          >
+            <CircleAlert aria-hidden className="size-4 shrink-0" />
+            <span
+              className={
+                compact ? 'sr-only' : 'line-clamp-2 text-xs leading-tight whitespace-normal'
+              }
+            >
+              {reason}
+            </span>
           </TooltipTrigger>
-          <TooltipContent>{reason}</TooltipContent>
+          <TooltipContent className="max-w-64">{reason}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger
@@ -58,6 +74,37 @@ export function StatusCell({ item }: { item: ItemOut }) {
           </TooltipTrigger>
           <TooltipContent>{m.files_retry_processing()}</TooltipContent>
         </Tooltip>
+      </span>
+    )
+  }
+  if (item.kind === 'file' && item.doc_status === 'none') {
+    // Added while auto-indexing was off (the `files` setting): indexed only when asked.
+    const index = () => retry.mutate({ path: { item_id: item.id } })
+    return compact ? (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={m.files_index_now()}
+              disabled={retry.isPending}
+              onClick={index}
+            />
+          }
+        >
+          <FileSearch aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{m.files_index_now()}</TooltipContent>
+      </Tooltip>
+    ) : (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-xs text-muted-foreground">
+          {m.files_status_not_indexed()}
+        </span>
+        <Button variant="outline" size="xs" disabled={retry.isPending} onClick={index}>
+          {m.files_index_now()}
+        </Button>
       </span>
     )
   }
