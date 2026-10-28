@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTheme } from '@/app/theme'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 
@@ -17,6 +18,9 @@ declare global {
   }
 }
 
+// Google renders the button at a fixed pixel width between these bounds.
+const MIN_WIDTH = 200
+const MAX_WIDTH = 400
 const SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 let scriptPromise: Promise<void> | null = null
 
@@ -54,6 +58,7 @@ export function GoogleSignInButton({
   const container = useRef<HTMLDivElement>(null)
   const callback = useRef(onCredential)
   const [failed, setFailed] = useState(false)
+  const theme = useTheme().resolved
 
   useEffect(() => {
     callback.current = onCredential
@@ -69,20 +74,23 @@ export function GoogleSignInButton({
           client_id: clientId,
           callback: (response) => callback.current(response.credential),
         })
+        // Full width in the sign-in form, so it lines up with the inputs and buttons above it.
+        const width = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, container.current.clientWidth))
+        container.current.replaceChildren()
         google.renderButton(container.current, {
           type: 'standard',
-          theme: 'outline',
+          theme: theme === 'dark' ? 'filled_black' : 'outline',
           shape: 'pill',
           text,
           locale: getLocale(),
-          ...(variant === 'inline' ? { size: 'medium' } : { size: 'large', width: 320 }),
+          ...(variant === 'inline' ? { size: 'medium' } : { size: 'large', width }),
         })
       })
       .catch(() => !cancelled && setFailed(true))
     return () => {
       cancelled = true
     }
-  }, [clientId, text, variant])
+  }, [clientId, text, variant, theme])
 
   const inline = variant === 'inline'
   if (failed) {
@@ -99,7 +107,13 @@ export function GoogleSignInButton({
   return (
     <div
       ref={container}
-      className={inline ? 'flex min-h-8 items-center' : 'flex min-h-10 justify-center'}
+      // Google's iframe is a light page: under the app's dark `color-scheme` the browser would
+      // paint an opaque white box behind the rounded button.
+      className={
+        inline
+          ? 'flex min-h-8 items-center [color-scheme:light]'
+          : 'flex min-h-10 justify-center [color-scheme:light]'
+      }
       data-testid="google-button"
     />
   )

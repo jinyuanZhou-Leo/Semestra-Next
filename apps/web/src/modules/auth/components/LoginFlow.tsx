@@ -358,7 +358,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
         </Button>
       </div>
       {google ? (
-        <div className="mt-2 space-y-4">
+        <div className="mt-4 flex flex-col gap-6">
           <FieldSeparator className="text-xs">{m.auth_or()}</FieldSeparator>
           {google}
           <FieldError>{googleLogin.error ? errorMessage(googleLogin.error) : null}</FieldError>
