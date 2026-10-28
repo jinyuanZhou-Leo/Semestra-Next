@@ -13,8 +13,10 @@ import { invalidateFiles } from '../queries'
 /**
  * Where a file is in the document pipeline (M07 §6.1). Ready and unsupported files show nothing:
  * the column only speaks up while processing, on failure, or when scanned pages were skipped.
+ * In the list a processing file shows its step (with page or batch counts) over a thin bar; grid
+ * tiles have room only for a ring, with the step in its tooltip.
  */
-export function StatusCell({ item }: { item: ItemOut }) {
+export function StatusCell({ item, compact = false }: { item: ItemOut; compact?: boolean }) {
   const queryClient = useQueryClient()
   const retry = useMutation({
     ...filesItemReprocessMutation(),
@@ -24,7 +26,11 @@ export function StatusCell({ item }: { item: ItemOut }) {
 
   if (item.doc_status === 'pending' || item.doc_status === 'processing') {
     return item.job_id ? (
-      <JobProgress jobId={item.job_id} variant="ring" />
+      <JobProgress
+        jobId={item.job_id}
+        variant={compact ? 'ring' : 'bar'}
+        className={compact ? undefined : 'w-full'}
+      />
     ) : (
       <Spinner aria-label={m.files_status_processing()} />
     )

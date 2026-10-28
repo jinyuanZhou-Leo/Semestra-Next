@@ -338,7 +338,7 @@ const columns = column.columns([
 const WIDTHS: Record<string, string> = {
   size: 'w-24',
   updated: 'w-44',
-  status: 'w-20',
+  status: 'w-52 min-w-52',
   pin: 'w-10',
   actions: 'w-10',
 }
@@ -454,7 +454,7 @@ function ItemTile({ item }: { item: ItemOut }) {
           </span>
         </button>
         <div className="relative flex items-center">
-          <StatusCell item={item} />
+          <StatusCell item={item} compact />
           {readOnly ? null : (
             <>
               <PinButton item={item} />
