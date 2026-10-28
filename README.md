@@ -103,7 +103,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 | i18n | Paraglide JS (`en`, `zh-CN`) |
 | API client | Generated from the OpenAPI schema with `@hey-api/openapi-ts` |
 | Tooling | pnpm workspaces, oxlint and oxfmt, ruff, pyright, Vitest, pytest, Playwright |
-| Deployment | Docker; self-host compose, or a GCP VM with Caddy and Litestream serving the app, landing page and docs from one origin |
+| Deployment | Docker (self-host compose) |
 
 ## Quick start
 
@@ -148,7 +148,7 @@ docker compose up -d    # then open http://localhost:8000
 
 The image isn't public yet: see [deploy/selfhost/README.md](deploy/selfhost/README.md) to log in to `ghcr.io` or build it locally.
 
-Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example). The hosted setup (GCP) is in [deploy/README.md](deploy/README.md).
+Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example).
 
 ## Project structure
 
@@ -159,7 +159,7 @@ apps/
   docs/                Documentation site (Fumadocs, static): self-hosting, AI, MCP, LMS, API
 packages/
   api-client/          TypeScript client generated from OpenAPI (don't edit src/generated)
-deploy/                Dockerfile, self-host compose, hosted (GCP) scripts
+deploy/                Dockerfile, self-host compose, release and deploy scripts
 docs/
   specs/               One design spec per module, M00 to M16
 ```
@@ -174,7 +174,7 @@ Most features are a module on both sides: `academics`, `grading`, `schedule`, `t
 
 - [Module specs](docs/specs/README.md): the design of every module, with implementation notes
 - [CLAUDE.md](CLAUDE.md): development conventions and known pitfalls
-- [Documentation site](apps/docs) (served at `https://semestra.jyleo.cc/docs` once deployed; locally `pnpm docs:dev`, then open `http://localhost:3001/docs`): self-hosting, AI providers, MCP, Canvas, the API reference and [plugin authoring](apps/docs/content/docs/plugins.mdx)
+- [Documentation site](apps/docs) (locally `pnpm docs:dev`, then open `http://localhost:3001/docs`): self-hosting, AI providers, MCP, Canvas, the API reference and [plugin authoring](apps/docs/content/docs/plugins.mdx)
 - [Deployment](deploy/README.md) and the [security checklist](deploy/SECURITY-CHECKLIST.md)
 
 Most design documents are written in Chinese.

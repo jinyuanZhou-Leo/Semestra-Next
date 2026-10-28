@@ -103,7 +103,7 @@ Semestra 是给大学生用的学期规划工具。建好 Program，加上学期
 | 国际化 | Paraglide JS（`en`、`zh-CN`） |
 | API 客户端 | 用 `@hey-api/openapi-ts` 从 OpenAPI 生成 |
 | 工具链 | pnpm workspaces、oxlint 与 oxfmt、ruff、pyright、Vitest、pytest、Playwright |
-| 部署 | Docker；自部署 compose，或 GCP VM 上的 Caddy 与 Litestream（应用、官网与文档同一个域名） |
+| 部署 | Docker（自部署 compose） |
 
 ## 快速开始
 
@@ -148,7 +148,7 @@ docker compose up -d    # 然后打开 http://localhost:8000
 
 镜像目前还没公开：需要先登录 `ghcr.io` 或在本地构建，见 [deploy/selfhost/README.md](deploy/selfhost/README.md)。
 
-邮件、密钥、备份与升级见 [deploy/selfhost/README.md](deploy/selfhost/README.md)，全部环境变量的说明在 [deploy/.env.example](deploy/.env.example)。托管版（GCP）见 [deploy/README.md](deploy/README.md)。
+邮件、密钥、备份与升级见 [deploy/selfhost/README.md](deploy/selfhost/README.md)，全部环境变量的说明在 [deploy/.env.example](deploy/.env.example)。
 
 ## 目录结构
 
@@ -159,7 +159,7 @@ apps/
   docs/                文档站（Fumadocs，静态导出）：自部署、AI、MCP、LMS、API
 packages/
   api-client/          由 OpenAPI 生成的 TypeScript 客户端（不要手改 src/generated）
-deploy/                Dockerfile、自部署 compose、托管版（GCP）脚本
+deploy/                Dockerfile、自部署 compose、发布与部署脚本
 docs/
   specs/               每个模块一份设计规格，M00 到 M16
 ```
@@ -174,5 +174,5 @@ docs/
 
 - [模块规格](docs/specs/README.md)：每个模块的设计与实现说明
 - [CLAUDE.md](CLAUDE.md)：开发约定与已知的坑
-- [文档站](apps/docs)（部署后在 `https://semestra.jyleo.cc/docs`；本地运行 `pnpm docs:dev` 后打开 `http://localhost:3001/docs`）：自部署、AI 服务商、MCP、Canvas、API 参考与[插件开发指南](apps/docs/content/docs/plugins.zh.mdx)
+- [文档站](apps/docs)（本地运行 `pnpm docs:dev` 后打开 `http://localhost:3001/docs`）：自部署、AI 服务商、MCP、Canvas、API 参考与[插件开发指南](apps/docs/content/docs/plugins.zh.mdx)
 - [部署](deploy/README.md)与[上线安全清单](deploy/SECURITY-CHECKLIST.md)
