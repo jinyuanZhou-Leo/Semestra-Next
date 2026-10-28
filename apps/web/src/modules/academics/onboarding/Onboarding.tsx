@@ -23,7 +23,8 @@ import { load, type Progress, store } from './progress'
 
 /**
  * First run without a Program (M02 §5.7): language → Program → first term → steps other
- * modules add (`academics.onboardingSteps`) → done, then the tour on the term page.
+ * modules add (`academics.onboardingSteps`) → done, then the tour on the term page (on Today
+ * when the first term was left for later).
  */
 export function Onboarding() {
   const router = useRouter()

@@ -20,7 +20,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { isoDay } from '@/modules/schedule/time'
+import { isoDay } from '@/lib/day'
 import { dueLabel, localDate } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'

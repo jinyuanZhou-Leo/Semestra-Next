@@ -4,6 +4,6 @@
 
 <!-- area: courses -->
 <!-- en -->
-The number of weeks shown next to a term's dates now matches the term's week numbers when the term starts mid-week.
+The number of weeks shown next to a term's dates now counts calendar weeks, so a term that starts mid-week is no longer a week short.
 <!-- zh -->
-学期不是从一周第一天开始时，日期旁显示的周数现在与学期的周次一致。
+学期日期旁的周数现在按日历周计算，学期不从一周第一天开始时不再少算一周。

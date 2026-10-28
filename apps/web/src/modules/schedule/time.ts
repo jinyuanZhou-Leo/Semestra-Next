@@ -39,8 +39,6 @@ export function wallDate(iso: string, tz: string): string {
   return format(new TZDate(iso, tz), 'yyyy-MM-dd')
 }
 
-export { isoDay }
-
 /**
  * `yyyy-MM-dd` of a FullCalendar date marker. A few callbacks (`weekNumberContent`) pass the
  * internal marker, which holds the day in its UTC fields, not a browser-local `Date`: read
