@@ -88,8 +88,8 @@ COPY release-notes release-notes
 COPY .changeset/areas.json .changeset/areas.json
 # Empty origin = same-origin requests, which is what the all-in-one image serves.
 ARG VITE_API_ORIGIN=""
-# Optional, baked into the bundle. The published image is shared by the hosted and self-hosted
-# installs, so releases leave these empty; set them with --build-arg on your own build.
+# Optional, baked into the bundle. The published image is shared by every self-hosted install, so
+# releases leave these empty; set them with --build-arg on your own build.
 ARG VITE_SENTRY_DSN=""
 ARG VITE_EMAIL_DOMAINS=""
 ENV VITE_API_ORIGIN=${VITE_API_ORIGIN} \

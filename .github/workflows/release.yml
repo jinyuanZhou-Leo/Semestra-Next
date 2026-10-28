@@ -1,10 +1,18 @@
 name: Release
 # A tag v* builds the self-hosting images and creates the GitHub Release. Normally
 # `version.yml` creates the tag after the version PR merges and calls this workflow (a tag pushed
-# with GITHUB_TOKEN does not trigger `push`); pushing a tag by hand still works.
+# with GITHUB_TOKEN does not trigger `push`); pushing a tag by hand still works. Run it by hand
+# from the Actions tab to (re)release an existing tag; a re-pushed tag would run the workflow as it
+# was at that tag.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The existing tag to release, e.g. v1.4.0
+        required: true
+        type: string
   workflow_call:
     inputs:
       tag:
