@@ -65,36 +65,6 @@ loopback or link-local address: AI base URLs with `common.egress_blocked`, Canva
 
 See [Instance-wide provider](/docs/ai/instance-provider).
 
-## Local OCR
-
-The default image (tag ending in `-ocr`) reads scanned PDF pages and photos on the server with
-[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) on ONNX Runtime, CPU only, so no AI model
-is called for them. Each user can pick a local PaddleOCR model in the **OCR** row of AI settings →
-Models (the default is the one below), or use a provider's model instead. It runs on amd64 and
-arm64 (including Docker on Apple Silicon). Reading
-takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per
-page with the default model.
-
-The image holds no model. Each one downloads (from Hugging Face, or PaddleOCR's other mirrors) into
-the data volume the first time it is needed, when a user picks it or a scanned file arrives, and the
-app shows the download's progress in AI settings and in the file's status. All users share the
-download, and it survives upgrades. A server that will lose internet access needs the models
-fetched while it still has it:
-
-```sh
-docker compose exec semestra semestra ocr-models --all
-```
-
-To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run
-`docker compose up -d`; users then choose a provider's model for **OCR**. Set it back to `-ocr` to
-return.
-
-| Variable                   | Default           | Meaning                                                       |
-| -------------------------- | ----------------- | ------------------------------------------------------------- |
-| `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
-| `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | Default model: `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
-| `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | Time allowed per page (plus two minutes to load the model); raise it on a very slow CPU |
-
 ## Background work and backups
 
 | Variable                   | Default | Meaning                                                       |

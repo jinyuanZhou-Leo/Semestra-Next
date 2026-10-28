@@ -363,7 +363,6 @@ async def populate(
                 PluginsInstallation(**u, plugin_id="pomodoro", installed_at=NOW),
                 PluginsDefaultOffer(**u, plugin_id="pomodoro"),
                 AiModelAssignment(**u, purpose="chat", provider_id=provider.id, model="gpt-5"),
-                AiModelAssignment(**u, purpose="ocr", provider_id=None, model="PP-OCRv5_mobile"),
                 AgentPreferences(**u, auto_approve=["tasks.item.create"], updated_at=NOW),
             ]
         )

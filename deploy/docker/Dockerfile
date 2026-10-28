@@ -4,17 +4,14 @@
 #   docker build -f deploy/docker/Dockerfile --target api         -t semestra-api .
 #   docker build -f deploy/docker/Dockerfile --target api-office  -t semestra-api:office .
 #   docker build -f deploy/docker/Dockerfile --target allinone    -t semestra-allinone .
-#   docker build -f deploy/docker/Dockerfile --target allinone-ocr -t semestra-allinone:ocr .
 #
 # Targets:
 #   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
 #   allinone    api + the built SPA served from the same origin (self-hosting)
-#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime; models are
-#               downloaded into /data when first needed); for self-hosting, amd64 and arm64
 
 # trixie: its SQLite (3.46) has the FTS5 contentless_delete option the files index needs (>= 3.43).
-ARG PYTHON_IMAGE=python:3.14-slim-trixie
+ARG PYTHON_IMAGE=python:3.15-slim-trixie
 ARG NODE_IMAGE=node:26-slim
 
 # ---- backend dependencies ------------------------------------------------------------------
@@ -32,14 +29,8 @@ COPY apps/api/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
-# The same plus the `ocr` extra (PaddleOCR, ONNX Runtime) for the allinone-ocr image.
-FROM api-builder AS api-builder-ocr
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable --extra ocr
-
 # ---- backend runtime -----------------------------------------------------------------------
-# Everything but the virtualenv, shared by api and allinone-ocr (which has its own).
-FROM ${PYTHON_IMAGE} AS runtime
+FROM ${PYTHON_IMAGE} AS api
 # System libraries for the document pipeline (M07) belong in this layer.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates tzdata \
@@ -48,6 +39,7 @@ RUN apt-get update \
     && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin semestra \
     && mkdir -p /app /data \
     && chown semestra:semestra /app /data
+COPY --from=api-builder /opt/venv /opt/venv
 COPY --chown=semestra:semestra apps/api/alembic.ini /app/alembic.ini
 COPY --chown=semestra:semestra apps/api/migrations /app/migrations
 COPY deploy/docker/entrypoint.sh /usr/local/bin/semestra-entrypoint
@@ -67,9 +59,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 ENTRYPOINT ["semestra-entrypoint"]
 CMD ["semestra", "serve", "--host", "0.0.0.0", "--port", "8000"]
 
-FROM runtime AS api
-COPY --from=api-builder /opt/venv /opt/venv
-
 # ---- backend + LibreOffice -----------------------------------------------------------------
 FROM api AS api-office
 USER root
@@ -80,8 +69,7 @@ RUN apt-get update \
 USER semestra
 
 # ---- frontend build ------------------------------------------------------------------------
-# Static files, so it runs on the build machine's platform even in a multi-arch build.
-FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS web-builder
+FROM ${NODE_IMAGE} AS web-builder
 # Keep in sync with "packageManager" in the root package.json.
 ARG PNPM_VERSION=12.14.0
 RUN npm install --global "pnpm@${PNPM_VERSION}"
@@ -114,25 +102,3 @@ FROM api AS allinone
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web
-
-# ---- all-in-one with local OCR (self-hosting) ----------------------------------------------
-# Built from the shared runtime rather than allinone, so the image has one virtualenv, not two.
-FROM runtime AS allinone-ocr
-USER root
-# OpenCV (pulled in by PaddleOCR) links against these.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
-    && rm -rf /var/lib/apt/lists/*
-USER semestra
-COPY --from=api-builder-ocr /opt/venv /opt/venv
-COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
-# No model is in the image: each downloads into the data volume the first time it is needed,
-# with progress in the app. This one is used until a user picks another in settings
-# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server).
-ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
-ENV SEMESTRA_SERVE_WEB=true \
-    SEMESTRA_WEB_DIST_DIR=/app/web \
-    SEMESTRA_LOCAL_OCR=true \
-    SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
-    PADDLE_PDX_CACHE_HOME=/data/ocr-models \
-    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True

@@ -5,13 +5,7 @@ Every module calls models through the functions exported here, never through a p
 
 from fastapi import FastAPI
 
-from semestra.modules.ai import (  # noqa: F401  (registers on import)
-    capabilities,
-    local_ocr,
-    local_ocr_jobs,
-    models,
-    portability,
-)
+from semestra.modules.ai import capabilities, models, portability  # noqa: F401  (registers on import)
 from semestra.modules.ai.calls import (
     UNTRUSTED_NOTICE,
     AgentModel,
@@ -68,8 +62,6 @@ __all__ = [
     "complete_with",
     "embed",
     "extract",
-    "local_ocr",
-    "local_ocr_jobs",
     "register",
     "resolve_provider",
     "structured",

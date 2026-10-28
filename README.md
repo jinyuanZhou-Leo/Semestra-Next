@@ -6,7 +6,7 @@
 
 [简体中文](README.zh-CN.md) · [Quick start](#quick-start) · [Self-hosting](deploy/selfhost/README.md) · [Docs](docs/specs/README.md)
 
-![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.14-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.15-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React_19-TanStack_Router-61DAFB?logo=react&logoColor=black)
 ![SQLite](https://img.shields.io/badge/SQLite-Alembic-003B57?logo=sqlite&logoColor=white)
 ![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-Base_UI-000000?logo=shadcnui&logoColor=white)
@@ -96,7 +96,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 
 | Layer | Choice |
 |---|---|
-| Backend | FastAPI, SQLAlchemy 2, Alembic, SQLite (with FTS5 and sqlite-vec), Python 3.14 via uv |
+| Backend | FastAPI, SQLAlchemy 2, Alembic, SQLite (with FTS5 and sqlite-vec), Python 3.15 via uv |
 | AI | Pydantic AI agent loop on the official provider SDKs, through an SSRF-safe HTTP client |
 | Frontend | React 19, TypeScript 7, Vite 8, TanStack Router (SPA), TanStack Query, Table and Form, React Compiler |
 | UI | shadcn/ui on Base UI, Tailwind CSS 4, AI Elements, FullCalendar |
@@ -113,7 +113,7 @@ You need [uv](https://docs.astral.sh/uv/) 0.13+, Node 26+ and pnpm 12+.
 git clone https://github.com/jinyuanZhou-Leo/Semestra-Next.git
 cd Semestra-Next
 
-uv python install 3.14
+uv python install 3.15
 pnpm install
 uv sync --project apps/api
 pnpm --filter @semestra/api migrate
