@@ -937,7 +937,7 @@ test('the context ring shows how full the conversation is and compacts from ther
   const sent = compactable()
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   const input = await messageInput()
-  await userEvent.hover(await screen.findByRole('button', { name: '70% context' }))
+  await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
   expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
   // What fills it, by kind, and what is left.
   expect(screen.getByText('Files and pages read').nextSibling).toHaveTextContent('40K')

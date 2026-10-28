@@ -2738,6 +2738,5 @@
   "assistant_context_conversation": "对话",
   "assistant_context_reads": "读取的文件和网页",
   "assistant_context_attachments": "附件",
-  "assistant_context_free": "剩余",
-  "assistant_context_button": "上下文 {percent}"
+  "assistant_context_free": "剩余"
 }

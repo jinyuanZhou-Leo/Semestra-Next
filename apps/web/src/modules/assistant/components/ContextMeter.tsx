@@ -28,10 +28,10 @@ const KINDS: readonly { kind: Kind; color: string; label: () => string }[] = [
 ]
 
 /**
- * How full the conversation's context is (M12 §3.4): AI Elements' `Context` card on an outline
- * button with the share (as shadcn's AI Context page has it), showing what fills it, by kind, on
- * hover. Compacting is the card's last row: its button starts it in the composer, where the user
- * can name what to keep, as `/compact` does. While it runs the button shows a spinner.
+ * How full the conversation's context is (M12 §3.4): AI Elements' `Context`, a ring with the
+ * share that shows what fills it, by kind, on hover. Compacting is the card's last row: its
+ * button starts it in the composer, where the user can name what to keep, as `/compact` does.
+ * While it runs the ring turns into a spinner.
  */
 export function ContextMeter({
   used,
@@ -57,13 +57,21 @@ export function ContextMeter({
   const free = Math.max(window - used, 0)
   return (
     <Context usedTokens={Math.min(used, window)} maxTokens={window}>
-      {/* shadcn's AI Context pattern: an outline button with the share, not the ring. */}
-      <ContextTrigger>
-        <Button type="button" variant="outline" size="sm" className="h-8 rounded-full text-xs">
-          {compacting ? <Spinner aria-label={m.assistant_compacting()} /> : null}
-          {m.assistant_context_button({ percent: formatPercent(Math.min(used / window, 1), 0) })}
-        </Button>
-      </ContextTrigger>
+      {compacting ? (
+        <ContextTrigger size="sm" className="h-8 rounded-full px-2 text-xs">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-full px-2 text-xs"
+            aria-label={m.assistant_compacting()}
+          >
+            <Spinner />
+          </Button>
+        </ContextTrigger>
+      ) : (
+        <ContextTrigger size="sm" className="h-8 rounded-full px-2 text-xs" />
+      )}
       <ContextContent side="top" align="start" className="w-72">
         {/* Our own header: the default one formats in en-US. */}
         <ContextContentHeader>
