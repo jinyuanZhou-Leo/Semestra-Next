@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# One-time setup of a fresh Debian VM for the API without Docker (README.md). Run as root:
+# One-time setup of a fresh Debian VM for the API without Docker. Run as root:
 #
 #   sudo BACKUP_BUCKET=semestra-backups-xxxx bash bootstrap.sh
 #
 # Expects to be run from a copy of deploy/vm (deploy.sh copies it to ~/semestra-vm). Idempotent:
 # running it again only fills in what is missing. It does NOT install the Cloudflare Tunnel
-# token or the API's environment file; README.md lists those manual steps.
+# token or the API's environment file; the hosted runbook lists those manual steps.
 set -euo pipefail
 
 : "${BACKUP_BUCKET:?set BACKUP_BUCKET to the GCS bucket for backups}"
@@ -77,8 +77,8 @@ systemctl enable semestra-api.service litestream.service
 systemctl enable --now semestra-storage-backup.timer
 
 cat <<MSG
-Done. Remaining by hand (README.md):
+Done. Remaining by hand (see the hosted runbook):
   1. Write /etc/semestra/semestra.env from semestra.env.example (root:semestra, chmod 640).
   2. From your Mac: deploy/vm/deploy.sh (copies the code, installs dependencies, migrates, starts).
-  3. sudo cloudflared service install <tunnel token>, then the edge IP override in README.md.
+  3. sudo cloudflared service install <tunnel token>, then the IPv6-only edge override from the runbook.
 MSG

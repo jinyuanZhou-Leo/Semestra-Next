@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy a commit to the VM from your machine (README.md):
+# Deploy a commit to the VM from your machine:
 #
 #   deploy/vm/deploy.sh            # the commit you have checked out
 #   deploy/vm/deploy.sh v1.5.0     # any git ref
