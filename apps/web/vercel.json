@@ -3,25 +3,85 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/landing/:path*",
+      "destination": "https://semestra-site.vercel.app/:path*"
+    },
+    {
+      "source": "/docs",
+      "destination": "https://semestra-docs.vercel.app/"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://semestra-docs.vercel.app/:path*"
+    },
+    {
+      "source": "/((?!landing|docs).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/(.*)",
       "headers": [
         {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/((?!landing|docs).*)",
+      "headers": [
+        {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://semestra-api.jyleo.cc https://accounts.google.com/gsi/ https://*.ingest.sentry.io https://*.ingest.us.sentry.io; frame-src 'self' blob: https://semestra-api.jyleo.cc https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
-        },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "semestra_session"
+        }
+      ],
+      "destination": "/landing/",
+      "statusCode": 302
+    },
+    {
+      "source": "/landing",
+      "destination": "/landing/",
+      "statusCode": 308
     }
   ]
 }
