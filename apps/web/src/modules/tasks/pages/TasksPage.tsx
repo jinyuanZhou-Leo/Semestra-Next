@@ -39,6 +39,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useTaskActions } from '../actions'
+import { isCompleting } from '../completion'
 import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
@@ -200,7 +201,12 @@ export default function TasksPage({ scope }: PageProps) {
   useHotkey(
     'space',
     () => {
-      if (selected) void actions.complete(selected.id, selected.completed_at === null)
+      // Space again while a checked-off task waits in place unchecks it.
+      if (selected)
+        void actions.complete(
+          selected.id,
+          selected.completed_at === null && !isCompleting(selected.id),
+        )
     },
     { enabled: selected !== null, ignoreEventWhen: onControl },
   )

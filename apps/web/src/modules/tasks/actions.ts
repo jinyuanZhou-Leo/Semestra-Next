@@ -13,6 +13,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
+import { cancelCompletion, scheduleCompletion } from './completion'
 import { invalidateTasks, taskQueryKeys } from './queries'
 
 type Snapshot = [readonly unknown[], TaskPage | undefined][]
@@ -138,8 +139,20 @@ export function useTaskActions() {
       run.create({ path: { program_id: programId }, body }),
     update: (taskId: string, body: TaskUpdateInputBody) =>
       run.update({ path: { task_id: taskId }, body }),
-    complete: (taskId: string, completed: boolean) =>
-      run.complete({ path: { task_id: taskId }, body: { completed } }),
+    /**
+     * Checking a task off waits in place for a few seconds before it is saved (`completion.ts`);
+     * unchecking it in that time just stops the wait.
+     */
+    complete: async (taskId: string, completed: boolean) => {
+      if (completed) {
+        scheduleCompletion(taskId, () => {
+          run.complete({ path: { task_id: taskId }, body: { completed } }).catch(() => undefined)
+        })
+        return
+      }
+      if (cancelCompletion(taskId)) return
+      await run.complete({ path: { task_id: taskId }, body: { completed } })
+    },
     move: (taskId: string, body: { list_id?: string | null; before_task_id?: string | null }) =>
       run.move({ path: { task_id: taskId }, body }),
     remove: (taskId: string) => run.remove({ path: { task_id: taskId } }),
