@@ -10,11 +10,11 @@
     },
     {
       "source": "/docs",
-      "destination": "https://semestra-docs.vercel.app/"
+      "destination": "https://semestra-docs.vercel.app/docs"
     },
     {
       "source": "/docs/:path*",
-      "destination": "https://semestra-docs.vercel.app/:path*"
+      "destination": "https://semestra-docs.vercel.app/docs/:path*"
     },
     {
       "source": "/((?!landing|docs).*)",
