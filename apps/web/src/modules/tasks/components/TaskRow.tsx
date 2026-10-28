@@ -409,7 +409,7 @@ export const TaskRow = memo(function TaskRow({
                 className={cn(
                   'task-title min-w-0 cursor-text truncate rounded-sm text-left text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                   done && 'text-muted-foreground',
-                  // Struck through by an animated line while it waits (theme.css).
+                  // Struck through by a drawn line while it waits (theme.css).
                   done && !completing && 'line-through',
                 )}
                 onClick={start('title')}

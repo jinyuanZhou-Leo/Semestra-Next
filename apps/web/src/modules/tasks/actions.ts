@@ -1,4 +1,10 @@
-import type { Task, TaskCreateInputBody, TaskPage, TaskUpdateInputBody } from '@semestra/api-client'
+import {
+  type Task,
+  type TaskCreateInputBody,
+  type TaskPage,
+  type TaskUpdateInputBody,
+  tasksItemComplete,
+} from '@semestra/api-client'
 import {
   tasksItemClearCompletedMutation,
   tasksItemCompleteMutation,
@@ -145,9 +151,16 @@ export function useTaskActions() {
      */
     complete: async (taskId: string, completed: boolean) => {
       if (completed) {
-        scheduleCompletion(taskId, () => {
-          run.complete({ path: { task_id: taskId }, body: { completed } }).catch(() => undefined)
-        })
+        const options = { path: { task_id: taskId }, body: { completed } }
+        scheduleCompletion(taskId, (unloading) =>
+          unloading
+            ? // The page is going away: a plain request that outlives it, then fresh lists if
+              // the page comes back.
+              tasksItemComplete({ ...options, keepalive: true }).then(() =>
+                invalidateTasks(queryClient),
+              )
+            : run.complete(options),
+        )
         return
       }
       if (cancelCompletion(taskId)) return
@@ -155,7 +168,11 @@ export function useTaskActions() {
     },
     move: (taskId: string, body: { list_id?: string | null; before_task_id?: string | null }) =>
       run.move({ path: { task_id: taskId }, body }),
-    remove: (taskId: string) => run.remove({ path: { task_id: taskId } }),
+    remove: (taskId: string) => {
+      // A task deleted while it waits to be completed is not completed afterwards.
+      cancelCompletion(taskId)
+      return run.remove({ path: { task_id: taskId } })
+    },
     clearCompleted: (
       programId: string,
       body: { list_id?: string; term_id?: string; course_id?: string },

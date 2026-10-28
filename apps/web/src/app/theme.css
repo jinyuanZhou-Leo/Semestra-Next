@@ -300,19 +300,22 @@
 /*
  * Checking a task off (M05 §5.1). The row waits in place for a few seconds (`data-completing`):
  * the circle fills with a small pop, the check draws itself, the title is struck through left to
- * right; the row fades out just before it moves to "Completed".
+ * right (only while `checking`, so a row shown again later does not replay it); the row fades out
+ * just before it moves to "Completed".
  */
-[data-completing] .task-check {
+[data-completing='checking'] .task-check {
   animation: task-check-pop 0.36s cubic-bezier(0.3, 1.4, 0.6, 1);
 }
-[data-completing] .task-check svg path {
+[data-completing='checking'] .task-check svg path {
   stroke-dasharray: 24;
   animation: task-check-draw 0.28s 0.08s ease-out backwards;
 }
 [data-completing] .task-title {
   background: linear-gradient(currentColor, currentColor) left 58% / 100% 1px no-repeat;
-  animation: task-strike 0.36s 0.1s ease-out backwards;
   transition: color 0.36s ease-out;
+}
+[data-completing='checking'] .task-title {
+  animation: task-strike 0.36s 0.1s ease-out backwards;
 }
 [data-completing='leaving'] {
   opacity: 0;
@@ -346,9 +349,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-completing] .task-check,
-  [data-completing] .task-check svg path,
-  [data-completing] .task-title {
+  [data-completing='checking'] .task-check,
+  [data-completing='checking'] .task-check svg path,
+  [data-completing='checking'] .task-title {
     animation: none;
   }
   [data-completing='leaving'] {

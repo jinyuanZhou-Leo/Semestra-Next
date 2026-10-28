@@ -142,17 +142,14 @@ test('a checked-off task waits in place, can be unchecked, and is then completed
   const check = await screen.findByRole('checkbox', { name: 'Complete Lab report' })
   await userEvent.click(check)
   expect(check).toBeChecked()
-  // Unchecked while it waits: nothing is saved.
+  // Unchecked while it waits: nothing is saved, even once the waits are flushed.
   await userEvent.click(check)
   expect(check).not.toBeChecked()
-  act(() => flushCompletions())
-  expect(log.completes).toHaveLength(0)
+  await act(() => flushCompletions())
   await userEvent.click(check)
-  act(() => flushCompletions())
-  await waitFor(() => expect(log.completes).toHaveLength(1))
-  expect(log.completes[0]).toEqual({ id: 't2', body: { completed: true } })
+  await act(() => flushCompletions())
+  expect(log.completes).toEqual([{ id: 't2', body: { completed: true } }])
 })
-
 test('an empty list says so, with the add box above the empty state', async () => {
   items = []
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
@@ -287,8 +284,8 @@ test('checking off a row being edited keeps what was typed', async () => {
   await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
   await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
   await waitFor(() => expect(log.updates).toEqual([{ id: 't2', body: { title: 'Lab report v2' } }]))
-  act(() => flushCompletions())
-  await waitFor(() => expect(log.completes).toHaveLength(1))
+  await act(() => flushCompletions())
+  expect(log.completes).toHaveLength(1)
 })
 
 test('Esc on a chip closes the row, and focus goes back to its title', async () => {
