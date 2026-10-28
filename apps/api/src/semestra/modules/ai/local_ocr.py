@@ -34,8 +34,11 @@ def model_tag(settings: Settings) -> str:
 def _engine(model: str) -> Any:
     with _LOCK:
         if model not in _ENGINES:
+            import onnxruntime  # pyright: ignore[reportMissingImports]
             from paddleocr import PaddleOCR  # pyright: ignore[reportMissingImports]
 
+            # Errors only: some models log dozens of "unused initializer" warnings on load.
+            onnxruntime.set_default_logger_severity(3)
             _ENGINES[model] = PaddleOCR(
                 text_detection_model_name=f"{model}_det",
                 text_recognition_model_name=f"{model}_rec",
