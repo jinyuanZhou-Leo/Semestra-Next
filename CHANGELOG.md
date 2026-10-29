@@ -3,6 +3,25 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.5.0 (2026-10-28)
+
+### New
+
+- **Files:** You can turn off automatic indexing of new files for a Program or a course, and index a file only when you need it.
+
+### Improved
+
+- **Sem:** Hover the context ring to see what fills the conversation, and compact it from the bottom of that card; while it compacts, the messages being summarized fade in place.
+- **Terms & courses:** When you sign up you can choose "Add later" instead of creating your first term, and add it from Terms & courses once the term starts.
+- **Tasks:** A task you check off now stays in place for 5 seconds with a short animation before it moves to Completed, so you can uncheck it if you tapped by mistake.
+
+### Fixed
+
+- **Terms & courses:** The number of weeks shown next to a term's dates now counts calendar weeks, so a term that starts mid-week is no longer a week short.
+- **Files:** When a file can't be processed, the file list says why next to the retry button.
+- **Files:** While a file is being processed, the file list shows which step it is on (such as reading pages 12/48) next to its progress bar.
+- **Account:** The "Continue with Google" button on the sign-in page no longer overlaps the "or" divider or shows a white box in dark mode, and it now matches the width of the form.
+
 ## 1.4.0 (2026-10-27)
 
 ### Improved
