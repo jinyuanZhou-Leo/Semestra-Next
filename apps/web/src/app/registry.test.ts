@@ -15,7 +15,7 @@ const canPreload = (part: unknown) => typeof part !== 'object' || part === null 
 test('every lazy page, page navigation, card and settings section of a built-in module can preload', () => {
   const plain = builtInModules.flatMap((module) => [
     ...(module.pages ?? []).flatMap((page) =>
-      [page.component, page.sidebarNav]
+      [page.component, page.sidebarNav, page.mobile?.component]
         .filter((part) => part !== undefined && !canPreload(part))
         .map(() => `${module.id}:${page.id}`),
     ),

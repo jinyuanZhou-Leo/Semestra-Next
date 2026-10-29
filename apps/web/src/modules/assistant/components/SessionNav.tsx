@@ -32,13 +32,7 @@ const SESSION_IN_PATH = /\/assistant\/([^/]+)/
  * The recent conversations under Sem in the app sidebar while its page is open (pinned first),
  * each with rename, pin and delete; "All conversations…" opens the searchable list.
  */
-export function SessionNav({
-  programId,
-  onNavigate,
-}: {
-  programId: string
-  onNavigate: () => void
-}) {
+export function SessionNav({ programId }: { programId: string }) {
   const router = useRouter()
   const activeId = useLocation({ select: (l) => SESSION_IN_PATH.exec(l.pathname)?.[1] ?? null })
   const [allOpen, setAllOpen] = useState(false)
@@ -70,7 +64,6 @@ export function SessionNav({
                 render={
                   <HistoryLink
                     href={`${base}/${session.id}`}
-                    onClick={onNavigate}
                     aria-current={session.id === activeId ? 'page' : undefined}
                   />
                 }
@@ -123,7 +116,6 @@ export function SessionNav({
             activeId={activeId}
             onSelect={(id) => {
               setAllOpen(false)
-              onNavigate()
               router.history.push(`${base}/${id}`)
             }}
             onDeleted={(id) => id === activeId && router.history.push(base)}

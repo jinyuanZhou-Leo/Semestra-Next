@@ -57,7 +57,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  useSidebar,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
@@ -101,12 +100,10 @@ function TermCourses({
   programId,
   term,
   pathname,
-  onNavigate,
 }: {
   programId: string
   term: Term
   pathname: string
-  onNavigate: () => void
 }) {
   const courses = useCourses(programId, term.id).data?.items
   return (
@@ -129,7 +126,6 @@ function TermCourses({
               render={
                 <HistoryLink
                   href={coursePath(programId, course.id, undefined, term.id)}
-                  onClick={onNavigate}
                   aria-current={courseActive ? 'page' : undefined}
                 />
               }
@@ -171,7 +167,6 @@ function EntryActions({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const { isMobile } = useSidebar()
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
@@ -185,7 +180,7 @@ function EntryActions({
       >
         <MoreHorizontal aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent side={isMobile ? 'bottom' : 'right'} align={isMobile ? 'end' : 'start'}>
+      <DropdownMenuContent side="right" align="start">
         {menu ? (
           <>
             <DropdownMenuItem disabled={!menu.canMoveUp} onClick={() => menu.onMove(-1)}>
@@ -221,7 +216,6 @@ function TermEntry({
   expanded,
   onToggle,
   pathname,
-  onNavigate,
   menu,
   dragging,
 }: {
@@ -230,7 +224,6 @@ function TermEntry({
   expanded: boolean
   onToggle: (next: boolean) => void
   pathname: string
-  onNavigate: () => void
   menu?: EntryMenu
   dragging?: Dragging
 }) {
@@ -259,13 +252,7 @@ function TermEntry({
         isActive={active}
         tooltip={term.name}
         className="group-has-data-[sidebar=menu-action]/menu-item:pr-14"
-        render={
-          <HistoryLink
-            href={href}
-            onClick={onNavigate}
-            aria-current={pathname === href ? 'page' : undefined}
-          />
-        }
+        render={<HistoryLink href={href} aria-current={pathname === href ? 'page' : undefined} />}
       >
         <CalendarDays aria-hidden />
         <span className="truncate">{term.name}</span>
@@ -291,12 +278,7 @@ function TermEntry({
         onOpenChange={setMenuOpen}
       />
       <CollapsibleContent>
-        <TermCourses
-          programId={programId}
-          term={term}
-          pathname={pathname}
-          onNavigate={onNavigate}
-        />
+        <TermCourses programId={programId} term={term} pathname={pathname} />
       </CollapsibleContent>
       <DeleteTermDialog term={term} open={deleting} onOpenChange={setDeleting} />
     </Collapsible>
@@ -308,14 +290,12 @@ function CourseEntry({
   programId,
   course,
   pathname,
-  onNavigate,
   menu,
   dragging,
 }: {
   programId: string
   course: Course
   pathname: string
-  onNavigate: () => void
   menu: EntryMenu
   dragging?: Dragging
 }) {
@@ -337,13 +317,7 @@ function CourseEntry({
         isActive={active}
         tooltip={course.title}
         className="group-has-data-[sidebar=menu-action]/menu-item:pr-8"
-        render={
-          <HistoryLink
-            href={href}
-            onClick={onNavigate}
-            aria-current={pathname === href ? 'page' : undefined}
-          />
-        }
+        render={<HistoryLink href={href} aria-current={pathname === href ? 'page' : undefined} />}
       >
         <span
           aria-hidden
@@ -367,7 +341,6 @@ function SortablePin({
   entry: PinnedEntry
   programId: string
   pathname: string
-  onNavigate: () => void
   menu: EntryMenu
   expanded: boolean
   onToggle: (next: boolean) => void
@@ -392,7 +365,6 @@ function SortablePin({
         expanded={props.expanded}
         onToggle={props.onToggle}
         pathname={props.pathname}
-        onNavigate={props.onNavigate}
         menu={props.menu}
         dragging={dragging}
       />
@@ -403,7 +375,6 @@ function SortablePin({
       programId={props.programId}
       course={entry.course}
       pathname={props.pathname}
-      onNavigate={props.onNavigate}
       menu={props.menu}
       dragging={dragging}
     />
@@ -418,7 +389,6 @@ function AddTermPicker({
   terms: readonly Term[]
   onPick: (term: Term) => void
 }) {
-  const { isMobile } = useSidebar()
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -434,7 +404,7 @@ function AddTermPicker({
         </TooltipTrigger>
         <TooltipContent>{m.academics_sidebar_add_term()}</TooltipContent>
       </Tooltip>
-      <PopoverContent className="w-64 p-0" align="start" side={isMobile ? 'bottom' : 'right'}>
+      <PopoverContent className="w-64 p-0" align="start" side="right">
         <Command>
           <CommandInput placeholder={m.academics_sidebar_add_term_search()} />
           <CommandList>
@@ -469,16 +439,7 @@ function AddTermPicker({
  * courses, then the pinned terms and courses in the user's order. Other terms are reached
  * from the Terms & courses page, the breadcrumbs or the palette, or added here with "+".
  */
-export function SidebarTerms({
-  programId,
-  pathname,
-  onNavigate,
-}: {
-  programId: string
-  pathname: string
-  onNavigate: () => void
-}) {
-  const { isMobile } = useSidebar()
+export function SidebarTerms({ programId, pathname }: { programId: string; pathname: string }) {
   const terms = useTerms(programId).data?.items
   const { term: current } = useCurrentTerm(programId)
   const { pins, setPins, toggle } = usePins(programId)
@@ -519,7 +480,7 @@ export function SidebarTerms({
         <SidebarGroupLabel className={GROUP_LABEL}>
           {m.academics_sidebar_current_term()}
         </SidebarGroupLabel>
-        {isMobile || !terms || terms.length === 0 ? null : (
+        {!terms || terms.length === 0 ? null : (
           <AddTermPicker terms={addable} onPick={(term) => toggle({ kind: 'term', id: term.id })} />
         )}
         <SidebarGroupContent>
@@ -531,7 +492,6 @@ export function SidebarTerms({
                 expanded={open.includes(current.id)}
                 onToggle={(next) => setOpen(current.id, next)}
                 pathname={pathname}
-                onNavigate={onNavigate}
               />
             ) : null}
             {terms && terms.length === 0 ? (
@@ -539,15 +499,10 @@ export function SidebarTerms({
                 <span className="block px-3 py-1.5 text-xs text-muted-foreground">
                   {m.academics_terms_empty()}
                 </span>
-                {isMobile ? null : (
-                  <SidebarMenuButton
-                    size="sm"
-                    render={<HistoryLink href={newTermPath(programId)} onClick={onNavigate} />}
-                  >
-                    <CalendarPlus aria-hidden />
-                    <span className="truncate">{m.academics_term_new()}</span>
-                  </SidebarMenuButton>
-                )}
+                <SidebarMenuButton size="sm" render={<HistoryLink href={newTermPath(programId)} />}>
+                  <CalendarPlus aria-hidden />
+                  <span className="truncate">{m.academics_term_new()}</span>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             ) : null}
           </SidebarMenu>
@@ -570,7 +525,6 @@ export function SidebarTerms({
                       entry={entry}
                       programId={programId}
                       pathname={pathname}
-                      onNavigate={onNavigate}
                       expanded={open.includes(entry.pin.id)}
                       onToggle={(next) => setOpen(entry.pin.id, next)}
                       menu={{

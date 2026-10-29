@@ -28,6 +28,10 @@ export default defineModule({
       sidebarNav: preloadable(() =>
         import('./components/TasksSidebar').then((mod) => ({ default: mod.TasksSidebarNav })),
       ),
+      mobile: {
+        component: preloadable(() => import('./mobile/TasksMobilePage')),
+        tab: { order: 10 },
+      },
       order: 20,
     },
   ],

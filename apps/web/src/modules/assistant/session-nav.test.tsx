@@ -49,7 +49,7 @@ function mount() {
     <SidebarProvider>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SessionNav programId="p1" onNavigate={() => {}} />
+          <SessionNav programId="p1" />
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarProvider>,
