@@ -112,8 +112,10 @@ class Registry:
     ) -> None:
         """Agents and MCP clients may leave out a required `field_name`; it is filled from
         the call's context. HTTP callers still pass it."""
-        self._context_args[field_name] = ContextArg(fill, notes)
-        self._generation += 1
+        arg = ContextArg(fill, notes)
+        if self._context_args.get(field_name) != arg:  # every app built registers it again
+            self._context_args[field_name] = arg
+            self._generation += 1
 
     def set_id_source(self, field_name: str, capability: str) -> None:
         """The capability an agent gets `field_name` (and `<field_name>s`) from, e.g.
@@ -121,8 +123,9 @@ class Registry:
         description, so a model never has to guess where an id comes from."""
         if self._id_sources.get(field_name, capability) != capability:
             raise ValueError(f"{field_name} already comes from {self._id_sources[field_name]}")
-        self._id_sources[field_name] = capability
-        self._generation += 1
+        if field_name not in self._id_sources:
+            self._id_sources[field_name] = capability
+            self._generation += 1
 
     @property
     def id_sources(self) -> dict[str, str]:

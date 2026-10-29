@@ -127,8 +127,10 @@ def _pending(state: State) -> set[asyncio.Task[None]]:
 async def drain(state: State) -> None:
     """Wait for every dispatch started so far, including the ones those start."""
     pending = _pending(state)
-    while pending:
-        await asyncio.gather(*list(pending), return_exceptions=True)
+    # Only the unfinished ones: a finished task leaves the set in a callback that has not run
+    # yet, and gathering finished tasks returns without yielding, so this would spin forever.
+    while running := [t for t in pending if not t.done()]:
+        await asyncio.gather(*running, return_exceptions=True)
 
 
 events = EventBus()

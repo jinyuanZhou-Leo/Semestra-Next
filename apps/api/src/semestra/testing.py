@@ -21,6 +21,7 @@ from alembic import command
 from alembic.config import Config
 from argon2 import PasswordHasher
 from fastapi import FastAPI
+from fastapi import routing as fastapi_routing
 from httpx import ASGITransport, AsyncClient
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -74,6 +75,32 @@ _FAST_HASHER = PasswordHasher(time_cost=1, memory_cost=1024, parallelism=1)
 def fast_password_hashing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(crypto, "_hasher", _FAST_HASHER)
     monkeypatch.setattr(crypto, "_DUMMY_HASH", _FAST_HASHER.hash("semestra-timing-equalizer"))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def reuse_route_handlers() -> Generator[None]:
+    """FastAPI builds every included route's dependant, fields and handler again for each new
+    app (~3 ms a route, most of a test's time). Tests build one app per test from the same
+    routers, so build each once per worker. The handler keeps the first app as its
+    `dependency_overrides` provider: tests here don't override dependencies."""
+    context_cls = getattr(fastapi_routing, "_EffectiveRouteContext", None)
+    if context_cls is None:  # FastAPI changed its internals: just run slower
+        yield
+        return
+    build = context_cls.from_api_route
+    built: dict[tuple[int, int, str], tuple[object, object, object]] = {}
+
+    def from_api_route(*, original_route: Any, include_context: Any) -> Any:
+        key = (id(original_route), id(include_context.included_router), include_context.prefix)
+        if (hit := built.get(key)) is None:
+            context = build(original_route=original_route, include_context=include_context)
+            # Keeping the route and router alive keeps their ids from being reused.
+            hit = built[key] = (original_route, include_context.included_router, context)
+        return hit[2]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(context_cls, "from_api_route", from_api_route)
+        yield
 
 
 @pytest.fixture(scope="session")

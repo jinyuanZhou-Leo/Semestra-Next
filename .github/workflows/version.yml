@@ -18,6 +18,7 @@ permissions:
 jobs:
   version:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
@@ -49,6 +50,7 @@ jobs:
   tag:
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     outputs:

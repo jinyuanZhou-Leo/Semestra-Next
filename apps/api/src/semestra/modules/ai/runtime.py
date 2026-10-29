@@ -85,8 +85,9 @@ class AiRuntime:
         self._spawn(state, write)
 
     async def drain(self) -> None:
-        while self._tasks:
-            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+        # Unfinished ones only, as in `core.events.drain`: gathering finished tasks never yields.
+        while running := [t for t in self._tasks if not t.done()]:
+            await asyncio.gather(*running, return_exceptions=True)
 
     def cached_models(self, key: tuple[str, str], now: datetime) -> list[ModelInfo] | None:
         entry = self._models.get(key)

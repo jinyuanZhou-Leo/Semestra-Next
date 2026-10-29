@@ -65,6 +65,7 @@ dev = [
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
     "respx>=0.23.1",
     "ruff>=0.17.1",
@@ -79,6 +80,9 @@ markers = [
     "streamed: AI tests whose fake Claude answers stream (see ai/tests/conftest.py)",
 ]
 addopts = "-m 'not live' -p semestra.testing"
+# A test that hangs fails after this long, with its stack, instead of holding CI until the job
+# times out (the default "signal" method keeps the xdist worker alive).
+timeout = 120
 filterwarnings = [
     # Third-party code using APIs that Python deprecates for removal in 3.17; nothing for us to change.
     "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
