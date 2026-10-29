@@ -16,6 +16,9 @@ process.env.E2E_OUTBOX ??= path.join(dataDir, 'dev-outbox.jsonl')
 
 const origin = 'http://localhost:8000'
 const builtEnv = {
+  // Not whatever apps/api/.env says: prod writes no outbox, and resend would send real email.
+  SEMESTRA_ENV: 'dev',
+  SEMESTRA_EMAIL_BACKEND: 'console',
   SEMESTRA_DATA_DIR: dataDir,
   SEMESTRA_DATABASE_URL: `sqlite+aiosqlite:///${dataDir}/semestra.db`,
   SEMESTRA_STORAGE_LOCAL_ROOT: path.join(dataDir, 'storage'),

@@ -1,8 +1,8 @@
 name: E2E
 # Playwright through the main flows (sign-up, onboarding, ICS import) against the API serving the
 # built SPA on one origin, as the all-in-one image does. Runs on the version PR, so each release is
-# checked before it ships (the PR's runs wait for approval like CI's), and by hand from the
-# Actions tab on any branch.
+# checked before it ships, and by hand from the Actions tab on any branch. The version PR's runs
+# wait for approval like CI's: approve them, wait for this job, then merge.
 on:
   pull_request:
     branches: [main]
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
+  e2e:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'changeset-release/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
