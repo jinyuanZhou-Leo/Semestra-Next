@@ -3,6 +3,13 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.6.0 (2026-10-28)
+
+### New
+
+- **AI:** OCR of scanned pages has its own model setting, so you can use a cheaper model than the one for images.
+- **Self-hosting:** Self-hosted servers read scanned PDFs and photos on their own with PaddleOCR (also in Docker on a Mac), without calling any AI model, and each user can pick the OCR model in settings. A model downloads the first time it is needed, and you can watch its progress.
+
 ## 1.5.0 (2026-10-28)
 
 ### New
