@@ -2768,7 +2768,7 @@
   "assistant_context_free": "Free",
   "mobile_tabs_label": "Tabs",
   "mobile_more": "More",
-  "mobile_more_desktop_note": "Grades, the calendar, files and Sem are on a computer.",
+  "mobile_more_desktop_note": "Grades, the calendar, files and imports are on a computer.",
   "mobile_desktop_only_title": "Open this on a computer",
   "mobile_desktop_only_description": "This page needs a larger screen than a phone's.",
   "mobile_desktop_only_action": "Open {page}",

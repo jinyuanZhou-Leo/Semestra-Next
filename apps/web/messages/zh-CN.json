@@ -2768,7 +2768,7 @@
   "assistant_context_free": "剩余",
   "mobile_tabs_label": "标签栏",
   "mobile_more": "更多",
-  "mobile_more_desktop_note": "成绩、日历、文件和 Sem 请在电脑上使用。",
+  "mobile_more_desktop_note": "成绩、日历、文件和导入请在电脑上使用。",
   "mobile_desktop_only_title": "请在电脑上打开",
   "mobile_desktop_only_description": "这个页面需要比手机更大的屏幕。",
   "mobile_desktop_only_action": "打开“{page}”",

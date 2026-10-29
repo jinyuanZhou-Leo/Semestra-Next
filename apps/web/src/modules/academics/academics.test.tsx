@@ -86,6 +86,7 @@ const assistant = defineModule({
         <li>Chat one</li>
       </ul>
     ),
+    mobile: ({ sessionId }) => <p>Sem on a phone: {sessionId ?? 'new'}</p>,
   },
 })
 
@@ -449,6 +450,13 @@ test('on a phone a Program opens in the phone shell, without the desktop sidebar
   expect(await screen.findByText('Open this on a computer')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Open Lists' }))
   expect(await screen.findByText('Lists on a phone')).toBeInTheDocument()
+
+  // Sem is the tab after the pages, and goes back to the conversation last open.
+  await act(() => router.navigate({ href: '/p/p1/assistant/s1' }))
+  expect(await screen.findByText('Sem on a phone: s1')).toBeInTheDocument()
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Lists' }))
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Sem' }))
+  expect(await screen.findByText('Sem on a phone: s1')).toBeInTheDocument()
 
   await userEvent.click(within(tabs).getByRole('button', { name: 'More' }))
   const more = await screen.findByRole('dialog')

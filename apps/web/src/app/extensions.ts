@@ -284,6 +284,8 @@ export type AssistantContribution = {
   Dock: ComponentType<{ children: ReactNode }>
   /** Recent conversations under the assistant's sidebar entry while its full page is open. */
   SidebarNav?: Lazy<{ programId: string }>
+  /** The assistant on a phone (M17): a tab after the pages' tabs, at the full page's addresses. */
+  mobile?: Lazy<{ programId: string; sessionId: string | null }>
 }
 
 /**

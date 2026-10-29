@@ -34,6 +34,7 @@ export default defineModule({
     SidebarNav: preloadable(() =>
       import('./components/SessionNav').then((mod) => ({ default: mod.SessionNav })),
     ),
+    mobile: preloadable(() => import('./mobile/AssistantMobilePage')),
   },
   settingsSections: [
     {

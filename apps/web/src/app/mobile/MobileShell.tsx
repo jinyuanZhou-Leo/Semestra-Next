@@ -1,10 +1,11 @@
 import { Link, Navigate, useMatch } from '@tanstack/react-router'
-import { Ellipsis, MonitorSmartphone } from 'lucide-react'
-import { useState } from 'react'
-import type { PageContribution, Scope } from '@/app/extensions'
+import { Ellipsis, MessageCircle, MonitorSmartphone } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { type PageContribution, type Scope, preload } from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
-import { usePageStatuses } from '@/app/registry'
+import { useModules, usePageStatuses } from '@/app/registry'
 import { cn } from '@/lib/utils'
+import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -30,14 +31,25 @@ function usePhonePages(scope: Scope): { pages: PageContribution[]; tabs: PageCon
 
 /**
  * The signed-in app on a phone (M17): one page at a time over a tab bar. Only Program pages with
- * a phone version (`PageContribution.mobile`) are shown; every other address asks for a
- * computer. The desktop shell and pages are not loaded.
+ * a phone version (`PageContribution.mobile`) and the assistant (`AssistantContribution.mobile`)
+ * are shown; every other address asks for a computer. The desktop shell and pages are not loaded.
  */
 export default function MobileShell({ programId }: { programId: string }) {
   const scope: Scope = { kind: 'program', programId }
   const { pages, tabs } = usePhonePages(scope)
   const pageMatch = useMatch({ from: '/_authed/p/$programId/$page', shouldThrow: false })
   const atProgram = useMatch({ from: '/_authed/p/$programId/', shouldThrow: false })
+  const assistantMatch = useMatch({
+    from: '/_authed/p/$programId/assistant/{-$sessionId}',
+    shouldThrow: false,
+  })
+  const Assistant = useModules().find((module) => module.assistant?.mobile)?.assistant?.mobile
+  // Opening Sem from the tab bar does not wait for its code.
+  useEffect(() => (Assistant ? whenSettled(() => void preload(Assistant)) : undefined), [Assistant])
+  // The Sem tab goes back to the conversation last open, like the other tabs keep their place.
+  const [lastSession, setLastSession] = useState<string | undefined>()
+  const openSession = assistantMatch?.params.sessionId
+  if (assistantMatch && openSession !== lastSession) setLastSession(openSession)
   const pageId = pageMatch?.params.page
   const home = tabs[0]
   const page = pages.find((candidate) => candidate.id === pageId)
@@ -53,11 +65,20 @@ export default function MobileShell({ programId }: { programId: string }) {
           <PluginBoundary key={`${programId}:${page.id}`}>
             <Page scope={scope} />
           </PluginBoundary>
+        ) : Assistant && assistantMatch ? (
+          <PluginBoundary key={`${programId}:assistant`}>
+            <Assistant programId={programId} sessionId={assistantMatch.params.sessionId ?? null} />
+          </PluginBoundary>
         ) : (
           <DesktopOnly programId={programId} home={home} />
         )}
       </main>
-      <TabBar programId={programId} tabs={tabs} activeId={page?.id} />
+      <TabBar
+        programId={programId}
+        tabs={tabs}
+        activeId={page?.id}
+        assistant={Assistant ? { active: !!assistantMatch, sessionId: lastSession } : null}
+      />
     </div>
   )
 }
@@ -98,10 +119,12 @@ function TabBar({
   programId,
   tabs,
   activeId,
+  assistant,
 }: {
   programId: string
   tabs: PageContribution[]
   activeId: string | undefined
+  assistant: { active: boolean; sessionId: string | undefined } | null
 }) {
   const [more, setMore] = useState(false)
   return (
@@ -125,6 +148,21 @@ function TabBar({
           </Link>
         )
       })}
+      {assistant ? (
+        <Link
+          to="/p/$programId/assistant/{-$sessionId}"
+          params={{ programId, sessionId: assistant.sessionId }}
+          aria-current={assistant.active ? 'page' : undefined}
+          className={cn(TAB, assistant.active && 'text-primary')}
+        >
+          <MessageCircle
+            aria-hidden
+            className="size-6"
+            strokeWidth={assistant.active ? 2.25 : 1.75}
+          />
+          {m.assistant_name()}
+        </Link>
+      ) : null}
       <button type="button" className={TAB} onClick={() => setMore(true)}>
         <Ellipsis aria-hidden className="size-6" strokeWidth={1.75} />
         {m.mobile_more()}
