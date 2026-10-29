@@ -47,7 +47,7 @@ export function AssistantPage({
   sessionId: string | null
   onNavigate: (sessionId: string | null, options?: { replace?: boolean }) => void
 }) {
-  const { state: sidebar, isMobile } = useSidebar()
+  const { state: sidebar } = useSidebar()
   // Which conversation the URL shows, read with the history entry in one snapshot: the location
   // changes before the route's params do, and reading the entry alone gave a new key for one
   // render while a new conversation got its URL, which remounted it and dropped the typed text.
@@ -95,7 +95,7 @@ export function AssistantPage({
         </h1>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {/* The list in the sidebar is hidden on the icon rail. */}
-          {sidebar === 'collapsed' || isMobile ? (
+          {sidebar === 'collapsed' ? (
             <Popover open={historyOpen} onOpenChange={setHistoryOpen}>
               <Tooltip>
                 <TooltipTrigger

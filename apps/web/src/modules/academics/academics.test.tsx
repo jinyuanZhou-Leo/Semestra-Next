@@ -7,6 +7,7 @@ import { FileText, NotebookPen } from 'lucide-react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { defineModule } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
+import { PHONE_QUERY } from '@/app/mobile/phone'
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
@@ -430,7 +431,7 @@ test('the term wizard survives a reload and creates the term in one request', as
 
 test('on a phone a Program opens in the phone shell, without the desktop sidebar (M17)', async () => {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query === '(max-width: 767px)',
+    matches: query === PHONE_QUERY,
     media: query,
     addEventListener() {},
     removeEventListener() {},

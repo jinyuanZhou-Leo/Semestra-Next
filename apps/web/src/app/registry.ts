@@ -102,8 +102,8 @@ export function preloadPage(
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
-      // A phone shows a Program page's phone version, or nothing to load (M17).
-      if (scope.kind === 'program' && isPhone()) {
+      // A phone shows a page's phone version, or nothing to load (M17).
+      if (isPhone()) {
         parts.push(page.mobile?.component)
         continue
       }

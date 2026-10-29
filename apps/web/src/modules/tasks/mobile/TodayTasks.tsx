@@ -5,10 +5,8 @@ import { plusDays } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { useProgramToday, useTasks, useTodayTasks } from '../queries'
+import { useProgramToday, useTasksDueBetween, useTodayTasks } from '../queries'
 import { TaskSections, groupByDue } from './TaskSections'
-
-const SCHEDULED = { kind: 'smart', view: 'scheduled' } as const
 
 /**
  * The tasks part of the phone's Today (M17): overdue and due today, then the next 7 days, each
@@ -17,14 +15,8 @@ const SCHEDULED = { kind: 'smart', view: 'scheduled' } as const
 export function TodayTasks({ programId }: { programId: string }) {
   const today = useProgramToday(programId)
   const due = useTodayTasks(programId).data?.items
-  const scheduled = useTasks({ programId }, SCHEDULED, {
-    sort: 'due',
-    completed: 'hide',
-    limit: 50,
-  }).data?.items
-  if (!due || !scheduled) return null
-  const week = plusDays(today, 7)
-  const coming = scheduled.filter((t) => t.due_date && t.due_date > today && t.due_date <= week)
+  const coming = useTasksDueBetween(programId, plusDays(today, 1), plusDays(today, 7)).data?.items
+  if (!due || !coming) return null
   const groups = groupByDue([...due, ...coming], today)
   return (
     <>

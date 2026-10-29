@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Below this width a Program opens in the phone shell (M17): the same breakpoint as shadcn's
- * `useIsMobile`. Unlike that hook it answers on the first render, so a phone never draws the
- * desktop shell first.
+ * Where a Program opens in the phone shell (M17): below shadcn's `useIsMobile` breakpoint, or a
+ * touch screen less than 500px tall, so a phone turned sideways (844–932px wide) stays in it.
+ * Unlike that hook it answers on the first render, so a phone never draws the desktop shell
+ * first.
  */
-const PHONE_QUERY = '(max-width: 767px)'
+export const PHONE_QUERY = '(max-width: 767px), (pointer: coarse) and (max-height: 499px)'
 
 function media(): MediaQueryList | null {
   return typeof window === 'undefined' || !window.matchMedia ? null : window.matchMedia(PHONE_QUERY)

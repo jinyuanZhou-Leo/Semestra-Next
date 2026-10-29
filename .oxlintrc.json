@@ -37,6 +37,10 @@
               {
                 "group": ["**/mobile/*"],
                 "message": "Desktop code does not use the phone UI (M17). Only manifests (`mobile.component`), the Program route and the registry load it."
+              },
+              {
+                "group": ["@/hooks/use-mobile"],
+                "message": "Desktop components have no phone branches (M17): below 768px the phone shell renders instead."
               }
             ]
           }
@@ -66,9 +70,11 @@
                   "**/pages/*",
                   "**/cards/*",
                   "@/app/board/*",
-                  "@/modules/academics/shell/*"
+                  "@/modules/academics/shell/*",
+                  "@/app/host/*",
+                  "!@/app/host/PluginBoundary"
                 ],
-                "message": "Phone pages reuse data and logic, not desktop pages, cards or the desktop shell (M17)."
+                "message": "Phone pages reuse data and logic, not desktop pages, cards, the board or the desktop shell (M17)."
               }
             ]
           }
