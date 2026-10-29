@@ -23,11 +23,11 @@ docs/                设计稿与模块规格
 | `pnpm test` | vitest；pytest |
 | `pnpm gen:api` | 导出 OpenAPI → 重新生成 `packages/api-client`，提交生成结果 |
 | `pnpm --filter @semestra/api migrate` | `alembic upgrade head` |
-| `pnpm --filter @semestra/web e2e` | Playwright 冒烟（需先 `pnpm exec playwright install chromium`） |
+| `pnpm --filter @semestra/web e2e` | Playwright 冒烟：注册登录、onboarding、ICS 导入（需先 `pnpm exec playwright install chromium`；默认起 dev 服务器，`E2E_BUILT=1` 则先 `VITE_API_ORIGIN= pnpm build`，由 API 同源托管构建产物，CI 这样跑） |
 
 后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
 
-**草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只能在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
+**草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只在版本 PR（`changeset-release/*`）上自动跑、或在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
 
 ## 版本号与 changeset（1.0 起）
 
