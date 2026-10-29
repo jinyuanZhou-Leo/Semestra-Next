@@ -33,6 +33,7 @@ env:
 jobs:
   images:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -87,6 +88,7 @@ jobs:
   github-release:
     needs: images
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:

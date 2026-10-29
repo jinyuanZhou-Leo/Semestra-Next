@@ -243,8 +243,9 @@ class AgentRuntime:
 
     async def drain(self) -> None:
         """Waits for the background work (tests)."""
-        while self._background:
-            await asyncio.gather(*self._background, return_exceptions=True)
+        # Unfinished ones only, as in `core.events.drain`: gathering finished tasks never yields.
+        while running := [t for t in self._background if not t.done()]:
+            await asyncio.gather(*running, return_exceptions=True)
 
     def _forget(self, gen: Generation) -> None:
         if self._generations.get(gen.session_id) is gen:
