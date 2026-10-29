@@ -6,7 +6,7 @@
 ## 1. 目标
 1. 用户自带 key（BYOK）：配置一个或多个提供方，密钥加密存储、不回显。
 2. 统一的模型调用接口：对话补全（含流式、工具调用）、**结构化输出**（直接得到 Pydantic 对象）、多模态输入（图片/PDF 页面）、embedding。
-3. 按用途（purpose）选择模型：`chat`（Agent 对话）、`extraction`（结构化抽取）、`vision`（OCR/读图）、`embedding`、`title`（短文本生成，如会话标题）。
+3. 按用途（purpose）选择模型：`chat`（Agent 对话）、`extraction`（结构化抽取）、`vision`（读图，如课表截图）、`ocr`（扫描页识别，需要 vision 能力，推荐便宜的小模型）、`embedding`、`title`（短文本生成，如会话标题）。
 4. **单点 AI 功能只依赖本模块**：课程信息回填、课表截图识别、标题生成等单点功能直接调用本模块的 `structured` / `extract`，不得依赖 M07 的检索索引或 M12 的 Agent；需要文件文本时读取 M07 的解析结果（`files.document.read`），粘贴文本则无需文件。每个功能只声明自己需要的 purpose。
 5. 用量记录：每次调用记录 token 与估算费用，为将来的付费 plan 预留；**付费 plan 只需在 `resolve_provider` 中增加分支**。
 6. 托管版暂只支持 BYOK；自部署可用环境变量配置"实例级默认提供方"（所有用户共享，例如本地 Ollama）：`SEMESTRA_INSTANCE_AI_KIND`（如 `ollama`）、`SEMESTRA_INSTANCE_AI_BASE_URL`、`SEMESTRA_INSTANCE_AI_CHAT_MODEL`、`SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL`、`SEMESTRA_INSTANCE_AI_API_KEY`（可选）。变量名是 M15 自部署 compose（`ai-local` profile）约定的契约。
@@ -150,4 +150,4 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 模块 `modules/ai/`：账户设置「AI」小标题下三个分组（页面）`ai-providers`、`ai-models`、`ai-usage`，各放同名分区；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
 - 用量明细表用 TanStack Table v9；图表用 shadcn chart（Recharts）按用途堆叠的柱状图，悬停用 `ChartTooltipContent`（`wrapperStyle` 的 z-index 让它压住图例），图例 `itemSorter={null}` 保持堆叠顺序，颜色用 `chart-1..5` 令牌并让相邻层深浅交替；按周的柱子从用户的每周第一天开始；`by_day` 与各分组行带 `cost_complete`，部分调用无价格时显示「至少」。
 - `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。
-
+- **扫描识别用途 `ocr` 与本地 OCR**（2026-10-28）：`ocr` 从 `vision` 拆出，推荐模型与轻量任务相同（`defaults.toml`）。自托管可装 `ocr` extra（PaddleOCR 3.x，`engine="onnxruntime"`，CPU，Mac 可跑）并设 `SEMESTRA_LOCAL_OCR=true`、`SEMESTRA_LOCAL_OCR_MODEL`（默认 PP-OCRv6_medium，可选 PP-OCRv6_tiny/small、PP-OCRv5_mobile/server）；此时每个用户在设置的 OCR 一行里选本机模型（「本服务器 · PaddleOCR」一组，存为 `provider_id` 为空的 `ai_model_assignments` 行；不选时用 `SEMESTRA_LOCAL_OCR_MODEL`），也可以选服务商的模型；`ai.status` 里 `ocr` 的 `source` 为 `local`，另外给出可选模型、已下载的模型、正在下载的模型和该用户这个模型的下载任务。识别在 M07 的 `ocr_isolated` 子进程里跑。镜像不带模型：第一次用到时由 `local_ocr.download` 下载到 `PADDLE_PDX_CACHE_HOME`（先 Hugging Face，带总大小，失败再走 PaddleX 镜像源），选模型或点「现在下载」时排任务 `ai.local_ocr.download`（阶段 `downloading`，按 MB 计数，失败为 `ai.local_ocr_download_failed`）。官方部署不开。Python 因此从 3.15 降到 3.14（onnxruntime 没有 3.15 wheel）。

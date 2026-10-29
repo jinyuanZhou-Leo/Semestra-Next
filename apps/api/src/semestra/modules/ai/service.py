@@ -13,7 +13,8 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.http import safe_client
 from semestra.core.security import encrypt, mask
-from semestra.modules.ai import catalog
+from semestra.modules.ai import catalog, local_ocr_jobs
+from semestra.modules.ai import local_ocr as ocr_local
 from semestra.modules.ai.adapters import adapter_for
 from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
 from semestra.modules.ai.llm import PURPOSE_NEEDS, PURPOSES, Purpose
@@ -30,6 +31,8 @@ from semestra.modules.ai.schemas import (
     Assignment,
     AssignmentList,
     AssignmentUpdateInput,
+    LocalOcrDownload,
+    LocalOcrDownloadInput,
     ModelList,
     ModelOption,
     ModelParams,
@@ -118,6 +121,10 @@ async def _effective(ctx: Ctx) -> dict[Purpose, tuple[str | None, str] | None]:
     """Which provider and model each purpose resolves to now, to see what a change affected."""
     out: dict[Purpose, tuple[str | None, str] | None] = {}
     for purpose in PURPOSES:
+        local = await ocr_local.choice(ctx) if purpose == "ocr" else None
+        if local is not None:
+            out[purpose] = (None, ocr_local.model_tag(local))
+            continue
         resolved = await try_resolve(ctx, purpose, with_key=False)
         out[purpose] = (resolved.endpoint.provider_id, resolved.model) if resolved else None
     return out
@@ -312,7 +319,23 @@ async def list_assignments(ctx: Ctx) -> AssignmentList:
 async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentList:
     before = await _effective(ctx)
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, inp.purpose))
-    if inp.provider_id is None:
+    if inp.provider_id is None and inp.model is not None and inp.purpose == "ocr":
+        # A local OCR model (self-hosted with local OCR only).
+        if not ocr_local.available(ctx.settings) or inp.model not in ocr_local.MODELS:
+            raise _invalid("model", "unknown")
+        if row is None:
+            ctx.db.add(
+                AiModelAssignment(
+                    user_id=ctx.user_id, purpose="ocr", provider_id=None, model=inp.model
+                )
+            )
+        else:
+            row.provider_id = None
+            row.model = inp.model
+            row.params = {}
+        # Picking a model fetches it now, so the first scanned file does not wait for it.
+        await local_ocr_jobs.start_download(ctx, inp.model)
+    elif inp.provider_id is None:
         if row is not None:
             await ctx.db.delete(row)
     else:
@@ -346,6 +369,20 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
 async def status(ctx: Ctx) -> AiStatusGet:
     items: list[PurposeStatus] = []
     for purpose in PURPOSES:
+        local = await ocr_local.choice(ctx) if purpose == "ocr" else None
+        if local is not None:
+            items.append(
+                PurposeStatus(
+                    purpose=purpose,
+                    available=True,
+                    source="local",
+                    provider_id=None,
+                    provider_kind=None,
+                    provider_name=None,
+                    model=local,
+                )
+            )
+            continue
         resolved = await try_resolve(ctx, purpose, with_key=False)
         if resolved is None:
             items.append(
@@ -372,7 +409,27 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 model=resolved.model,
             )
         )
-    return AiStatusGet(items=items)
+    if not ocr_local.available(ctx.settings):
+        return AiStatusGet(items=items)
+    # The download shown in the OCR row is for the model that row uses.
+    local = await ocr_local.choice(ctx)
+    return AiStatusGet(
+        items=items,
+        local_ocr_models=list(ocr_local.MODELS),
+        local_ocr_default=ocr_local.default_model(ctx.settings),
+        local_ocr_downloaded=[m for m in ocr_local.MODELS if ocr_local.downloaded(m)],
+        local_ocr_downloading=ocr_local.downloading(),
+        local_ocr_download_job=await local_ocr_jobs.latest_download(ctx, local) if local else None,
+    )
+
+
+async def download_local_ocr(ctx: Ctx, inp: LocalOcrDownloadInput) -> LocalOcrDownload:
+    """Starts downloading a local OCR model, unless it is already on this server."""
+    model = inp.model or await ocr_local.choice(ctx)
+    if not ocr_local.available(ctx.settings) or model not in ocr_local.MODELS:
+        raise _invalid("model", "unknown")
+    job = await local_ocr_jobs.start_download(ctx, model)
+    return LocalOcrDownload(job_id=job.id if job is not None else None)
 
 
 # --- usage ----------------------------------------------------------------------------------

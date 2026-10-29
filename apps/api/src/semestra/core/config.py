@@ -55,6 +55,18 @@ class Settings(BaseSettings):
     # worker or exhaust the API's memory (M07 §3.1).
     files_parse_timeout_seconds: float = 300
     files_parse_memory_bytes: int = 2_147_483_648
+    # Local OCR of scanned pages (self-hosting, `semestra-api[ocr]`): PaddleOCR on ONNX Runtime,
+    # CPU only, so it runs the same in Docker and natively on a Mac. Users can pick it (or one of
+    # its models) for OCR when the extra is installed and this is on (the `-ocr` image does).
+    local_ocr: bool = False
+    # The model used when a user picks none, `<name>_det` + `<name>_rec`: PP-OCRv6_tiny|small|
+    # medium or PP-OCRv5_mobile|server.
+    local_ocr_model: str = "PP-OCRv6_medium"
+    # OCR runs in a child process (one at a time); each page must be read within this much of the
+    # one before (the first gets two more minutes to load the model); generous so a slow CPU still
+    # finishes. No address-space limit:
+    # ONNX Runtime reserves far more virtual memory than it uses.
+    local_ocr_page_timeout_seconds: float = 60
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"

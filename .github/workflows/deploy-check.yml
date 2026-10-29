@@ -124,3 +124,57 @@ jobs:
         run: |
           docker logs api || true
           docker logs allinone || true
+
+  # The default self-hosted image. Releases build it for arm64 too; amd64 is enough to catch a
+  # broken build, a missing system library or a model download that no longer works.
+  ocr-image:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          target: allinone-ocr
+          platforms: linux/amd64
+          load: true
+          tags: semestra-allinone:ci-ocr
+          cache-from: type=gha,scope=allinone-ocr
+          cache-to: type=gha,scope=allinone-ocr,mode=max,ignore-error=true
+
+      - name: Image size
+        run: docker image ls semestra-allinone:ci-ocr
+
+      # The image has no model (each one downloads at run time, into the data volume): it serves,
+      # PaddleOCR and onnxruntime load, and every model users can pick is still on Hugging Face,
+      # the download source with known sizes. Nothing is downloaded here.
+      - name: Serves, loads PaddleOCR and finds every model
+        run: |
+          docker run -d --name ocr -e SEMESTRA_AUTO_SECRETS=true semestra-allinone:ci-ocr
+          for _ in $(seq 1 60); do
+            if docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"; then break; fi
+            sleep 2
+          done
+          docker exec ocr python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+          test "$(docker exec ocr id -u)" = 10001
+          docker exec ocr sh -c 'test ! -d "$PADDLE_PDX_CACHE_HOME/official_models"'
+          docker exec ocr python -c "
+          import onnxruntime, paddleocr
+          from huggingface_hub import HfApi
+          from semestra.modules.ai import local_ocr
+          assert local_ocr._installed()
+          api = HfApi()
+          for model in local_ocr.MODELS:
+              for part in local_ocr._parts(model):
+                  info = api.model_info(f'PaddlePaddle/{part}', files_metadata=True)
+                  size = sum(s.size or 0 for s in info.siblings or [])
+                  assert size, part
+                  print(part, size // 1_000_000, 'MB')
+          "
+          docker rm -f ocr
+
+      - name: Logs on failure
+        if: failure()
+        run: docker logs ocr || true
