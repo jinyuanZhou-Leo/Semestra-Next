@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { useTaskActions } from '../actions'
@@ -11,7 +12,7 @@ export default function TodayCard({ scope, size }: CardProps) {
   const tasks = useTodayTasks(scope.programId, termId).data?.items
   const { actions } = useTaskActions()
   const today = useProgramToday(scope.programId)
-  if (!tasks) return null
+  if (!tasks) return <CardSkeleton />
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

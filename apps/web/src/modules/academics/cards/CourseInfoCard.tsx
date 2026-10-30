@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { formatCredits } from '@/lib/format'
@@ -24,7 +25,7 @@ export default function CourseInfoCard({ scope }: CardProps) {
   const extraRows = useExtensions<CourseInfoRow>(COURSE_INFO_ROWS).toSorted(
     (a, b) => a.order - b.order,
   )
-  if (!course) return null
+  if (!course) return <CardSkeleton />
   const termNames = course.term_ids
     .map((id) => terms.find((t) => t.id === id)?.name)
     .filter(Boolean)

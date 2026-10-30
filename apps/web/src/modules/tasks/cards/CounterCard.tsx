@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { useTaskCounts } from '../queries'
@@ -8,7 +9,7 @@ export default function CounterCard({ scope }: CardProps) {
     programId: scope.programId,
     termId: scope.kind === 'term' ? scope.termId : undefined,
   }).data
-  if (!counts) return null
+  if (!counts) return <CardSkeleton />
   return (
     <div className="flex h-full flex-col justify-center">
       <span className="font-heading text-3xl font-semibold tabular-nums">{counts.all}</span>

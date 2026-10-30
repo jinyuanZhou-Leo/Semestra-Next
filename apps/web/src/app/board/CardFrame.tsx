@@ -13,6 +13,7 @@ import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
 import type { DraftCard } from './Board'
 import { CardSettingsDialog } from './CardSettingsDialog'
+import { CardSkeleton } from './CardSkeleton'
 import { SPANS } from './layout'
 import { useCardSettings } from './queries'
 import { parseCardSettings } from './settings'
@@ -172,7 +173,7 @@ export function CardFrame({
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3"
           inert={editing || undefined}
         >
-          <PluginBoundary compact>
+          <PluginBoundary compact fallback={<CardSkeleton />}>
             <Body {...props} />
           </PluginBoundary>
         </div>

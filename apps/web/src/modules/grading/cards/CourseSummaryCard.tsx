@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { coursePath } from '@/modules/academics/paths'
@@ -12,7 +13,7 @@ import { useGradebook } from '../queries'
 export default function CourseSummaryCard({ scope, size }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const { data } = useGradebook(courseId)
-  if (!data) return null
+  if (!data) return <CardSkeleton />
   const { summary: s, scale, result } = data
   const { final, percentage: grade, letter, points } = headline(s)
   const next = data.assessments

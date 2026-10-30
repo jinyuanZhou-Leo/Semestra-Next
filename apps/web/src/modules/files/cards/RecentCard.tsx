@@ -1,11 +1,11 @@
 import type { ItemOut } from '@semestra/api-client'
 import { FileClock } from 'lucide-react'
 import { useState } from 'react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Skeleton } from '@/ui/skeleton'
 import { useExternalLink } from '../components/ExternalLink'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { useCourseFiles } from '../queries'
@@ -20,14 +20,7 @@ export default function RecentCard({ scope }: CardProps) {
   const [preview, setPreview] = useState<PreviewTarget | null>(null)
   const link = useExternalLink()
 
-  if (!list.data) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-6 w-full" />
-      </div>
-    )
-  }
+  if (!list.data) return <CardSkeleton />
   const recent = list.data.items
     .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, LIMIT)

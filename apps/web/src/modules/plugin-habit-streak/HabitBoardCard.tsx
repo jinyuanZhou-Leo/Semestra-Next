@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,8 @@ export default function HabitBoardCard({ instanceId, size, settings }: CardProps
     (stats.goal === 'weekly'
       ? m.habit_streak_weeks({ count: stats.current_streak })
       : m.habit_streak_days({ count: stats.current_streak }))
+
+  if (!stats) return <CardSkeleton />
 
   return (
     <div className="relative flex h-full flex-col gap-2">

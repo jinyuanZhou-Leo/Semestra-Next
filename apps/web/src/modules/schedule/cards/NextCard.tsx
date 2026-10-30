@@ -1,4 +1,5 @@
 import { MapPin } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { countdown } from '../countdown'
@@ -23,7 +24,7 @@ export default function NextCard({ scope }: CardProps) {
     },
     Boolean(tz) && scope.kind === 'course',
   ).data
-  if (!data || !tz) return null
+  if (!data || !tz) return <CardSkeleton />
   const next = data.items.find(
     (o) => o.status !== 'cancelled' && new Date(o.end_at ?? o.start_at).getTime() > now,
   )

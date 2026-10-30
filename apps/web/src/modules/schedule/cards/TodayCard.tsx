@@ -1,6 +1,7 @@
 import type { Occurrence } from '@semestra/api-client'
 import { CalendarCheck } from 'lucide-react'
 import { Fragment } from 'react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -20,7 +21,7 @@ function endOf(o: Occurrence): number {
 export default function TodayCard({ scope, size }: CardProps) {
   const today = useToday(scope.programId).data
   const now = useNow()
-  if (!today) return null
+  if (!today) return <CardSkeleton />
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const items = today.items.filter((o) => !termId || !o.meta?.term_id || o.meta.term_id === termId)
   if (items.length === 0) {
