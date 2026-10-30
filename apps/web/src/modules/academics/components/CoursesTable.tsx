@@ -71,6 +71,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor } from '../color'
+import { AddCoursesMenu } from './AddCoursesMenu'
 import { DeleteCourseDialog } from './DeleteCourseDialog'
 import { coursePath } from '../paths'
 import { type Pin as PinRef, usePins } from '../pins'
@@ -266,15 +267,15 @@ export function CoursesTable({
   termId,
   onTermChange,
   lockTerm = false,
-  onAddCourse,
+  canAdd = false,
 }: {
   programId: string
   courses: Course[]
   termId?: string
   onTermChange?: (termId: string | undefined) => void
   lockTerm?: boolean
-  /** Adds a course to the term being looked at: the empty state's button and the table's foot. */
-  onAddCourse?: () => void
+  /** With `lockTerm`: "Add course" for that term, in the empty state and the table's foot. */
+  canAdd?: boolean
 }) {
   const router = useRouter()
   const settings = useSettingsDialog()
@@ -457,9 +458,19 @@ export function CoursesTable({
           <EmptyTitle>{m.terms_courses_term_empty()}</EmptyTitle>
           <EmptyDescription>{m.terms_courses_term_empty_description()}</EmptyDescription>
         </EmptyHeader>
-        {onAddCourse ? (
+        {canAdd && termId ? (
           <EmptyContent>
-            <Button onClick={onAddCourse}>{m.academics_course_add()}</Button>
+            <AddCoursesMenu
+              programId={programId}
+              termId={termId}
+              align="center"
+              trigger={
+                <Button>
+                  {m.academics_course_add()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </Button>
+              }
+            />
           </EmptyContent>
         ) : null}
       </Empty>
@@ -698,11 +709,13 @@ export function CoursesTable({
               </EmptyContent>
             </Empty>
           ) : null}
-          {onAddCourse ? (
+          {canAdd && termId ? (
             <div className="border-t">
-              <ActionRow icon={Plus} onClick={onAddCourse}>
-                {m.academics_course_add()}
-              </ActionRow>
+              <AddCoursesMenu
+                programId={programId}
+                termId={termId}
+                trigger={<ActionRow icon={Plus}>{m.academics_course_add()}</ActionRow>}
+              />
             </div>
           ) : null}
         </div>

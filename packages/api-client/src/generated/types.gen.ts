@@ -8627,7 +8627,7 @@ export type SessionTarget = {
     /**
      * Term Id
      *
-     * Term (kind term, or course's term)
+     * Term (kind term, or course's term; with term_wizard, the existing term the courses are added to, for its real weeks)
      */
     term_id?: string | null;
     /**

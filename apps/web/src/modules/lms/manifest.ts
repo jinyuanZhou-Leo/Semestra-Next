@@ -5,7 +5,7 @@ import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grad
 import { m } from '@/paraglide/messages'
 import { CourseInfoLms } from './components/CourseInfoLms'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
-import { assignmentSource, termCourseCommand, wizardCourseSource } from './import/sources'
+import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
@@ -88,7 +88,6 @@ export default defineModule({
       multiple: false,
     },
   ],
-  commands: [termCourseCommand],
   calendarSources: [
     {
       source: 'lms.events',

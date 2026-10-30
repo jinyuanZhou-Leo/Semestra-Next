@@ -2,7 +2,7 @@ import { type ImportSessionDetail, lmsCourseQueueUpdates } from '@semestra/api-c
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
-import { type CommandContribution, preload, preloadable } from '@/app/extensions'
+import { preload, preloadable } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
 import { wizardImportSource } from '@/modules/imports/entries'
@@ -37,11 +37,11 @@ function AssignmentsTitle({ programId }: { programId: string }) {
 }
 
 /** The M08 import dialog, starting with the course picker (M09 §7.2). */
-function courseRequest(programId: string, target: CourseImportTarget, mode: 'wizard' | 'direct') {
+function courseRequest(programId: string, target: CourseImportTarget) {
   void preload(CoursePicker)
   return {
     programId,
-    mode,
+    mode: 'wizard' as const,
     source: 'picker' as const,
     picker: {
       title: m.lms_import_courses,
@@ -56,7 +56,7 @@ function courseRequest(programId: string, target: CourseImportTarget, mode: 'wiz
   }
 }
 
-/** "Import courses from {provider}" in the term wizard: the wizard creates the courses, then the links. */
+/** "Import courses from {provider}" in the term wizard and "Add course": courses first, then the links. */
 export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   id: 'lms.courses',
   title: m.lms_import_courses,
@@ -64,22 +64,8 @@ export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
   icon: School,
-  request: ({ programId, startDate, endDate }) =>
-    courseRequest(programId, { wizard: true, startDate, endDate }, 'wizard'),
+  request: ({ programId, startDate, endDate }) => courseRequest(programId, { startDate, endDate }),
 })
-
-/** The same from the command palette on a term page: the courses go to that term. */
-export const termCourseCommand: CommandContribution = {
-  id: 'lms.import-courses',
-  title: m.lms_import_courses,
-  icon: School,
-  scopes: ['term'],
-  isAvailable: ({ scope }) => scope?.kind === 'term',
-  run: async ({ scope }) => {
-    if (scope?.kind !== 'term') return
-    await openImport(courseRequest(scope.programId, { termId: scope.termId }, 'direct'))
-  },
-}
 
 /** The gradebook's "Import from… → {provider} assignments": committed in the dialog. */
 export const assignmentSource: AssessmentImportSource = {

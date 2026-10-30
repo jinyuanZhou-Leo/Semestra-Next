@@ -423,6 +423,25 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert len(meetings) == 2
 
 
+async def test_wizard_session_for_an_existing_term_uses_its_weeks(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    # "Add course" on a term that exists: week numbers skip its reading week.
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    upload = await api.upload("aps105.txt", b"APS105 syllabus", "text/plain")
+    session = await api.create(
+        program_id, source_kind="syllabus",
+        target={"kind": "term_wizard", "term_id": term_id, "start_date": "2026-01-05",
+                "end_date": "2026-04-24"},
+        upload_ids=[upload],
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    midterm = next(a for a in by_type(session, "assessment") if a["data"]["title"] == "Midterm")
+    assert midterm["data"]["due_date"] == "2026-02-26"
+
+
 async def test_wizard_session_commits_after_the_term_exists(
     api: Api, fake_ai: list[dict[str, Any]], run_jobs
 ):

@@ -332,7 +332,13 @@ test('the course picker skips linked courses and starts an import into the term'
     http.get(`${API}/imports/s1`, () => HttpResponse.json({ id: 's1', items: [] })),
   )
   const onStarted = vi.fn<(session: ImportSessionDetail) => void>()
-  renderWithRouter(<CoursePicker programId="p1" target={{ termId: 't1' }} onStarted={onStarted} />)
+  renderWithRouter(
+    <CoursePicker
+      programId="p1"
+      target={{ startDate: '2026-09-08', endDate: '2026-12-08' }}
+      onStarted={onStarted}
+    />,
+  )
   expect(await screen.findByRole('checkbox', { name: /Linear Algebra/ })).toHaveAttribute(
     'aria-disabled',
     'true',
@@ -341,7 +347,12 @@ test('the course picker skips linked courses and starts an import into the term'
   await userEvent.click(screen.getByRole('checkbox', { name: /Computer Fundamentals/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Review 1' }))
   await waitFor(() => expect(onStarted).toHaveBeenCalled())
-  expect(started).toHaveBeenCalledWith({ external_course_ids: ['101'], term_id: 't1' })
+  expect(started).toHaveBeenCalledWith({
+    external_course_ids: ['101'],
+    term_wizard: true,
+    start_date: '2026-09-08',
+    end_date: '2026-12-08',
+  })
 })
 
 test('the updates banner shows changed assignments of a synced course', async () => {

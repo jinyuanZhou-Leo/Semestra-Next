@@ -1,4 +1,4 @@
-import type { BreakIn, Course, Term } from '@semestra/api-client'
+import type { BreakIn, Course, CourseFields, Term } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
 import type { CourseDraft } from '../types'
 
@@ -106,6 +106,37 @@ export function newRowKey(): string {
   counter += 1
   return `row-${Date.now().toString(36)}-${counter}`
 }
+
+/** A row for a course an import source read in; it keeps the draft for the source's callback. */
+export function importedRow(sourceId: string, d: CourseDraft): DraftRow {
+  return {
+    key: newRowKey(),
+    code: d.code ?? '',
+    title: d.title,
+    credits: d.credits == null ? '' : String(d.credits),
+    yearLong: (d.plannedTerms ?? 1) > 1,
+    sourceId,
+    draft: d,
+  }
+}
+
+/** What `academics.term.create` and `academics.course.create_many` get for a filled row. */
+export function courseFields(row: DraftRow): CourseFields {
+  return {
+    code: row.code.trim() || null,
+    title: row.title.trim(),
+    credits: row.credits.trim() === '' ? null : Number(row.credits),
+    planned_terms: row.yearLong ? 2 : 1,
+    instructors: row.draft?.instructors ?? [],
+    description: row.draft?.description ?? null,
+  }
+}
+
+/** The rows that will be created: typed or imported, not left blank. */
+export const filledRows = (rows: readonly DraftRow[]) => rows.filter((row) => !rowIsEmpty(row))
+
+export const rowsInvalid = (rows: readonly DraftRow[]) =>
+  filledRows(rows).some((row) => !row.title.trim() || creditsProblem(row.credits))
 
 export function rowIsEmpty(row: DraftRow): boolean {
   return !row.code.trim() && !row.title.trim() && !row.credits.trim()
