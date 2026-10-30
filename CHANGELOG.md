@@ -3,6 +3,20 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.8.0 (2026-10-30)
+
+### Improved
+
+- **Overview & Today:** Cards show a skeleton while they load.
+- **Terms & courses:** Every "Add course" button now offers the same choices as the new-term wizard: enter courses manually, continue a full-year course from last term, or import them from a calendar file, syllabus, screenshot, pasted text or your LMS.
+
+### Fixed
+
+- **General:** Performance improvements.
+- **Sem:** When no AI provider is set up, Sem shows the setup prompt directly instead of briefly showing the chat first.
+- **AI:** The provider list in the Add provider dialog now fills the full width.
+- **AI:** When adding a known compatible service, its address, model and capabilities now sit under a lighter "Endpoint settings" section.
+
 ## 1.7.0 (2026-10-29)
 
 ### New
