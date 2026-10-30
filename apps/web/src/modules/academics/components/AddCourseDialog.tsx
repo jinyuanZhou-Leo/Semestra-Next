@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -52,7 +52,8 @@ export function AddCourseDialog({
     onSuccess: () => setOpen(false),
   })
 
-  const submit = () => {
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
     setTouched(true)
     if (rowsInvalid(rows) || filled.length === 0) return
     create.mutate()
@@ -74,23 +75,25 @@ export function AddCourseDialog({
             </DialogDescription>
           ) : null}
         </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <CourseRowsEditor
-            programId={programId}
-            rows={rows}
-            touched={touched}
-            defaultCredits={defaultCredits}
-            onRowsChange={(update) => setRows(update)}
-          />
-        </div>
-        <DialogFooter className="items-center sm:justify-between">
-          <span className="truncate text-sm text-muted-foreground">
-            {m.academics_wizard_summary_courses({ count: filled.length })}
-          </span>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending ? m.common_saving() : m.academics_course_add_submit()}
-          </Button>
-        </DialogFooter>
+        <form noValidate onSubmit={submit} className="contents">
+          <div className="max-h-[60vh] overflow-y-auto">
+            <CourseRowsEditor
+              programId={programId}
+              rows={rows}
+              touched={touched}
+              defaultCredits={defaultCredits}
+              onRowsChange={(update) => setRows(update)}
+            />
+          </div>
+          <DialogFooter className="items-center sm:justify-between">
+            <span className="truncate text-sm text-muted-foreground">
+              {m.academics_wizard_summary_courses({ count: filled.length })}
+            </span>
+            <Button type="submit" disabled={create.isPending || filled.length === 0}>
+              {create.isPending ? m.common_saving() : m.academics_course_add_submit()}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

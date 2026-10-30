@@ -6,7 +6,9 @@ import {
 import { type QueryClient, useQueries, useQueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { useExtensions } from '@/app/registry'
-import { toastError } from '@/lib/errors'
+import { toast } from 'sonner'
+import { errorMessage, toastError } from '@/lib/errors'
+import { m } from '@/paraglide/messages'
 import { invalidateAcademics, useCourses, useTerms } from './queries'
 import { TERM_WIZARD_IMPORT_SOURCES, type TermWizardImportSource } from './types'
 import {
@@ -133,19 +135,26 @@ export function useAddCourseOptions(programId: string, termId: string) {
       .catch(toastError)
   }
 
-  /** The source's import dialog reviews the courses; they are created when it closes. */
+  /**
+   * The source's import dialog reviews the courses; they are created when it closes, with a
+   * toast while that runs (the source then writes their meetings, assessments or links).
+   */
   const importFrom = async (source: TermWizardImportSource) => {
-    await source
-      .launch({ programId, startDate: term?.start_date, endDate: term?.end_date })
-      .then((drafts) =>
-        createCourses(queryClient, {
-          programId,
-          termId,
-          rows: drafts.map((d) => importedRow(source.id, d)),
-          sources,
-        }),
-      )
-      .catch(toastError)
+    const drafts = await source
+      .launch({ programId, termId, startDate: term?.start_date, endDate: term?.end_date })
+      .catch((error: unknown) => {
+        toastError(error)
+        return []
+      })
+    if (drafts.length === 0) return
+    const rows = drafts.map((d) => importedRow(source.id, d))
+    const done = createCourses(queryClient, { programId, termId, rows, sources })
+    toast.promise(done, {
+      loading: m.academics_course_add_importing(),
+      success: m.academics_course_add_done({ count: rows.length }),
+      error: errorMessage,
+    })
+    await done.catch(() => undefined)
   }
 
   return { candidates, sources, continueCourse, importFrom }
