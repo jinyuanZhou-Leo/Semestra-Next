@@ -124,6 +124,7 @@ export default defineModule({
       defaultSize: 'l',
       component: preloadable(() => import('./cards/WeekCard')),
       multiple: false,
+      skeleton: 'chart',
     },
     {
       id: 'schedule.next',
@@ -134,6 +135,7 @@ export default defineModule({
       defaultSize: 's',
       component: preloadable(() => import('./cards/NextCard')),
       multiple: false,
+      skeleton: 'text',
     },
   ],
   defaultBoard: {

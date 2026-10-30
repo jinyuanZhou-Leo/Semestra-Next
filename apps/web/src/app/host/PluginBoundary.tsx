@@ -81,15 +81,20 @@ export function PluginBoundary({
   children,
   compact,
   silent,
+  fallback,
 }: {
   children: ReactNode
   compact?: boolean
   silent?: boolean
+  /** Shown instead of the skeleton block while lazy code loads. */
+  fallback?: ReactNode
 }) {
   return (
     <ErrorBoundary compact={compact} silent={silent}>
       <Suspense
-        fallback={silent ? null : <LoadingBlock className={compact ? undefined : 'h-40'} />}
+        fallback={
+          silent ? null : (fallback ?? <LoadingBlock className={compact ? undefined : 'h-40'} />)
+        }
       >
         {children}
       </Suspense>

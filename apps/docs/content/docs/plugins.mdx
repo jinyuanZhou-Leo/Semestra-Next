@@ -60,6 +60,7 @@ export default defineModule({
     settings: { schema: zodSchema, component: preloadable(...) },   // component is optional; without it a form is generated from the schema
     multiple: true,
     headerActions: ...,        // card header actions (the counter's "reset")
+    skeleton: 'stat',          // optional: 'list' (default), 'stat', 'chart' or 'text', shown while the card loads
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // sidebar status bar (Pomodoro shows the running timer here)
@@ -85,6 +86,10 @@ export default defineModule({
   300 ms, the sticky note 800 ms.
 - Do not draw your own card frame or add your own padding; spacing inside the frame is the
   host's.
+- While the card's main data is `undefined`, return `<CardSkeleton />` (`@/app/board`) instead of
+  `null`, a spinner or an empty state. It draws the `skeleton` shape from the manifest, fills the
+  card body without changing its height and fades in after 150 ms; the host shows the same skeleton
+  while the card's code loads.
 - Business data (rows that are not settings, such as check-ins) goes through the plugin's own
   capabilities with the generated `@semestra/api-client`; never hand-write `fetch`. Query keys come
   from the generated client; invalidate them by matching an object subset.

@@ -25,6 +25,7 @@ export default defineModule({
         component: preloadable(() => import('./CounterSettingsForm')),
       },
       multiple: true,
+      skeleton: 'stat',
       headerActions: CounterHeaderActions,
     },
   ],

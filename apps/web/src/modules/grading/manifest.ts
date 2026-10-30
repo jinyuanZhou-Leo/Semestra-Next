@@ -77,6 +77,7 @@ export default defineModule({
       defaultSize: 'm',
       component: preloadable(() => import('./cards/CourseSummaryCard')),
       multiple: false,
+      skeleton: 'stat',
     },
     {
       id: 'grading.termSummary',
@@ -87,6 +88,7 @@ export default defineModule({
       defaultSize: 'm',
       component: preloadable(() => import('./cards/TermSummaryCard')),
       multiple: false,
+      skeleton: 'stat',
     },
     {
       id: 'grading.programKpis',
@@ -97,6 +99,7 @@ export default defineModule({
       defaultSize: 'xl',
       component: preloadable(() => import('./cards/ProgramKpisCard')),
       multiple: false,
+      skeleton: 'stat',
     },
     {
       id: 'grading.programCharts',
@@ -107,6 +110,7 @@ export default defineModule({
       defaultSize: 'l',
       component: preloadable(() => import('./cards/ProgramChartsCard')),
       multiple: false,
+      skeleton: 'chart',
     },
     {
       id: 'grading.upcoming',

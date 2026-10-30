@@ -7,13 +7,13 @@ import {
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Spinner } from '@/ui/spinner'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
@@ -31,13 +31,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
   const { rows: all, linked, loading, failed } = courseId ? own : term
   const rows = all.slice(0, LIMIT[size] ?? 8)
 
-  if (loading && rows.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner aria-label={m.common_loading()} />
-      </div>
-    )
-  }
+  if (loading && rows.length === 0) return <CardSkeleton />
   if (rows.length === 0) {
     return (
       <Empty className="border-0 p-0">

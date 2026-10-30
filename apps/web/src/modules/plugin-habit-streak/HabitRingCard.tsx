@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,8 @@ export default function HabitRingCard({ instanceId, size, settings }: CardProps<
       ? m.habit_streak_weeks({ count: stats.current_streak })
       : m.habit_streak_days({ count: stats.current_streak })
     : ''
+
+  if (!stats) return <CardSkeleton />
 
   const ring = (
     <Toggle

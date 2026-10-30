@@ -70,6 +70,7 @@ export default defineModule({
       defaultSize: 's',
       component: preloadable(() => import('./cards/CounterCard')),
       multiple: false,
+      skeleton: 'stat',
     },
   ],
   defaultBoard: {

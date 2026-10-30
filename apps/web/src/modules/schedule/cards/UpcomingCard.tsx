@@ -1,5 +1,6 @@
 import type { Occurrence } from '@semestra/api-client'
 import { CalendarClock } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -11,7 +12,7 @@ import { wallDate } from '../time'
 /** Deadlines of the next 7 days (assessments, tasks with a due date), grouped by day (M04 §5.5). */
 export default function UpcomingCard({ scope }: CardProps) {
   const today = useToday(scope.programId).data
-  if (!today) return null
+  if (!today) return <CardSkeleton />
   if (today.upcoming.length === 0) {
     return (
       <Empty className="border-0 p-0">

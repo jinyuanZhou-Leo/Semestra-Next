@@ -1,4 +1,5 @@
 import { CalendarDays } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { firstDayOfWeek } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -28,7 +29,7 @@ export default function WeekCard({ scope }: CardProps) {
     },
     Boolean(tz),
   ).data
-  if (!occurrences || !tz) return null
+  if (!occurrences || !tz) return <CardSkeleton />
   const items = weekGridItems(occurrences.items, tz)
   if (items.length === 0) {
     return (

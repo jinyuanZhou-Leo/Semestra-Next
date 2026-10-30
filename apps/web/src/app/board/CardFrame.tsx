@@ -13,6 +13,7 @@ import type { CardContribution, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
 import type { DraftCard } from './Board'
 import { CardSettingsDialog } from './CardSettingsDialog'
+import { CardSkeleton, CardSkeletonContext } from './CardSkeleton'
 import { SPANS } from './layout'
 import { useCardSettings } from './queries'
 import { parseCardSettings } from './settings'
@@ -172,9 +173,11 @@ export function CardFrame({
           className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3"
           inert={editing || undefined}
         >
-          <PluginBoundary compact>
-            <Body {...props} />
-          </PluginBoundary>
+          <CardSkeletonContext value={{ shape: contribution.skeleton ?? 'list', size: card.size }}>
+            <PluginBoundary compact fallback={<CardSkeleton />}>
+              <Body {...props} />
+            </PluginBoundary>
+          </CardSkeletonContext>
         </div>
         {resizingTo ? (
           <span className="pointer-events-none absolute right-8 bottom-2 rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground tabular-nums">
