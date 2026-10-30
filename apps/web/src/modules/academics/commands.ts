@@ -3,11 +3,16 @@ import {
   academicsTermListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarRange } from 'lucide-react'
-import type { CommandChild, NavigationSourceContribution } from '@/app/extensions'
+import { BookPlus, CalendarPlus, CalendarRange, PencilLine, Repeat } from 'lucide-react'
+import type {
+  CommandChild,
+  CommandContribution,
+  NavigationSourceContribution,
+} from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { courseColor, courseLabel } from './color'
-import { coursePath, termPath } from './paths'
+import { openAddCourses, useAddCourseOptions } from './add-courses'
+import { coursePath, newTermPath, termPath } from './paths'
 
 /** The terms and courses of the Program on screen, for the palette's "Navigation" group. */
 export const academicsNavigation: NavigationSourceContribution = {
@@ -42,5 +47,56 @@ export const academicsNavigation: NavigationSourceContribution = {
       })
     }
     return items
+  },
+}
+
+/** "New term": the term wizard, from any page of a Program. */
+export const newTermCommand: CommandContribution = {
+  id: 'academics.new-term',
+  title: m.academics_term_new,
+  icon: CalendarPlus,
+  isAvailable: ({ programId }) => Boolean(programId),
+  run: ({ programId, navigate }) => {
+    if (programId) navigate(newTermPath(programId))
+  },
+}
+
+/** "Add course" on a term page: the same choices as the term's "Add course" menu. */
+export const addCourseCommand: CommandContribution = {
+  id: 'academics.add-course',
+  title: m.academics_course_add,
+  icon: BookPlus,
+  scopes: ['term'],
+  isAvailable: ({ scope }) => scope?.kind === 'term',
+  useChildren: function useAddCourseChildren({ scope }) {
+    const programId = scope?.programId ?? ''
+    const termId = scope?.kind === 'term' ? scope.termId : ''
+    const { candidates, sources, continueCourse, importFrom } = useAddCourseOptions(
+      programId,
+      termId,
+    )
+    return [
+      {
+        id: 'manual',
+        title: m.academics_course_add_manual(),
+        subtitle: m.academics_course_add_manual_description(),
+        icon: PencilLine,
+        run: () => openAddCourses(programId, termId),
+      },
+      ...candidates.map((course): CommandChild => ({
+        id: `continue:${course.id}`,
+        title: course.code || course.title,
+        subtitle: m.academics_course_add_continue(),
+        icon: Repeat,
+        run: () => continueCourse(course),
+      })),
+      ...sources.map((source): CommandChild => ({
+        id: `import:${source.id}`,
+        title: source.title(),
+        subtitle: source.description?.(),
+        icon: source.icon,
+        run: () => importFrom(source),
+      })),
+    ]
   },
 }

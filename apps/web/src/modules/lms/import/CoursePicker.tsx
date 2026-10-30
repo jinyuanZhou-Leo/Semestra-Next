@@ -24,10 +24,8 @@ import { Switch } from '@/ui/switch'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName } from '../providers'
 
-/** Where the imported courses go: a term, or the term the wizard is about to create. */
-export type CourseImportTarget =
-  | { termId: string }
-  | { wizard: true; startDate?: string; endDate?: string }
+/** The dates of the term the courses go to (one that exists or the wizard is about to create). */
+export type CourseImportTarget = { startDate?: string; endDate?: string }
 
 export async function startedSession(sessionId: string): Promise<ImportSessionDetail> {
   const { data } = await importsSessionGet({ path: { session_id: sessionId }, throwOnError: true })
@@ -108,15 +106,12 @@ function CourseList({
   const start = () => {
     setStarting(true)
     setStartError(null)
-    const body =
-      'termId' in target
-        ? { external_course_ids: [...picked], term_id: target.termId }
-        : {
-            external_course_ids: [...picked],
-            term_wizard: true,
-            start_date: target.startDate ?? null,
-            end_date: target.endDate ?? null,
-          }
+    const body = {
+      external_course_ids: [...picked],
+      term_wizard: true,
+      start_date: target.startDate ?? null,
+      end_date: target.endDate ?? null,
+    }
     lmsCourseImport({ path: { program_id: programId }, body, throwOnError: true })
       .then(({ data }) => startedSession(data.session_id))
       .then(onStarted, (error: unknown) => {

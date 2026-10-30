@@ -37,10 +37,10 @@ export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
     icon: SOURCES[source].icon,
-    request: ({ programId, startDate, endDate }) => ({
+    request: ({ programId, startDate, endDate, termId }) => ({
       programId,
       source,
-      target: { kind: 'term_wizard', start_date: startDate, end_date: endDate },
+      target: { kind: 'term_wizard', start_date: startDate, end_date: endDate, term_id: termId },
       mode: 'wizard',
     }),
   })

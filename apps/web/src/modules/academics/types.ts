@@ -51,7 +51,13 @@ export type CourseDraft = {
   extras?: Record<string, unknown>
 }
 
-export type TermWizardContext = { programId: string; startDate?: string; endDate?: string }
+export type TermWizardContext = {
+  programId: string
+  startDate?: string
+  endDate?: string
+  /** "Add course" on a term that exists: imports use its real weeks (breaks skipped). */
+  termId?: string
+}
 
 /** `onCoursesCreated` gets the ids the wizard created, keyed by draft index. */
 export type CreatedCourseMapping = { draft: CourseDraft; courseId: string }[]
