@@ -2,7 +2,6 @@ import { useLocation } from '@tanstack/react-router'
 import { type ReactNode, Suspense, useEffect, useState } from 'react'
 import { preload, preloadable } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
-import { useIsMobile } from '@/hooks/use-mobile'
 import { whenSettled } from '@/lib/when-settled'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable'
 import { Spinner } from '@/ui/spinner'
@@ -23,11 +22,10 @@ const ASSISTANT_PAGE = /\/assistant(\/|$)/
 
 /**
  * The app shell's content with the assistant docked on the right (M12 §6.1): 360–720 px wide,
- * dragged by its edge, and the width is remembered. Not on phones or on the assistant page.
+ * dragged by its edge, and the width is remembered. Not on the assistant page.
  */
 export function AssistantDock({ children }: { children: ReactNode }) {
   const { open } = usePanel()
-  const isMobile = useIsMobile()
   const pathname = useLocation({ select: (l) => l.pathname })
   const href = useLocation({ select: (l) => l.href })
   // The full page's hand-over to the panel goes back to the page before it.
@@ -35,7 +33,7 @@ export function AssistantDock({ children }: { children: ReactNode }) {
     if (!ASSISTANT_PAGE.test(href)) panel.setReturnTo(href)
   }, [href])
   useEffect(() => whenSettled(() => void preload(AssistantPanel)), [])
-  const shown = open && !isMobile && !ASSISTANT_PAGE.test(pathname)
+  const shown = open && !ASSISTANT_PAGE.test(pathname)
   // Read here, where it is always mounted, so the remembered width stays in the cache.
   const [width, setWidth] = useUiPref('layout.assistant_width', PANEL_DEFAULT)
 

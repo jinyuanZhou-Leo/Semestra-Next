@@ -25,5 +25,61 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "import/no-unassigned-import": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["apps/web/src/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/mobile/*"],
+                "message": "Desktop code does not use the phone UI (M17). Only manifests (`mobile.component`), the Program route and the registry load it."
+              },
+              {
+                "group": ["@/hooks/use-mobile"],
+                "message": "Desktop components have no phone branches (M17): below 768px the phone shell renders instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/web/src/modules/*/manifest.ts",
+        "apps/web/src/routes/_authed.p.$programId.tsx",
+        "apps/web/src/app/registry.ts",
+        "apps/web/src/**/*.test.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["apps/web/src/**/mobile/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/pages/*",
+                  "**/cards/*",
+                  "@/app/board/*",
+                  "@/modules/academics/shell/*",
+                  "@/app/host/*",
+                  "!@/app/host/PluginBoundary"
+                ],
+                "message": "Phone pages reuse data and logic, not desktop pages, cards, the board or the desktop shell (M17)."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

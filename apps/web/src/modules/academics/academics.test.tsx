@@ -7,6 +7,7 @@ import { FileText, NotebookPen } from 'lucide-react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { defineModule } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
+import { PHONE_QUERY } from '@/app/mobile/phone'
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
@@ -56,6 +57,7 @@ const lists = defineModule({
       title: () => 'Lists',
       icon: FileText,
       component: () => <p>Lists page</p>,
+      mobile: { component: () => <p>Lists on a phone</p>, tab: { order: 0 } },
       sidebarNav: () => (
         <ul aria-label="Lists views">
           <li>Starred</li>
@@ -84,6 +86,7 @@ const assistant = defineModule({
         <li>Chat one</li>
       </ul>
     ),
+    mobile: ({ sessionId }) => <p>Sem on a phone: {sessionId ?? 'new'}</p>,
   },
 })
 
@@ -427,18 +430,38 @@ test('the term wizard survives a reload and creates the term in one request', as
   expect(sessionStorage.getItem('semestra.termWizard.p1')).toBeNull()
 })
 
-test('on a phone the sidebar is a drawer and other pages ask for a desktop', async () => {
-  vi.stubGlobal('innerWidth', 500)
-  mount('/p/p1')
-  expect(await screen.findByText('Open this on a computer')).toBeInTheDocument()
+test('on a phone a Program opens in the phone shell, without the desktop sidebar (M17)', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === PHONE_QUERY,
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  }))
+  const { router } = mount('/p/p1')
+  // The Program opens its first tab.
+  expect(await screen.findByText('Lists on a phone')).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/p/p1/lists')
   expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
-  const drawer = await screen.findByRole('dialog')
-  expect(await within(drawer).findByRole('link', { name: /APS105H1/ })).toBeInTheDocument()
-  // Only Today and the terms and courses: no overview or terms & courses links.
-  expect(within(drawer).queryByRole('link', { name: 'Terms & courses' })).not.toBeInTheDocument()
-  await userEvent.click(within(drawer).getByRole('link', { name: /APS105H1/ }))
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  const tabs = screen.getByRole('navigation', { name: 'Tabs' })
+  expect(within(tabs).getByRole('link', { name: 'Lists' })).toHaveAttribute('aria-current', 'page')
+
+  // A page without a phone version asks for a computer and leads back to the first tab.
+  await act(() => router.navigate({ href: '/p/p1/t/t2' }))
+  expect(await screen.findByText('Open this on a computer')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Open Lists' }))
+  expect(await screen.findByText('Lists on a phone')).toBeInTheDocument()
+
+  // Sem is the tab after the pages, and goes back to the conversation last open.
+  await act(() => router.navigate({ href: '/p/p1/assistant/s1' }))
+  expect(await screen.findByText('Sem on a phone: s1')).toBeInTheDocument()
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Lists' }))
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Sem' }))
+  expect(await screen.findByText('Sem on a phone: s1')).toBeInTheDocument()
+
+  await userEvent.click(within(tabs).getByRole('button', { name: 'More' }))
+  const more = await screen.findByRole('dialog')
+  expect(within(more).getByRole('button', { name: 'Settings' })).toBeInTheDocument()
+  expect(within(more).getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
 })
 
 /** The "Settings" buttons on screen: the sidebar entry and the gear of the page header. */

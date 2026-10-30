@@ -55,8 +55,8 @@ export function preload(component: unknown): Promise<void> {
 
 export type PageProps = { scope: Scope }
 
-/** What a page's own navigation in the app sidebar gets; `onNavigate` closes the phone drawer. */
-export type SidebarNavProps = { scope: Scope; onNavigate: () => void }
+/** What a page's own navigation in the app sidebar gets. */
+export type SidebarNavProps = { scope: Scope }
 
 export type PageContribution = {
   /** Unique within its scopes; the `$page` URL segment. */
@@ -74,6 +74,12 @@ export type PageContribution = {
   sidebarNav?: Lazy<SidebarNavProps>
   /** The board the page shows, if any (the scope's own or Today's), so its cards load with it. */
   board?: 'scope' | 'today'
+  /**
+   * The page on phones (M17), Program pages only: its own component, written for a narrow
+   * screen, in place of `component`. With `tab` it is a tab of the phone's tab bar (by `order`).
+   * Pages without it ask for a computer on phones.
+   */
+  mobile?: { component: Lazy<PageProps>; tab?: { order: number } }
   /**
    * Starts the page's main data along with its code, from the route loader (also on hover), so
    * the page's own queries find it in the cache instead of waiting for the page to mount. Use
@@ -277,7 +283,9 @@ export type AssistantContribution = {
   /** Wraps the app shell's content and docks the panel beside it (M12 §6.1). */
   Dock: ComponentType<{ children: ReactNode }>
   /** Recent conversations under the assistant's sidebar entry while its full page is open. */
-  SidebarNav?: Lazy<{ programId: string; onNavigate: () => void }>
+  SidebarNav?: Lazy<{ programId: string }>
+  /** The assistant on a phone (M17): a tab after the pages' tabs, at the full page's addresses. */
+  mobile?: Lazy<{ programId: string; sessionId: string | null }>
 }
 
 /**

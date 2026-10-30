@@ -334,7 +334,7 @@ function SidebarListEntry({
  * The Program's tasks page lists under "Tasks" in the app sidebar (M05 §5.1): smart lists,
  * Unsorted, the user's lists (draggable into a new order) and, folded, the courses.
  */
-export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
+export function TasksSidebarNav({ scope }: SidebarNavProps) {
   const programId = scope.programId
   const [selection, select] = useTaskSelection(programId)
   const lists = useTaskLists(programId).data?.items ?? []
@@ -344,7 +344,6 @@ export function TasksSidebarNav({ scope, onNavigate }: SidebarNavProps) {
   const [coursesOpen, setCoursesOpen] = useUiPref('tasks.sidebar_courses_open', false)
   const onSelect = (next: Selection) => {
     select(next)
-    onNavigate()
   }
   const editing = useListEditing({ programId, selection, onSelect, actions })
   const sensors = useSensors(

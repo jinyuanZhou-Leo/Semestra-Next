@@ -9,6 +9,7 @@ import {
   useContext,
   useMemo,
 } from 'react'
+import { isPhone } from './mobile/phone'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import assistant from '@/modules/assistant/manifest'
@@ -101,6 +102,11 @@ export function preloadPage(
   for (const module of modules) {
     for (const page of module.pages ?? []) {
       if (page.id !== pageId || !page.scopes.includes(scope.kind)) continue
+      // A phone shows a page's phone version, or nothing to load (M17).
+      if (isPhone()) {
+        parts.push(page.mobile?.component)
+        continue
+      }
       parts.push(page.component, page.sidebarNav)
       page.prefetch?.(scope, queryClient, { preload: hovered, modules })
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules, hovered)

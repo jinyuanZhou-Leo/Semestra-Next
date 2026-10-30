@@ -11,6 +11,7 @@ import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
 import { TasksSidebarNav } from './components/TasksSidebar'
 import { flushCompletions } from './completion'
+import TasksMobilePage from './mobile/TasksMobilePage'
 import TasksPage from './pages/TasksPage'
 
 /** Without the app sidebar the page title is the menu of lists. */
@@ -414,7 +415,7 @@ test('in the app sidebar the lists sit under Tasks, and the page drops its own s
     <SidebarProvider>
       <SidebarMenu>
         <SidebarMenuItem>
-          <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} onNavigate={() => {}} />
+          <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} />
         </SidebarMenuItem>
       </SidebarMenu>
       <ShellSidebarOpen value>
@@ -467,4 +468,28 @@ test('the row being edited stays rendered when the list scrolls away from it', a
   expect(screen.getByRole('textbox', { name: 'Title' })).toBeTruthy()
   // The rows in between are not rendered for it.
   expect(screen.queryByText('Task 080')).toBeNull()
+})
+
+test('on a phone the tasks are grouped by due date, checked off in place and edited in a drawer', async () => {
+  items = [
+    task({ id: 't1', title: 'Midterm review', due_date: '2020-01-06', overdue: true }),
+    task({ id: 't2', title: 'Email TA' }),
+  ]
+  renderWithRouter(<TasksMobilePage scope={{ kind: 'program', programId: 'p1' }} />)
+  const overdue = await screen.findByRole('list', { name: 'Overdue' })
+  expect(within(overdue).getByText('Midterm review')).toBeTruthy()
+  expect(within(screen.getByRole('list', { name: 'No date' })).getByText('Email TA')).toBeTruthy()
+
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Email TA' }))
+  await act(() => flushCompletions())
+  expect(log.completes).toEqual([{ id: 't2', body: { completed: true } }])
+
+  await userEvent.type(screen.getByLabelText('Add a task'), 'Write essay !!{Enter}')
+  await waitFor(() => expect(log.creates).toHaveLength(1))
+  expect(log.creates[0]).toMatchObject({ title: 'Write essay', priority: 'medium' })
+
+  await userEvent.click(screen.getByText('Midterm review'))
+  const sheet = await screen.findByRole('dialog')
+  await userEvent.click(within(sheet).getByRole('button', { name: 'High' }))
+  await waitFor(() => expect(log.updates).toEqual([{ id: 't1', body: { priority: 'high' } }]))
 })

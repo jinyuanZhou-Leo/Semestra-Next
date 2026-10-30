@@ -204,7 +204,7 @@ function JobRow({
  * each job belongs. Finished jobs stay ~3 s; failures stay until the list has been opened.
  */
 function JobsLine() {
-  const { state, isMobile } = useSidebar()
+  const { state } = useSidebar()
   // Every active job (however many finished after it), plus the newest finished ones.
   const recent = useQuery(coreJobListOptions({ query: { limit: 20 } })).data?.items
   const running = useQuery(coreJobListOptions({ query: { status: 'running', limit: 50 } })).data
@@ -275,7 +275,7 @@ function JobsLine() {
           <LineFace {...item} />
         </PopoverTrigger>
         <PopoverContent
-          side={state === 'collapsed' && !isMobile ? 'right' : 'top'}
+          side={state === 'collapsed' ? 'right' : 'top'}
           align="start"
           className="w-80"
         >

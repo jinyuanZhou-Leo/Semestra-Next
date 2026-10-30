@@ -56,7 +56,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
-  useSidebar,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
@@ -75,14 +74,12 @@ function NavItem({
   icon: Icon,
   label,
   active,
-  onNavigate,
   children,
 }: {
   href: string
   icon: typeof BookOpen
   label: string
   active: boolean
-  onNavigate: () => void
   children?: ReactNode
 }) {
   return (
@@ -90,13 +87,7 @@ function NavItem({
       <SidebarMenuButton
         tooltip={label}
         isActive={active}
-        render={
-          <HistoryLink
-            href={href}
-            onClick={onNavigate}
-            aria-current={active ? 'page' : undefined}
-          />
-        }
+        render={<HistoryLink href={href} aria-current={active ? 'page' : undefined} />}
       >
         <Icon aria-hidden />
         <span>{label}</span>
@@ -108,7 +99,6 @@ function NavItem({
 
 /** The Program at the top: the Programs to switch between, and where a new one is created. */
 function ProgramHeader({ programs, current }: { programs: Program[]; current: Program }) {
-  const { isMobile } = useSidebar()
   const [creating, setCreating] = useState(false)
   const face = (
     <>
@@ -140,12 +130,7 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
             {face}
             <ChevronsUpDown aria-hidden className="ml-auto" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-64"
-            align="start"
-            side={isMobile ? 'bottom' : 'right'}
-            sideOffset={4}
-          >
+          <DropdownMenuContent className="w-64" align="start" side="right" sideOffset={4}>
             <DropdownMenuGroup>
               <DropdownMenuLabel className="text-xs text-muted-foreground">
                 {m.academics_programs()}
@@ -175,7 +160,6 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
 }
 
 function AccountMenu() {
-  const { isMobile } = useSidebar()
   const { user } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
   if (!user) return null
@@ -199,12 +183,7 @@ function AccountMenu() {
           </div>
           <ChevronsUpDown aria-hidden className="ml-auto" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className="w-56"
-          side={isMobile ? 'bottom' : 'right'}
-          align="end"
-          sideOffset={4}
-        >
+        <DropdownMenuContent className="w-56" side="right" align="end" sideOffset={4}>
           <DropdownMenuGroup>
             <DropdownMenuLabel className="grid text-sm leading-tight font-normal">
               <span className="truncate font-medium text-foreground">{user.display_name}</span>
@@ -232,12 +211,10 @@ function AssistantNavItem({
   assistant,
   programId,
   active,
-  onNavigate,
 }: {
   assistant: AssistantContribution
   programId: string
   active: boolean
-  onNavigate: () => void
 }) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
   const ctx = useCommandContext()
@@ -256,7 +233,6 @@ function AssistantNavItem({
         render={
           <HistoryLink
             href={`${programPath(programId)}/assistant`}
-            onClick={onNavigate}
             aria-current={active ? 'page' : undefined}
           />
         }
@@ -286,7 +262,7 @@ function AssistantNavItem({
       </Tooltip>
       {active && assistant.SidebarNav ? (
         <PluginBoundary silent>
-          <assistant.SidebarNav programId={programId} onNavigate={onNavigate} />
+          <assistant.SidebarNav programId={programId} />
         </PluginBoundary>
       ) : null}
     </SidebarMenuItem>
@@ -294,11 +270,10 @@ function AssistantNavItem({
 }
 
 /**
- * The left navigation of the signed-in app (M02 §5.1): the shadcn sidebar that collapses to an
- * icon rail on desktop and becomes a drawer on phones (only Today and the terms and courses).
+ * The left navigation of the signed-in app on a computer (M02 §5.1): the shadcn sidebar that
+ * collapses to an icon rail. Phones have the tab bar instead (M17).
  */
 export function AppSidebar({ programId }: { programId: string }) {
-  const { isMobile, setOpenMobile } = useSidebar()
   const settings = useSettingsDialog()
   const pathname = useLocation({ select: (l) => l.pathname })
   const programs = usePrograms().data?.items ?? []
@@ -308,9 +283,7 @@ export function AppSidebar({ programId }: { programId: string }) {
   const [managing, setManaging] = useState(false)
   const assistant = useModules().find((module) => module.assistant)?.assistant
   // On a term or course page the tab bar's own handler is registered later and wins.
-  useHostAction('nav.manage', () => setManaging(true), !isMobile)
-  // Following a link closes the drawer on phones.
-  const onNavigate = () => setOpenMobile(false)
+  useHostAction('nav.manage', () => setManaging(true))
 
   const termsAndCoursesHref = termsAndCoursesPath(programId)
 
@@ -329,125 +302,110 @@ export function AppSidebar({ programId }: { programId: string }) {
           aria-label={m.academics_sidebar_label()}
           className="flex min-h-0 flex-1 flex-col gap-2"
         >
-          {isMobile ? null : (
-            <SidebarGroup className="pb-0">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    data-tour="command-palette"
-                    tooltip={`${m.commands_open()} (${formatHotkey('mod+k')})`}
-                    onClick={() => openCommandPalette()}
-                  >
-                    <Search aria-hidden />
-                    <span className="truncate">{m.commands_open()}</span>
-                    <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
-                      {formatHotkey('mod+k')}
-                    </Kbd>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                {assistant ? (
-                  <AssistantNavItem
-                    assistant={assistant}
-                    programId={programId}
-                    active={ASSISTANT_PAGE.test(pathname)}
-                    onNavigate={onNavigate}
-                  />
-                ) : null}
-              </SidebarMenu>
-            </SidebarGroup>
-          )}
+          <SidebarGroup className="pb-0">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  data-tour="command-palette"
+                  tooltip={`${m.commands_open()} (${formatHotkey('mod+k')})`}
+                  onClick={() => openCommandPalette()}
+                >
+                  <Search aria-hidden />
+                  <span className="truncate">{m.commands_open()}</span>
+                  <Kbd className="ml-auto group-data-[collapsible=icon]:hidden">
+                    {formatHotkey('mod+k')}
+                  </Kbd>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {assistant ? (
+                <AssistantNavItem
+                  assistant={assistant}
+                  programId={programId}
+                  active={ASSISTANT_PAGE.test(pathname)}
+                />
+              ) : null}
+            </SidebarMenu>
+          </SidebarGroup>
 
           <SidebarGroup>
             <SidebarGroupLabel className={GROUP_LABEL}>
               {m.academics_sidebar_pages()}
             </SidebarGroupLabel>
-            {isMobile ? null : (
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <DropdownMenuTrigger
-                        render={<SidebarGroupAction aria-label={m.host_nav_more()} />}
-                      />
-                    }
-                  >
-                    <MoreHorizontal aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent>{m.host_nav_more()}</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="start" side="right">
-                  <DropdownMenuItem onClick={() => setManaging(true)}>
-                    {m.host_nav_manage_pages()}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <DropdownMenuTrigger
+                      render={<SidebarGroupAction aria-label={m.host_nav_more()} />}
+                    />
+                  }
+                >
+                  <MoreHorizontal aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent>{m.host_nav_more()}</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" side="right">
+                <DropdownMenuItem onClick={() => setManaging(true)}>
+                  {m.host_nav_manage_pages()}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <SidebarGroupContent>
               <SidebarMenu>
-                {pages
-                  .filter((page) => !isMobile || page.id === 'today')
-                  .map((page) => {
-                    const href = scopePath(programScope, page.id)
-                    const isOverview = page.id === OVERVIEW_PAGE
-                    const active =
-                      pathname === href || (isOverview && pathname === scopePath(programScope))
-                    const SubNav = active && !isMobile ? page.sidebarNav : undefined
-                    return (
-                      <NavItem
-                        key={page.id}
-                        href={isOverview ? scopePath(programScope) : href}
-                        icon={page.icon}
-                        label={page.title()}
-                        active={active}
-                        onNavigate={onNavigate}
-                      >
-                        {SubNav ? (
-                          <PluginBoundary key={page.id} silent>
-                            <SubNav scope={programScope} onNavigate={onNavigate} />
-                          </PluginBoundary>
-                        ) : null}
-                      </NavItem>
-                    )
-                  })}
-                {isMobile ? null : (
-                  <NavItem
-                    href={termsAndCoursesHref}
-                    icon={BookOpen}
-                    label={m.academics_nav_terms_and_courses()}
-                    active={pathname === termsAndCoursesHref}
-                    onNavigate={onNavigate}
-                  />
-                )}
+                {pages.map((page) => {
+                  const href = scopePath(programScope, page.id)
+                  const isOverview = page.id === OVERVIEW_PAGE
+                  const active =
+                    pathname === href || (isOverview && pathname === scopePath(programScope))
+                  const SubNav = active ? page.sidebarNav : undefined
+                  return (
+                    <NavItem
+                      key={page.id}
+                      href={isOverview ? scopePath(programScope) : href}
+                      icon={page.icon}
+                      label={page.title()}
+                      active={active}
+                    >
+                      {SubNav ? (
+                        <PluginBoundary key={page.id} silent>
+                          <SubNav scope={programScope} />
+                        </PluginBoundary>
+                      ) : null}
+                    </NavItem>
+                  )
+                })}
+                <NavItem
+                  href={termsAndCoursesHref}
+                  icon={BookOpen}
+                  label={m.academics_nav_terms_and_courses()}
+                  active={pathname === termsAndCoursesHref}
+                />
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <SidebarTerms programId={programId} pathname={pathname} onNavigate={onNavigate} />
+          <SidebarTerms programId={programId} pathname={pathname} />
         </nav>
       </SidebarContent>
       <SidebarFooter>
         <SidebarSeparator className="mx-0" />
         <SidebarGroup className="p-0">
-          {isMobile ? null : (
-            <SidebarGroupLabel className={GROUP_LABEL}>
-              {m.academics_sidebar_system()}
-            </SidebarGroupLabel>
-          )}
+          <SidebarGroupLabel className={GROUP_LABEL}>
+            {m.academics_sidebar_system()}
+          </SidebarGroupLabel>
           <StatusBar />
-          {isMobile ? null : (
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip={m.settings_title()}
-                  isActive={settings.target?.level === 'account'}
-                  onClick={() => settings.open({ level: 'account' })}
-                >
-                  <Settings aria-hidden />
-                  <span>{m.settings_title()}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          )}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip={m.settings_title()}
+                isActive={settings.target?.level === 'account'}
+                onClick={() => settings.open({ level: 'account' })}
+              >
+                <Settings aria-hidden />
+                <span>{m.settings_title()}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarGroup>
         <SidebarMenu>
           <AccountMenu />

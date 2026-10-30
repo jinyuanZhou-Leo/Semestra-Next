@@ -12,7 +12,7 @@ import {
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
-import { TodaySubtitle } from './pages/TodaySubtitle'
+import { TodaySubtitle } from './components/TodaySubtitle'
 import { prefetchCalendarPage, prefetchToday } from './queries'
 
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
@@ -71,6 +71,7 @@ export default defineModule({
       component: preloadable(() => import('./pages/TodayPage')),
       board: 'today',
       headerSubtitle: TodaySubtitle,
+      mobile: { component: preloadable(() => import('./mobile/TodayAgenda')), tab: { order: 0 } },
       order: 5,
     },
     {

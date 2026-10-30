@@ -95,6 +95,17 @@ export function useTodayTasks(programId: string, termId?: string) {
   return useQuery(todayTasksOptions(programId, termId))
 }
 
+/** The unfinished tasks due between two dates, both included (the phone's Today, M17). */
+export function useTasksDueBetween(programId: string, from: string, to: string) {
+  return useQuery({
+    ...tasksItemQueryOptions({
+      path: { program_id: programId },
+      query: { view: 'scheduled', due_from: from, due_to: to, sort: 'due', limit: 100 },
+    }),
+    staleTime: STALE,
+  })
+}
+
 /** The Today card's data (`CardContribution.prefetch`). */
 export function prefetchTodayTasks(scope: Scope, queryClient: QueryClient) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
