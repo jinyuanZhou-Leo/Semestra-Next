@@ -3,6 +3,7 @@
   "framework": "astro",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
+  "ignoreCommand": "bash ../../scripts/vercel-ignore-build.sh site",
   "outputDirectory": "dist",
   "headers": [
     {
