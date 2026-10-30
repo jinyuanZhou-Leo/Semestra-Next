@@ -133,7 +133,7 @@ function PresetPicker({ onPick }: { onPick: (preset: ProviderPreset) => void }) 
 
 // The scrolling body of the add dialog (shadcn's "Scrollable Content" pattern): it reaches the
 // dialog's edges so the scrollbar sits at the side, and keeps room for focus rings.
-const SCROLL_BODY = '-mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1'
+const SCROLL_BODY = 'w-auto -mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1'
 
 export type FlowHeader = { title: string; description: string; logo?: string | null }
 
