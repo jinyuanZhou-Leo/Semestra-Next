@@ -94,7 +94,6 @@ export default defineModule({
       component: preloadable(() => import('./cards/CourseInfoCard')),
       headerActions: CourseInfoActions,
       multiple: false,
-      skeleton: 'text',
     },
   ],
   defaultBoard: {

@@ -24,7 +24,6 @@ export default defineModule({
         component: preloadable(() => import('./StickySettingsForm')),
       },
       multiple: true,
-      skeleton: 'text',
     },
   ],
 })

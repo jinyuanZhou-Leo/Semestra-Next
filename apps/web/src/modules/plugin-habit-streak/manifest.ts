@@ -26,7 +26,6 @@ export default defineModule({
       component: preloadable(() => import('./HabitBoardCard')),
       settings,
       multiple: true,
-      skeleton: 'chart',
     },
     {
       id: 'habit.ring',
@@ -38,7 +37,6 @@ export default defineModule({
       component: preloadable(() => import('./HabitRingCard')),
       settings,
       multiple: true,
-      skeleton: 'stat',
     },
   ],
 })

@@ -50,7 +50,6 @@ export default defineModule({
     settings: { schema: zodSchema, component: preloadable(...) },   // component 可省，省略则按 schema 自动生成表单
     multiple: true,
     headerActions: ...,        // 卡片头部操作（计数器的"重置"）
-    skeleton: 'stat',          // 可选：加载时的骨架形状，'list'（默认）、'stat'、'chart' 或 'text'
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // 侧边栏状态条（番茄钟用它显示进行中的计时）
@@ -66,7 +65,7 @@ export default defineModule({
 - **每个声明的尺寸都要有设计**。s 只放最少的信息和一个主操作；不要用缩放凑合。测试里遍历所有尺寸渲染。
 - 修改设置用 `useCardSettings(instanceId, settings, delayMs)`：本地立即生效，延迟后保存，失败回滚并给出 `status`。计数器 300ms，便签 800ms。
 - 不要自绘卡片外框，也不要自己加内边距；外框之内的留白由宿主决定。
-- 主数据还是 `undefined` 时返回 `<CardSkeleton />`（`@/app/board`），不要返回 `null`、自己画转圈或先显示空状态。它按 manifest 的 `skeleton` 画形状，填满正文、不改变卡片高度，150 ms 后才淡入；卡片代码加载时宿主也显示同一个骨架。
+- 主数据还是 `undefined` 时返回 `<CardSkeleton />`（`@/app/board`），不要返回 `null`、自己画转圈或先显示空状态。它是一个填满正文的圆角矩形，不改变卡片高度，150 ms 后才淡入；卡片代码加载时宿主也显示同一个骨架。
 - 业务数据（不属于设置的行，如打卡记录）走自己的 capability，用生成的 `@semestra/api-client`，不要手写 `fetch`。查询 key 由生成客户端决定，失效时用对象子集匹配。
 - 记忆性界面状态（折叠、上次选择、计时状态）用 `useUiPref('<前缀>.<名称>', 默认值)`，不要放设置里，也不要直接用 `localStorage`。
 

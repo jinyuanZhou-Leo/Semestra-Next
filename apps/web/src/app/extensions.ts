@@ -115,9 +115,6 @@ export type CardProps<Settings = unknown> = {
   settings: Settings
 }
 
-/** What a card shows while it loads (`CardSkeleton`): list rows, numbers, a chart area or lines of text. */
-export type CardSkeletonShape = 'list' | 'stat' | 'chart' | 'text'
-
 export type CardContribution = {
   id: string
   scopes: readonly BoardKind[]
@@ -142,8 +139,6 @@ export type CardContribution = {
     fields?: FieldOverrides
   }
   multiple: boolean
-  /** The skeleton shown while the card's code or data loads; `list` if not given. */
-  skeleton?: CardSkeletonShape
   /**
    * Starts the card's main data along with its code when a page shows the board it is on, so it
    * does not wait for the card to mount (like `PageContribution.prefetch`, but not for a hovered

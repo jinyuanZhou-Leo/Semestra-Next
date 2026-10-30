@@ -24,7 +24,6 @@ export default defineModule({
         component: preloadable(() => import('./WorldClockSettingsForm')),
       },
       multiple: true,
-      skeleton: 'stat',
     },
   ],
 })

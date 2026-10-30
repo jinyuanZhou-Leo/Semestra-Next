@@ -25,7 +25,6 @@ export default defineModule({
         component: preloadable(() => import('./PomodoroSettingsForm')),
       },
       multiple: false,
-      skeleton: 'stat',
     },
   ],
   statusItems: [{ id: 'pomodoro.running', order: 50, useStatus: usePomodoroStatus }],
