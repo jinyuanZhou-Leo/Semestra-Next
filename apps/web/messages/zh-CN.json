@@ -959,7 +959,7 @@
   "ai_provider_connect": "连接 {name}",
   "ai_provider_save_note": "保存前会先用这个 key 发一次请求验证。key 加密保存，只用于你自己的请求。",
   "ai_provider_create_key": "在 {host} 创建 key",
-  "ai_provider_filled_in": "已为你填好接口地址",
+  "ai_provider_endpoint_settings": "接口设置",
   "ai_provider_protocol": "接口格式",
   "ai_provider_back": "返回",
   "ai_provider_official": "官方接口",

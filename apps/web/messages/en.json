@@ -959,7 +959,7 @@
   "ai_provider_connect": "Connect {name}",
   "ai_provider_save_note": "We send one request to check the key before saving. It is stored encrypted and used only for your own requests.",
   "ai_provider_create_key": "Create a key at {host}",
-  "ai_provider_filled_in": "Address filled in for you",
+  "ai_provider_endpoint_settings": "Endpoint settings",
   "ai_provider_protocol": "API format",
   "ai_provider_back": "Back",
   "ai_provider_official": "Official API",
