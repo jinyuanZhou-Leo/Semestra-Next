@@ -1,5 +1,41 @@
 # @semestra/web
 
+## 1.8.0
+
+### Minor Changes
+
+- 928eee0: <!-- area: overview -->
+  <!-- improved -->
+  <!-- en -->
+  Cards show a skeleton while they load.
+  <!-- zh -->
+  卡片加载时显示骨架占位。
+- 0d06016: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  Every "Add course" button now offers the same choices as the new-term wizard: enter courses manually, continue a full-year course from last term, or import them from a calendar file, syllabus, screenshot, pasted text or your LMS.
+  <!-- zh -->
+  所有「添加课程」按钮都提供与新建学期向导相同的方式：手动填写、延续上学期的全年课，或从日历文件、Syllabus、截图、粘贴文本和 LMS 导入。
+
+### Patch Changes
+
+- 17bdc65: <!-- area: ai -->
+  <!-- en -->
+  The provider list in the Add provider dialog now fills the full width.
+  <!-- zh -->
+  “添加服务商”对话框中的服务商列表现在占满整行宽度。
+- 9e2d0c8: <!-- area: sem -->
+  <!-- en -->
+  When no AI provider is set up, Sem shows the setup prompt directly instead of briefly showing the chat first.
+  <!-- zh -->
+  未配置 AI 服务商时，Sem 直接显示配置提示，不再先闪现聊天界面。
+- abd5137: <!-- area: ai -->
+  <!-- en -->
+  When adding a known compatible service, its address, model and capabilities now sit under a lighter "Endpoint settings" section.
+  <!-- zh -->
+  添加已知的兼容服务时，接口地址、模型和能力改为放在更简洁的「接口设置」折叠区中。
+- @semestra/api-client@1.8.0
+
 ## 1.7.0
 
 ### Minor Changes

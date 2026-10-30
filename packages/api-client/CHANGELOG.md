@@ -1,5 +1,9 @@
 # @semestra/api-client
 
+## 1.8.0
+
+No changes in this release.
+
 ## 1.7.0
 
 No changes in this release.

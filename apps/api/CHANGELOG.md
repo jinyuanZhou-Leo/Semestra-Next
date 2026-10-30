@@ -1,5 +1,15 @@
 # @semestra/api
 
+## 1.8.0
+
+### Patch Changes
+
+- b409973: <!-- area: general -->
+  <!-- en -->
+  Performance improvements.
+  <!-- zh -->
+  性能优化。
+
 ## 1.7.0
 
 No changes in this release.
