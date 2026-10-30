@@ -20,7 +20,8 @@ def target_of(row: ImportsSession) -> SessionTarget:
 
 
 async def _term_dates(ctx: Ctx, target: SessionTarget) -> dates.TermDates | None:
-    if target.kind == "term_wizard":
+    if target.kind == "term_wizard" and target.term_id is None:
+        # The term does not exist yet: plain weeks from the wizard's dates (no breaks known).
         if target.start_date and target.end_date:
             return dates.TermDates(
                 target.start_date,
