@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.7.0 (2026-10-29)
+
+### New
+
+- **General:** On a phone, Semestra opens a simpler app with Today, Tasks and Sem, and it can be added to your home screen.
+
 ## 1.6.0 (2026-10-28)
 
 ### New
