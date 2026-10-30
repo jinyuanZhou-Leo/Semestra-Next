@@ -86,14 +86,14 @@ async def get_upload(ctx: Ctx, upload_id: str) -> ImportsUpload:
     return upload
 
 
-async def _delete_uploads(ctx: Ctx, uploads: Sequence[ImportsUpload]) -> None:
+async def delete_uploads(ctx: Ctx, uploads: Sequence[ImportsUpload]) -> None:
     keys = [u.storage_key for u in uploads]
     for upload in uploads:
         await ctx.db.delete(upload)
-    _after_commit_delete(ctx, keys)
+    after_commit_delete(ctx, keys)
 
 
-def _after_commit_delete(ctx: Ctx, keys: Sequence[str]) -> None:
+def after_commit_delete(ctx: Ctx, keys: Sequence[str]) -> None:
     """Stored objects go once the transaction has committed, so a rollback never loses one."""
     storage = get_storage(ctx)
 

@@ -32,10 +32,10 @@ async def _term_dates(ctx: Ctx, target: SessionTarget) -> dates.TermDates | None
     if target.term_id is None:
         return None
     term = await academics.get_term_row(ctx, target.term_id)
-    return await _term_dates_of(ctx, term)
+    return await term_dates_of(ctx, term)
 
 
-async def _term_dates_of(ctx: Ctx, term: Any) -> dates.TermDates:
+async def term_dates_of(ctx: Ctx, term: Any) -> dates.TermDates:
     weeks = await academics.weeks_of(ctx, term)
     return dates.TermDates(
         term.start_date,
@@ -124,7 +124,7 @@ async def _validation_context(
     terms: dict[str, dates.TermDates] = {}
     for term_id in sorted(term_ids - {target.term_id}):
         try:
-            terms[term_id] = await _term_dates_of(ctx, await academics.get_term_row(ctx, term_id))
+            terms[term_id] = await term_dates_of(ctx, await academics.get_term_row(ctx, term_id))
         except AppError:
             continue
     term = await _term_dates(ctx, target)

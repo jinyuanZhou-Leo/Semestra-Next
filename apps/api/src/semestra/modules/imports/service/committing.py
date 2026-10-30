@@ -18,10 +18,10 @@ from semestra.modules.imports.schemas import (
     CommitInput,
     ImportSessionDetail,
 )
-from semestra.modules.imports.service.context import _term_dates_of, revalidate, target_of
+from semestra.modules.imports.service.context import revalidate, target_of, term_dates_of
 from semestra.modules.imports.service.create import event_data
 from semestra.modules.imports.service.rows import detail, for_agent, get_session_row, session_items
-from semestra.modules.imports.service.uploads import _after_commit_delete, session_uploads
+from semestra.modules.imports.service.uploads import after_commit_delete, session_uploads
 
 log = structlog.get_logger()
 
@@ -98,7 +98,7 @@ class _Commit:
 
     async def term_dates(self, term_id: str) -> dates.TermDates:
         if term_id not in self.terms:
-            self.terms[term_id] = await _term_dates_of(
+            self.terms[term_id] = await term_dates_of(
                 self.ctx, await academics.get_term_row(self.ctx, term_id)
             )
         return self.terms[term_id]
@@ -563,5 +563,5 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
                 if ref.get("upload_id") == upload.id:
                     ref["warning_code"] = "import.upload_not_filed"
             continue
-        _after_commit_delete(ctx, [key])
+        after_commit_delete(ctx, [key])
     row.source_refs = refs

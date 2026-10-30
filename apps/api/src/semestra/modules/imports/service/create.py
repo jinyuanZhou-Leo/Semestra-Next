@@ -188,7 +188,7 @@ def event_data(row: ImportsSession) -> dict[str, Any]:
     return {"session_id": row.id, "program_id": row.program_id, "status": row.status}
 
 
-def _validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
+def validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
     """Drafts keep only known fields; `strict` refuses unknown ones instead of dropping them
     (what a caller sends by hand: a misspelt field must not pass as a change)."""
     model = (STRICT_MODELS if strict else DATA_MODELS)[type_]
@@ -220,7 +220,7 @@ async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> li
         for name in ("course_ref", "category_ref"):
             if name in data:
                 data[name] = resolve(data[name])
-        data = _validated_data(n.type, data)
+        data = validated_data(n.type, data)
         depends = [
             ref.removeprefix("item:")
             for name in ("course_ref", "category_ref")
@@ -253,7 +253,7 @@ async def add_items_capability(
     ctx: Ctx, session_id: str, new: Sequence[NewItem], *, ready: bool
 ) -> ImportSessionDetail:
     row = await get_session_row(ctx, session_id)
-    _require_open(row)
+    require_open(row)
     added = await add_items(ctx, row, new)
     if ready and row.status == "extracting" and row.job_id is None:
         row.status = "ready"
@@ -262,6 +262,6 @@ async def add_items_capability(
     return await detail(ctx, row, item_ids={i.id for i in added} if for_agent(ctx) else None)
 
 
-def _require_open(row: ImportsSession) -> None:
+def require_open(row: ImportsSession) -> None:
     if row.status in CLOSED or row.status == "committing":
         raise AppError("import.session_closed", 409, state=row.status)

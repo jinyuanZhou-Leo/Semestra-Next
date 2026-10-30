@@ -55,11 +55,6 @@ async def session_items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
     )
 
 
-async def items_of(ctx: Ctx, session_id: str) -> list[ImportsItem]:
-    """The items of a session the caller already loaded (the assistant's display labels)."""
-    return await session_items(ctx, session_id)
-
-
 def session_out(row: ImportsSession) -> ImportSession:
     return ImportSession.model_validate(
         {

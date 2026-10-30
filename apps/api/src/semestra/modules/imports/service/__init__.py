@@ -30,7 +30,6 @@ from semestra.modules.imports.service.rows import (
     detail,
     for_agent,
     get_session_row,
-    items_of,
     session_items,
     wait_while_extracting,
 )
@@ -54,7 +53,6 @@ __all__ = [
     "for_agent",
     "get_session_row",
     "get_upload",
-    "items_of",
     "list_sessions",
     "preview_add_items",
     "preview_bulk_decide",

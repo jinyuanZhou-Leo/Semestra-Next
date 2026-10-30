@@ -3,8 +3,12 @@
 Uses the `jsonschema` library (Draft 2020-12, what `z.toJSONSchema` emits) and turns its errors
 into the `common.validation` shape. Cross-field rules (refinements) are the frontend's job, or a
 backend Pydantic model's (`register_card_settings`).
+
+Codes missing from `_CODES` keep the keyword's own name (`enum`, `uniqueItems`, ...). `enum` and
+`const` follow JSON Schema, so `true` does not match `1`.
 """
 
+import re
 from collections.abc import Iterator
 from decimal import Decimal
 from typing import Any, cast
@@ -45,7 +49,12 @@ def _problems(error: ValidationError) -> list[tuple[list[str | int], str]]:
             return [([*loc, n], "missing") for n in wanted if n not in instance]
         case "additionalProperties" if wanted is False:
             known = schema.get("properties", {})
-            return [([*loc, n], "not_allowed") for n in instance if n not in known]
+            patterns = schema.get("patternProperties", {})
+            return [
+                ([*loc, n], "not_allowed")
+                for n in instance
+                if n not in known and not any(re.search(p, n) for p in patterns)
+            ]
         case "items" if wanted is False:
             first = len(schema.get("prefixItems", []))
             return [([*loc, i], "not_allowed") for i in range(first, len(instance))]

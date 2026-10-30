@@ -16,7 +16,7 @@ from semestra.modules.grading.schemas import (
     ScalePreset,
     ScaleUpdateInput,
 )
-from semestra.modules.grading.service.common import _insert_ignore, _program_courses, _reject_nulls
+from semestra.modules.grading.service.common import insert_ignore, program_courses, reject_nulls
 
 
 def _bands(rows: Sequence[Mapping[str, Any]]) -> list[engine.Band]:
@@ -65,7 +65,7 @@ def list_presets() -> list[ScalePreset]:
 async def create_scale(ctx: Ctx, program_id: str, preset: str | None = None) -> models.GradingScale:
     """The Program's scale from a preset (the default one when unknown); a no-op if it exists."""
     preset_id = preset if preset in presets.PRESET_IDS else presets.DEFAULT_PRESET
-    await _insert_ignore(
+    await insert_ignore(
         ctx,
         models.GradingScale,
         {
@@ -117,7 +117,7 @@ def _validate_templates(templates: Sequence[Mapping[str, Any]]) -> None:
 
 async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
     row = await get_scale_row(ctx, inp.program_id)
-    _reject_nulls(inp, inp.model_fields_set - {"program_id"})
+    reject_nulls(inp, inp.model_fields_set - {"program_id"})
     bands = (
         [b.model_dump(mode="json") for b in inp.bands] if inp.bands is not None else list(row.bands)
     )
@@ -132,7 +132,7 @@ async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
     row.bands = sorted(bands, key=lambda b: -b["min"])
     if max_points < row.max_points:
         # A target above the new maximum could no longer be set; drop the ones that now exceed it.
-        course_ids = [c.id for c in await _program_courses(ctx, row.program_id)]
+        course_ids = [c.id for c in await program_courses(ctx, row.program_id)]
         if course_ids:
             await ctx.db.execute(
                 update(models.GradingCourseResult)

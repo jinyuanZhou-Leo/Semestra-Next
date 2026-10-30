@@ -11,11 +11,11 @@ from semestra.modules.grading import models
 from semestra.modules.grading.schemas import (
     CourseResult,
 )
-from semestra.modules.grading.service.common import _insert_ignore
+from semestra.modules.grading.service.common import insert_ignore
 from semestra.modules.grading.service.scales import get_scale_row
 
 
-async def _course_and_program(ctx: Ctx, course_id: str) -> tuple[AcademicsCourse, AcademicsProgram]:
+async def course_and_program(ctx: Ctx, course_id: str) -> tuple[AcademicsCourse, AcademicsProgram]:
     course = await academics.get_course_row(ctx, course_id)
     return course, await academics.get_program_row(ctx, course.program_id)
 
@@ -46,7 +46,7 @@ async def ensure_course_setup(
             raise not_found()
         return row
     scale = await get_scale_row(ctx, program_id)
-    created = await _insert_ignore(
+    created = await insert_ignore(
         ctx,
         models.GradingCourseResult,
         {

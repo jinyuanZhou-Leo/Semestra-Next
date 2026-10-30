@@ -36,9 +36,9 @@ from semestra.modules.grading.schemas import (
     UpcomingAssessments,
     UpcomingInput,
 )
-from semestra.modules.grading.service.categories import _announce_course, _get_category
-from semestra.modules.grading.service.common import _program_courses, _reject_nulls
-from semestra.modules.grading.service.courses import _course_and_program, ensure_course_setup
+from semestra.modules.grading.service.categories import announce_course, get_category
+from semestra.modules.grading.service.common import program_courses, reject_nulls
+from semestra.modules.grading.service.courses import course_and_program, ensure_course_setup
 
 
 def _local(due_at: datetime, tz: str) -> datetime:
@@ -65,7 +65,7 @@ def assessment_out(row: models.GradingAssessment, tz: str, now: datetime) -> Ass
     )
 
 
-async def _assessment_rows(
+async def assessment_rows(
     ctx: Ctx, course_ids: Sequence[str]
 ) -> dict[str, list[models.GradingAssessment]]:
     out: dict[str, list[models.GradingAssessment]] = defaultdict(list)
@@ -102,7 +102,7 @@ async def dated_unscored_assessment_rows(
             .where(
                 models.GradingAssessment.user_id == ctx.user_id,
                 models.GradingAssessment.course_id.in_(
-                    [c.id for c in await _program_courses(ctx, program_id)]
+                    [c.id for c in await program_courses(ctx, program_id)]
                 ),
                 models.GradingAssessment.due_at.is_not(None),
                 models.GradingAssessment.score_percentage.is_(None),
@@ -139,7 +139,7 @@ def _resolve_due(
 async def _check_category(ctx: Ctx, course_id: str, category_id: str | None) -> None:
     if category_id is None:
         return
-    row = await _get_category(ctx, category_id)
+    row = await get_category(ctx, category_id)
     if row.course_id != course_id:
         raise not_found("category", category_id)
 
@@ -216,7 +216,7 @@ async def _announce_assessment(
 async def create_assessments(
     ctx: Ctx, course_id: str, items: Sequence[AssessmentFields], *, dedupe: bool
 ) -> AssessmentCreateManyResult:
-    course, program = await _course_and_program(ctx, course_id)
+    course, program = await course_and_program(ctx, course_id)
     await ensure_course_setup(ctx, course.id, program.id)
     for item in items:
         await _check_category(ctx, course.id, item.category_id)
@@ -284,7 +284,7 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     """The assistant's confirmation card (M12 §3.5): the assessment, its course, each sent field
     as before → after, and a link to the course's grades page."""
     row = await _get_assessment(ctx, inp.assessment_id)
-    course, program = await _course_and_program(ctx, row.course_id)
+    course, program = await course_and_program(ctx, row.course_id)
     # Before-values as the user sees them: the deadline as a local date and time.
     current = assessment_out(row, program.timezone, ctx.now)
     changes: list[dict[str, Any]] = []
@@ -320,7 +320,7 @@ async def _category_name(ctx: Ctx, category_id: str | None) -> str | None:
 async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
     """What goes with the assessment: its weight and the score recorded for it."""
     row = await _get_assessment(ctx, inp.assessment_id)
-    course, _ = await _course_and_program(ctx, row.course_id)
+    course, _ = await course_and_program(ctx, row.course_id)
     label = f"{course.code} {course.title}" if course.code else course.title
     changes: list[dict[str, Any]] = [{"field": "weight", "before": row.weight, "after": None}]
     for field in ("score_percentage", "points_earned"):
@@ -331,10 +331,10 @@ async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, A
 
 async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
     """How many assessments lose their category (they stay, without one)."""
-    row = await _get_category(ctx, inp.category_id)
-    course, _ = await _course_and_program(ctx, row.course_id)
+    row = await get_category(ctx, inp.category_id)
+    course, _ = await course_and_program(ctx, row.course_id)
     label = f"{course.code} {course.title}" if course.code else course.title
-    rows = (await _assessment_rows(ctx, [row.course_id]))[row.course_id]
+    rows = (await assessment_rows(ctx, [row.course_id]))[row.course_id]
     titles = [a.title for a in rows if a.category_id == row.id]
     changes: list[dict[str, Any]] = []
     if titles:
@@ -344,10 +344,10 @@ async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
 
 async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     row = await _get_assessment(ctx, inp.assessment_id)
-    course, program = await _course_and_program(ctx, row.course_id)
+    course, program = await course_and_program(ctx, row.course_id)
     tz = program.timezone
     sent = inp.model_fields_set - {"assessment_id"}
-    _reject_nulls(inp, {"title", "weight", "dropped"})
+    reject_nulls(inp, {"title", "weight", "dropped"})
     before = {
         k: getattr(row, k)
         for k in (
@@ -451,7 +451,7 @@ async def reorder_assessments(
     ctx: Ctx, course_id: str, assessment_ids: Sequence[str]
 ) -> AssessmentOrder:
     await academics.get_course_row(ctx, course_id)
-    rows = (await _assessment_rows(ctx, [course_id]))[course_id]
+    rows = (await assessment_rows(ctx, [course_id]))[course_id]
     by_id = {r.id: r for r in rows}
     if any(i not in by_id for i in assessment_ids):
         raise not_found()
@@ -460,13 +460,13 @@ async def reorder_assessments(
     for position, row in enumerate(ordered):
         row.position = position
     await ctx.db.flush()
-    await _announce_course(ctx, course_id)
+    await announce_course(ctx, course_id)
     return AssessmentOrder(course_id=course_id, assessment_ids=[r.id for r in ordered])
 
 
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
-    _, program = await _course_and_program(ctx, inp.course_id)
-    rows = (await _assessment_rows(ctx, [inp.course_id]))[inp.course_id]
+    _, program = await course_and_program(ctx, inp.course_id)
+    rows = (await assessment_rows(ctx, [inp.course_id]))[inp.course_id]
     outs = [assessment_out(r, program.timezone, ctx.now) for r in rows]
     if inp.status is not None:
         outs = [a for a in outs if a.status == inp.status]
@@ -518,11 +518,11 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
         )
         for pid in program_ids:
             program = await academics.get_program_row(ctx, pid)
-            program_courses = await _program_courses(ctx, program.id)
-            names |= {c.id: (c.code, c.title) for c in program_courses}
+            all_courses = await program_courses(ctx, program.id)
+            names |= {c.id: (c.code, c.title) for c in all_courses}
             term_id = await _current_term_id(ctx, program)
-            current |= {c.id for c in program_courses if term_id in c.term_ids}
-    rows_by_course = await _assessment_rows(ctx, list(names))
+            current |= {c.id for c in all_courses if term_id in c.term_ids}
+    rows_by_course = await assessment_rows(ctx, list(names))
     focus = scope.course_id if scope else None  # conversations from before scopes stopped at terms
     scored: list[tuple[float, models.GradingAssessment]] = []
     for course_id, rows in rows_by_course.items():
@@ -601,7 +601,7 @@ async def assessment_deadlines(
 ) -> list[Assessment]:
     """Unscored, undropped assessments due in [start, end): the calendar source M04 registers."""
     program = await academics.get_program_row(ctx, program_id)
-    allowed = {c.id for c in await _program_courses(ctx, program_id)}
+    allowed = {c.id for c in await program_courses(ctx, program_id)}
     wanted = [c for c in (course_ids or allowed) if c in allowed]
     if not wanted:
         return []
@@ -626,7 +626,7 @@ async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessme
     """Ungraded, undropped assessments with a deadline, soonest first (overdue ones first of
     all), for a Program, one of its terms or one course: the "upcoming" card in one request."""
     program = await academics.get_program_row(ctx, inp.program_id)
-    allowed = {c.id for c in await _program_courses(ctx, program.id, inp.term_id)}
+    allowed = {c.id for c in await program_courses(ctx, program.id, inp.term_id)}
     wanted = [inp.course_id] if inp.course_id is not None else sorted(allowed)
     wanted = [c for c in wanted if c in allowed]
     if not wanted:

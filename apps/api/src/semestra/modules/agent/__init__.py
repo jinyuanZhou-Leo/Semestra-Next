@@ -1,5 +1,7 @@
 """M12 AI 助手: the assistant runtime, skills, proposals and the MCP server."""
 
+import asyncio
+import importlib
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -37,11 +39,14 @@ class _LazyMcp:
         self.endpoint: McpEndpoint | None = None
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if self.endpoint is None:
-            from semestra.modules.agent.mcp_server import McpEndpoint
-
-            self.endpoint = McpEndpoint()
-        await self.endpoint(scope, receive, send)
+        endpoint = self.endpoint
+        if endpoint is None:
+            # Imported off the event loop so other requests keep being served meanwhile.
+            mcp_server = await asyncio.to_thread(
+                importlib.import_module, "semestra.modules.agent.mcp_server"
+            )
+            endpoint = self.endpoint = self.endpoint or mcp_server.McpEndpoint()
+        await endpoint(scope, receive, send)
 
 
 def register(app: FastAPI) -> None:

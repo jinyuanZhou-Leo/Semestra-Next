@@ -25,12 +25,12 @@ from semestra.modules.grading.schemas import (
     SuggestedScore,
     SuggestInput,
 )
-from semestra.modules.grading.service.assessments import _assessment_rows, assessment_out
-from semestra.modules.grading.service.categories import _category_rows, category_out
-from semestra.modules.grading.service.common import _reject_nulls
+from semestra.modules.grading.service.assessments import assessment_out, assessment_rows
+from semestra.modules.grading.service.categories import category_out, category_rows
+from semestra.modules.grading.service.common import reject_nulls
 from semestra.modules.grading.service.courses import (
-    _course_and_program,
     _result_out,
+    course_and_program,
     ensure_course_setup,
 )
 from semestra.modules.grading.service.scales import get_scale_row, scale_of
@@ -38,7 +38,7 @@ from semestra.modules.grading.service.scales import get_scale_row, scale_of
 _PASS_FAIL: dict[str, Literal["pass", "fail"]] = {"pass": "pass", "fail": "fail"}
 
 
-def _items(rows: Sequence[models.GradingAssessment]) -> tuple[engine.Item, ...]:
+def engine_items(rows: Sequence[models.GradingAssessment]) -> tuple[engine.Item, ...]:
     return tuple(
         engine.Item(r.id, r.category_id, r.weight, r.score_percentage, r.dropped) for r in rows
     )
@@ -59,7 +59,7 @@ def _resolve_target(
     return target.value, engine.min_percentage_for(scale, target.value)
 
 
-def _course_input(
+def course_input(
     course: Course, result: models.GradingCourseResult | None, items: tuple[engine.Item, ...]
 ) -> engine.CourseInput:
     return engine.CourseInput(
@@ -185,7 +185,7 @@ class _CourseState:
 
 
 async def _load_course(ctx: Ctx, course_id: str) -> _CourseState:
-    row, program = await _course_and_program(ctx, course_id)
+    row, program = await course_and_program(ctx, course_id)
     result = await ensure_course_setup(ctx, row.id, program.id)
     scale_row = await get_scale_row(ctx, program.id)
     return _CourseState(
@@ -194,8 +194,8 @@ async def _load_course(ctx: Ctx, course_id: str) -> _CourseState:
         result=result,
         scale_row=scale_row,
         scale=scale_of(scale_row),
-        categories=await _category_rows(ctx, row.id),
-        rows=(await _assessment_rows(ctx, [row.id]))[row.id],
+        categories=await category_rows(ctx, row.id),
+        rows=(await assessment_rows(ctx, [row.id]))[row.id],
     )
 
 
@@ -203,7 +203,7 @@ def _summary_for(
     state: _CourseState, items: tuple[engine.Item, ...], target: GradeTarget | None = None
 ) -> tuple[GradebookSummary, engine.CourseCalc]:
     target_points, target_percentage = _resolve_target(state.scale, state.default_target, target)
-    course = _course_input(state.course, state.result, items)
+    course = course_input(state.course, state.result, items)
     return build_summary(
         course,
         state.scale,
@@ -215,7 +215,7 @@ def _summary_for(
 
 async def get_gradebook(ctx: Ctx, course_id: str) -> Gradebook:
     state = await _load_course(ctx, course_id)
-    summary, _ = _summary_for(state, _items(state.rows))
+    summary, _ = _summary_for(state, engine_items(state.rows))
     tz = state.program.timezone
     return Gradebook(
         course_id=state.course.id,
@@ -233,10 +233,10 @@ async def get_gradebook(ctx: Ctx, course_id: str) -> Gradebook:
 
 
 async def update_result(ctx: Ctx, inp: CourseResultUpdateInput) -> CourseResult:
-    course, program = await _course_and_program(ctx, inp.course_id)
+    course, program = await course_and_program(ctx, inp.course_id)
     row = await ensure_course_setup(ctx, course.id, program.id)
     sent = inp.model_fields_set - {"course_id"}
-    _reject_nulls(inp, {"basis", "forecast_model", "gradebook_enabled"})
+    reject_nulls(inp, {"basis", "forecast_model", "gradebook_enabled"})
     if inp.target_points is not None:
         scale = await get_scale_row(ctx, program.id)
         if inp.target_points > scale.max_points:
@@ -263,7 +263,7 @@ def _require_complete_weights(calc: engine.CourseCalc) -> None:
 
 async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradebook:
     state = await _load_course(ctx, inp.course_id)
-    graded = {i.id for i in _items(state.rows) if i.score is not None}
+    graded = {i.id for i in engine_items(state.rows) if i.score is not None}
     known = {r.id for r in state.rows}
     ignored = [
         IgnoredScore(id=aid, reason="graded" if aid in graded else "unknown")
@@ -278,10 +278,10 @@ async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradeb
             inp.scores[i.id] if i.score is None and i.id in inp.scores else i.score,
             i.dropped,
         )
-        for i in _items(state.rows)
+        for i in engine_items(state.rows)
     )
     # What-if ignores the official grade: the question is what the marks would add up to.
-    course = _course_input(state.course, state.result, items)
+    course = course_input(state.course, state.result, items)
     course = replace(course, final_override=None)
     target_points, target_percentage = _resolve_target(
         state.scale, state.default_target, inp.target
@@ -299,7 +299,7 @@ async def simulate_course(ctx: Ctx, inp: SimulateCourseInput) -> SimulatedGradeb
 
 async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
     state = await _load_course(ctx, inp.course_id)
-    items = _items(state.rows)
+    items = engine_items(state.rows)
     calc = engine.compute_course(items)
     _require_complete_weights(calc)
     _, target_percentage = _resolve_target(state.scale, state.default_target, inp.target)

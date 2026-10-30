@@ -29,7 +29,7 @@ from semestra.modules.grading.service.categories import (
     reorder_categories,
     update_category,
 )
-from semestra.modules.grading.service.common import _program_courses
+from semestra.modules.grading.service.common import program_courses
 from semestra.modules.grading.service.courses import (
     delete_course_data,
     delete_program_data,
@@ -57,7 +57,6 @@ from semestra.modules.grading.service.summaries import (
 
 __all__ = [
     "AssessmentSnapshot",
-    "_program_courses",
     "assessment_deadlines",
     "assessment_snapshots",
     "course_grades",
@@ -79,6 +78,7 @@ __all__ = [
     "preview_assessment_delete",
     "preview_assessment_update",
     "preview_category_delete",
+    "program_courses",
     "program_grades",
     "reorder_assessments",
     "reorder_categories",

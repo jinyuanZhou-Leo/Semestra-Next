@@ -19,9 +19,9 @@ from semestra.modules.grading.schemas import (
     TermGradeSimulation,
     TermSimulateInput,
 )
-from semestra.modules.grading.service.assessments import _assessment_rows
-from semestra.modules.grading.service.common import _program_courses
-from semestra.modules.grading.service.gradebook import _course_input, _items
+from semestra.modules.grading.service.assessments import assessment_rows
+from semestra.modules.grading.service.common import program_courses
+from semestra.modules.grading.service.gradebook import course_input, engine_items
 from semestra.modules.grading.service.scales import get_scale_row, scale_of
 
 
@@ -47,7 +47,7 @@ class _ProgramState:
 async def _load_program(ctx: Ctx, program_id: str) -> _ProgramState:
     program = await academics.get_program_row(ctx, program_id)
     scale_row = await get_scale_row(ctx, program_id)
-    courses = await _program_courses(ctx, program_id)
+    courses = await program_courses(ctx, program_id)
     ids = [c.id for c in courses]
     results: dict[str, models.GradingCourseResult] = {}
     if ids:
@@ -60,7 +60,7 @@ async def _load_program(ctx: Ctx, program_id: str) -> _ProgramState:
             )
         ).all()
         results = {r.course_id: r for r in rows}
-    assessments = await _assessment_rows(ctx, ids)
+    assessments = await assessment_rows(ctx, ids)
     return _ProgramState(
         program=program,
         scale_row=scale_row,
@@ -68,14 +68,14 @@ async def _load_program(ctx: Ctx, program_id: str) -> _ProgramState:
         terms=await academics.list_terms(ctx, program_id),
         courses=courses,
         results=results,
-        items={cid: _items(rows) for cid, rows in assessments.items()},
+        items={cid: engine_items(rows) for cid, rows in assessments.items()},
     )
 
 
 def _grade_all(state: _ProgramState, include_in_progress: bool) -> list[engine.GradedCourse]:
     graded: list[engine.GradedCourse] = []
     for course in state.courses:
-        inp = _course_input(course, state.results.get(course.id), state.items.get(course.id, ()))
+        inp = course_input(course, state.results.get(course.id), state.items.get(course.id, ()))
         graded.append(
             engine.GradedCourse(
                 inp, engine.course_grade(inp, state.scale, include_in_progress=include_in_progress)
@@ -120,7 +120,7 @@ async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool) -> Term
     graded = _grade_all(state, include_in_progress)
     rule = state.attribution
     aggregate = engine.term_aggregate(graded, term_id, rule)
-    order = [c.id for c in await _program_courses(ctx, term.program_id, term_id)]
+    order = [c.id for c in await program_courses(ctx, term.program_id, term_id)]
     by_course = {g.course.course_id: g for g in graded}
     courses = {c.id: c for c in state.courses}
     rows = [

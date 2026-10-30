@@ -27,7 +27,7 @@ async def item(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]
         return {}
     wanted = set(ids)
     out: dict[str, str] = {}
-    for row in await service.items_of(ctx, session_id):
+    for row in await service.session_items(ctx, session_id):
         if row.id not in wanted:
             continue
         data = row.data

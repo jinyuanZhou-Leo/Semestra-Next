@@ -21,7 +21,7 @@ from semestra.modules.imports.schemas import (
     NewItem,
 )
 from semestra.modules.imports.service.context import revalidate, target_of
-from semestra.modules.imports.service.create import _require_open, _validated_data
+from semestra.modules.imports.service.create import require_open, validated_data
 from semestra.modules.imports.service.rows import (
     detail,
     for_agent,
@@ -29,7 +29,7 @@ from semestra.modules.imports.service.rows import (
     session_items,
     session_out,
 )
-from semestra.modules.imports.service.uploads import _delete_uploads, session_uploads
+from semestra.modules.imports.service.uploads import delete_uploads, session_uploads
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
@@ -42,7 +42,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     # After a commit only the items that failed can still be fixed and retried.
     failed = bool(item.result and item.result.get("error_code"))
     if not (row.status == "committed" and failed):
-        _require_open(row)
+        require_open(row)
     if inp.type is not None and inp.type != item.type:
         item.type, item.data = inp.type, _switched(item, inp.type)
         item.confidence = {}
@@ -65,7 +65,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             ):
                 raise AppError("import.course_ref_missing", 422, ref=ref)
         # Fields set to null are dropped (the drafts store only what is known).
-        item.data = _validated_data(
+        item.data = validated_data(
             item.type, {k: v for k, v in merged.items() if v is not None}, strict=True
         )
         # Edited by hand: the model's certainty no longer applies to those fields.
@@ -112,13 +112,13 @@ def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
         if data.get("note"):
             common["notes"] = data["note"]
         held = {k: data[k] for k in ("category_ref", "weight") if data.get(k) is not None}
-        return _validated_data("task", {**restored, **common, "held": held or None})
+        return validated_data("task", {**restored, **common, "held": held or None})
     if not str(common.get("course_ref", "")).startswith(("course:", "item:")):
         raise AppError("import.course_ref_missing", 422)
     if data.get("notes"):
         common["note"] = str(data["notes"])[:2000]
     held = {"priority": data["priority"]} if data.get("priority", "none") != "none" else {}
-    return _validated_data("assessment", {**restored, **common, "held": held or None})
+    return validated_data("assessment", {**restored, **common, "held": held or None})
 
 
 def _decided(items: list[ImportsItem], inp: BulkDecideInput) -> list[ImportsItem]:
@@ -224,7 +224,7 @@ async def _ref_name(ctx: Ctx, items: Sequence[ImportsItem], ref: Any) -> str | N
 
 async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
     row = await get_session_row(ctx, inp.session_id)
-    _require_open(row)
+    require_open(row)
     items = await session_items(ctx, row.id)
     changed = 0
     for item in _decided(items, inp):
@@ -258,7 +258,7 @@ async def discard(ctx: Ctx, session_id: str) -> ImportSession:
     if row.status == "committed":
         raise AppError("import.session_closed", 409, state=row.status)
     if row.status != "discarded":
-        await _delete_uploads(ctx, await session_uploads(ctx, row.id))
+        await delete_uploads(ctx, await session_uploads(ctx, row.id))
         if row.job_id is not None and deps.has_capability("core.job.cancel"):
             with contextlib.suppress(AppError):
                 await deps.call(ctx, "core.job.cancel", {"job_id": row.job_id})
