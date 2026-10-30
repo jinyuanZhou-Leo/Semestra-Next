@@ -5,7 +5,7 @@ import {
   aiStatusGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, ChevronDown, Waypoints } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Waypoints } from 'lucide-react'
 import { useId, useState, type ComponentType, type FormEvent } from 'react'
 import { ChoiceControl } from '@/app/settings'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
@@ -62,7 +62,7 @@ export function CapabilityChecks({
   return (
     <FieldSet disabled={disabled}>
       <FieldLegend variant="label">{m.ai_provider_capabilities()}</FieldLegend>
-      <div className="flex flex-wrap gap-x-5 gap-y-2">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
         {CAPABILITIES.map((capability) => (
           <Field key={capability} orientation="horizontal" className="w-auto">
             <Checkbox
@@ -360,28 +360,30 @@ function ProviderForm({
             ) : null}
           </Field>
           {folded ? (
-            <Collapsible className="rounded-xl border">
+            <Collapsible>
               <CollapsibleTrigger
                 render={
                   <Button
                     variant="ghost"
-                    className="h-auto w-full justify-between rounded-xl px-3 py-2 text-left font-normal"
+                    size="sm"
+                    className="group/trigger -ml-2 max-w-full justify-start font-normal aria-expanded:bg-transparent"
                   />
                 }
               >
-                <span className="min-w-0">
-                  <span className="block font-medium">{m.ai_provider_filled_in()}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {[hostOf(baseUrl), model.trim()].filter(Boolean).join(' · ')}
-                  </span>
-                </span>
-                <ChevronDown
+                <ChevronRight
                   aria-hidden
-                  className="text-muted-foreground transition-transform group-data-panel-open/button:rotate-180"
+                  className="text-muted-foreground transition-transform group-data-panel-open/trigger:rotate-90"
                 />
+                <span className="font-medium">{m.ai_provider_endpoint_settings()}</span>
+                <span className="truncate text-muted-foreground">
+                  {[hostOf(baseUrl), model.trim()].filter(Boolean).join(' · ')}
+                </span>
               </CollapsibleTrigger>
-              <CollapsibleContent>
-                <FieldGroup className="p-3 pt-1">{endpointFields}</FieldGroup>
+              <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+                {/* The left rule ties the fields to the trigger; padding keeps focus rings visible. */}
+                <FieldGroup className="mt-3 ml-1.5 w-auto border-l-2 py-1 pr-1 pl-4">
+                  {endpointFields}
+                </FieldGroup>
               </CollapsibleContent>
             </Collapsible>
           ) : null}
