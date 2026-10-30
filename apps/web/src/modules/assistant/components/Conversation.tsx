@@ -725,7 +725,13 @@ export function Conversation({
     },
   }
 
-  if (!ai.available && !ai.pending && items.length === 0) {
+  // Until it is known whether AI is set up (and, without it, whether this conversation has
+  // messages to show), show neither the chat nor the setup prompt, so one never flashes before
+  // the other. The status is usually cached already (prefetched by the signed-in layout).
+  if (ai.pending || (!ai.available && chat.loading)) {
+    return <div className={cn('flex min-h-0 flex-1 flex-col', className)} />
+  }
+  if (!ai.available && items.length === 0) {
     return (
       <div className={cn('flex min-h-0 flex-1 flex-col justify-center p-4', className)}>
         <AiSetupNeeded />

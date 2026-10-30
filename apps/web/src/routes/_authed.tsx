@@ -9,6 +9,7 @@ import { useRealtime } from '@/app/realtime'
 import { InstalledPluginsProvider, uiPrefPrefixes, useOverlays } from '@/app/registry'
 import { SettingsDialog } from '@/app/settings/SettingsDialog'
 import { prefetchUiPrefs } from '@/app/ui-pref'
+import { aiStatusOptions } from '@/hooks/use-ai-status'
 import { requireSignIn } from '@/modules/auth/redirect'
 
 /** Everything below requires a signed-in user; others are sent to /login?redirect=… */
@@ -28,6 +29,9 @@ export const Route = createFileRoute('/_authed')({
     context.queryClient
       .ensureQueryData({ ...settingsPreferenceGetOptions(), staleTime: PREFERENCES_STALE })
       .catch(() => undefined)
+    // Whether AI is set up decides what Sem and the AI buttons show; knowing it before they
+    // open keeps them from showing one state and then the other.
+    context.queryClient.ensureQueryData(aiStatusOptions()).catch(() => undefined)
   },
   loader: ({ context, location }) => requireSignIn(context.queryClient, location.href),
   component: AuthedLayout,

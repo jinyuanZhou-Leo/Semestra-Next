@@ -21,9 +21,14 @@ export type AiStatusGetResult = {
   status: PurposeStatus | undefined
 }
 
+/** The AI status query; the signed-in layout prefetches it so AI entry points rarely wait. */
+export function aiStatusOptions() {
+  return { ...aiStatusGetOptions(), staleTime: 60_000 }
+}
+
 /** Whether AI features that need `purpose` can run now (M06 §7). Updates live via SSE. */
 export function useAiStatus(purpose: AiPurpose): AiStatusGetResult {
-  const query = useQuery({ ...aiStatusGetOptions(), staleTime: 60_000 })
+  const query = useQuery(aiStatusOptions())
   const status = query.data?.items.find((item) => item.purpose === purpose)
   return { available: status?.available ?? false, pending: query.isPending, status }
 }
