@@ -16,9 +16,15 @@ if [[ "${VERCEL_ENV:-}" != production ]]; then
     exit 1
 fi
 
-# The version PR is merged with a merge commit; its first parent is the previous main.
-if git diff --name-only --diff-filter=A HEAD^ HEAD -- release-notes/ 2>/dev/null | grep -q '\.json$'; then
-    echo "build: release $(git diff --name-only --diff-filter=A HEAD^ HEAD -- release-notes/)"
+# The version PR is merged with a merge commit; its first parent is the previous main. Vercel runs
+# this from the project's root directory (apps/web, apps/docs), so the pathspec must be anchored at
+# the repository root (`:/`), otherwise it means apps/web/release-notes/ and never matches.
+added=$(git diff --name-only --diff-filter=A HEAD^ HEAD -- ':/release-notes/*.json') || {
+    echo "build: cannot diff against HEAD^"
+    exit 1
+}
+if [[ -n "$added" ]]; then
+    echo "build: release $added"
     exit 1
 fi
 
