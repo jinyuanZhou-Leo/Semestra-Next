@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-table'
 import { BookOpen, ChevronDown, Plus, Repeat } from 'lucide-react'
 import { createContext, use } from 'react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -104,6 +105,7 @@ export default function TermCoursesCard({ scope }: CardProps) {
     getRowId: (course) => course.id,
   })
   if (!termId) return null
+  if (!courses) return <CardSkeleton />
   const state: CardState = {
     programId,
     termId,

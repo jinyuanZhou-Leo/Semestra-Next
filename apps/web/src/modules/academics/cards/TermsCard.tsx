@@ -1,4 +1,5 @@
 import { CalendarPlus, CalendarRange } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
@@ -16,10 +17,11 @@ const day = (iso: string) => formatDate(`${iso}T00:00`)
 export default function TermsCard({ scope }: CardProps) {
   const programId = scope.programId
   const terms = useTerms(programId).data?.items
+  if (!terms) return <CardSkeleton />
   return (
     <div className="flex h-full flex-col gap-2">
       <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        {terms && terms.length === 0 ? (
+        {terms.length === 0 ? (
           <li className="flex flex-1 flex-col">
             <Empty className="border-0 p-0">
               <EmptyHeader>
@@ -31,7 +33,7 @@ export default function TermsCard({ scope }: CardProps) {
             </Empty>
           </li>
         ) : null}
-        {(terms ?? []).toReversed().map((term) => (
+        {terms.toReversed().map((term) => (
           <li key={term.id}>
             <HistoryLink
               href={termPath(programId, term.id)}

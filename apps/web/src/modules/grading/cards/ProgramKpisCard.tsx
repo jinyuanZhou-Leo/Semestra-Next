@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 import { formatCredits } from '@/lib/format'
@@ -11,7 +12,7 @@ import { useProgramGrades } from '../queries'
 /** Cumulative GPA, average, credit progress and term count (M03 §5.3). */
 export default function ProgramKpisCard({ scope }: CardProps) {
   const { data } = useProgramGrades(scope.programId)
-  if (!data) return null
+  if (!data) return <CardSkeleton />
   const required = data.credits_required
   return (
     <div className="grid h-full content-start gap-3 sm:grid-cols-2 lg:grid-cols-4">

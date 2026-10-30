@@ -2,6 +2,7 @@ import type { TermGradePoint } from '@semestra/api-client'
 import { ChartLine } from 'lucide-react'
 import { type ComponentProps, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -71,7 +72,7 @@ const creditsTooltip: TooltipFormatter = (value) => formatCredits(Number(value))
 export default function ProgramChartsCard({ scope }: CardProps) {
   const { data } = useProgramGrades(scope.programId)
   const [revealed, setRevealed] = useState(false)
-  if (!data) return null
+  if (!data) return <CardSkeleton />
   const terms: TermGradePoint[] = data.terms
   if (terms.every((t) => t.gpa === null)) {
     return (

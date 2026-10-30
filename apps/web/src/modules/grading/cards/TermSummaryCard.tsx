@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -12,7 +13,7 @@ import { useTermGrades } from '../queries'
 export default function TermSummaryCard({ scope, size }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const { data } = useTermGrades(termId)
-  if (!data) return null
+  if (!data) return <CardSkeleton />
   return (
     <HistoryLink
       href={termPath(scope.programId, termId, 'grades')}

@@ -1,6 +1,7 @@
 import { gradingAssessmentUpcomingOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarClock } from 'lucide-react'
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
@@ -32,6 +33,9 @@ export default function UpcomingCard({ scope, size }: CardProps) {
     const course = byId.get(assessment.course_id)
     return course ? [{ assessment, course }] : []
   })
+  if (upcoming.isPending || (!courseId && !termCourses) || (courseId && !thisCourse)) {
+    return <CardSkeleton />
+  }
   if (rows.length === 0) {
     return (
       <Empty className="border-0 p-0">

@@ -1,3 +1,4 @@
+import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { useTaskActions } from '../actions'
@@ -16,7 +17,7 @@ export default function ListCard({ scope, settings }: CardProps<ListCardSettings
   const selection = parseSelection(settings.source)
   const tasks = useTasks(taskScope, selection, { sort: 'manual', completed: 'hide' })
   const { actions } = useTaskActions()
-  if (!tasks.data) return null
+  if (!tasks.data) return <CardSkeleton />
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <CompactTasks
