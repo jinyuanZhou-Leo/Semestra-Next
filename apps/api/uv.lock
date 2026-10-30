@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'darwin'",
@@ -2859,7 +2859,7 @@ wheels = [
 
 [[package]]
 name = "semestra-api"
-version = "1.6.0"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
