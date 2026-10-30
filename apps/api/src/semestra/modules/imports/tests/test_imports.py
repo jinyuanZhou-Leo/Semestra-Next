@@ -15,6 +15,8 @@ from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.files.tests.conftest import make_png
 from semestra.modules.imports import extraction, service
+from semestra.modules.imports.service import committing
+from semestra.modules.imports.service import rows as session_rows
 from semestra.modules.imports.tests.test_imports_rules import ACORN, ics, vevent
 from semestra.testing import MakeUser, UserHandle
 
@@ -255,7 +257,7 @@ async def test_bad_uploads_and_sources(api: Api):
 async def test_waiting_for_extraction_takes_one_call(
     api: Api, fake_ai: list[dict[str, Any]], run_jobs, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(service, "WAIT_POLL_SECONDS", 0.05)
+    monkeypatch.setattr(session_rows, "WAIT_POLL_SECONDS", 0.05)
     program_id = await api.program()
     term_id = await api.term(program_id)
     session = await api.create(
@@ -518,7 +520,7 @@ async def test_commit_hook_failure_rolls_back(
         assert created
         raise RuntimeError("hook failed")
 
-    monkeypatch.setitem(service._commit_hooks, "ics", [hook])  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setitem(committing._commit_hooks, "ics", [hook])  # pyright: ignore[reportPrivateUsage]
     upload = await api.upload("acorn.ics", ACORN, "text/calendar")
     session = await api.create(
         program_id, source_kind="ics", target={"kind": "term", "term_id": term_id},

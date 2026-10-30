@@ -670,22 +670,8 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
                     message_id = turn.rows.row_id(response) or ""
                     answer = None
                     async with node.stream(run.ctx) as stream:
-                        async for item in stream:
-                            if isinstance(item, FunctionToolCallEvent):
-                                if item.part.tool_call_id in reported:
-                                    continue
-                                yield event(
-                                    "tool_call",
-                                    message_id=message_id,
-                                    call_id=item.part.tool_call_id,
-                                    name=tools.capability_name(item.part.tool_name),
-                                    args=tools.summarize_args(history.args_of(item.part)),
-                                )
-                            elif isinstance(item, FunctionToolResultEvent):
-                                if item.part.tool_call_id in reported:
-                                    continue
-                                for out in result_event(message_id, item.part):
-                                    yield out
+                        async for out in _tool_events(stream, message_id, reported):
+                            yield out
                     # Stopped while the tools ran: their results sit in the next request,
                     # which the next node stores before it sees the stop.
             else:
@@ -695,7 +681,6 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
                 if isinstance(output, DeferredToolRequests):
                     for item in await _propose(turn, run.all_messages(), output):
                         yield item
-                    return
                 return
             messages = run.all_messages()
             pending = node.request if Agent.is_model_request_node(node) else None
@@ -721,6 +706,29 @@ async def _run(prepared: Prepared) -> AsyncIterator[Event]:
         log.exception("agent_run_failed")
         await _keep(store, answer, current)
         yield event("error", code="common.internal", params={})
+
+
+async def _tool_events(
+    stream: AsyncIterator[Any], message_id: str, reported: set[str]
+) -> AsyncIterator[Event]:
+    """The `tool_call` and result events of one tools node, leaving out the calls `reported`
+    already (approved proposals being resumed)."""
+    async for item in stream:
+        if isinstance(item, FunctionToolCallEvent):
+            if item.part.tool_call_id in reported:
+                continue
+            yield event(
+                "tool_call",
+                message_id=message_id,
+                call_id=item.part.tool_call_id,
+                name=tools.capability_name(item.part.tool_name),
+                args=tools.summarize_args(history.args_of(item.part)),
+            )
+        elif isinstance(item, FunctionToolResultEvent):
+            if item.part.tool_call_id in reported:
+                continue
+            for out in result_event(message_id, item.part):
+                yield out
 
 
 async def _keep(store: Store, answer: Answer | None, run: AgentRun[Turn, Any] | None) -> None:

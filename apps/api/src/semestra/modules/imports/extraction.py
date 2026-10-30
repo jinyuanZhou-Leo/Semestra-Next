@@ -223,7 +223,25 @@ def from_syllabus(
 ) -> int:
     """Adds the items of one syllabus to `builder`; returns how many were added."""
     before = len(builder.items)
-    c = ext.course
+    course, code = _syllabus_course(ext.course, source)
+    course.data["planned_terms"] = 2 if year_long(code, ext.course.duration.value) else 1
+    if not (course.data.get("title") or code) and ctx.target_kind != "course":
+        return 0  # nothing identifies a course: the document is not a syllabus
+    ref = builder.course(
+        course.data, evidence=course.evidence, confidence=course.confidence, patch_existing=True
+    )
+    course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
+    existing = ctx.existing_assessments.get(course_id or "", set())
+    category_refs = _syllabus_categories(ext, builder, source, ref)
+    titles = _syllabus_assessments(ext, ctx, builder, source, ref, category_refs, existing)
+    _share_category_weights(builder, ref)
+    _syllabus_meetings(ext, ctx, builder, source, ref)
+    _syllabus_dates(ext, ctx, builder, source, ref, titles)
+    return len(builder.items) - before
+
+
+def _syllabus_course(c: CourseX, source: dict[str, str | None]) -> tuple[_Fields, str | None]:
+    """The course's own fields, and its code."""
     course = _Fields(source)
     raw_code = _text(c.code)
     code = course.put("code", c.code, raw_code[:32]) if raw_code else None
@@ -251,16 +269,14 @@ def from_syllabus(
             course.evidence["instructors"] = Evidence(
                 **source, page=first.evidence.page, quote=first.evidence.quote[:400]
             )
-    course.data["planned_terms"] = 2 if year_long(code, c.duration.value) else 1
-    if not (course.data.get("title") or code) and ctx.target_kind != "course":
-        return 0  # nothing identifies a course: the document is not a syllabus
-    ref = builder.course(
-        course.data, evidence=course.evidence, confidence=course.confidence, patch_existing=True
-    )
-    course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
-    existing = ctx.existing_assessments.get(course_id or "", set())
+    return course, code
 
-    # Categories: a built-in key when the name means one, else a new custom category.
+
+def _syllabus_categories(
+    ext: SyllabusExtraction, builder: Builder, source: dict[str, str | None], ref: str
+) -> dict[str, str]:
+    """Categories: a built-in key when the name means one, else a new custom category. Returns
+    their refs by normalized name and by `key:<key>`."""
     category_refs: dict[str, str] = {}
     for cat in ext.grading.categories:
         name = _text(cat.name)
@@ -277,7 +293,19 @@ def from_syllabus(
         )
         category_refs[norm_title(name)] = f"item:{item_key}"
         category_refs.setdefault(f"key:{key}", f"item:{item_key}")
+    return category_refs
 
+
+def _syllabus_assessments(
+    ext: SyllabusExtraction,
+    ctx: BuildContext,
+    builder: Builder,
+    source: dict[str, str | None],
+    ref: str,
+    category_refs: dict[str, str],
+    existing: set[str],
+) -> set[str]:
+    """Adds the assessments; returns their normalized titles."""
     titles: set[str] = set()
     for a in ext.grading.assessments:
         name = _text(a.title)
@@ -315,9 +343,16 @@ def from_syllabus(
             confidence=fields.confidence,
             decision="reject" if normalized in existing else "accept",
         )
+    return titles
 
-    _share_category_weights(builder, ref)
 
+def _syllabus_meetings(
+    ext: SyllabusExtraction,
+    ctx: BuildContext,
+    builder: Builder,
+    source: dict[str, str | None],
+    ref: str,
+) -> None:
     for m in ext.meetings:
         if not (m.start_time.value and m.end_time.value and m.weekday.value):
             continue
@@ -338,6 +373,17 @@ def from_syllabus(
         )
         builder.add("meeting", fields.data, evidence=fields.evidence, confidence=fields.confidence)
 
+
+def _syllabus_dates(
+    ext: SyllabusExtraction,
+    ctx: BuildContext,
+    builder: Builder,
+    source: dict[str, str | None],
+    ref: str,
+    titles: set[str],
+) -> None:
+    """Important dates: deadlines become tasks, "no class" days cancel meetings, the rest are
+    events. One already added as an assessment is skipped."""
     for d in ext.important_dates:
         name = _text(d.title)
         if not name or norm_title(name) in titles:
@@ -370,7 +416,6 @@ def from_syllabus(
         if day is not None:
             fields.put("date", d.date if d.date.value else d.date_text, day)
         builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)
-    return len(builder.items) - before
 
 
 def from_timetable(

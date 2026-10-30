@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError, not_found
-from semestra.modules.imports import service as imports_service
+from semestra.modules.imports.service import committing as imports_committing
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
 from semestra.modules.lms.errors import lms_error
@@ -416,7 +416,7 @@ async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider)
         raise AppError("grading.assessment_not_found", 404)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(imports_service, "_write", broken)
+        mp.setattr(imports_committing, "_write", broken)
         done = await api.commit(review["session_id"])
     assert done["failed"] == 1
     updates = await api.call("GET", f"/courses/{course}/lms/updates")
