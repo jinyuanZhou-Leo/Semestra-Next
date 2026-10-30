@@ -5,8 +5,8 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { BookOpen, Plus, Repeat } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { BookOpen, ChevronDown, Plus, Repeat } from 'lucide-react'
+import { createContext, use } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -16,7 +16,7 @@ import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { courseColor } from '../color'
-import { AddCourseDialog } from '../components/AddCourseDialog'
+import { AddCoursesMenu } from '../components/AddCoursesMenu'
 import { coursePath } from '../paths'
 import { useColumnData, useCourses } from '../queries'
 import { COURSE_COLUMNS, type CourseColumn } from '../types'
@@ -89,7 +89,6 @@ export default function TermCoursesCard({ scope }: CardProps) {
   const courses = useCourses(programId, termId).data?.items
   const extra = useExtensions<CourseColumn>(COURSE_COLUMNS).filter((c) => c.showInTermCard)
   const columnData = useColumnData(extra, programId)
-  const [adding, setAdding] = useState(false)
   const columns = column.columns([
     column.display({ id: 'code', header: m.academics_course_code(), cell: CodeCell }),
     column.display({ id: 'title', header: m.academics_course_title(), cell: TitleCell }),
@@ -156,17 +155,18 @@ export default function TermCoursesCard({ scope }: CardProps) {
         )}
       </div>
       <div>
-        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-          <Plus aria-hidden />
-          {m.academics_course_add()}
-        </Button>
+        <AddCoursesMenu
+          programId={programId}
+          termId={termId}
+          trigger={
+            <Button variant="outline" size="sm">
+              <Plus aria-hidden />
+              {m.academics_course_add()}
+              <ChevronDown aria-hidden data-icon="inline-end" />
+            </Button>
+          }
+        />
       </div>
-      <AddCourseDialog
-        programId={programId}
-        termId={termId}
-        open={adding}
-        onOpenChange={setAdding}
-      />
     </div>
   )
 }

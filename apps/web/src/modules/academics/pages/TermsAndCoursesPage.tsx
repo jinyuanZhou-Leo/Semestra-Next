@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarPlus,
   CalendarSync,
+  ChevronDown,
   Ellipsis,
   ExternalLink,
   Pin,
@@ -47,7 +48,7 @@ import {
 } from '@/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { AddCourseDialog } from '../components/AddCourseDialog'
+import { AddCoursesMenu } from '../components/AddCoursesMenu'
 import { CoursesTable } from '../components/CoursesTable'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { useCurrentTerm } from '../current-term'
@@ -80,7 +81,6 @@ export function TermsAndCoursesPage({
   const terms = useTerms(programId)
   const courses = useCourses(programId)
   const current = useCurrentTerm(programId)
-  const [adding, setAdding] = useState(false)
 
   const list = terms.data?.items.toSorted((a, b) => b.start_date.localeCompare(a.start_date)) ?? []
   const picked = list.find((t) => t.id === termId)
@@ -111,10 +111,18 @@ export function TermsAndCoursesPage({
               {m.academics_term_new()}
             </Button>
           ) : (
-            <Button size="sm" disabled={!addTarget} onClick={() => setAdding(true)}>
-              <Plus aria-hidden data-icon="inline-start" />
-              {m.academics_course_add()}
-            </Button>
+            <AddCoursesMenu
+              programId={programId}
+              termId={addTarget?.id ?? ''}
+              align="end"
+              trigger={
+                <Button size="sm" disabled={!addTarget}>
+                  <Plus aria-hidden data-icon="inline-start" />
+                  {m.academics_course_add()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </Button>
+              }
+            />
           )
         }
       >
@@ -168,7 +176,6 @@ export function TermsAndCoursesPage({
                         terms={list}
                         selected={selected}
                         onSelect={onTermChange}
-                        onAddCourse={() => setAdding(true)}
                         courses={page.items}
                       />
                     ) : null}
@@ -201,14 +208,6 @@ export function TermsAndCoursesPage({
           )}
         </AsyncBoundary>
       </div>
-      {addTarget ? (
-        <AddCourseDialog
-          programId={programId}
-          termId={addTarget.id}
-          open={adding}
-          onOpenChange={setAdding}
-        />
-      ) : null}
     </Tabs>
   )
 }
@@ -218,14 +217,12 @@ function TermsTab({
   terms,
   selected,
   onSelect,
-  onAddCourse,
   courses,
 }: {
   programId: string
   terms: Term[]
   selected: Term
   onSelect: (termId: string) => void
-  onAddCourse: () => void
   courses: Parameters<typeof CoursesTable>[0]['courses']
 }) {
   const current = useCurrentTerm(programId)
@@ -276,7 +273,6 @@ function TermsTab({
         onTogglePin={() => pins.toggle({ kind: 'term', id: selected.id })}
         onSetCurrent={() => current.setCurrentTerm(selected.id)}
         onFollowCalendar={() => current.setCurrentTerm(null)}
-        onAddCourse={onAddCourse}
       />
     </div>
   )
@@ -341,7 +337,6 @@ function TermPane({
   onTogglePin,
   onSetCurrent,
   onFollowCalendar,
-  onAddCourse,
 }: {
   programId: string
   term: Term
@@ -352,7 +347,6 @@ function TermPane({
   onTogglePin: () => void
   onSetCurrent: () => void
   onFollowCalendar: () => void
-  onAddCourse: () => void
 }) {
   const [deleting, setDeleting] = useState(false)
   const settings = useSettingsDialog()
@@ -424,13 +418,7 @@ function TermPane({
           </DropdownMenu>
         </div>
       </div>
-      <CoursesTable
-        programId={programId}
-        courses={courses}
-        termId={term.id}
-        lockTerm
-        onAddCourse={onAddCourse}
-      />
+      <CoursesTable programId={programId} courses={courses} termId={term.id} lockTerm canAdd />
       <DeleteTermDialog term={term} open={deleting} onOpenChange={setDeleting} />
     </section>
   )

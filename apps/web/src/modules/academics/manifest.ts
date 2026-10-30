@@ -10,7 +10,8 @@ import {
 import { defineModule, preloadable } from '@/app/extensions'
 import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
-import { academicsNavigation } from './commands'
+import { addCourseCommand, academicsNavigation, newTermCommand } from './commands'
+import { AddCourseHost } from './components/AddCourseHost'
 import { prefetchTermCourses } from './queries'
 
 /** Every query this module shows; any academics change refetches them (they are small). */
@@ -62,6 +63,8 @@ export default defineModule({
     },
   ],
   navigationSources: [academicsNavigation],
+  commands: [newTermCommand, addCourseCommand],
+  overlays: [AddCourseHost],
   cards: [
     {
       id: 'academics.terms',
