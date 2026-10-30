@@ -60,12 +60,18 @@ async def default_program_id(ctx: Ctx) -> str | None:
     only one."""
     if ctx.scope is not None:
         return ctx.scope.program_id
-    ids = (
+    only = await only_program_row(ctx)
+    return only.id if only else None
+
+
+async def only_program_row(ctx: Ctx) -> AcademicsProgram | None:
+    """The user's Program if they have exactly one."""
+    rows = (
         await ctx.db.scalars(
-            select(AcademicsProgram.id).where(AcademicsProgram.user_id == ctx.user_id).limit(2)
+            select(AcademicsProgram).where(AcademicsProgram.user_id == ctx.user_id).limit(2)
         )
     ).all()
-    return ids[0] if len(ids) == 1 else None
+    return rows[0] if len(rows) == 1 else None
 
 
 # --- read-only memo -------------------------------------------------------------------------

@@ -46,7 +46,6 @@ log = structlog.get_logger()
 
 RETENTION = timedelta(days=30)
 UPLOAD_RETENTION = timedelta(days=1)
-OPEN = ("extracting", "ready")
 WAIT_POLL_SECONDS = 0.5
 CLOSED = ("committed", "discarded")
 # Commit order (M08 §2): courses first, then what hangs off them.
@@ -102,7 +101,7 @@ async def wait_while_extracting(ctx: Ctx, row: ImportsSession, seconds: int) -> 
         await ctx.db.refresh(row)
 
 
-async def _items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
+async def session_items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
     return list(
         (
             await ctx.db.scalars(
@@ -116,7 +115,7 @@ async def _items(ctx: Ctx, session_id: str) -> list[ImportsItem]:
 
 async def items_of(ctx: Ctx, session_id: str) -> list[ImportsItem]:
     """The items of a session the caller already loaded (the assistant's display labels)."""
-    return await _items(ctx, session_id)
+    return await session_items(ctx, session_id)
 
 
 def session_out(row: ImportsSession) -> ImportSession:
@@ -184,7 +183,7 @@ async def detail(
     time when `limit` is given (`cursor` is the position to go on from)."""
     items = [
         i
-        for i in await _items(ctx, row.id)
+        for i in await session_items(ctx, row.id)
         if (item_ids is None or i.id in item_ids) and (types is None or i.type in types)
     ]
     start = int(cursor) if cursor and cursor.isdigit() else 0
@@ -494,7 +493,7 @@ def _validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -
 
 async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> list[ImportsItem]:
     """Appends items; `item:<key>` references between them become `item:<id>`."""
-    existing = await _items(ctx, row.id)
+    existing = await session_items(ctx, row.id)
     position = max((i.position for i in existing), default=-1) + 1
     ids = {n.key: new_id() for n in new if n.key}
     known = {i.id for i in existing} | set(ids.values())
@@ -668,7 +667,7 @@ async def session_uploads(ctx: Ctx, session_id: str) -> list[ImportsUpload]:
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
     row = await get_session_row(ctx, inp.session_id)
-    items = await _items(ctx, row.id)
+    items = await session_items(ctx, row.id)
     item = next((i for i in items if i.id == inp.item_id), None)
     if item is None:
         raise not_found()
@@ -792,7 +791,7 @@ async def preview_bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> dict[str, Any]:
     """The assistant's confirmation card (M12 §3.5): how many items of each type it keeps or
     leaves out (the same selection as `bulk_decide`)."""
     row = await get_session_row(ctx, inp.session_id)
-    items = _decided(await _items(ctx, row.id), inp)
+    items = _decided(await session_items(ctx, row.id), inp)
     changes = [
         {"field": "decision", "after": inp.decision},
         *_by_type([(i.type, i.data) for i in items]),
@@ -805,7 +804,7 @@ async def preview_bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> dict[str, Any]:
 async def preview_update_item(ctx: Ctx, inp: ItemUpdateInput) -> dict[str, Any]:
     """The item's fields before → after (null clears one), its type and its decision."""
     row = await get_session_row(ctx, inp.session_id)
-    items = await _items(ctx, row.id)
+    items = await session_items(ctx, row.id)
     item = next((i for i in items if i.id == inp.item_id), None)
     if item is None:
         raise not_found()
@@ -859,7 +858,7 @@ async def _ref_name(ctx: Ctx, items: Sequence[ImportsItem], ref: Any) -> str | N
 async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessionDetail]:
     row = await get_session_row(ctx, inp.session_id)
     _require_open(row)
-    items = await _items(ctx, row.id)
+    items = await session_items(ctx, row.id)
     changed = 0
     for item in _decided(items, inp):
         item.decision = inp.decision
@@ -905,7 +904,7 @@ async def discard(ctx: Ctx, session_id: str) -> ImportSession:
 
 async def commit_preview(ctx: Ctx, session_id: str) -> dict[str, Any]:
     row = await get_session_row(ctx, session_id)
-    items = await _items(ctx, row.id)
+    items = await session_items(ctx, row.id)
     waiting = [
         i
         for i in items
@@ -1300,7 +1299,7 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         raise AppError("import.session_changed", 409)
     row.status = "committing"
     row.updated_at = ctx.now
-    items = await _items(ctx, row.id)
+    items = await session_items(ctx, row.id)
     by_id = {i.id: i for i in items}
     c = _Commit(ctx, row, items)
 

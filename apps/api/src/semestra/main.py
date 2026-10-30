@@ -1,12 +1,9 @@
 import asyncio
-import re
-import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
 
-import structlog
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -23,12 +20,11 @@ from semestra.core.logging import configure_logging
 from semestra.core.observability import init_sentry
 from semestra.core.realtime import Broadcaster
 from semestra.core.realtime import router as realtime_router
+from semestra.core.request_id import RequestId
 from semestra.core.uploads import UploadBodyLimit
 from semestra.core.webapp import install_web
 from semestra.modules import register_all
 from semestra.modules.ai.adapters import sdk
-
-_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
 class Health(BaseModel):
@@ -97,20 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.middleware("http")
-    async def request_context(  # pyright: ignore[reportUnusedFunction]
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        # A caller's id is kept for tracing across proxies, but only if it looks like one: it
-        # goes into every log line and back out in a header.
-        incoming = request.headers.get("x-request-id", "")
-        request_id = incoming if _REQUEST_ID.fullmatch(incoming) else str(uuid.uuid7())
-        request.state.request_id = request_id
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
-        response = await call_next(request)
-        response.headers["x-request-id"] = request_id
-        return response
+    app.add_middleware(RequestId)  # outermost: the upload limits use its id
 
     install_error_handlers(app)
 

@@ -1,123 +1,74 @@
 """Validation of card settings against the JSON Schema exported from a card's zod schema.
 
-Only the keywords `z.toJSONSchema` emits for settings-like schemas are supported: type,
-properties, required, additionalProperties, items, enum, const, numeric and length bounds,
-pattern, anyOf/oneOf/allOf and local `$ref`s. Unknown keywords are ignored; cross-field rules
-(refinements) are the frontend's job, or a backend Pydantic model's (`register_card_settings`).
+Uses the `jsonschema` library (Draft 2020-12, what `z.toJSONSchema` emits) and turns its errors
+into the `common.validation` shape. Cross-field rules (refinements) are the frontend's job, or a
+backend Pydantic model's (`register_card_settings`).
 """
 
-import re
+from collections.abc import Iterator
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
-_TYPES: dict[str, tuple[type, ...]] = {
-    "object": (dict,),
-    "array": (list,),
-    "string": (str,),
-    "boolean": (bool,),
-    "null": (type(None),),
+from jsonschema import Draft202012Validator, ValidationError, validators
+
+_CODES = {
+    "multipleOf": "multiple_of",
+    "exclusiveMinimum": "exclusive_minimum",
+    "exclusiveMaximum": "exclusive_maximum",
+    "minLength": "min_length",
+    "maxLength": "max_length",
+    "minItems": "min_items",
+    "maxItems": "max_items",
+    None: "not_allowed",  # a `false` schema
 }
 
 
-def _is_type(value: Any, name: str) -> bool:
-    if name == "integer":
-        return (isinstance(value, int) and not isinstance(value, bool)) or (
-            isinstance(value, float) and value.is_integer()
-        )
-    if name == "number":
-        return isinstance(value, int | float) and not isinstance(value, bool)
-    return isinstance(value, _TYPES.get(name, ()))
+def _multiple_of(
+    validator: Any, divisor: float, instance: Any, schema: dict[str, Any]
+) -> Iterator[ValidationError]:
+    # Decimal of the shortest repr, so 0.3 is a multiple of 0.1 as it reads.
+    if validator.is_type(instance, "number") and Decimal(repr(instance)) % Decimal(repr(divisor)):
+        yield ValidationError(f"{instance!r} is not a multiple of {divisor!r}")
+
+
+_Validator = validators.extend(Draft202012Validator, {"multipleOf": _multiple_of})
+
+
+def _problems(error: ValidationError) -> list[tuple[list[str | int], str]]:
+    loc: list[str | int] = list(error.absolute_path)
+    # Set on every error a validator yields (the stubs allow `Unset` for hand-made ones).
+    instance = cast(Any, error.instance)
+    schema = cast(dict[str, Any], error.schema)
+    wanted = cast(Any, error.validator_value)
+    match error.validator:
+        case "required":
+            return [([*loc, n], "missing") for n in wanted if n not in instance]
+        case "additionalProperties" if wanted is False:
+            known = schema.get("properties", {})
+            return [([*loc, n], "not_allowed") for n in instance if n not in known]
+        case "items" if wanted is False:
+            first = len(schema.get("prefixItems", []))
+            return [([*loc, i], "not_allowed") for i in range(first, len(instance))]
+        case code:
+            return [(loc, _CODES.get(code, str(code)))]
 
 
 def errors(schema: dict[str, Any], value: Any) -> list[dict[str, Any]]:
     """Problems as `[{"loc": [...], "code": ...}]` (the `common.validation` shape)."""
+    found = list(_Validator(schema).iter_errors(value))
+    # A value of the wrong type reports only that, not the other keywords of the same schema.
+    mistyped = {
+        (tuple(e.absolute_path), tuple(e.absolute_schema_path)[:-1])
+        for e in found
+        if e.validator == "type"
+    }
     out: list[dict[str, Any]] = []
-    _check(schema, value, [], out, schema)
-    return out
-
-
-def _resolve(ref: str, root: dict[str, Any]) -> dict[str, Any]:
-    node: Any = root
-    for part in ref.removeprefix("#/").split("/"):
-        node = node[part]
-    return node
-
-
-def _check(
-    schema: dict[str, Any] | bool,
-    value: Any,
-    loc: list[str | int],
-    out: list[dict[str, Any]],
-    root: dict[str, Any],
-) -> None:
-    if schema is True:
-        return
-    if schema is False:
-        out.append({"loc": loc, "code": "not_allowed"})
-        return
-    if "$ref" in schema:
-        _check(_resolve(schema["$ref"], root), value, loc, out, root)
-    types = schema.get("type")
-    if types is not None:
-        names = types if isinstance(types, list) else [types]
-        if not any(_is_type(value, n) for n in names):
-            out.append({"loc": loc, "code": "type"})
-            return
-    if "enum" in schema and value not in schema["enum"]:
-        out.append({"loc": loc, "code": "enum"})
-    if "const" in schema and value != schema["const"]:
-        out.append({"loc": loc, "code": "const"})
-    for key in ("anyOf", "oneOf"):
-        if key in schema:
-            options = [errors_in(s, value, root) for s in schema[key]]
-            passing = sum(1 for o in options if not o)
-            if passing == 0 or (key == "oneOf" and passing > 1):
-                out.append({"loc": loc, "code": key})
-    for sub in schema.get("allOf", []):
-        _check(sub, value, loc, out, root)
-    if isinstance(value, int | float) and not isinstance(value, bool):
-        if "minimum" in schema and value < schema["minimum"]:
-            out.append({"loc": loc, "code": "minimum"})
-        if "maximum" in schema and value > schema["maximum"]:
-            out.append({"loc": loc, "code": "maximum"})
-        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
-            out.append({"loc": loc, "code": "exclusive_minimum"})
-        if "exclusiveMaximum" in schema and value >= schema["exclusiveMaximum"]:
-            out.append({"loc": loc, "code": "exclusive_maximum"})
-        # Decimal of the shortest repr, so 0.3 is a multiple of 0.1 as it reads.
-        if "multipleOf" in schema and Decimal(repr(value)) % Decimal(repr(schema["multipleOf"])):
-            out.append({"loc": loc, "code": "multiple_of"})
-    if isinstance(value, str):
-        if "minLength" in schema and len(value) < schema["minLength"]:
-            out.append({"loc": loc, "code": "min_length"})
-        if "maxLength" in schema and len(value) > schema["maxLength"]:
-            out.append({"loc": loc, "code": "max_length"})
-        if "pattern" in schema and not re.search(schema["pattern"], value):
-            out.append({"loc": loc, "code": "pattern"})
-    if isinstance(value, list):
-        if "minItems" in schema and len(value) < schema["minItems"]:
-            out.append({"loc": loc, "code": "min_items"})
-        if "maxItems" in schema and len(value) > schema["maxItems"]:
-            out.append({"loc": loc, "code": "max_items"})
-        prefix: list[Any] = schema.get("prefixItems", [])
-        for i, item in enumerate(value):
-            sub = prefix[i] if i < len(prefix) else schema.get("items")
-            if sub is not None:
-                _check(sub, item, [*loc, i], out, root)
-    if isinstance(value, dict):
-        props: dict[str, Any] = schema.get("properties", {})
-        for name in schema.get("required", []):
-            if name not in value:
-                out.append({"loc": [*loc, name], "code": "missing"})
-        extra = schema.get("additionalProperties", True)
-        for name, item in value.items():
-            if name in props:
-                _check(props[name], item, [*loc, name], out, root)
-            else:
-                _check(extra, item, [*loc, name], out, root)
-
-
-def errors_in(schema: dict[str, Any] | bool, value: Any, root: dict[str, Any]) -> list[Any]:
-    out: list[dict[str, Any]] = []
-    _check(schema, value, [], out, root)
+    for error in found:
+        here = (tuple(error.absolute_path), tuple(error.absolute_schema_path)[:-1])
+        if error.validator != "type" and here in mistyped:
+            continue
+        for loc, code in _problems(error):
+            problem = {"loc": loc, "code": code}
+            if problem not in out:  # one `required` error per missing name, each listing all
+                out.append(problem)
     return out

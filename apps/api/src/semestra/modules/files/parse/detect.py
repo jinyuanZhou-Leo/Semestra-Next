@@ -25,7 +25,6 @@ INLINE_SAFE = frozenset(
         "text/csv",
     }
 )
-_IMAGES = {"image/png", "image/jpeg", "image/webp", "image/heic"}
 _HEIF_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1", b"heim", b"heis"}
 _OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
@@ -105,7 +104,3 @@ def detect(data: bytes, filename: str | None = None) -> Detected:
     if ext in ("md", "markdown"):
         return Detected("markdown", "text/markdown")
     return Detected("text", "text/plain")
-
-
-def is_image_mime(mime: str) -> bool:
-    return mime in _IMAGES

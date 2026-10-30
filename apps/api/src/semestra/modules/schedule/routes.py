@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from semestra.core.context import Ctx, get_anonymous_ctx, get_ctx, run_after_commit
 from semestra.core.errors import not_found
 from semestra.modules.academics import service as academics
-from semestra.modules.auth.models import AuthUser
+from semestra.modules.auth import service as auth
 from semestra.modules.auth.ratelimit import hit
 from semestra.modules.schedule import common, feeds
 from semestra.modules.schedule.ics import build_calendar
@@ -70,7 +70,7 @@ async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> R
     await hit(
         ctx.db, ctx.settings, ctx.now, "schedule.feed", row.id, limit=FEED_LIMIT, window=FEED_WINDOW
     )
-    user = await ctx.db.get(AuthUser, row.user_id)
+    user = await auth.user_by_id(ctx.db, row.user_id)
     if user is None:
         raise not_found()
     ctx.user = user

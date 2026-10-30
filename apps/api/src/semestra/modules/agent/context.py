@@ -20,8 +20,6 @@ from pathlib import Path
 from string import Template
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
-
 from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError
 from semestra.modules.academics import rules
@@ -53,12 +51,7 @@ async def _program(ctx: Ctx, scope: ScopeRef | None) -> AcademicsProgram | None:
             return await academics.get_program_row(ctx, scope.program_id)
         except AppError:
             return None
-    rows = (
-        await ctx.db.scalars(
-            select(AcademicsProgram).where(AcademicsProgram.user_id == ctx.user_id).limit(2)
-        )
-    ).all()
-    return rows[0] if len(rows) == 1 else None
+    return await academics.only_program_row(ctx)
 
 
 async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRef | None) -> str:

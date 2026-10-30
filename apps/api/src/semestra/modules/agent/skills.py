@@ -34,9 +34,6 @@ class Skill:
     module: str
     command: str | None = None
 
-    def title_for(self, locale: str) -> str:
-        return self.title.get(locale) or self.title.get("en") or self.name
-
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """A TOML header between `+++` lines (as Hugo and Zola write it), then the body."""

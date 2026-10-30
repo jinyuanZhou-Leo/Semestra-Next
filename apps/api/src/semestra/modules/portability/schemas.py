@@ -28,10 +28,6 @@ class ExportList(BaseModel):
     items: list[ExportOut]
 
 
-class ExportRef(BaseModel):
-    id: str = Field(description="Export id.")
-
-
 class ProgramPreview(BaseModel):
     id: str = Field(description="The Program's id in the backup.")
     name: str

@@ -444,7 +444,8 @@ def test_property_each_course_counts_once_in_the_program(
 
 
 def rounded_uoft() -> engine.Scale:
-    return engine.replace_rounding(uoft(), True)
+    scale = uoft()
+    return engine.Scale(scale.bands, scale.max_points, round_to_whole=True)
 
 
 def test_rounding_reads_the_scale_with_whole_numbers() -> None:

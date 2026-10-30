@@ -116,9 +116,6 @@ class ArchiveReader:
             raise invalid()
         return data  # pyright: ignore[reportUnknownVariableType]
 
-    def file_names(self) -> list[str]:
-        return [n.removeprefix("files/") for n in self.zip.namelist() if n.startswith("files/")]
-
     def files_size(self) -> int:
         return sum(i.file_size for i in self.zip.infolist() if i.filename.startswith("files/"))
 

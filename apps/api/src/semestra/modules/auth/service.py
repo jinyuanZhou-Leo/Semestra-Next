@@ -78,6 +78,10 @@ class SignedIn:
 # --- users ----------------------------------------------------------------------------------
 
 
+async def user_by_id(db: AsyncSession, user_id: str) -> AuthUser | None:
+    return await db.get(AuthUser, user_id)
+
+
 async def user_by_email(db: AsyncSession, email: str) -> AuthUser | None:
     return (
         await db.execute(

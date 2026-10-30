@@ -494,6 +494,32 @@ async def _assessment_rows(
     return out
 
 
+async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAssessment | None:
+    """The ctx user's assessment, or None (for other modules: M05 keeps its tasks in sync)."""
+    row = await ctx.db.get(models.GradingAssessment, assessment_id)
+    return row if row is not None and row.user_id == ctx.user_id else None
+
+
+async def dated_unscored_assessment_rows(
+    ctx: Ctx, program_id: str
+) -> list[models.GradingAssessment]:
+    """A Program's assessments with a due date and no score yet, soonest first."""
+    return list(
+        await ctx.db.scalars(
+            select(models.GradingAssessment)
+            .where(
+                models.GradingAssessment.user_id == ctx.user_id,
+                models.GradingAssessment.course_id.in_(
+                    [c.id for c in await _program_courses(ctx, program_id)]
+                ),
+                models.GradingAssessment.due_at.is_not(None),
+                models.GradingAssessment.score_percentage.is_(None),
+            )
+            .order_by(models.GradingAssessment.due_at)
+        )
+    )
+
+
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
     row = await ctx.db.get(models.GradingAssessment, assessment_id)
     if row is None or row.user_id != ctx.user_id:

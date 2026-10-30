@@ -290,9 +290,9 @@ async def agent_ctx(
     """A ctx with its own database session, for one step of a generation (tool calls run in
     parallel, so each needs its own session). The caller commits."""
     async with state.session_factory() as db:
-        from semestra.modules.auth.models import AuthUser
+        from semestra.modules.auth.service import user_by_id
 
-        user = await db.get(AuthUser, user_id)
+        user = await user_by_id(db, user_id)
         if user is None:
             raise AppError("common.unauthenticated", 401)
         yield Ctx(

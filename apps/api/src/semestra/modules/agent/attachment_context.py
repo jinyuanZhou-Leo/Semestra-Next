@@ -13,6 +13,7 @@ This runs on every request of a conversation, so the result depends only on the 
 and the model's abilities: the same attachment renders the same way each time (prompt cache).
 """
 
+import contextlib
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -27,7 +28,7 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.modules.academics.models import AcademicsProgram
+from semestra.modules.academics import service as academics
 from semestra.modules.agent import attachments, service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentSession
 from semestra.modules.ai import wrap_untrusted
@@ -338,11 +339,13 @@ def calendar_pages(result: IcsResult) -> list[str]:
 
 async def _timezone(ctx: Ctx, att: AgentAttachment) -> str:
     """The conversation's Program's time zone: the meetings' weekdays and dates depend on it."""
-    tz = await ctx.db.scalar(
-        select(AcademicsProgram.timezone)
-        .join(AgentSession, AgentSession.program_id == AcademicsProgram.id)
-        .where(AgentSession.id == att.session_id, AcademicsProgram.user_id == ctx.user_id)
+    program_id = await ctx.db.scalar(
+        select(AgentSession.program_id).where(AgentSession.id == att.session_id)
     )
+    tz = None
+    if program_id is not None:
+        with contextlib.suppress(AppError):
+            tz = (await academics.get_program_row(ctx, program_id)).timezone
     try:
         return str(ZoneInfo(tz)) if tz else "UTC"
     except ZoneInfoNotFoundError, ValueError:

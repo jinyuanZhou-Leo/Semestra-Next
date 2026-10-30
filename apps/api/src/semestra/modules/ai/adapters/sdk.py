@@ -36,7 +36,6 @@ if TYPE_CHECKING:
     from pydantic_ai.providers.google import GoogleProvider
 
 ANTHROPIC_KINDS = frozenset(("anthropic", "anthropic_compatible"))
-OPENAI_KINDS = frozenset(("openai", "openai_compatible", "openai_responses", "ollama"))
 # Only OpenAI's own API takes `reasoning_effort` (a compatible endpoint may reject it).
 REASONING_KINDS = frozenset(("openai", "openai_responses"))
 # What `chat_model()` imports across every kind (each SDK comes with its Pydantic AI model).
