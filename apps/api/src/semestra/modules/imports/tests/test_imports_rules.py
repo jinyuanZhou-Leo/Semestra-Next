@@ -219,7 +219,6 @@ def test_relative_dates():
     assert dates.resolve("2026-04-02", None) == date(2026, 4, 2)
     assert dates.resolve("Week 5", term) is None
     assert dates.resolve("TBA", term) is None
-    assert dates.week_of(date(2026, 2, 6), term.weeks) == 5
 
 
 def test_category_and_type_mapping():

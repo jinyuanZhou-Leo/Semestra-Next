@@ -94,10 +94,6 @@ def validate_bands(bands: Sequence[Band], max_points: float) -> None:
         raise ScaleError("not_to_hundred")
 
 
-def replace_rounding(scale: Scale, round_to_whole: bool) -> Scale:
-    return Scale(scale.bands, scale.max_points, round_to_whole)
-
-
 def lookup_percentage(scale: Scale, percentage: float) -> float:
     """The percentage the scale is read with. With rounding it is first taken to one decimal,
     as the app shows it, then to a whole number, both half up: 84.46 is shown as 84.5 % and so

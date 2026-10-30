@@ -80,64 +80,87 @@ def _meeting_term_weeks(
 def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
     """Sets `issues` on every item."""
     by_id = {i.id: i for i in items}
-    issues: dict[str, list[dict[str, Any]]] = {i.id: [] for i in items}
-
-    def ref_missing(item: ImportsItem) -> bool:
-        ref = item.data.get("course_ref")
-        if not isinstance(ref, str) or not ref.startswith("item:"):
-            return False
-        return not _live(by_id.get(ref.removeprefix("item:")))
-
+    issues = {i.id: _item_issues(i, by_id, ctx) for i in items}
     groups: defaultdict[str, list[ImportsItem]] = defaultdict(list)
     for item in items:
-        data = item.data
-        found = issues[item.id]
-        if item.type == "course" and data.get("existing_course_id"):
-            found.append(_issue("import.duplicate_course", course_id=data["existing_course_id"]))
-        if item.type in ("meeting", "event", "assessment", "category", "task") and ref_missing(
-            item
-        ):
-            found.append(_issue("import.course_ref_missing"))
-        if item.type == "assessment":
-            if data.get("due_text") and not data.get("due_date"):
-                found.append(_issue("import.date_unresolved", text=data["due_text"]))
-            ref = str(data.get("course_ref", ""))
-            if ref.startswith("course:"):
-                titles = ctx.existing_assessments.get(ref.removeprefix("course:"), set())
-                if norm_title(str(data.get("title", ""))) in titles:
-                    found.append(_issue("import.duplicate_assessment"))
-            if item.decision != "reject":
-                groups[ref].append(item)
-        if item.type == "task" and data.get("due_text") and not data.get("due_date"):
-            found.append(_issue("import.date_unresolved", text=data["due_text"]))
-        if item.type == "event" and not data.get("date"):
-            found.append(_issue("import.date_unresolved", text=data.get("date_text") or ""))
-        if (
-            item.type == "meeting"
-            and not data.get("term_ref")
-            and ctx.target_kind == "course"
-            and ctx.target_term_id is None
-        ):
-            ref = str(data.get("course_ref", ""))
-            course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
-            many = course_id is None or ctx.course_term_counts.get(course_id, 0) > 1
-            if many and not data.get("first_date"):
-                found.append(_issue("import.term_unresolved"))
-        if item.type == "meeting" and not data.get("term_ref"):
-            weeks = _meeting_term_weeks(item, by_id, ctx)
-            if weeks:
-                # The same check the commit makes, so the review shows it before confirming.
-                *_, problem = meeting_weeks(
-                    _day(data.get("first_date")),
-                    _day(data.get("last_date")),
-                    data.get("start_week"),
-                    data.get("end_week"),
-                    weeks,
-                )
-                if problem:
-                    found.append(_issue(problem))
+        if item.type == "assessment" and item.decision != "reject":
+            groups[str(item.data.get("course_ref", ""))].append(item)
+    _weight_issues(items, groups, by_id, issues)
+    for item in items:
+        item.issues = issues[item.id]
 
-    # Weights of a course's assessments should add up to 100; categories to their stated total.
+
+def _ref_missing(item: ImportsItem, by_id: dict[str, ImportsItem]) -> bool:
+    ref = item.data.get("course_ref")
+    if not isinstance(ref, str) or not ref.startswith("item:"):
+        return False
+    return not _live(by_id.get(ref.removeprefix("item:")))
+
+
+def _item_issues(
+    item: ImportsItem, by_id: dict[str, ImportsItem], ctx: ValidationContext
+) -> list[dict[str, Any]]:
+    """The problems of one item on its own (the weight totals look at several)."""
+    data = item.data
+    found: list[dict[str, Any]] = []
+    if item.type == "course" and data.get("existing_course_id"):
+        found.append(_issue("import.duplicate_course", course_id=data["existing_course_id"]))
+    if item.type in ("meeting", "event", "assessment", "category", "task") and _ref_missing(
+        item, by_id
+    ):
+        found.append(_issue("import.course_ref_missing"))
+    if item.type == "assessment":
+        if data.get("due_text") and not data.get("due_date"):
+            found.append(_issue("import.date_unresolved", text=data["due_text"]))
+        ref = str(data.get("course_ref", ""))
+        if ref.startswith("course:"):
+            titles = ctx.existing_assessments.get(ref.removeprefix("course:"), set())
+            if norm_title(str(data.get("title", ""))) in titles:
+                found.append(_issue("import.duplicate_assessment"))
+    if item.type == "task" and data.get("due_text") and not data.get("due_date"):
+        found.append(_issue("import.date_unresolved", text=data["due_text"]))
+    if item.type == "event" and not data.get("date"):
+        found.append(_issue("import.date_unresolved", text=data.get("date_text") or ""))
+    if item.type == "meeting" and not data.get("term_ref"):
+        found.extend(_meeting_issues(item, by_id, ctx))
+    return found
+
+
+def _meeting_issues(
+    item: ImportsItem, by_id: dict[str, ImportsItem], ctx: ValidationContext
+) -> list[dict[str, Any]]:
+    """A meeting without a term: whether its term can be told, and whether its weeks fit."""
+    data = item.data
+    found: list[dict[str, Any]] = []
+    if ctx.target_kind == "course" and ctx.target_term_id is None:
+        ref = str(data.get("course_ref", ""))
+        course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
+        many = course_id is None or ctx.course_term_counts.get(course_id, 0) > 1
+        if many and not data.get("first_date"):
+            found.append(_issue("import.term_unresolved"))
+    weeks = _meeting_term_weeks(item, by_id, ctx)
+    if weeks:
+        # The same check the commit makes, so the review shows it before confirming.
+        *_, problem = meeting_weeks(
+            _day(data.get("first_date")),
+            _day(data.get("last_date")),
+            data.get("start_week"),
+            data.get("end_week"),
+            weeks,
+        )
+        if problem:
+            found.append(_issue(problem))
+    return found
+
+
+def _weight_issues(
+    items: Sequence[ImportsItem],
+    groups: dict[str, list[ImportsItem]],
+    by_id: dict[str, ImportsItem],
+    issues: dict[str, list[dict[str, Any]]],
+) -> None:
+    """Weights of a course's assessments should add up to 100; categories to their stated
+    total. `groups` holds the assessments that are not rejected, by course ref."""
     for ref, members in groups.items():
         total = round(sum(float(m.data.get("weight") or 0) for m in members), 2)
         if round(abs(total - 100), 2) <= WEIGHT_TOLERANCE:
@@ -163,8 +186,6 @@ def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
             issues[item.id].append(
                 _issue("import.category_weight_mismatch", expected=expected, total=total)
             )
-    for item in items:
-        item.issues = issues[item.id]
 
 
 def summarize(items: Sequence[ImportsItem]) -> dict[str, Any]:

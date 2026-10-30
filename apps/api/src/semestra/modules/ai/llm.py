@@ -13,13 +13,6 @@ Purpose = Literal["chat", "extraction", "vision", "ocr", "embedding", "title"]
 PURPOSES: tuple[Purpose, ...] = ("chat", "extraction", "vision", "ocr", "embedding", "title")
 
 ProviderCapability = Literal["chat", "tools", "vision", "structured", "embedding"]
-CAPABILITIES: tuple[ProviderCapability, ...] = (
-    "chat",
-    "tools",
-    "vision",
-    "structured",
-    "embedding",
-)
 
 # What a provider must be able to do to serve a purpose (`structured` falls back to JSON mode, so
 # extraction only needs chat).

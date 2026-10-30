@@ -333,14 +333,6 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
     return _import_out(row)
 
 
-def _flatten(manifest: Manifest) -> dict[str, dict[str, int]]:
-    out: dict[str, dict[str, int]] = {}
-    for key, n in manifest.counts.items():
-        module, _, entity = key.partition(".")
-        out.setdefault(module, {})[entity or module] = n
-    return out
-
-
 async def _preview(ctx: Ctx, reader: ArchiveReader) -> ImportPreview:
     manifest = reader.manifest
     counts: dict[str, dict[str, int]] = {}

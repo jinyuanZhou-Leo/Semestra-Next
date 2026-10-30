@@ -21,7 +21,7 @@ from semestra.modules.grading import service as grading
 from semestra.modules.grading.service import AssessmentSnapshot
 from semestra.modules.imports import register_commit_hook
 from semestra.modules.imports import service as imports
-from semestra.modules.imports.models import ImportsItem, ImportsSession
+from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import Confidence, NewItem, SessionCreateInput, SessionTarget
 from semestra.modules.lms import html, reads, service
 from semestra.modules.lms.errors import lms_error
@@ -579,10 +579,7 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         return
     if kind not in ("assignments", "updates"):
         return
-    items = {
-        i.id: i
-        for i in await ctx.db.scalars(select(ImportsItem).where(ImportsItem.session_id == row.id))
-    }
+    items = {i.id: i for i in await imports.session_items(ctx, row.id)}
     links: dict[str, LmsCourseLink] = {}
     for link_id in {info["link_id"] for info in meta.values()}:
         link = await ctx.db.get(LmsCourseLink, link_id)

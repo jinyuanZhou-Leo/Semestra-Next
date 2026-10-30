@@ -161,10 +161,6 @@ class FolderDeleteInput(BaseModel):
     )
 
 
-class FolderRef(BaseModel):
-    folder: FolderOut
-
-
 class UploadResult(BaseModel):
     items: list[ItemOut]
 

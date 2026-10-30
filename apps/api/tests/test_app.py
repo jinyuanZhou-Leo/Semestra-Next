@@ -9,6 +9,7 @@ from sqlalchemy import text
 from semestra import __version__
 from semestra.core.config import Settings
 from semestra.core.db import ensure_sqlite_dir, make_engine, new_id
+from semestra.modules.ai.adapters import sdk
 
 
 async def test_healthz(client: AsyncClient) -> None:
@@ -105,19 +106,21 @@ def test_ensure_sqlite_dir_creates_parent(tmp_path: Path) -> None:
     assert target.parent.is_dir()
 
 
-def test_starting_the_api_does_not_import_the_ai_sdks() -> None:
-    # They take seconds to import; `sdk.warm_up()` loads them in a thread after start instead.
+def test_starting_the_api_does_not_import_the_ai_and_mcp_sdks() -> None:
+    # They take seconds to import: `sdk.warm_up()` loads the AI SDKs in a thread after start,
+    # `/mcp` loads the MCP SDK on its first request.
     code = (
         "import sys\n"
         "from semestra.main import create_app\n"
         "create_app()\n"
-        "sdks = {'openai', 'anthropic', 'google.genai'}\n"
-        "print(sorted(sdks & set(sys.modules)))\n"
-        "from semestra.modules.ai.adapters import sdk\n"
-        "sdk.warm_up()\n"
-        "print(sorted(sdks & set(sys.modules)))\n"
+        "print(sorted({'openai', 'anthropic', 'google.genai', 'mcp'} & set(sys.modules)))\n"
     )
     out = subprocess.run(  # noqa: S603 (our own interpreter and code)
         [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=60
     )
-    assert out.stdout.splitlines()[-2:] == ["[]", "['anthropic', 'google.genai', 'openai']"]
+    assert out.stdout.splitlines()[-1] == "[]"
+
+
+def test_warming_up_imports_the_ai_sdks() -> None:
+    sdk.warm_up()
+    assert {"openai", "anthropic", "google.genai"} <= set(sys.modules)

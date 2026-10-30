@@ -1,6 +1,5 @@
 """Lists and tasks (M05). Capabilities, subscribers and the auto-task sync call into here."""
 
-from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime, time
 from typing import Any
@@ -916,25 +915,38 @@ async def counts(
     program = await academics.get_program_row(ctx, program_id)
     now_local = _now_local(ctx, program)
     today = now_local.date()
-    open_rows = await program_rows(
-        ctx, program.id, term_id=term_id, course_id=course_id, open_only=True
+    open_ = TasksItem.completed_at.is_(None)
+    due = TasksItem.due_date.is_not(None)
+    now_time = now_local.time().replace(tzinfo=None)
+    overdue = or_(
+        TasksItem.due_date < today,
+        and_(TasksItem.due_date == today, TasksItem.due_time < now_time),
     )
-    completed = await ctx.db.scalar(
-        _program_query(
-            select(func.count()).select_from(TasksItem),
-            ctx,
-            program.id,
-            term_id=term_id,
-            course_id=course_id,
-        ).where(TasksItem.completed_at.is_not(None))
+
+    def n(*where: Any) -> Any:
+        return func.count().filter(*where)
+
+    columns: Any = select(
+        n(open_, due, TasksItem.due_date <= today),
+        n(open_, overdue),
+        n(open_, due),
+        n(open_),
+        n(open_, TasksItem.list_id.is_(None)),
+        n(open_, TasksItem.flagged),
+        n(TasksItem.completed_at.is_not(None)),
     )
-    lists: dict[str, int] = defaultdict(int)
-    courses: dict[str, int] = defaultdict(int)
-    for r in open_rows:
-        if r.list_id:
-            lists[r.list_id] += 1
-        if r.course_id:
-            courses[r.course_id] += 1
+    stmt = _program_query(columns, ctx, program.id, term_id=term_id, course_id=course_id)
+    totals = tuple((await ctx.db.execute(stmt)).one())
+
+    async def per(column: Any) -> dict[str, int]:
+        grouped: Any = select(column, func.count())
+        stmt: Any = _program_query(grouped, ctx, program.id, term_id=term_id, course_id=course_id)
+        stmt = stmt.where(open_, column.is_not(None)).group_by(column)
+        result: Any = await ctx.db.execute(stmt)
+        return dict(result.all())
+
+    lists = await per(TasksItem.list_id)
+    courses = await per(TasksItem.course_id)
     if term_id is not None:
         # A term's own lists count all their tasks, as the list shows them (`_term_for_view`).
         own = select(TasksList.id).where(
@@ -951,16 +963,17 @@ async def counts(
         for list_id, count in (await ctx.db.execute(per_list.group_by(TasksItem.list_id))).all():
             if list_id is not None:
                 lists[list_id] = count
+    today_n, overdue_n, scheduled_n, all_n, inbox_n, flagged_n, completed_n = totals
     return TaskCounts(
-        today=sum(_in_view(r, "today", today) for r in open_rows),
-        overdue=sum(rules.is_overdue(r.due_date, r.due_time, False, now_local) for r in open_rows),
-        scheduled=sum(_in_view(r, "scheduled", today) for r in open_rows),
-        all=len(open_rows),
-        inbox=sum(_in_view(r, "inbox", today) for r in open_rows),
-        flagged=sum(_in_view(r, "flagged", today) for r in open_rows),
-        completed=completed or 0,
-        lists=dict(lists),
-        courses=dict(courses),
+        today=today_n,
+        overdue=overdue_n,
+        scheduled=scheduled_n,
+        all=all_n,
+        inbox=inbox_n,
+        flagged=flagged_n,
+        completed=completed_n,
+        lists=lists,
+        courses=courses,
     )
 
 

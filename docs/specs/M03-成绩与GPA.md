@@ -175,7 +175,7 @@ grading_assessments
 以下是实现时做出的取舍与对上文的细化，以代码为准。
 
 **后端**（`apps/api/src/semestra/modules/grading/`）
-- 计算全部在 `engine.py`（纯函数 + dataclass，结果四舍五入到 3 位小数）：换算表校验与查表、`compute_course`（第 3 节规则 1–6）、`suggest_scores`（整体平移二分 + 向上取 0.5 + K=3 收缩）、年课学分归属、学期/Program 汇总与序列、学期 What If。`service.py` 只负责读库、组装与事件。
+- 计算全部在 `engine.py`（纯函数 + dataclass，结果四舍五入到 3 位小数）：换算表校验与查表、`compute_course`（第 3 节规则 1–6）、`suggest_scores`（整体平移二分 + 向上取 0.5 + K=3 收缩）、年课学分归属、学期/Program 汇总与序列、学期 What If。`service/` 只负责读库、组装与事件，按对象分文件（`scales`、`courses`、`categories`、`assessments`、`gradebook`、`summaries`，共用部分在 `common`）。
 - 表 `grading_scales`（每个 Program 一行）、`grading_course_results`（主键 `course_id`）、`grading_categories`、`grading_assessments`；跨模块的 id 都是普通字符串，不建外键，清理靠订阅 `academics.course.deleting` / `academics.program.deleting`（同事务）。分类删除时考核的 `category_id` 置空。
 - 预设 `uoft_4_0`、`us_4_0`、`us_4_33`、`standard_4_0`、`cn_100`、`au_7`、`kr_4_5`、`custom`，每个预设有自己的满分（`max_points`，如 4.33、7、4.5，其余 4.0）；预设只在创建时把区间复制进 `grading_scales.bands`，不记预设 id；`custom` 起点只有一个 0–100 的单区间，由用户自己拆分。预设与默认分类模板的文本都在 `presets.py`，分类颜色是名称（blue、amber、emerald、violet、cyan、rose、slate）或 `#rrggbb`，前端把名称映射到主题的科目色令牌。
 - 考核的截止时间输入除 `due_at` 外还接受 `due_date` + `due_time`（按 Program 时区解释，没有时间则只显示日期、截止点是当天结束）；输出同时给 `due_at` 和本地的 `due_date`/`due_time`，前端表单直接用后者。
@@ -184,7 +184,7 @@ grading_assessments
 - `grading.assessment.upcoming`（GET `/programs/{program_id}/upcoming-assessments`，可选 `term_id` / `course_id`，`limit` ≤ 50）：未出分、未 dropped、有截止的考核，按截止排序，给 upcoming 卡片与 agent。
 - 别的模块读考核的分数与权重走 `grading.service.assessment_snapshots(ids)`（M09 的更新审阅用），不直接查 `grading_assessments`。
 - `GradebookSummary.categories`：每个分类（`category_id` 为空的是未分类）的权重、已出分权重、平均分、贡献，由 engine 计算；成绩构成卡与分组标题行直接用它，前端不再自己算。
-- `assessment_deadlines()`（`service.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。日历源 `grading.assessments` 在 `grading/calendar.py` 注册（只有日期的截止点显示为当天的全天项，有时间的是一个时间点；考核增删改后发 `calendar.changed`），前端在 `grading/manifest.ts` 的 `calendarSources` 里，点击打开课程的 `grades` Page（`?assessment=<id>`），该行滚动到可见处并短暂高亮，随后参数从地址栏移除。
+- `assessment_deadlines()`（`service/assessments.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。日历源 `grading.assessments` 在 `grading/calendar.py` 注册（只有日期的截止点显示为当天的全天项，有时间的是一个时间点；考核增删改后发 `calendar.changed`），前端在 `grading/manifest.ts` 的 `calendarSources` 里，点击打开课程的 `grades` Page（`?assessment=<id>`），该行滚动到可见处并短暂高亮，随后参数从地址栏移除。
 - 官方成绩覆盖（`final_override_percentage`）即使权重不足 100 也生效（用户已经知道最终成绩）；此时不给 `required_average` 与 `reachable`。`include_in_gpa=false` 的课程不进 GPA，但已完成的学分仍计入"已获学分"。
 - 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_monotonic`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`、`conflicting_score`。前端对每个码只给一条文案，不按 reason 细分。
 

@@ -23,7 +23,7 @@ async def assessments_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     tz = ZoneInfo(program.timezone)
     courses = {
         c.id: c
-        for c in await service._program_courses(ctx, program.id, q.term_id)
+        for c in await service.program_courses(ctx, program.id, q.term_id)
         if q.wants_course(c.id)
     }
     if not courses:

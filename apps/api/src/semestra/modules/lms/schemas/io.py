@@ -78,10 +78,6 @@ class ConnectionCreateInput(BaseModel):
     )
 
 
-class ConnectionRef(BaseModel):
-    id: Id = Field(description="Connection id")
-
-
 class ConnectionUpdateInput(BaseModel):
     id: Id = Field(description="Connection id")
     display_name: DisplayName | None = Field(default=None, description="New display name")

@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.academics.models import AcademicsCourse
+from semestra.modules.grading import service as grading
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.tasks import rules, service
 from semestra.modules.tasks.models import TasksItem
@@ -32,8 +32,9 @@ class AssessmentInfo:
 
 
 async def _info(ctx: Ctx, row: GradingAssessment) -> AssessmentInfo | None:
-    course = await ctx.db.get(AcademicsCourse, row.course_id)
-    if course is None or course.user_id != ctx.user_id:
+    try:
+        course = await academics.get_course_row(ctx, row.course_id)
+    except AppError:
         return None
     return AssessmentInfo(
         id=row.id,
@@ -126,10 +127,8 @@ async def on_assessment_event(ctx: Ctx, kind: str, program_id: str, assessment_i
     existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
     if not create and existing is None:
         return
-    row = None if kind == "deleted" else await ctx.db.get(GradingAssessment, assessment_id)
-    info = None
-    if row is not None and row.user_id == ctx.user_id:
-        info = await _info(ctx, row)
+    row = None if kind == "deleted" else await grading.find_assessment_row(ctx, assessment_id)
+    info = None if row is None else await _info(ctx, row)
     await _sync(ctx, info, existing, create=create)
 
 
@@ -137,18 +136,7 @@ async def backfill(ctx: Ctx, program_id: str) -> int:
     """Creates the missing tasks of a Program (after the switch is turned on); returns how
     many were created."""
     before = await _count(ctx, program_id)
-    rows = await ctx.db.scalars(
-        select(GradingAssessment)
-        .join(AcademicsCourse, AcademicsCourse.id == GradingAssessment.course_id)
-        .where(
-            GradingAssessment.user_id == ctx.user_id,
-            AcademicsCourse.program_id == program_id,
-            GradingAssessment.due_at.is_not(None),
-            GradingAssessment.score_percentage.is_(None),
-        )
-        .order_by(GradingAssessment.due_at)
-    )
-    for row in rows.all():
+    for row in await grading.dated_unscored_assessment_rows(ctx, program_id):
         if info := await _info(ctx, row):
             await sync_assessment(ctx, info, info.id)
     return await _count(ctx, program_id) - before

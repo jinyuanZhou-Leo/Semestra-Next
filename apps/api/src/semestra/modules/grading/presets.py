@@ -112,7 +112,6 @@ BUILTIN_CATEGORIES: list[dict[str, str]] = [
     {"key": "presentation", "name": "Presentation", "color": "rose"},
     {"key": "participation", "name": "Participation", "color": "slate"},
 ]
-CATEGORY_COLORS = tuple(c["color"] for c in BUILTIN_CATEGORIES)
 
 
 def preset_max_points(preset_id: str) -> float:

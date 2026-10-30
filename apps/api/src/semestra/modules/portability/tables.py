@@ -186,29 +186,31 @@ class TableAdapter:
 
         if _is_preference(table, row) and not opts.include_preferences:
             return exclude()
-        for col, kind in table.refs.items():
-            target = row.get(col)
-            if target is None or (kind == "scope" and target == ""):
-                if kind == "required":
-                    return "skipped"
-                continue
-            if target in id_map:
-                row[col] = id_map[target]
-            elif kind == "optional":
-                row[col] = None
-            elif target in id_map.excluded:
-                return exclude()
-            else:
-                return "skipped"
+        outcome = _remap_refs(table, row, id_map)
+        if outcome == "excluded":
+            return exclude()
+        if outcome == "skipped":
+            return "skipped"
         if table.transform is not None:
             transformed = await table.transform(ctx, row, opts)
             if transformed is None:
                 return exclude()
             row = transformed
+        values = self._values(table, row, id_map)
+        if table.id_column:
+            if not isinstance(old_id, str) or not old_id:
+                return "skipped"
+            values[table.id_column] = id_map.setdefault(old_id, new_id())
+        values["user_id"] = ctx.user_id
+        if not await _upsert(ctx, table, values, old_id, id_map):
+            model: Any = table.model
+            ctx.db.add(model(**values))
+        return "imported"
 
-        columns = {c.key: c for c in self._columns(table)}
+    def _values(self, table: Table, row: dict[str, Any], id_map: IdMap) -> dict[str, Any]:
+        """The row's column values, with the ids inside its other values remapped."""
         values: dict[str, Any] = {}
-        for key, column in columns.items():
+        for key, column in {c.key: c for c in self._columns(table)}.items():
             if key not in row:
                 continue
             value = row[key]
@@ -219,29 +221,7 @@ class TableAdapter:
                     else value
                 )
             values[key] = _load(column, value)
-        if table.id_column:
-            if not isinstance(old_id, str) or not old_id:
-                return "skipped"
-            values[table.id_column] = id_map.setdefault(old_id, new_id())
-        values["user_id"] = ctx.user_id
-
-        model: Any = table.model
-        if table.upsert_on is not None:
-            existing = await ctx.db.scalar(
-                select(model).where(
-                    model.user_id == ctx.user_id,
-                    *(getattr(model, k) == values.get(k) for k in table.upsert_on),
-                )
-            )
-            if existing is not None:
-                for key, value in values.items():
-                    if key != table.id_column:
-                        setattr(existing, key, value)
-                if table.id_column and isinstance(old_id, str):
-                    id_map[old_id] = getattr(existing, table.id_column)
-                return "imported"
-        ctx.db.add(model(**values))
-        return "imported"
+        return values
 
     async def purge(self, ctx: Ctx) -> None:
         for table in reversed(self.tables):
@@ -260,6 +240,51 @@ class TableAdapter:
                 if table.preferences is not False:
                     stmt = stmt.where(not_(_preference_clause(table)))
             await ctx.db.execute(stmt)
+
+
+def _remap_refs(
+    table: Table, row: dict[str, Any], id_map: IdMap
+) -> Literal["ok", "skipped", "excluded"]:
+    """Points the row's references at the new ids. A required reference that is missing or
+    unknown skips the row; one to an excluded row excludes it too."""
+    for col, kind in table.refs.items():
+        target = row.get(col)
+        if target is None or (kind == "scope" and target == ""):
+            if kind == "required":
+                return "skipped"
+            continue
+        if target in id_map:
+            row[col] = id_map[target]
+        elif kind == "optional":
+            row[col] = None
+        elif target in id_map.excluded:
+            return "excluded"
+        else:
+            return "skipped"
+    return "ok"
+
+
+async def _upsert(
+    ctx: Ctx, table: Table, values: dict[str, Any], old_id: Any, id_map: IdMap
+) -> bool:
+    """Updates the row that `upsert_on` matches, if there is one; returns whether it did."""
+    if table.upsert_on is None:
+        return False
+    model: Any = table.model
+    existing = await ctx.db.scalar(
+        select(model).where(
+            model.user_id == ctx.user_id,
+            *(getattr(model, k) == values.get(k) for k in table.upsert_on),
+        )
+    )
+    if existing is None:
+        return False
+    for key, value in values.items():
+        if key != table.id_column:
+            setattr(existing, key, value)
+    if table.id_column and isinstance(old_id, str):
+        id_map[old_id] = getattr(existing, table.id_column)
+    return True
 
 
 def table_adapter(
