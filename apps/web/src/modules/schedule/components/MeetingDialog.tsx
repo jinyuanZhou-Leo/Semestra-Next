@@ -13,7 +13,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { Field, FieldError, FieldLabel, FieldTitle } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Clock2 } from 'lucide-react'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -317,10 +317,8 @@ export function MeetingDialog({
             />
           </Field>
           <div className="col-span-2 flex flex-wrap items-end gap-4">
-            <div>
-              <p id={`${fid}-recurrence`} className="mb-1.5 text-sm font-medium">
-                {m.schedule_recurrence()}
-              </p>
+            <Field className="w-auto">
+              <FieldTitle id={`${fid}-recurrence`}>{m.schedule_recurrence()}</FieldTitle>
               <div className="flex h-9 items-center">
                 <ChoiceControl<Draft['recurrence']>
                   labelId={`${fid}-recurrence`}
@@ -332,7 +330,7 @@ export function MeetingDialog({
                   ]}
                 />
               </div>
-            </div>
+            </Field>
             {draft.recurrence === 'biweekly' ? (
               <Field className="w-28">
                 <FieldLabel htmlFor={`${fid}-10`}>{m.schedule_anchor_week()}</FieldLabel>

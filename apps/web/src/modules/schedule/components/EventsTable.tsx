@@ -2,9 +2,9 @@ import type { EventType, OneOffEvent } from '@semestra/api-client'
 import { scheduleEventDeleteMutation } from '@semestra/api-client/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
-import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { subjectColor } from '@/lib/subject-color'
@@ -124,13 +124,11 @@ export function EventsTable({
   types,
   timezone,
   onEdit,
-  onAdd,
 }: {
   events: OneOffEvent[]
   types: EventType[]
   timezone: string
   onEdit: (event: OneOffEvent) => void
-  onAdd: () => void
 }) {
   const queryClient = useQueryClient()
   const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
@@ -149,11 +147,6 @@ export function EventsTable({
         columns={eventColumns}
         getRowId={(e) => e.id}
         columnClassName={EVENT_COLUMN_CLASS}
-        footer={
-          <ActionRow icon={Plus} onClick={onAdd}>
-            {m.schedule_event_add()}
-          </ActionRow>
-        }
       />
       <ConfirmDialog
         open={deleting !== null}

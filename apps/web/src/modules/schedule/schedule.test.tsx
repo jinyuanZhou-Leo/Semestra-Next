@@ -503,7 +503,7 @@ test('saving a multi-day all-day event keeps its last day', async () => {
   )
 })
 
-test('the course schedule shows a full-width week of class hours and one "Add" menu', async () => {
+test('the course schedule shows a full-width week of class hours and an add button per section', async () => {
   mount('/p/p1/c/c1/schedule')
   const week = await screen.findByRole('region', { name: 'Week' }, { timeout: 10_000 })
   // The Program's whole week and day (08:00–22:00, with the closing hour line), not only the
@@ -514,10 +514,9 @@ test('the course schedule shows a full-width week of class hours and one "Add" m
   expect(within(week).getByText('Sat')).toBeInTheDocument()
 
   expect(screen.getByText('No one-off events yet')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-  expect(await screen.findByRole('menuitem', { name: 'Meeting' })).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('menuitem', { name: 'One-off event' }))
-  expect(await screen.findByRole('dialog', { name: 'Add event' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add meeting' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Add one-off event' }))
+  expect(await screen.findByRole('dialog', { name: 'Add one-off event' })).toBeInTheDocument()
 })
 
 test('"keep only this section" keeps all its days and hides the other sections in one request', async () => {
