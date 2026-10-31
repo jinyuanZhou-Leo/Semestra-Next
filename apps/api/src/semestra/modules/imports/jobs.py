@@ -84,7 +84,13 @@ async def _extract_source(
         added = extraction.from_timetable(timetable, context, builder, source)
     else:
         syllabus = await extraction.extract_syllabus(
-            ctx, texts, images=images, label=label, source_ref=row.id, on_segment=on_segment
+            ctx,
+            texts,
+            images=images,
+            label=label,
+            source_ref=row.id,
+            course_only=row.source_meta.get("only") == "course_info",
+            on_segment=on_segment,
         )
         added = extraction.from_syllabus(syllabus, context, builder, source)
     if added == 0:

@@ -127,6 +127,11 @@ timetable). List every class block once: course code, title if shown, type (lect
 lab...), section, weekday (1 = Monday .. 7 = Sunday), start and end time (24-hour HH:MM) and the \
 location. Use the [image N] number as the evidence page. Do not invent blocks that are not shown."""
 
+# A syllabus is read in three requests side by side: the whole schema is too large for strict
+# structured output (M06 `extract`). Updating the course info reads only the first.
+SYLLABUS_PARTS = (("course",), ("grading",), ("meetings", "important_dates"))
+COURSE_INFO_PARTS = (("course",),)
+
 # The model call; replaced in tests.
 Extract = Callable[..., Awaitable[ai.Extraction[Any]]]
 run_extract: Extract = ai.extract
@@ -469,10 +474,12 @@ async def extract_syllabus(
     images: Sequence[ai.Image] = (),
     label: str,
     source_ref: str,
+    course_only: bool = False,
     on_segment: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> SyllabusExtraction:
     """A syllabus from its page texts and the images of pages without text (a photo, a scan).
-    Images need a vision model; without one, only the text pages are read."""
+    Images need a vision model; without one, only the text pages are read. `course_only` reads
+    just the course's own fields."""
     purpose: ai.Purpose = "extraction"
     if images:
         if await ai.available(ctx, "vision"):
@@ -491,6 +498,7 @@ async def extract_syllabus(
         source_module="imports",
         source_ref=source_ref,
         label=label,
+        parts=COURSE_INFO_PARTS if course_only else SYLLABUS_PARTS,
         on_segment=on_segment,
     )
     return result.value
