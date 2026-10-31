@@ -77,9 +77,13 @@ type Props<T extends RowData> = {
   footer?: ReactNode
   /**
    * Merges cells: the span of a column's cell in a row, or `null` to leave the cell out because
-   * a cell above or to its left spans over it. Unset or `undefined` is a plain cell.
+   * a cell above or to its left spans over it. Unset or `undefined` is a plain cell; `className`
+   * is added to that one cell.
    */
-  cellSpan?: (columnId: string, row: T) => { rowSpan?: number; colSpan?: number } | null | undefined
+  cellSpan?: (
+    columnId: string,
+    row: T,
+  ) => { rowSpan?: number; colSpan?: number; className?: string } | null | undefined
 }
 
 /** A settings list as a table (see the comment at the top of this file). */
@@ -253,7 +257,11 @@ function Cells<T extends RowData>({
         key={cell.id}
         rowSpan={span?.rowSpan}
         colSpan={span?.colSpan}
-        className={cn('h-14 py-2 first:pl-4 last:pr-3', columnClassName[cell.column.id])}
+        className={cn(
+          'h-14 py-2 first:pl-4 last:pr-3',
+          columnClassName[cell.column.id],
+          span?.className,
+        )}
       >
         <table.FlexRender cell={cell} />
       </TableCell>

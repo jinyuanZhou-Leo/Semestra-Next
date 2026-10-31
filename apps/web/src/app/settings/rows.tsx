@@ -140,16 +140,26 @@ export function SettingRow({
 export function ActionRow({
   icon: Icon,
   destructive,
+  muted,
   children,
   ...props
-}: ComponentProps<'button'> & { icon?: LucideIcon; destructive?: boolean }) {
+}: ComponentProps<'button'> & {
+  icon?: LucideIcon
+  destructive?: boolean
+  /** A secondary add row inside a list (e.g. "Add a time" under a section). */
+  muted?: boolean
+}) {
   return (
     <Item
       render={<button type="button" {...props} />}
       // The hover tint is inset from the group's border, with its own corners.
       className={cn(
         'isolate cursor-pointer font-medium before:absolute before:inset-1 before:-z-10 before:rounded-xl before:transition-colors hover:before:bg-muted relative',
-        destructive ? 'text-destructive' : 'text-primary',
+        destructive
+          ? 'text-destructive'
+          : muted
+            ? 'text-muted-foreground hover:text-foreground'
+            : 'text-primary',
       )}
     >
       {Icon ? <Icon aria-hidden className="size-4" /> : null}
