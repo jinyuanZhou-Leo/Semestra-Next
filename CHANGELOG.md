@@ -3,6 +3,30 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.10.0 (2026-10-31)
+
+### New
+
+- **Settings:** Choose which page Semestra opens on, including where you left off.
+
+### Improved
+
+- **General:** The sidebar now holds the current term's pages and courses, with a term switcher above them; term pages no longer have a tab bar.
+- **Overview & Today:** Cards make better use of their space: small cards drop the title row, long lists fade at the edge to show they scroll, and schedule entries open with a click.
+- **Terms & courses:** Read a course's details from a file such as its syllabus in the course settings: pick a file, check the changes, apply.
+- **Grades:** Clearer GPA cards: the overview adds a GPA bar for each term, and the charts line up across terms.
+- **Calendar:** The week card now shows the coming days starting from yesterday, sized to fit your classes.
+- **Calendar:** The course schedule is reorganized into weekly meetings, one-off events and cancellations, sections can be switched on or off as a whole, and you can now cancel or move a single class from it.
+- **Tasks:** Task lists are shown in a column on the Tasks page instead of the sidebar.
+- **Files:** Upload files from a term's Files page by choosing a course or dropping them on its section, and drop files on a folder to upload into it.
+- **Plugins:** The habit calendar is now part of the habit card: check in on the ring and review past weeks beside it. Existing calendar cards are converted automatically.
+
+### Fixed
+
+- **Sem:** Fixed the last characters of an edited message sometimes being dropped when it was sent with Enter.
+- **Files:** Fixed a stray horizontal scrollbar under the file list.
+- **Import:** Reading a syllabus with Claude models works again, and is faster: course info, grading and schedule are read side by side.
+
 ## 1.9.0 (2026-10-30)
 
 ### New
