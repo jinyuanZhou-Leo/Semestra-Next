@@ -20,7 +20,7 @@ export adapter).
 | Form           | Description                                                                                         | Who draws the frame                                                                             |
 | -------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | Card           | Sits on a scope's board (Program / term / course / today), size s/m/l/xl on a 4/6/8-column grid     | The M10 host draws the frame (title, size toolbar, settings entry, remove); the plugin draws only the content |
-| Page           | A tab in the scope's header, free layout                                                            | The host only wraps it in a `PluginBoundary`                                                    |
+| Page           | An entry in the sidebar (Program and term pages) or a tab in the course header, free layout         | The host only wraps it in a `PluginBoundary`                                                    |
 | Settings section | The plugin's account-level or scope-level configuration                                           | M11 generates the form                                                                          |
 | Capability     | A read/write operation, at once a REST endpoint, an assistant tool and an MCP tool                  | No UI                                                                                           |
 
@@ -66,7 +66,7 @@ export default defineModule({
 })
 ```
 
-- Load every heavy component on demand. A page's `component`, `sidebarNav`, and the `component`
+- Load every heavy component on demand. A page's `component` and the `component`
   of cards and settings sections use `preloadable()` (`@/app/extensions`), so the router and the
   settings dialog can fetch the code early and render it as soon as it is there. A plain
   `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Pass

@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import {
@@ -16,6 +17,8 @@ export type ChoiceOption<T extends string> = {
   label: string
   /** One line on what picking it does; any option with one turns the control into a select. */
   hint?: string
+  /** Shown before the label in a select (the trigger and the items); segments ignore it. */
+  icon?: LucideIcon
   /** Shown when it is the value, but cannot be picked (a select only). */
   disabled?: boolean
 }
@@ -117,13 +120,25 @@ export function ChoiceControl<T extends string>({
         aria-label={label}
         className={cn('w-56', selectClassName)}
       >
-        <SelectValue />
+        <SelectValue>
+          {(selected: string) => {
+            const option = options.find((o) => o.value === selected)
+            if (!option) return follow && selected === FOLLOW ? follow.full : null
+            return (
+              <>
+                {option.icon ? <option.icon aria-hidden /> : null}
+                {option.label}
+              </>
+            )
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent className="w-72">
         <SelectGroup>
           {follow ? <SelectItem value={FOLLOW}>{follow.full}</SelectItem> : null}
           {options.map((o) => (
             <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
+              {o.icon ? <o.icon aria-hidden /> : null}
               {o.hint ? (
                 <span className="flex flex-col gap-0.5 whitespace-normal">
                   {o.label}

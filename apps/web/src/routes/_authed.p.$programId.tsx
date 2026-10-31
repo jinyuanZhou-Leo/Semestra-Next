@@ -29,6 +29,7 @@ export const Route = createFileRoute('/_authed/p/$programId')({
     queryClient.ensureQueryData(academicsProgramListOptions()).catch(ignore)
     queryClient.ensureQueryData(academicsTermListOptions({ path })).catch(ignore)
     queryClient.ensureQueryData(navOptions('program')).catch(ignore)
+    queryClient.ensureQueryData(navOptions('term')).catch(ignore)
     prefetchCurrentTermCourses(queryClient, programId).catch(ignore)
     return isPhone() ? preload(MobileShell) : undefined
   },

@@ -3,6 +3,7 @@ import { Ellipsis, MessageCircle, MonitorSmartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { type PageContribution, type Scope, preload } from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
+import { usePreferences } from '@/app/preferences'
 import { useModules, usePageStatuses } from '@/app/registry'
 import { cn } from '@/lib/utils'
 import { whenSettled } from '@/lib/when-settled'
@@ -50,12 +51,18 @@ export default function MobileShell({ programId }: { programId: string }) {
   const [lastSession, setLastSession] = useState<string | undefined>()
   const openSession = assistantMatch?.params.sessionId
   if (assistantMatch && openSession !== lastSession) setLastSession(openSession)
+  const startPage = usePreferences().data?.start_page
   const pageId = pageMatch?.params.page
   const home = tabs[0]
   const page = pages.find((candidate) => candidate.id === pageId)
-  // The Program's address (where `/` and the installed app start) opens the first tab.
-  if (atProgram && home) {
-    return <Navigate to="/p/$programId/$page" params={{ programId, page: home.id }} replace />
+  // The Program's address (where `/` and the installed app start) opens the start page the user
+  // chose when the phone has it (M11 `start_page`), else the first tab.
+  if (atProgram && startPage === 'assistant' && Assistant) {
+    return <Navigate to="/p/$programId/assistant/{-$sessionId}" params={{ programId }} replace />
+  }
+  const start = tabs.find((tab) => tab.id === startPage) ?? home
+  if (atProgram && start) {
+    return <Navigate to="/p/$programId/$page" params={{ programId, page: start.id }} replace />
   }
   const Page = page?.mobile?.component
   return (

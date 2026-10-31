@@ -21,6 +21,8 @@ class SettingsPreferences(Base):
     time_format: Mapped[str] = mapped_column(String, default="auto")
     week_start: Mapped[int] = mapped_column(default=0)  # 0 = follow the locale, 1 = Mon, 7 = Sun
     reduce_motion: Mapped[str] = mapped_column(String, default="system")
+    # The sidebar entry the app opens on (M11 §2); "last" reopens the page left last time.
+    start_page: Mapped[str] = mapped_column(String, default="today", server_default="today")
     # The Program the user is looking at; owned by M02, deliberately not a foreign key.
     active_program_id: Mapped[str | None] = mapped_column(String, default=None)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)

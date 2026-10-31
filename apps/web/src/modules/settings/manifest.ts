@@ -1,4 +1,4 @@
-import { Info, Languages, Palette, Settings } from 'lucide-react'
+import { DoorOpen, Info, Languages, Palette, Settings } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { WhatsNew } from './WhatsNew'
@@ -30,6 +30,16 @@ export default defineModule({
       icon: Languages,
       order: 20,
       component: preloadable(() => import('./LanguageSettings')),
+    },
+    {
+      id: 'start',
+      level: 'account',
+      group: 'preferences',
+      title: m.settings_start_title,
+      description: m.settings_start_description,
+      icon: DoorOpen,
+      order: 30,
+      component: preloadable(() => import('./StartSettings')),
     },
     {
       id: 'about',

@@ -1,36 +1,35 @@
 import type { Program } from '@semestra/api-client'
 import { useLocation } from '@tanstack/react-router'
 import {
-  BookOpen,
+  ChevronRight,
   ChevronsUpDown,
   GraduationCap,
   Library,
   LogOut,
-  MoreHorizontal,
   Plus,
   Search,
   MessageCircle,
   PictureInPicture2,
   Settings,
 } from 'lucide-react'
-import { type ReactNode, useState, useSyncExternalStore } from 'react'
-import { openCommandPalette, useHostAction } from '@/app/commands'
+import { useState, useSyncExternalStore } from 'react'
+import { openCommandPalette } from '@/app/commands'
 import { useCommandContext } from '@/app/commands/context'
-import { type AssistantContribution, scopePath } from '@/app/extensions'
+import type { AssistantContribution } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
-import { ManagePagesDialog } from '@/app/host/ManagePagesDialog'
-import { OVERVIEW_PAGE, useScopePages } from '@/app/host/nav'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
+import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
 import { m } from '@/paraglide/messages'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,8 +45,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
-  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -59,43 +56,12 @@ import {
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CreateProgramDialog } from '../components/CreateProgramDialog'
-import { programPath, termsAndCoursesPath } from '../paths'
+import { programPath } from '../paths'
 import { usePrograms } from '../queries'
-import { SidebarTerms } from './SidebarTerms'
+import { SidebarPins } from './SidebarPins'
+import { SidebarProgramLinks, SidebarWork } from './SidebarWork'
 
 const ASSISTANT_PAGE = /\/assistant(\/|$)/
-
-/**
- * One link of the main navigation; on the icon rail it shows its label as a tooltip. `children`
- * is the open page's own navigation, shown under it (hidden on the icon rail).
- */
-function NavItem({
-  href,
-  icon: Icon,
-  label,
-  active,
-  children,
-}: {
-  href: string
-  icon: typeof BookOpen
-  label: string
-  active: boolean
-  children?: ReactNode
-}) {
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        tooltip={label}
-        isActive={active}
-        render={<HistoryLink href={href} aria-current={active ? 'page' : undefined} />}
-      >
-        <Icon aria-hidden />
-        <span>{label}</span>
-      </SidebarMenuButton>
-      {children}
-    </SidebarMenuItem>
-  )
-}
 
 /** The Program at the top: the Programs to switch between, and where a new one is created. */
 function ProgramHeader({ programs, current }: { programs: Program[]; current: Program }) {
@@ -204,8 +170,9 @@ function AccountMenu() {
 
 /**
  * The assistant (M12): the row opens its full page; the small button on its right, shown on hover
- * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). On the full
- * page the recent conversations are listed under it. The interface tour points at the row.
+ * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). The chevron
+ * folds the recent conversations under it; the fold is remembered and does not follow navigation,
+ * so the entries below stay put. The interface tour points at the row.
  */
 function AssistantNavItem({
   assistant,
@@ -217,6 +184,7 @@ function AssistantNavItem({
   active: boolean
 }) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
+  const [recentOpen, setRecentOpen] = useUiPref('academics.sidebar_recent_chats', false)
   const ctx = useCommandContext()
   const label = m.academics_nav_assistant()
   const panelLabel = active
@@ -224,12 +192,19 @@ function AssistantNavItem({
     : open
       ? m.assistant_close_panel()
       : m.assistant_open_in_panel()
+  const SubNav = assistant.SidebarNav
   return (
-    <SidebarMenuItem>
+    <Collapsible
+      open={recentOpen}
+      onOpenChange={setRecentOpen}
+      className="group/collapsible"
+      render={<SidebarMenuItem />}
+    >
       <SidebarMenuButton
         data-tour="assistant"
         tooltip={label}
         isActive={active}
+        className={SubNav ? 'group-has-data-[sidebar=menu-action]/menu-item:pr-14' : undefined}
         render={
           <HistoryLink
             href={`${programPath(programId)}/assistant`}
@@ -248,6 +223,7 @@ function AssistantNavItem({
               aria-pressed={active ? undefined : open}
               className={cn(
                 ENTRY_ACTION_ON_HOVER,
+                SubNav && 'right-7',
                 'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
               )}
               onClick={() => assistant.open(ctx)}
@@ -260,12 +236,30 @@ function AssistantNavItem({
           {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
         </TooltipContent>
       </Tooltip>
-      {active && assistant.SidebarNav ? (
-        <PluginBoundary silent>
-          <assistant.SidebarNav programId={programId} />
-        </PluginBoundary>
+      {SubNav ? (
+        <>
+          <CollapsibleTrigger
+            render={
+              <SidebarMenuAction
+                aria-label={
+                  recentOpen ? m.academics_hide_recent_chats() : m.academics_show_recent_chats()
+                }
+              />
+            }
+          >
+            <ChevronRight
+              aria-hidden
+              className="transition-transform duration-200 group-data-open/collapsible:rotate-90 motion-reduce:transition-none"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <PluginBoundary silent>
+              <SubNav programId={programId} />
+            </PluginBoundary>
+          </CollapsibleContent>
+        </>
       ) : null}
-    </SidebarMenuItem>
+    </Collapsible>
   )
 }
 
@@ -278,14 +272,7 @@ export function AppSidebar({ programId }: { programId: string }) {
   const pathname = useLocation({ select: (l) => l.pathname })
   const programs = usePrograms().data?.items ?? []
   const program = programs.find((p) => p.id === programId)
-  const programScope = { kind: 'program', programId } as const
-  const { pages } = useScopePages(programScope)
-  const [managing, setManaging] = useState(false)
   const assistant = useModules().find((module) => module.assistant)?.assistant
-  // On a term or course page the tab bar's own handler is registered later and wins.
-  useHostAction('nav.manage', () => setManaging(true))
-
-  const termsAndCoursesHref = termsAndCoursesPath(programId)
 
   return (
     <Sidebar collapsible="icon" data-tour="sidebar">
@@ -327,64 +314,9 @@ export function AppSidebar({ programId }: { programId: string }) {
             </SidebarMenu>
           </SidebarGroup>
 
-          <SidebarGroup>
-            <SidebarGroupLabel className={GROUP_LABEL}>
-              {m.academics_sidebar_pages()}
-            </SidebarGroupLabel>
-            <DropdownMenu>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <DropdownMenuTrigger
-                      render={<SidebarGroupAction aria-label={m.host_nav_more()} />}
-                    />
-                  }
-                >
-                  <MoreHorizontal aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>{m.host_nav_more()}</TooltipContent>
-              </Tooltip>
-              <DropdownMenuContent align="start" side="right">
-                <DropdownMenuItem onClick={() => setManaging(true)}>
-                  {m.host_nav_manage_pages()}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {pages.map((page) => {
-                  const href = scopePath(programScope, page.id)
-                  const isOverview = page.id === OVERVIEW_PAGE
-                  const active =
-                    pathname === href || (isOverview && pathname === scopePath(programScope))
-                  const SubNav = active ? page.sidebarNav : undefined
-                  return (
-                    <NavItem
-                      key={page.id}
-                      href={isOverview ? scopePath(programScope) : href}
-                      icon={page.icon}
-                      label={page.title()}
-                      active={active}
-                    >
-                      {SubNav ? (
-                        <PluginBoundary key={page.id} silent>
-                          <SubNav scope={programScope} />
-                        </PluginBoundary>
-                      ) : null}
-                    </NavItem>
-                  )
-                })}
-                <NavItem
-                  href={termsAndCoursesHref}
-                  icon={BookOpen}
-                  label={m.academics_nav_terms_and_courses()}
-                  active={pathname === termsAndCoursesHref}
-                />
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarTerms programId={programId} pathname={pathname} />
+          <SidebarWork programId={programId} pathname={pathname} />
+          <SidebarPins programId={programId} pathname={pathname} />
+          <SidebarProgramLinks programId={programId} pathname={pathname} />
         </nav>
       </SidebarContent>
       <SidebarFooter>
@@ -412,7 +344,6 @@ export function AppSidebar({ programId }: { programId: string }) {
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
-      <ManagePagesDialog scope={programScope} open={managing} onOpenChange={setManaging} />
     </Sidebar>
   )
 }

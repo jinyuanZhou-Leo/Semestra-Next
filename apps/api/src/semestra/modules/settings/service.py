@@ -42,6 +42,7 @@ _DEFAULTS: dict[str, Any] = {
     "time_format": "auto",
     "week_start": 0,
     "reduce_motion": "system",
+    "start_page": "today",
     "active_program_id": None,
 }
 
