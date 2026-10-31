@@ -13,11 +13,9 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
-  CalendarPlus,
   ChevronRight,
   MoreHorizontal,
   PinOff,
-  Plus,
   Repeat,
   Trash2,
 } from 'lucide-react'
@@ -25,18 +23,9 @@ import { type CSSProperties, type MouseEvent, useState } from 'react'
 import { GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
-import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,10 +33,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
@@ -58,12 +45,11 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { useCurrentTerm } from '../current-term'
-import { newTermPath, coursePath, termPath } from '../paths'
-import { movePin, type Pin as PinRef, samePin, usePins } from '../pins'
+import { coursePath, termPath } from '../paths'
+import { movePin, type Pin as PinRef, usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
 
 type Dragging = {
@@ -79,12 +65,12 @@ type EntryMenu = {
   onUnpin: () => void
 }
 
-/** The remembered folding of terms (ids that are open); the current term starts open. */
-function useOpenTerms(programId: string, currentId: string | undefined) {
+/** The remembered folding of pinned terms (ids that are open). */
+function useOpenTerms(programId: string) {
   const [expanded, setExpanded] = useUiPref<string[] | null>('academics.sidebar_expanded', null, {
     scope: programId,
   })
-  const open = expanded ?? (currentId ? [currentId] : [])
+  const open = expanded ?? []
   const setOpen = (termId: string, next: boolean) =>
     setExpanded(
       next
@@ -381,65 +367,11 @@ function SortablePin({
   ) : null
 }
 
-/** Terms that are not in the sidebar yet; choosing one pins it (same data as the pin button). */
-function AddTermPicker({
-  terms,
-  onPick,
-}: {
-  terms: readonly Term[]
-  onPick: (term: Term) => void
-}) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={<SidebarGroupAction aria-label={m.academics_sidebar_add_term()} />}
-            />
-          }
-        >
-          <Plus aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent>{m.academics_sidebar_add_term()}</TooltipContent>
-      </Tooltip>
-      <PopoverContent className="w-64 p-0" align="start" side="right">
-        <Command>
-          <CommandInput placeholder={m.academics_sidebar_add_term_search()} />
-          <CommandList>
-            <CommandEmpty>{m.academics_sidebar_add_term_empty()}</CommandEmpty>
-            <CommandGroup>
-              {terms.map((term) => (
-                <CommandItem
-                  key={term.id}
-                  value={term.id}
-                  keywords={[term.name]}
-                  onSelect={() => {
-                    onPick(term)
-                    setOpen(false)
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate">{term.name}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatDate(`${term.start_date}T00:00`)}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 /**
- * The part of the sidebar below the Program pages (M02 §5.1): the current term with its
- * courses, then the pinned terms and courses in the user's order. Other terms are reached
- * from the Terms & courses page, the breadcrumbs or the palette, or added here with "+".
+ * The pinned terms and courses in the user's order (M02 §5.1), below the term the sidebar shows.
+ * Pins are added from a term's or course's page header and moved by dragging or from their menu.
  */
-export function SidebarTerms({ programId, pathname }: { programId: string; pathname: string }) {
+export function SidebarPins({ programId, pathname }: { programId: string; pathname: string }) {
   const terms = useTerms(programId).data?.items
   const { term: current } = useCurrentTerm(programId)
   const { pins, setPins, toggle } = usePins(programId)
@@ -447,10 +379,10 @@ export function SidebarTerms({ programId, pathname }: { programId: string; pathn
   const courses = useCourses(programId, undefined, {
     enabled: pins.some((pin) => pin.kind === 'course'),
   }).data?.items
-  const { open, setOpen } = useOpenTerms(programId, current?.id)
+  const { open, setOpen } = useOpenTerms(programId)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // The current term is shown above, so a pin of it waits (hidden) until it is not current any more.
+  // The current term is in the sidebar already, so a pin of it waits (hidden) until it is not current any more.
   const entries = pins.flatMap((pin): PinnedEntry[] => {
     if (pin.kind === 'term') {
       const term = terms?.find((t) => t.id === pin.id)
@@ -470,77 +402,38 @@ export function SidebarTerms({ programId, pathname }: { programId: string; pathn
     const to = shown.findIndex((p) => `${p.kind}:${p.id}` === event.over?.id)
     if (from >= 0 && to >= 0 && from !== to) move(from, to)
   }
-  const addable = (terms ?? []).filter(
-    (t) => t.id !== current?.id && !pins.some((p) => samePin(p, { kind: 'term', id: t.id })),
-  )
 
+  if (entries.length === 0) return null
   return (
-    <>
-      <SidebarGroup>
-        <SidebarGroupLabel className={GROUP_LABEL}>
-          {m.academics_sidebar_current_term()}
-        </SidebarGroupLabel>
-        {!terms || terms.length === 0 ? null : (
-          <AddTermPicker terms={addable} onPick={(term) => toggle({ kind: 'term', id: term.id })} />
-        )}
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {current ? (
-              <TermEntry
-                programId={programId}
-                term={current}
-                expanded={open.includes(current.id)}
-                onToggle={(next) => setOpen(current.id, next)}
-                pathname={pathname}
-              />
-            ) : null}
-            {terms && terms.length === 0 ? (
-              <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
-                <span className="block px-3 py-1.5 text-xs text-muted-foreground">
-                  {m.academics_terms_empty()}
-                </span>
-                <SidebarMenuButton size="sm" render={<HistoryLink href={newTermPath(programId)} />}>
-                  <CalendarPlus aria-hidden />
-                  <span className="truncate">{m.academics_term_new()}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ) : null}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      {entries.length > 0 ? (
-        <SidebarGroup>
-          <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_pinned()}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dropped}>
-              <SortableContext
-                items={entries.map((e) => `${e.pin.kind}:${e.pin.id}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                <SidebarMenu>
-                  {entries.map((entry, index) => (
-                    <SortablePin
-                      key={`${entry.pin.kind}:${entry.pin.id}`}
-                      entry={entry}
-                      programId={programId}
-                      pathname={pathname}
-                      expanded={open.includes(entry.pin.id)}
-                      onToggle={(next) => setOpen(entry.pin.id, next)}
-                      menu={{
-                        onMove: (delta) => move(index, index + delta),
-                        canMoveUp: index > 0,
-                        canMoveDown: index < entries.length - 1,
-                        onUnpin: () => toggle(entry.pin),
-                      }}
-                    />
-                  ))}
-                </SidebarMenu>
-              </SortableContext>
-            </DndContext>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ) : null}
-    </>
+    <SidebarGroup>
+      <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_pinned()}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dropped}>
+          <SortableContext
+            items={entries.map((e) => `${e.pin.kind}:${e.pin.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            <SidebarMenu>
+              {entries.map((entry, index) => (
+                <SortablePin
+                  key={`${entry.pin.kind}:${entry.pin.id}`}
+                  entry={entry}
+                  programId={programId}
+                  pathname={pathname}
+                  expanded={open.includes(entry.pin.id)}
+                  onToggle={(next) => setOpen(entry.pin.id, next)}
+                  menu={{
+                    onMove: (delta) => move(index, index + delta),
+                    canMoveUp: index > 0,
+                    canMoveDown: index < entries.length - 1,
+                    onUnpin: () => toggle(entry.pin),
+                  }}
+                />
+              ))}
+            </SidebarMenu>
+          </SortableContext>
+        </DndContext>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
 }

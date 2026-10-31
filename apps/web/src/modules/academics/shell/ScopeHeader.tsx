@@ -110,10 +110,11 @@ function Separator() {
 }
 
 /**
- * The header of a Program, term or course page (M02 §5.1) on the shared `PageHeader`: the
- * parents as breadcrumbs (the Program is in the sidebar, so it is left out), the term or
- * course name as the title with a menu to switch to a sibling, pin and settings buttons, and
- * the page tabs of a term or course (the Program's pages are in the sidebar).
+ * The header of a Program, term or course page (M02 §5.1) on the shared `PageHeader`. Program and
+ * term pages are in the sidebar, so their header is the page's title (a term page names its term
+ * in the subtitle). A course page has its parents as breadcrumbs (the Program is in the sidebar,
+ * so it is left out), the course as the title with a menu to switch to another course of the
+ * term, and the course's page tabs. Terms and courses also have pin and settings buttons.
  */
 export function ScopeHeader({
   scope,
@@ -134,7 +135,7 @@ export function ScopeHeader({
   course?: Course
   /** Courses of `term` in its order (for the course switcher). */
   termCourses?: readonly Course[]
-  /** The title of a Program page; terms and courses are titled with their own name. */
+  /** The title of a Program or term page; courses are titled with their own name. */
   title?: string
   subtitle?: ReactNode
 }) {
@@ -164,7 +165,7 @@ export function ScopeHeader({
   const pinLabel = pinned ? m.academics_unpin() : m.academics_pin()
   return (
     <PageHeader
-      title={course ? courseLabel(course) : (term?.name ?? title ?? program.name)}
+      title={course ? courseLabel(course) : (title ?? term?.name ?? program.name)}
       switcher={
         course ? (
           <SiblingMenu
@@ -172,34 +173,24 @@ export function ScopeHeader({
             activeId={course.id}
             menuLabel={m.academics_switch_course()}
           />
-        ) : term ? (
-          <SiblingMenu
-            siblings={termSiblings}
-            activeId={term.id}
-            menuLabel={m.academics_switch_term()}
-          />
         ) : null
       }
       breadcrumb={
-        term ? (
+        course && term ? (
           <nav aria-label={m.academics_breadcrumbs()}>
             <ol className="-ml-1.5 flex min-w-0 flex-wrap items-center text-sm">
               <Crumb
                 label={m.academics_nav_terms_and_courses()}
                 href={termsAndCoursesPath(program.id, { term: term.id })}
               />
-              {course ? (
-                <>
-                  <Separator />
-                  <Crumb
-                    label={term.name}
-                    href={termPath(program.id, term.id)}
-                    siblings={termSiblings}
-                    activeId={term.id}
-                    menuLabel={m.academics_switch_term()}
-                  />
-                </>
-              ) : null}
+              <Separator />
+              <Crumb
+                label={term.name}
+                href={termPath(program.id, term.id)}
+                siblings={termSiblings}
+                activeId={term.id}
+                menuLabel={m.academics_switch_term()}
+              />
             </ol>
           </nav>
         ) : null
@@ -243,11 +234,7 @@ export function ScopeHeader({
         </>
       }
     >
-      {scope.kind === 'program' ? null : (
-        <div data-tour="page-tabs">
-          <ScopeNav scope={scope} activePageId={activePageId} />
-        </div>
-      )}
+      {scope.kind === 'course' ? <ScopeNav scope={scope} activePageId={activePageId} /> : null}
     </PageHeader>
   )
 }

@@ -7282,6 +7282,12 @@ export type Preferences = {
      */
     reduce_motion: 'system' | 'on' | 'off';
     /**
+     * Start Page
+     *
+     * The page the app opens on
+     */
+    start_page: 'last' | 'today' | 'overview' | 'calendar' | 'tasks' | 'grades' | 'files' | 'assistant' | 'summary';
+    /**
      * Active Program Id
      *
      * The Program currently being viewed
@@ -7335,6 +7341,12 @@ export type PreferencesUpdateInputBody = {
      * Reduce animations
      */
     reduce_motion?: 'system' | 'on' | 'off' | null;
+    /**
+     * Start Page
+     *
+     * The page the app opens on
+     */
+    start_page?: 'last' | 'today' | 'overview' | 'calendar' | 'tasks' | 'grades' | 'files' | 'assistant' | 'summary' | null;
     /**
      * Active Program Id
      *

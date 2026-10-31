@@ -43,7 +43,7 @@ const notes = defineModule({
   ],
 })
 
-/** A Program page with its own navigation, shown in the sidebar while the page is open. */
+/** A Program page with a phone version. */
 const lists = defineModule({
   id: 'lists',
   kind: 'plugin',
@@ -58,11 +58,6 @@ const lists = defineModule({
       icon: FileText,
       component: () => <p>Lists page</p>,
       mobile: { component: () => <p>Lists on a phone</p>, tab: { order: 0 } },
-      sidebarNav: () => (
-        <ul aria-label="Lists views">
-          <li>Starred</li>
-        </ul>
-      ),
       order: 60,
     },
   ],
@@ -139,7 +134,21 @@ test('/ opens the remembered Program, else the first one', async () => {
   world.programs.push({ ...world.programs[0]!, id: 'p2', name: 'Minor in Music' })
   world.activeProgramId = 'p2'
   const { router } = mount('/')
-  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p2'))
+  // …on its start page, Today by default.
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p2/today'))
+})
+
+test('a term start page opens in the term the sidebar shows; "last page" where the user left', async () => {
+  world.startPage = 'calendar'
+  world.uiState['academics.viewing_term.p1'] = 't1'
+  const first = mount('/p/p1')
+  await waitFor(() => expect(first.router.state.location.pathname).toBe('/p/p1/t/t1/calendar'))
+  first.unmount()
+
+  world.startPage = 'last'
+  world.uiState['academics.last_page.p1'] = '/p/p1/c/c2'
+  const { router } = mount('/p/p1')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
 })
 
 test('/ without any Program starts onboarding', async () => {
@@ -149,64 +158,96 @@ test('/ without any Program starts onboarding', async () => {
   expect(await screen.findByRole('heading', { name: 'Welcome to Semestra' })).toBeInTheDocument()
 })
 
-test('the sidebar shows the current term with its courses and leaves other terms out', async () => {
-  mount('/p/p1')
+/** The button with the term's name above the sidebar's pages, which switches the term. */
+async function termSwitcher(nav: HTMLElement, name: string) {
+  return within(nav).findByRole('button', { name: new RegExp(`^${name}`) })
+}
+
+test("the sidebar shows the current term's pages and courses, and leaves other terms out", async () => {
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await termSwitcher(nav, 'Winter 2026')).toBeInTheDocument()
+  expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/p/p1/t/t2')
   expect(await within(nav).findByRole('link', { name: /APS105H1/ })).toHaveAttribute(
     'href',
     '/p/p1/c/c1?fromTerm=t2',
   )
-  expect(within(nav).getByText('Current term')).toBeInTheDocument()
-  expect(within(nav).getByRole('link', { name: 'Winter 2026' })).toBeInTheDocument()
-  expect(within(nav).queryByRole('link', { name: 'Fall 2025' })).not.toBeInTheDocument()
+  expect(within(nav).queryByRole('link', { name: /Fall 2025/ })).not.toBeInTheDocument()
   expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(1)
   expect(within(nav).queryByText('Pinned')).not.toBeInTheDocument()
 })
 
 test('a term the user chose as current replaces the one of today in the sidebar', async () => {
   world.uiState['academics.current_term.p1'] = 't1'
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(await within(nav).findByRole('link', { name: 'Fall 2025' })).toBeInTheDocument()
+  expect(await termSwitcher(nav, 'Fall 2025')).toBeInTheDocument()
   expect(await within(nav).findByRole('link', { name: /ESC180Y1/ })).toHaveAttribute(
     'href',
     '/p/p1/c/c3?fromTerm=t1',
   )
-  expect(within(nav).queryByRole('link', { name: 'Winter 2026' })).not.toBeInTheDocument()
+  expect(within(nav).queryByRole('button', { name: /^Winter 2026/ })).not.toBeInTheDocument()
 })
 
 test('a chosen current term that no longer exists falls back to the term of today', async () => {
   world.uiState['academics.current_term.p1'] = 'deleted'
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(await within(nav).findByRole('link', { name: 'Winter 2026' })).toBeInTheDocument()
+  expect(await termSwitcher(nav, 'Winter 2026')).toBeInTheDocument()
 })
 
-test('the Program pages are in the sidebar and have no tab bar', async () => {
-  mount('/p/p1')
+test("the Program's summary is at the bottom of the sidebar, titled like its entry", async () => {
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(await within(nav).findByRole('link', { name: 'Overview' })).toHaveAttribute(
+  expect(await within(nav).findByRole('link', { name: 'Academic summary' })).toHaveAttribute(
     'aria-current',
     'page',
   )
   expect(within(nav).getByRole('link', { name: 'Terms & courses' })).toBeInTheDocument()
-  await screen.findByRole('heading', { level: 1, name: 'Overview' })
-  expect(document.querySelector('[data-tour="page-tabs"]')).toBeNull()
+  expect(await screen.findByRole('heading', { level: 1, name: 'Academic summary' })).toBeTruthy()
 })
 
-test("an open page's own navigation shows under its sidebar entry, and only then", async () => {
-  const view = mount('/p/p1/lists')
+test('another term stays in the sidebar on other pages until the user goes back', async () => {
+  const { router } = mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  const entry = (await within(nav).findByRole('link', { name: 'Lists' })).closest('li')!
-  expect(await within(entry).findByRole('list', { name: 'Lists views' })).toBeInTheDocument()
-  await act(() => view.router.navigate({ to: '/p/$programId', params: { programId: 'p1' } }))
-  await waitFor(() =>
-    expect(within(nav).queryByRole('list', { name: 'Lists views' })).not.toBeInTheDocument(),
+  await userEvent.click(await termSwitcher(nav, 'Winter 2026'))
+  const fall = await screen.findByRole('menuitem', { name: /Fall 2025/ })
+  expect(fall).toHaveAttribute('href', '/p/p1/t/t1')
+  expect(screen.getByRole('menuitem', { name: /Winter 2026\s*Current/ })).toBeInTheDocument()
+  await userEvent.click(fall)
+
+  // The term page is titled by its page, names its term and has no tab bar.
+  expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
+  expect(screen.getByText(/^Fall 2025 ·/)).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'Notes' })).not.toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Pin to sidebar' })).toBeInTheDocument()
+
+  // Another page keeps that term in the sidebar.
+  await act(() => router.navigate({ href: '/p/p1/summary' }))
+  expect(await termSwitcher(nav, 'Fall 2025')).toBeInTheDocument()
+  expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/p/p1/t/t1')
+  await userEvent.click(
+    within(nav).getByRole('button', { name: 'Back to the current term (Winter 2026)' }),
   )
+  expect(await termSwitcher(nav, 'Winter 2026')).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/p/p1/summary')
+  expect(
+    within(nav).queryByRole('button', { name: /Back to the current term/ }),
+  ).not.toBeInTheDocument()
+})
+
+test("Sem's recent chats fold under its entry, and stay as they were on other pages", async () => {
+  const { router } = mount('/p/p1/summary')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  await userEvent.click(await within(nav).findByRole('button', { name: 'Show recent chats' }))
+  expect(await within(nav).findByRole('list', { name: 'Recent chats' })).toBeInTheDocument()
+  await act(() => router.navigate({ href: '/p/p1/t/t2' }))
+  await screen.findByRole('heading', { level: 1, name: 'Overview' })
+  expect(within(nav).getByRole('list', { name: 'Recent chats' })).toBeInTheDocument()
 })
 
 test("the side panel button shows on hovering Sem's own row, not its conversations", async () => {
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const button = await screen.findByRole('button', { name: 'Open in side panel' })
   // `showOnHover` would follow the whole entry, conversations included.
   expect(button.className).not.toMatch(/group-hover\/menu-item/)
@@ -214,48 +255,21 @@ test("the side panel button shows on hovering Sem's own row, not its conversatio
 })
 
 test('on the icon rail a hidden group label lets clicks through to the entry above it', async () => {
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  // The label slides up behind "Terms & courses" (`-mt-8`) when the sidebar is folded.
-  for (const label of [
-    await within(nav).findByText('Current term'),
-    within(nav).getByText('Pages'),
-  ]) {
+  // The label slides up behind the entry above it (`-mt-8`) when the sidebar is folded.
+  for (const label of [await termSwitcher(nav, 'Winter 2026'), within(nav).getByText('Courses')]) {
     expect(label).toHaveClass('group-data-[collapsible=icon]:pointer-events-none')
   }
 })
 
-test('a term page keeps its tab bar and pins to the sidebar', async () => {
+test('a term pinned from its page sits under Pinned, unfolds to its courses and unpins', async () => {
   mount('/p/p1/t/t1')
-  await screen.findByRole('heading', { level: 1, name: 'Fall 2025' })
-  expect(document.querySelector('[data-tour="page-tabs"]')).not.toBeNull()
-  expect(await screen.findByRole('button', { name: 'Pin to sidebar' })).toBeInTheDocument()
-})
-
-test('the sidebar offers each entry once', async () => {
-  mount('/p/p1')
+  await userEvent.click(await screen.findByRole('button', { name: 'Pin to sidebar' }))
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  await within(nav).findByRole('link', { name: /APS105H1/ })
-  // Settings, pin and the page tabs live on the page; the current term's menu keeps only delete.
-  await userEvent.click(within(nav).getByRole('button', { name: 'More for Winter 2026' }))
-  expect(await screen.findByRole('menuitem', { name: 'Delete term' })).toBeInTheDocument()
-  expect(screen.queryByRole('menuitem', { name: /settings|pin|move/i })).not.toBeInTheDocument()
-  await userEvent.keyboard('{Escape}')
-  // New terms are made on the Terms & courses page, not from the sidebar.
-  expect(within(nav).queryByRole('link', { name: 'New term' })).not.toBeInTheDocument()
-})
-
-test('"+" adds another term to the sidebar, where it unfolds to its courses and can be unpinned', async () => {
-  mount('/p/p1')
-  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  await userEvent.click(
-    await within(nav).findByRole('button', { name: 'Add a term to the sidebar' }),
-  )
-  // The current term is already there, so only the other one is offered.
-  expect(screen.queryByRole('option', { name: /Winter 2026/ })).not.toBeInTheDocument()
-  await userEvent.click(await screen.findByRole('option', { name: /Fall 2025/ }))
   expect(await within(nav).findByText('Pinned')).toBeInTheDocument()
   expect(within(nav).getByRole('link', { name: 'Fall 2025' })).toHaveAttribute('href', '/p/p1/t/t1')
+  // The term's courses: once in the courses group, once more after unfolding the pin.
   expect(within(nav).getAllByRole('link', { name: /ESC180Y1/ })).toHaveLength(1)
   await userEvent.click(within(nav).getByRole('button', { name: 'Show courses' }))
   await waitFor(() =>
@@ -274,7 +288,7 @@ test('pinned terms and courses keep their order and move with the menu', async (
     { kind: 'term', id: 't2' },
     { kind: 'course', id: 'gone' },
   ]
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
   const pinned = (await within(nav).findByText('Pinned')).closest('[data-slot="sidebar-group"]')
   const rows = () =>
@@ -301,13 +315,13 @@ test('with a single Program the Program menu still offers a new one', async () =
   )
 })
 
-test('a Program without terms says so once in the sidebar, with a single way to add one', async () => {
+test('a Program without terms has a single way to add one in the sidebar', async () => {
   world.terms = []
   world.courses = []
-  mount('/p/p1')
+  mount('/p/p1/summary')
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  expect(await within(nav).findByText('No terms yet')).toBeInTheDocument()
-  expect(within(nav).getAllByRole('link', { name: 'New term' })).toHaveLength(1)
+  expect(await within(nav).findAllByRole('link', { name: 'New term' })).toHaveLength(1)
+  expect(within(nav).getByText('Pages')).toBeInTheDocument()
 })
 
 test('signing out from the account menu asks first', async () => {
@@ -491,7 +505,7 @@ test("the gear of a page header opens that scope's settings as a dialog, and Bac
 })
 
 test('the sidebar Settings entry opens the account settings and closing leaves the page', async () => {
-  const { router } = mount('/p/p1')
+  const { router } = mount('/p/p1/summary')
   await userEvent.click((await settingsButtons()).sidebar)
   const dialog = await screen.findByRole('dialog', { name: 'Settings' })
   expect(router.state.location.search).toEqual({ settings: 'account' })
@@ -501,7 +515,7 @@ test('the sidebar Settings entry opens the account settings and closing leaves t
   expect(router.state.location.search).toEqual({ settings: 'account/about' })
   await userEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  expect(router.state.location.pathname).toBe('/p/p1')
+  expect(router.state.location.pathname).toBe('/p/p1/summary')
   expect(router.state.location.search).toEqual({})
 })
 

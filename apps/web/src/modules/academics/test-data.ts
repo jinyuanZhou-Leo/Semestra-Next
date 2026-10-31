@@ -66,6 +66,8 @@ export type World = {
   terms: Term[]
   courses: Course[]
   activeProgramId: string | null
+  /** M11 `start_page`. */
+  startPage: string
   /** Bodies of `POST /programs/{id}/terms`. */
   termCreates: unknown[]
   /** Saved UI state by full key (`academics.pinned.p1` …); written values stay in the page's cache. */
@@ -85,6 +87,7 @@ export function defaultWorld(): World {
       course({ id: 'c3', code: 'ESC180Y1', title: 'Year-long design', term_ids: ['t1', 't2'] }),
     ],
     activeProgramId: null,
+    startPage: 'today',
     termCreates: [],
     uiState: {},
   }
@@ -98,6 +101,7 @@ const preferences = (world: World) => ({
   week_start: 0,
   reduce_motion: 'system',
   active_program_id: world.activeProgramId,
+  start_page: world.startPage,
   updated_at: null,
 })
 

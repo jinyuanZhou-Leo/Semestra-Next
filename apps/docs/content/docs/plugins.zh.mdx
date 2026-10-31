@@ -16,7 +16,7 @@ icon: Puzzle
 | 形态 | 说明 | 谁来画外框 |
 |---|---|---|
 | Card | 放在作用域（Program / 学期 / 课程 / 今天）的 Board 上，4/6/8 列网格里占 s/m/l/xl 尺寸 | M10 宿主画外框（标题、尺寸工具条、设置入口、移除），插件只写内容区 |
-| Page | 作用域页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
+| Page | 侧边栏里的一个入口（Program 与学期页面）或课程页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
 | 设置分区 | 插件的账户级或作用域级配置 | M11 自动生成表单 |
 | Capability | 对外的读/写操作，同时是 REST、AI 助手工具和 MCP 工具 | 无 UI |
 
@@ -56,7 +56,7 @@ export default defineModule({
 })
 ```
 
-- 所有重组件按需加载；页面的 `component`、`sidebarNav`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
+- 所有重组件按需加载；页面的 `component`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
 
 ### 3.2 卡片组件

@@ -22,6 +22,7 @@ async def test_defaults_before_any_change(
         "time_format": "auto",
         "week_start": 0,
         "reduce_motion": "system",
+        "start_page": "today",
         "active_program_id": None,
         "updated_at": None,
     }

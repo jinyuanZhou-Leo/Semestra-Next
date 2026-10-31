@@ -11,11 +11,12 @@ type Step = { target: string; title: Message; body: Message }
 
 /**
  * The five places the tour points at (M02 §5.7). Steps whose element is not on the page are
- * skipped (the Program pages have no tab bar, so the tabs step shows on term and course pages), so the command palette (M10) and assistant (M12) steps appear once those exist.
+ * skipped (the term switcher needs a term), so the command palette (M10) and assistant (M12)
+ * steps appear once those exist.
  */
 const STEPS: readonly Step[] = [
   { target: 'sidebar', title: m.academics_tour_sidebar_title, body: m.academics_tour_sidebar_body },
-  { target: 'page-tabs', title: m.academics_tour_tabs_title, body: m.academics_tour_tabs_body },
+  { target: 'term', title: m.academics_tour_term_title, body: m.academics_tour_term_body },
   { target: 'cards', title: m.academics_tour_cards_title, body: m.academics_tour_cards_body },
   {
     target: 'command-palette',

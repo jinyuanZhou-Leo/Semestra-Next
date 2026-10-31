@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { courseTermId, useCourse, useCourses, useProgram, useTerms } from '../queries'
+import { useRememberViewedTerm } from '../viewing-term'
 import { useCourseSwitchHotkey } from './hotkeys'
 import { ScopeHeader } from './ScopeHeader'
 
@@ -98,6 +99,9 @@ export function TermView({
   const program = useProgram(programId)
   const terms = useTerms(programId)
   const scope: Scope = { kind: 'term', programId, termId }
+  const page = usePages(scope).find((candidate) => candidate.id === pageId)
+  // The sidebar stays on this term until the user goes back to the current one (M02 §5.1).
+  useRememberViewedTerm(programId, termId)
   return (
     <AsyncBoundary query={program}>
       {(p) => (
@@ -113,9 +117,10 @@ export function TermView({
                   program={p}
                   terms={list.items}
                   term={term}
+                  title={page?.title()}
                   subtitle={
                     <>
-                      {formatDate(`${term.start_date}T00:00`)} –{' '}
+                      {term.name} · {formatDate(`${term.start_date}T00:00`)} –{' '}
                       {formatDate(`${term.end_date}T00:00`)}
                       {term.is_current ? <TermWeekLine termId={term.id} /> : null}
                     </>

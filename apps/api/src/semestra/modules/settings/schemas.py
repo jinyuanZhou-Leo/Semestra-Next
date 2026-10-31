@@ -10,6 +10,10 @@ Theme = Literal["system", "light", "dark"]
 Accent = Literal["neutral", "blue", "violet", "green", "orange", "rose", "teal", "amber"]
 TimeFormat = Literal["auto", "12h", "24h"]
 ReduceMotion = Literal["system", "on", "off"]
+# The sidebar entry the app opens on; "overview" is the term's board, "summary" the Program's.
+StartPage = Literal[
+    "last", "today", "overview", "calendar", "tasks", "grades", "files", "assistant", "summary"
+]
 # 0 follows the locale (Monday for zh-CN, Sunday for en); 1 = Monday; 7 = Sunday.
 WeekStart = Literal[0, 1, 7]
 Level = ScopeType
@@ -29,6 +33,7 @@ class Preferences(BaseModel):
     time_format: TimeFormat = Field(description="12-hour or 24-hour clock; auto follows locale")
     week_start: WeekStart = Field(description="First day of the week; 0 follows the language")
     reduce_motion: ReduceMotion = Field(description="Reduce animations; system follows the OS")
+    start_page: StartPage = Field(description="The page the app opens on")
     active_program_id: str | None = Field(description="The Program currently being viewed")
     updated_at: datetime | None = Field(description="Null until the first change")
 
@@ -42,6 +47,7 @@ class PreferencesUpdateInput(BaseModel):
     time_format: TimeFormat | None = Field(default=None, description="12-hour or 24-hour clock")
     week_start: WeekStart | None = Field(default=None, description="First day of the week")
     reduce_motion: ReduceMotion | None = Field(default=None, description="Reduce animations")
+    start_page: StartPage | None = Field(default=None, description="The page the app opens on")
     active_program_id: Annotated[str, Field(min_length=1, max_length=64)] | None = Field(
         default=None, description="The Program currently being viewed, or null"
     )
