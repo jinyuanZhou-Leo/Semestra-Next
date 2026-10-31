@@ -194,9 +194,11 @@ def _name_id_sources(node: Any, own: str, sources: dict[str, str]) -> None:
 
 # Keywords that cost the model tokens on every request and tell it nothing it acts on: Pydantic's
 # `title`s, `default: null` (leaving a field out already means that), the `discriminator` mapping
-# (its `$ref`s are inlined; each branch's `const` says the same) and length bounds a sensible value
-# never reaches. The capability still validates all of them and reports a mistake back.
-_LONG = 64
+# (its `$ref`s are inlined; each branch's `const` says the same) and the length bounds of ids and
+# names, which a sensible value never reaches. Bounds of free text (notes, descriptions, from 1000
+# on) stay: a long text can reach them, and in a batch one too-long item fails the whole call. The
+# capability still validates everything and reports a mistake back.
+_NAME_LIMITS = range(64, 1000)
 
 
 def _noise(key: str, value: Any) -> bool:
@@ -208,7 +210,7 @@ def _noise(key: str, value: Any) -> bool:
         case "minLength":
             return value == 1
         case "maxLength":
-            return isinstance(value, int) and value >= _LONG
+            return value in _NAME_LIMITS
         case _:
             return False
 

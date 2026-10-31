@@ -87,7 +87,7 @@ export function ContextMeter({
                 <span
                   key={k.kind}
                   // Touching, no gaps (they read as stray lines); a sliver still shows as one.
-                  className={cn('min-w-[3px]', k.color)}
+                  className={cn('min-w-0.75', k.color)}
                   style={{ width: `${(k.tokens / window) * 100}%` }}
                 />
               ))}
