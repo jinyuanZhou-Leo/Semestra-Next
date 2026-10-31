@@ -30,7 +30,7 @@ apps/api/src/semestra/modules/plugins_builtin/<id_with_underscores>/   后端，
 ```
 
 - 插件 id 是 kebab-case（`habit-streak`），前后端必须一致；CI 测试会把前端 manifest 列表与后端 `/plugins/catalog` 比对。
-- 卡片 id 是 `<前缀>.<名称>`（`habit.board`），capability 是 `<前缀>.<对象>.<动作>`（`habit.checkin.toggle`），表名 `plugin_<前缀>_<名称>`，设置命名空间 `plugin.<id>`。
+- 卡片 id 是 `<前缀>.<名称>`（`habit.ring`），capability 是 `<前缀>.<对象>.<动作>`（`habit.checkin.toggle`），表名 `plugin_<前缀>_<名称>`，设置命名空间 `plugin.<id>`。
 - 文案 key 用插件前缀（`habit_…`），两种语言都要写；错误码 `habit.date_out_of_range` 对应文案 `error_habit_date_out_of_range`。
 
 ## 3. 前端
@@ -49,7 +49,8 @@ export default defineModule({
     prefetch: (scope, queryClient) => ...,   // 可选：卡片代码加载时同时开始取数据（queryClient.prefetchQuery）
     settings: { schema: zodSchema, component: preloadable(...) },   // component 可省，省略则按 schema 自动生成表单
     multiple: true,
-    headerActions: ...,        // 卡片头部操作（计数器的"重置"）
+    headerActions: ...,        // 卡片头部操作（计数器的"重置"），由宿主在悬停时显示
+    keepTitleWhenSmall: true,  // 可选：s 尺寸也保留标题行（默认隐藏）
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // 侧边栏状态条（番茄钟用它显示进行中的计时）
@@ -63,6 +64,9 @@ export default defineModule({
 
 - Props：`{ scope, instanceId, size, settings }`。`settings` 是宿主用 `settings.schema` 解析后的结果，所以每个字段给默认值，旧卡片才不会因为新增字段而解析失败。
 - **每个声明的尺寸都要有设计**。s 只放最少的信息和一个主操作；不要用缩放凑合。测试里遍历所有尺寸渲染。
+- s 尺寸下宿主会隐藏标题行，把整张卡片留给内容（编辑 Board 时标题会回来），所以内容的第一行要能说明这是什么：计数器的名称、时钟的城市、"专注"。只有内容做不到时才设 `keepTitleWhenSmall`。
+- `headerActions` 和设置按钮一起放在右上角，指针移到卡片上或焦点在卡片内时出现（触屏上一直显示），插件不要自己控制显隐。
+- 可能放不下的列表用 `overflow-y-auto scroll-fade`：还有内容的那一侧会渐隐，用户能看出可以滚动。
 - 修改设置用 `useCardSettings(instanceId, settings, delayMs)`：本地立即生效，延迟后保存，失败回滚并给出 `status`。计数器 300ms，便签 800ms。
 - 不要自绘卡片外框，也不要自己加内边距；外框之内的留白由宿主决定。
 - 主数据还是 `undefined` 时返回 `<CardSkeleton />`（`@/app/board`），不要返回 `null`、自己画转圈或先显示空状态。它是一个填满正文的圆角矩形，不改变卡片高度，150 ms 后才淡入；卡片代码加载时宿主也显示同一个骨架。

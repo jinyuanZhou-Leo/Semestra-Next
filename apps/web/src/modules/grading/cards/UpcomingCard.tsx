@@ -10,7 +10,8 @@ import { coursePath } from '@/modules/academics/paths'
 import { useCourse, useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { dueText } from '../display'
+import { dueLabel } from '@/modules/tasks/due'
+import { useProgramToday } from '@/modules/tasks/queries'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
@@ -28,6 +29,7 @@ export default function UpcomingCard({ scope, size }: CardProps) {
       query: { term_id: termId, course_id: courseId, limit: LIMIT[size] ?? 8 },
     }),
   )
+  const today = useProgramToday(scope.programId)
   const byId = new Map(courses.map((course) => [course.id, course]))
   const rows = (upcoming.data?.items ?? []).flatMap((assessment) => {
     const course = byId.get(assessment.course_id)
@@ -49,12 +51,12 @@ export default function UpcomingCard({ scope, size }: CardProps) {
     )
   }
   return (
-    <ul className="space-y-1.5 text-sm">
+    <ul className="space-y-0.5 text-sm">
       {rows.map(({ assessment: a, course }) => (
         <li key={a.id}>
           <HistoryLink
             href={coursePath(scope.programId, course.id, 'grades', termId)}
-            className="flex items-center gap-2 rounded-lg hover:bg-muted/50"
+            className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-0.5 transition-colors hover:bg-muted/50"
           >
             <span
               aria-hidden
@@ -73,7 +75,7 @@ export default function UpcomingCard({ scope, size }: CardProps) {
                 a.status === 'overdue' && 'text-destructive',
               )}
             >
-              {dueText(a)}
+              {dueLabel(a, today)}
             </span>
           </HistoryLink>
         </li>

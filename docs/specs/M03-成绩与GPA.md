@@ -138,8 +138,8 @@ grading_assessments
 ### 5.3 Cards
 - `grading.courseSummary`（course，s/m）：当前/最终成绩、GPA、所需平均分、下一个截止考核。
 - `grading.termSummary`（term，s/m）：学期 GPA、学分、课程数。
-- `grading.programKpis`（program，xl）：累计 GPA、平均分、已获学分/要求学分进度条、学期数。
-- `grading.programCharts`（program，l/xl）：按学期的 GPA 折线（含累计 GPA 线）与学分柱状图。图表配色使用 `--chart-*` token。
+- `grading.programKpis`（program，xl）：左边累计 GPA（主数字）、平均分、已获学分/要求学分进度条、已计分课程数；右边按学期（新的在上）的 GPA 条，点一行进入该学期。按卡片宽度（容器查询）而不是窗口宽度排版。
+- `grading.programCharts`（program，l/xl）：按学期的 GPA 折线（含累计 GPA 线，虚线；没有成绩的学期不画点，线也不延伸过去）与带标题的学分柱状图，两图的 Y 轴占位相同，柱子对齐上方的点。图表配色使用 `--chart-*` token，提示框带颜色标记。
 - `grading.upcoming`（term/course，m/l）：即将截止的考核列表，一次请求 `grading.assessment.upcoming`。
 - `hide_gpa=true` 时所有显示 GPA 的位置改为显示"•••"，可点击临时显示；字母等级也一起隐藏（字母会泄露 GPA）。
 

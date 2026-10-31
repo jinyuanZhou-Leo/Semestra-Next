@@ -1,4 +1,4 @@
-"""Stand-in for M10's card instances in plugin tests: `cards.add('habit.board', ...)`."""
+"""Stand-in for M10's card instances in plugin tests: `cards.add('habit.ring', ...)`."""
 
 from dataclasses import dataclass, field
 from typing import Any

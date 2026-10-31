@@ -1,4 +1,4 @@
-import { CalendarPlus, CalendarRange } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -6,9 +6,8 @@ import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { newTermPath, termPath } from '../paths'
+import { termPath } from '../paths'
 import { useTerms } from '../queries'
 
 const day = (iso: string) => formatDate(`${iso}T00:00`)
@@ -19,8 +18,8 @@ export default function TermsCard({ scope }: CardProps) {
   const terms = useTerms(programId).data?.items
   if (!terms) return <CardSkeleton />
   return (
-    <div className="flex h-full flex-col gap-2">
-      <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+    <div className="flex h-full flex-col">
+      <ol className="flex min-h-0 flex-1 scroll-fade flex-col gap-1 overflow-y-auto">
         {terms.length === 0 ? (
           <li className="flex flex-1 flex-col">
             <Empty className="border-0 p-0">
@@ -69,17 +68,6 @@ export default function TermsCard({ scope }: CardProps) {
           </li>
         ))}
       </ol>
-      <div>
-        <Button
-          variant="outline"
-          size="sm"
-          nativeButton={false}
-          render={<HistoryLink href={newTermPath(programId)} />}
-        >
-          <CalendarPlus aria-hidden />
-          {m.academics_term_new()}
-        </Button>
-      </div>
     </div>
   )
 }
