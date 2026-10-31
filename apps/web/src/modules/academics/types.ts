@@ -79,7 +79,7 @@ export type TermWizardImportSource = {
 
 /**
  * Fills the course's basics from somewhere else, shown above them in the course settings (M08
- * "Read from syllabus"). It writes the course itself; `onApplied` then reloads the form.
+ * "Read from a file"). It writes the course itself; `onApplied` then reloads the form.
  */
 export type CourseInfoFill = {
   id: string

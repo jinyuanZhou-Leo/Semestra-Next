@@ -532,7 +532,14 @@ async def extract[T: BaseModel](
         return results, usage
 
     warnings: list[ExtractionWarning] = []
-    answers = await asyncio.gather(*(read(group) for group in groups))
+    # One part failing stops the others: their answers would be thrown away (but billed), and a
+    # retry of the whole extraction would read them again.
+    try:
+        async with asyncio.TaskGroup() as running:
+            tasks = [running.create_task(read(group)) for group in groups]
+    except ExceptionGroup as failed:
+        raise failed.exceptions[0] from None
+    answers = [task.result() for task in tasks]
     results = [value for values, _ in answers for value in values]
     usage = Usage()
     for _, used in answers:

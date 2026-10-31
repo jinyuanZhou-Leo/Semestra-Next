@@ -62,7 +62,7 @@ export function syllabusCandidates(items: readonly ItemOut[]): ItemOut[] {
 }
 
 /**
- * "Read from syllabus" at the top of a course's basics (M08 §6.1): pick a course file or upload
+ * "Read from a file" at the top of a course's basics (M08 §6.1): pick a course file or upload
  * one and watch it being read in place; the changed fields then open in a dialog to tick and
  * apply. Applying is the confirmation; nothing is written before.
  */

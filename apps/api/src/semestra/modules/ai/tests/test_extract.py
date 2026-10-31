@@ -1,5 +1,6 @@
 """Extraction with evidence: quote checks, splitting long documents, merging parts (M06 §5)."""
 
+import asyncio
 import json
 from typing import Any
 
@@ -332,3 +333,41 @@ async def test_parts_are_read_in_separate_requests(ai: Ai, mock: respx.MockRoute
     )
     assert result.value.course_code.value == "APS105H1"
     assert [a.weight.value for a in result.value.assessments] == [50]
+
+
+async def test_a_failing_part_stops_the_others(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+    slow_started = asyncio.Event()
+    stopped: list[bool] = []
+
+    async def reply(request: Any) -> Response:
+        fields = set(json.loads(request.content)["output_config"]["format"]["schema"]["properties"])
+        if fields == {"assessments"}:
+            slow_started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                stopped.append(True)
+                raise
+            return tool_reply({"assessments": []})
+        await slow_started.wait()
+        return Response(400, json={"type": "error", "error": {"message": "bad"}})
+
+    mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=reply)
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await asyncio.wait_for(
+                m06.extract(
+                    ctx,
+                    "extraction",
+                    Syllabus,
+                    texts=PAGES,
+                    instructions="x",
+                    source_module="imports",
+                    parts=[("course_code", "instructor"), ("assessments",)],
+                ),
+                timeout=10,
+            )
+    assert exc.value.code == "ai.request_rejected"
+    assert stopped == [True]  # the other part's request was cancelled, not left running

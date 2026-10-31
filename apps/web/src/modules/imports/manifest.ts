@@ -11,7 +11,7 @@ import { m } from '@/paraglide/messages'
 import { ImportHost } from './components/ImportHost'
 import { meetingSource, syllabusGradingSource, wizardSource } from './entries'
 
-/** "Read from syllabus" above the course's basics in its settings. */
+/** "Read from a file" above the course's basics in its settings. */
 const courseInfoFill: CourseInfoFill = {
   id: 'imports.syllabus',
   component: preloadable(() =>
@@ -28,7 +28,7 @@ const SESSION_EVENTS = [
 /**
  * M08 导入中心: import sessions from ICS files, syllabi, timetable screenshots and pasted text,
  * reviewed in one dialog before anything is written. Contributes import sources to the term
- * wizard, the gradebook and the course schedule, and "Read from syllabus" to the course settings;
+ * wizard, the gradebook and the course schedule, and "Read from a file" to the course settings;
  * the dialog itself is an overlay that `openImport()` opens.
  */
 export default defineModule({
