@@ -28,7 +28,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useRef, useState } from 'react'
+import { type DragEvent, createContext, use, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
@@ -66,11 +66,49 @@ export type BrowserHandlers = {
   open: (item: ItemOut) => void
   openFolder: (folderId: string) => void
   act: (action: ItemAction) => void
-  /** Read-only lists (the term page) hide editing. */
-  readOnly?: boolean
   /** The course's Program, for the menu entries other modules add (`files.itemActions`). */
   programId?: string
+  /** Files dragged onto a folder go into it; `folderId` is the folder they are over. */
+  drop?: FolderDrop
 }
+
+export type FolderDrop = {
+  folderId: string | null
+  over: (folderId: string | null) => void
+  into: (folderId: string, files: File[]) => void
+}
+
+function hasFiles(event: DragEvent) {
+  return event.dataTransfer.types.includes('Files')
+}
+
+/**
+ * Makes a folder's row or tile a drop target. `preventDefault` on the drop tells the page's own
+ * drop zone (`useFileDrop`) that the files are taken.
+ */
+function folderDropProps(folderId: string, drop: FolderDrop | undefined) {
+  if (!drop) return {}
+  return {
+    'data-drop-target': drop.folderId === folderId ? '' : undefined,
+    onDragOver: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      drop.over(folderId)
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drop.over(null)
+    },
+    onDrop: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      drop.over(null)
+      drop.into(folderId, [...event.dataTransfer.files])
+    },
+  }
+}
+
+// A folder with files dragged over it.
+const DROP_TARGET = 'data-drop-target:bg-primary/10 data-drop-target:text-primary'
 
 const BrowserContext = createContext<BrowserHandlers | null>(null)
 
@@ -152,8 +190,7 @@ export function PinButton({ item }: { item: ItemOut }) {
 }
 
 function PinCell({ row }: CellProps) {
-  const { readOnly } = useHandlers()
-  return readOnly ? null : <PinButton item={row.original} />
+  return <PinButton item={row.original} />
 }
 
 export function ItemMenu({ item }: { item: ItemOut }) {
@@ -255,8 +292,7 @@ function ReprocessItem({ item }: { item: ItemOut }) {
 }
 
 function ActionsCell({ row }: CellProps) {
-  const { readOnly } = useHandlers()
-  return readOnly ? null : <ItemMenu item={row.original} />
+  return <ItemMenu item={row.original} />
 }
 
 function FolderMenu({ folder }: { folder: FolderOut }) {
@@ -409,9 +445,16 @@ export function SortMenu() {
 }
 
 function FolderTile({ folder }: { folder: FolderOut }) {
-  const { openFolder, readOnly } = useHandlers()
+  const { openFolder, drop } = useHandlers()
   return (
-    <div className="group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50">
+    <div
+      {...folderDropProps(folder.id, drop)}
+      className={cn(
+        'group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
+        DROP_TARGET,
+        'data-drop-target:border-primary',
+      )}
+    >
       <button
         type="button"
         onClick={() => openFolder(folder.id)}
@@ -420,17 +463,15 @@ function FolderTile({ folder }: { folder: FolderOut }) {
         <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{folder.name}</span>
       </button>
-      {readOnly ? null : (
-        <div className="relative">
-          <FolderMenu folder={folder} />
-        </div>
-      )}
+      <div className="relative">
+        <FolderMenu folder={folder} />
+      </div>
     </div>
   )
 }
 
 function ItemTile({ item }: { item: ItemOut }) {
-  const { open, readOnly } = useHandlers()
+  const { open } = useHandlers()
   const [broken, setBroken] = useState(false)
   // Page images are only made for PDFs and images; anything else gets its icon.
   const kind = previewKind(item)
@@ -469,12 +510,8 @@ function ItemTile({ item }: { item: ItemOut }) {
         </button>
         <div className="relative flex items-center">
           <StatusCell item={item} compact />
-          {readOnly ? null : (
-            <>
-              <PinButton item={item} />
-              <ItemMenu item={item} />
-            </>
-          )}
+          <PinButton item={item} />
+          <ItemMenu item={item} />
         </div>
       </div>
     </div>
@@ -604,7 +641,11 @@ export function FileBrowser({
           </TableHeader>
           <TableBody>
             {sortedFolders.map((folder) => (
-              <TableRow key={folder.id}>
+              <TableRow
+                key={folder.id}
+                {...folderDropProps(folder.id, handlers.drop)}
+                className={DROP_TARGET}
+              >
                 <TableCell className="py-2" colSpan={columnCount - 1}>
                   <button
                     type="button"
@@ -616,7 +657,7 @@ export function FileBrowser({
                   </button>
                 </TableCell>
                 <TableCell className={cn('py-2', ICON_COLUMN)}>
-                  {handlers.readOnly ? null : <FolderMenu folder={folder} />}
+                  <FolderMenu folder={folder} />
                 </TableCell>
               </TableRow>
             ))}

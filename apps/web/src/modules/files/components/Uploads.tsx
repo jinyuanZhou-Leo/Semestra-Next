@@ -36,29 +36,36 @@ type Row = {
   error?: string
 }
 
-/**
- * Uploading into a course folder (M07 §6.1): the quota and size checks, the "already exists"
- * question, then one file per request so each row shows its own state. Render `panel` and
- * `dialog` once; call `start(files)` from the button or the drop zone.
- */
-export function useUploads({
-  courseId,
-  folderId,
-  existing,
-}: {
+/** Where an upload goes: a course folder (null for the top), and what that course has already. */
+export type UploadTarget = {
   courseId: string
   folderId: string | null
   existing: readonly ItemOut[]
-}): { start: (files: readonly File[]) => void; panel: ReactNode; dialog: ReactNode } {
+}
+
+/**
+ * Uploading into course folders (M07 §6.1): the quota and size checks, the "already exists"
+ * question, then one file per request so each row shows its own state. Render `panel` and
+ * `dialog` once; call `start(files, target)` from the button or a drop zone.
+ */
+export function useUploads(): {
+  start: (files: readonly File[], target: UploadTarget) => void
+  panel: ReactNode
+  dialog: ReactNode
+} {
   const queryClient = useQueryClient()
   const usage = useFilesUsage().data
   const [rows, setRows] = useState<Row[]>([])
-  const [duplicates, setDuplicates] = useState<{ all: File[]; dupes: File[] } | null>(null)
+  const [duplicates, setDuplicates] = useState<{
+    all: File[]
+    dupes: File[]
+    target: UploadTarget
+  } | null>(null)
 
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
 
-  const send = async (files: readonly File[]) => {
+  const send = async (files: readonly File[], { courseId, folderId }: UploadTarget) => {
     const queued = files.map((file) => ({
       file,
       row: {
@@ -90,7 +97,7 @@ export function useUploads({
     await invalidateFiles(queryClient)
   }
 
-  const start = (files: readonly File[]) => {
+  const start = (files: readonly File[], target: UploadTarget) => {
     if (files.length === 0) return
     const plan = planUpload(files, usage)
     for (const file of plan.tooLarge) {
@@ -108,11 +115,15 @@ export function useUploads({
     if (plan.accepted.length === 0) return
     void Promise.all(plan.accepted.map(async (file) => ({ file, sha256: await sha256Hex(file) })))
       .then((hashed) => {
-        const dupes = findDuplicates(hashed, existing, folderId)
-        if (dupes.size === 0) return send(plan.accepted)
-        setDuplicates({ all: plan.accepted, dupes: plan.accepted.filter((f) => dupes.has(f)) })
+        const dupes = findDuplicates(hashed, target.existing, target.folderId)
+        if (dupes.size === 0) return send(plan.accepted, target)
+        setDuplicates({
+          all: plan.accepted,
+          dupes: plan.accepted.filter((f) => dupes.has(f)),
+          target,
+        })
       })
-      .catch(() => send(plan.accepted))
+      .catch(() => send(plan.accepted, target))
   }
 
   const active = rows.some((r) => r.status === 'queued' || r.status === 'uploading')
@@ -184,9 +195,10 @@ export function useUploads({
 
   // Closing the question any way but "Upload anyway" skips the duplicates and keeps the rest.
   const skipDuplicates = () => {
-    const rest = duplicates ? duplicates.all.filter((f) => !duplicates.dupes.includes(f)) : []
+    if (!duplicates) return
+    const rest = duplicates.all.filter((f) => !duplicates.dupes.includes(f))
     setDuplicates(null)
-    if (rest.length) void send(rest)
+    if (rest.length) void send(rest, duplicates.target)
   }
   const dialog = (
     <AlertDialog open={duplicates !== null} onOpenChange={(open) => !open && skipDuplicates()}>
@@ -203,9 +215,9 @@ export function useUploads({
           <AlertDialogCancel>{m.files_duplicate_skip()}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
-              const all = duplicates?.all ?? []
+              if (!duplicates) return
               setDuplicates(null)
-              void send(all)
+              void send(duplicates.all, duplicates.target)
             }}
           >
             {m.files_duplicate_upload_anyway()}
