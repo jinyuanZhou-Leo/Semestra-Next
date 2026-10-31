@@ -1,4 +1,9 @@
-import type { Course, Meeting, OneOffEvent } from '@semestra/api-client'
+import {
+  type Course,
+  type Meeting,
+  type OneOffEvent,
+  scheduleMeetingDelete,
+} from '@semestra/api-client'
 import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
@@ -16,6 +21,7 @@ import {
 import { type ReactNode, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ImportSourceItems } from '@/components/ImportSourceItems'
 import { toastError } from '@/lib/errors'
 import { useCourse, useTerms } from '@/modules/academics/queries'
@@ -36,10 +42,12 @@ import { EventsTable } from '../components/EventsTable'
 import { ExceptionDialog } from '../components/ExceptionDialog'
 import { ExceptionsTable } from '../components/ExceptionsTable'
 import { MeetingDialog } from '../components/MeetingDialog'
-import { MeetingGroup } from '../components/MeetingGroup'
+import { MeetingGroup, type MeetingSection } from '../components/MeetingGroup'
+import { SectionDialog } from '../components/SectionDialog'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
+import { todayIn } from '../time'
 import {
   invalidateSchedule,
   useCalendarSettingsState,
@@ -122,12 +130,22 @@ function TermSchedule({
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
   // Prefills a new meeting, e.g. the type of the table whose add row was clicked.
   const [initial, setInitial] = useState<Partial<Meeting>>({})
-  const addMeeting = (typeCode?: string) => {
-    setInitial(typeCode ? { type_code: typeCode } : {})
-    setEditing('new')
-  }
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
+  // The type of the section being added.
+  const [sectionAdd, setSectionAdd] = useState<string | null>(null)
+  const [sectionEdit, setSectionEdit] = useState<MeetingSection | null>(null)
+  const [sectionDelete, setSectionDelete] = useState<MeetingSection | null>(null)
+  const removeSection = useMutation({
+    mutationFn: async (section: MeetingSection) => {
+      for (const mt of section.meetings) {
+        await scheduleMeetingDelete({ path: { meeting_id: mt.id }, throwOnError: true })
+      }
+    },
+    onError: toastError,
+    onSuccess: () => setSectionDelete(null),
+    onSettled: () => invalidateSchedule(queryClient),
+  })
 
   const setEnabled = useMutation({
     ...scheduleMeetingSetEnabledMutation(),
@@ -158,6 +176,17 @@ function TermSchedule({
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
   const enabled = meetings.filter((mt) => mt.enabled)
+  // The classes that can be cancelled or moved: switched-on sections, in the tables' order.
+  const cancellable = typeCodes.flatMap((code) =>
+    enabled
+      .filter((mt) => mt.type_code === code)
+      .toSorted(
+        (a, b) =>
+          a.section_code.localeCompare(b.section_code, undefined, { numeric: true }) ||
+          a.weekday - b.weekday ||
+          a.start_time.localeCompare(b.start_time),
+      ),
+  )
   // The whole week and day of the Program's calendar settings; the grid widens for classes
   // outside them.
   const { settings: calendar, isPending: calendarPending } = useCalendarSettingsState(termId)
@@ -199,9 +228,9 @@ function TermSchedule({
               <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" onClick={() => addMeeting()}>
+              <Button size="sm" onClick={() => setSectionAdd(types[0]?.code ?? 'LEC')}>
                 <Plus aria-hidden />
-                {m.schedule_meeting_add()}
+                {m.schedule_section_new_title()}
               </Button>
             </EmptyContent>
           </Empty>
@@ -247,7 +276,21 @@ function TermSchedule({
                 onToggle={toggle}
                 onKeepOnly={keepOnly}
                 onEdit={setEditing}
-                onAdd={() => addMeeting(code)}
+                onAdd={() => setSectionAdd(code)}
+                onEditSection={setSectionEdit}
+                onDeleteSection={setSectionDelete}
+                onAddTime={(section) => {
+                  const first = section.meetings[0]
+                  setInitial({
+                    type_code: code,
+                    section_code: section.code,
+                    instructor: first?.instructor ?? null,
+                    location: first?.location ?? null,
+                    start_time: first?.start_time,
+                    end_time: first?.end_time,
+                  })
+                  setEditing('new')
+                }}
               />
             ))}
           </>
@@ -300,7 +343,7 @@ function TermSchedule({
                 </EmptyMedia>
                 <EmptyTitle>{m.schedule_exceptions_empty()}</EmptyTitle>
               </EmptyHeader>
-              {meetings.length > 0 ? (
+              {cancellable.length > 0 ? (
                 <EmptyContent>
                   <Button size="sm" variant="link" onClick={() => setExceptionAdd(true)}>
                     {m.schedule_exception_add()}
@@ -312,7 +355,7 @@ function TermSchedule({
             <ExceptionsTable
               exceptions={exceptions}
               busy={restore.isPending}
-              onAdd={meetings.length > 0 ? () => setExceptionAdd(true) : undefined}
+              onAdd={cancellable.length > 0 ? () => setExceptionAdd(true) : undefined}
               onRestore={(meeting, exc) =>
                 restore.mutate({
                   path: { meeting_id: meeting.id, original_date: exc.original_date },
@@ -336,9 +379,44 @@ function TermSchedule({
           onOpenChange={(open) => !open && setEditing(null)}
         />
       ) : null}
+      {sectionAdd ? (
+        <SectionDialog
+          programId={programId}
+          courseId={course.id}
+          termId={termId}
+          typeCode={sectionAdd}
+          open
+          onOpenChange={(open) => !open && setSectionAdd(null)}
+        />
+      ) : null}
+      {sectionEdit ? (
+        <SectionDialog
+          key={sectionEdit.key}
+          programId={programId}
+          courseId={course.id}
+          termId={termId}
+          typeCode={sectionEdit.meetings[0]?.type_code ?? ''}
+          meetings={sectionEdit.meetings}
+          open
+          onOpenChange={(open) => !open && setSectionEdit(null)}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={sectionDelete !== null}
+        onOpenChange={(open) => !open && setSectionDelete(null)}
+        title={m.schedule_section_delete_title({ section: sectionDelete?.code ?? '' })}
+        description={m.schedule_section_delete_description()}
+        confirmLabel={m.schedule_section_delete()}
+        pending={removeSection.isPending}
+        onConfirm={() => sectionDelete && removeSection.mutate(sectionDelete)}
+      />
       {exceptionAdd ? (
         <ExceptionDialog
-          meetings={meetings}
+          programId={programId}
+          courseId={course.id}
+          termId={termId}
+          today={todayIn(timezone)}
+          meetings={cancellable}
           open
           onOpenChange={(open) => !open && setExceptionAdd(false)}
         />

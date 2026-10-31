@@ -514,7 +514,7 @@ test('the course schedule shows a full-width week of class hours and an add row 
   expect(within(week).getByText('Sat')).toBeInTheDocument()
 
   expect(screen.getByText('No one-off events yet')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Add LEC meeting' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add LEC section' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add one-off event' }))
   expect(await screen.findByRole('dialog', { name: 'Add one-off event' })).toBeInTheDocument()
 })
@@ -537,7 +537,7 @@ test('"keep only this section" keeps all its days and hides the other sections i
   )
   mount('/p/p1/c/c1/schedule')
   await userEvent.click(
-    await screen.findByRole('button', { name: 'Actions for LEC0101, Monday' }, { timeout: 10_000 }),
+    await screen.findByRole('button', { name: 'Actions for LEC0101' }, { timeout: 10_000 }),
   )
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Keep only this section' }))
   await waitFor(() =>
@@ -549,4 +549,34 @@ test('"keep only this section" keeps all its days and hides the other sections i
       },
     ]),
   )
+})
+
+test('a new section is saved with all its times in one request', async () => {
+  server.use(
+    http.post(`${API}/courses/:id/meetings\\:batch`, async ({ request }) => {
+      log.requests.push({
+        method: 'POST',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json({ items: [], created_ids: [], updated_ids: [] })
+    }),
+  )
+  mount('/p/p1/c/c1/schedule')
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Add LEC section' }, { timeout: 10_000 }),
+  )
+  const dialog = await screen.findByRole('dialog', { name: 'Add section' })
+  await userEvent.type(within(dialog).getByLabelText('Section'), 'LEC0201')
+  // The second time starts from the first: the next day, same hours.
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Add another time' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(log.requests.filter((r) => r.method === 'POST')).toHaveLength(1))
+  const body = log.requests.find((r) => r.method === 'POST')!.body as {
+    meetings: Array<{ section_code: string; type_code: string; weekday: number }>
+  }
+  expect(body.meetings.map((mt) => [mt.section_code, mt.type_code, mt.weekday])).toEqual([
+    ['LEC0201', 'LEC', 1],
+    ['LEC0201', 'LEC', 2],
+  ])
 })

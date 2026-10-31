@@ -1,6 +1,6 @@
-import type { Meeting } from '@semestra/api-client'
+import type { Meeting, Term } from '@semestra/api-client'
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { ChoiceControl } from '@/app/settings'
@@ -27,8 +27,9 @@ import {
 } from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
 import { sectionLabel } from '../labels'
-import { invalidateSchedule } from '../queries'
-import { localDay, weekdayName } from '../time'
+import { useTerms } from '@/modules/academics/queries'
+import { invalidateSchedule, occurrenceOptions } from '../queries'
+import { localDay, plusDays, weekdayName } from '../time'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -38,12 +39,16 @@ function DateField({
   value,
   onChange,
   allowed,
+  range,
   invalid,
 }: {
   id: string
   value: string
   onChange: (day: string) => void
   allowed?: (day: Date) => boolean
+  /** The first and last day the calendar can show (YYYY-MM-DD), e.g. the term's; it opens on
+   * `today` when nothing is picked, kept within them. */
+  range?: { start: string; end: string; today: string }
   invalid?: boolean
 }) {
   const [open, setOpen] = useState(false)
@@ -70,7 +75,9 @@ function DateField({
           {...calendarLocale()}
           mode="single"
           selected={picked}
-          defaultMonth={picked}
+          defaultMonth={picked ?? (range ? localDay(clampDay(range.today, range)) : undefined)}
+          startMonth={range ? localDay(range.start) : undefined}
+          endMonth={range ? localDay(range.end) : undefined}
           disabled={allowed ? (day) => !allowed(day) : undefined}
           onSelect={(next) => {
             onChange(next ? isoDay(next) : '')
@@ -84,15 +91,70 @@ function DateField({
 
 const hhmm = (time: string) => time.slice(0, 5)
 
+const clampDay = (day: string, range: { start: string; end: string }) =>
+  day < range.start ? range.start : day > range.end ? range.end : day
+
+/**
+ * The days each meeting of the course really meets in the term, from the calendar (term weeks,
+ * every-other-week, week range and breaks already applied), keyed by meeting id. The calendar
+ * answers at most `MAX_RANGE_DAYS` (120) days per request, so a long term is asked in parts.
+ */
+function useClassDays(programId: string, courseId: string, term: Term | undefined) {
+  const windows: Array<{ start: string; end: string }> = []
+  if (term) {
+    const last = plusDays(term.end_date, 1)
+    for (let day = term.start_date; day < last; day = plusDays(day, 120)) {
+      const end = plusDays(day, 120)
+      windows.push({ start: day, end: end < last ? end : last })
+    }
+  }
+  return useQueries({
+    queries: windows.map((w) =>
+      occurrenceOptions(programId, {
+        ...w,
+        term_id: term?.id,
+        course_ids: [courseId],
+        sources: ['schedule.meetings'],
+        kinds: ['class'],
+      }),
+    ),
+    combine: (results) => {
+      if (!term || results.some((r) => !r.data)) return null
+      const days = new Map<string, Set<string>>()
+      for (const r of results) {
+        for (const o of r.data?.items ?? []) {
+          const id = o.meta?.meeting_id
+          const day = o.meta?.original_date
+          if (!id || !day) continue
+          const set = days.get(id) ?? new Set<string>()
+          set.add(day)
+          days.set(id, set)
+        }
+      }
+      return days
+    },
+  })
+}
+
 /**
  * Cancels or moves one class of a course's meetings (M04 §5.3): the class is picked by its
  * section and date, as the calendar does it from a clicked class.
  */
 export function ExceptionDialog({
+  programId,
+  courseId,
+  termId,
+  today,
   meetings,
   open,
   onOpenChange,
 }: {
+  programId: string
+  courseId: string
+  termId: string
+  /** Today in the Program's time zone. */
+  today: string
+  /** The sections that can be picked: the switched-on ones, in the tables' order. */
   meetings: Meeting[]
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -110,6 +172,10 @@ export function ExceptionDialog({
   const [note, setNote] = useState('')
   const [touched, setTouched] = useState(false)
   const meeting = meetings.find((mt) => mt.id === meetingId)
+  const term = useTerms(programId).data?.items.find((t) => t.id === termId)
+  const classDays = useClassDays(programId, courseId, term)
+  const meetingDays = meeting ? classDays?.get(meeting.id) : undefined
+  const termRange = term ? { start: term.start_date, end: term.end_date, today } : undefined
 
   const save = useMutation({
     ...scheduleExceptionUpsertMutation(),
@@ -201,8 +267,9 @@ export function ExceptionDialog({
               id={`${fid}-2`}
               value={originalDate}
               onChange={pickOriginal}
-              // Only the days the class meets (weekday 1 = Monday … 7 = Sunday).
-              allowed={meeting ? (day) => (day.getDay() || 7) === meeting.weekday : undefined}
+              // Only the days this section really meets in the term.
+              allowed={(day) => meetingDays?.has(isoDay(day)) ?? false}
+              range={termRange}
               invalid={touched && dateMissing}
             />
           </Field>

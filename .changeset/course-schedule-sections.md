@@ -5,6 +5,6 @@
 <!-- area: calendar -->
 <!-- improved -->
 <!-- en -->
-The course schedule is organized into weekly meetings, one-off events and cancellations, with an add row at the end of each table, and a class can now be cancelled or moved from there.
+The course schedule is reorganized into weekly meetings, one-off events and cancellations, sections can be switched on or off as a whole, and you can now cancel or move a single class from it.
 <!-- zh -->
-课程课表分为每周上课时间、单次事件和停课与调课三部分，每张表末行即可添加，并可直接在此停课或调课。
+课程课表按每周上课时间、单次事件和停课与调课重新整理，可按教学班整体开关，并可直接停课或调课。
