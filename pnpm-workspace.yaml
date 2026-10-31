@@ -6,3 +6,11 @@ allowBuilds:
   # esbuild (via fumadocs-mdx) ships prebuilt binaries as optional dependencies; its
   # postinstall only verifies them.
   esbuild: false
+skills:
+  dirs:
+    - .claude/skills
+permissions:
+  '@tanstack/react-table':
+    skills: true
+  '@tanstack/router-plugin':
+    skills: true
