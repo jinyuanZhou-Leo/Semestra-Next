@@ -76,6 +76,8 @@ _CONTEXT_HINTS = (
 
 
 # Gemini answers a bad key with 400 and one of these messages.
+# Claude's strict JSON mode compiles the schema to a grammar; a large one is over the API's limit.
+_SCHEMA_HINTS = ("compiled grammar is too large",)
 _KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key", "incorrect api key")
 
 # An account without money: 402 (DeepSeek, OpenRouter), or 429/400 with one of these (OpenAI's
@@ -145,6 +147,8 @@ def error_for(response: HttpResponse, model: str | None = None) -> AppError:
         return AppError("ai.context_too_long", 400)
     if status == 404 and model:
         return AppError("ai.model_not_found", 400, model=model)
+    if any(hint in body for hint in _SCHEMA_HINTS):
+        return AppError("ai.request_rejected", 400, http_status=status, reason="schema_too_large")
     return AppError("ai.request_rejected", 400, http_status=status)
 
 
