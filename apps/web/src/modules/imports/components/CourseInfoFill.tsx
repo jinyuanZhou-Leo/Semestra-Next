@@ -215,35 +215,38 @@ export function CourseInfoFill({
   )
 
   return (
-    <SettingsGroup>
-      <SettingRow
-        label={m.imports_course_info_title()}
-        description={
-          note ? (
-            <span className={failed ? 'text-destructive' : undefined}>{note}</span>
-          ) : (
-            m.imports_course_info_description()
-          )
-        }
-      >
-        {() =>
-          extracting ? (
-            <AiAction
-              state="running"
-              label={m.imports_extracting()}
-              progress={session?.job_id ? job.progress : undefined}
-              stageLabel={job.stageLabel || m.imports_extracting()}
-              cancelling={discard.isPending}
-              className="w-56"
-              onCancel={session ? () => stop(session) : undefined}
-            />
-          ) : (
-            picker
-          )
-        }
-      </SettingRow>
-      {/* The review opens over the settings, so the section keeps its height. Closing it
-          without applying discards the session. */}
+    <>
+      <SettingsGroup>
+        <SettingRow
+          label={m.imports_course_info_title()}
+          description={
+            note ? (
+              <span className={failed ? 'text-destructive' : undefined}>{note}</span>
+            ) : (
+              m.imports_course_info_description()
+            )
+          }
+        >
+          {() =>
+            extracting ? (
+              <AiAction
+                state="running"
+                label={m.imports_extracting()}
+                progress={session?.job_id ? job.progress : undefined}
+                stageLabel={job.stageLabel || m.imports_extracting()}
+                cancelling={discard.isPending}
+                className="w-56"
+                onCancel={session ? () => stop(session) : undefined}
+              />
+            ) : (
+              picker
+            )
+          }
+        </SettingRow>
+      </SettingsGroup>
+      {/* Outside the group, which puts a separator before every child. The review opens over
+          the settings, so the section keeps its height. Closing it without applying discards
+          the session. */}
       <Dialog
         open={Boolean(session && patch)}
         onOpenChange={(open) => {
@@ -285,6 +288,6 @@ export function CourseInfoFill({
           if (picked.length > 0) start({ fileItemIds: [], upload: picked.slice(0, 1) })
         }}
       />
-    </SettingsGroup>
+    </>
   )
 }
