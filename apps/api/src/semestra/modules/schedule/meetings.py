@@ -30,6 +30,8 @@ from semestra.modules.schedule.schemas import (
     MeetingFields,
     MeetingRef,
     MeetingUpdateInput,
+    SectionSaveInput,
+    SectionWeeks,
 )
 
 
@@ -573,3 +575,95 @@ async def delete_meetings(ctx: Ctx, meeting_ids: list[str]) -> None:
         delete(ScheduleMeetingException).where(ScheduleMeetingException.meeting_id.in_(meeting_ids))
     )
     await ctx.db.execute(delete(ScheduleMeeting).where(ScheduleMeeting.id.in_(meeting_ids)))
+
+
+async def save_section(ctx: Ctx, inp: SectionSaveInput) -> list[Meeting]:
+    """One transaction for a section edited as a whole (see `SectionSaveInput`)."""
+    course = await _course_with_term(ctx, inp.course_id, inp.term_id)
+    await check_type_code(ctx, course.program_id, inp.type_code)
+    rows = (
+        (
+            await ctx.db.scalars(
+                select(ScheduleMeeting).where(
+                    ScheduleMeeting.user_id == ctx.user_id,
+                    ScheduleMeeting.course_id == course.id,
+                    ScheduleMeeting.id.in_(inp.meeting_ids),
+                )
+            )
+        ).all()
+        if inp.meeting_ids
+        else []
+    )
+    by_id = {r.id: r for r in rows}
+    # New times follow the section: its weeks, and off when the whole section is off.
+    first = next((by_id[i] for i in inp.meeting_ids if i in by_id), None)
+    weeks = inp.weeks or (
+        SectionWeeks(
+            recurrence=first.recurrence,  # pyright: ignore[reportArgumentType]
+            anchor_week=first.anchor_week,
+            start_week=first.start_week,
+            end_week=first.end_week,
+            skip_breaks=first.skip_breaks,
+        )
+        if first
+        else SectionWeeks()
+    )
+    enabled = not rows or any(r.enabled for r in rows)
+    shared = {
+        "term_id": inp.term_id,
+        "section_code": inp.section_code,
+        "type_code": inp.type_code,
+        "instructor": inp.instructor,
+    }
+    created: list[str] = []
+    updated: list[str] = []
+    kept: list[ScheduleMeeting] = []
+    for t in inp.times:
+        own = {
+            "weekday": t.weekday,
+            "start_time": t.start_time,
+            "end_time": t.end_time,
+            "location": t.location,
+        }
+        row = by_id.get(t.meeting_id) if t.meeting_id else None
+        if t.meeting_id and row is None:
+            raise not_found("meeting", t.meeting_id)
+        if row is None:
+            row = await _new_meeting(
+                ctx,
+                course,
+                MeetingFields(**shared, **own, **weeks.model_dump(), enabled=enabled),
+            )
+            created.append(row.id)
+        else:
+            values = {**shared, **own, **(inp.weeks.model_dump() if inp.weeks else {})}
+            if inp.weeks and values["anchor_week"] is None:
+                values["anchor_week"] = values["start_week"]
+            changed = [k for k, v in values.items() if getattr(row, k) != v]
+            for key in changed:
+                setattr(row, key, values[key])
+            _check_meeting(row)
+            if _RECURRENCE_FIELDS & set(changed):
+                await _drop_stale_exceptions(ctx, row)
+            if changed:
+                row.updated_at = ctx.now
+                updated.append(row.id)
+        kept.append(row)
+    keep_ids = {r.id for r in kept}
+    removed = [r.id for r in rows if r.id not in keep_ids]
+    await delete_meetings(ctx, removed)
+    await ctx.db.flush()
+    for event_type, ids in (
+        ("schedule.meeting.created", created),
+        ("schedule.meeting.updated", updated),
+        ("schedule.meeting.deleted", removed),
+    ):
+        if ids:
+            await events.publish(
+                ctx,
+                event_type,
+                {"course_id": course.id, "meeting_ids": ids, "program_id": course.program_id},
+            )
+    if created or updated or removed:
+        await events.publish(ctx, "calendar.changed", {"program_id": course.program_id})
+    return await meetings_out(ctx, kept)

@@ -44,6 +44,7 @@ from semestra.modules.schedule.schemas import (
     OneOffEvent,
     OneOffEventList,
     ProgramRef,
+    SectionSaveInput,
     TermMeetingListInput,
     TermRef,
     Today,
@@ -282,6 +283,20 @@ same source_kind and source_ref as an existing meeting of the course updates it.
 )
 async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingCreateManyResult:
     return await meetings.create_meetings(ctx, inp.course_id, inp.meetings)
+
+
+@capability(
+    name="schedule.section.save",
+    summary="Add, edit or delete a section with all its weekly times in one change.",
+    description="""The app's section editor: updates, adds and deletes the section's meetings
+together. Sem and MCP use schedule.meeting.create_many, update and delete.""",
+    effect="write",
+    expose=("http",),
+    http=Http("PUT", "/courses/{course_id}/sections"),
+    tags=TAGS,
+)
+async def section_save(ctx: Ctx, inp: SectionSaveInput) -> MeetingList:
+    return MeetingList(items=await meetings.save_section(ctx, inp))
 
 
 @capability(

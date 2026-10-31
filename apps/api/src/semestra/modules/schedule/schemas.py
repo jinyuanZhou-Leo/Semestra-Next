@@ -200,6 +200,49 @@ class MeetingUpdateInput(BaseModel):
     enabled: bool | None = Field(default=None, description="Shown in the calendar")
 
 
+class SectionWeeks(BaseModel):
+    recurrence: Recurrence = Field(default="weekly", description="Every week or every other week")
+    anchor_week: WeekNumber | None = Field(
+        default=None, description="Biweekly: first week it happens; defaults to start_week"
+    )
+    start_week: WeekNumber = Field(default=1, description="First term week")
+    end_week: WeekNumber | None = Field(default=None, description="Last term week, or null")
+    skip_breaks: bool = Field(default=True, description="No class in break weeks and on breaks")
+
+
+class SectionTime(BaseModel):
+    meeting_id: Id | None = Field(
+        default=None, description="The meeting this time edits; null adds a new one"
+    )
+    weekday: Weekday = Field(description="1 = Monday .. 7 = Sunday")
+    start_time: time = Field(description="Start, wall-clock time in the Program's time zone")
+    end_time: time = Field(description="End, after the start")
+    location: ShortText | None = Field(default=None, description="Room or building")
+
+
+class SectionSaveInput(BaseModel):
+    """Replaces a section's meetings in one change: `times` with a meeting_id update it, the
+    others are added, and meetings in `meeting_ids` left out of `times` are deleted (none left
+    deletes the section). Ids that no longer exist are skipped, so a retry is safe."""
+
+    course_id: Id = Field(description="Course id")
+    term_id: Id = Field(description="Term of the course the section runs in")
+    meeting_ids: list[Id] = Field(
+        default_factory=list, max_length=50, description="The section's meetings before the change"
+    )
+    section_code: Annotated[str, Field(max_length=32)] = Field(
+        default="", description="Section, e.g. 'LEC0101'"
+    )
+    type_code: TypeCode = Field(description="Event type code of the Program, e.g. 'LEC'")
+    instructor: ShortText | None = Field(default=None, description="Instructor")
+    weeks: SectionWeeks | None = Field(
+        default=None,
+        description="Weeks for every time; null keeps each meeting's and gives new times the "
+        "weeks of the section's first meeting",
+    )
+    times: list[SectionTime] = Field(max_length=50, description="The section's times after it")
+
+
 class MeetingRef(BaseModel):
     meeting_id: Id = Field(description="Meeting id")
 

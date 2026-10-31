@@ -553,13 +553,13 @@ test('"keep only this section" keeps all its days and hides the other sections i
 
 test('a new section is saved with all its times in one request', async () => {
   server.use(
-    http.post(`${API}/courses/:id/meetings\\:batch`, async ({ request }) => {
+    http.put(`${API}/courses/:id/sections`, async ({ request }) => {
       log.requests.push({
-        method: 'POST',
+        method: 'PUT',
         path: new URL(request.url).pathname,
         body: await request.json(),
       })
-      return HttpResponse.json({ items: [], created_ids: [], updated_ids: [] })
+      return HttpResponse.json({ items: [] })
     }),
   )
   mount('/p/p1/c/c1/schedule')
@@ -571,12 +571,17 @@ test('a new section is saved with all its times in one request', async () => {
   // The second time starts from the first: the next day, same hours.
   await userEvent.click(within(dialog).getByRole('button', { name: 'Add another time' }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
-  await waitFor(() => expect(log.requests.filter((r) => r.method === 'POST')).toHaveLength(1))
-  const body = log.requests.find((r) => r.method === 'POST')!.body as {
-    meetings: Array<{ section_code: string; type_code: string; weekday: number }>
+  const saves = () => log.requests.filter((r) => r.path === '/courses/c1/sections')
+  await waitFor(() => expect(saves()).toHaveLength(1))
+  const body = saves()[0]!.body as {
+    section_code: string
+    type_code: string
+    meeting_ids: string[]
+    times: Array<{ meeting_id: string | null; weekday: number }>
   }
-  expect(body.meetings.map((mt) => [mt.section_code, mt.type_code, mt.weekday])).toEqual([
-    ['LEC0201', 'LEC', 1],
-    ['LEC0201', 'LEC', 2],
+  expect([body.section_code, body.type_code, body.meeting_ids]).toEqual(['LEC0201', 'LEC', []])
+  expect(body.times.map((t) => [t.meeting_id, t.weekday])).toEqual([
+    [null, 1],
+    [null, 2],
   ])
 })

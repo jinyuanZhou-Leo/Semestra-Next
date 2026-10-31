@@ -1,10 +1,5 @@
-import {
-  type Meeting,
-  type MeetingFields,
-  scheduleMeetingCreateMany,
-  scheduleMeetingDelete,
-  scheduleMeetingUpdate,
-} from '@semestra/api-client'
+import type { Meeting } from '@semestra/api-client'
+import { scheduleSectionSaveMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock2, Plus, X } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
@@ -48,6 +43,17 @@ type Time = {
   location: string
 }
 
+/** A new time starts from the last one: same hours and room, the next day. */
+function nextTime(all: readonly Time[]): Time {
+  const last = all.at(-1)!
+  return {
+    ...last,
+    id: undefined,
+    key: Math.max(...all.map((t) => t.key)) + 1,
+    weekday: String((Number(last.weekday) % 7) + 1),
+  }
+}
+
 const weeksKey = (mt: Meeting) =>
   [mt.recurrence, mt.anchor_week, mt.start_week, mt.end_week, mt.skip_breaks].join('|')
 
@@ -64,6 +70,7 @@ export function SectionDialog({
   termId,
   typeCode,
   meetings = [],
+  withNewTime = false,
   open,
   onOpenChange,
 }: {
@@ -73,6 +80,8 @@ export function SectionDialog({
   typeCode: string
   /** The section's meetings when editing it. */
   meetings?: readonly Meeting[]
+  /** Opens with a new time after the section's own ("Add a time" of a section). */
+  withNewTime?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -88,18 +97,18 @@ export function SectionDialog({
   const [instructor, setInstructor] = useState(
     meetings.find((mt) => mt.instructor)?.instructor ?? '',
   )
-  const [times, setTimes] = useState<Time[]>(() =>
-    editing
-      ? meetings.map((mt, key) => ({
-          key,
-          id: mt.id,
-          weekday: String(mt.weekday),
-          start: mt.start_time.slice(0, 5),
-          end: mt.end_time.slice(0, 5),
-          location: mt.location ?? '',
-        }))
-      : [{ key: 0, weekday: '1', start: '09:00', end: '10:00', location: '' }],
-  )
+  const [times, setTimes] = useState<Time[]>(() => {
+    if (!editing) return [{ key: 0, weekday: '1', start: '09:00', end: '10:00', location: '' }]
+    const own = meetings.map((mt, key) => ({
+      key,
+      id: mt.id,
+      weekday: String(mt.weekday),
+      start: mt.start_time.slice(0, 5),
+      end: mt.end_time.slice(0, 5),
+      location: mt.location ?? '',
+    }))
+    return withNewTime ? [...own, nextTime(own)] : own
+  })
   const [recurrence, setRecurrence] = useState<'weekly' | 'biweekly'>(first?.recurrence ?? 'weekly')
   const [anchorWeek, setAnchorWeek] = useState(String(first?.anchor_week ?? 1))
   const [startWeek, setStartWeek] = useState(String(first?.start_week ?? 1))
@@ -107,30 +116,10 @@ export function SectionDialog({
   const [skipBreaks, setSkipBreaks] = useState(first?.skip_breaks ?? true)
   const [touched, setTouched] = useState(false)
 
+  // One request for the whole section (`schedule.section.save`): its times are updated,
+  // added and deleted together, so a failed save leaves nothing half done.
   const save = useMutation({
-    mutationFn: async ({
-      created,
-      updated,
-      removed,
-    }: {
-      created: MeetingFields[]
-      updated: Array<{ id: string; body: Partial<MeetingFields> }>
-      removed: string[]
-    }) => {
-      for (const { id, body } of updated) {
-        await scheduleMeetingUpdate({ path: { meeting_id: id }, body, throwOnError: true })
-      }
-      if (created.length > 0) {
-        await scheduleMeetingCreateMany({
-          path: { course_id: courseId },
-          body: { meetings: created },
-          throwOnError: true,
-        })
-      }
-      for (const id of removed) {
-        await scheduleMeetingDelete({ path: { meeting_id: id }, throwOnError: true })
-      }
-    },
+    ...scheduleSectionSaveMutation(),
     onError: toastError,
     onSettled: () => invalidateSchedule(queryClient),
     onSuccess: () => onOpenChange(false),
@@ -138,16 +127,7 @@ export function SectionDialog({
 
   const setTime = (key: number, patch: Partial<Time>) =>
     setTimes((all) => all.map((t) => (t.key === key ? { ...t, ...patch } : t)))
-  // A new time starts from the last one: same hours and room, the next day.
-  const addTime = () =>
-    setTimes((all) => {
-      const last = all.at(-1)!
-      const next = (Number(last.weekday) % 7) + 1
-      return [
-        ...all,
-        { ...last, key: Math.max(...all.map((t) => t.key)) + 1, weekday: String(next) },
-      ]
-    })
+  const addTime = () => setTimes((all) => [...all, nextTime(all)])
 
   const start = int(startWeek)
   const end = int(endWeek)
@@ -160,43 +140,32 @@ export function SectionDialog({
     event.preventDefault()
     setTouched(true)
     if ((sharedWeeks && weeksInvalid) || badTimes.size > 0) return
-    const section = {
-      type_code: type,
-      section_code: code.trim(),
-      instructor: instructor.trim() || null,
-    }
-    const weeks = {
-      recurrence,
-      anchor_week: recurrence === 'biweekly' ? (int(anchorWeek) ?? 1) : null,
-      start_week: start ?? 1,
-      end_week: end,
-      skip_breaks: skipBreaks,
-    }
-    const time = (t: Time) => ({
-      location: t.location.trim() || null,
-      weekday: Number(t.weekday),
-      start_time: t.start,
-      end_time: t.end,
-    })
-    // A new time in a section whose times differ takes the first time's weeks.
-    const newWeeks =
-      sharedWeeks || !first
-        ? weeks
-        : {
-            recurrence: first.recurrence,
-            anchor_week: first.anchor_week,
-            start_week: first.start_week,
-            end_week: first.end_week,
-            skip_breaks: first.skip_breaks,
-          }
     save.mutate({
-      created: times
-        .filter((t) => !t.id)
-        .map((t) => ({ term_id: termId, ...section, ...newWeeks, ...time(t) })),
-      updated: times.flatMap((t) =>
-        t.id ? [{ id: t.id, body: { ...section, ...(sharedWeeks ? weeks : {}), ...time(t) } }] : [],
-      ),
-      removed: meetings.filter((mt) => !times.some((t) => t.id === mt.id)).map((mt) => mt.id),
+      path: { course_id: courseId },
+      body: {
+        term_id: first?.term_id ?? termId,
+        meeting_ids: meetings.map((mt) => mt.id),
+        type_code: type,
+        section_code: code.trim(),
+        instructor: instructor.trim() || null,
+        // Without weeks, the times keep theirs and new ones take the section's (server side).
+        weeks: sharedWeeks
+          ? {
+              recurrence,
+              anchor_week: recurrence === 'biweekly' ? (int(anchorWeek) ?? 1) : null,
+              start_week: start ?? 1,
+              end_week: end,
+              skip_breaks: skipBreaks,
+            }
+          : null,
+        times: times.map((t) => ({
+          meeting_id: t.id ?? null,
+          weekday: Number(t.weekday),
+          start_time: t.start,
+          end_time: t.end,
+          location: t.location.trim() || null,
+        })),
+      },
     })
   }
 

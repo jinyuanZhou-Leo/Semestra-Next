@@ -1,12 +1,8 @@
-import {
-  type Course,
-  type Meeting,
-  type OneOffEvent,
-  scheduleMeetingDelete,
-} from '@semestra/api-client'
+import type { Course, Meeting, OneOffEvent } from '@semestra/api-client'
 import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
+  scheduleSectionSaveMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -127,21 +123,21 @@ function TermSchedule({
       .launch({ programId, courseId: course.id, termId })
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
-  const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
+  const [editing, setEditing] = useState<Meeting | null>(null)
   // Prefills a new meeting, e.g. the type of the table whose add row was clicked.
-  const [initial, setInitial] = useState<Partial<Meeting>>({})
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
   // The type of the section being added.
   const [sectionAdd, setSectionAdd] = useState<string | null>(null)
-  const [sectionEdit, setSectionEdit] = useState<MeetingSection | null>(null)
+  const [sectionEdit, setSectionEdit] = useState<{
+    section: MeetingSection
+    withNewTime: boolean
+  } | null>(null)
   const [sectionDelete, setSectionDelete] = useState<MeetingSection | null>(null)
+  // One request (`schedule.section.save` with no times): ids already gone are skipped, so a
+  // retry after a failure finishes the job.
   const removeSection = useMutation({
-    mutationFn: async (section: MeetingSection) => {
-      for (const mt of section.meetings) {
-        await scheduleMeetingDelete({ path: { meeting_id: mt.id }, throwOnError: true })
-      }
-    },
+    ...scheduleSectionSaveMutation(),
     onError: toastError,
     onSuccess: () => setSectionDelete(null),
     onSettled: () => invalidateSchedule(queryClient),
@@ -277,20 +273,9 @@ function TermSchedule({
                 onKeepOnly={keepOnly}
                 onEdit={setEditing}
                 onAdd={() => setSectionAdd(code)}
-                onEditSection={setSectionEdit}
+                onEditSection={(section) => setSectionEdit({ section, withNewTime: false })}
                 onDeleteSection={setSectionDelete}
-                onAddTime={(section) => {
-                  const first = section.meetings[0]
-                  setInitial({
-                    type_code: code,
-                    section_code: section.code,
-                    instructor: first?.instructor ?? null,
-                    location: first?.location ?? null,
-                    start_time: first?.start_time,
-                    end_time: first?.end_time,
-                  })
-                  setEditing('new')
-                }}
+                onAddTime={(section) => setSectionEdit({ section, withNewTime: true })}
               />
             ))}
           </>
@@ -368,13 +353,12 @@ function TermSchedule({
 
       {editing ? (
         <MeetingDialog
-          key={editing === 'new' ? 'new' : editing.id}
+          key={editing.id}
           programId={programId}
           courseId={course.id}
           termIds={course.term_ids}
           termId={termId}
-          meeting={editing === 'new' ? undefined : editing}
-          initial={editing === 'new' ? initial : undefined}
+          meeting={editing}
           open
           onOpenChange={(open) => !open && setEditing(null)}
         />
@@ -391,12 +375,13 @@ function TermSchedule({
       ) : null}
       {sectionEdit ? (
         <SectionDialog
-          key={sectionEdit.key}
+          key={sectionEdit.section.key}
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.meetings[0]?.type_code ?? ''}
-          meetings={sectionEdit.meetings}
+          typeCode={sectionEdit.section.meetings[0]?.type_code ?? ''}
+          meetings={sectionEdit.section.meetings}
+          withNewTime={sectionEdit.withNewTime}
           open
           onOpenChange={(open) => !open && setSectionEdit(null)}
         />
@@ -408,7 +393,20 @@ function TermSchedule({
         description={m.schedule_section_delete_description()}
         confirmLabel={m.schedule_section_delete()}
         pending={removeSection.isPending}
-        onConfirm={() => sectionDelete && removeSection.mutate(sectionDelete)}
+        onConfirm={() => {
+          const first = sectionDelete?.meetings[0]
+          if (!sectionDelete || !first) return
+          removeSection.mutate({
+            path: { course_id: course.id },
+            body: {
+              term_id: first.term_id,
+              meeting_ids: sectionDelete.meetings.map((mt) => mt.id),
+              type_code: first.type_code,
+              section_code: first.section_code,
+              times: [],
+            },
+          })
+        }}
       />
       {exceptionAdd ? (
         <ExceptionDialog
