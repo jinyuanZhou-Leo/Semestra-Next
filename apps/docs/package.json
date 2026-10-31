@@ -1,7 +1,7 @@
 {
   "name": "@semestra/docs",
   "private": true,
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next dev --port 3001",

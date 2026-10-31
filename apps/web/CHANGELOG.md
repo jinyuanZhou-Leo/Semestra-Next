@@ -1,5 +1,24 @@
 # @semestra/web
 
+## 1.9.0
+
+### Minor Changes
+
+- 33aa7fe: <!-- area: api -->
+  <!-- en -->
+  MCP tools are streamlined: adding items always takes a list, and failed calls include a hint on what to do next.
+  <!-- zh -->
+  精简 MCP 工具：添加条目统一接受列表，调用失败时附带下一步提示。
+
+### Patch Changes
+
+- 6f8cc3a: <!-- area: sem -->
+  <!-- en -->
+  Token counts now show in k and M, and the context usage bar no longer shows stray lines.
+  <!-- zh -->
+  token 数统一以 k、M 显示，上下文用量条不再出现多余的分隔线。
+- @semestra/api-client@1.9.0
+
 ## 1.8.0
 
 ### Minor Changes

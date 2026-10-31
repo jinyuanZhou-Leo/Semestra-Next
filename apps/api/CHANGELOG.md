@@ -1,5 +1,28 @@
 # @semestra/api
 
+## 1.9.0
+
+### Minor Changes
+
+- 33aa7fe: <!-- area: api -->
+  <!-- en -->
+  MCP tools are streamlined: adding items always takes a list, and failed calls include a hint on what to do next.
+  <!-- zh -->
+  精简 MCP 工具：添加条目统一接受列表，调用失败时附带下一步提示。
+
+### Patch Changes
+
+- e3deebc: <!-- area: sem -->
+  <!-- en -->
+  Sem's tool definitions are leaner, so each request uses less context.
+  <!-- zh -->
+  精简 Sem 的工具定义，每次请求占用的上下文更少。
+- 33aa7fe: <!-- area: sem -->
+  <!-- en -->
+  Sem picks the right tools more reliably and recovers from failed actions with clearer guidance.
+  <!-- zh -->
+  Sem 选择工具更准确，操作失败时能按提示更快纠正。
+
 ## 1.8.0
 
 ### Patch Changes
