@@ -1,11 +1,16 @@
 import type { Term } from '@semestra/api-client'
 import type { QueryClient } from '@tanstack/react-query'
-import { academicsTermListOptions } from '@semestra/api-client/react-query'
+import {
+  academicsCourseGetOptions,
+  academicsTermListOptions,
+} from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useLocation } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { readUiPref, useUiPref } from '@/app/ui-pref'
 import { todayDay } from '@/lib/day'
 import { CURRENT_TERM_KEY, termByDate, useCurrentTerm } from './current-term'
-import { useTerms } from './queries'
+import { courseTermId, useTerms } from './queries'
 
 /**
  * UI state `academics.viewing_term.<programId>`: the term the sidebar shows when it is not the
@@ -15,6 +20,26 @@ import { useTerms } from './queries'
 export const VIEWING_TERM_KEY = 'academics.viewing_term'
 
 const TERM_IN_PATH = /^\/p\/[^/]+\/t\/([^/?#]+)/
+const COURSE_IN_PATH = /^\/p\/[^/]+\/c\/([^/?#]+)/
+
+/**
+ * The term of the page on screen: a term page's, or the term a course page belongs to (the one
+ * its breadcrumb shows, M02 §5.5); undefined elsewhere and while the course loads.
+ */
+function usePageTerm(pathname: string, terms: readonly Term[] | undefined): string | undefined {
+  const inPath = TERM_IN_PATH.exec(pathname)?.[1]
+  const courseId = inPath ? undefined : COURSE_IN_PATH.exec(pathname)?.[1]
+  const fromTerm = useLocation({
+    select: (l) => (l.search as { fromTerm?: unknown }).fromTerm,
+  })
+  const course = useQuery({
+    ...academicsCourseGetOptions({ path: { course_id: courseId ?? '' } }),
+    enabled: courseId !== undefined,
+  }).data
+  if (inPath) return inPath
+  if (!courseId || !course) return undefined
+  return courseTermId(course, terms, typeof fromTerm === 'string' ? fromTerm : undefined)
+}
 
 /**
  * The term the sidebar shows: the term of the page on screen, else the one the user went to last
@@ -26,8 +51,8 @@ export function useViewedTerm(programId: string, pathname: string) {
   const [viewingId, setViewingId] = useUiPref<string | null>(VIEWING_TERM_KEY, null, {
     scope: programId,
   })
-  const inPath = TERM_IN_PATH.exec(pathname)?.[1]
-  const viewed = terms?.find((t) => t.id === (inPath ?? viewingId))
+  const pageTerm = usePageTerm(pathname, terms)
+  const viewed = terms?.find((t) => t.id === (pageTerm ?? viewingId))
   const term = viewed ?? current
   return {
     term,
@@ -39,13 +64,21 @@ export function useViewedTerm(programId: string, pathname: string) {
   }
 }
 
-/** A term page remembers its term as the one the sidebar shows (or forgets it for the current term). */
-export function useRememberViewedTerm(programId: string, termId: string) {
+/**
+ * A term or course page remembers its term as the one the sidebar shows (or forgets it for the
+ * current term). A course page passes undefined until it knows its term.
+ */
+export function useRememberViewedTerm(programId: string, termId: string | undefined) {
   const { term: current } = useCurrentTerm(programId)
   const [viewingId, setViewingId] = useUiPref<string | null>(VIEWING_TERM_KEY, null, {
     scope: programId,
   })
-  const next = current === undefined ? undefined : termId === current.id ? null : termId
+  const next =
+    current === undefined || termId === undefined
+      ? undefined
+      : termId === current.id
+        ? null
+        : termId
   useEffect(() => {
     if (next !== undefined && next !== viewingId) setViewingId(next)
   }, [next, viewingId, setViewingId])

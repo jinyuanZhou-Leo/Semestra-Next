@@ -33,6 +33,7 @@ export function useSidebarPages(programId: string, termId: string | undefined) {
   const saveTerm = useSaveNav('term')
 
   const programIds = new Set(programPages.map((p) => p.id))
+  const termOnly = termPages.filter((page) => !programIds.has(page.id)).map((page) => page.id)
   const entries: SidebarPage[] = [
     ...programPages.map((page) => ({
       id: page.id,
@@ -49,7 +50,9 @@ export function useSidebarPages(programId: string, termId: string | undefined) {
         href: scopePath(termScope, page.id === OVERVIEW_PAGE ? undefined : page.id),
       })),
   ].toSorted((a, b) => a.page.order - b.page.order)
-  const all = orderPages(entries, programNav)
+  const all = isLegacyOrder(programNav, termOnly)
+    ? orderProgramPagesOnly(entries, programNav)
+    : orderPages(entries, programNav)
   const hidden = new Set([...(programNav?.hidden ?? []), ...(termNav?.hidden ?? [])])
 
   const save = (next: Pick<Nav, 'order' | 'hidden'>) => {
@@ -69,6 +72,26 @@ export function useSidebarPages(programId: string, termId: string | undefined) {
     hidden,
     save,
   }
+}
+
+/**
+ * A Program nav saved before the sidebar held term pages lists only the Program's own pages, with
+ * `overview` meaning the Program's board (now "summary"). Its order is kept among the Program's
+ * pages, each term page keeps its own place, and that old `overview` is ignored.
+ */
+function isLegacyOrder(nav: Pick<Nav, 'order'> | undefined, termOnly: readonly string[]) {
+  const order = nav?.order ?? []
+  return order.length > 0 && !order.some((id) => termOnly.includes(id))
+}
+
+function orderProgramPagesOnly(entries: SidebarPage[], nav: Pick<Nav, 'order'> | undefined) {
+  const order = (nav?.order ?? []).filter((id) => id !== OVERVIEW_PAGE)
+  const ordered = orderPages(
+    entries.filter((entry) => entry.scope.kind === 'program'),
+    { order },
+  )
+  let next = 0
+  return entries.map((entry) => (entry.scope.kind === 'program' ? ordered[next++]! : entry))
 }
 
 const TERM_PAGE = /^\/p\/[^/]+\/t\/[^/]+(?:\/([^/?#]+))?\/?$/

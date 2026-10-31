@@ -3,6 +3,7 @@ import {
   academicsTermListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
+import { useLocation } from '@tanstack/react-router'
 import { BookPlus, CalendarPlus, CalendarRange, PencilLine, Repeat } from 'lucide-react'
 import type {
   CommandChild,
@@ -13,12 +14,20 @@ import { m } from '@/paraglide/messages'
 import { courseColor, courseLabel } from './color'
 import { openAddCourses, useAddCourseOptions } from './add-courses'
 import { coursePath, newTermPath, termPath } from './paths'
+import { useSidebarPages } from './shell/sidebar-pages'
+import { useViewedTerm } from './viewing-term'
 
-/** The terms and courses of the Program on screen, for the palette's "Navigation" group. */
+/**
+ * The palette's "Navigation" group for the Program on screen: the sidebar's pages (so a term page
+ * like Calendar is there from Today too), then the terms and courses.
+ */
 export const academicsNavigation: NavigationSourceContribution = {
   id: 'academics',
   useItems(ctx) {
     const programId = ctx.programId ?? ''
+    const pathname = useLocation({ select: (l) => l.pathname })
+    const { term } = useViewedTerm(programId, pathname)
+    const pages = useSidebarPages(programId, term?.id).shown
     const terms = useQuery({
       ...academicsTermListOptions({ path: { program_id: programId } }),
       enabled: programId !== '',
@@ -28,13 +37,22 @@ export const academicsNavigation: NavigationSourceContribution = {
       enabled: programId !== '',
     }).data?.items
     if (!programId) return []
-    const items: CommandChild[] = (terms ?? []).map((term) => ({
-      id: `term:${term.id}`,
-      title: term.name,
-      subtitle: m.academics_command_term(),
-      icon: CalendarRange,
-      to: termPath(programId, term.id),
+    const items: CommandChild[] = pages.map((entry) => ({
+      id: `page:${entry.id}`,
+      title: entry.page.title(),
+      subtitle: entry.scope.kind === 'term' ? term?.name : undefined,
+      icon: entry.page.icon,
+      to: entry.href,
     }))
+    for (const t of terms ?? []) {
+      items.push({
+        id: `term:${t.id}`,
+        title: t.name,
+        subtitle: m.academics_command_term(),
+        icon: CalendarRange,
+        to: termPath(programId, t.id),
+      })
+    }
     for (const course of courses ?? []) {
       const label = courseLabel(course)
       items.push({

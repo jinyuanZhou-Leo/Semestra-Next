@@ -12,11 +12,14 @@ import { requireSignIn } from '@/modules/auth/redirect'
 export const Route = createFileRoute('/_authed/p/$programId/')({
   beforeLoad: async ({ context: { queryClient }, params: { programId }, location }) => {
     if (isPhone()) return
-    await requireSignIn(queryClient, location.href)
-    const preferences = await queryClient
+    // The session check (this runs before `/_authed`'s loader) and the preferences start together.
+    const signedIn = requireSignIn(queryClient, location.href)
+    const preferences = queryClient
       .ensureQueryData(settingsPreferenceGetOptions())
       .catch(() => undefined)
-    const href = await startPagePath(queryClient, programId, preferences?.start_page ?? 'today')
+    await signedIn
+    const startPage = (await preferences)?.start_page ?? 'today'
+    const href = await startPagePath(queryClient, programId, startPage)
     // `?settings=` and `#section` ride along, so settings links still open the dialog.
     const carried = `${location.searchStr}${location.hash ? `#${location.hash}` : ''}`
     throw redirect({ href: `${href}${carried}`, replace: true })

@@ -58,7 +58,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
@@ -376,13 +375,15 @@ export function TaskListsColumn({
     }
 
   return (
-    <SidebarProvider
-      className={cn('min-h-0 w-auto flex-none', className)}
-      style={{ '--sidebar-width': '14rem' } as CSSProperties}
-    >
+    <>
+      {/* The app shell's sidebar provider serves this one too (as in shadcn's sidebar-09). */}
       <Sidebar
         collapsible="none"
-        className="h-auto max-h-[calc(100dvh-8rem)] bg-transparent text-foreground"
+        className={cn(
+          'h-auto max-h-[calc(100dvh-8rem)] flex-none bg-transparent text-foreground',
+          className,
+        )}
+        style={{ '--sidebar-width': '14rem' } as CSSProperties}
       >
         <nav aria-label={m.tasks_lists()} className="flex min-h-0 flex-1 flex-col">
           <SidebarContent className="gap-0">
@@ -495,7 +496,7 @@ export function TaskListsColumn({
         </nav>
       </Sidebar>
       {editing.dialogs}
-    </SidebarProvider>
+    </>
   )
 }
 

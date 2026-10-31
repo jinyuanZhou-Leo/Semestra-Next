@@ -5,6 +5,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
 import { flushCompletions } from './completion'
@@ -413,7 +414,12 @@ test('on a wide page the lists sit in a column beside the tasks, and the title i
     .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
     .mockReturnValue(new DOMRect(0, 0, 1000, 0))
   try {
-    renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+    // On a computer the page sits in the app shell, whose sidebar provider the column uses.
+    renderWithRouter(
+      <SidebarProvider>
+        <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+      </SidebarProvider>,
+    )
     const column = await screen.findByRole('navigation', { name: 'Lists' })
     await userEvent.click(await within(column).findByRole('button', { name: 'Personal' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()

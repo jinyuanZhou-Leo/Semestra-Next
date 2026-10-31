@@ -47,10 +47,10 @@ import {
 } from '@/ui/sidebar'
 import { courseColor, courseLabel } from '../color'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
-import { useCurrentTerm } from '../current-term'
 import { coursePath, termPath } from '../paths'
 import { movePin, type Pin as PinRef, usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
+import { useViewedTerm } from '../viewing-term'
 
 type Dragging = {
   ref: (node: HTMLElement | null) => void
@@ -373,7 +373,7 @@ function SortablePin({
  */
 export function SidebarPins({ programId, pathname }: { programId: string; pathname: string }) {
   const terms = useTerms(programId).data?.items
-  const { term: current } = useCurrentTerm(programId)
+  const { term: viewed } = useViewedTerm(programId, pathname)
   const { pins, setPins, toggle } = usePins(programId)
   // The Program's courses, only to show pinned courses (an open term lists its own).
   const courses = useCourses(programId, undefined, {
@@ -382,11 +382,11 @@ export function SidebarPins({ programId, pathname }: { programId: string; pathna
   const { open, setOpen } = useOpenTerms(programId)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // The current term is in the sidebar already, so a pin of it waits (hidden) until it is not current any more.
+  // The term the sidebar shows is above already, so a pin of it waits (hidden) until another term is shown.
   const entries = pins.flatMap((pin): PinnedEntry[] => {
     if (pin.kind === 'term') {
       const term = terms?.find((t) => t.id === pin.id)
-      return term && term.id !== current?.id ? [{ pin, term }] : []
+      return term && term.id !== viewed?.id ? [{ pin, term }] : []
     }
     const course = courses?.find((c) => c.id === pin.id)
     return course ? [{ pin, course }] : []

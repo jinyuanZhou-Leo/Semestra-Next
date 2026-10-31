@@ -3,11 +3,11 @@ import { Fragment, type ReactNode, useEffect, useState } from 'react'
 import { readCollapsedMirror, writeCollapsedMirror } from '@/app/boot'
 import { ShellToolbarSlot } from '@/app/host/ShellToolbar'
 import { usePreferences } from '@/app/preferences'
-import { useModules } from '@/app/registry'
+import { useModules, usePages } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/ui/sidebar'
-import { LAST_PAGE_KEY } from '../start-page'
+import { isLastPageCandidate, LAST_PAGE_KEY } from '../start-page'
 import { AppSidebar } from './AppSidebar'
 import { Tour } from './Tour'
 
@@ -36,10 +36,16 @@ function ShellInset({ children }: { children: ReactNode }) {
   )
 }
 
-/** Keeps the page on screen while the start page is "last page" (M11 `start_page`). */
+/**
+ * Keeps the page on screen while the start page is "last page" (M11 `start_page`): only pages the
+ * sidebar opens, not the term wizard, an import or settings.
+ */
 function useRememberLastPage(programId: string) {
   const pathname = useLocation({ select: (l) => l.pathname })
-  const remember = usePreferences().data?.start_page === 'last'
+  const pageIds = usePages({ kind: 'program', programId }).map((page) => page.id)
+  const remember =
+    usePreferences().data?.start_page === 'last' &&
+    isLastPageCandidate(pathname, programId, pageIds)
   const [last, setLast] = useUiPref<string | null>(LAST_PAGE_KEY, null, { scope: programId })
   useEffect(() => {
     if (remember && last !== pathname) setLast(pathname)

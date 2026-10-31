@@ -147,7 +147,10 @@ function TermSwitcher({
   )
 }
 
-/** Back from another term to the current one: on a term page, to the same page there. */
+/**
+ * Back from another term to the current one: on a term page to the same page there, on a course
+ * page to the current term's overview (the page opened then forgets the other term itself).
+ */
 function BackToCurrent({
   programId,
   pathname,
@@ -160,7 +163,7 @@ function BackToCurrent({
   onBack: () => void
 }) {
   const navigate = useNavigate()
-  const onTermPage = /^\/p\/[^/]+\/t\//.test(pathname)
+  const onScopePage = /^\/p\/[^/]+\/[tc]\//.test(pathname)
   const label = m.academics_sidebar_back_to_current({ name: current.name })
   return (
     <Tooltip>
@@ -169,8 +172,8 @@ function BackToCurrent({
           <SidebarGroupAction
             aria-label={label}
             onClick={() => {
-              onBack()
-              if (onTermPage) void navigate({ href: termHref(programId, current.id, pathname) })
+              if (onScopePage) void navigate({ href: termHref(programId, current.id, pathname) })
+              else onBack()
             }}
           />
         }

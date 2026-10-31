@@ -153,6 +153,8 @@ export function CourseView({
   const terms = useTerms(programId)
   const course = useCourse(courseId)
   const termId = course.data ? courseTermId(course.data, terms.data?.items, fromTerm) : undefined
+  // The sidebar follows the course's term, as on that term's own pages (M02 §5.1).
+  useRememberViewedTerm(programId, terms.data ? termId : undefined)
   // Waits for the term: without one the list would be the whole Program's.
   const termCourses =
     useCourses(programId, termId, { enabled: termId !== undefined }).data?.items ?? []

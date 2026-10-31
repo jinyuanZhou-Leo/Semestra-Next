@@ -147,8 +147,14 @@ test('a term start page opens in the term the sidebar shows; "last page" where t
 
   world.startPage = 'last'
   world.uiState['academics.last_page.p1'] = '/p/p1/c/c2'
+  const second = mount('/p/p1')
+  await waitFor(() => expect(second.router.state.location.pathname).toBe('/p/p1/c/c2'))
+  second.unmount()
+
+  // A course deleted since then sends the user to Today.
+  world.uiState['academics.last_page.p1'] = '/p/p1/c/gone'
   const { router } = mount('/p/p1')
-  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/today'))
 })
 
 test('/ without any Program starts onboarding', async () => {
@@ -263,10 +269,27 @@ test('on the icon rail a hidden group label lets clicks through to the entry abo
   }
 })
 
+test("a past term's course page puts that term in the sidebar, and it stays there", async () => {
+  const { router } = mount('/p/p1/c/c3?fromTerm=t1')
+  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  expect(await termSwitcher(nav, 'Fall 2025')).toBeInTheDocument()
+  expect(await within(nav).findByRole('link', { name: /ESC180Y1/ })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await act(() => router.navigate({ href: '/p/p1/summary' }))
+  expect(await termSwitcher(nav, 'Fall 2025')).toBeInTheDocument()
+})
+
 test('a term pinned from its page sits under Pinned, unfolds to its courses and unpins', async () => {
   mount('/p/p1/t/t1')
   await userEvent.click(await screen.findByRole('button', { name: 'Pin to sidebar' }))
   const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
+  // While the sidebar shows that term, its pin waits.
+  expect(within(nav).queryByText('Pinned')).not.toBeInTheDocument()
+  await userEvent.click(
+    await within(nav).findByRole('button', { name: 'Back to the current term (Winter 2026)' }),
+  )
   expect(await within(nav).findByText('Pinned')).toBeInTheDocument()
   expect(within(nav).getByRole('link', { name: 'Fall 2025' })).toHaveAttribute('href', '/p/p1/t/t1')
   // The term's courses: once in the courses group, once more after unfolding the pin.

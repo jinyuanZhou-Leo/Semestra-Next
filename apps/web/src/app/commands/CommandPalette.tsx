@@ -37,6 +37,8 @@ const MAX_PER_GROUP = 12
 
 type Entry = Matchable & {
   key: string
+  /** Where it goes, so two entries for the same page show once. */
+  to?: string
   icon?: CommandContribution['icon']
   dot?: string
   hotkey?: string
@@ -62,6 +64,7 @@ function childEntry(prefix: string, child: CommandChild, ctx: CommandContext): E
     keywords: child.keywords,
     icon: child.icon,
     dot: child.dot,
+    to: 'to' in child ? child.to : undefined,
     select: () => ('to' in child ? ctx.navigate(child.to) : child.run(ctx)),
   }
 }
@@ -72,12 +75,16 @@ function pageEntries(
   ctx: CommandContext,
 ): Entry[] {
   if (!scope) return []
-  return pages.map((page) => ({
-    key: `page:${scope.kind}:${page.id}`,
-    title: page.title(),
-    icon: page.icon,
-    select: () => ctx.navigate(scopePath(scope, page.id === OVERVIEW_PAGE ? undefined : page.id)),
-  }))
+  return pages.map((page) => {
+    const to = scopePath(scope, page.id === OVERVIEW_PAGE ? undefined : page.id)
+    return {
+      key: `page:${scope.kind}:${page.id}`,
+      title: page.title(),
+      icon: page.icon,
+      to,
+      select: () => ctx.navigate(to),
+    }
+  })
 }
 
 /** Pages of the scope on screen (and of its Program), then what modules list (terms, courses). */
@@ -95,11 +102,19 @@ function useNavigationEntries(ctx: CommandContext, modules: readonly ModuleManif
     // oxlint-disable-next-line react/rules-of-hooks
     source.useItems(ctx).map((child) => childEntry(`nav:${source.id}`, child, ctx)),
   )
-  return [
+  const entries = [
     ...pageEntries(here, ctx.scope, ctx),
     ...(ctx.scope?.kind === 'program' ? [] : pageEntries(program, programScope, ctx)),
     ...listed,
   ]
+  // A module may list a page the scope lists too (the sidebar's pages, M02 §5.1): once is enough.
+  const seen = new Set<string>()
+  return entries.filter((entry) => {
+    if (entry.to === undefined) return true
+    if (seen.has(entry.to)) return false
+    seen.add(entry.to)
+    return true
+  })
 }
 
 function commandEntries(
