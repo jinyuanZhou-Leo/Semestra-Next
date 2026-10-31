@@ -3,6 +3,19 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.9.0 (2026-10-30)
+
+### New
+
+- **API & MCP:** MCP tools are streamlined: adding items always takes a list, and failed calls include a hint on what to do next.
+
+### Fixed
+
+- **Sem:** Sem's tool definitions are leaner, so each request uses less context.
+- **Sem:** Token counts now show in k and M, and the context usage bar no longer shows stray lines.
+- **Sem:** Sem picks the right tools more reliably and recovers from failed actions with clearer guidance.
+- **API & MCP:** API reference pages in the docs load faster.
+
 ## 1.8.0 (2026-10-30)
 
 ### Improved
