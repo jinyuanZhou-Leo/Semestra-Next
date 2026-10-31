@@ -6,6 +6,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   type CellContext,
+  FlexRender,
+  type Row,
   type SortingState,
   createColumnHelper,
   createSortedRowModel,
@@ -94,7 +96,7 @@ function NameCell({ row }: CellProps) {
     <button
       type="button"
       onClick={() => open(item)}
-      className="flex max-w-full min-w-0 items-center gap-2.5 text-left hover:underline"
+      className="flex max-w-full items-center gap-2.5 text-left hover:underline"
     >
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate">{item.display_name}</span>
@@ -111,7 +113,7 @@ function SizeCell({ row }: CellProps) {
 }
 
 function UpdatedCell({ row }: CellProps) {
-  return <span className="whitespace-nowrap">{formatDateTime(row.original.updated_at)}</span>
+  return formatDateTime(row.original.updated_at)
 }
 
 function StatusColumnCell({ row }: CellProps) {
@@ -342,13 +344,18 @@ const columns = column.columns([
   }),
 ])
 
+// The table is `table-fixed`, so these are the column widths; the name takes the rest. An icon
+// column fits its 32 px button between 8 px paddings, or the button pokes out of the table.
+const ICON_COLUMN = 'w-12 px-2'
 const WIDTHS: Record<string, string> = {
   size: 'w-24',
   updated: 'w-44',
-  status: 'w-52 min-w-52',
-  pin: 'w-10',
-  actions: 'w-10',
+  status: 'w-52',
+  pin: ICON_COLUMN,
+  actions: ICON_COLUMN,
 }
+
+const columnCount = columns.length
 
 const DEFAULT_SORT: SortingState = [{ id: 'name', desc: false }]
 
@@ -474,6 +481,26 @@ function ItemTile({ item }: { item: ItemOut }) {
   )
 }
 
+function FileRow({
+  row,
+  measure,
+  index,
+}: {
+  row: Row<typeof features, ItemOut>
+  measure?: (node: Element | null) => void
+  index?: number
+}) {
+  return (
+    <TableRow ref={measure} data-index={index}>
+      {row.getAllCells().map((cell) => (
+        <TableCell key={cell.id} className={cn('py-2', WIDTHS[cell.column.id])}>
+          <FlexRender cell={cell} />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
+}
+
 /** Lists this long render only the rows near the screen (LMS syncs bring hundreds of files). */
 const VIRTUAL_FROM = 100
 
@@ -532,7 +559,8 @@ export function FileBrowser({
 
   return (
     <BrowserContext value={handlers}>
-      <div ref={wrapper} className="overflow-x-auto rounded-2xl border border-border">
+      {/* The table scrolls sideways inside `Table`'s own container; this only draws the frame. */}
+      <div ref={wrapper} className="overflow-hidden rounded-2xl border">
         <Table className="min-w-2xl table-fixed">
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((group) => (
@@ -542,7 +570,6 @@ export function FileBrowser({
                   return (
                     <TableHead
                       key={h.id}
-                      scope="col"
                       aria-sort={
                         sorted === 'asc'
                           ? 'ascending'
@@ -554,13 +581,12 @@ export function FileBrowser({
                     >
                       {h.column.getCanSort() ? (
                         <Button
-                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={h.column.getToggleSortingHandler()}
-                          className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                          className="-ml-2 h-auto px-2 text-muted-foreground"
                         >
-                          <table.FlexRender header={h} />
+                          <FlexRender header={h} />
                           {sorted === 'asc' ? (
                             <ArrowUp aria-hidden className="size-3" />
                           ) : sorted === 'desc' ? (
@@ -568,7 +594,7 @@ export function FileBrowser({
                           ) : null}
                         </Button>
                       ) : (
-                        <table.FlexRender header={h} />
+                        <FlexRender header={h} />
                       )}
                     </TableHead>
                   )
@@ -579,31 +605,23 @@ export function FileBrowser({
           <TableBody>
             {sortedFolders.map((folder) => (
               <TableRow key={folder.id}>
-                <TableCell className="py-2" colSpan={5}>
+                <TableCell className="py-2" colSpan={columnCount - 1}>
                   <button
                     type="button"
                     onClick={() => handlers.openFolder(folder.id)}
-                    className="flex max-w-full min-w-0 items-center gap-2.5 font-medium hover:underline"
+                    className="flex max-w-full items-center gap-2.5 font-medium hover:underline"
                   >
                     <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                     <span className="truncate">{folder.name}</span>
                   </button>
                 </TableCell>
-                <TableCell className="py-2">
+                <TableCell className={cn('py-2', ICON_COLUMN)}>
                   {handlers.readOnly ? null : <FolderMenu folder={folder} />}
                 </TableCell>
               </TableRow>
             ))}
             {rows.length < VIRTUAL_FROM
-              ? rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getAllCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2">
-                        <table.FlexRender cell={cell} />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+              ? rows.map((row) => <FileRow key={row.id} row={row} />)
               : null}
           </TableBody>
           {rows.length >= VIRTUAL_FROM ? (
@@ -612,16 +630,9 @@ export function FileBrowser({
               scrollerOf={wrapper}
               renderRow={(index, measure) => {
                 const row = rows[index]
-                if (!row) return null
-                return (
-                  <TableRow key={row.id} ref={measure} data-index={index}>
-                    {row.getAllCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2">
-                        <table.FlexRender cell={cell} />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
+                return row ? (
+                  <FileRow key={row.id} row={row} measure={measure} index={index} />
+                ) : null
               }}
             />
           ) : null}

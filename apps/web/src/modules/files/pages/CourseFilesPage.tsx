@@ -28,7 +28,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -108,20 +108,18 @@ function CourseFiles({
   return (
     <div className="relative flex flex-col gap-3">
       <div className="flex min-h-9 flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
+        <InputGroup className="w-64">
+          <InputGroupInput
             type="search"
             aria-label={m.files_search()}
             placeholder={m.files_search()}
-            className="w-64 pl-9"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-        </div>
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
         <div className="ml-auto flex items-center gap-2">
           {view === 'grid' ? <SortMenu /> : null}
           <ToggleGroup

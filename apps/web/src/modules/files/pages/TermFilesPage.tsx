@@ -14,7 +14,7 @@ import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Skeleton } from '@/ui/skeleton'
 import { useExternalLink } from '../components/ExternalLink'
 import { FileBrowser, SortMenu } from '../components/FileBrowser'
@@ -87,20 +87,18 @@ function TermFiles({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-h-9 items-center gap-2">
-        <div className="relative">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
+        <InputGroup className="w-72">
+          <InputGroupInput
             type="search"
             aria-label={m.files_search_term()}
             placeholder={m.files_search_term()}
-            className="w-72 pl-9"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-        </div>
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
         {view === 'grid' && !searching ? (
           <div className="ml-auto">
             <SortMenu />
