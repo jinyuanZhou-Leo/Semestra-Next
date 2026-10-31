@@ -9,7 +9,6 @@ import {
   Trash2,
 } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
-import CourseInfoActions from './cards/CourseInfoActions'
 import { m } from '@/paraglide/messages'
 import { addCourseCommand, academicsNavigation, newTermCommand } from './commands'
 import { AddCourseHost } from './components/AddCourseHost'
@@ -106,7 +105,6 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'l',
       component: preloadable(() => import('./cards/CourseInfoCard')),
-      headerActions: CourseInfoActions,
       multiple: false,
     },
   ],

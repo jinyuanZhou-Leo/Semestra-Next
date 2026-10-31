@@ -238,7 +238,7 @@ function FieldInput({
  * A change to an existing course, assessment or task: old → new per field, each one can be left
  * out (`changes[field].apply`, M08 §6.2).
  */
-function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
+export function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const save = useItemUpdate({ onError: toastError })
   const { changes } = item.data as TargetPatchData
   const toggle = (field: string, change: FieldChange, apply: boolean) =>

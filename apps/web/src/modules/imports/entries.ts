@@ -1,20 +1,17 @@
 import { importsSessionCommit } from '@semestra/api-client'
 import type { QueryClient } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   CourseDraft,
-  CourseInfoAction,
   CreatedCourseMapping,
   TermWizardContext,
   TermWizardImportSource,
 } from '@/modules/academics/types'
-import type { FileItemAction } from '@/modules/files/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
 import type { MeetingImportSource } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { openImport } from './launcher'
-import { SOURCES, readableCourseFile } from './sources'
+import { SOURCES } from './sources'
 import type { CourseData, ImportRequest, ImportSourceKind } from './types'
 
 /**
@@ -138,41 +135,4 @@ export function meetingSource(source: 'ics' | 'timetable_image'): MeetingImportS
       })
     },
   }
-}
-
-/** "Update from syllabus" on the course info card: only the course's own fields. */
-export const courseInfoFromSyllabus: CourseInfoAction = {
-  id: 'imports.course-info',
-  title: m.imports_update_course_info,
-  icon: SOURCES.syllabus.icon,
-  run: async ({ programId, courseId }) => {
-    await openImport({
-      programId,
-      source: 'syllabus',
-      target: { kind: 'course', course_id: courseId },
-      mode: 'direct',
-      sourceMeta: { only: 'course_info' },
-    })
-  },
-}
-
-/**
- * "Read with AI…" on a course file: the syllabus import with that file already picked. The file
- * is not uploaded again; the import reads what M07 parsed, waiting while it is still processing.
- */
-export const readCourseFile: FileItemAction = {
-  id: 'imports.read-file',
-  title: m.imports_read_file,
-  description: m.imports_read_file_description,
-  icon: Sparkles,
-  accepts: readableCourseFile,
-  run: async ({ programId, item }) => {
-    await openImport({
-      programId,
-      source: 'syllabus',
-      target: { kind: 'course', course_id: item.course_id },
-      mode: 'direct',
-      fileItemIds: [item.id],
-    })
-  },
 }

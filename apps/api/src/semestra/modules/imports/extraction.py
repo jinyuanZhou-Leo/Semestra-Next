@@ -467,6 +467,15 @@ def from_timetable(
     return len(builder.items) - before
 
 
+def states_course(ext: SyllabusExtraction) -> bool:
+    """Whether the document stated anything about the course itself."""
+    course = ext.course
+    leaves = [getattr(course, name) for name in type(course).model_fields if name != "instructors"]
+    return any(leaf.value is not None for leaf in leaves) or any(
+        person.name.value is not None for person in course.instructors
+    )
+
+
 async def extract_syllabus(
     ctx: Ctx,
     pages: Sequence[ai.PageText],

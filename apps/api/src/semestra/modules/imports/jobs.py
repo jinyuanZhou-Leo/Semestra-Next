@@ -83,16 +83,19 @@ async def _extract_source(
         )
         added = extraction.from_timetable(timetable, context, builder, source)
     else:
+        course_only = row.source_meta.get("only") == "course_info"
         syllabus = await extraction.extract_syllabus(
             ctx,
             texts,
             images=images,
             label=label,
             source_ref=row.id,
-            course_only=row.source_meta.get("only") == "course_info",
+            course_only=course_only,
             on_segment=on_segment,
         )
         added = extraction.from_syllabus(syllabus, context, builder, source)
+        if course_only and extraction.states_course(syllabus):
+            return  # read fine: a course that is up to date adds no change
     if added == 0:
         raise AppError("import.no_content", 422)
 

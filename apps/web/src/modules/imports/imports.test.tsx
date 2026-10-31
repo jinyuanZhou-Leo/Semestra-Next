@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { CourseInfoFill, syllabusCandidates } from './components/CourseInfoFill'
 import { ImportDialog } from './components/ImportDialog'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
@@ -509,7 +510,7 @@ test('a course file is read where it is, without uploading it again', async () =
       onClose={() => {}}
     />,
   )
-  // "Read with AI…" on the file opens the course files with it ticked.
+  // Files picked beforehand open the course files with them ticked.
   expect(await screen.findByRole('checkbox', { name: /syllabus\.pdf/ })).toBeChecked()
   await userEvent.click(screen.getByRole('button', { name: 'Read' }))
   await waitFor(() => expect(body).not.toBeNull())
@@ -583,4 +584,123 @@ test('edits are saved one after another and merged into the session', async () =
   release()
   await waitFor(() => expect(order).toEqual(['start 35', 'end 35', 'start 40', 'end 40']))
   expect(screen.getByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
+})
+
+function courseFile(id: string, name: string, created: string) {
+  return {
+    id,
+    course_id: 'c1',
+    folder_id: null,
+    kind: 'file',
+    display_name: name,
+    original_name: name,
+    mime_type: 'application/pdf',
+    size_bytes: 2048,
+    sha256: id,
+    url: null,
+    pinned: false,
+    source_kind: 'upload',
+    source_ref: null,
+    doc_status: 'ready',
+    doc_error_code: null,
+    page_count: 3,
+    ocr_skipped_pages: 0,
+    job_id: null,
+    created_at: created,
+    updated_at: created,
+  } as const
+}
+
+test('likely syllabi are offered first, then the newest files', () => {
+  const files = [
+    courseFile('f1', 'week1.pdf', '2026-09-10T00:00:00Z'),
+    courseFile('f2', 'MAT137 Course Outline.pdf', '2026-09-01T00:00:00Z'),
+    courseFile('f3', 'week2.pdf', '2026-09-17T00:00:00Z'),
+  ]
+  expect(syllabusCandidates(files).map((f) => f.id)).toEqual(['f2', 'f3', 'f1'])
+})
+
+test('reading course info from settings applies only the ticked fields', async () => {
+  const patch = item({
+    id: 'p1',
+    type: 'course_patch',
+    data: {
+      course_id: 'c1',
+      changes: { credits: { old: 0.5, new: 1 }, website_url: { old: null, new: 'https://x.ca' } },
+    },
+  })
+  let created: Record<string, unknown> | null = null
+  const commit = vi.fn<(body: unknown) => void>()
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            purpose: 'extraction',
+            available: true,
+            source: 'assignment',
+            provider_id: 'a',
+            provider_kind: 'anthropic',
+            provider_name: 'Anthropic',
+            model: 'claude-haiku-5-5',
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [],
+        items: [courseFile('f1', 'syllabus.pdf', '2026-09-01T00:00:00Z')],
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${API}/programs/p1/imports`, async ({ request }) => {
+      created = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json(session({ items: [patch] }))
+    }),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json(session({ items: [patch] }))),
+    http.patch(`${API}/imports/s1/items/p1`, () =>
+      HttpResponse.json(
+        session({
+          items: [
+            {
+              ...patch,
+              data: {
+                ...patch.data,
+                changes: {
+                  credits: { old: 0.5, new: 1 },
+                  website_url: { old: null, new: 'https://x.ca', apply: false },
+                },
+              },
+            },
+          ],
+        }),
+      ),
+    ),
+    http.post(`${API}/imports/s1:commit`, async ({ request }) => {
+      commit(await request.json())
+      return HttpResponse.json({
+        session: session({ status: 'committed', items: [patch] }),
+        created: 0,
+        updated: 1,
+        failed: 0,
+      })
+    }),
+  )
+  const onApplied = vi.fn<() => void>()
+  renderWithRouter(<CourseInfoFill programId="p1" courseId="c1" onApplied={onApplied} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Choose file…' }))
+  await userEvent.click(await screen.findByRole('option', { name: /syllabus\.pdf/ }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toMatchObject({
+    source_kind: 'syllabus',
+    target: { kind: 'course', course_id: 'c1' },
+    file_item_ids: ['f1'],
+    upload_ids: [],
+    source_meta: { only: 'course_info' },
+  })
+  await userEvent.click(await screen.findByRole('checkbox', { name: /website/i }))
+  await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
+  await waitFor(() => expect(onApplied).toHaveBeenCalled())
+  expect(commit).toHaveBeenCalledWith({})
 })

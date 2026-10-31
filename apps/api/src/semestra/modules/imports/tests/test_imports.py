@@ -126,6 +126,9 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     async def run_extract(ctx: Any, purpose: str, schema: Any, **kwargs: Any) -> Any:
         calls.append({"purpose": purpose, **kwargs})
         value = answers.pop(0) if answers else SYLLABUS
+        # Like M06: only the fields of the requested parts are read.
+        asked = {name for part in kwargs.get("parts") or [schema.model_fields] for name in part}
+        value = {k: v for k, v in value.items() if k in asked}
         return ai.Extraction(value=schema.model_validate(value))
 
     monkeypatch.setattr(ai, "available", available)

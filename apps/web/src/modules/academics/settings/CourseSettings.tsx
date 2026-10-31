@@ -16,6 +16,7 @@ import {
   TextRow,
   useAutosave,
 } from '@/app/settings'
+import { useExtensions } from '@/app/registry'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { subjectColor } from '@/lib/subject-color'
@@ -29,6 +30,7 @@ import { Switch } from '@/ui/switch'
 import { ColorPicker, type ColorRef } from '../components/ColorPicker'
 import { DeleteCourseDialog } from '../components/DeleteCourseDialog'
 import { invalidateAcademics, useCourse, useTerms } from '../queries'
+import { COURSE_INFO_FILLS, type CourseInfoFill } from '../types'
 
 /** Whether the chosen terms are neighbours in the Program's order (M02 §3, year-long courses). */
 export function areConsecutive(terms: readonly Term[], ids: readonly string[]): boolean {
@@ -41,9 +43,28 @@ export function areConsecutive(terms: readonly Term[], ids: readonly string[]): 
 export function CourseBasicsSection({ scope }: SettingsSectionProps) {
   const courseId = scope?.kind === 'course' ? scope.courseId : ''
   const terms = useTerms(scope?.programId ?? '')
+  const fills = useExtensions<CourseInfoFill>(COURSE_INFO_FILLS)
+  // Bumped when a fill changed the course: the fields keep what was typed, so they start over.
+  const [revision, setRevision] = useState(0)
   return (
     <AsyncBoundary query={useCourse(courseId)}>
-      {(course) => <CourseBasics key={course.id} course={course} terms={terms.data?.items ?? []} />}
+      {(course) => (
+        <>
+          {fills.map((fill) => (
+            <fill.component
+              key={fill.id}
+              programId={course.program_id}
+              courseId={course.id}
+              onApplied={() => setRevision((n) => n + 1)}
+            />
+          ))}
+          <CourseBasics
+            key={`${course.id}:${revision}`}
+            course={course}
+            terms={terms.data?.items ?? []}
+          />
+        </>
+      )}
     </AsyncBoundary>
   )
 }
