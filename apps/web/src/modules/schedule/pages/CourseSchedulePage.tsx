@@ -21,7 +21,14 @@ import { toastError } from '@/lib/errors'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { EventDialog } from '../components/EventDialog'
@@ -113,6 +120,12 @@ function TermSchedule({
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
+  // Prefills a new meeting, e.g. the type of the table whose add row was clicked.
+  const [initial, setInitial] = useState<Partial<Meeting>>({})
+  const addMeeting = (typeCode?: string) => {
+    setInitial(typeCode ? { type_code: typeCode } : {})
+    setEditing('new')
+  }
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
 
@@ -152,16 +165,10 @@ function TermSchedule({
     bySection: true,
   })
 
-  const addMeeting = (
-    <Button size="sm" variant="outline" onClick={() => setEditing('new')}>
-      <Plus aria-hidden />
-      {m.schedule_meeting_add()}
-    </Button>
-  )
   const importMenu =
     importers.length > 0 ? (
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button size="sm" variant="ghost" />}>
+        <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
           <Import aria-hidden />
           {m.common_add_from_sources()}
           <ChevronDown aria-hidden data-icon="inline-end" />
@@ -181,7 +188,6 @@ function TermSchedule({
           description={m.schedule_meetings_hint()}
         >
           {importMenu}
-          {addMeeting}
         </SectionHeader>
         {meetings.length === 0 ? (
           <Empty className="rounded-2xl border border-solid border-border p-6">
@@ -192,6 +198,12 @@ function TermSchedule({
               <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
               <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" onClick={() => addMeeting()}>
+                <Plus aria-hidden />
+                {m.schedule_meeting_add()}
+              </Button>
+            </EmptyContent>
           </Empty>
         ) : (
           <>
@@ -235,6 +247,7 @@ function TermSchedule({
                 onToggle={toggle}
                 onKeepOnly={keepOnly}
                 onEdit={setEditing}
+                onAdd={() => addMeeting(code)}
               />
             ))}
           </>
@@ -246,12 +259,7 @@ function TermSchedule({
           id={`${termId}-events`}
           title={m.schedule_events()}
           description={m.schedule_events_hint()}
-        >
-          <Button size="sm" variant="outline" onClick={() => setEventEdit('new')}>
-            <Plus aria-hidden />
-            {m.schedule_event_add()}
-          </Button>
-        </SectionHeader>
+        />
         {events.length === 0 ? (
           <Empty className="rounded-2xl border border-solid border-border p-6">
             <EmptyHeader>
@@ -260,9 +268,20 @@ function TermSchedule({
               </EmptyMedia>
               <EmptyTitle>{m.schedule_events_empty_title()}</EmptyTitle>
             </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" variant="link" onClick={() => setEventEdit('new')}>
+                {m.schedule_event_add()}
+              </Button>
+            </EmptyContent>
           </Empty>
         ) : (
-          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
+          <EventsTable
+            events={events}
+            types={types}
+            timezone={timezone}
+            onEdit={setEventEdit}
+            onAdd={() => setEventEdit('new')}
+          />
         )}
       </section>
 
@@ -272,17 +291,7 @@ function TermSchedule({
             id={`${termId}-exceptions`}
             title={m.schedule_exceptions()}
             description={m.schedule_exceptions_hint()}
-          >
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={meetings.length === 0}
-              onClick={() => setExceptionAdd(true)}
-            >
-              <Plus aria-hidden />
-              {m.schedule_exception_add()}
-            </Button>
-          </SectionHeader>
+          />
           {exceptions.length === 0 ? (
             <Empty className="rounded-2xl border border-solid border-border p-6">
               <EmptyHeader>
@@ -291,11 +300,19 @@ function TermSchedule({
                 </EmptyMedia>
                 <EmptyTitle>{m.schedule_exceptions_empty()}</EmptyTitle>
               </EmptyHeader>
+              {meetings.length > 0 ? (
+                <EmptyContent>
+                  <Button size="sm" variant="link" onClick={() => setExceptionAdd(true)}>
+                    {m.schedule_exception_add()}
+                  </Button>
+                </EmptyContent>
+              ) : null}
             </Empty>
           ) : (
             <ExceptionsTable
               exceptions={exceptions}
               busy={restore.isPending}
+              onAdd={meetings.length > 0 ? () => setExceptionAdd(true) : undefined}
               onRestore={(meeting, exc) =>
                 restore.mutate({
                   path: { meeting_id: meeting.id, original_date: exc.original_date },
@@ -314,6 +331,7 @@ function TermSchedule({
           termIds={course.term_ids}
           termId={termId}
           meeting={editing === 'new' ? undefined : editing}
+          initial={editing === 'new' ? initial : undefined}
           open
           onOpenChange={(open) => !open && setEditing(null)}
         />
@@ -350,7 +368,7 @@ function SectionHeader({
   id: string
   title: string
   description: string
-  children: ReactNode
+  children?: ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
@@ -360,7 +378,7 @@ function SectionHeader({
         </h3>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
-      <div className="flex items-center gap-2">{children}</div>
+      {children ? <div className="flex items-center gap-2">{children}</div> : null}
     </div>
   )
 }

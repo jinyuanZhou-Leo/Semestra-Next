@@ -1151,6 +1151,7 @@
   "schedule_weeks_range": "Weeks {start}–{end}",
   "schedule_weeks_from": "From week {start}",
   "schedule_meeting_add": "Add meeting",
+  "schedule_meeting_add_type": "Add {type} meeting",
   "schedule_meeting_edit": "Edit meeting",
   "schedule_meeting_delete": "Delete meeting",
   "schedule_meeting_delete_title": "Delete this meeting?",

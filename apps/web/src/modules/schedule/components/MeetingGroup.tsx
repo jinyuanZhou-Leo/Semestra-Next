@@ -1,8 +1,8 @@
 import type { EventType, Meeting } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { ListFilter, Pencil } from 'lucide-react'
+import { ListFilter, Pencil, Plus } from 'lucide-react'
 import { createContext, use } from 'react'
-import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -175,7 +175,11 @@ const MEETING_COLUMN_CLASS: Record<string, string> = {
 }
 
 /** The meetings of one type (e.g. all TUT sections) with enable switches. */
-export function MeetingGroup({ type, ...state }: MeetingGroupState & { type?: EventType }) {
+export function MeetingGroup({
+  type,
+  onAdd,
+  ...state
+}: MeetingGroupState & { type?: EventType; onAdd: () => void }) {
   const { code, meetings } = state
   const sorted = meetings.toSorted(
     (a, b) =>
@@ -198,6 +202,11 @@ export function MeetingGroup({ type, ...state }: MeetingGroupState & { type?: Ev
           columns={columns}
           getRowId={(mt) => mt.id}
           columnClassName={MEETING_COLUMN_CLASS}
+          footer={
+            <ActionRow icon={Plus} onClick={onAdd}>
+              {m.schedule_meeting_add_type({ type: code })}
+            </ActionRow>
+          }
         />
       </section>
     </MeetingGroupContext>

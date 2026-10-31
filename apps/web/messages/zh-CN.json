@@ -1151,6 +1151,7 @@
   "schedule_weeks_range": "第 {start}–{end} 周",
   "schedule_weeks_from": "第 {start} 周起",
   "schedule_meeting_add": "添加上课时间",
+  "schedule_meeting_add_type": "添加 {type} 上课时间",
   "schedule_meeting_edit": "编辑上课时间",
   "schedule_meeting_delete": "删除上课时间",
   "schedule_meeting_delete_title": "删除这个上课时间？",
