@@ -1,11 +1,12 @@
 import type { EventType, Meeting } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { ListFilter, Pencil } from 'lucide-react'
+import { ListFilter, Pencil, Plus } from 'lucide-react'
 import { createContext, use } from 'react'
-import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Badge } from '@/ui/badge'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
 import { typeName } from '../labels'
@@ -68,7 +69,9 @@ function SectionCell({ row }: CellProps) {
     <span className={cn('font-medium', dim(row.original))}>
       {row.original.section_code || '—'}
       {conflicting.has(row.original.id) ? (
-        <span className="ml-1 text-xs text-destructive">{m.schedule_conflict()}</span>
+        <Badge variant="destructive" className="ml-2">
+          {m.schedule_conflict()}
+        </Badge>
       ) : null}
     </span>
   )
@@ -159,15 +162,24 @@ const columns = column.columns([
   column.display({ id: 'actions', header: ActionsHeader, cell: ActionsCell }),
 ])
 
+// Fixed widths so the tables of each type line up under one another.
 const MEETING_COLUMN_CLASS: Record<string, string> = {
   enabled: 'w-12',
+  section: 'w-36 min-w-36',
+  weekday: 'w-24 min-w-24',
+  time: 'w-44 min-w-44',
+  weeks: 'w-72 min-w-72',
   location: 'w-full max-w-0',
-  instructor: 'max-w-40',
+  instructor: 'w-40 min-w-40 max-w-40',
   actions: 'w-10',
 }
 
 /** The meetings of one type (e.g. all TUT sections) with enable switches. */
-export function MeetingGroup({ type, ...state }: MeetingGroupState & { type?: EventType }) {
+export function MeetingGroup({
+  type,
+  onAdd,
+  ...state
+}: MeetingGroupState & { type?: EventType; onAdd: () => void }) {
   const { code, meetings } = state
   const sorted = meetings.toSorted(
     (a, b) =>
@@ -190,6 +202,11 @@ export function MeetingGroup({ type, ...state }: MeetingGroupState & { type?: Ev
           columns={columns}
           getRowId={(mt) => mt.id}
           columnClassName={MEETING_COLUMN_CLASS}
+          footer={
+            <ActionRow icon={Plus} onClick={onAdd}>
+              {m.schedule_meeting_add_type({ type: code })}
+            </ActionRow>
+          }
         />
       </section>
     </MeetingGroupContext>

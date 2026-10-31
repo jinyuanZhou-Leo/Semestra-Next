@@ -4,8 +4,16 @@ import {
   scheduleMeetingSetEnabledMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarClock, CalendarOff, CalendarPlus, ChevronDown, Import, Plus } from 'lucide-react'
-import { useState } from 'react'
+import {
+  CalendarClock,
+  CalendarOff,
+  CalendarPlus,
+  CalendarX2,
+  ChevronDown,
+  Import,
+  Plus,
+} from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { ImportSourceItems } from '@/components/ImportSourceItems'
@@ -21,16 +29,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs'
 import { EventDialog } from '../components/EventDialog'
 import { EventsTable } from '../components/EventsTable'
+import { ExceptionDialog } from '../components/ExceptionDialog'
 import { ExceptionsTable } from '../components/ExceptionsTable'
 import { MeetingDialog } from '../components/MeetingDialog'
 import { MeetingGroup } from '../components/MeetingGroup'
@@ -117,7 +120,14 @@ function TermSchedule({
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
   const [editing, setEditing] = useState<Meeting | 'new' | null>(null)
+  // Prefills a new meeting, e.g. the type of the table whose add row was clicked.
+  const [initial, setInitial] = useState<Partial<Meeting>>({})
+  const addMeeting = (typeCode?: string) => {
+    setInitial(typeCode ? { type_code: typeCode } : {})
+    setEditing('new')
+  }
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
+  const [exceptionAdd, setExceptionAdd] = useState(false)
 
   const setEnabled = useMutation({
     ...scheduleMeetingSetEnabledMutation(),
@@ -155,66 +165,48 @@ function TermSchedule({
     bySection: true,
   })
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button size="sm" />}>
-            <Plus aria-hidden />
-            {m.schedule_add()}
-            <ChevronDown aria-hidden data-icon="inline-end" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuItem onClick={() => setEditing('new')}>
-              <CalendarClock aria-hidden />
-              {m.schedule_add_meeting()}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setEventEdit('new')}>
-              <CalendarPlus aria-hidden />
-              {m.schedule_add_event()}
-            </DropdownMenuItem>
-            {importers.length > 0 ? (
-              <>
-                <DropdownMenuSeparator />
-                <ImportSourceItems sources={importers} onPick={launchImport} />
-              </>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+  const importMenu =
+    importers.length > 0 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
+          <Import aria-hidden />
+          {m.common_add_from_sources()}
+          <ChevronDown aria-hidden data-icon="inline-end" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          <ImportSourceItems sources={importers} onPick={launchImport} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null
 
-      {meetings.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <CalendarClock aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
-            <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-row justify-center">
-            <Button size="sm" onClick={() => setEditing('new')}>
-              <Plus aria-hidden />
-              {m.schedule_meeting_add()}
-            </Button>
-            {importers.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button size="sm" variant="ghost" />}>
-                  <Import aria-hidden />
-                  {m.common_add_from_sources()}
-                  <ChevronDown aria-hidden data-icon="inline-end" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-72">
-                  <ImportSourceItems sources={importers} onPick={launchImport} />
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <>
-          <section aria-label={m.schedule_week_view()} className="space-y-2">
-            <h3 className="text-sm font-medium">{m.schedule_week_view()}</h3>
+  return (
+    <div className="space-y-10">
+      <section aria-labelledby={`${termId}-meetings`} className="space-y-3">
+        <SectionHeader
+          id={`${termId}-meetings`}
+          title={m.schedule_meetings()}
+          description={m.schedule_meetings_hint()}
+        >
+          {importMenu}
+        </SectionHeader>
+        {meetings.length === 0 ? (
+          <Empty className="rounded-2xl border border-solid border-border p-6">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CalendarClock aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.schedule_meetings_empty()}</EmptyTitle>
+              <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" onClick={() => addMeeting()}>
+                <Plus aria-hidden />
+                {m.schedule_meeting_add()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <>
             {enabled.length === 0 ? (
               <Empty className="rounded-2xl border border-solid border-border p-6">
                 <EmptyHeader>
@@ -225,7 +217,10 @@ function TermSchedule({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <div className="rounded-2xl border border-border p-3 pt-2">
+              <section
+                aria-label={m.schedule_week_view()}
+                className="rounded-2xl border border-border p-3 pt-2"
+              >
                 {calendarPending ? (
                   // The default 08:00–22:00 grid's height, so the page does not jump when the
                   // Program's own hours arrive.
@@ -239,29 +234,34 @@ function TermSchedule({
                     hourHeight={44}
                   />
                 )}
-              </div>
+              </section>
             )}
-          </section>
-          {typeCodes.map((code) => (
-            <MeetingGroup
-              key={code}
-              type={types.find((t) => t.code === code)}
-              code={code}
-              meetings={meetings.filter((mt) => mt.type_code === code)}
-              conflicting={conflicting}
-              busy={setEnabled.isPending}
-              onToggle={toggle}
-              onKeepOnly={keepOnly}
-              onEdit={setEditing}
-            />
-          ))}
-        </>
-      )}
+            {typeCodes.map((code) => (
+              <MeetingGroup
+                key={code}
+                type={types.find((t) => t.code === code)}
+                code={code}
+                meetings={meetings.filter((mt) => mt.type_code === code)}
+                conflicting={conflicting}
+                busy={setEnabled.isPending}
+                onToggle={toggle}
+                onKeepOnly={keepOnly}
+                onEdit={setEditing}
+                onAdd={() => addMeeting(code)}
+              />
+            ))}
+          </>
+        )}
+      </section>
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-medium">{m.schedule_events()}</h3>
+      <section aria-labelledby={`${termId}-events`} className="space-y-3">
+        <SectionHeader
+          id={`${termId}-events`}
+          title={m.schedule_events()}
+          description={m.schedule_events_hint()}
+        />
         {events.length === 0 ? (
-          <Empty className="rounded-2xl border border-border border-solid p-6">
+          <Empty className="rounded-2xl border border-solid border-border p-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <CalendarPlus aria-hidden />
@@ -285,16 +285,41 @@ function TermSchedule({
         )}
       </section>
 
-      {exceptions.length > 0 ? (
-        <section className="space-y-2">
-          <h3 className="text-sm font-medium">{m.schedule_exceptions()}</h3>
-          <ExceptionsTable
-            exceptions={exceptions}
-            busy={restore.isPending}
-            onRestore={(meeting, exc) =>
-              restore.mutate({ path: { meeting_id: meeting.id, original_date: exc.original_date } })
-            }
+      {meetings.length > 0 || exceptions.length > 0 ? (
+        <section aria-labelledby={`${termId}-exceptions`} className="space-y-3">
+          <SectionHeader
+            id={`${termId}-exceptions`}
+            title={m.schedule_exceptions()}
+            description={m.schedule_exceptions_hint()}
           />
+          {exceptions.length === 0 ? (
+            <Empty className="rounded-2xl border border-solid border-border p-6">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarX2 aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.schedule_exceptions_empty()}</EmptyTitle>
+              </EmptyHeader>
+              {meetings.length > 0 ? (
+                <EmptyContent>
+                  <Button size="sm" variant="link" onClick={() => setExceptionAdd(true)}>
+                    {m.schedule_exception_add()}
+                  </Button>
+                </EmptyContent>
+              ) : null}
+            </Empty>
+          ) : (
+            <ExceptionsTable
+              exceptions={exceptions}
+              busy={restore.isPending}
+              onAdd={meetings.length > 0 ? () => setExceptionAdd(true) : undefined}
+              onRestore={(meeting, exc) =>
+                restore.mutate({
+                  path: { meeting_id: meeting.id, original_date: exc.original_date },
+                })
+              }
+            />
+          )}
         </section>
       ) : null}
 
@@ -306,8 +331,16 @@ function TermSchedule({
           termIds={course.term_ids}
           termId={termId}
           meeting={editing === 'new' ? undefined : editing}
+          initial={editing === 'new' ? initial : undefined}
           open
           onOpenChange={(open) => !open && setEditing(null)}
+        />
+      ) : null}
+      {exceptionAdd ? (
+        <ExceptionDialog
+          meetings={meetings}
+          open
+          onOpenChange={(open) => !open && setExceptionAdd(false)}
         />
       ) : null}
       {eventEdit ? (
@@ -321,6 +354,31 @@ function TermSchedule({
           onOpenChange={(open) => !open && setEventEdit(null)}
         />
       ) : null}
+    </div>
+  )
+}
+
+/** A section's title and what it holds, with the section's own add buttons on the right. */
+function SectionHeader({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  title: string
+  description: string
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
+        <h3 id={id} className="font-heading text-base font-medium">
+          {title}
+        </h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children ? <div className="flex items-center gap-2">{children}</div> : null}
     </div>
   )
 }
