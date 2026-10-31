@@ -117,7 +117,7 @@ describe('layouts per column count', () => {
   ]
 
   test('the column count follows the board width', () => {
-    expect([500, 700, 1136, 1616, 2256].map(columnsFor)).toEqual([1, 2, 4, 6, 8])
+    expect([420, 556, 700, 1136, 1616, 2256].map(columnsFor)).toEqual([1, 2, 2, 4, 6, 8])
   })
 
   test('a wide grid without stored positions fills in reading order', () => {

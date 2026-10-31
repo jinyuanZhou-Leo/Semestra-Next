@@ -201,7 +201,7 @@ async def test_cards_are_found_across_the_programs_boards(
     app: FastAPI, client: AsyncClient, user: UserHandle
 ):
     pid = await program(client)
-    habit = await add_card(client, pid, "habit.board", {"name": "Reading"})
+    habit = await add_card(client, pid, "habit.ring", {"name": "Reading"})
     term = await client.post(
         f"/programs/{pid}/terms",
         json={"name": "Fall", "start_date": "2026-01-05", "end_date": "2026-04-30"},

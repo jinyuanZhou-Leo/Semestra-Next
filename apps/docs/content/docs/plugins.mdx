@@ -37,7 +37,7 @@ apps/api/src/semestra/modules/plugins_builtin/<id_with_underscores>/   backend, 
 
 - The plugin id is kebab-case (`habit-streak`) and must match on both sides; a CI test compares
   the frontend manifest list with the backend `/plugins/catalog`.
-- Card ids are `<prefix>.<name>` (`habit.board`), capabilities `<prefix>.<object>.<action>`
+- Card ids are `<prefix>.<name>` (`habit.ring`), capabilities `<prefix>.<object>.<action>`
   (`habit.checkin.toggle`), tables `plugin_<prefix>_<name>`, the settings namespace
   `plugin.<id>`.
 - Message keys use the plugin prefix (`habit_…`) and exist in both languages; error code
@@ -59,7 +59,8 @@ export default defineModule({
     prefetch: (scope, queryClient) => ...,   // optional: start the card's data with its code (queryClient.prefetchQuery)
     settings: { schema: zodSchema, component: preloadable(...) },   // component is optional; without it a form is generated from the schema
     multiple: true,
-    headerActions: ...,        // card header actions (the counter's "reset")
+    headerActions: ...,        // card header actions (the counter's "reset"); the host shows them on hover
+    keepTitleWhenSmall: true,  // optional: keep the title row at size s (hidden by default)
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // sidebar status bar (Pomodoro shows the running timer here)
@@ -80,6 +81,14 @@ export default defineModule({
   field is added.
 - **Every declared size needs a design.** Size s holds the least information and one main
   action; do not just scale things down. Tests render every size.
+- At size s the host hides the title row to give the content the whole card (it comes back while
+  editing the board), so the content's first line must say what the card is: the counter's
+  name, the clock's city, "Focus". Set `keepTitleWhenSmall` only when the content cannot.
+- `headerActions` and the settings button sit together at the top right and appear when the
+  pointer is over the card or focus is inside it (always on touch screens); do not hide or
+  show them yourself.
+- A list that may not fit uses `overflow-y-auto scroll-fade`: the edge that has more content
+  fades out, so it is clear the list scrolls.
 - Change settings with `useCardSettings(instanceId, settings, delayMs)`: it applies locally at
   once, saves after the delay, rolls back on failure and reports a `status`. The counter uses
   300 ms, the sticky note 800 ms.

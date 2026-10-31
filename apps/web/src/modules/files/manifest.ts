@@ -56,6 +56,7 @@ export default defineModule({
       sizes: ['s', 'm', 'l'],
       defaultSize: 's',
       component: preloadable(() => import('./cards/QuickOpenCard')),
+      keepTitleWhenSmall: true,
       multiple: true,
       settings: { schema: quickOpenSchema, component: QuickOpenPicker },
     },

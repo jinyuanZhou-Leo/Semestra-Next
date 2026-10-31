@@ -6,7 +6,7 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Separator } from '@/ui/separator'
+import { ButtonGroup, ButtonGroupSeparator } from '@/ui/button-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { CardContribution, CardSize, Scope } from '../extensions'
@@ -84,6 +84,51 @@ export function CardFrame({
   const Body = contribution.component
   const Actions = contribution.headerActions
   const props = { scope, instanceId: card.id, size: card.size, settings }
+  // A small (1×1) card names itself in its content, so its title row would only take space;
+  // cards whose content cannot say what they are keep it (`keepTitleWhenSmall`).
+  const titled = card.size !== 's' || contribution.keepTitleWhenSmall === true
+  const showTitle = titled || editing
+
+  // The header's buttons, the card's own and its settings, show on hover or focus where there is
+  // a pointer that can hover, and stay while one of them has a menu open; touch screens always
+  // show them.
+  const actions =
+    Actions || contribution.settings ? (
+      <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/board-card:opacity-100 focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100">
+        {Actions ? (
+          <PluginBoundary compact>
+            <Actions {...props} />
+          </PluginBoundary>
+        ) : null}
+        {contribution.settings ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={m.board_card_settings({ card: title })}
+                  className="text-muted-foreground"
+                  onClick={() => onOpenDialog('settings')}
+                />
+              }
+            >
+              <Settings2 aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.board_card_settings({ card: title })}</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </div>
+    ) : null
+  const hint = (
+    <span id={hintId} className="sr-only" aria-live="polite">
+      {selected
+        ? m.board_card_selected()
+        : movable
+          ? m.board_card_keyboard()
+          : m.board_card_keyboard_narrow()}
+    </span>
+  )
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return
@@ -127,50 +172,36 @@ export function CardFrame({
           selected && 'shadow-lg ring-2 ring-primary',
         )}
       >
-        <header className="flex h-9 shrink-0 items-center gap-1.5 px-4 pt-3 pb-1">
-          {editing && movable ? (
-            <GripVertical aria-hidden className="-ml-1.5 size-4 shrink-0 text-muted-foreground" />
-          ) : null}
-          <contribution.icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <h3 className="min-w-0 flex-1 truncate font-heading text-sm font-medium">{title}</h3>
-          {!editing ? (
-            <div className="flex shrink-0 items-center gap-0.5">
-              {Actions ? (
-                <PluginBoundary compact>
-                  <Actions {...props} />
-                </PluginBoundary>
-              ) : null}
-              {contribution.settings ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={m.board_card_settings({ card: title })}
-                        className="opacity-0 group-hover/board-card:opacity-100 focus-visible:opacity-100"
-                        onClick={() => onOpenDialog('settings')}
-                      />
-                    }
-                  >
-                    <Settings2 aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent>{m.board_card_settings({ card: title })}</TooltipContent>
-                </Tooltip>
-              ) : null}
-            </div>
-          ) : (
-            <span id={hintId} className="sr-only" aria-live="polite">
-              {selected
-                ? m.board_card_selected()
-                : movable
-                  ? m.board_card_keyboard()
-                  : m.board_card_keyboard_narrow()}
-            </span>
-          )}
-        </header>
+        {showTitle ? (
+          <header
+            className={cn(
+              'flex h-9 shrink-0 items-center gap-1.5 px-4 pt-3 pb-1',
+              // A small card's title shows only while editing, over its content.
+              !titled && 'absolute inset-x-0 top-0 z-10 h-auto bg-card pb-2',
+            )}
+          >
+            {editing && movable ? (
+              <GripVertical aria-hidden className="-ml-1.5 size-4 shrink-0 text-muted-foreground" />
+            ) : null}
+            <contribution.icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <h3 className="min-w-0 flex-1 truncate font-heading text-sm font-medium">{title}</h3>
+            {!editing && titled ? actions : null}
+            {editing ? hint : null}
+          </header>
+        ) : (
+          <>
+            <h3 className="sr-only">{title}</h3>
+            {/* Without a header row the buttons float over the card's top right corner. */}
+            <div className="absolute top-2 right-2 z-10 rounded-full bg-card">{actions}</div>
+          </>
+        )}
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3"
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3',
+            !titled && 'pt-3',
+            // Empty states inside a card stay below the card's title in weight (M00 §4.5 tier 2).
+            '[&_[data-slot=empty-icon]]:mb-0 [&_[data-slot=empty-title]]:text-sm',
+          )}
           inert={editing || undefined}
         >
           <PluginBoundary compact fallback={<CardSkeleton />}>
@@ -184,47 +215,51 @@ export function CardFrame({
         ) : null}
       </section>
       {selected && !toolbarHidden ? (
-        <div
+        <ButtonGroup
           role="toolbar"
           aria-label={m.board_card_options({ card: title })}
           data-board-toolbar
           tabIndex={-1}
           onKeyDown={onToolbarKeyDown}
           className={cn(
-            'absolute z-30 flex items-center gap-1 rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10',
+            'absolute z-30 items-center rounded-2xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10',
             toolbarBelow ? 'top-full mt-2' : 'bottom-full mb-2',
             toolbarStart ? 'left-0' : 'right-0',
           )}
         >
           {contribution.sizes.length > 1 ? (
-            <ToggleGroup
-              aria-label={m.board_card_size({ card: title })}
-              size="sm"
-              className={SEGMENTED}
-              value={[card.size]}
-              onValueChange={(value) => value[0] && onResize(value[0] as CardSize)}
-            >
-              {contribution.sizes.map((size) => (
-                <ToggleGroupItem key={size} value={size} className={SEGMENT}>
-                  {size.toUpperCase()}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <ButtonGroup>
+              <ToggleGroup
+                aria-label={m.board_card_size({ card: title })}
+                size="sm"
+                className={SEGMENTED}
+                value={[card.size]}
+                onValueChange={(value) => value[0] && onResize(value[0] as CardSize)}
+              >
+                {contribution.sizes.map((size) => (
+                  <ToggleGroupItem key={size} value={size} className={SEGMENT}>
+                    {size.toUpperCase()}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </ButtonGroup>
           ) : null}
-          {contribution.sizes.length > 1 ? (
-            <Separator orientation="vertical" className="mx-0.5 h-5 self-center" />
-          ) : null}
+          {contribution.sizes.length > 1 ? <ButtonGroupSeparator /> : null}
           {contribution.settings ? (
-            <Button variant="ghost" size="sm" onClick={() => onOpenDialog('settings')}>
-              <Settings2 aria-hidden />
-              {m.board_card_settings_short()}
-            </Button>
+            <ButtonGroup>
+              <Button variant="ghost" size="sm" onClick={() => onOpenDialog('settings')}>
+                <Settings2 aria-hidden />
+                {m.board_card_settings_short()}
+              </Button>
+            </ButtonGroup>
           ) : null}
-          <Button variant="destructive" size="sm" onClick={() => onOpenDialog('remove')}>
-            <Trash2 aria-hidden />
-            {m.board_card_remove_short()}
-          </Button>
-        </div>
+          <ButtonGroup>
+            <Button variant="destructive" size="sm" onClick={() => onOpenDialog('remove')}>
+              <Trash2 aria-hidden />
+              {m.board_card_remove_short()}
+            </Button>
+          </ButtonGroup>
+        </ButtonGroup>
       ) : null}
     </>
   )

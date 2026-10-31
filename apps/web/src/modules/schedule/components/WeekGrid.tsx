@@ -21,7 +21,14 @@ export type GridItem = {
   onClick?: () => void
 }
 
-export type GridDay = { weekday: number; label: string; sublabel?: string; shaded?: boolean }
+export type GridDay = {
+  weekday: number
+  label: string
+  sublabel?: string
+  shaded?: boolean
+  /** Today: its header is highlighted. */
+  today?: boolean
+}
 
 /** The days of a week in the user's week order (M11), without the weekend when asked. */
 export function weekDays(showWeekends: boolean): GridDay[] {
@@ -124,10 +131,20 @@ export function WeekGrid({
         {formatTime('22:00')}
       </div>
       {days.map((day) => (
-        <div key={day.weekday} className="truncate px-1 pb-1 text-center font-medium">
+        <div
+          key={day.weekday}
+          className={cn('truncate px-1 pb-1 text-center font-medium', day.today && 'text-primary')}
+        >
           {day.label}
           {day.sublabel ? (
-            <span className="block truncate font-normal text-muted-foreground">{day.sublabel}</span>
+            <span
+              className={cn(
+                'block truncate font-normal text-muted-foreground',
+                day.today && 'text-primary',
+              )}
+            >
+              {day.sublabel}
+            </span>
           ) : null}
         </div>
       ))}

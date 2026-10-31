@@ -1,4 +1,4 @@
-import { CalendarCheck, ListChecks, ListTodo, Sun } from 'lucide-react'
+import { ListChecks, ListTodo, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
@@ -65,7 +65,7 @@ export default defineModule({
       id: 'tasks.counter',
       scopes: ['term'],
       title: m.tasks_card_counter,
-      icon: CalendarCheck,
+      icon: ListTodo,
       sizes: ['s'],
       defaultSize: 's',
       component: preloadable(() => import('./cards/CounterCard')),

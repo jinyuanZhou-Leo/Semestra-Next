@@ -31,3 +31,17 @@ export function useElementWidth(element: HTMLElement | null): number {
     () => 0,
   )
 }
+
+/** The height of `element` in px, following resizes; 0 until attached. See `useElementWidth`. */
+export function useElementHeight(element: HTMLElement | null): number {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (!element || typeof ResizeObserver === 'undefined') return () => {}
+      const observer = new ResizeObserver(onChange)
+      observer.observe(element)
+      return () => observer.disconnect()
+    },
+    () => (element ? Math.round(element.getBoundingClientRect().height) : 0),
+    () => 0,
+  )
+}

@@ -8,6 +8,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { countdown } from '../countdown'
 import { useNow } from '@/lib/now'
+import { useOpenOccurrence } from '../open'
 import { useToday } from '../queries'
 
 function endOf(o: Occurrence): number {
@@ -21,6 +22,7 @@ function endOf(o: Occurrence): number {
 export default function TodayCard({ scope, size }: CardProps) {
   const today = useToday(scope.programId).data
   const now = useNow()
+  const openOccurrence = useOpenOccurrence(scope.programId)
   if (!today) return <CardSkeleton />
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const items = today.items.filter((o) => !termId || !o.meta?.term_id || o.meta.term_id === termId)
@@ -46,13 +48,13 @@ export default function TodayCard({ scope, size }: CardProps) {
   return (
     <div className="flex h-full flex-col gap-2">
       {next ? (
-        <p className="text-sm">
-          <span className="text-muted-foreground">{m.schedule_next_class()}</span>{' '}
-          <span className="font-medium">{next.title}</span>{' '}
-          <span className="text-muted-foreground">{countdown(next.start_at, now)}</span>
+        <p className="flex min-w-0 gap-1.5 text-sm">
+          <span className="shrink-0 text-muted-foreground">{m.schedule_next_class()}</span>
+          <span className="truncate font-medium">{next.title}</span>
+          <span className="shrink-0 text-muted-foreground">{countdown(next.start_at, now)}</span>
         </p>
       ) : null}
-      <ol className="min-h-0 flex-1 overflow-y-auto">
+      <ol className="min-h-0 flex-1 scroll-fade overflow-y-auto">
         {items.map((o, i) => (
           <Fragment key={o.id}>
             {i === nowIndex ? <NowLine /> : null}
@@ -62,6 +64,7 @@ export default function TodayCard({ scope, size }: CardProps) {
                 timezone={today.timezone}
                 compact={compact}
                 past={!o.all_day && endOf(o) <= now}
+                onClick={openOccurrence(o)}
               />
             </li>
           </Fragment>

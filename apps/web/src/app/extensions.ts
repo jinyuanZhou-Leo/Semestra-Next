@@ -150,7 +150,16 @@ export type CardContribution = {
     queryClient: QueryClient,
     options: { modules: readonly ModuleManifest[] },
   ) => void
-  /** Buttons in the card's header next to its title (e.g. a counter's reset). */
+  /**
+   * A small (S, 1×1) card has no title row: its content says what it is in its first line (a
+   * stat's label, a habit's name) and the header's buttons float over the top right corner. Set
+   * this when the content cannot name itself, to keep the title row on S too.
+   */
+  keepTitleWhenSmall?: boolean
+  /**
+   * Buttons in the card's header next to its title (e.g. a counter's reset). Like the settings
+   * button, the host shows them on hover or focus (always on touch screens), not the card.
+   */
   // oxlint-disable-next-line no-explicit-any
   headerActions?: ComponentType<CardProps<any>>
   description?: Message

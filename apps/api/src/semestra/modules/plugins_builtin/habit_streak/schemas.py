@@ -4,7 +4,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 PLUGIN_ID = "habit-streak"
-CARD_IDS = ("habit.board", "habit.ring")
+# The habit calendar ("habit.board") became the ring card's M and L sizes (migration 0027).
+CARD_IDS = ("habit.ring",)
 
 # Defaults of the card settings (M14 §2); the card's zod schema uses the same values.
 DEFAULT_GOAL = "daily"

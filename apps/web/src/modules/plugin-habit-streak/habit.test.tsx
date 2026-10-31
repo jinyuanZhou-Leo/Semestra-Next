@@ -4,7 +4,6 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import type { CardSize } from '@/app/extensions'
 import { API, renderWithQuery, server } from '@/test-utils'
-import HabitBoardCard from './HabitBoardCard'
 import HabitRingCard from './HabitRingCard'
 import { habitSettingsSchema } from './schema'
 
@@ -53,59 +52,30 @@ function mockHabit(options: { checked: string[]; stats?: Record<string, unknown>
   return toggles
 }
 
-function board(size: CardSize = 'm') {
+function ring(size: CardSize = 'm') {
   return renderWithQuery(
-    <HabitBoardCard scope={scope} instanceId="i1" size={size} settings={settings} />,
+    <HabitRingCard scope={scope} instanceId="i1" size={size} settings={settings} />,
   )
 }
 
-test('the board shows the streak and marks the checked days', async () => {
+test('the history shows the checked days and cannot change them', async () => {
+  // jsdom lays nothing out: give the history room for 13px-wide weeks.
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ width: 5 * 13 - 3, height: 100 }),
+  )
   mockHabit({ checked: ['2026-01-14', '2026-01-15'] })
-  board()
-  expect(await screen.findByText('2-day streak')).toBeInTheDocument()
-  expect(await screen.findByRole('button', { name: /Jan 15, 2026: done/ })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
-  expect(screen.getByRole('button', { name: /Jan 13, 2026: not done/ })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  )
+  ring('m')
+  expect(await screen.findByText('Last 5 weeks: 2 check-ins')).toBeInTheDocument()
+  expect(screen.getByTitle('Jan 13, 2026: not done')).toBeInTheDocument()
+  // Only the ring checks in.
+  expect(screen.getAllByRole('button')).toHaveLength(1)
+  vi.restoreAllMocks()
 })
 
-test('five weeks are shown at m, ten at l and twenty at xl', async () => {
-  mockHabit({ checked: [] })
-  for (const [size, weeks] of [
-    ['m', 5],
-    ['l', 10],
-    ['xl', 20],
-  ] as const) {
-    const { unmount } = board(size)
-    await screen.findByText('2-day streak')
-    expect(screen.getAllByRole('button')).toHaveLength(weeks * 7)
-    unmount()
-  }
-})
-
-test('days in the future and older than a week cannot be changed', async () => {
-  mockHabit({ checked: [] })
-  board()
-  expect(await screen.findByRole('button', { name: /Jan 16, 2026/ })).toBeDisabled()
-  expect(screen.getByRole('button', { name: /Jan 7, 2026/ })).toBeDisabled()
-  expect(screen.getByRole('button', { name: /Jan 8, 2026/ })).toBeEnabled()
-})
-
-test('clicking an unchecked day checks it at once', async () => {
-  const toggles = mockHabit({ checked: [] })
-  board()
-  await userEvent.click(await screen.findByRole('button', { name: /Jan 14, 2026: not done/ }))
-  await waitFor(() => expect(toggles).toEqual(['2026-01-14']))
-})
-
-test('removing a check-in asks first', async () => {
+test("removing today's check-in asks first", async () => {
   const toggles = mockHabit({ checked: ['2026-01-15'] })
-  board()
-  await userEvent.click(await screen.findByRole('button', { name: /Jan 15, 2026: done/ }))
+  ring('s')
+  await userEvent.click(await screen.findByRole('button', { name: 'Read: Done for today' }))
   expect(toggles).toEqual([])
   await userEvent.click(await screen.findByRole('button', { name: 'Remove check-in' }))
   await waitFor(() => expect(toggles).toEqual(['2026-01-15']))

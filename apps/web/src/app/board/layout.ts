@@ -20,7 +20,7 @@ export const SPANS: Record<CardSize, readonly [w: number, h: number]> = {
 
 /** Columns for a board of `width` px: cards stay about 230–340 px wide. */
 export function columnsFor(width: number): number {
-  if (width < 560) return 1
+  if (width < 440) return 1
   if (width < 720) return 2
   if (width < 1400) return 4
   if (width < 1800) return 6

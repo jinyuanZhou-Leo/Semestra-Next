@@ -31,7 +31,7 @@ export default function CourseInfoCard({ scope }: CardProps) {
     .filter(Boolean)
     .join(' → ')
   return (
-    <div className="h-full overflow-y-auto text-sm">
+    <div className="h-full scroll-fade overflow-y-auto text-sm">
       <dl>
         {course.code ? <Row label={m.academics_course_code()}>{course.code}</Row> : null}
         <Row label={m.academics_course_title()}>{course.title}</Row>
