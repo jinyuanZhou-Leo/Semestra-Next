@@ -4,14 +4,14 @@
 #
 #   vercel-ignore-build.sh <web|docs|site>
 #
-# Every deployment is kept and counts towards deployment storage, so build only what changed:
-# - The version PR branch and the temporary branch changesets/action pushes its commit through
-#   (changesets-ghcommit-temp/...) never build.
+# Every deployment counts towards the daily deployment limit and deployment storage, so:
+# - Only main deploys: `git.deploymentEnabled` in each vercel.json turns off deployments for every
+#   other branch (PRs get no previews), and this script skips anything that isn't production.
 # - Production for the app and docs only builds the commit that merges a version PR (it
 #   adds release-notes/<version>.json), so the hosted frontend changes when a release is cut. Deploy
 #   the backend before merging the version PR when the API changed.
-# - Previews, and production for the landing site, build only when a file the project is built
-#   from changed since the branch's last successful deployment (or the previous commit).
+# - Production for the landing site builds only when a file it is built from changed since the
+#   last successful production deployment (or the previous commit).
 set -u
 
 # Paths are relative to the project's root directory (apps/<name>).
@@ -26,14 +26,12 @@ case "${1:-}" in
         ;;
 esac
 
-case "${VERCEL_GIT_COMMIT_REF:-}" in
-    changeset-release/* | changesets-ghcommit-temp/*)
-        echo "skip: version PR branch"
-        exit 0
-        ;;
-esac
+if [[ "${VERCEL_ENV:-}" != production ]]; then
+    echo "skip: no preview deployments"
+    exit 0
+fi
 
-if [[ "${VERCEL_ENV:-}" == production && $release == 1 ]]; then
+if [[ $release == 1 ]]; then
     # The version PR is merged with a merge commit; its first parent is the previous main. The
     # pathspec is anchored at the repository root (`:/`), since this runs from apps/web or apps/docs.
     added=$(git diff --name-only --diff-filter=A HEAD^ HEAD -- ':/release-notes/*.json') || {
