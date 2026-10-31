@@ -7,7 +7,6 @@ import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
 import { typeName } from '../labels'
@@ -138,10 +137,9 @@ function MeetingSwitchCell({ row }: CellProps) {
   const r = row.original
   if (r.kind === 'add') {
     return (
-      <Button size="xs" variant="ghost" onClick={() => onAddTime(r.section)}>
-        <Plus aria-hidden />
+      <ActionRow icon={Plus} muted onClick={() => onAddTime(r.section)}>
         {m.schedule_section_add_time()}
-      </Button>
+      </ActionRow>
     )
   }
   return (
@@ -232,7 +230,8 @@ function cellSpan(columnId: string, row: Row) {
   if (columnId === 'section') {
     return row.first ? { rowSpan: row.section.meetings.length + 1 } : null
   }
-  if (row.kind === 'add') return columnId === 'on' ? { colSpan: 6 } : null
+  // The add row is an `ActionRow` like the table's own, so its cell has no padding of its own.
+  if (row.kind === 'add') return columnId === 'on' ? { colSpan: 6, className: 'p-0' } : null
   return undefined
 }
 
