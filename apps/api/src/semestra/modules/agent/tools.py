@@ -149,8 +149,8 @@ def _cached[T](cap: Capability, what: str, build: Callable[[], T]) -> T:
 
 
 def input_schema(cap: Capability, surface: Surface = "agent") -> dict[str, Any]:
-    """The input JSON schema as the model gets it: references inlined, Pydantic's `title`s left
-    out (they repeat the field names) and tool names in the descriptions."""
+    """The input JSON schema as the model gets it: references inlined, keywords that tell the
+    model nothing left out (`_noise`) and tool names in the descriptions."""
     return _cached(cap, f"schema:{surface}", lambda: _input_schema(cap, surface))
 
 
@@ -164,6 +164,8 @@ def _input_schema(cap: Capability, surface: Surface) -> dict[str, Any]:
         schema["required"] = [r for r in schema.get("required", []) if r != name]
     if not schema.get("required"):
         schema.pop("required", None)
+    if not schema.get("properties"):
+        schema.pop("description", None)  # the docstring of the shared no-arguments model
     _name_id_sources(schema, cap.name, registry.id_sources)
     return schema
 
@@ -190,6 +192,29 @@ def _name_id_sources(node: Any, own: str, sources: dict[str, str]) -> None:
         _name_id_sources(value, own, sources)
 
 
+# Keywords that cost the model tokens on every request and tell it nothing it acts on: Pydantic's
+# `title`s, `default: null` (leaving a field out already means that), the `discriminator` mapping
+# (its `$ref`s are inlined; each branch's `const` says the same) and the length bounds of ids and
+# names, which a sensible value never reaches. Bounds of free text (notes, descriptions, from 1000
+# on) stay: a long text can reach them, and in a batch one too-long item fails the whole call. The
+# capability still validates everything and reports a mistake back.
+_NAME_LIMITS = range(64, 1000)
+
+
+def _noise(key: str, value: Any) -> bool:
+    match key:
+        case "title" | "discriminator":
+            return True
+        case "default":
+            return value is None
+        case "minLength":
+            return value == 1
+        case "maxLength":
+            return value in _NAME_LIMITS
+        case _:
+            return False
+
+
 def _for_model_schema(node: Any, *, properties: bool = False) -> Any:
     if isinstance(node, list):
         return [_for_model_schema(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
@@ -199,7 +224,7 @@ def _for_model_schema(node: Any, *, properties: bool = False) -> Any:
     for key, value in node.items():  # pyright: ignore[reportUnknownVariableType]
         if properties:  # field names, not schema keywords
             out[key] = _for_model_schema(value)
-        elif key == "title":
+        elif _noise(key, value):
             continue
         elif key == "description" and isinstance(value, str):
             out[key] = for_model(value)

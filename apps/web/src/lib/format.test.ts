@@ -7,6 +7,7 @@ import {
   formatPercent,
   formatTime,
   formatTimeAgo,
+  formatTokens,
 } from './format'
 
 test('formats numbers for the current locale (en in tests)', () => {
@@ -29,4 +30,11 @@ test('a past moment reads in its largest whole unit', () => {
   expect(formatTimeAgo('2026-10-26T11:55:00Z', now)).toBe('5 minutes ago')
   expect(formatTimeAgo('2026-10-26T10:30:00Z', now)).toBe('1 hour ago')
   expect(formatTimeAgo('2026-10-25T09:00:00Z', now)).toBe('yesterday')
+})
+
+test('token counts are short in k and M whatever the language', () => {
+  expect(formatTokens(840)).toBe('840')
+  expect(formatTokens(5266)).toBe('5.3k')
+  expect(formatTokens(999_960)).toBe('1M')
+  expect(formatTokens(1_000_000)).toBe('1M')
 })

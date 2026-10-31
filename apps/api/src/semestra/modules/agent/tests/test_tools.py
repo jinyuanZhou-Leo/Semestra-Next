@@ -45,23 +45,32 @@ async def test_search_ranks_tools_by_what_the_words_mean(agent: Agent):
         _search("成绩")
 
 
-def _keys(node: Any, *, properties: bool = False) -> set[str]:
+def _keywords(node: Any, *, properties: bool = False) -> list[tuple[str, Any]]:
+    """Every schema keyword with its value (not field names under `properties`)."""
     if isinstance(node, list):
-        return {k for v in node for k in _keys(v)}  # pyright: ignore[reportUnknownVariableType]
+        return [kv for v in node for kv in _keywords(v)]  # pyright: ignore[reportUnknownVariableType]
     if not isinstance(node, dict):
-        return set()
-    out: set[str] = set()
+        return []
+    out: list[tuple[str, Any]] = []
     for key, value in node.items():  # pyright: ignore[reportUnknownVariableType]
         if not properties:
-            out.add(key)
-        out |= _keys(value, properties=not properties and key == "properties")
+            out.append((key, value))
+        out += _keywords(value, properties=not properties and key == "properties")
     return out
 
 
-async def test_schemas_leave_out_titles_and_the_program_is_optional(agent: Agent):
+async def test_schemas_leave_out_noise_and_the_program_is_optional(agent: Agent):
     del agent
     for cap in registry.list("agent"):
-        assert "title" not in _keys(tools.input_schema(cap)), cap.name
+        found = _keywords(tools.input_schema(cap))
+        keys = {k for k, _ in found}
+        assert not keys & {"title", "discriminator"}, cap.name
+        assert ("default", None) not in found, cap.name
+        assert ("minLength", 1) not in found, cap.name
+        assert not any(k == "maxLength" and 64 <= v < 1000 for k, v in found), cap.name
+    # Free text keeps its bound: one too-long note would fail a whole batch.
+    notes = tools.input_schema(registry.get("tasks.item.create"))["properties"]["notes"]
+    assert any(k == "maxLength" and v >= 1000 for k, v in _keywords(notes))
     schema = tools.input_schema(registry.get("calendar.occurrence.list"))
     assert "program_id" not in schema.get("required", [])
     assert schema["properties"]["program_id"]["description"].endswith(

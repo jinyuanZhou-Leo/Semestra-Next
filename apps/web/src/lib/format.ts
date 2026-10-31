@@ -160,12 +160,25 @@ export function formatBytes(bytes: number): string {
   }).format(value)
 }
 
-/** A count; `compact` writes large numbers short ("12K", "1.2万"). */
-export function formatCount(value: number, opts: { compact?: boolean } = {}): string {
-  return intl(Intl.NumberFormat, {
-    notation: opts.compact ? 'compact' : 'standard',
-    maximumFractionDigits: opts.compact ? 1 : 0,
-  }).format(value)
+/** A count, in full. */
+export function formatCount(value: number): string {
+  return intl(Intl.NumberFormat, { maximumFractionDigits: 0 }).format(value)
+}
+
+const TOKEN_UNITS = [
+  [1e9, 'B'],
+  [1e6, 'M'],
+  [1e3, 'k'],
+] as const
+
+/** A token count, short: "840", "12k", "1.2M" in every language (not "1.2万"). */
+export function formatTokens(value: number): string {
+  const short = intl(Intl.NumberFormat, { maximumFractionDigits: 1 })
+  for (const [size, unit] of TOKEN_UNITS) {
+    // 999,960 rounds to "1000k": the next unit up takes it.
+    if (Math.abs(value) >= size * 0.99995) return `${short.format(value / size)}${unit}`
+  }
+  return formatCount(value)
 }
 
 /** An amount in US dollars (provider prices); small amounts keep enough digits to be non-zero. */
