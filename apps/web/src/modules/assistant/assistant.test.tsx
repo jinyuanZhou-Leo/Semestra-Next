@@ -938,10 +938,10 @@ test('the context ring shows how full the conversation is and compacts from ther
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   const input = await messageInput()
   await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
-  expect(await screen.findByText('90K / 128K')).toBeInTheDocument()
+  expect(await screen.findByText('90k / 128k')).toBeInTheDocument()
   // What fills it, by kind, and what is left.
-  expect(screen.getByText('Files and pages read').nextSibling).toHaveTextContent('40K')
-  expect(screen.getByText('Free').nextSibling).toHaveTextContent('38K')
+  expect(screen.getByText('Tool results').nextSibling).toHaveTextContent('40k')
+  expect(screen.getByText('Free').nextSibling).toHaveTextContent('38k')
   expect(screen.queryByText('Attachments')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
   // Compacting starts in the composer, as `/compact` does.

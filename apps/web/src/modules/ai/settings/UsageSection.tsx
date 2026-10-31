@@ -18,7 +18,14 @@ import { SettingsBlock, SettingsNote } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AI_PURPOSES, type AiPurpose } from '@/hooks/use-ai-status'
-import { firstDayOfWeek, formatCount, formatDate, formatPercent, formatUsd } from '@/lib/format'
+import {
+  firstDayOfWeek,
+  formatCount,
+  formatDate,
+  formatPercent,
+  formatTokens,
+  formatUsd,
+} from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -234,7 +241,7 @@ function UsageChart({
           width={44}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value: number) => formatCount(value, { compact: true })}
+          tickFormatter={(value: number) => formatTokens(value)}
         />
         <ChartTooltip
           // Above the legend, which Recharts draws later.
@@ -469,9 +476,7 @@ export function UsageSection() {
               <div>
                 <dt className="text-xs text-muted-foreground">{m.ai_usage_tokens()}</dt>
                 <dd className="text-lg font-semibold tabular-nums">
-                  {formatCount(summary.totals.input_tokens + summary.totals.output_tokens, {
-                    compact: true,
-                  })}
+                  {formatTokens(summary.totals.input_tokens + summary.totals.output_tokens)}
                 </dd>
               </div>
               <div>

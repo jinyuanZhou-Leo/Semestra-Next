@@ -7,7 +7,7 @@ import {
   ContextContentHeader,
   ContextTrigger,
 } from '@/components/ai-elements/context'
-import { formatCount, formatPercent } from '@/lib/format'
+import { formatPercent, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -78,15 +78,16 @@ export function ContextMeter({
           <div className="flex items-center justify-between gap-3 text-xs">
             <p>{formatPercent(Math.min(used / window, 1))}</p>
             <p className="font-mono text-muted-foreground">
-              {formatCount(used, { compact: true })} / {formatCount(window, { compact: true })}
+              {formatTokens(used)} / {formatTokens(window)}
             </p>
           </div>
           {shown.length > 0 ? (
-            <div aria-hidden className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-muted">
+            <div aria-hidden className="flex h-2 overflow-hidden rounded-full bg-muted">
               {shown.map((k) => (
                 <span
                   key={k.kind}
-                  className={k.color}
+                  // Touching, no gaps (they read as stray lines); a sliver still shows as one.
+                  className={cn('min-w-[3px]', k.color)}
                   style={{ width: `${(k.tokens / window) * 100}%` }}
                 />
               ))}
@@ -144,9 +145,7 @@ function KindRow({
       <span className={cn('min-w-0 flex-1 truncate', muted && 'text-muted-foreground')}>
         {label}
       </span>
-      <span className="font-mono text-muted-foreground">
-        {formatCount(tokens, { compact: true })}
-      </span>
+      <span className="font-mono text-muted-foreground">{formatTokens(tokens)}</span>
     </div>
   )
 }
