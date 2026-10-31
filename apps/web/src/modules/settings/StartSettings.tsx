@@ -1,4 +1,16 @@
 import type { Preferences } from '@semestra/api-client'
+import {
+  ChartColumn,
+  CalendarDays,
+  FolderOpen,
+  History,
+  LayoutDashboard,
+  ListChecks,
+  type LucideIcon,
+  MessageCircle,
+  NotebookPen,
+  Sun,
+} from 'lucide-react'
 import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { type ChoiceOption, ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -6,21 +18,17 @@ import { m } from '@/paraglide/messages'
 
 type StartPage = Preferences['start_page']
 
-/** The sidebar's entries, in its order (M02 §5.1); term pages open in the term the sidebar shows. */
-const START_PAGES: readonly { value: StartPage; label: () => string; hint?: () => string }[] = [
-  { value: 'last', label: m.settings_start_page_last, hint: m.settings_start_page_last_hint },
-  { value: 'today', label: m.schedule_today, hint: m.settings_start_page_today_hint },
-  { value: 'overview', label: m.academics_nav_overview, hint: m.settings_start_page_overview_hint },
-  { value: 'calendar', label: m.schedule_nav_calendar, hint: m.settings_start_page_calendar_hint },
-  { value: 'tasks', label: m.tasks_name, hint: m.settings_start_page_tasks_hint },
-  { value: 'grades', label: m.grading_nav_grades, hint: m.settings_start_page_grades_hint },
-  { value: 'files', label: m.files_nav, hint: m.settings_start_page_files_hint },
-  {
-    value: 'assistant',
-    label: m.academics_nav_assistant,
-    hint: m.settings_start_page_assistant_hint,
-  },
-  { value: 'summary', label: m.academics_nav_summary, hint: m.settings_start_page_summary_hint },
+/** The sidebar's entries, in its order and with its icons (M02 §5.1). */
+const START_PAGES: readonly { value: StartPage; label: () => string; icon: LucideIcon }[] = [
+  { value: 'last', label: m.settings_start_page_last, icon: History },
+  { value: 'today', label: m.schedule_today, icon: Sun },
+  { value: 'overview', label: m.academics_nav_overview, icon: LayoutDashboard },
+  { value: 'calendar', label: m.schedule_nav_calendar, icon: CalendarDays },
+  { value: 'tasks', label: m.tasks_name, icon: ListChecks },
+  { value: 'grades', label: m.grading_nav_grades, icon: NotebookPen },
+  { value: 'files', label: m.files_nav, icon: FolderOpen },
+  { value: 'assistant', label: m.academics_nav_assistant, icon: MessageCircle },
+  { value: 'summary', label: m.academics_nav_summary, icon: ChartColumn },
 ]
 
 export default function StartSettings() {
@@ -36,7 +44,7 @@ function StartForm({ value }: { value: StartPage }) {
   const options: ChoiceOption<StartPage>[] = START_PAGES.map((o) => ({
     value: o.value,
     label: o.label(),
-    hint: o.hint?.(),
+    icon: o.icon,
   }))
   return (
     <SettingsGroup>
