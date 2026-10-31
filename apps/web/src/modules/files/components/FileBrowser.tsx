@@ -6,6 +6,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   type CellContext,
+  FlexRender,
+  type Row,
   type SortingState,
   createColumnHelper,
   createSortedRowModel,
@@ -26,7 +28,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useRef, useState } from 'react'
+import { type DragEvent, createContext, use, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
@@ -64,11 +66,49 @@ export type BrowserHandlers = {
   open: (item: ItemOut) => void
   openFolder: (folderId: string) => void
   act: (action: ItemAction) => void
-  /** Read-only lists (the term page) hide editing. */
-  readOnly?: boolean
   /** The course's Program, for the menu entries other modules add (`files.itemActions`). */
   programId?: string
+  /** Files dragged onto a folder go into it; `folderId` is the folder they are over. */
+  drop?: FolderDrop
 }
+
+export type FolderDrop = {
+  folderId: string | null
+  over: (folderId: string | null) => void
+  into: (folderId: string, files: File[]) => void
+}
+
+function hasFiles(event: DragEvent) {
+  return event.dataTransfer.types.includes('Files')
+}
+
+/**
+ * Makes a folder's row or tile a drop target. `preventDefault` on the drop tells the page's own
+ * drop zone (`useFileDrop`) that the files are taken.
+ */
+function folderDropProps(folderId: string, drop: FolderDrop | undefined) {
+  if (!drop) return {}
+  return {
+    'data-drop-target': drop.folderId === folderId ? '' : undefined,
+    onDragOver: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      drop.over(folderId)
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drop.over(null)
+    },
+    onDrop: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      drop.over(null)
+      drop.into(folderId, [...event.dataTransfer.files])
+    },
+  }
+}
+
+// A folder with files dragged over it.
+const DROP_TARGET = 'data-drop-target:bg-primary/10 data-drop-target:text-primary'
 
 const BrowserContext = createContext<BrowserHandlers | null>(null)
 
@@ -94,7 +134,7 @@ function NameCell({ row }: CellProps) {
     <button
       type="button"
       onClick={() => open(item)}
-      className="flex max-w-full min-w-0 items-center gap-2.5 text-left hover:underline"
+      className="flex max-w-full items-center gap-2.5 text-left hover:underline"
     >
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate">{item.display_name}</span>
@@ -111,7 +151,7 @@ function SizeCell({ row }: CellProps) {
 }
 
 function UpdatedCell({ row }: CellProps) {
-  return <span className="whitespace-nowrap">{formatDateTime(row.original.updated_at)}</span>
+  return formatDateTime(row.original.updated_at)
 }
 
 function StatusColumnCell({ row }: CellProps) {
@@ -150,8 +190,7 @@ export function PinButton({ item }: { item: ItemOut }) {
 }
 
 function PinCell({ row }: CellProps) {
-  const { readOnly } = useHandlers()
-  return readOnly ? null : <PinButton item={row.original} />
+  return <PinButton item={row.original} />
 }
 
 export function ItemMenu({ item }: { item: ItemOut }) {
@@ -253,8 +292,7 @@ function ReprocessItem({ item }: { item: ItemOut }) {
 }
 
 function ActionsCell({ row }: CellProps) {
-  const { readOnly } = useHandlers()
-  return readOnly ? null : <ItemMenu item={row.original} />
+  return <ItemMenu item={row.original} />
 }
 
 function FolderMenu({ folder }: { folder: FolderOut }) {
@@ -342,13 +380,18 @@ const columns = column.columns([
   }),
 ])
 
+// The table is `table-fixed`, so these are the column widths; the name takes the rest. An icon
+// column fits its 32 px button between 8 px paddings, or the button pokes out of the table.
+const ICON_COLUMN = 'w-12 px-2'
 const WIDTHS: Record<string, string> = {
   size: 'w-24',
   updated: 'w-44',
-  status: 'w-52 min-w-52',
-  pin: 'w-10',
-  actions: 'w-10',
+  status: 'w-52',
+  pin: ICON_COLUMN,
+  actions: ICON_COLUMN,
 }
+
+const columnCount = columns.length
 
 const DEFAULT_SORT: SortingState = [{ id: 'name', desc: false }]
 
@@ -402,9 +445,16 @@ export function SortMenu() {
 }
 
 function FolderTile({ folder }: { folder: FolderOut }) {
-  const { openFolder, readOnly } = useHandlers()
+  const { openFolder, drop } = useHandlers()
   return (
-    <div className="group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50">
+    <div
+      {...folderDropProps(folder.id, drop)}
+      className={cn(
+        'group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
+        DROP_TARGET,
+        'data-drop-target:border-primary',
+      )}
+    >
       <button
         type="button"
         onClick={() => openFolder(folder.id)}
@@ -413,17 +463,15 @@ function FolderTile({ folder }: { folder: FolderOut }) {
         <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{folder.name}</span>
       </button>
-      {readOnly ? null : (
-        <div className="relative">
-          <FolderMenu folder={folder} />
-        </div>
-      )}
+      <div className="relative">
+        <FolderMenu folder={folder} />
+      </div>
     </div>
   )
 }
 
 function ItemTile({ item }: { item: ItemOut }) {
-  const { open, readOnly } = useHandlers()
+  const { open } = useHandlers()
   const [broken, setBroken] = useState(false)
   // Page images are only made for PDFs and images; anything else gets its icon.
   const kind = previewKind(item)
@@ -462,15 +510,31 @@ function ItemTile({ item }: { item: ItemOut }) {
         </button>
         <div className="relative flex items-center">
           <StatusCell item={item} compact />
-          {readOnly ? null : (
-            <>
-              <PinButton item={item} />
-              <ItemMenu item={item} />
-            </>
-          )}
+          <PinButton item={item} />
+          <ItemMenu item={item} />
         </div>
       </div>
     </div>
+  )
+}
+
+function FileRow({
+  row,
+  measure,
+  index,
+}: {
+  row: Row<typeof features, ItemOut>
+  measure?: (node: Element | null) => void
+  index?: number
+}) {
+  return (
+    <TableRow ref={measure} data-index={index}>
+      {row.getAllCells().map((cell) => (
+        <TableCell key={cell.id} className={cn('py-2', WIDTHS[cell.column.id])}>
+          <FlexRender cell={cell} />
+        </TableCell>
+      ))}
+    </TableRow>
   )
 }
 
@@ -532,7 +596,8 @@ export function FileBrowser({
 
   return (
     <BrowserContext value={handlers}>
-      <div ref={wrapper} className="overflow-x-auto rounded-2xl border border-border">
+      {/* The table scrolls sideways inside `Table`'s own container; this only draws the frame. */}
+      <div ref={wrapper} className="overflow-hidden rounded-2xl border">
         <Table className="min-w-2xl table-fixed">
           <TableHeader className="bg-muted/50">
             {table.getHeaderGroups().map((group) => (
@@ -542,7 +607,6 @@ export function FileBrowser({
                   return (
                     <TableHead
                       key={h.id}
-                      scope="col"
                       aria-sort={
                         sorted === 'asc'
                           ? 'ascending'
@@ -554,13 +618,12 @@ export function FileBrowser({
                     >
                       {h.column.getCanSort() ? (
                         <Button
-                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={h.column.getToggleSortingHandler()}
-                          className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                          className="-ml-2 h-auto px-2 text-muted-foreground"
                         >
-                          <table.FlexRender header={h} />
+                          <FlexRender header={h} />
                           {sorted === 'asc' ? (
                             <ArrowUp aria-hidden className="size-3" />
                           ) : sorted === 'desc' ? (
@@ -568,7 +631,7 @@ export function FileBrowser({
                           ) : null}
                         </Button>
                       ) : (
-                        <table.FlexRender header={h} />
+                        <FlexRender header={h} />
                       )}
                     </TableHead>
                   )
@@ -578,32 +641,28 @@ export function FileBrowser({
           </TableHeader>
           <TableBody>
             {sortedFolders.map((folder) => (
-              <TableRow key={folder.id}>
-                <TableCell className="py-2" colSpan={5}>
+              <TableRow
+                key={folder.id}
+                {...folderDropProps(folder.id, handlers.drop)}
+                className={DROP_TARGET}
+              >
+                <TableCell className="py-2" colSpan={columnCount - 1}>
                   <button
                     type="button"
                     onClick={() => handlers.openFolder(folder.id)}
-                    className="flex max-w-full min-w-0 items-center gap-2.5 font-medium hover:underline"
+                    className="flex max-w-full items-center gap-2.5 font-medium hover:underline"
                   >
                     <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                     <span className="truncate">{folder.name}</span>
                   </button>
                 </TableCell>
-                <TableCell className="py-2">
-                  {handlers.readOnly ? null : <FolderMenu folder={folder} />}
+                <TableCell className={cn('py-2', ICON_COLUMN)}>
+                  <FolderMenu folder={folder} />
                 </TableCell>
               </TableRow>
             ))}
             {rows.length < VIRTUAL_FROM
-              ? rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getAllCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2">
-                        <table.FlexRender cell={cell} />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+              ? rows.map((row) => <FileRow key={row.id} row={row} />)
               : null}
           </TableBody>
           {rows.length >= VIRTUAL_FROM ? (
@@ -612,16 +671,9 @@ export function FileBrowser({
               scrollerOf={wrapper}
               renderRow={(index, measure) => {
                 const row = rows[index]
-                if (!row) return null
-                return (
-                  <TableRow key={row.id} ref={measure} data-index={index}>
-                    {row.getAllCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-2">
-                        <table.FlexRender cell={cell} />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
+                return row ? (
+                  <FileRow key={row.id} row={row} measure={measure} index={index} />
+                ) : null
               }}
             />
           ) : null}

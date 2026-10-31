@@ -39,7 +39,7 @@ export function VirtualBody({
       measureElement(element, entry, instance) || ROW_HEIGHT,
     useFlushSync: false,
     getScrollElement: () => {
-      // Start above the wrapper: its overflow-x makes it look like a vertical scroller too.
+      // The nearest scroller above the table's frame (the table's own container only scrolls sideways).
       if (!scroller.current) scroller.current = scrollParent(scrollerOf.current)
       return scroller.current
     },

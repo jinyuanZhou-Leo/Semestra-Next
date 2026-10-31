@@ -28,7 +28,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -77,8 +77,12 @@ function CourseFiles({
   // The folder may have been deleted (here or in another tab).
   const folder = list.folders.find((f) => f.id === folderId) ?? null
   const currentId = folder?.id ?? null
-  const uploads = useUploads({ courseId, folderId: currentId, existing: list.items })
-  const dragging = useFileDrop(uploads.start)
+  const uploads = useUploads()
+  const upload = (files: readonly File[], into: string | null = currentId) =>
+    uploads.start(files, { courseId, folderId: into, existing: list.items })
+  const dragging = useFileDrop(upload)
+  // The folder the dragged files are over, if any; otherwise they go into the open one.
+  const [dropFolderId, setDropFolderId] = useState<string | null>(null)
 
   const query = useDebounced(search, 300)
   const searching = search.trim().length > 0
@@ -108,20 +112,18 @@ function CourseFiles({
   return (
     <div className="relative flex flex-col gap-3">
       <div className="flex min-h-9 flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
+        <InputGroup className="w-64">
+          <InputGroupInput
             type="search"
             aria-label={m.files_search()}
             placeholder={m.files_search()}
-            className="w-64 pl-9"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-        </div>
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
         <div className="ml-auto flex items-center gap-2">
           {view === 'grid' ? <SortMenu /> : null}
           <ToggleGroup
@@ -181,7 +183,7 @@ function CourseFiles({
             aria-hidden
             tabIndex={-1}
             onChange={(event) => {
-              uploads.start([...(event.target.files ?? [])])
+              upload([...(event.target.files ?? [])])
               event.target.value = ''
             }}
           />
@@ -274,23 +276,36 @@ function CourseFiles({
           folders={childFolders}
           items={childItems}
           view={view}
-          handlers={{ open, openFolder: setFolderId, act: setAction, programId }}
+          handlers={{
+            open,
+            openFolder: setFolderId,
+            act: setAction,
+            programId,
+            drop: {
+              folderId: dropFolderId,
+              over: setDropFolderId,
+              into: (id, files) => upload(files, id),
+            },
+          }}
         />
       )}
 
       <UsageBar />
 
       {dragging ? (
+        // The list stays visible, so a file can be dropped on one of its folders.
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 z-20 rounded-2xl bg-background/80 backdrop-blur-sm"
+          className="pointer-events-none absolute -inset-2 z-20 flex flex-col justify-end rounded-3xl border-2 border-dashed border-primary bg-primary/5"
         >
-          {/* Sticks to the middle of the scroll area, so it stays in view above a long list. */}
-          <div className="sticky top-1/2 mx-auto flex w-fit -translate-y-1/2 flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-primary px-16 py-12 text-primary">
-            <Upload className="size-8" />
-            <p className="text-sm font-medium">
-              {m.files_drop_here({ folder: trail.at(-1)?.name ?? m.files_all_files() })}
-            </p>
+          <div className="sticky bottom-6 mx-auto mb-6 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
+            <Upload aria-hidden className="size-4" />
+            {m.files_drop_here({
+              folder:
+                list.folders.find((f) => f.id === dropFolderId)?.name ??
+                trail.at(-1)?.name ??
+                m.files_all_files(),
+            })}
           </div>
         </div>
       ) : null}
