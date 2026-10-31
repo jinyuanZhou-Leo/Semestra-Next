@@ -206,11 +206,12 @@ function UserMessage({
   useEffect(() => {
     if (editing) editor.current?.focus()
   }, [editing])
-  const canSave =
-    draft !== null &&
-    (draft.text.trim() !== item.text.trim() ||
-      !sameReferences(draft.references, item.references)) &&
-    (draft.text.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+  const savable = (value: PromptValue | null): value is PromptValue =>
+    value !== null &&
+    (value.text.trim() !== item.text.trim() ||
+      !sameReferences(value.references, item.references)) &&
+    (value.text.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+  const canSave = savable(draft)
 
   function open() {
     setDraft(null)
@@ -218,8 +219,9 @@ function UserMessage({
   }
 
   async function save() {
-    if (draft === null || opened === null || !canSave) return
-    const sent = draft
+    // Read from the editor: Enter right after a keystroke can come before `draft` re-renders.
+    const sent = editor.current?.read() ?? draft
+    if (opened === null || !savable(sent)) return
     const reopen = promptDoc(sent.text, sent.references)
     // Closes at once: the transcript already shows the edit while the answer streams.
     setOpened(null)
