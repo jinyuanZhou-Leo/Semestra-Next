@@ -1,10 +1,13 @@
+import { useLocation } from '@tanstack/react-router'
 import { Fragment, type ReactNode, useEffect, useState } from 'react'
 import { readCollapsedMirror, writeCollapsedMirror } from '@/app/boot'
-import { ShellSidebarOpen, ShellToolbarSlot } from '@/app/host/ShellToolbar'
-import { useModules } from '@/app/registry'
+import { ShellToolbarSlot } from '@/app/host/ShellToolbar'
+import { usePreferences } from '@/app/preferences'
+import { useModules, usePages } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/ui/sidebar'
+import { isLastPageCandidate, LAST_PAGE_KEY } from '../start-page'
 import { AppSidebar } from './AppSidebar'
 import { Tour } from './Tour'
 
@@ -27,12 +30,26 @@ function ShellInset({ children }: { children: ReactNode }) {
         />
       </header>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <ShellToolbarSlot value={toolbar}>
-          <ShellSidebarOpen value={open}>{children}</ShellSidebarOpen>
-        </ShellToolbarSlot>
+        <ShellToolbarSlot value={toolbar}>{children}</ShellToolbarSlot>
       </div>
     </SidebarInset>
   )
+}
+
+/**
+ * Keeps the page on screen while the start page is "last page" (M11 `start_page`): only pages the
+ * sidebar opens, not the term wizard, an import or settings.
+ */
+function useRememberLastPage(programId: string) {
+  const pathname = useLocation({ select: (l) => l.pathname })
+  const pageIds = usePages({ kind: 'program', programId }).map((page) => page.id)
+  const remember =
+    usePreferences().data?.start_page === 'last' &&
+    isLastPageCandidate(pathname, programId, pageIds)
+  const [last, setLast] = useUiPref<string | null>(LAST_PAGE_KEY, null, { scope: programId })
+  useEffect(() => {
+    if (remember && last !== pathname) setLast(pathname)
+  }, [remember, last, pathname, setLast])
 }
 
 /**
@@ -46,6 +63,7 @@ export function AppShell({ programId, children }: { programId: string; children:
   useEffect(() => writeCollapsedMirror(collapsed), [collapsed])
   // The assistant (M12) docks beside the content when it is installed.
   const Dock = useModules().find((module) => module.assistant)?.assistant?.Dock ?? Fragment
+  useRememberLastPage(programId)
   return (
     <SidebarProvider
       open={!collapsed}

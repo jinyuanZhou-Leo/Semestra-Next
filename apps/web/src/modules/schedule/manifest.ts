@@ -72,7 +72,8 @@ export default defineModule({
       board: 'today',
       headerSubtitle: TodaySubtitle,
       mobile: { component: preloadable(() => import('./mobile/TodayAgenda')), tab: { order: 0 } },
-      order: 5,
+      // First in the sidebar, before the term's overview (M02 §5.1).
+      order: -10,
     },
     {
       id: 'calendar',
