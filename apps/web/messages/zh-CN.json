@@ -2834,5 +2834,6 @@
   "imports_course_info_syllabus": "大纲",
   "imports_course_info_upload": "上传新文件…",
   "imports_course_info_apply": "应用",
-  "imports_course_info_applied": "课程信息已更新"
+  "imports_course_info_applied": "课程信息已更新",
+  "imports_course_info_review_title": "核对课程信息"
 }

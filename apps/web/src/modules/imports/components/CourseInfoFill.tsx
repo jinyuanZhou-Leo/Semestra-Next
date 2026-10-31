@@ -27,7 +27,14 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/ui/command'
-import { Item, ItemActions, ItemContent } from '@/ui/item'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { invalidateAfterCommit, settleEdits, storeSession, useImportSession } from '../queries'
 import { SOURCES, readableCourseFile } from '../sources'
@@ -56,8 +63,8 @@ export function syllabusCandidates(items: readonly ItemOut[]): ItemOut[] {
 
 /**
  * "Read from syllabus" at the top of a course's basics (M08 §6.1): pick a course file or upload
- * one, watch it being read in place, then tick the changed fields and apply them. Applying is the
- * confirmation; nothing is written before.
+ * one and watch it being read in place; the changed fields then open in a dialog to tick and
+ * apply. Applying is the confirmation; nothing is written before.
  */
 export function CourseInfoFill({
   programId,
@@ -235,26 +242,38 @@ export function CourseInfoFill({
           )
         }
       </SettingRow>
-      {session && patch ? (
-        <Item className="flex-col items-stretch gap-3">
-          <ItemContent>
-            <PatchEditor item={patch} editable={!commit.isPending} />
-          </ItemContent>
-          <ItemActions className="justify-end">
+      {/* The review opens over the settings, so the section keeps its height. Closing it
+          without applying discards the session. */}
+      <Dialog
+        open={Boolean(session && patch)}
+        onOpenChange={(open) => {
+          if (!open && session && !commit.isPending) stop(session)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{m.imports_course_info_review_title()}</DialogTitle>
+            <DialogDescription>{m.imports_review_hint()}</DialogDescription>
+          </DialogHeader>
+          {patch ? (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <PatchEditor item={patch} editable={!commit.isPending} />
+            </div>
+          ) : null}
+          <DialogFooter>
             <Button
               variant="ghost"
-              size="sm"
-              disabled={discard.isPending}
-              onClick={() => stop(session)}
+              disabled={discard.isPending || commit.isPending}
+              onClick={() => session && stop(session)}
             >
               {m.imports_discard()}
             </Button>
-            <Button size="sm" disabled={commit.isPending} onClick={() => void apply(session)}>
+            <Button disabled={commit.isPending} onClick={() => session && void apply(session)}>
               {m.imports_course_info_apply()}
             </Button>
-          </ItemActions>
-        </Item>
-      ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <input
         ref={fileInput}
         type="file"

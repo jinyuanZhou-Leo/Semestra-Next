@@ -2834,5 +2834,6 @@
   "imports_course_info_syllabus": "Syllabus",
   "imports_course_info_upload": "Upload a file…",
   "imports_course_info_apply": "Apply",
-  "imports_course_info_applied": "Course info updated"
+  "imports_course_info_applied": "Course info updated",
+  "imports_course_info_review_title": "Check course info"
 }
