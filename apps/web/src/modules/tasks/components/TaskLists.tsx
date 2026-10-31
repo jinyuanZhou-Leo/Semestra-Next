@@ -27,17 +27,16 @@ import {
   MoreHorizontal,
   Plus,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
-import type { SidebarNavProps } from '@/app/extensions'
-import { SUB_ACTION } from '@/app/host/sidebar-classes'
+import { type CSSProperties, type ReactNode, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { useCourses, useTerms } from '@/modules/academics/queries'
+import { useTerms } from '@/modules/academics/queries'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,14 +50,17 @@ import {
 } from '@/ui/dropdown-menu'
 import { Field, FieldLabel } from '@/ui/field'
 import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
+  SidebarMenuButton,
+  SidebarMenuItem,
 } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { type TaskActions, useTaskActions } from '../actions'
-import { useTaskCounts, useTaskLists } from '../queries'
+import type { TaskActions } from '../actions'
 import {
   INBOX,
   type ListGroup,
@@ -70,7 +72,7 @@ import {
 } from '../types'
 import { ListDialog } from './ListDialog'
 
-/** Which list a tasks page shows, remembered per Program, term or course, shared with the sidebar. */
+/** Which list a tasks page shows, remembered per Program, term or course. */
 export function useTaskSelection(scopeId: string) {
   const [pref, setPref] = useUiPref('tasks.selection', 'all', { scope: scopeId })
   const selection = parseSelection(pref)
@@ -102,7 +104,7 @@ function useListGroups(
   return { groups, label }
 }
 
-/** New list, rename and delete, with their dialogs; shared by the sidebar and the page's menu. */
+/** New list, rename and delete, with their dialogs; shared by the lists column and the title menu. */
 function useListEditing({
   programId,
   termId,
@@ -202,7 +204,7 @@ function smartCount(counts: TaskCounts | undefined, view: string): number | unde
   return undefined
 }
 
-function SubEntry({
+function ListEntry({
   icon: Icon,
   dot,
   label,
@@ -223,12 +225,10 @@ function SubEntry({
   onClick: () => void
 }) {
   return (
-    <SidebarMenuSubButton
+    <SidebarMenuButton
       isActive={active}
-      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by its children
-      render={<button type="button" />}
       aria-current={active ? 'true' : undefined}
-      className={cn('w-full', muted && 'text-muted-foreground')}
+      className={cn(muted && 'text-muted-foreground')}
       onClick={onClick}
     >
       {Icon ? <Icon aria-hidden className="text-muted-foreground!" /> : null}
@@ -242,18 +242,17 @@ function SubEntry({
         <span
           className={cn(
             'text-xs text-muted-foreground tabular-nums',
-            hasAction &&
-              'group-focus-within/menu-sub-item:invisible group-hover/menu-sub-item:invisible',
+            hasAction && 'group-focus-within/menu-item:invisible group-hover/menu-item:invisible',
           )}
         >
           {count}
         </span>
       ) : null}
-    </SidebarMenuSubButton>
+    </SidebarMenuButton>
   )
 }
 
-function SidebarListEntry({
+function SortableListEntry({
   list,
   active,
   count,
@@ -278,12 +277,12 @@ function SidebarListEntry({
     isDragging,
   } = useSortable({ id: list.id })
   return (
-    <SidebarMenuSubItem
+    <SidebarMenuItem
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(isDragging && 'z-10 rounded-xl bg-sidebar shadow-md')}
+      className={cn(isDragging && 'z-10 rounded-xl bg-background shadow-md')}
     >
-      <SubEntry
+      <ListEntry
         icon={List}
         label={list.name}
         count={count}
@@ -298,7 +297,7 @@ function SidebarListEntry({
               ref={setActivatorNodeRef}
               type="button"
               aria-label={m.tasks_list_move({ name: list.name })}
-              className="absolute top-1 left-2 flex size-5 cursor-grab touch-none items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden group-hover/menu-sub-item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing [&>svg]:size-4"
+              className="absolute top-1.5 left-2 flex size-5 cursor-grab touch-none items-center justify-center rounded-md bg-sidebar-accent text-muted-foreground opacity-0 outline-hidden group-hover/menu-item:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring active:cursor-grabbing [&>svg]:size-4"
               {...attributes}
               {...dragListeners}
             />
@@ -312,7 +311,8 @@ function SidebarListEntry({
         <DropdownMenuTrigger
           render={
             <SidebarMenuAction
-              className={SUB_ACTION}
+              showOnHover
+              className="aria-expanded:bg-muted"
               aria-label={m.tasks_list_menu({ name: list.name })}
             />
           }
@@ -326,31 +326,43 @@ function SidebarListEntry({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </SidebarMenuSubItem>
+    </SidebarMenuItem>
   )
 }
 
 /**
- * The Program's tasks page lists under "Tasks" in the app sidebar (M05 §5.1): smart lists,
- * Unsorted, the user's lists (draggable into a new order) and, folded, the courses.
+ * The lists of a Program's or term's tasks page, in a column of the page (M05 §5.1): smart lists,
+ * Unsorted, the user's lists (draggable into a new order) and, folded, the courses. The page
+ * hides it where it has no room and makes its title a menu of the lists instead.
  */
-export function TasksSidebarNav({ scope }: SidebarNavProps) {
-  const programId = scope.programId
-  const [selection, select] = useTaskSelection(programId)
-  const lists = useTaskLists(programId).data?.items ?? []
-  const counts = useTaskCounts({ programId }).data
-  const courses = useCourses(programId).data?.items ?? []
-  const { actions } = useTaskActions()
+export function TaskListsColumn({
+  programId,
+  termId,
+  selection,
+  onSelect,
+  counts,
+  lists,
+  courses,
+  actions,
+  className,
+}: {
+  programId: string
+  termId?: string
+  selection: Selection
+  onSelect: (selection: Selection) => void
+  counts: TaskCounts | undefined
+  lists: readonly TaskList[]
+  courses: readonly Course[]
+  actions: TaskActions
+  className?: string
+}) {
   const [coursesOpen, setCoursesOpen] = useUiPref('tasks.sidebar_courses_open', false)
-  const onSelect = (next: Selection) => {
-    select(next)
-  }
-  const editing = useListEditing({ programId, selection, onSelect, actions })
+  const editing = useListEditing({ programId, termId, selection, onSelect, actions })
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-  const { groups, label } = useListGroups(programId, undefined, lists)
+  const { groups, label } = useListGroups(programId, termId, lists)
   const active = selectionKey(selection)
 
   const onDragEnd =
@@ -363,99 +375,128 @@ export function TasksSidebarNav({ scope }: SidebarNavProps) {
     }
 
   return (
-    <SidebarMenuSub aria-label={m.tasks_name()}>
-      {SMART_VIEWS.map((v) => (
-        <SidebarMenuSubItem key={v.view}>
-          <SubEntry
-            icon={v.icon}
-            label={v.title()}
-            count={smartCount(counts, v.view)}
-            active={active === v.view}
-            onClick={() => onSelect({ kind: 'smart', view: v.view })}
-          />
-        </SidebarMenuSubItem>
-      ))}
-      <SidebarMenuSubItem className="mt-2">
-        <SubEntry
-          icon={INBOX.icon}
-          label={INBOX.title()}
-          count={counts?.inbox}
-          active={active === 'inbox'}
-          onClick={() => onSelect({ kind: 'inbox' })}
-        />
-      </SidebarMenuSubItem>
-      {groups.map((group) => {
-        const ids = group.lists.map((l) => l.id)
-        const heading = label(group)
-        return (
-          <DndContext
-            key={group.termId ?? 'program'}
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={onDragEnd(ids)}
-          >
-            {heading ? (
-              <SidebarMenuSubItem className="mt-2">
-                <span className="block truncate px-2 py-1 text-xs text-muted-foreground">
-                  {heading}
-                </span>
-              </SidebarMenuSubItem>
+    <>
+      {/* The app shell's sidebar provider serves this one too (as in shadcn's sidebar-09). */}
+      <Sidebar
+        collapsible="none"
+        className={cn(
+          'h-auto max-h-[calc(100dvh-8rem)] flex-none bg-transparent text-foreground',
+          className,
+        )}
+        style={{ '--sidebar-width': '14rem' } as CSSProperties}
+      >
+        <nav aria-label={m.tasks_lists()} className="flex min-h-0 flex-1 flex-col">
+          <SidebarContent className="gap-0">
+            <SidebarGroup className="px-0 pt-0">
+              <SidebarMenu>
+                {SMART_VIEWS.map((v) => (
+                  <SidebarMenuItem key={v.view}>
+                    <ListEntry
+                      icon={v.icon}
+                      label={v.title()}
+                      count={smartCount(counts, v.view)}
+                      active={active === v.view}
+                      onClick={() => onSelect({ kind: 'smart', view: v.view })}
+                    />
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+            <SidebarGroup className="px-0">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <ListEntry
+                    icon={INBOX.icon}
+                    label={INBOX.title()}
+                    count={counts?.inbox}
+                    active={active === 'inbox'}
+                    onClick={() => onSelect({ kind: 'inbox' })}
+                  />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+            {groups.map((group) => {
+              const ids = group.lists.map((l) => l.id)
+              const heading = label(group)
+              return (
+                <SidebarGroup key={group.termId ?? 'program'} className="px-0">
+                  {heading ? <SidebarGroupLabel>{heading}</SidebarGroupLabel> : null}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={onDragEnd(ids)}
+                  >
+                    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                      <SidebarMenu>
+                        {group.lists.map((list) => (
+                          <SortableListEntry
+                            key={list.id}
+                            list={list}
+                            active={active === `list:${list.id}`}
+                            count={counts?.lists[list.id] ?? 0}
+                            onSelect={() => onSelect({ kind: 'list', listId: list.id })}
+                            onRename={() => editing.rename(list)}
+                            onDelete={() => editing.remove(list)}
+                          />
+                        ))}
+                      </SidebarMenu>
+                    </SortableContext>
+                  </DndContext>
+                </SidebarGroup>
+              )
+            })}
+            <SidebarGroup className="px-0 pt-0">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <ListEntry
+                    icon={Plus}
+                    label={m.tasks_list_new()}
+                    muted
+                    onClick={editing.create}
+                  />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+            {courses.length > 0 ? (
+              <Collapsible
+                open={coursesOpen}
+                onOpenChange={setCoursesOpen}
+                className="group/collapsible"
+              >
+                <SidebarGroup className="px-0">
+                  <SidebarGroupLabel
+                    render={<CollapsibleTrigger />}
+                    className="w-full cursor-pointer gap-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <ChevronRight
+                      aria-hidden
+                      className="transition-transform group-data-open/collapsible:rotate-90 motion-reduce:transition-none"
+                    />
+                    {m.tasks_by_course()}
+                  </SidebarGroupLabel>
+                  <CollapsibleContent>
+                    <SidebarMenu>
+                      {courses.map((c) => (
+                        <SidebarMenuItem key={c.id}>
+                          <ListEntry
+                            dot={courseColor(c)}
+                            label={courseLabel(c)}
+                            count={counts?.courses[c.id]}
+                            active={active === `course:${c.id}`}
+                            onClick={() => onSelect({ kind: 'course', courseId: c.id })}
+                          />
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
             ) : null}
-            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-              {group.lists.map((list) => (
-                <SidebarListEntry
-                  key={list.id}
-                  list={list}
-                  active={active === `list:${list.id}`}
-                  count={counts?.lists[list.id] ?? 0}
-                  onSelect={() => onSelect({ kind: 'list', listId: list.id })}
-                  onRename={() => editing.rename(list)}
-                  onDelete={() => editing.remove(list)}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )
-      })}
-      <SidebarMenuSubItem>
-        <SubEntry icon={Plus} label={m.tasks_list_new()} muted onClick={editing.create} />
-      </SidebarMenuSubItem>
-      {courses.length > 0 ? (
-        <SidebarMenuSubItem className="mt-2">
-          <SidebarMenuSubButton
-            size="sm"
-            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by its children
-            render={<button type="button" />}
-            aria-expanded={coursesOpen}
-            className="w-full font-medium text-muted-foreground"
-            onClick={() => setCoursesOpen(!coursesOpen)}
-          >
-            <ChevronRight
-              aria-hidden
-              className={cn(
-                'text-muted-foreground! transition-transform motion-reduce:transition-none',
-                coursesOpen && 'rotate-90',
-              )}
-            />
-            <span>{m.tasks_by_course()}</span>
-          </SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-      ) : null}
-      {coursesOpen
-        ? courses.map((c) => (
-            <SidebarMenuSubItem key={c.id}>
-              <SubEntry
-                dot={courseColor(c)}
-                label={courseLabel(c)}
-                count={counts?.courses[c.id]}
-                active={active === `course:${c.id}`}
-                onClick={() => onSelect({ kind: 'course', courseId: c.id })}
-              />
-            </SidebarMenuSubItem>
-          ))
-        : null}
+          </SidebarContent>
+        </nav>
+      </Sidebar>
       {editing.dialogs}
-    </SidebarMenuSub>
+    </>
   )
 }
 
@@ -470,8 +511,8 @@ function MenuEntry({ lead, label, count }: { lead: ReactNode; label: string; cou
 }
 
 /**
- * The page title as a menu of the lists, where the app sidebar does not show them (a term's
- * tasks, or the sidebar folded to icons); the list shown also gets rename, move and delete.
+ * The page title as a menu of the lists, where the page has no room for the lists column; the
+ * list shown also gets rename, move and delete.
  */
 export function TasksViewMenu({
   programId,

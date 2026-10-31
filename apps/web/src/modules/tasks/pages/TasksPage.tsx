@@ -18,7 +18,7 @@ import type { Task } from '@semestra/api-client'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
-import { useShellSidebarOpen } from '@/app/host/ShellToolbar'
+import { useElementWidth } from '@/app/board/media'
 import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -43,7 +43,7 @@ import { isCompleting } from '../completion'
 import { QuickAdd } from '../components/QuickAdd'
 import { TaskDetail } from '../components/TaskDetail'
 import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
-import { TasksViewMenu, useTaskSelection } from '../components/TasksSidebar'
+import { TaskListsColumn, TasksViewMenu, useTaskSelection } from '../components/TaskLists'
 import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
@@ -69,11 +69,13 @@ const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
 /** Tasks loaded at a time; "Show more" loads the next as many. */
 const PAGE = 500
 const DONE_PAGE = 200
+/** The page width (px) from which the lists sit in a column beside the tasks. */
+const LISTS_COLUMN_MIN_WIDTH = 720
 
 /**
  * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the add box and the tasks of
- * one list. The Program's lists are under "Tasks" in the app sidebar; elsewhere (and on the icon
- * rail) the title is a menu of them. Titles are edited in place; "Edit details" in a row's ⋯ menu
+ * one list. The lists are in a column on the left, or, where the page has no room for it, in a
+ * menu on the title. Titles are edited in place; "Edit details" in a row's ⋯ menu
  * (or Enter on the selected row) opens the side panel. The course page is the same list fixed to
  * the course, with the smart lists as a segmented control.
  */
@@ -84,8 +86,10 @@ export default function TasksPage({ scope }: PageProps) {
   const taskScope = { programId, termId, courseId }
   const scopeId = courseId ?? termId ?? programId
   const [selection, setSelection] = useTaskSelection(scopeId)
-  // The Program's lists are under "Tasks" in the app sidebar while it is open wide.
-  const listsInSidebar = useShellSidebarOpen() && scope.kind === 'program'
+  // The lists get a column of their own where the page is wide enough (not on a course's page).
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const width = useElementWidth(root)
+  const listsColumn = !courseId && width >= LISTS_COLUMN_MIN_WIDTH
   const key = selectionKey(selection)
   const [viewPref, setViewPref] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
     scope: `${scopeId}.${key}`,
@@ -294,7 +298,20 @@ export default function TasksPage({ scope }: PageProps) {
   }
 
   return (
-    <div className="flex flex-col">
+    <div ref={setRoot} className="flex gap-6">
+      {listsColumn ? (
+        <TaskListsColumn
+          className="sticky top-0 self-start"
+          programId={programId}
+          termId={termId}
+          selection={selection}
+          onSelect={select}
+          counts={counts.data}
+          lists={lists.data?.items ?? []}
+          courses={courses}
+          actions={actions}
+        />
+      ) : null}
       <section ref={listRef} className="flex min-w-0 flex-1 flex-col gap-3" aria-label={title}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
@@ -310,8 +327,8 @@ export default function TasksPage({ scope }: PageProps) {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-          ) : listsInSidebar ? (
-            <h2 className="font-heading text-xl font-semibold tracking-tight">{title}</h2>
+          ) : listsColumn ? (
+            <h2 className="truncate font-heading text-xl font-semibold tracking-tight">{title}</h2>
           ) : (
             <TasksViewMenu
               programId={programId}

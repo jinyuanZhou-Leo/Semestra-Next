@@ -25,9 +25,6 @@ export default defineModule({
       title: m.tasks_name,
       icon: ListChecks,
       component: preloadable(() => import('./pages/TasksPage')),
-      sidebarNav: preloadable(() =>
-        import('./components/TasksSidebar').then((mod) => ({ default: mod.TasksSidebarNav })),
-      ),
       mobile: {
         component: preloadable(() => import('./mobile/TasksMobilePage')),
         tab: { order: 10 },

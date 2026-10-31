@@ -2,19 +2,17 @@ import type { Task, TaskList } from '@semestra/api-client'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
-import { ShellSidebarOpen } from '@/app/host/ShellToolbar'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { SidebarMenu, SidebarMenuItem, SidebarProvider } from '@/ui/sidebar'
+import { SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
 import TodayCard from './cards/TodayCard'
-import { TasksSidebarNav } from './components/TasksSidebar'
 import { flushCompletions } from './completion'
 import TasksMobilePage from './mobile/TasksMobilePage'
 import TasksPage from './pages/TasksPage'
 
-/** Without the app sidebar the page title is the menu of lists. */
+/** Where the page is narrow (always in jsdom) the title is the menu of lists. */
 async function pickList(current: string, name: RegExp) {
   await userEvent.click(await screen.findByRole('button', { name: current }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name }))
@@ -397,7 +395,7 @@ test('tasks in no list are called Unsorted', async () => {
   expect(screen.queryByText('Inbox')).toBeNull()
 })
 
-test('in the app sidebar the lists sit under Tasks, and the page drops its own switcher', async () => {
+test('on a wide page the lists sit in a column beside the tasks, and the title is plain', async () => {
   lists = [
     {
       id: 'l1',
@@ -411,27 +409,29 @@ test('in the app sidebar the lists sit under Tasks, and the page drops its own s
       updated_at: stamp,
     } as TaskList,
   ]
-  renderWithRouter(
-    <SidebarProvider>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <TasksSidebarNav scope={{ kind: 'program', programId: 'p1' }} />
-        </SidebarMenuItem>
-      </SidebarMenu>
-      <ShellSidebarOpen value>
+  // jsdom has no layout: give every element a desktop width.
+  const width = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockReturnValue(new DOMRect(0, 0, 1000, 0))
+  try {
+    // On a computer the page sits in the app shell, whose sidebar provider the column uses.
+    renderWithRouter(
+      <SidebarProvider>
         <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
-      </ShellSidebarOpen>
-    </SidebarProvider>,
-  )
-  const nav = await screen.findByRole('list', { name: 'Tasks' })
-  await userEvent.click(await within(nav).findByRole('button', { name: 'Personal' }))
-  expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()
-  expect(within(nav).getByRole('button', { name: 'Personal' })).toHaveAttribute(
-    'aria-current',
-    'true',
-  )
-  // No menu of lists on the page while the sidebar shows them.
-  expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
+      </SidebarProvider>,
+    )
+    const column = await screen.findByRole('navigation', { name: 'Lists' })
+    await userEvent.click(await within(column).findByRole('button', { name: 'Personal' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()
+    expect(within(column).getByRole('button', { name: 'Personal' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    // No menu of lists on the title while the column shows them.
+    expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
+  } finally {
+    width.mockRestore()
+  }
 })
 
 const many = () =>
