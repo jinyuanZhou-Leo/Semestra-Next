@@ -1,6 +1,6 @@
 ---
-"@semestra/api": patch
-"@semestra/web": patch
+"@semestra/api": minor
+"@semestra/web": minor
 ---
 
 <!-- area: api -->
