@@ -1,6 +1,5 @@
 ---
 "@semestra/web": patch
-"@semestra/docs": patch
 ---
 
 <!-- area: sem -->

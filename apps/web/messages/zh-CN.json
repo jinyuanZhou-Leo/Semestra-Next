@@ -2769,7 +2769,7 @@
   "assistant_context_tools": "工具",
   "assistant_context_summary": "之前对话的摘要",
   "assistant_context_conversation": "对话",
-  "assistant_context_reads": "工具结果",
+  "assistant_context_reads": "读取的文件和网页",
   "assistant_context_attachments": "附件",
   "assistant_context_free": "剩余",
   "mobile_tabs_label": "标签栏",

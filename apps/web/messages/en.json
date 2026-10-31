@@ -2769,7 +2769,7 @@
   "assistant_context_tools": "Tools",
   "assistant_context_summary": "Summary of earlier messages",
   "assistant_context_conversation": "Messages",
-  "assistant_context_reads": "Tool results",
+  "assistant_context_reads": "Files and pages read",
   "assistant_context_attachments": "Attachments",
   "assistant_context_free": "Free",
   "mobile_tabs_label": "Tabs",

@@ -940,7 +940,7 @@ test('the context ring shows how full the conversation is and compacts from ther
   await userEvent.hover(await screen.findByRole('button', { name: /70.3%/ }))
   expect(await screen.findByText('90k / 128k')).toBeInTheDocument()
   // What fills it, by kind, and what is left.
-  expect(screen.getByText('Tool results').nextSibling).toHaveTextContent('40k')
+  expect(screen.getByText('Files and pages read').nextSibling).toHaveTextContent('40k')
   expect(screen.getByText('Free').nextSibling).toHaveTextContent('38k')
   expect(screen.queryByText('Attachments')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Compact conversation' }))
