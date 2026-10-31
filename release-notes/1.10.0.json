@@ -1,0 +1,85 @@
+{
+  "version": "1.10.0",
+  "date": "2026-10-31",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "new",
+      "area": "settings",
+      "en": "Choose which page Semestra opens on, including where you left off.",
+      "zh": "可以设置打开 Semestra 时显示的页面，包括上次离开的页面。"
+    },
+    {
+      "kind": "improved",
+      "area": "general",
+      "en": "The sidebar now holds the current term's pages and courses, with a term switcher above them; term pages no longer have a tab bar.",
+      "zh": "侧边栏改为当前学期的工作区，直接列出学期页面与课程，并可在顶部切换学期；学期页面不再显示标签栏。"
+    },
+    {
+      "kind": "improved",
+      "area": "overview",
+      "en": "Cards make better use of their space: small cards drop the title row, long lists fade at the edge to show they scroll, and schedule entries open with a click.",
+      "zh": "卡片更充分地利用空间：小卡片不再占用标题行，长列表在边缘渐隐提示可以滚动，课表条目点一下即可打开。"
+    },
+    {
+      "kind": "improved",
+      "area": "courses",
+      "en": "Read a course's details from a file such as its syllabus in the course settings: pick a file, check the changes, apply.",
+      "zh": "在课程设置里从文件识别课程信息：选一个文件，核对变化后应用。"
+    },
+    {
+      "kind": "improved",
+      "area": "grades",
+      "en": "Clearer GPA cards: the overview adds a GPA bar for each term, and the charts line up across terms.",
+      "zh": "GPA 卡片更清晰：概览新增各学期的 GPA 条，图表在各学期之间对齐。"
+    },
+    {
+      "kind": "improved",
+      "area": "calendar",
+      "en": "The week card now shows the coming days starting from yesterday, sized to fit your classes.",
+      "zh": "本周课表卡片改为显示从昨天起的近几日课表，时间范围按课程自动适配。"
+    },
+    {
+      "kind": "improved",
+      "area": "calendar",
+      "en": "The course schedule is reorganized into weekly meetings, one-off events and cancellations, sections can be switched on or off as a whole, and you can now cancel or move a single class from it.",
+      "zh": "课程课表按每周上课时间、单次事件和停课与调课重新整理，可按教学班整体开关，并可直接停课或调课。"
+    },
+    {
+      "kind": "improved",
+      "area": "tasks",
+      "en": "Task lists are shown in a column on the Tasks page instead of the sidebar.",
+      "zh": "待办列表移到待办页面左侧，不再在侧边栏中展开。"
+    },
+    {
+      "kind": "improved",
+      "area": "files",
+      "en": "Upload files from a term's Files page by choosing a course or dropping them on its section, and drop files on a folder to upload into it.",
+      "zh": "学期的文件页可以选择课程上传，或把文件拖到课程分组上；文件也可以直接拖进文件夹。"
+    },
+    {
+      "kind": "improved",
+      "area": "plugins",
+      "en": "The habit calendar is now part of the habit card: check in on the ring and review past weeks beside it. Existing calendar cards are converted automatically.",
+      "zh": "习惯日历并入习惯打卡卡片：在圆环上打卡，旁边回顾最近几周的记录；已有的日历卡片会自动转换。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Fixed the last characters of an edited message sometimes being dropped when it was sent with Enter.",
+      "zh": "修复编辑消息后按 Enter 发送时，偶尔丢失最后几个字符的问题。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Fixed a stray horizontal scrollbar under the file list.",
+      "zh": "修复文件列表下方多出的横向滚动条。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Reading a syllabus with Claude models works again, and is faster: course info, grading and schedule are read side by side.",
+      "zh": "用 Claude 模型识别课程大纲不再报错，而且更快：课程信息、成绩构成和课表同时识别。"
+    }
+  ]
+}

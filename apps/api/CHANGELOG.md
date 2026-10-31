@@ -1,5 +1,24 @@
 # @semestra/api
 
+## 1.10.0
+
+### Minor Changes
+
+- c048933: <!-- area: plugins -->
+  <!-- improved -->
+  <!-- en -->
+  The habit calendar is now part of the habit card: check in on the ring and review past weeks beside it. Existing calendar cards are converted automatically.
+  <!-- zh -->
+  习惯日历并入习惯打卡卡片：在圆环上打卡，旁边回顾最近几周的记录；已有的日历卡片会自动转换。
+
+### Patch Changes
+
+- d99b9f1: <!-- area: imports -->
+  <!-- en -->
+  Reading a syllabus with Claude models works again, and is faster: course info, grading and schedule are read side by side.
+  <!-- zh -->
+  用 Claude 模型识别课程大纲不再报错，而且更快：课程信息、成绩构成和课表同时识别。
+
 ## 1.9.0
 
 ### Minor Changes
