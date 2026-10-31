@@ -1,10 +1,7 @@
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator
-from pydantic_core import PydanticCustomError
-
-from semestra.core.capability import HTTP_ONLY
+from pydantic import BaseModel, Field, StringConstraints
 
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
@@ -229,14 +226,6 @@ class TaskQueryInput(BaseModel):
         description="Completed tasks the view would show: leave out, add, or return only them "
         "(ignored by the completed view)",
     )
-    # Replaced by `completed` in 1.9. Refused rather than ignored: an old client that sent
-    # them would otherwise lose its completed tasks without an error.
-    include_completed: bool | None = Field(
-        default=None, description="Removed: use completed", json_schema_extra=HTTP_ONLY
-    )
-    only_completed: bool | None = Field(
-        default=None, description="Removed: use completed", json_schema_extra=HTTP_ONLY
-    )
     sort: Sort = Field(default="manual", description="Order of the result")
     fields: list[TaskField] | None = Field(
         default=None,
@@ -244,13 +233,6 @@ class TaskQueryInput(BaseModel):
     )
     cursor: str | None = Field(default=None, description="`next_cursor` of the previous page")
     limit: Annotated[int, Field(ge=1, le=500)] = Field(default=200, description="Page size")
-
-    @field_validator("include_completed", "only_completed")
-    @classmethod
-    def _renamed(cls, value: bool | None) -> bool | None:
-        if value is not None:
-            raise PydanticCustomError("renamed", "Use completed: exclude, include or only")
-        return value
 
 
 class TaskPage(BaseModel):

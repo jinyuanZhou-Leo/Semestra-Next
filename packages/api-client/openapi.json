@@ -14951,42 +14951,6 @@
             "description": "Completed tasks the view would show: leave out, add, or return only them (ignored by the completed view)"
           },
           {
-            "name": "include_completed",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Removed: use completed",
-              "title": "Include Completed"
-            },
-            "description": "Removed: use completed"
-          },
-          {
-            "name": "only_completed",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Removed: use completed",
-              "title": "Only Completed"
-            },
-            "description": "Removed: use completed"
-          },
-          {
             "name": "sort",
             "in": "query",
             "required": false,

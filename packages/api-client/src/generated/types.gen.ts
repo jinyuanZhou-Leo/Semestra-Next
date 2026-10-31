@@ -19016,18 +19016,6 @@ export type TasksItemQueryData = {
          */
         completed?: 'exclude' | 'include' | 'only';
         /**
-         * Include Completed
-         *
-         * Removed: use completed
-         */
-        include_completed?: boolean | null;
-        /**
-         * Only Completed
-         *
-         * Removed: use completed
-         */
-        only_completed?: boolean | null;
-        /**
          * Sort
          *
          * Order of the result
