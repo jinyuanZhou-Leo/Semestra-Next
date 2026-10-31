@@ -107,7 +107,7 @@ export function preloadPage(
         parts.push(page.mobile?.component)
         continue
       }
-      parts.push(page.component, page.sidebarNav)
+      parts.push(page.component)
       page.prefetch?.(scope, queryClient, { preload: hovered, modules })
       if (page.board) preloadBoardCards(scope, page.board, queryClient, modules, hovered)
     }

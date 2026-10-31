@@ -14,7 +14,7 @@ import { isoWeekday, localDay, plusDays, todayIn, wallDate, weekdayName } from '
 
 export const WEEK_SOURCES = ['schedule.meetings', 'schedule.events']
 
-/** Days shown from yesterday on: L fits 5 columns (yesterday to 3 days ahead), XL 7. */
+/** Days shown from yesterday on: L fits 5 columns (yesterday to 3 days ahead), XL 7 (5 without weekends). */
 const DAYS = { l: 5, xl: 7 } as const
 /** Height of the day header row and of the space above and below the hour lines, in px. */
 const CHROME = 52
@@ -40,9 +40,10 @@ export default function WeekCard({ scope, size }: CardProps) {
   const [box, setBox] = useState<HTMLDivElement | null>(null)
   const height = useElementHeight(box)
   const today = tz ? todayIn(tz) : ''
-  const count = size === 'xl' ? DAYS.xl : DAYS.l
-  // Without weekends, look further ahead so the card still shows `count` days.
-  const span = settings.show_weekends ? count : count + 4
+  // The grid places items by weekday, so no weekday may show twice: without weekends that is at
+  // most five days, looking a few days further ahead to skip the weekend.
+  const count = Math.min(size === 'xl' ? DAYS.xl : DAYS.l, settings.show_weekends ? 7 : 5)
+  const span = settings.show_weekends ? count : count + 2
   const start = today ? plusDays(today, -1) : ''
   const occurrences = useOccurrences(
     scope.programId,

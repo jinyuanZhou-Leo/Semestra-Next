@@ -191,8 +191,9 @@ export function CardFrame({
         ) : (
           <>
             <h3 className="sr-only">{title}</h3>
-            {/* Without a header row the buttons float over the card's top right corner. */}
-            <div className="absolute top-2 right-2 z-10 rounded-full bg-card">{actions}</div>
+            {/* Without a header row the buttons float over the card's top right corner; their
+                backdrop fades with them, so hidden buttons do not cover the content. */}
+            <div className="absolute top-2 right-2 z-10 *:rounded-full *:bg-card">{actions}</div>
           </>
         )}
         <div

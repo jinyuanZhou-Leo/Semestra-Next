@@ -11,6 +11,8 @@ export default function CounterCard({ scope }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const counts = useTaskCounts({ programId: scope.programId, termId }).data
   if (!counts) return <CardSkeleton />
+  // The backend's `today` includes overdue tasks; the footer lists the two apart.
+  const dueToday = Math.max(0, counts.today - counts.overdue)
   return (
     <HistoryLink
       href={termPath(scope.programId, termId, 'tasks')}
@@ -22,7 +24,7 @@ export default function CounterCard({ scope }: CardProps) {
         value={counts.all}
         footer={
           <>
-            <p>{m.tasks_counter_today({ count: counts.today })}</p>
+            {dueToday > 0 ? <p>{m.tasks_counter_today({ count: dueToday })}</p> : null}
             {counts.overdue > 0 ? (
               <p className="text-destructive">
                 {m.tasks_counter_overdue({ count: counts.overdue })}

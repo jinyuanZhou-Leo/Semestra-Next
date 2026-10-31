@@ -55,9 +55,6 @@ export function preload(component: unknown): Promise<void> {
 
 export type PageProps = { scope: Scope }
 
-/** What a page's own navigation in the app sidebar gets. */
-export type SidebarNavProps = { scope: Scope }
-
 export type PageContribution = {
   /** Unique within its scopes; the `$page` URL segment. */
   id: string
@@ -67,11 +64,6 @@ export type PageContribution = {
   component: Lazy<PageProps>
   /** A line for the page header under the title (Program pages; term and course pages keep their own). */
   headerSubtitle?: ComponentType<PageProps>
-  /**
-   * The page's own navigation (its views, lists…), shown under its entry in the app sidebar
-   * while the page is open, so the page needs no column of its own (Program pages).
-   */
-  sidebarNav?: Lazy<SidebarNavProps>
   /** The board the page shows, if any (the scope's own or Today's), so its cards load with it. */
   board?: 'scope' | 'today'
   /**

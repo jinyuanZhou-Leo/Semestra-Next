@@ -16,7 +16,7 @@ from semestra.modules.layouts.models import (
 from semestra.modules.portability import ImportOptions, Table, table_adapter
 
 # Cards that were replaced by another card: id -> (new id, sizes the new card lacks -> size).
-# Backups made before the change still name the old card (migration 0027 did the same).
+# Backups made before the change still name the old card (migration 0028 did the same).
 RENAMED_CARDS: dict[str, tuple[str, dict[str, str]]] = {
     "habit.board": ("habit.ring", {"xl": "l"}),
 }

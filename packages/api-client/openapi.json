@@ -28361,6 +28361,22 @@
             "title": "Reduce Motion",
             "description": "Reduce animations; system follows the OS"
           },
+          "start_page": {
+            "type": "string",
+            "enum": [
+              "last",
+              "today",
+              "overview",
+              "calendar",
+              "tasks",
+              "grades",
+              "files",
+              "assistant",
+              "summary"
+            ],
+            "title": "Start Page",
+            "description": "The page the app opens on"
+          },
           "active_program_id": {
             "anyOf": [
               {
@@ -28395,6 +28411,7 @@
           "time_format",
           "week_start",
           "reduce_motion",
+          "start_page",
           "active_program_id",
           "updated_at"
         ],
@@ -28507,6 +28524,29 @@
             ],
             "title": "Reduce Motion",
             "description": "Reduce animations"
+          },
+          "start_page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "last",
+                  "today",
+                  "overview",
+                  "calendar",
+                  "tasks",
+                  "grades",
+                  "files",
+                  "assistant",
+                  "summary"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Page",
+            "description": "The page the app opens on"
           },
           "active_program_id": {
             "anyOf": [

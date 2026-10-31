@@ -58,6 +58,8 @@ export type PromptEditorHandle = {
   focus: () => void
   /** Replaces what is written; null empties the input. */
   setContent: (doc: JSONContent | null) => void
+  /** What is written now, before `onChange` has re-rendered the caller (null before it exists). */
+  read: () => PromptValue | null
   /** Puts `/compact` first in place of a skill, keeping the text. */
   startCompact: () => void
 }
@@ -380,6 +382,7 @@ export function PromptEditor({
   useImperativeHandle(ref, () => ({
     focus: () => editor?.commands.focus('end'),
     setContent: (doc) => editor?.commands.setContent(doc ?? '', { emitUpdate: true }),
+    read: () => (editor ? readPrompt(editor.getJSON()) : null),
     startCompact: () => {
       if (!editor) return
       const compact = chipNode({ kind: 'command', id: 'compact', label: m.assistant_compact() })

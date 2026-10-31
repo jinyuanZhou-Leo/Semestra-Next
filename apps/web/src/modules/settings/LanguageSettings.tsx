@@ -58,7 +58,6 @@ function LanguageForm({
         label={m.settings_language_label()}
         labelId={`${id}-language`}
         htmlFor={`${id}-language-select`}
-        description={m.settings_language_description()}
       >
         <Select
           value={prefs.locale ?? 'browser'}

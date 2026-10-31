@@ -10,7 +10,7 @@ const settings = {
 
 /**
  * M14 §2 习惯打卡: one card per habit. The ring checks in today; at m and l the card also shows the
- * past weeks. The old calendar card `habit.board` was folded into it (migration 0027).
+ * past weeks. The old calendar card `habit.board` was folded into it (migration 0028).
  */
 export default defineModule({
   id: 'habit-streak',

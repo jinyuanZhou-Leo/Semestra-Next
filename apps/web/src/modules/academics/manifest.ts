@@ -1,5 +1,6 @@
 import {
   CalendarRange,
+  ChartColumn,
   GraduationCap,
   Info,
   LayoutDashboard,
@@ -55,12 +56,22 @@ export default defineModule({
   pages: [
     {
       id: 'overview',
-      scopes: ['program', 'term', 'course'],
+      scopes: ['term', 'course'],
       title: m.academics_nav_overview,
       icon: LayoutDashboard,
       component: preloadable(() => import('./pages/OverviewPage')),
       board: 'scope',
       order: 0,
+    },
+    // The Program's board, at the bottom of the sidebar rather than among the term's pages.
+    {
+      id: 'summary',
+      scopes: ['program'],
+      title: m.academics_nav_summary,
+      icon: ChartColumn,
+      component: preloadable(() => import('./pages/OverviewPage')),
+      board: 'scope',
+      order: 100,
     },
   ],
   navigationSources: [academicsNavigation],

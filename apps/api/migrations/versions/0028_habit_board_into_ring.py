@@ -4,8 +4,8 @@ The habit calendar (`habit.board`) was a second place to check in; it is now the
 the ring card (`habit.ring`) at M and L. Check-ins and settings belong to the card instance, so
 renaming the card keeps them; XL, which the ring card does not have, becomes L.
 
-Revision ID: 0027
-Revises: 0026
+Revision ID: 0028
+Revises: 0027
 Create Date: 2026-10-31 19:00:00.000000
 
 """
@@ -17,8 +17,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0027"
-down_revision: str | Sequence[str] | None = "0026"
+revision: str = "0028"
+down_revision: str | Sequence[str] | None = "0027"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

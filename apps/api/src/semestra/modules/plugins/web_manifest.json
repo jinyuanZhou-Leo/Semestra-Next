@@ -21,9 +21,14 @@
         {
           "id": "overview",
           "scopes": [
-            "program",
             "term",
             "course"
+          ]
+        },
+        {
+          "id": "summary",
+          "scopes": [
+            "program"
           ]
         }
       ],

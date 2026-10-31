@@ -101,20 +101,48 @@ export function ManagePagesDialog({
 }) {
   const { all, hidden } = useScopePages(scope)
   const save = useSaveNav(scope.kind)
+  return (
+    <ManagePagesDialogView
+      pages={all}
+      hidden={hidden}
+      onSave={save}
+      description={NOTE[scope.kind]()}
+      open={open}
+      onOpenChange={onOpenChange}
+    />
+  )
+}
+
+/** The dialog itself, for a list of pages that is not one scope's tabs (the sidebar, M02 §5.1). */
+export function ManagePagesDialogView({
+  pages,
+  hidden,
+  onSave,
+  description,
+  open,
+  onOpenChange,
+}: {
+  pages: readonly PageContribution[]
+  hidden: ReadonlySet<string>
+  onSave: (next: { order: string[]; hidden: string[] }) => unknown
+  description: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-  const ids = all.map((p) => p.id)
+  const ids = pages.map((p) => p.id)
   const hiddenIds = ids.filter((id) => hidden.has(id))
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return
     const order = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
-    void save({ order, hidden: hiddenIds })
+    void onSave({ order, hidden: hiddenIds })
   }
   const setVisible = (id: string, visible: boolean) =>
-    void save({
+    void onSave({
       order: ids,
       hidden: visible ? hiddenIds.filter((h) => h !== id) : [...hiddenIds, id],
     })
@@ -124,12 +152,12 @@ export function ManagePagesDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{m.host_nav_manage_pages()}</DialogTitle>
-          <DialogDescription>{NOTE[scope.kind]()}</DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             <ul className="-mx-2 space-y-0.5">
-              {all.map((page) => (
+              {pages.map((page) => (
                 <PageRow
                   key={page.id}
                   page={page}
