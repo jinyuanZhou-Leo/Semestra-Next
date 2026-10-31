@@ -1,4 +1,5 @@
 import { CardSkeleton } from '@/app/board/CardSkeleton'
+import { CardStat } from '@/app/board/CardStat'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { coursePath } from '@/modules/academics/paths'
@@ -19,53 +20,63 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
   const next = data.assessments
     .filter((a) => a.status !== 'graded' && !a.dropped && a.due_at !== null)
     .toSorted((a, b) => Date.parse(a.due_at ?? '') - Date.parse(b.due_at ?? ''))[0]
+  const value =
+    s.status === 'passed' || s.status === 'failed' ? (
+      result.pass_fail_result === 'pass' ? (
+        m.grading_pass()
+      ) : (
+        m.grading_fail()
+      )
+    ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
+      <AnimatedPercent value={grade} />
+    ) : (
+      '—'
+    )
   return (
     <HistoryLink
       href={coursePath(scope.programId, courseId, 'grades')}
-      className="flex h-full flex-col justify-between gap-2 rounded-xl"
+      className="-mx-2 -my-1 flex h-full rounded-xl px-2 py-1 transition-colors hover:bg-muted/50"
     >
-      <div>
-        <p className="text-xs text-muted-foreground">
-          {final ? m.grading_final() : m.grading_current()}
-        </p>
-        <p className="text-3xl font-semibold tabular-nums">
-          {s.status === 'passed' || s.status === 'failed' ? (
-            result.pass_fail_result === 'pass' ? (
-              m.grading_pass()
-            ) : (
-              m.grading_fail()
-            )
-          ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
-            <AnimatedPercent value={grade} />
-          ) : (
-            '—'
-          )}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {m.grading_gpa()}{' '}
-          <GpaValue
-            value={points}
-            hidden={scale.hide_gpa}
-            letter={letter}
-            letterClassName="ml-1.5"
-            animated
-          />
-        </p>
-      </div>
-      {size === 'm' && result.basis === 'percentage' ? (
-        <dl className="space-y-0.5 text-xs text-muted-foreground">
-          <div className="flex justify-between gap-2">
-            <dt>{m.grading_target_needed()}</dt>
-            <dd className="font-medium text-foreground">{requiredText(s)}</dd>
-          </div>
-          {next?.due_at ? (
-            <div className="flex justify-between gap-2">
-              <dt className="truncate">{next.title}</dt>
-              <dd>{dueText(next)}</dd>
-            </div>
-          ) : null}
-        </dl>
-      ) : null}
+      <CardStat
+        className="flex-1"
+        label={
+          size === 's'
+            ? final
+              ? m.grading_final_grade()
+              : m.grading_current_grade()
+            : final
+              ? m.grading_final()
+              : m.grading_current()
+        }
+        value={value}
+        footer={
+          <>
+            <p>
+              {m.grading_gpa()}{' '}
+              <GpaValue
+                value={points}
+                hidden={scale.hide_gpa}
+                letter={letter}
+                letterClassName="ml-1.5"
+                className="text-foreground"
+                animated
+              />
+            </p>
+            {size === 'm' && result.basis === 'percentage' ? (
+              <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
+                <dt>{m.grading_target_needed()}</dt>
+                <dd className="font-medium text-foreground">{requiredText(s)}</dd>
+                {next?.due_at ? (
+                  <>
+                    <dt className="truncate">{next.title}</dt>
+                    <dd>{dueText(next)}</dd>
+                  </>
+                ) : null}
+              </dl>
+            ) : null}
+          </>
+        }
+      />
     </HistoryLink>
   )
 }

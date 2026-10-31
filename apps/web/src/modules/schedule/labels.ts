@@ -32,6 +32,17 @@ export function timeRange(
   return `${start} – ${fmt.format(new Date(o.end_at))}`
 }
 
+/** Start and end as two strings, for a time column that puts them on two lines. */
+export function timeParts(
+  o: Pick<Occurrence, 'start_at' | 'end_at'>,
+  tz: string,
+): [start: string, end: string | null] {
+  const fmt = intl(Intl.DateTimeFormat, { timeStyle: 'short', timeZone: tz })
+  const start = fmt.format(new Date(o.start_at))
+  if (!o.end_at || o.end_at === o.start_at) return [start, null]
+  return [start, fmt.format(new Date(o.end_at))]
+}
+
 export function dayLabel(day: string): string {
   return intl(Intl.DateTimeFormat, {
     weekday: 'short',

@@ -175,6 +175,41 @@ test('files dropped anywhere on the page are uploaded to the course', async () =
   expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
 })
 
+test('files dropped on a folder go into it, once', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [
+          {
+            id: 'f1',
+            course_id: 'c1',
+            parent_id: null,
+            name: 'Week 1',
+            created_at: '2026-01-10T12:00:00Z',
+            updated_at: '2026-01-10T12:00:00Z',
+          },
+        ],
+        items,
+        next_cursor: null,
+      }),
+    ),
+  )
+  mount()
+  const folder = (await screen.findByRole('button', { name: 'Week 1' })).closest('tr')!
+  const file = new File(['hello'], 'notes.txt', { type: 'text/plain' })
+  const dataTransfer = { types: ['Files'], files: [file] }
+
+  fireEvent.dragEnter(window, { dataTransfer })
+  fireEvent.dragOver(folder, { dataTransfer })
+  expect(await screen.findByText('Drop files to upload to Week 1')).toBeInTheDocument()
+  fireEvent.drop(folder, { dataTransfer })
+
+  await waitFor(() => expect(uploads).toHaveLength(1))
+  expect(await screen.findByText('Uploads finished')).toBeInTheDocument()
+  // The page's own drop zone saw the drop too, and left it to the folder.
+  expect(uploads).toHaveLength(1)
+})
+
 test('a search hit opens the preview on its page', async () => {
   mount()
   await userEvent.type(await screen.findByRole('searchbox'), 'midterm')

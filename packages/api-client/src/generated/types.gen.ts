@@ -8431,6 +8431,124 @@ export type SearchResult = {
 };
 
 /**
+ * SectionSaveInputBody
+ */
+export type SectionSaveInputBody = {
+    /**
+     * Term Id
+     *
+     * Term of the course the section runs in
+     */
+    term_id: string;
+    /**
+     * Meeting Ids
+     *
+     * The section's meetings before the change
+     */
+    meeting_ids?: Array<string>;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Weeks for every time; null keeps each meeting's and gives new times the weeks of the section's first meeting
+     */
+    weeks?: SectionWeeks | null;
+    /**
+     * Times
+     *
+     * The section's times after it
+     */
+    times: Array<SectionTime>;
+};
+
+/**
+ * SectionTime
+ */
+export type SectionTime = {
+    /**
+     * Meeting Id
+     *
+     * The meeting this time edits; null adds a new one
+     */
+    meeting_id?: string | null;
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+};
+
+/**
+ * SectionWeeks
+ */
+export type SectionWeeks = {
+    /**
+     * Recurrence
+     *
+     * Every week or every other week
+     */
+    recurrence?: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: first week it happens; defaults to start_week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number;
+    /**
+     * End Week
+     *
+     * Last term week, or null
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * No class in break weeks and on breaks
+     */
+    skip_breaks?: boolean;
+};
+
+/**
  * SessionCreateInputBody
  */
 export type SessionCreateInputBody = {
@@ -18528,6 +18646,38 @@ export type ScheduleMeetingSetEnabledResponses = {
 };
 
 export type ScheduleMeetingSetEnabledResponse = ScheduleMeetingSetEnabledResponses[keyof ScheduleMeetingSetEnabledResponses];
+
+export type ScheduleSectionSaveData = {
+    body: SectionSaveInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/sections';
+};
+
+export type ScheduleSectionSaveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionSaveError = ScheduleSectionSaveErrors[keyof ScheduleSectionSaveErrors];
+
+export type ScheduleSectionSaveResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ScheduleSectionSaveResponse = ScheduleSectionSaveResponses[keyof ScheduleSectionSaveResponses];
 
 export type SettingsPreferenceGetData = {
     body?: never;

@@ -956,3 +956,47 @@ def test_only_imports_can_mark_an_exception_as_imported():
 
     # Not offered to the assistant, MCP or the API clients (and ignored from the assistant).
     assert "imported" not in ExceptionUpsertInput.model_json_schema()["properties"]
+
+
+async def test_section_save_replaces_its_meetings_in_one_change(api: Api):
+    _, term_id, course_id = await api.setup()
+    mon = await api.meeting(
+        course_id, term_id, recurrence="biweekly", anchor_week=2, start_week=2, enabled=False
+    )
+    wed = await api.meeting(course_id, term_id, weekday=3, recurrence="biweekly", anchor_week=2)
+    await api.call("PATCH", f"/meetings/{wed['id']}", json={"enabled": False})
+    url = f"/courses/{course_id}/sections"
+    body = {
+        "term_id": term_id,
+        "meeting_ids": [mon["id"], wed["id"]],
+        "section_code": "LEC0201",
+        "type_code": "LEC",
+        "instructor": "Korst",
+        "times": [
+            {"meeting_id": mon["id"], "weekday": 2, "start_time": "09:00", "end_time": "10:00"},
+            {"weekday": 5, "start_time": "09:00", "end_time": "10:00", "location": "BA 1160"},
+        ],
+    }
+    items = (await api.call("PUT", url, json=body))["items"]
+    # Monday's meeting moves to Tuesday, Wednesday's is deleted, Friday is new.
+    assert [(i["weekday"], i["section_code"], i["instructor"]) for i in items] == [
+        (2, "LEC0201", "Korst"),
+        (5, "LEC0201", "Korst"),
+    ]
+    assert items[0]["id"] == mon["id"]
+    # Without `weeks` the new time takes the section's weeks, and stays off with it.
+    new = items[1]
+    assert (new["recurrence"], new["anchor_week"], new["start_week"], new["enabled"]) == (
+        "biweekly",
+        2,
+        2,
+        False,
+    )
+    listed = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    assert sorted(m["id"] for m in listed) == sorted(i["id"] for i in items)
+
+    # Deleting the section (no times left) can be retried: gone ids are skipped.
+    gone = {**body, "meeting_ids": [mon["id"], wed["id"], new["id"]], "times": []}
+    assert (await api.call("PUT", url, json=gone))["items"] == []
+    assert (await api.call("PUT", url, json=gone))["items"] == []
+    assert (await api.call("GET", f"/courses/{course_id}/meetings"))["items"] == []

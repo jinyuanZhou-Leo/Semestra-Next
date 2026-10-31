@@ -75,6 +75,11 @@ type Props<T extends RowData> = {
   rowName?: (row: T) => string
   /** Under the last row, e.g. an `ActionRow` that adds an entry or a short form. */
   footer?: ReactNode
+  /**
+   * Merges cells: the span of a column's cell in a row, or `null` to leave the cell out because
+   * a cell above or to its left spans over it. Unset or `undefined` is a plain cell.
+   */
+  cellSpan?: (columnId: string, row: T) => { rowSpan?: number; colSpan?: number } | null | undefined
 }
 
 /** A settings list as a table (see the comment at the top of this file). */
@@ -87,6 +92,7 @@ export function SettingsTable<T extends RowData>({
   onReorder,
   rowName,
   footer,
+  cellSpan,
 }: Props<T>) {
   const [pending, setPending] = useState<string[] | null>(null)
   // Only the latest reorder clears the shown order, so a second drag made while the first is
@@ -144,7 +150,7 @@ export function SettingsTable<T extends RowData>({
           />
         ) : (
           <TableRow key={row.id} className="hover:bg-transparent">
-            <Cells row={row} columnClassName={columnClassName} table={table} />
+            <Cells row={row} columnClassName={columnClassName} table={table} cellSpan={cellSpan} />
           </TableRow>
         ),
       )}
@@ -232,19 +238,27 @@ function Cells<T extends RowData>({
   row,
   table,
   columnClassName,
+  cellSpan,
 }: {
   row: Row<Features, T>
   table: TableInstance<T>
   columnClassName: Partial<Record<string, string>>
+  cellSpan?: Props<T>['cellSpan']
 }) {
-  return row.getAllCells().map((cell) => (
-    <TableCell
-      key={cell.id}
-      className={cn('h-14 py-2 first:pl-4 last:pr-3', columnClassName[cell.column.id])}
-    >
-      <table.FlexRender cell={cell} />
-    </TableCell>
-  ))
+  return row.getAllCells().map((cell) => {
+    const span = cellSpan?.(cell.column.id, row.original)
+    if (span === null) return null
+    return (
+      <TableCell
+        key={cell.id}
+        rowSpan={span?.rowSpan}
+        colSpan={span?.colSpan}
+        className={cn('h-14 py-2 first:pl-4 last:pr-3', columnClassName[cell.column.id])}
+      >
+        <table.FlexRender cell={cell} />
+      </TableCell>
+    )
+  })
 }
 
 function SortableRow<T extends RowData>({

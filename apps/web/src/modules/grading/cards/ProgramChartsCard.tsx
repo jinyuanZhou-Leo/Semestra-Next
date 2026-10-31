@@ -59,8 +59,15 @@ type TooltipFormatter = NonNullable<ComponentProps<typeof ChartTooltipContent>['
 const gpaTooltip: TooltipFormatter = (value, name) => {
   const lines = gpaConfig()
   return (
-    <span className="flex w-full justify-between gap-3">
-      <span className="text-muted-foreground">{lines[name as keyof typeof lines]?.label}</span>
+    <span className="flex w-full items-center gap-2">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-[2px]"
+        style={{ backgroundColor: `var(--color-${String(name)})` }}
+      />
+      <span className="flex-1 text-muted-foreground">
+        {lines[name as keyof typeof lines]?.label}
+      </span>
       <span className="font-medium tabular-nums">{formatGpa(Number(value))}</span>
     </span>
   )
@@ -73,7 +80,11 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   const { data } = useProgramGrades(scope.programId)
   const [revealed, setRevealed] = useState(false)
   if (!data) return <CardSkeleton />
-  const terms: TermGradePoint[] = data.terms
+  // A term without grades adds nothing: its cumulative GPA is left out instead of drawn as a
+  // flat continuation, and the line joins the graded terms around it.
+  const terms: TermGradePoint[] = data.terms.map((t) =>
+    t.gpa === null ? { ...t, cumulative_gpa: null } : t,
+  )
   if (terms.every((t) => t.gpa === null)) {
     return (
       <Empty className="border-0 p-0">
@@ -124,6 +135,8 @@ export default function ProgramChartsCard({ scope }: CardProps) {
                 dataKey="cumulative_gpa"
                 stroke="var(--color-cumulative_gpa)"
                 strokeWidth={2}
+                strokeDasharray="4 3"
+                connectNulls
                 dot={false}
                 isAnimationActive={false}
               />
@@ -139,7 +152,10 @@ export default function ProgramChartsCard({ scope }: CardProps) {
           </ChartContainer>
         </figure>
       )}
-      <figure aria-label={m.grading_chart_credits_label()}>
+      <figure aria-label={m.grading_chart_credits_label()} className="mt-auto">
+        <p aria-hidden className="mb-1 pl-8 text-xs text-muted-foreground">
+          {m.grading_chart_credits_label()}
+        </p>
         <ChartFigures terms={terms} value={(t) => formatCredits(t.credits_counted)} />
         <ChartContainer
           config={creditsConfig()}
@@ -147,6 +163,8 @@ export default function ProgramChartsCard({ scope }: CardProps) {
           initialDimension={CREDITS_SIZE}
         >
           <BarChart data={terms} margin={{ left: 0, right: 8, top: 4 }} accessibilityLayer>
+            {/* As wide as the GPA chart's axis, so each term's bar sits under its GPA point. */}
+            <YAxis width={32} tick={false} tickLine={false} axisLine={false} />
             <XAxis
               dataKey="name"
               tickLine={false}

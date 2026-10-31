@@ -458,91 +458,6 @@
       "pages": [],
       "cards": [
         {
-          "id": "habit.board",
-          "scopes": [
-            "program",
-            "term",
-            "course",
-            "today"
-          ],
-          "sizes": [
-            "m",
-            "l",
-            "xl"
-          ],
-          "default_size": "m",
-          "multiple": true,
-          "settings_schema": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "properties": {
-              "name": {
-                "default": "",
-                "type": "string",
-                "maxLength": 60
-              },
-              "icon": {
-                "default": "target",
-                "type": "string",
-                "enum": [
-                  "target",
-                  "book-open",
-                  "dumbbell",
-                  "droplets",
-                  "moon",
-                  "sun",
-                  "pencil",
-                  "music",
-                  "code",
-                  "coffee",
-                  "apple",
-                  "brain",
-                  "heart",
-                  "footprints",
-                  "bike",
-                  "languages",
-                  "leaf",
-                  "flame",
-                  "star",
-                  "smile"
-                ]
-              },
-              "goal": {
-                "default": "daily",
-                "type": "string",
-                "enum": [
-                  "daily",
-                  "weekly"
-                ]
-              },
-              "weekly_target": {
-                "default": 3,
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 7
-              },
-              "color": {
-                "default": "primary",
-                "type": "string",
-                "enum": [
-                  "primary",
-                  "success",
-                  "subject-1",
-                  "subject-2",
-                  "subject-7",
-                  "subject-9",
-                  "subject-10",
-                  "subject-11"
-                ]
-              },
-              "show_toast": {
-                "default": true,
-                "type": "boolean"
-              }
-            }
-          }
-        },
-        {
           "id": "habit.ring",
           "scopes": [
             "program",
@@ -552,7 +467,8 @@
           ],
           "sizes": [
             "s",
-            "m"
+            "m",
+            "l"
           ],
           "default_size": "s",
           "multiple": true,

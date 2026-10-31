@@ -21,6 +21,8 @@ export default function CounterCard({ instanceId, size, settings }: CardProps<Co
   const count = currentValue(current)
   const label = current.label || m.counter_default_label()
   const showRing = current.show_ring && size !== 's'
+  // From m up the card's title already says "Counter": only a name of the user's own adds to it.
+  const showLabel = size === 's' || current.label !== ''
 
   const step = (direction: 1 | -1) => update({ value: stepped(current, direction) })
 
@@ -61,9 +63,11 @@ export default function CounterCard({ instanceId, size, settings }: CardProps<Co
 
   return (
     <div className="relative flex h-full flex-col justify-between gap-2">
-      <p className="min-w-0 truncate text-sm text-muted-foreground" title={label}>
-        {label}
-      </p>
+      {showLabel ? (
+        <p className="min-w-0 truncate text-sm text-muted-foreground" title={label}>
+          {label}
+        </p>
+      ) : null}
       {showRing ? (
         <div className="flex min-h-0 flex-1 items-center justify-between gap-3">
           <Ring ratio={ratio(current)} className="h-full max-h-24" strokeWidth={9}>

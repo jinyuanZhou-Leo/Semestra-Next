@@ -114,7 +114,7 @@ export default function TermCoursesCard({ scope }: CardProps) {
   }
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 scroll-fade flex-col overflow-y-auto">
         {courses && courses.length === 0 ? (
           <Empty className="border-0 p-0">
             <EmptyHeader>

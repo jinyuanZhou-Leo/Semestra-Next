@@ -548,3 +548,55 @@
     animation: none;
   }
 }
+
+/*
+ * A scrolling list inside a card fades out at the edge where more content is hidden, so a cut-off
+ * row reads as "scroll for more" (macOS hides scroll bars). Driven by the element's own scroll
+ * position: the fade at the bottom goes away at the end, the one at the top appears once scrolled.
+ * When the content fits, the scroll timeline is inactive and nothing fades; browsers without
+ * scroll-driven animations show no fade.
+ */
+@property --scroll-fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade {
+  0% {
+    --scroll-fade-top: 0px;
+    --scroll-fade-bottom: 1.5rem;
+  }
+  10%,
+  90% {
+    --scroll-fade-top: 1.5rem;
+    --scroll-fade-bottom: 1.5rem;
+  }
+  100% {
+    --scroll-fade-top: 1.5rem;
+    --scroll-fade-bottom: 0px;
+  }
+}
+
+@utility scroll-fade {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent
+  );
+  animation: scroll-fade linear both;
+  animation-timeline: scroll(self);
+}
+
+/* Follows the scroll position, not time: reduced motion leaves it alone. */
+[data-reduce-motion='on'] .scroll-fade {
+  animation-duration: auto !important;
+}

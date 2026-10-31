@@ -1,4 +1,4 @@
-/** Calendar arithmetic for the habit board on ISO dates ("2026-01-15"), free of time zones. */
+/** Calendar arithmetic for the habit history on ISO dates ("2026-01-15"), free of time zones. */
 
 export type WeekStart = 1 | 7
 
@@ -52,5 +52,5 @@ export function milestoneAt(streak: number): number | null {
   return (MILESTONES as readonly number[]).includes(streak) ? streak : null
 }
 
-/** Weeks the board shows per card size (M14 §2). */
-export const BOARD_WEEKS = { m: 5, l: 10, xl: 20 } as const
+/** The most weeks the history shows; the card fits as many as its width allows (M14 §2). */
+export const HISTORY_WEEKS = 52

@@ -12,7 +12,9 @@ export function useDebounced<T>(value: T, delay: number): T {
 
 /**
  * True while files are dragged over the window, and `onDrop` gets them: the whole page is the
- * drop zone (M07 §6.1). Other drags (text, cards on a board) are ignored.
+ * drop zone (M07 §6.1). A drop that a target inside the page took (a folder, a course section:
+ * its handler calls `preventDefault`) is not passed on. Other drags (text, cards on a board) are
+ * ignored.
  */
 export function useFileDrop(onDrop: (files: File[]) => void, enabled = true): boolean {
   const [over, setOver] = useState(false)
@@ -35,10 +37,11 @@ export function useFileDrop(onDrop: (files: File[]) => void, enabled = true): bo
     }
     const drop = (event: DragEvent) => {
       if (!hasFiles(event)) return
+      const taken = event.defaultPrevented
       event.preventDefault()
       depth = 0
       setOver(false)
-      onDrop([...(event.dataTransfer?.files ?? [])])
+      if (!taken) onDrop([...(event.dataTransfer?.files ?? [])])
     }
     window.addEventListener('dragenter', enter)
     window.addEventListener('dragleave', leave)

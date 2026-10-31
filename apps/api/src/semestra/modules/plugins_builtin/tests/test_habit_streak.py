@@ -45,7 +45,7 @@ async def test_toggle_checks_and_unchecks_and_reports_streaks(
     client: AsyncClient, user: UserHandle, cards: FakeCards
 ):
     pid = await program(client)
-    habit = cards.add(user.id, "habit.board", "program", pid)
+    habit = cards.add(user.id, "habit.ring", "program", pid)
     first = await toggle(client, habit, "2026-01-15")
     assert first["checked"] is True
     assert first["stats"]["current_streak"] == 1
@@ -72,7 +72,7 @@ async def test_the_assistant_sets_a_day_idempotently(
     app: FastAPI, client: AsyncClient, user: UserHandle, cards: FakeCards
 ):
     pid = await program(client)
-    habit = cards.add(user.id, "habit.board", "program", pid)
+    habit = cards.add(user.id, "habit.ring", "program", pid)
 
     async def set_day(checked: bool) -> Any:
         async with system_ctx(app.state, user.id) as ctx:
@@ -126,7 +126,7 @@ async def test_recorded_days_stay_when_the_program_time_zone_changes(
     client: AsyncClient, user: UserHandle, cards: FakeCards
 ):
     pid = await program(client)
-    habit = cards.add(user.id, "habit.board", "program", pid)
+    habit = cards.add(user.id, "habit.ring", "program", pid)
     await toggle(client, habit, "2026-01-15")
     r = await client.patch(f"/programs/{pid}", json={"timezone": "Asia/Tokyo"})
     assert r.status_code == 200, r.text
@@ -142,7 +142,7 @@ async def test_weekly_goal_counts_weeks_reaching_the_target(
 ):
     habit = cards.add(
         user.id,
-        "habit.board",
+        "habit.ring",
         "program",
         await program(client),
         {"goal": "weekly", "weekly_target": 2},
@@ -163,7 +163,7 @@ async def test_cards_of_other_users_and_other_plugins_are_not_found(
 ):
     pid = await program(client)
     other = await make_user(email="other@example.com")
-    foreign = cards.add(other.id, "habit.board", "program", pid)
+    foreign = cards.add(other.id, "habit.ring", "program", pid)
     not_habit = cards.add(user.id, "sticky.note", "program", pid)
     for instance in (foreign, not_habit, "missing"):
         error = await toggle(client, instance, "2026-01-15", status=404)
@@ -172,7 +172,7 @@ async def test_cards_of_other_users_and_other_plugins_are_not_found(
 
 
 async def test_list_range_is_validated(client: AsyncClient, user: UserHandle, cards: FakeCards):
-    habit = cards.add(user.id, "habit.board", "program", await program(client))
+    habit = cards.add(user.id, "habit.ring", "program", await program(client))
     r = await client.get(
         f"/habit/instances/{habit}/checkins",
         params={"from_date": "2024-01-01", "to_date": "2026-01-31"},
@@ -187,7 +187,7 @@ async def test_card_deletion_and_purge_remove_the_check_ins(
     from semestra.core.events import events
 
     pid = await program(client)
-    kept = cards.add(user.id, "habit.board", "program", pid)
+    kept = cards.add(user.id, "habit.ring", "program", pid)
     removed = cards.add(user.id, "habit.ring", "program", pid)
     for instance in (kept, removed):
         await toggle(client, instance, "2026-01-15")
