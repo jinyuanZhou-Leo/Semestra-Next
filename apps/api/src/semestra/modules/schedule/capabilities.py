@@ -3,6 +3,7 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
 from semestra.modules.schedule import common, event_types, feeds, meetings, one_off, sources
 from semestra.modules.schedule.models import ScheduleEvent, ScheduleEventType, ScheduleMeeting
@@ -83,6 +84,19 @@ def _occurrences(key: str) -> tuple[str, ...]:
 # --- calendar -------------------------------------------------------------------------------
 
 
+agent_hints(
+    {
+        "schedule.time_range_invalid": "The end is before the start.",
+        "schedule.week_range_invalid": "end_week is before start_week.",
+        "schedule.term_not_in_course": "The course is not taught in that term; use one of the "
+        "course's term_ids.",
+        "schedule.range_too_large": "Ask for at most `max_days` days at a time.",
+        "schedule.event_type_in_use": "Meetings or events still use this type; move them to "
+        "another type first.",
+    }
+)
+
+
 @capability(
     name="calendar.today.get",
     summary="Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
@@ -117,7 +131,6 @@ For today alone prefer calendar.today.get. Each class carries its term week in m
     effect="read",
     http=Http("GET", "/programs/{program_id}/calendar"),
     tags=TAGS,
-    agent_core=True,
     agent_output_fields=("timezone", "start", "end", *_occurrences("items"), "weeks", "breaks"),
 )
 async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
@@ -189,6 +202,7 @@ async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
     summary="Set the display order of a Program's types.",
     description="Types not listed keep their relative order after the listed ones.",
     effect="write",
+    expose=("http",),  # only the UI reorders
     http=Http("PUT", "/programs/{program_id}/event-types:order"),
     tags=TAGS,
     agent_output_fields=("items.id", "items.code"),
@@ -236,6 +250,7 @@ async def meeting_list_for_term(ctx: Ctx, inp: TermMeetingListInput) -> MeetingL
 schedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up
 class) use schedule.event.create instead.""",
     effect="write",
+    expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/courses/{course_id}/meetings"),
     tags=TAGS,
     agent_output_fields=("id", "section_code", "type_code", "weekday", "start_time", "end_time"),
@@ -248,9 +263,11 @@ async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
 
 @capability(
     name="schedule.meeting.create_many",
-    summary="Add several weekly class times to a course at once (importers).",
-    description="""Used by importers. An item with the same source_kind and source_ref as an
-existing meeting of the course updates it instead of adding a duplicate.""",
+    summary="Add one or more weekly (or biweekly) class times to a course.",
+    description="""Each meeting runs in one of the course's terms; times are wall-clock times in
+the Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a
+single extra session (exam, make-up class) use schedule.event.create_many instead. An item with the
+same source_kind and source_ref as an existing meeting of the course updates it.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/meetings:batch"),
     tags=TAGS,
@@ -339,7 +356,8 @@ async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
 @capability(
     name="schedule.exception.delete",
     summary="Undo the cancellation or move of one class.",
-    description="The class happens again as regularly scheduled.",
+    description="""The class happens again as regularly scheduled. Use when a class cancelled or
+moved with schedule.exception.upsert takes place after all.""",
     effect="write",
     http=Http("DELETE", "/meetings/{meeting_id}/exceptions/{original_date}"),
     preview=meetings.preview_exception_delete,
@@ -399,6 +417,7 @@ async def event_get(ctx: Ctx, inp: EventRef) -> OneOffEvent:
     description="""Times without an offset are read in the Program's time zone. For something
 that repeats weekly use schedule.meeting.create.""",
     effect="write",
+    expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/programs/{program_id}/events"),
     tags=TAGS,
     agent_output_fields=("id", "title", "start_at", "end_at"),
@@ -409,9 +428,10 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
 
 @capability(
     name="schedule.event.create_many",
-    summary="Add several one-off events to a Program at once (importers).",
-    description="""Used by importers. An item with the same source_kind and source_ref as an
-existing event of the Program updates it instead of adding a duplicate.""",
+    summary="Add one or more one-off events: exams, office hours, make-up classes, appointments.",
+    description="""Times without an offset are read in the Program's time zone. For something
+that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+source_ref as an existing event of the Program updates it.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/events:batch"),
     tags=TAGS,
@@ -425,7 +445,9 @@ async def event_create_many(ctx: Ctx, inp: EventCreateManyInput) -> EventCreateM
     name="schedule.event.update",
     record=("event_id", owned_row(ScheduleEvent)),
     summary="Change a one-off event.",
-    description="Moving only `start_at` keeps the event's duration.",
+    description="""Only the fields that are sent change. Moving only `start_at` keeps the event's
+duration. Find the id with schedule.event.list; a weekly class is changed with
+schedule.meeting.update or, for one week, schedule.exception.upsert.""",
     effect="write",
     http=Http("PATCH", "/events/{event_id}"),
     tags=TAGS,
@@ -438,7 +460,9 @@ async def event_update(ctx: Ctx, inp: EventUpdateInput) -> OneOffEvent:
 @capability(
     name="schedule.event.delete",
     summary="Delete a one-off event.",
-    description="Irreversible.",
+    description="""Irreversible. Find the id with schedule.event.list. A weekly class is not an
+event: cancel one week with schedule.exception.upsert, or remove the class time with
+schedule.meeting.delete.""",
     effect="destructive",
     http=Http("DELETE", "/events/{event_id}"),
     preview=one_off.preview_event_delete,

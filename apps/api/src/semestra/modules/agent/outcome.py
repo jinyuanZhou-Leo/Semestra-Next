@@ -13,7 +13,7 @@ from starlette.datastructures import State
 
 from semestra.core.capability import Capability, Surface, registry
 from semestra.core.context import AuthInfo, Ctx, ScopeRef, run_after_commit
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, agent_hint
 from semestra.modules.agent import display, history, tools
 from semestra.modules.agent.models import AgentProposal
 from semestra.modules.agent.runtime import agent_ctx
@@ -47,7 +47,8 @@ def citations(payload: Any) -> list[dict[str, Any]]:
 
 
 def error_payload(exc: AppError) -> dict[str, Any]:
-    return {"error": {"code": exc.code, "params": exc.params}}
+    hint = agent_hint(exc.code)
+    return {"error": {"code": exc.code, "params": exc.params, **({"hint": hint} if hint else {})}}
 
 
 def error(code: str, *, ran: bool = True, **params: Any) -> Outcome:

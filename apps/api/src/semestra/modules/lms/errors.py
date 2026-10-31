@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, agent_hints
 
 STATUS = {
     "lms.provider_unknown": 422,
@@ -44,6 +44,30 @@ CONNECTION_ERRORS = frozenset(
 # connection check (`validate`, the periodic refresh) reads the user's own profile, where a
 # refusal does mean the token can't be used.
 BROKEN_ON_READ = CONNECTION_ERRORS - {"lms.forbidden"}
+
+agent_hints(
+    {
+        "lms.program_not_configured": "This Program has no LMS connection yet; the user sets it "
+        "up in settings.",
+        "lms.course_not_linked": "The course is not linked to an LMS course; link it with "
+        "lms.course.link.set.",
+        "lms.course_link_exists": "The course is already linked; pass replace=true to change the "
+        "link.",
+        "lms.course_already_linked": "That LMS course is linked to another course here; unlink "
+        "that one first.",
+        "lms.feature_unsupported": "This platform or course does not offer that; tell the user.",
+        "lms.writes_disabled": "Changing things on the LMS is off in the user's settings; tell "
+        "them.",
+        "lms.invalid_credentials": "The LMS token stopped working; the user reconnects in "
+        "settings.",
+        "lms.forbidden": "The LMS refuses access to this resource (locked or hidden by the "
+        "instructor).",
+        "lms.unreachable": "The LMS did not answer; try again later.",
+        "lms.rate_limited": "The LMS is limiting requests; wait before trying again.",
+        "lms.assignment_already_imported": "This assignment is already in the gradebook; update "
+        "that assessment.",
+    }
+)
 
 
 def lms_error(code: str, **params: Any) -> AppError:

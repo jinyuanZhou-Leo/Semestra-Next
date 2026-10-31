@@ -865,7 +865,7 @@ async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Ap
         c.name for c in registry.list(expose="http") if c.name.startswith("grading.")
     }
     core = {c.name for c in registry.list() if c.agent_core and c.name.startswith("grading.")}
-    assert core == {"grading.gradebook.get", "grading.assessment.find", "grading.assessment.update"}
+    assert core == {"grading.assessment.find"}
 
     _, course = await one_course(api)
     await api.assessment(course["id"], "Quiz", 10, note="private")

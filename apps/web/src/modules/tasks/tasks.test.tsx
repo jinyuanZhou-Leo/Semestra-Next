@@ -89,7 +89,7 @@ beforeEach(() => {
     http.get(`${API}/programs/p1/tasks`, async ({ request }) => {
       if (slow) await delay(200)
       const params = new URL(request.url).searchParams
-      const finished = params.get('view') === 'completed' || params.get('only_completed') === 'true'
+      const finished = params.get('view') === 'completed' || params.get('completed') === 'only'
       const rows = items.filter((t) => (t.completed_at !== null) === finished)
       const limit = Number(params.get('limit') ?? 200)
       log.queries.push(Object.fromEntries(params))
@@ -222,7 +222,7 @@ test('folded completed tasks are only counted, and long lists load more on deman
   await userEvent.click(folded)
   // While the rows load the section stays where it is.
   expect(screen.getByRole('button', { name: /4 completed/ })).toBeTruthy()
-  expect(log.queries.some((q) => q.only_completed === 'true' && q.limit === '1')).toBe(true)
+  expect(log.queries.some((q) => q.completed === 'only' && q.limit === '1')).toBe(true)
   expect(await screen.findByText('Done 3')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
 })

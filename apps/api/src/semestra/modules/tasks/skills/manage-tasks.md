@@ -18,10 +18,10 @@ tools = [
   "tasks.list.list",
   "tasks.list.create",
   "tasks.list.update",
-  "tasks.list.reorder",
   "tasks.list.delete",
   "academics.course.find",
   "grading.assessment.update",
+  "calendar.occurrence.list",
 ]
 +++
 

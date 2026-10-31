@@ -221,13 +221,10 @@ class TaskQueryInput(BaseModel):
     )
     due_from: date | None = Field(default=None, description="Due on or after this date")
     due_to: date | None = Field(default=None, description="Due on or before this date")
-    include_completed: bool = Field(
-        default=False, description="Also return completed tasks (views other than completed)"
-    )
-    only_completed: bool = Field(
-        default=False,
-        description="Return only the completed tasks the view would show (views other than "
-        "completed); wins over include_completed",
+    completed: Literal["exclude", "include", "only"] = Field(
+        default="exclude",
+        description="Completed tasks the view would show: leave out, add, or return only them "
+        "(ignored by the completed view)",
     )
     sort: Sort = Field(default="manual", description="Order of the result")
     fields: list[TaskField] | None = Field(

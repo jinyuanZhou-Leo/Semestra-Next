@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -26,6 +26,31 @@ class AppError(Exception):
         self.code = code
         self.status = status
         self.params = params
+
+
+# What an agent or MCP client should do about an error, by code: one English sentence the model
+# reads next to the code (`agent.outcome`). The UI translates the code instead; HTTP responses never
+# carry it. Each module registers hints for the codes it raises whose params do not say enough.
+_AGENT_HINTS: dict[str, str] = {}
+
+
+def agent_hints(hints: Mapping[str, str]) -> None:
+    _AGENT_HINTS.update(hints)
+
+
+agent_hints(
+    {
+        "common.not_found": "The id is wrong or the item was deleted (params name which one). "
+        "Look it up again with a find or list tool; never guess an id.",
+        "common.conflict": "Someone changed this at the same time. Read it again, then retry once.",
+        "common.quota_exceeded": "The user's storage is full. Tell them; do not retry.",
+        "plugins.not_installed": "The plugin is not installed; the user installs it in settings.",
+    }
+)
+
+
+def agent_hint(code: str) -> str | None:
+    return _AGENT_HINTS.get(code)
 
 
 def not_found(kind: str | None = None, id: str | None = None) -> AppError:

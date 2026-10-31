@@ -167,7 +167,8 @@ async def connection_validate(ctx: Ctx, inp: ConnectionValidateInput) -> Connect
 @capability(
     name="lms.program.binding.get",
     summary="Which LMS connection a Program uses.",
-    description="Courses of the Program can only be linked through this connection.",
+    description="""Courses of the Program can only be linked through this connection. The user
+manages connections in settings.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms-binding"),
     tags=TAGS,
@@ -180,7 +181,8 @@ async def binding_get(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 @capability(
     name="lms.program.binding.set",
     summary="Bind an LMS connection to a Program.",
-    description="Refused while courses of the Program are linked (lms.program_has_links).",
+    description="""Refused while courses of the Program are linked (lms.program_has_links).
+Afterwards link courses with lms.course.link.set.""",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_set,
@@ -194,7 +196,8 @@ async def binding_set(ctx: Ctx, inp: BindingSetInput) -> ProgramBinding:
 @capability(
     name="lms.program.binding.clear",
     summary="Unbind a Program's LMS connection.",
-    description="Refused while courses of the Program are linked (lms.program_has_links).",
+    description="""Refused while courses of the Program are linked (lms.program_has_links): unlink
+them with lms.course.link.delete first. The connection itself stays.""",
     effect="write",
     http=Http("DELETE", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_clear,
@@ -244,7 +247,9 @@ async def courses_list(ctx: Ctx, inp: ExternalCourseListInput) -> ExternalCourse
 @capability(
     name="lms.course.link.get",
     summary="The LMS course a course is linked to, if any.",
-    description="Also says which connection the course's Program is bound to.",
+    description="""Also says which connection the course's Program is bound to. Check it before the
+lms.* read tools: they need a linked course (lms.course_not_linked otherwise). Link a course with
+lms.course.link.set.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms-link"),
     tags=TAGS,
@@ -276,7 +281,8 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 @capability(
     name="lms.course.link.update",
     summary="Turn LMS sync of a linked course on or off.",
-    description="Off: no calendar overlay and no update checks; reading still works.",
+    description="""Off: no calendar overlay and no update checks; reading still works. To remove the
+link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
     preview=previews.preview_link_update,
@@ -290,7 +296,8 @@ async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
 @capability(
     name="lms.course.link.sync",
     summary="Refresh the linked LMS course's code, name and term.",
-    description="Changes only the link, never the course itself.",
+    description="""Changes only the link, never the course itself. Use when the course was renamed
+or moved on the LMS and the link still shows the old code, name or term.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms-link:sync"),
     tags=TAGS,
@@ -303,7 +310,9 @@ async def link_sync(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 @capability(
     name="lms.course.link.delete",
     summary="Unlink a course from its LMS course.",
-    description="Imported assessments, tasks and files stay.",
+    description="""Imported assessments, tasks and files stay; LMS reads, calendar overlay and
+update checks stop for this course. Link it again with lms.course.link.set. To pause syncing but
+keep reading, use lms.course.link.update instead.""",
     effect="write",
     http=Http("DELETE", "/courses/{course_id}/lms-link"),
     preview=previews.preview_link_delete,
@@ -435,7 +444,9 @@ async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
 @capability(
     name="lms.grade.list",
     summary="The user's grades on Canvas or another LMS for a linked course.",
-    description="The course total first, then one row per assignment.",
+    description="""The course total first, then one row per assignment, with score, points possible
+and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
+assignments to it use lms.assignment.import.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/grades"),
     tags=TAGS,
@@ -463,7 +474,8 @@ async def grades_list(ctx: Ctx, inp: CourseReadInput) -> GradeList:
 @capability(
     name="lms.module.list",
     summary="Modules of a linked course.",
-    description="Items of a module: lms.module_item.list.",
+    description="""Modules are the instructor's outline of the course (weeks or units), in order,
+with their state, unlock date and item count. Items of a module: lms.module_item.list.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/modules"),
     tags=TAGS,
@@ -479,7 +491,9 @@ async def modules_list(ctx: Ctx, inp: CourseReadInput) -> ModuleList:
 @capability(
     name="lms.module_item.list",
     summary="Items of one module of a linked course.",
-    description="`target` says where an item opens in the app (page, assignment, file...).",
+    description="""Get module_id from lms.module.list. Each item has a kind (page, assignment, file,
+quiz, link...) and an indent level. `target` says where an item opens in the app (page, assignment,
+file...).""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/modules/{module_id}/items"),
     tags=TAGS,
@@ -498,7 +512,8 @@ async def module_items_list(ctx: Ctx, inp: ModuleItemsInput) -> ModuleItemList:
 @capability(
     name="lms.page.list",
     summary="Pages of a linked course.",
-    description="Read one with lms.page.get.",
+    description="""Titles and last change only; the course's front page is marked. Read one with
+lms.page.get. The syllabus has its own tool, lms.syllabus.get.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/pages"),
     tags=TAGS,
@@ -529,7 +544,9 @@ async def page_get(ctx: Ctx, inp: PageGetInput) -> PageDetail:
     name="lms.quiz.list",
     untrusted=True,
     summary="Quizzes of a linked course.",
-    description="",
+    description="""Due, unlock and lock dates, points and question count by default; ask for more
+with `fields`. A quiz's score and attempts come with lms.assignment.list (its `assignment_id`);
+questions are not available.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/quizzes"),
     tags=TAGS,
@@ -598,7 +615,9 @@ async def folder_get(ctx: Ctx, inp: FolderInput) -> FolderListing:
 @capability(
     name="lms.file.search",
     summary="Find files of a linked course on the LMS by name.",
-    description="",
+    description="""Matches part of the file name, not its contents. Each result says its type, size,
+last change and whether it is locked. Browse by folder with lms.folder.get, open one with
+lms.file.preview, or copy it into the course's files with lms.file.save_to_course.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files"),
     tags=TAGS,

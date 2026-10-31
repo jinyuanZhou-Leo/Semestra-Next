@@ -1315,9 +1315,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -1554,8 +1551,8 @@
         "tags": [
           "academics"
         ],
-        "summary": "Add several courses at once.",
-        "description": "Use for a batch of courses the user typed or listed in the chat. Courses in a\ndocument or file (a timetable, a syllabus) go through imports.session.create instead.",
+        "summary": "Add one or more courses, each to one term or to consecutive terms (year-long).",
+        "description": "Use when the user adds courses in the chat, one or several. Get term ids from\nacademics.term.list. For a year-long course whose second term does not exist yet, link the current\nterm only and set `planned_terms` to 2; the term wizard offers to continue it later. Courses in a\ndocument or file (a timetable, a syllabus) go through imports.session.create instead.",
         "operationId": "academicsCourseCreateMany",
         "security": [
           {
@@ -1902,7 +1899,7 @@
           "academics"
         ],
         "summary": "Create a Program (a degree or study plan).",
-        "description": "Use only when the user explicitly wants a new, separate Program, e.g. a second\ndegree. Do not use to add a term or a course; use academics.term.create or\nacademics.course.create.",
+        "description": "Use only when the user explicitly wants a new, separate Program, e.g. a second\ndegree. Do not use to add a term or a course; use academics.term.create or\nacademics.course.create_many.",
         "operationId": "academicsProgramCreate",
         "requestBody": {
           "content": {
@@ -2063,7 +2060,7 @@
           "academics"
         ],
         "summary": "Change a Program's name, school, time zone or credit settings.",
-        "description": "Partial update: only the fields that are sent change.",
+        "description": "Partial update: only the fields that are sent change. Get the Program with\nacademics.program.get first when you need its current values. Terms and courses are changed with\nacademics.term.update and academics.course.update.",
         "operationId": "academicsProgramUpdate",
         "security": [
           {
@@ -2380,7 +2377,7 @@
           "academics"
         ],
         "summary": "Get one term with its dates and breaks.",
-        "description": "Use when you need a term's dates, reading weeks or holidays.",
+        "description": "Use when you need a term's dates, reading weeks or holidays. Find the id with\nacademics.term.list; for teaching week numbers use academics.term.get_weeks. Changes go through\nacademics.term.update.",
         "operationId": "academicsTermGet",
         "security": [
           {
@@ -5404,7 +5401,7 @@
           "files"
         ],
         "summary": "Create a folder in a course's files.",
-        "description": "Use to organise a course's files. Folders can be nested up to three levels.",
+        "description": "Use to organise a course's files. Folders can be nested up to three levels. Move\na file into the new folder with files.item.update (`folder_id`).",
         "operationId": "filesFolderCreate",
         "security": [
           {
@@ -6033,9 +6030,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -6239,8 +6233,8 @@
         "tags": [
           "grading"
         ],
-        "summary": "Add several assessments at once.",
-        "description": "Use for assessments the user typed or listed in the chat. A grading scheme in a\nfile goes through imports.session.create, and LMS assignments through lms.assignment.import.\nItems that carry `source_kind` and `source_ref` are skipped when the course\nalready has an assessment from the same source, so repeating an import creates no duplicates.",
+        "summary": "Add one or more assessments (quiz, exam, assignment...) to a course gradebook.",
+        "description": "Use when the user adds graded items in the chat, one or several. Give each\ndeadline as `due_date` (and `due_time` if known) in the Program's time zone. Do not use to record a\nscore on an existing assessment; use grading.assessment.update. A grading scheme in a file goes\nthrough imports.session.create, and LMS assignments through lms.assignment.import.\nItems that carry `source_kind` and `source_ref` are skipped when the course\nalready has an assessment from the same source, so repeating an import creates no duplicates.",
         "operationId": "gradingAssessmentCreateMany",
         "security": [
           {
@@ -6306,7 +6300,7 @@
           "grading"
         ],
         "summary": "Delete an assessment from a gradebook.",
-        "description": "Irreversible. To ignore an assessment in the grade, set `dropped` instead.",
+        "description": "Irreversible: the score and its place in the grade are gone. To ignore an\nassessment in the grade, set `dropped` with grading.assessment.update instead. Find the id with\ngrading.assessment.find.",
         "operationId": "gradingAssessmentDelete",
         "security": [
           {
@@ -6434,9 +6428,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -6794,9 +6785,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -8011,7 +7999,7 @@
           "imports"
         ],
         "summary": "Import history of a Program, newest first.",
-        "description": "Closed imports are kept for 30 days.",
+        "description": "Each import says where it came from and its state (extracting, ready,\ncommitted, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30\ndays.",
         "operationId": "importsSessionList",
         "security": [
           {
@@ -9816,7 +9804,7 @@
           "lms"
         ],
         "summary": "Unlink a course from its LMS course.",
-        "description": "Imported assessments, tasks and files stay.",
+        "description": "Imported assessments, tasks and files stay; LMS reads, calendar overlay and\nupdate checks stop for this course. Link it again with lms.course.link.set. To pause syncing but\nkeep reading, use lms.course.link.update instead.",
         "operationId": "lmsCourseLinkDelete",
         "security": [
           {
@@ -9870,7 +9858,7 @@
           "lms"
         ],
         "summary": "The LMS course a course is linked to, if any.",
-        "description": "Also says which connection the course's Program is bound to.",
+        "description": "Also says which connection the course's Program is bound to. Check it before the\nlms.* read tools: they need a linked course (lms.course_not_linked otherwise). Link a course with\nlms.course.link.set.",
         "operationId": "lmsCourseLinkGet",
         "security": [
           {
@@ -9988,7 +9976,7 @@
           "lms"
         ],
         "summary": "Turn LMS sync of a linked course on or off.",
-        "description": "Off: no calendar overlay and no update checks; reading still works.",
+        "description": "Off: no calendar overlay and no update checks; reading still works. To remove the\nlink altogether use lms.course.link.delete.",
         "operationId": "lmsCourseLinkUpdate",
         "security": [
           {
@@ -10054,7 +10042,7 @@
           "lms"
         ],
         "summary": "Refresh the linked LMS course's code, name and term.",
-        "description": "Changes only the link, never the course itself.",
+        "description": "Changes only the link, never the course itself. Use when the course was renamed\nor moved on the LMS and the link still shows the old code, name or term.",
         "operationId": "lmsCourseLinkSync",
         "security": [
           {
@@ -10602,6 +10590,7 @@
           "lms"
         ],
         "summary": "Find files of a linked course on the LMS by name.",
+        "description": "Matches part of the file name, not its contents. Each result says its type, size,\nlast change and whether it is locked. Browse by folder with lms.folder.get, open one with\nlms.file.preview, or copy it into the course's files with lms.file.save_to_course.",
         "operationId": "lmsFileSearch",
         "security": [
           {
@@ -10768,7 +10757,7 @@
           "lms"
         ],
         "summary": "The user's grades on Canvas or another LMS for a linked course.",
-        "description": "The course total first, then one row per assignment.",
+        "description": "The course total first, then one row per assignment, with score, points possible\nand grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS\nassignments to it use lms.assignment.import.",
         "operationId": "lmsGradeList",
         "security": [
           {
@@ -10836,7 +10825,7 @@
           "lms"
         ],
         "summary": "Modules of a linked course.",
-        "description": "Items of a module: lms.module_item.list.",
+        "description": "Modules are the instructor's outline of the course (weeks or units), in order,\nwith their state, unlock date and item count. Items of a module: lms.module_item.list.",
         "operationId": "lmsModuleList",
         "security": [
           {
@@ -10904,7 +10893,7 @@
           "lms"
         ],
         "summary": "Items of one module of a linked course.",
-        "description": "`target` says where an item opens in the app (page, assignment, file...).",
+        "description": "Get module_id from lms.module.list. Each item has a kind (page, assignment, file,\nquiz, link...) and an indent level. `target` says where an item opens in the app (page, assignment,\nfile...).",
         "operationId": "lmsModuleItemList",
         "security": [
           {
@@ -11061,7 +11050,7 @@
           "lms"
         ],
         "summary": "Pages of a linked course.",
-        "description": "Read one with lms.page.get.",
+        "description": "Titles and last change only; the course's front page is marked. Read one with\nlms.page.get. The syllabus has its own tool, lms.syllabus.get.",
         "operationId": "lmsPageList",
         "security": [
           {
@@ -11129,7 +11118,7 @@
           "lms"
         ],
         "summary": "Unbind a Program's LMS connection.",
-        "description": "Refused while courses of the Program are linked (lms.program_has_links).",
+        "description": "Refused while courses of the Program are linked (lms.program_has_links): unlink\nthem with lms.course.link.delete first. The connection itself stays.",
         "operationId": "lmsProgramBindingClear",
         "security": [
           {
@@ -11183,7 +11172,7 @@
           "lms"
         ],
         "summary": "Which LMS connection a Program uses.",
-        "description": "Courses of the Program can only be linked through this connection.",
+        "description": "Courses of the Program can only be linked through this connection. The user\nmanages connections in settings.",
         "operationId": "lmsProgramBindingGet",
         "security": [
           {
@@ -11237,7 +11226,7 @@
           "lms"
         ],
         "summary": "Bind an LMS connection to a Program.",
-        "description": "Refused while courses of the Program are linked (lms.program_has_links).",
+        "description": "Refused while courses of the Program are linked (lms.program_has_links).\nAfterwards link courses with lms.course.link.set.",
         "operationId": "lmsProgramBindingSet",
         "security": [
           {
@@ -11346,6 +11335,7 @@
           "lms"
         ],
         "summary": "Quizzes of a linked course.",
+        "description": "Due, unlock and lock dates, points and question count by default; ask for more\nwith `fields`. A quiz's score and attempts come with lms.assignment.list (its `assignment_id`);\nquestions are not available.",
         "operationId": "lmsQuizList",
         "security": [
           {
@@ -12405,9 +12395,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -12556,8 +12543,8 @@
         "tags": [
           "schedule"
         ],
-        "summary": "Add several one-off events to a Program at once (importers).",
-        "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting event of the Program updates it instead of adding a duplicate.",
+        "summary": "Add one or more one-off events: exams, office hours, make-up classes, appointments.",
+        "description": "Times without an offset are read in the Program's time zone. For something\nthat repeats weekly use schedule.meeting.create_many. An item with the same source_kind and\nsource_ref as an existing event of the Program updates it.",
         "operationId": "scheduleEventCreateMany",
         "security": [
           {
@@ -12623,7 +12610,7 @@
           "schedule"
         ],
         "summary": "Delete a one-off event.",
-        "description": "Irreversible.",
+        "description": "Irreversible. Find the id with schedule.event.list. A weekly class is not an\nevent: cancel one week with schedule.exception.upsert, or remove the class time with\nschedule.meeting.delete.",
         "operationId": "scheduleEventDelete",
         "security": [
           {
@@ -12728,7 +12715,7 @@
           "schedule"
         ],
         "summary": "Change a one-off event.",
-        "description": "Moving only `start_at` keeps the event's duration.",
+        "description": "Only the fields that are sent change. Moving only `start_at` keeps the event's\nduration. Find the id with schedule.event.list; a weekly class is changed with\nschedule.meeting.update or, for one week, schedule.exception.upsert.",
         "operationId": "scheduleEventUpdate",
         "security": [
           {
@@ -13042,9 +13029,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -13100,7 +13084,7 @@
           "schedule"
         ],
         "summary": "Undo the cancellation or move of one class.",
-        "description": "The class happens again as regularly scheduled.",
+        "description": "The class happens again as regularly scheduled. Use when a class cancelled or\nmoved with schedule.exception.upsert takes place after all.",
         "operationId": "scheduleExceptionDelete",
         "security": [
           {
@@ -13419,9 +13403,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -13550,8 +13531,8 @@
         "tags": [
           "schedule"
         ],
-        "summary": "Add several weekly class times to a course at once (importers).",
-        "description": "Used by importers. An item with the same source_kind and source_ref as an\nexisting meeting of the course updates it instead of adding a duplicate.",
+        "summary": "Add one or more weekly (or biweekly) class times to a course.",
+        "description": "Each meeting runs in one of the course's terms; times are wall-clock times in\nthe Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a\nsingle extra session (exam, make-up class) use schedule.event.create_many instead. An item with the\nsame source_kind and source_ref as an existing meeting of the course updates it.",
         "operationId": "scheduleMeetingCreateMany",
         "security": [
           {
@@ -14790,7 +14771,7 @@
           "tasks"
         ],
         "summary": "List a Program's tasks by view: today, scheduled, all, completed, inbox, flagged.",
-        "description": "Use for 'what do I have to do'. `today` includes overdue tasks. For questions\nabout what is due this week prefer calendar.occurrence.list, which merges tasks with assessment\ndeadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;\ncompleted tasks are hidden unless the view is `completed` or include_completed is set.",
+        "description": "Use for 'what do I have to do'. `today` includes overdue tasks. For questions\nabout what is due this week prefer calendar.occurrence.list, which merges tasks with assessment\ndeadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;\ncompleted tasks are hidden unless the view is `completed` or `completed` is include or only.",
         "operationId": "tasksItemQuery",
         "security": [
           {
@@ -14953,28 +14934,21 @@
             "description": "Due on or before this date"
           },
           {
-            "name": "include_completed",
+            "name": "completed",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "Also return completed tasks (views other than completed)",
-              "default": false,
-              "title": "Include Completed"
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "type": "string",
+              "description": "Completed tasks the view would show: leave out, add, or return only them (ignored by the completed view)",
+              "default": "exclude",
+              "title": "Completed"
             },
-            "description": "Also return completed tasks (views other than completed)"
-          },
-          {
-            "name": "only_completed",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Return only the completed tasks the view would show (views other than completed); wins over include_completed",
-              "default": false,
-              "title": "Only Completed"
-            },
-            "description": "Return only the completed tasks the view would show (views other than completed); wins over include_completed"
+            "description": "Completed tasks the view would show: leave out, add, or return only them (ignored by the completed view)"
           },
           {
             "name": "sort",
@@ -15588,7 +15562,7 @@
           "tasks"
         ],
         "summary": "Rename a task list or change its color or icon.",
-        "description": "Partial update: only the fields that are sent change.",
+        "description": "Partial update: only the fields that are sent change. Get the id from\ntasks.list.list. Tasks are moved between lists with tasks.item.move.",
         "operationId": "tasksListUpdate",
         "security": [
           {
@@ -15662,9 +15636,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [

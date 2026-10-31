@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
-from semestra.modules.agent import skills, tools
+from semestra.modules.agent import skills
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
 from semestra.testing import MakeUser
 
@@ -225,6 +225,21 @@ def test_skill_files_are_valid_and_their_tools_exist():
     assert len(commands) == len(set(commands))
 
 
+def test_tool_descriptions_name_only_tools_the_agent_has():
+    """A description that points the model to an app-only capability sends it searching for a
+    tool it cannot find."""
+    from semestra.main import create_app
+
+    create_app()
+    available = registry.list("agent")
+    offered = {c.name for c in available}
+    app_only = {c.name for c in registry.list()} - offered
+    for cap in available:
+        text = f"{cap.summary}\n{cap.description}\n{cap.input_model.model_json_schema()}"
+        named = set(re.findall(r"\b[a-z_]+(?:\.[a-z_]+){2,}\b", text))
+        assert not named & app_only, f"{cap.name} names {sorted(named & app_only)}"
+
+
 def test_skills_list_every_tool_their_text_names():
     """Loading a skill reveals its `tools:`; a tool the text names but the list leaves out costs
     the model a search_tools round-trip (core tools are always there)."""
@@ -233,7 +248,7 @@ def test_skills_list_every_tool_their_text_names():
     create_app()
     available = registry.list("agent")
     names = {c.name for c in available}
-    core = {c.name for c in tools.core_capabilities(available)}
+    core = {c.name for c in available if c.agent_core}
     for skill in skills.all_skills():
         named = set(re.findall(r"`([a-z_]+(?:\.[a-z_]+){2,})`", skill.body))
         assert named <= names, f"{skill.name} names unknown tools {sorted(named - names)}"

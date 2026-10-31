@@ -396,10 +396,11 @@ async def test_calls_cut_off_before_they_ran_get_a_result(
     async def cut(*args: Any, **kwargs: Any) -> outcome.Outcome:
         raise asyncio.CancelledError
 
+    real_invoke = outcome.invoke
     monkeypatch.setattr(outcome, "invoke", cut)
     events = await agent.send(session["id"], "terms?")
     assert events_named(events, "tool_result") == []
-    monkeypatch.undo()
+    monkeypatch.setattr(outcome, "invoke", real_invoke)
     model.then(say("Sorry, let me retry."))
     await agent.send(session["id"], "hello?")
     [result] = model.results(-1)
@@ -465,7 +466,7 @@ async def test_a_write_done_before_the_client_left_keeps_its_result(
 
     monkeypatch.setattr(outcome, "invoke", invoke)
     await agent.send(session["id"], "60, and a note")
-    monkeypatch.undo()
+    monkeypatch.setattr(outcome, "invoke", real_invoke)
     items = (await agent.call("GET", f"/courses/{course['id']}/assessments"))["items"]
     assert items[0]["score_percentage"] == 60
 
@@ -879,8 +880,8 @@ async def test_loading_a_skill_gives_its_workflow_and_tools(agent: Agent, model:
     await agent.send(session["id"], "I got a score")
     assert "record-grades" in model.instructions_of(0)  # the catalog
     assert "Recording grades" in str(model.results(1)[0].content)
-    assert "grading__assessment__create" not in model.tools_of(0)
-    assert "grading__assessment__create" in model.tools_of(1)
+    assert "grading__assessment__create_many" not in model.tools_of(0)
+    assert "grading__assessment__create_many" in model.tools_of(1)
 
 
 async def test_a_loaded_skills_tools_stay_callable_in_the_next_message(
@@ -904,7 +905,7 @@ async def test_slash_skill_is_injected(agent: Agent, model: FakeModel):
     assert "record-grades" in str(first[1])
     assert "Recording grades" in str(first[1])
     assert first[2] == "Lab 3 18/20"
-    assert "grading__assessment__create" in model.tools_of(0)
+    assert "grading__assessment__create_many" in model.tools_of(0)
 
 
 # --- proposals after the conversation moved on ------------------------------------------------

@@ -26,6 +26,10 @@ from semestra.core.labels import Loader
 Effect = Literal["read", "write", "destructive"]
 Surface = Literal["http", "agent", "mcp"]
 ALL_SURFACES: tuple[Surface, ...] = ("http", "agent", "mcp")
+# `Field(json_schema_extra=HTTP_ONLY)`: an argument for the app only (a cache bypass, say); the
+# agent and MCP schemas leave it out, so the model is not offered it.
+HTTP_ONLY_KEY = "x-http-only"
+HTTP_ONLY: dict[str, Any] = {HTTP_ONLY_KEY: True}
 
 
 class NoInput(BaseModel):

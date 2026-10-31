@@ -24,7 +24,7 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 from pydantic_ai.toolsets.deferred_loading import DeferredLoadingToolset
 
-from semestra.core.capability import Capability, Surface, registry
+from semestra.core.capability import HTTP_ONLY_KEY, Capability, Surface, registry
 from semestra.core.errors import AppError
 from semestra.modules.ai.calls import inline_refs
 
@@ -109,7 +109,7 @@ def search(
     return [defs[rowid].name for (rowid,) in rows.fetchall()]
 
 
-SEARCH_LIMIT = 10
+SEARCH_LIMIT = 5  # what Anthropic's tool search returns by default
 
 
 @functools.lru_cache(maxsize=16)
@@ -156,6 +156,9 @@ def input_schema(cap: Capability, surface: Surface = "agent") -> dict[str, Any]:
 
 def _input_schema(cap: Capability, surface: Surface) -> dict[str, Any]:
     schema = _for_model_schema(inline_refs(cap.input_model.model_json_schema()))
+    for name, prop in list(schema.get("properties", {}).items()):
+        if prop.get(HTTP_ONLY_KEY):
+            del schema["properties"][name]
     # Arguments the runtime fills from the conversation (the Program) are optional here.
     for name, arg in registry.context_args(cap).items():
         prop = schema["properties"][name]

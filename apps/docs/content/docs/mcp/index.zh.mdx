@@ -89,9 +89,11 @@ Claude Desktop 通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) �
 
 ## 注意事项
 
-- 工具名是把能力名里的点换成 `__`，例如 `academics__course__create`。
+- 工具名是把能力名里的点换成 `__`，例如 `academics__course__create_many`。
 - 时间使用 Program 所在时区，并带有偏移量。
 - 如果你只有一个 Program，需要 `program_id` 的工具可以不传它。
 - 别人写的文本（Canvas 页面、文件内容）会作为数据返回，请按数据对待。
+- 调用失败时返回 `{"error": {"code", "params", "hint"}}`；有 `hint` 时，它是一句说明下一步怎么做的英文。
+- 添加条目的工具接受列表（`*_create_many`），只加一条也一样；排序只在应用里做。
 
 完整列表见[工具与 prompt](./tools.mdx)。

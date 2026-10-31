@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, SecretStr
 
+from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
 from semestra.modules.lms.schemas.dto import (
     Announcement,
@@ -154,7 +155,11 @@ class ExternalCourse(LmsCourse):
 class ExternalCourseListInput(BaseModel):
     program_id: Id = Field(description="Program id")
     include_past: bool = Field(default=False, description="Also courses of past terms")
-    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
+    refresh: bool = Field(
+        default=False,
+        description="Skip the 5-minute cache and ask again",
+        json_schema_extra=HTTP_ONLY,
+    )
 
 
 class ExternalCourseList(BaseModel):
@@ -214,7 +219,11 @@ class LinkUpdateInput(BaseModel):
 
 class CourseReadInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
-    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
+    refresh: bool = Field(
+        default=False,
+        description="Skip the 5-minute cache and ask again",
+        json_schema_extra=HTTP_ONLY,
+    )
 
 
 class CourseOverview(BaseModel):
@@ -253,7 +262,11 @@ class AnnouncementList(BaseModel):
 
 class TermAnnouncementsInput(BaseModel):
     term_id: Id = Field(description="Term id")
-    refresh: bool = Field(default=False, description="Skip the 5-minute cache and ask again")
+    refresh: bool = Field(
+        default=False,
+        description="Skip the 5-minute cache and ask again",
+        json_schema_extra=HTTP_ONLY,
+    )
 
 
 class TermAnnouncement(Announcement):

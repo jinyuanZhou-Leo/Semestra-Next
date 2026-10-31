@@ -2,6 +2,7 @@ from typing import Any
 
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.modules.imports import service
 from semestra.modules.imports.schemas import (
     MAX_WAIT_SECONDS,
@@ -25,6 +26,22 @@ TAGS = ("imports",)
 
 # What an assistant or MCP client gets of a session: enough to go on, without the bookkeeping.
 AGENT_SESSION = ("id", "status", "error_code", "source_refs", "summary", "items", "next_cursor")
+
+
+agent_hints(
+    {
+        "import.session_closed": "The import was already committed or discarded; start a new one.",
+        "import.session_not_ready": "Extraction is still running or failed; wait or start again.",
+        "import.session_changed": "The review changed while committing; nothing was written. "
+        "Commit again.",
+        "import.course_ref_missing": "An item points at a course that is not in this import; fix "
+        "course_ref.",
+        "import.term_unresolved": "Could not tell which term this belongs to; give a term or a "
+        "first_date.",
+        "import.target_unavailable": "The module that would store this is not available; leave "
+        "the item out.",
+    }
+)
 
 
 @capability(
@@ -85,7 +102,9 @@ async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
 @capability(
     name="imports.session.list",
     summary="Import history of a Program, newest first.",
-    description="Closed imports are kept for 30 days.",
+    description="""Each import says where it came from and its state (extracting, ready,
+committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
+days.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/imports"),
     tags=TAGS,

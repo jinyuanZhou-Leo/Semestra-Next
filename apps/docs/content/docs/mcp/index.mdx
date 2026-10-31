@@ -96,9 +96,12 @@ Then ask something like "What classes do I have tomorrow?"
 
 ## Good to know
 
-- Tool names are capability names with `__` for dots, e.g. `academics__course__create`.
+- Tool names are capability names with `__` for dots, e.g. `academics__course__create_many`.
 - Times are in the program's time zone, with the offset.
 - If you have exactly one program, tools that need a `program_id` can be called without it.
 - Text other people wrote (Canvas pages, file contents) is returned as data; treat it as such.
+- A failed call returns `{"error": {"code", "params", "hint"}}`; `hint`, when present, is one
+  English sentence on what to do next.
+- Adding items takes a list (`*_create_many`), even for one item. Reordering is left to the app.
 
 The full list is on [Tools and prompts](./tools.mdx).

@@ -17,7 +17,6 @@ tools = [
   "academics.course.find",
   "academics.course.list",
   "academics.course.get",
-  "academics.course.create",
   "academics.course.create_many",
   "academics.course.set_terms",
   "academics.course.update",
@@ -42,9 +41,9 @@ returns every term with its dates and breaks and marks the current one (`is_curr
   and not overlap. Courses of the new term can be created in the same call (`courses`).
 - Year-long courses that continue from the term before go in `continue_course_ids` (ids from
   `academics.course.list` of that term).
-- One course: `academics.course.create` with `term_ids`. If the course is year-long but the next
-  term does not exist yet, link only the current term and set `planned_terms: 2`. Several courses
-  the user listed: `academics.course.create_many`.
+- New courses, one or several: `academics.course.create_many`, each with `term_ids`. If a course
+  is year-long but the next term does not exist yet, link only the current term and set
+  `planned_terms: 2`.
 - Credits default to the Program's default; the subject (e.g. "APS") is parsed from the code.
 - Courses or dates in a document (a timetable, a syllabus) are imported instead: load
   `import-from-documents`. An import never creates a term, so create a missing term here first.

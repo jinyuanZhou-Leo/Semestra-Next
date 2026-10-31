@@ -29,6 +29,7 @@ from pydantic_ai.profiles import ModelProfile
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
+from semestra.modules.agent import tools
 from semestra.modules.agent.models import AgentMessage
 from semestra.modules.ai import Message
 from semestra.testing import MakeUser, UserHandle
@@ -52,6 +53,36 @@ class Reply:
 
 
 Step = Reply | Callable[[list[ModelMessage]], Reply]
+
+
+# Tools the scripted conversations call without a `search_tools` step: they were core before the
+# core set shrank to the read tools, and a search in every script would only add noise.
+SCRIPTED_CORE = frozenset(
+    {
+        "academics.term.list",
+        "calendar.occurrence.list",
+        "files.document.search",
+        "grading.assessment.update",
+        "grading.gradebook.get",
+        "tasks.item.complete",
+        "tasks.item.create",
+        "tasks.item.find",
+        "tasks.item.update",
+    }
+)
+
+
+@pytest.fixture(autouse=True)
+def scripted_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = tools.core_capabilities
+    monkeypatch.setattr(
+        tools,
+        "core_capabilities",
+        lambda available: [
+            *real(available),
+            *(c for c in available if c.name in SCRIPTED_CORE and not c.agent_core),
+        ],
+    )
 
 
 def say(text: str, *, thinking: Sequence[Thought] = ()) -> Reply:

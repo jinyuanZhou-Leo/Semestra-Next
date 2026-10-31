@@ -2,6 +2,7 @@
 
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.modules.settings import service
 from semestra.modules.settings.schemas import (
     Preferences,
@@ -18,6 +19,18 @@ from semestra.modules.settings.schemas import (
 )
 
 HTTP_ONLY = ("http",)
+
+
+agent_hints(
+    {
+        "settings.unknown_namespace": "No settings namespace has this name; check the namespaces "
+        "with settings.schema.list.",
+        "settings.invalid_value": "A field is unknown or its value is not allowed; check the "
+        "schema with settings.schema.list.",
+        "settings.user_only": "Only the user can change this setting in the app; tell them where "
+        "it is.",
+    }
+)
 
 
 @capability(

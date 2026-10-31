@@ -849,8 +849,8 @@ async def query_tasks(ctx: Ctx, inp: TaskQueryInput) -> TaskPage:
             _view_where(
                 inp.view,
                 now_local.date(),
-                open_=not inp.only_completed,
-                done=inp.only_completed or inp.include_completed,
+                open_=inp.completed != "only",
+                done=inp.completed != "exclude",
             )
         )
     else:
