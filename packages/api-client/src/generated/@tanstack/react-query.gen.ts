@@ -2089,8 +2089,7 @@ export const filesDocumentSearchMutation = (options?: Partial<Options<FilesDocum
  * Create a folder in a course's files.
  *
  * Use to organise a course's files. Folders can be nested up to three levels. Move
- * a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
- * files.folder.update.
+ * a file into the new folder with files.item.update (`folder_id`).
  */
 export const filesFolderCreateMutation = (options?: Partial<Options<FilesFolderCreateData>>): UseMutationOptions<FilesFolderCreateResponse, FilesFolderCreateError, Options<FilesFolderCreateData>> => {
     const mutationOptions: UseMutationOptions<FilesFolderCreateResponse, FilesFolderCreateError, Options<FilesFolderCreateData>> = {
@@ -3930,7 +3929,7 @@ export const lmsPageListOptions = (options: Options<LmsPageListData>) => queryOp
  * Unbind a Program's LMS connection.
  *
  * Refused while courses of the Program are linked (lms.program_has_links): unlink
- * them with lms.course.link.delete first. The connection itself stays (lms.connection.list).
+ * them with lms.course.link.delete first. The connection itself stays.
  */
 export const lmsProgramBindingClearMutation = (options?: Partial<Options<LmsProgramBindingClearData>>): UseMutationOptions<LmsProgramBindingClearResponse, LmsProgramBindingClearError, Options<LmsProgramBindingClearData>> => {
     const mutationOptions: UseMutationOptions<LmsProgramBindingClearResponse, LmsProgramBindingClearError, Options<LmsProgramBindingClearData>> = {
@@ -3951,8 +3950,8 @@ export const lmsProgramBindingGetQueryKey = (options: Options<LmsProgramBindingG
 /**
  * Which LMS connection a Program uses.
  *
- * Courses of the Program can only be linked through this connection. The user's
- * connections are listed by lms.connection.list.
+ * Courses of the Program can only be linked through this connection. The user
+ * manages connections in settings.
  */
 export const lmsProgramBindingGetOptions = (options: Options<LmsProgramBindingGetData>) => queryOptions<LmsProgramBindingGetResponse, LmsProgramBindingGetError, LmsProgramBindingGetResponse, ReturnType<typeof lmsProgramBindingGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3970,8 +3969,8 @@ export const lmsProgramBindingGetOptions = (options: Options<LmsProgramBindingGe
 /**
  * Bind an LMS connection to a Program.
  *
- * Refused while courses of the Program are linked (lms.program_has_links). Get the
- * connection id from lms.connection.list; afterwards link courses with lms.course.link.set.
+ * Refused while courses of the Program are linked (lms.program_has_links).
+ * Afterwards link courses with lms.course.link.set.
  */
 export const lmsProgramBindingSetMutation = (options?: Partial<Options<LmsProgramBindingSetData>>): UseMutationOptions<LmsProgramBindingSetResponse, LmsProgramBindingSetError, Options<LmsProgramBindingSetData>> => {
     const mutationOptions: UseMutationOptions<LmsProgramBindingSetResponse, LmsProgramBindingSetError, Options<LmsProgramBindingSetData>> = {

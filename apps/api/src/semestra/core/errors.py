@@ -44,6 +44,7 @@ agent_hints(
         "Look it up again with a find or list tool; never guess an id.",
         "common.conflict": "Someone changed this at the same time. Read it again, then retry once.",
         "common.quota_exceeded": "The user's storage is full. Tell them; do not retry.",
+        "plugins.not_installed": "The plugin is not installed; the user installs it in settings.",
     }
 )
 

@@ -74,8 +74,7 @@ _SUMMARY_FIELDS = (
 
 agent_hints(
     {
-        "grading.points_invalid": "See reason: points_earned needs points_possible; a target "
-        "cannot exceed the scale maximum.",
+        "grading.points_invalid": "Fix what `reason` names, then send it again.",
         "grading.category_key_conflict": "That key is taken in this course; choose another or "
         "update the existing category.",
         "grading.scale_invalid": "The grading scale breaks the rule named in reason; fix that "

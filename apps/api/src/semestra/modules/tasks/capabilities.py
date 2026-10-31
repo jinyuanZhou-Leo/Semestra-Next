@@ -49,8 +49,8 @@ _TASK_FIELDS = (
 agent_hints(
     {
         "tasks.invalid_due": "A due_time needs a due_date; add the date or drop the time.",
-        "tasks.list_name_conflict": "A list with that name already exists here; use it instead of "
-        "creating another.",
+        "tasks.list_name_conflict": "Another list here already has this name; pick a different "
+        "name or use that list.",
         "tasks.course_not_in_program": "The course belongs to another Program; use a course from "
         "this Program.",
         "tasks.managed_by_assessment": "This task follows a gradebook assessment; change the "

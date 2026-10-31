@@ -167,8 +167,8 @@ async def connection_validate(ctx: Ctx, inp: ConnectionValidateInput) -> Connect
 @capability(
     name="lms.program.binding.get",
     summary="Which LMS connection a Program uses.",
-    description="""Courses of the Program can only be linked through this connection. The user's
-connections are listed by lms.connection.list.""",
+    description="""Courses of the Program can only be linked through this connection. The user
+manages connections in settings.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms-binding"),
     tags=TAGS,
@@ -181,8 +181,8 @@ async def binding_get(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 @capability(
     name="lms.program.binding.set",
     summary="Bind an LMS connection to a Program.",
-    description="""Refused while courses of the Program are linked (lms.program_has_links). Get the
-connection id from lms.connection.list; afterwards link courses with lms.course.link.set.""",
+    description="""Refused while courses of the Program are linked (lms.program_has_links).
+Afterwards link courses with lms.course.link.set.""",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_set,
@@ -197,7 +197,7 @@ async def binding_set(ctx: Ctx, inp: BindingSetInput) -> ProgramBinding:
     name="lms.program.binding.clear",
     summary="Unbind a Program's LMS connection.",
     description="""Refused while courses of the Program are linked (lms.program_has_links): unlink
-them with lms.course.link.delete first. The connection itself stays (lms.connection.list).""",
+them with lms.course.link.delete first. The connection itself stays.""",
     effect="write",
     http=Http("DELETE", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_clear,

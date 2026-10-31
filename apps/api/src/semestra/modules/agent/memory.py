@@ -106,8 +106,8 @@ agent_hints(
         "first.",
         "agent.memory_name_taken": "A memory with that name exists; update it instead of saving a "
         "new one.",
-        "agent.memory_sensitive": "Memories cannot hold passwords, keys or other secrets; leave "
-        "them out.",
+        "agent.memory_sensitive": "Memories cannot hold credentials, health, money or ID numbers; "
+        "leave them out.",
         "agent.memory_off": "The user turned memory off; do not save or read memories.",
     }
 )

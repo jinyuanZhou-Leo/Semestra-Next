@@ -2087,8 +2087,7 @@ export const filesDocumentSearch = <ThrowOnError extends boolean = false>(option
  * Create a folder in a course's files.
  *
  * Use to organise a course's files. Folders can be nested up to three levels. Move
- * a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
- * files.folder.update.
+ * a file into the new folder with files.item.update (`folder_id`).
  */
 export const filesFolderCreate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderCreateData, ThrowOnError>): RequestResult<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError> => (options.client ?? client).post<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError>({
     security: [
@@ -4404,7 +4403,7 @@ export const lmsPageList = <ThrowOnError extends boolean = false>(options: Optio
  * Unbind a Program's LMS connection.
  *
  * Refused while courses of the Program are linked (lms.program_has_links): unlink
- * them with lms.course.link.delete first. The connection itself stays (lms.connection.list).
+ * them with lms.course.link.delete first. The connection itself stays.
  */
 export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingClearData, ThrowOnError>): RequestResult<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError> => (options.client ?? client).delete<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError>({
     security: [
@@ -4431,8 +4430,8 @@ export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(opt
 /**
  * Which LMS connection a Program uses.
  *
- * Courses of the Program can only be linked through this connection. The user's
- * connections are listed by lms.connection.list.
+ * Courses of the Program can only be linked through this connection. The user
+ * manages connections in settings.
  */
 export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingGetData, ThrowOnError>): RequestResult<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError> => (options.client ?? client).get<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError>({
     security: [
@@ -4459,8 +4458,8 @@ export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(optio
 /**
  * Bind an LMS connection to a Program.
  *
- * Refused while courses of the Program are linked (lms.program_has_links). Get the
- * connection id from lms.connection.list; afterwards link courses with lms.course.link.set.
+ * Refused while courses of the Program are linked (lms.program_has_links).
+ * Afterwards link courses with lms.course.link.set.
  */
 export const lmsProgramBindingSet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingSetData, ThrowOnError>): RequestResult<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError> => (options.client ?? client).put<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError>({
     security: [

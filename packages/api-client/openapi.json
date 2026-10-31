@@ -5401,7 +5401,7 @@
           "files"
         ],
         "summary": "Create a folder in a course's files.",
-        "description": "Use to organise a course's files. Folders can be nested up to three levels. Move\na file into the new folder with files.item.update (`folder_id`); rename or move the folder with\nfiles.folder.update.",
+        "description": "Use to organise a course's files. Folders can be nested up to three levels. Move\na file into the new folder with files.item.update (`folder_id`).",
         "operationId": "filesFolderCreate",
         "security": [
           {
@@ -11118,7 +11118,7 @@
           "lms"
         ],
         "summary": "Unbind a Program's LMS connection.",
-        "description": "Refused while courses of the Program are linked (lms.program_has_links): unlink\nthem with lms.course.link.delete first. The connection itself stays (lms.connection.list).",
+        "description": "Refused while courses of the Program are linked (lms.program_has_links): unlink\nthem with lms.course.link.delete first. The connection itself stays.",
         "operationId": "lmsProgramBindingClear",
         "security": [
           {
@@ -11172,7 +11172,7 @@
           "lms"
         ],
         "summary": "Which LMS connection a Program uses.",
-        "description": "Courses of the Program can only be linked through this connection. The user's\nconnections are listed by lms.connection.list.",
+        "description": "Courses of the Program can only be linked through this connection. The user\nmanages connections in settings.",
         "operationId": "lmsProgramBindingGet",
         "security": [
           {
@@ -11226,7 +11226,7 @@
           "lms"
         ],
         "summary": "Bind an LMS connection to a Program.",
-        "description": "Refused while courses of the Program are linked (lms.program_has_links). Get the\nconnection id from lms.connection.list; afterwards link courses with lms.course.link.set.",
+        "description": "Refused while courses of the Program are linked (lms.program_has_links).\nAfterwards link courses with lms.course.link.set.",
         "operationId": "lmsProgramBindingSet",
         "security": [
           {
@@ -14949,6 +14949,42 @@
               "title": "Completed"
             },
             "description": "Completed tasks the view would show: leave out, add, or return only them (ignored by the completed view)"
+          },
+          {
+            "name": "include_completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Removed: use completed",
+              "title": "Include Completed"
+            },
+            "description": "Removed: use completed"
+          },
+          {
+            "name": "only_completed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Removed: use completed",
+              "title": "Only Completed"
+            },
+            "description": "Removed: use completed"
           },
           {
             "name": "sort",

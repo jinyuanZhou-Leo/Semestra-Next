@@ -612,6 +612,9 @@ async def test_only_completed_returns_the_finished_tasks_of_a_view(api: Api):
     assert await api.titles(pid, view="all", completed="only") == ["done"]
     assert await api.titles(pid, view="inbox", completed="only") == ["done"]
     assert await api.titles(pid, view="today", completed="only") == []  # it has no date
+    # The old flags are refused, not ignored (an old client would lose its completed tasks).
+    error = await api.call("GET", f"/programs/{pid}/tasks?only_completed=true", status=422)
+    assert error["error"]["params"]["errors"][0]["code"] == "renamed"
 
 
 async def test_clear_completed_in_a_term_includes_tasks_without_a_term(api: Api):

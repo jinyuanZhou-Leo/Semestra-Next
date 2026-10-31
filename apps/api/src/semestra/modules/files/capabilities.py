@@ -147,8 +147,7 @@ async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
     name="files.folder.create",
     summary="Create a folder in a course's files.",
     description="""Use to organise a course's files. Folders can be nested up to three levels. Move
-a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
-files.folder.update.""",
+a file into the new folder with files.item.update (`folder_id`).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/folders"),
     tags=TAGS,
