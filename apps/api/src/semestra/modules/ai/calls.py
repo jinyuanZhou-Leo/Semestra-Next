@@ -361,8 +361,9 @@ def _has_ref(node: Any) -> bool:
     return False
 
 
-# (base URL, provider, model, schema) whose strict JSON mode Claude refused as too large (see
-# `_SCHEMA_HINTS`) and the forced tool call then worked: later calls go straight to the tool call.
+# (base URL, provider, model, schema) whose strict JSON mode Claude refused: a large schema
+# compiles to a grammar over the API's limit ("compiled grammar is too large"), so those calls
+# use the forced tool call instead.
 _NO_JSON_MODE: set[tuple[str, str | None, str, str]] = set()
 
 
@@ -430,16 +431,10 @@ async def structured_with[T: BaseModel](
         except AppError as exc:
             if not (json_mode and resolved.endpoint.kind in ANTHROPIC_KINDS):
                 raise
-            if exc.params.get("reason") != "schema_too_large":
+            if exc.code != "ai.request_rejected":
                 raise
-        key = _json_mode_key(resolved, schema)
-        _NO_JSON_MODE.add(key)  # read by `_output_spec` for the retry
-        try:
-            result = await attempt(model)
-        except Exception:
-            _NO_JSON_MODE.discard(key)
-            raise
-        return result
+        _NO_JSON_MODE.add(_json_mode_key(resolved, schema))
+        return await attempt(model)
 
     return await _run(call, work, whole_answer=True)
 

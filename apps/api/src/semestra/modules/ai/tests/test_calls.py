@@ -536,22 +536,6 @@ async def test_structured_falls_back_to_a_tool_call_when_claude_refuses_the_sche
     assert [row.error_code for row in await usage_rows(app)].count("ai.request_rejected") == 1
 
 
-async def test_structured_does_not_fall_back_on_other_rejections(ai: Ai, mock: respx.MockRouter):
-    models_ok(mock)
-    await ai.provider("anthropic")
-    rejected = Response(
-        400, json={"type": "error", "error": {"type": "invalid_request_error", "message": "bad"}}
-    )
-    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=rejected)
-    async with ai.ctx() as ctx:
-        with pytest.raises(AppError) as exc:
-            await m06.structured(
-                ctx, "extraction", [Message.user("APS105 0.5")], Course, source_module="t"
-            )
-    assert exc.value.code == "ai.request_rejected"
-    assert route.call_count == 1
-
-
 async def test_structured_gives_up_with_output_invalid(
     ai: Ai, app: FastAPI, mock: respx.MockRouter
 ):
