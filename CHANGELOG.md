@@ -3,6 +3,27 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.10.0 (2026-10-31)
+
+### New
+
+- **Settings:** Choose which page Semestra opens on, including where you left off.
+
+### Improved
+
+- **General:** The sidebar now holds the current term's pages and courses, with a term switcher above them; term pages no longer have a tab bar.
+- **Overview & Today:** Cards make better use of their space: small cards drop the title row, long lists fade at the edge to show they scroll, and schedule entries open with a click.
+- **Grades:** Clearer GPA cards: the overview adds a GPA bar for each term, and the charts line up across terms.
+- **Calendar:** The week card now shows the coming days starting from yesterday, sized to fit your classes.
+- **Tasks:** Task lists are shown in a column on the Tasks page instead of the sidebar.
+- **Files:** Upload files from a term's Files page by choosing a course or dropping them on its section, and drop files on a folder to upload into it.
+- **Plugins:** The habit calendar is now part of the habit card: check in on the ring and review past weeks beside it. Existing calendar cards are converted automatically.
+
+### Fixed
+
+- **Sem:** Fixed the last characters of an edited message sometimes being dropped when it was sent with Enter.
+- **Files:** Fixed a stray horizontal scrollbar under the file list.
+
 ## 1.9.0 (2026-10-30)
 
 ### New
