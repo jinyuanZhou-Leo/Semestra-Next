@@ -298,7 +298,7 @@ async def test_smart_views_and_counts(api: Api, clock: Clock):
         "today",
     ]
     assert "done" not in await api.titles(pid, view="all")
-    assert "done" in await api.titles(pid, view="all", include_completed=True)
+    assert "done" in await api.titles(pid, view="all", completed="include")
     assert await api.titles(pid, course_id=courses["aps"]) == ["later"]
     assert await api.titles(pid, due_from="2026-01-15", due_to="2026-01-15", view="scheduled") == [
         "today",
@@ -447,7 +447,7 @@ async def test_clear_completed_by_scope(api: Api):
     assert r == {"deleted": 1}
     r = await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={})
     assert r == {"deleted": 1}
-    assert await api.titles(pid, view="all", include_completed=True) == ["open"]
+    assert await api.titles(pid, view="all", completed="include") == ["open"]
     r = await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={})
     assert r == {"deleted": 0}
 
@@ -609,9 +609,9 @@ async def test_only_completed_returns_the_finished_tasks_of_a_view(api: Api):
     await api.task(pid, "open")
     done = await api.task(pid, "done")
     await api.call("POST", f"/tasks/{done['id']}:complete", json={})
-    assert await api.titles(pid, view="all", only_completed=True) == ["done"]
-    assert await api.titles(pid, view="inbox", only_completed=True) == ["done"]
-    assert await api.titles(pid, view="today", only_completed=True) == []  # it has no date
+    assert await api.titles(pid, view="all", completed="only") == ["done"]
+    assert await api.titles(pid, view="inbox", completed="only") == ["done"]
+    assert await api.titles(pid, view="today", completed="only") == []  # it has no date
 
 
 async def test_clear_completed_in_a_term_includes_tasks_without_a_term(api: Api):
@@ -831,7 +831,7 @@ async def test_deleting_a_course_settles_the_tasks_of_its_assessments(api: Api):
     await api.call("DELETE", f"/courses/{aps}")
     # The unfinished assessment task goes with the assessment; the finished one stays as an
     # ordinary task that can be edited; the user's own task only loses the course.
-    page = await api.call("GET", f"/programs/{pid}/tasks", params={"include_completed": True})
+    page = await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "include"})
     rows = {t["title"]: t for t in page["items"]}
     assert sorted(rows) == ["APS105H1 · Quiz", "Own"]
     quiz = rows["APS105H1 · Quiz"]
@@ -920,9 +920,7 @@ async def test_pages_report_the_total(api: Api):
         task = await api.task(pid, f"t{n}")
         if n < 3:
             await api.call("POST", f"/tasks/{task['id']}:complete", json={})
-    page = await api.call(
-        "GET", f"/programs/{pid}/tasks", params={"only_completed": True, "limit": 2}
-    )
+    page = await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "only", "limit": 2})
     assert (len(page["items"]), page["total"], page["next_cursor"]) == (2, 3, "2")
     open_page = await api.call("GET", f"/programs/{pid}/tasks", params={"limit": 10})
     assert (open_page["total"], open_page["next_cursor"]) == (2, None)

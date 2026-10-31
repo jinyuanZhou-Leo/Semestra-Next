@@ -19010,17 +19010,11 @@ export type TasksItemQueryData = {
          */
         due_to?: string | null;
         /**
-         * Include Completed
+         * Completed
          *
-         * Also return completed tasks (views other than completed)
+         * Completed tasks the view would show: leave out, add, or return only them (ignored by the completed view)
          */
-        include_completed?: boolean;
-        /**
-         * Only Completed
-         *
-         * Return only the completed tasks the view would show (views other than completed); wins over include_completed
-         */
-        only_completed?: boolean;
+        completed?: 'exclude' | 'include' | 'only';
         /**
          * Sort
          *

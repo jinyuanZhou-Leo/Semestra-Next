@@ -46,7 +46,11 @@ function patchPages(
   return snapshot
 }
 
-export type TaskQueryParams = { view?: string; only_completed?: boolean; sort?: string }
+export type TaskQueryParams = {
+  view?: string
+  completed?: 'exclude' | 'include' | 'only'
+  sort?: string
+}
 
 function restore(queryClient: QueryClient, snapshot: Snapshot | undefined) {
   for (const [key, page] of snapshot ?? []) queryClient.setQueryData(key, page)
@@ -88,7 +92,7 @@ export function useTaskActions() {
       })
       // The task leaves the lists it no longer belongs to; the finished list fills on refetch.
       return patchPages(queryClient, (page, params) => {
-        const showsFinished = params.only_completed === true || params.view === 'completed'
+        const showsFinished = params.completed === 'only' || params.view === 'completed'
         return body.completed === showsFinished
           ? page.items
           : page.items.filter((t) => t.id !== path.task_id)
@@ -109,7 +113,7 @@ export function useTaskActions() {
       if (body.list_id !== undefined) return undefined // changing list: wait for the server
       return patchPages(queryClient, (page, params) => {
         const moving = page.items.find((t) => t.id === path.task_id)
-        if (!moving || params.sort !== 'manual' || params.only_completed) return page.items
+        if (!moving || params.sort !== 'manual' || params.completed === 'only') return page.items
         const rest = page.items.filter((t) => t.id !== path.task_id)
         const at = body.before_task_id ? rest.findIndex((t) => t.id === body.before_task_id) : -1
         rest.splice(at < 0 ? rest.length : at, 0, moving)

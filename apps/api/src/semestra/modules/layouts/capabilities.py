@@ -2,6 +2,7 @@
 
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.modules.layouts import service
 from semestra.modules.layouts.schemas import (
     Board,
@@ -27,6 +28,17 @@ TAGS = ("layouts",)
 HTTP_ONLY = ("http",)
 
 # --- page order -----------------------------------------------------------------------------
+
+
+agent_hints(
+    {
+        "layouts.card_unknown": "No card has this id; list the available cards first.",
+        "layouts.card_not_multiple": "This card can appear once per page and is already there.",
+        "layouts.scope_mismatch": "This card does not fit this kind of page.",
+        "layouts.size_unsupported": "The card does not come in this size; use one of its sizes.",
+        "plugins.not_installed": "The plugin is not installed; the user installs it in settings.",
+    }
+)
 
 
 @capability(

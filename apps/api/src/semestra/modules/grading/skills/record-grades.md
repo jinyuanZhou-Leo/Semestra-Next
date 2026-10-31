@@ -7,7 +7,7 @@ tools = [
   "academics.course.find",
   "grading.assessment.find",
   "grading.assessment.list",
-  "grading.assessment.create",
+  "grading.assessment.create_many",
   "grading.assessment.update",
   "grading.gradebook.get",
   "grading.course_result.update",
@@ -21,7 +21,7 @@ tools = [
    otherwise it searches the Program, current term first, and each candidate names its course.
    When the top candidates are close, ask which one, naming their courses.
 2. **Nothing matches?** Read the course's `grading.assessment.list`: the user may call it
-   something else. If it really is missing, call `grading.assessment.create` (title, a category
+   something else. If it really is missing, call `grading.assessment.create_many` (title, a category
    from the course's `grading.gradebook.get`, the weight if known, the deadline as `due_date`)
    and then record the score on it. The cards confirm both, so do not ask first; ask only when
    you cannot tell which course it belongs to.

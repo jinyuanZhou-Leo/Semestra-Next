@@ -3,6 +3,7 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
 from semestra.modules.files import documents, search, service
 from semestra.modules.files.models import FilesFolder, FilesItem
@@ -36,6 +37,19 @@ _FILE_FIELDS = (
     "id", "course_id", "folder_id", "kind", "display_name", "mime_type", "size_bytes", "url",
     "pinned", "doc_status", "doc_error_code", "page_count", "ocr_skipped_pages",
 )  # fmt: skip
+
+
+agent_hints(
+    {
+        "files.folder_depth": "Folders nest at most `max` deep; put it higher up.",
+        "files.folder_not_empty": "The folder has files or subfolders. Ask the user, then pass "
+        "recursive=true to delete them all.",
+        "files.not_indexed": "Indexing was off when this file was added, so it has no text to "
+        "read or search. Tell the user they can index it from the file's menu.",
+        "files.not_ready": "The file is still being processed (or failed, see doc_status). Try "
+        "again later or tell the user.",
+    }
+)
 
 
 @capability(
@@ -132,7 +146,9 @@ async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
 @capability(
     name="files.folder.create",
     summary="Create a folder in a course's files.",
-    description="""Use to organise a course's files. Folders can be nested up to three levels.""",
+    description="""Use to organise a course's files. Folders can be nested up to three levels. Move
+a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
+files.folder.update.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/folders"),
     tags=TAGS,
@@ -191,7 +207,6 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 @capability(
     name="files.document.search",
-    agent_core=True,
     untrusted=True,
     summary="Search what the course files say.",
     description="""Use to answer questions about course content (syllabus rules, dates, lecture

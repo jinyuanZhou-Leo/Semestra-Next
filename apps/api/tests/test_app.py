@@ -91,7 +91,7 @@ def test_mcp_catalog_lists_tools_and_prompts(settings: Settings) -> None:
     create_app(settings)
     data = catalog()
     names = {t["name"] for t in data["tools"]}
-    assert "academics__course__create" in names
+    assert "academics__course__create_many" in names
     assert all("." not in n for n in names)
     assert all(set(p["title"]) >= {"en", "zh-CN"} for p in data["prompts"])
 

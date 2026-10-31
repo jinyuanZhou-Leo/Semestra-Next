@@ -54,7 +54,7 @@ export function useTasks(
       term_id: scope.termId,
       course_id: selection.kind === 'course' ? selection.courseId : scope.courseId,
       sort,
-      only_completed: completed === 'only' ? true : undefined,
+      completed: completed === 'only' ? 'only' : undefined,
       limit,
     },
   })
@@ -125,7 +125,7 @@ export const taskQueryKeys = {
   params: (queryKey: readonly unknown[]) =>
     ((queryKey[0] as KeyHead)?.query ?? {}) as {
       view?: string
-      only_completed?: boolean
+      completed?: 'exclude' | 'include' | 'only'
       sort?: string
     },
 }

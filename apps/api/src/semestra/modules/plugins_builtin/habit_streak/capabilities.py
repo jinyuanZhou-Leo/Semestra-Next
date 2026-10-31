@@ -1,5 +1,6 @@
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.modules.plugins_builtin.habit_streak import service
 from semestra.modules.plugins_builtin.habit_streak.schemas import (
     PLUGIN_ID,
@@ -13,6 +14,15 @@ from semestra.modules.plugins_builtin.habit_streak.schemas import (
 )
 
 TAGS = ("habit",)
+
+
+agent_hints(
+    {
+        "habit.date_out_of_range": "Check-ins can go back only to `earliest` and not into the "
+        "future.",
+        "habit.range_invalid": "to_date must be on or after from_date, at most max_days apart.",
+    }
+)
 
 
 @capability(

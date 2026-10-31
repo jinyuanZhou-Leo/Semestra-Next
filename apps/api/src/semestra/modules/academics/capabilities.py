@@ -3,6 +3,7 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
 from semestra.modules.academics import service
 from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram, AcademicsTerm
@@ -55,6 +56,21 @@ _COURSE_FIELDS = (
 # --- programs -------------------------------------------------------------------------------
 
 
+agent_hints(
+    {
+        "academics.term_date_range_invalid": "start_date is after end_date; swap or fix them.",
+        "academics.break_out_of_range": "The named break must start and end within the term's "
+        "dates.",
+        "academics.breaks_overlap": "The named breaks overlap; make them disjoint or merge them.",
+        "academics.course_requires_term": "A course needs at least one term_id.",
+        "academics.course_terms_not_adjacent": "A course spans consecutive terms only; pick terms "
+        "next to each other.",
+        "academics.course_terms_cross_program": "The course and its terms must belong to the same "
+        "Program.",
+    }
+)
+
+
 @capability(
     name="academics.program.list",
     summary="List the user's Programs (degrees) with their term and course counts.",
@@ -87,7 +103,7 @@ async def program_get(ctx: Ctx, inp: ProgramRef) -> Program:
     summary="Create a Program (a degree or study plan).",
     description="""Use only when the user explicitly wants a new, separate Program, e.g. a second
 degree. Do not use to add a term or a course; use academics.term.create or
-academics.course.create.""",
+academics.course.create_many.""",
     effect="write",
     http=Http("POST", "/programs"),
     tags=TAGS,
@@ -101,7 +117,9 @@ async def program_create(ctx: Ctx, inp: ProgramCreateInput) -> Program:
     name="academics.program.update",
     record=("program_id", owned_row(AcademicsProgram)),
     summary="Change a Program's name, school, time zone or credit settings.",
-    description="Partial update: only the fields that are sent change.",
+    description="""Partial update: only the fields that are sent change. Get the Program with
+academics.program.get first when you need its current values. Terms and courses are changed with
+academics.term.update and academics.course.update.""",
     effect="write",
     http=Http("PATCH", "/programs/{program_id}"),
     tags=TAGS,
@@ -151,7 +169,6 @@ courses or answering questions about a semester.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/terms"),
     tags=TAGS,
-    agent_core=True,
     agent_output_fields=tuple(f"items.{f}" for f in _TERM_FIELDS),
 )
 async def term_list(ctx: Ctx, inp: ProgramRef) -> TermList:
@@ -161,7 +178,9 @@ async def term_list(ctx: Ctx, inp: ProgramRef) -> TermList:
 @capability(
     name="academics.term.get",
     summary="Get one term with its dates and breaks.",
-    description="Use when you need a term's dates, reading weeks or holidays.",
+    description="""Use when you need a term's dates, reading weeks or holidays. Find the id with
+academics.term.list; for teaching week numbers use academics.term.get_weeks. Changes go through
+academics.term.update.""",
     effect="read",
     http=Http("GET", "/terms/{term_id}"),
     tags=TAGS,
@@ -303,6 +322,7 @@ async def course_find(ctx: Ctx, inp: CourseFindInput) -> CourseCandidates:
 For a year-long course whose second term does not exist yet, link the current term only and set
 `planned_terms` to 2; the term wizard offers to continue it later.""",
     effect="write",
+    expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/programs/{program_id}/courses"),
     tags=TAGS,
     agent_output_fields=("id", "code", "title", "term_ids"),
@@ -313,8 +333,10 @@ async def course_create(ctx: Ctx, inp: CourseCreateInput) -> Course:
 
 @capability(
     name="academics.course.create_many",
-    summary="Add several courses at once.",
-    description="""Use for a batch of courses the user typed or listed in the chat. Courses in a
+    summary="Add one or more courses, each to one term or to consecutive terms (year-long).",
+    description="""Use when the user adds courses in the chat, one or several. Get term ids from
+academics.term.list. For a year-long course whose second term does not exist yet, link the current
+term only and set `planned_terms` to 2; the term wizard offers to continue it later. Courses in a
 document or file (a timetable, a syllabus) go through imports.session.create instead.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/courses:batch"),

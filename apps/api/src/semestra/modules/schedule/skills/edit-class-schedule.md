@@ -7,14 +7,14 @@ tools = [
   "academics.course.find",
   "calendar.occurrence.list",
   "schedule.meeting.list",
-  "schedule.meeting.create",
+  "schedule.meeting.create_many",
   "schedule.meeting.update",
   "schedule.meeting.delete",
   "schedule.meeting.set_enabled",
   "schedule.exception.upsert",
   "schedule.exception.delete",
   "schedule.event.list",
-  "schedule.event.create",
+  "schedule.event.create_many",
   "schedule.event.update",
   "schedule.event.delete",
   "schedule.event_type.list",
@@ -44,10 +44,10 @@ event, `ref.id` of its occurrence or `schedule.event.list`.
 **Every week.** "My lecture is in BA1130 now": `schedule.meeting.update` changes every week of
 the term, past weeks included. When the change starts partway through the term ("from week 6
 on"), split the meeting instead: set the old meeting's `end_week` to the week before, and
-`schedule.meeting.create` a copy with the change from that week on (`start_week`; same
+`schedule.meeting.create_many` a copy with the change from that week on (`start_week`; same
 section, weekday, times and repeat).
 
-**New meetings.** `schedule.meeting.create` with the term (a year-long course has a term per
+**New meetings.** `schedule.meeting.create_many` with the term (a year-long course has a term per
 half), type code (see `schedule.event_type.list`; LEC, PRA, TUT are built in, add others with
 `schedule.event_type.create`) and times. Afterwards run `schedule.conflict.list` for the term and
 tell the user about any overlap.
@@ -56,6 +56,6 @@ tell the user about any overlap.
 the user is not in with `schedule.meeting.set_enabled` (`enabled: false`), passing every meeting
 of those sections (all weekdays), rather than deleting them.
 
-**One-off events.** `schedule.event.create` with the course when it belongs to one. Times without
+**One-off events.** `schedule.event.create_many` with the course when it belongs to one. Times without
 an offset are read in the Program's time zone; use `all_day` for whole days.
 `schedule.event.update` and `schedule.event.delete` take the event id.

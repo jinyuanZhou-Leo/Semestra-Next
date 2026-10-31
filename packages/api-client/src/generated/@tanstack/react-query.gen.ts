@@ -619,9 +619,11 @@ export const academicsCourseCreateMutation = (options?: Partial<Options<Academic
 };
 
 /**
- * Add several courses at once.
+ * Add one or more courses, each to one term or to consecutive terms (year-long).
  *
- * Use for a batch of courses the user typed or listed in the chat. Courses in a
+ * Use when the user adds courses in the chat, one or several. Get term ids from
+ * academics.term.list. For a year-long course whose second term does not exist yet, link the current
+ * term only and set `planned_terms` to 2; the term wizard offers to continue it later. Courses in a
  * document or file (a timetable, a syllabus) go through imports.session.create instead.
  */
 export const academicsCourseCreateManyMutation = (options?: Partial<Options<AcademicsCourseCreateManyData>>): UseMutationOptions<AcademicsCourseCreateManyResponse, AcademicsCourseCreateManyError, Options<AcademicsCourseCreateManyData>> => {
@@ -743,7 +745,7 @@ export const academicsProgramListOptions = (options?: Options<AcademicsProgramLi
  *
  * Use only when the user explicitly wants a new, separate Program, e.g. a second
  * degree. Do not use to add a term or a course; use academics.term.create or
- * academics.course.create.
+ * academics.course.create_many.
  */
 export const academicsProgramCreateMutation = (options?: Partial<Options<AcademicsProgramCreateData>>): UseMutationOptions<AcademicsProgramCreateResponse, AcademicsProgramCreateError, Options<AcademicsProgramCreateData>> => {
     const mutationOptions: UseMutationOptions<AcademicsProgramCreateResponse, AcademicsProgramCreateError, Options<AcademicsProgramCreateData>> = {
@@ -802,7 +804,9 @@ export const academicsProgramGetOptions = (options: Options<AcademicsProgramGetD
 /**
  * Change a Program's name, school, time zone or credit settings.
  *
- * Partial update: only the fields that are sent change.
+ * Partial update: only the fields that are sent change. Get the Program with
+ * academics.program.get first when you need its current values. Terms and courses are changed with
+ * academics.term.update and academics.course.update.
  */
 export const academicsProgramUpdateMutation = (options?: Partial<Options<AcademicsProgramUpdateData>>): UseMutationOptions<AcademicsProgramUpdateResponse, AcademicsProgramUpdateError, Options<AcademicsProgramUpdateData>> => {
     const mutationOptions: UseMutationOptions<AcademicsProgramUpdateResponse, AcademicsProgramUpdateError, Options<AcademicsProgramUpdateData>> = {
@@ -905,7 +909,9 @@ export const academicsTermGetQueryKey = (options: Options<AcademicsTermGetData>)
 /**
  * Get one term with its dates and breaks.
  *
- * Use when you need a term's dates, reading weeks or holidays.
+ * Use when you need a term's dates, reading weeks or holidays. Find the id with
+ * academics.term.list; for teaching week numbers use academics.term.get_weeks. Changes go through
+ * academics.term.update.
  */
 export const academicsTermGetOptions = (options: Options<AcademicsTermGetData>) => queryOptions<AcademicsTermGetResponse, AcademicsTermGetError, AcademicsTermGetResponse, ReturnType<typeof academicsTermGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2082,7 +2088,9 @@ export const filesDocumentSearchMutation = (options?: Partial<Options<FilesDocum
 /**
  * Create a folder in a course's files.
  *
- * Use to organise a course's files. Folders can be nested up to three levels.
+ * Use to organise a course's files. Folders can be nested up to three levels. Move
+ * a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
+ * files.folder.update.
  */
 export const filesFolderCreateMutation = (options?: Partial<Options<FilesFolderCreateData>>): UseMutationOptions<FilesFolderCreateResponse, FilesFolderCreateError, Options<FilesFolderCreateData>> => {
     const mutationOptions: UseMutationOptions<FilesFolderCreateResponse, FilesFolderCreateError, Options<FilesFolderCreateData>> = {
@@ -2378,10 +2386,12 @@ export const gradingAssessmentCreateMutation = (options?: Partial<Options<Gradin
 };
 
 /**
- * Add several assessments at once.
+ * Add one or more assessments (quiz, exam, assignment...) to a course gradebook.
  *
- * Use for assessments the user typed or listed in the chat. A grading scheme in a
- * file goes through imports.session.create, and LMS assignments through lms.assignment.import.
+ * Use when the user adds graded items in the chat, one or several. Give each
+ * deadline as `due_date` (and `due_time` if known) in the Program's time zone. Do not use to record a
+ * score on an existing assessment; use grading.assessment.update. A grading scheme in a file goes
+ * through imports.session.create, and LMS assignments through lms.assignment.import.
  * Items that carry `source_kind` and `source_ref` are skipped when the course
  * already has an assessment from the same source, so repeating an import creates no duplicates.
  */
@@ -2402,7 +2412,9 @@ export const gradingAssessmentCreateManyMutation = (options?: Partial<Options<Gr
 /**
  * Delete an assessment from a gradebook.
  *
- * Irreversible. To ignore an assessment in the grade, set `dropped` instead.
+ * Irreversible: the score and its place in the grade are gone. To ignore an
+ * assessment in the grade, set `dropped` with grading.assessment.update instead. Find the id with
+ * grading.assessment.find.
  */
 export const gradingAssessmentDeleteMutation = (options?: Partial<Options<GradingAssessmentDeleteData>>): UseMutationOptions<GradingAssessmentDeleteResponse, GradingAssessmentDeleteError, Options<GradingAssessmentDeleteData>> => {
     const mutationOptions: UseMutationOptions<GradingAssessmentDeleteResponse, GradingAssessmentDeleteError, Options<GradingAssessmentDeleteData>> = {
@@ -2924,7 +2936,9 @@ export const importsSessionListQueryKey = (options: Options<ImportsSessionListDa
 /**
  * Import history of a Program, newest first.
  *
- * Closed imports are kept for 30 days.
+ * Each import says where it came from and its state (extracting, ready,
+ * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
+ * days.
  */
 export const importsSessionListOptions = (options: Options<ImportsSessionListData>) => queryOptions<ImportsSessionListResponse, ImportsSessionListError, ImportsSessionListResponse, ReturnType<typeof importsSessionListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2944,7 +2958,9 @@ export const importsSessionListInfiniteQueryKey = (options: Options<ImportsSessi
 /**
  * Import history of a Program, newest first.
  *
- * Closed imports are kept for 30 days.
+ * Each import says where it came from and its state (extracting, ready,
+ * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
+ * days.
  */
 export const importsSessionListInfiniteOptions = (options: Options<ImportsSessionListData>) => {
     const opts = infiniteQueryOptions<ImportsSessionListResponse, ImportsSessionListError, InfiniteData<ImportsSessionListResponse>, QueryKey<Options<ImportsSessionListData>>, string | null | Pick<QueryKey<Options<ImportsSessionListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -3519,7 +3535,9 @@ export const lmsCourseImportMutation = (options?: Partial<Options<LmsCourseImpor
 /**
  * Unlink a course from its LMS course.
  *
- * Imported assessments, tasks and files stay.
+ * Imported assessments, tasks and files stay; LMS reads, calendar overlay and
+ * update checks stop for this course. Link it again with lms.course.link.set. To pause syncing but
+ * keep reading, use lms.course.link.update instead.
  */
 export const lmsCourseLinkDeleteMutation = (options?: Partial<Options<LmsCourseLinkDeleteData>>): UseMutationOptions<LmsCourseLinkDeleteResponse, LmsCourseLinkDeleteError, Options<LmsCourseLinkDeleteData>> => {
     const mutationOptions: UseMutationOptions<LmsCourseLinkDeleteResponse, LmsCourseLinkDeleteError, Options<LmsCourseLinkDeleteData>> = {
@@ -3540,7 +3558,9 @@ export const lmsCourseLinkGetQueryKey = (options: Options<LmsCourseLinkGetData>)
 /**
  * The LMS course a course is linked to, if any.
  *
- * Also says which connection the course's Program is bound to.
+ * Also says which connection the course's Program is bound to. Check it before the
+ * lms.* read tools: they need a linked course (lms.course_not_linked otherwise). Link a course with
+ * lms.course.link.set.
  */
 export const lmsCourseLinkGetOptions = (options: Options<LmsCourseLinkGetData>) => queryOptions<LmsCourseLinkGetResponse, LmsCourseLinkGetError, LmsCourseLinkGetResponse, ReturnType<typeof lmsCourseLinkGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3558,7 +3578,8 @@ export const lmsCourseLinkGetOptions = (options: Options<LmsCourseLinkGetData>) 
 /**
  * Turn LMS sync of a linked course on or off.
  *
- * Off: no calendar overlay and no update checks; reading still works.
+ * Off: no calendar overlay and no update checks; reading still works. To remove the
+ * link altogether use lms.course.link.delete.
  */
 export const lmsCourseLinkUpdateMutation = (options?: Partial<Options<LmsCourseLinkUpdateData>>): UseMutationOptions<LmsCourseLinkUpdateResponse, LmsCourseLinkUpdateError, Options<LmsCourseLinkUpdateData>> => {
     const mutationOptions: UseMutationOptions<LmsCourseLinkUpdateResponse, LmsCourseLinkUpdateError, Options<LmsCourseLinkUpdateData>> = {
@@ -3600,7 +3621,8 @@ export const lmsCourseLinkSetMutation = (options?: Partial<Options<LmsCourseLink
 /**
  * Refresh the linked LMS course's code, name and term.
  *
- * Changes only the link, never the course itself.
+ * Changes only the link, never the course itself. Use when the course was renamed
+ * or moved on the LMS and the link still shows the old code, name or term.
  */
 export const lmsCourseLinkSyncMutation = (options?: Partial<Options<LmsCourseLinkSyncData>>): UseMutationOptions<LmsCourseLinkSyncResponse, LmsCourseLinkSyncError, Options<LmsCourseLinkSyncData>> => {
     const mutationOptions: UseMutationOptions<LmsCourseLinkSyncResponse, LmsCourseLinkSyncError, Options<LmsCourseLinkSyncData>> = {
@@ -3761,6 +3783,10 @@ export const lmsFileSearchQueryKey = (options: Options<LmsFileSearchData>) => cr
 
 /**
  * Find files of a linked course on the LMS by name.
+ *
+ * Matches part of the file name, not its contents. Each result says its type, size,
+ * last change and whether it is locked. Browse by folder with lms.folder.get, open one with
+ * lms.file.preview, or copy it into the course's files with lms.file.save_to_course.
  */
 export const lmsFileSearchOptions = (options: Options<LmsFileSearchData>) => queryOptions<LmsFileSearchResponse, LmsFileSearchError, LmsFileSearchResponse, ReturnType<typeof lmsFileSearchQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3801,7 +3827,9 @@ export const lmsGradeListQueryKey = (options: Options<LmsGradeListData>) => crea
 /**
  * The user's grades on Canvas or another LMS for a linked course.
  *
- * The course total first, then one row per assignment.
+ * The course total first, then one row per assignment, with score, points possible
+ * and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
+ * assignments to it use lms.assignment.import.
  */
 export const lmsGradeListOptions = (options: Options<LmsGradeListData>) => queryOptions<LmsGradeListResponse, LmsGradeListError, LmsGradeListResponse, ReturnType<typeof lmsGradeListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3821,7 +3849,8 @@ export const lmsModuleListQueryKey = (options: Options<LmsModuleListData>) => cr
 /**
  * Modules of a linked course.
  *
- * Items of a module: lms.module_item.list.
+ * Modules are the instructor's outline of the course (weeks or units), in order,
+ * with their state, unlock date and item count. Items of a module: lms.module_item.list.
  */
 export const lmsModuleListOptions = (options: Options<LmsModuleListData>) => queryOptions<LmsModuleListResponse, LmsModuleListError, LmsModuleListResponse, ReturnType<typeof lmsModuleListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3841,7 +3870,9 @@ export const lmsModuleItemListQueryKey = (options: Options<LmsModuleItemListData
 /**
  * Items of one module of a linked course.
  *
- * `target` says where an item opens in the app (page, assignment, file...).
+ * Get module_id from lms.module.list. Each item has a kind (page, assignment, file,
+ * quiz, link...) and an indent level. `target` says where an item opens in the app (page, assignment,
+ * file...).
  */
 export const lmsModuleItemListOptions = (options: Options<LmsModuleItemListData>) => queryOptions<LmsModuleItemListResponse, LmsModuleItemListError, LmsModuleItemListResponse, ReturnType<typeof lmsModuleItemListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3879,7 +3910,8 @@ export const lmsPageListQueryKey = (options: Options<LmsPageListData>) => create
 /**
  * Pages of a linked course.
  *
- * Read one with lms.page.get.
+ * Titles and last change only; the course's front page is marked. Read one with
+ * lms.page.get. The syllabus has its own tool, lms.syllabus.get.
  */
 export const lmsPageListOptions = (options: Options<LmsPageListData>) => queryOptions<LmsPageListResponse, LmsPageListError, LmsPageListResponse, ReturnType<typeof lmsPageListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3897,7 +3929,8 @@ export const lmsPageListOptions = (options: Options<LmsPageListData>) => queryOp
 /**
  * Unbind a Program's LMS connection.
  *
- * Refused while courses of the Program are linked (lms.program_has_links).
+ * Refused while courses of the Program are linked (lms.program_has_links): unlink
+ * them with lms.course.link.delete first. The connection itself stays (lms.connection.list).
  */
 export const lmsProgramBindingClearMutation = (options?: Partial<Options<LmsProgramBindingClearData>>): UseMutationOptions<LmsProgramBindingClearResponse, LmsProgramBindingClearError, Options<LmsProgramBindingClearData>> => {
     const mutationOptions: UseMutationOptions<LmsProgramBindingClearResponse, LmsProgramBindingClearError, Options<LmsProgramBindingClearData>> = {
@@ -3918,7 +3951,8 @@ export const lmsProgramBindingGetQueryKey = (options: Options<LmsProgramBindingG
 /**
  * Which LMS connection a Program uses.
  *
- * Courses of the Program can only be linked through this connection.
+ * Courses of the Program can only be linked through this connection. The user's
+ * connections are listed by lms.connection.list.
  */
 export const lmsProgramBindingGetOptions = (options: Options<LmsProgramBindingGetData>) => queryOptions<LmsProgramBindingGetResponse, LmsProgramBindingGetError, LmsProgramBindingGetResponse, ReturnType<typeof lmsProgramBindingGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3936,7 +3970,8 @@ export const lmsProgramBindingGetOptions = (options: Options<LmsProgramBindingGe
 /**
  * Bind an LMS connection to a Program.
  *
- * Refused while courses of the Program are linked (lms.program_has_links).
+ * Refused while courses of the Program are linked (lms.program_has_links). Get the
+ * connection id from lms.connection.list; afterwards link courses with lms.course.link.set.
  */
 export const lmsProgramBindingSetMutation = (options?: Partial<Options<LmsProgramBindingSetData>>): UseMutationOptions<LmsProgramBindingSetResponse, LmsProgramBindingSetError, Options<LmsProgramBindingSetData>> => {
     const mutationOptions: UseMutationOptions<LmsProgramBindingSetResponse, LmsProgramBindingSetError, Options<LmsProgramBindingSetData>> = {
@@ -3976,6 +4011,10 @@ export const lmsQuizListQueryKey = (options: Options<LmsQuizListData>) => create
 
 /**
  * Quizzes of a linked course.
+ *
+ * Due, unlock and lock dates, points and question count by default; ask for more
+ * with `fields`. A quiz's score and attempts come with lms.assignment.list (its `assignment_id`);
+ * questions are not available.
  */
 export const lmsQuizListOptions = (options: Options<LmsQuizListData>) => queryOptions<LmsQuizListResponse, LmsQuizListError, LmsQuizListResponse, ReturnType<typeof lmsQuizListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -4357,10 +4396,11 @@ export const scheduleEventCreateMutation = (options?: Partial<Options<ScheduleEv
 };
 
 /**
- * Add several one-off events to a Program at once (importers).
+ * Add one or more one-off events: exams, office hours, make-up classes, appointments.
  *
- * Used by importers. An item with the same source_kind and source_ref as an
- * existing event of the Program updates it instead of adding a duplicate.
+ * Times without an offset are read in the Program's time zone. For something
+ * that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+ * source_ref as an existing event of the Program updates it.
  */
 export const scheduleEventCreateManyMutation = (options?: Partial<Options<ScheduleEventCreateManyData>>): UseMutationOptions<ScheduleEventCreateManyResponse, ScheduleEventCreateManyError, Options<ScheduleEventCreateManyData>> => {
     const mutationOptions: UseMutationOptions<ScheduleEventCreateManyResponse, ScheduleEventCreateManyError, Options<ScheduleEventCreateManyData>> = {
@@ -4379,7 +4419,9 @@ export const scheduleEventCreateManyMutation = (options?: Partial<Options<Schedu
 /**
  * Delete a one-off event.
  *
- * Irreversible.
+ * Irreversible. Find the id with schedule.event.list. A weekly class is not an
+ * event: cancel one week with schedule.exception.upsert, or remove the class time with
+ * schedule.meeting.delete.
  */
 export const scheduleEventDeleteMutation = (options?: Partial<Options<ScheduleEventDeleteData>>): UseMutationOptions<ScheduleEventDeleteResponse, ScheduleEventDeleteError, Options<ScheduleEventDeleteData>> => {
     const mutationOptions: UseMutationOptions<ScheduleEventDeleteResponse, ScheduleEventDeleteError, Options<ScheduleEventDeleteData>> = {
@@ -4418,7 +4460,9 @@ export const scheduleEventGetOptions = (options: Options<ScheduleEventGetData>) 
 /**
  * Change a one-off event.
  *
- * Moving only `start_at` keeps the event's duration.
+ * Only the fields that are sent change. Moving only `start_at` keeps the event's
+ * duration. Find the id with schedule.event.list; a weekly class is changed with
+ * schedule.meeting.update or, for one week, schedule.exception.upsert.
  */
 export const scheduleEventUpdateMutation = (options?: Partial<Options<ScheduleEventUpdateData>>): UseMutationOptions<ScheduleEventUpdateResponse, ScheduleEventUpdateError, Options<ScheduleEventUpdateData>> => {
     const mutationOptions: UseMutationOptions<ScheduleEventUpdateResponse, ScheduleEventUpdateError, Options<ScheduleEventUpdateData>> = {
@@ -4533,7 +4577,8 @@ export const scheduleEventTypeReorderMutation = (options?: Partial<Options<Sched
 /**
  * Undo the cancellation or move of one class.
  *
- * The class happens again as regularly scheduled.
+ * The class happens again as regularly scheduled. Use when a class cancelled or
+ * moved with schedule.exception.upsert takes place after all.
  */
 export const scheduleExceptionDeleteMutation = (options?: Partial<Options<ScheduleExceptionDeleteData>>): UseMutationOptions<ScheduleExceptionDeleteResponse, ScheduleExceptionDeleteError, Options<ScheduleExceptionDeleteData>> => {
     const mutationOptions: UseMutationOptions<ScheduleExceptionDeleteResponse, ScheduleExceptionDeleteError, Options<ScheduleExceptionDeleteData>> = {
@@ -4671,10 +4716,12 @@ export const scheduleMeetingCreateMutation = (options?: Partial<Options<Schedule
 };
 
 /**
- * Add several weekly class times to a course at once (importers).
+ * Add one or more weekly (or biweekly) class times to a course.
  *
- * Used by importers. An item with the same source_kind and source_ref as an
- * existing meeting of the course updates it instead of adding a duplicate.
+ * Each meeting runs in one of the course's terms; times are wall-clock times in
+ * the Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a
+ * single extra session (exam, make-up class) use schedule.event.create_many instead. An item with the
+ * same source_kind and source_ref as an existing meeting of the course updates it.
  */
 export const scheduleMeetingCreateManyMutation = (options?: Partial<Options<ScheduleMeetingCreateManyData>>): UseMutationOptions<ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateManyError, Options<ScheduleMeetingCreateManyData>> => {
     const mutationOptions: UseMutationOptions<ScheduleMeetingCreateManyResponse, ScheduleMeetingCreateManyError, Options<ScheduleMeetingCreateManyData>> = {
@@ -5056,7 +5103,7 @@ export const tasksItemQueryQueryKey = (options: Options<TasksItemQueryData>) => 
  * Use for 'what do I have to do'. `today` includes overdue tasks. For questions
  * about what is due this week prefer calendar.occurrence.list, which merges tasks with assessment
  * deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
- * completed tasks are hidden unless the view is `completed` or include_completed is set.
+ * completed tasks are hidden unless the view is `completed` or `completed` is include or only.
  */
 export const tasksItemQueryOptions = (options: Options<TasksItemQueryData>) => queryOptions<TasksItemQueryResponse, TasksItemQueryError, TasksItemQueryResponse, ReturnType<typeof tasksItemQueryQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -5079,7 +5126,7 @@ export const tasksItemQueryInfiniteQueryKey = (options: Options<TasksItemQueryDa
  * Use for 'what do I have to do'. `today` includes overdue tasks. For questions
  * about what is due this week prefer calendar.occurrence.list, which merges tasks with assessment
  * deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
- * completed tasks are hidden unless the view is `completed` or include_completed is set.
+ * completed tasks are hidden unless the view is `completed` or `completed` is include or only.
  */
 export const tasksItemQueryInfiniteOptions = (options: Options<TasksItemQueryData>) => {
     const opts = infiniteQueryOptions<TasksItemQueryResponse, TasksItemQueryError, InfiniteData<TasksItemQueryResponse>, QueryKey<Options<TasksItemQueryData>>, string | null | Pick<QueryKey<Options<TasksItemQueryData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -5298,7 +5345,8 @@ export const tasksListDeleteMutation = (options?: Partial<Options<TasksListDelet
 /**
  * Rename a task list or change its color or icon.
  *
- * Partial update: only the fields that are sent change.
+ * Partial update: only the fields that are sent change. Get the id from
+ * tasks.list.list. Tasks are moved between lists with tasks.item.move.
  */
 export const tasksListUpdateMutation = (options?: Partial<Options<TasksListUpdateData>>): UseMutationOptions<TasksListUpdateResponse, TasksListUpdateError, Options<TasksListUpdateData>> => {
     const mutationOptions: UseMutationOptions<TasksListUpdateResponse, TasksListUpdateError, Options<TasksListUpdateData>> = {

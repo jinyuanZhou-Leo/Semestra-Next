@@ -30,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx, system_ctx
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, agent_hints
 from semestra.core.jobs import periodic
 from semestra.modules.agent.models import AgentMemory, AgentMessage, AgentSession
 from semestra.modules.ai import Message
@@ -98,6 +98,19 @@ _MONEY = re.compile(
 )
 # Long runs of digits: card, account, government id and student numbers.
 _NUMBER = re.compile(r"(?:\d[ -]?){9,}")
+
+
+agent_hints(
+    {
+        "agent.memory_full": "Memory holds at most `limit` records. Merge or forget old ones "
+        "first.",
+        "agent.memory_name_taken": "A memory with that name exists; update it instead of saving a "
+        "new one.",
+        "agent.memory_sensitive": "Memories cannot hold passwords, keys or other secrets; leave "
+        "them out.",
+        "agent.memory_off": "The user turned memory off; do not save or read memories.",
+    }
+)
 
 
 def is_sensitive(text: str) -> bool:

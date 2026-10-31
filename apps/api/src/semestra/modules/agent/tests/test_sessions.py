@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
-from semestra.modules.agent import skills, tools
+from semestra.modules.agent import skills
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
 from semestra.testing import MakeUser
 
@@ -233,7 +233,7 @@ def test_skills_list_every_tool_their_text_names():
     create_app()
     available = registry.list("agent")
     names = {c.name for c in available}
-    core = {c.name for c in tools.core_capabilities(available)}
+    core = {c.name for c in available if c.agent_core}
     for skill in skills.all_skills():
         named = set(re.findall(r"`([a-z_]+(?:\.[a-z_]+){2,})`", skill.body))
         assert named <= names, f"{skill.name} names unknown tools {sorted(named - names)}"

@@ -404,23 +404,15 @@ export const academicsCourseList = <ThrowOnError extends boolean = false>(option
  * `planned_terms` to 2; the term wizard offers to continue it later.
  */
 export const academicsCourseCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateData, ThrowOnError>): RequestResult<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateResponses, AcademicsCourseCreateErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/programs/{program_id}/courses',
     ...options,
     headers: {
@@ -430,9 +422,11 @@ export const academicsCourseCreate = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * Add several courses at once.
+ * Add one or more courses, each to one term or to consecutive terms (year-long).
  *
- * Use for a batch of courses the user typed or listed in the chat. Courses in a
+ * Use when the user adds courses in the chat, one or several. Get term ids from
+ * academics.term.list. For a year-long course whose second term does not exist yet, link the current
+ * term only and set `planned_terms` to 2; the term wizard offers to continue it later. Courses in a
  * document or file (a timetable, a syllabus) go through imports.session.create instead.
  */
 export const academicsCourseCreateMany = <ThrowOnError extends boolean = false>(options: Options<AcademicsCourseCreateManyData, ThrowOnError>): RequestResult<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError> => (options.client ?? client).post<AcademicsCourseCreateManyResponses, AcademicsCourseCreateManyErrors, ThrowOnError>({
@@ -612,7 +606,7 @@ export const academicsProgramList = <ThrowOnError extends boolean = false>(optio
  *
  * Use only when the user explicitly wants a new, separate Program, e.g. a second
  * degree. Do not use to add a term or a course; use academics.term.create or
- * academics.course.create.
+ * academics.course.create_many.
  */
 export const academicsProgramCreate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramCreateData, ThrowOnError>): RequestResult<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError> => (options.client ?? client).post<AcademicsProgramCreateResponses, AcademicsProgramCreateErrors, ThrowOnError>({
     security: [
@@ -698,7 +692,9 @@ export const academicsProgramGet = <ThrowOnError extends boolean = false>(option
 /**
  * Change a Program's name, school, time zone or credit settings.
  *
- * Partial update: only the fields that are sent change.
+ * Partial update: only the fields that are sent change. Get the Program with
+ * academics.program.get first when you need its current values. Terms and courses are changed with
+ * academics.term.update and academics.course.update.
  */
 export const academicsProgramUpdate = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramUpdateData, ThrowOnError>): RequestResult<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError> => (options.client ?? client).patch<AcademicsProgramUpdateResponses, AcademicsProgramUpdateErrors, ThrowOnError>({
     security: [
@@ -850,7 +846,9 @@ export const academicsTermDelete = <ThrowOnError extends boolean = false>(option
 /**
  * Get one term with its dates and breaks.
  *
- * Use when you need a term's dates, reading weeks or holidays.
+ * Use when you need a term's dates, reading weeks or holidays. Find the id with
+ * academics.term.list; for teaching week numbers use academics.term.get_weeks. Changes go through
+ * academics.term.update.
  */
 export const academicsTermGet = <ThrowOnError extends boolean = false>(options: Options<AcademicsTermGetData, ThrowOnError>): RequestResult<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError> => (options.client ?? client).get<AcademicsTermGetResponses, AcademicsTermGetErrors, ThrowOnError>({
     security: [
@@ -2088,7 +2086,9 @@ export const filesDocumentSearch = <ThrowOnError extends boolean = false>(option
 /**
  * Create a folder in a course's files.
  *
- * Use to organise a course's files. Folders can be nested up to three levels.
+ * Use to organise a course's files. Folders can be nested up to three levels. Move
+ * a file into the new folder with files.item.update (`folder_id`); rename or move the folder with
+ * files.folder.update.
  */
 export const filesFolderCreate = <ThrowOnError extends boolean = false>(options: Options<FilesFolderCreateData, ThrowOnError>): RequestResult<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError> => (options.client ?? client).post<FilesFolderCreateResponses, FilesFolderCreateErrors, ThrowOnError>({
     security: [
@@ -2404,23 +2404,15 @@ export const gradingAssessmentList = <ThrowOnError extends boolean = false>(opti
  * assessment; use grading.assessment.update.
  */
 export const gradingAssessmentCreate = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentCreateData, ThrowOnError>): RequestResult<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentCreateResponses, GradingAssessmentCreateErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/courses/{course_id}/assessments',
     ...options,
     headers: {
@@ -2430,10 +2422,12 @@ export const gradingAssessmentCreate = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * Add several assessments at once.
+ * Add one or more assessments (quiz, exam, assignment...) to a course gradebook.
  *
- * Use for assessments the user typed or listed in the chat. A grading scheme in a
- * file goes through imports.session.create, and LMS assignments through lms.assignment.import.
+ * Use when the user adds graded items in the chat, one or several. Give each
+ * deadline as `due_date` (and `due_time` if known) in the Program's time zone. Do not use to record a
+ * score on an existing assessment; use grading.assessment.update. A grading scheme in a file goes
+ * through imports.session.create, and LMS assignments through lms.assignment.import.
  * Items that carry `source_kind` and `source_ref` are skipped when the course
  * already has an assessment from the same source, so repeating an import creates no duplicates.
  */
@@ -2466,7 +2460,9 @@ export const gradingAssessmentCreateMany = <ThrowOnError extends boolean = false
 /**
  * Delete an assessment from a gradebook.
  *
- * Irreversible. To ignore an assessment in the grade, set `dropped` instead.
+ * Irreversible: the score and its place in the grade are gone. To ignore an
+ * assessment in the grade, set `dropped` with grading.assessment.update instead. Find the id with
+ * grading.assessment.find.
  */
 export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteData, ThrowOnError>): RequestResult<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError>({
     security: [
@@ -2530,23 +2526,15 @@ export const gradingAssessmentUpdate = <ThrowOnError extends boolean = false>(op
  * Assessments not listed keep their order after the listed ones.
  */
 export const gradingAssessmentReorder = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentReorderData, ThrowOnError>): RequestResult<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingAssessmentReorderResponses, GradingAssessmentReorderErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/courses/{course_id}/assessment-order',
     ...options,
     headers: {
@@ -2678,23 +2666,15 @@ export const gradingCategoryUpdate = <ThrowOnError extends boolean = false>(opti
  * Categories not listed keep their order after the listed ones.
  */
 export const gradingCategoryReorder = <ThrowOnError extends boolean = false>(options: Options<GradingCategoryReorderData, ThrowOnError>): RequestResult<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError> => (options.client ?? client).put<GradingCategoryReorderResponses, GradingCategoryReorderErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/courses/{course_id}/grading-category-order',
     ...options,
     headers: {
@@ -3225,7 +3205,9 @@ export const importsSessionCommit = <ThrowOnError extends boolean = false>(optio
 /**
  * Import history of a Program, newest first.
  *
- * Closed imports are kept for 30 days.
+ * Each import says where it came from and its state (extracting, ready,
+ * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
+ * days.
  */
 export const importsSessionList = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionListData, ThrowOnError>): RequestResult<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError>({
     security: [
@@ -3883,7 +3865,9 @@ export const lmsCourseImport = <ThrowOnError extends boolean = false>(options: O
 /**
  * Unlink a course from its LMS course.
  *
- * Imported assessments, tasks and files stay.
+ * Imported assessments, tasks and files stay; LMS reads, calendar overlay and
+ * update checks stop for this course. Link it again with lms.course.link.set. To pause syncing but
+ * keep reading, use lms.course.link.update instead.
  */
 export const lmsCourseLinkDelete = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkDeleteData, ThrowOnError>): RequestResult<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError> => (options.client ?? client).delete<LmsCourseLinkDeleteResponses, LmsCourseLinkDeleteErrors, ThrowOnError>({
     security: [
@@ -3910,7 +3894,9 @@ export const lmsCourseLinkDelete = <ThrowOnError extends boolean = false>(option
 /**
  * The LMS course a course is linked to, if any.
  *
- * Also says which connection the course's Program is bound to.
+ * Also says which connection the course's Program is bound to. Check it before the
+ * lms.* read tools: they need a linked course (lms.course_not_linked otherwise). Link a course with
+ * lms.course.link.set.
  */
 export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkGetData, ThrowOnError>): RequestResult<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseLinkGetResponses, LmsCourseLinkGetErrors, ThrowOnError>({
     security: [
@@ -3937,7 +3923,8 @@ export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: 
 /**
  * Turn LMS sync of a linked course on or off.
  *
- * Off: no calendar overlay and no update checks; reading still works.
+ * Off: no calendar overlay and no update checks; reading still works. To remove the
+ * link altogether use lms.course.link.delete.
  */
 export const lmsCourseLinkUpdate = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkUpdateData, ThrowOnError>): RequestResult<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError> => (options.client ?? client).patch<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError>({
     security: [
@@ -4003,7 +3990,8 @@ export const lmsCourseLinkSet = <ThrowOnError extends boolean = false>(options: 
 /**
  * Refresh the linked LMS course's code, name and term.
  *
- * Changes only the link, never the course itself.
+ * Changes only the link, never the course itself. Use when the course was renamed
+ * or moved on the LMS and the link still shows the old code, name or term.
  */
 export const lmsCourseLinkSync = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkSyncData, ThrowOnError>): RequestResult<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError> => (options.client ?? client).post<LmsCourseLinkSyncResponses, LmsCourseLinkSyncErrors, ThrowOnError>({
     security: [
@@ -4218,6 +4206,10 @@ export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(option
 
 /**
  * Find files of a linked course on the LMS by name.
+ *
+ * Matches part of the file name, not its contents. Each result says its type, size,
+ * last change and whether it is locked. Browse by folder with lms.folder.get, open one with
+ * lms.file.preview, or copy it into the course's files with lms.file.save_to_course.
  */
 export const lmsFileSearch = <ThrowOnError extends boolean = false>(options: Options<LmsFileSearchData, ThrowOnError>): RequestResult<LmsFileSearchResponses, LmsFileSearchErrors, ThrowOnError> => (options.client ?? client).get<LmsFileSearchResponses, LmsFileSearchErrors, ThrowOnError>({
     security: [
@@ -4272,7 +4264,9 @@ export const lmsFolderGet = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * The user's grades on Canvas or another LMS for a linked course.
  *
- * The course total first, then one row per assignment.
+ * The course total first, then one row per assignment, with score, points possible
+ * and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
+ * assignments to it use lms.assignment.import.
  */
 export const lmsGradeList = <ThrowOnError extends boolean = false>(options: Options<LmsGradeListData, ThrowOnError>): RequestResult<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError> => (options.client ?? client).get<LmsGradeListResponses, LmsGradeListErrors, ThrowOnError>({
     security: [
@@ -4299,7 +4293,8 @@ export const lmsGradeList = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * Modules of a linked course.
  *
- * Items of a module: lms.module_item.list.
+ * Modules are the instructor's outline of the course (weeks or units), in order,
+ * with their state, unlock date and item count. Items of a module: lms.module_item.list.
  */
 export const lmsModuleList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleListData, ThrowOnError>): RequestResult<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleListResponses, LmsModuleListErrors, ThrowOnError>({
     security: [
@@ -4326,7 +4321,9 @@ export const lmsModuleList = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Items of one module of a linked course.
  *
- * `target` says where an item opens in the app (page, assignment, file...).
+ * Get module_id from lms.module.list. Each item has a kind (page, assignment, file,
+ * quiz, link...) and an indent level. `target` says where an item opens in the app (page, assignment,
+ * file...).
  */
 export const lmsModuleItemList = <ThrowOnError extends boolean = false>(options: Options<LmsModuleItemListData, ThrowOnError>): RequestResult<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError> => (options.client ?? client).get<LmsModuleItemListResponses, LmsModuleItemListErrors, ThrowOnError>({
     security: [
@@ -4378,7 +4375,8 @@ export const lmsPageGet = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Pages of a linked course.
  *
- * Read one with lms.page.get.
+ * Titles and last change only; the course's front page is marked. Read one with
+ * lms.page.get. The syllabus has its own tool, lms.syllabus.get.
  */
 export const lmsPageList = <ThrowOnError extends boolean = false>(options: Options<LmsPageListData, ThrowOnError>): RequestResult<LmsPageListResponses, LmsPageListErrors, ThrowOnError> => (options.client ?? client).get<LmsPageListResponses, LmsPageListErrors, ThrowOnError>({
     security: [
@@ -4405,7 +4403,8 @@ export const lmsPageList = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Unbind a Program's LMS connection.
  *
- * Refused while courses of the Program are linked (lms.program_has_links).
+ * Refused while courses of the Program are linked (lms.program_has_links): unlink
+ * them with lms.course.link.delete first. The connection itself stays (lms.connection.list).
  */
 export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingClearData, ThrowOnError>): RequestResult<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError> => (options.client ?? client).delete<LmsProgramBindingClearResponses, LmsProgramBindingClearErrors, ThrowOnError>({
     security: [
@@ -4432,7 +4431,8 @@ export const lmsProgramBindingClear = <ThrowOnError extends boolean = false>(opt
 /**
  * Which LMS connection a Program uses.
  *
- * Courses of the Program can only be linked through this connection.
+ * Courses of the Program can only be linked through this connection. The user's
+ * connections are listed by lms.connection.list.
  */
 export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingGetData, ThrowOnError>): RequestResult<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError> => (options.client ?? client).get<LmsProgramBindingGetResponses, LmsProgramBindingGetErrors, ThrowOnError>({
     security: [
@@ -4459,7 +4459,8 @@ export const lmsProgramBindingGet = <ThrowOnError extends boolean = false>(optio
 /**
  * Bind an LMS connection to a Program.
  *
- * Refused while courses of the Program are linked (lms.program_has_links).
+ * Refused while courses of the Program are linked (lms.program_has_links). Get the
+ * connection id from lms.connection.list; afterwards link courses with lms.course.link.set.
  */
 export const lmsProgramBindingSet = <ThrowOnError extends boolean = false>(options: Options<LmsProgramBindingSetData, ThrowOnError>): RequestResult<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError> => (options.client ?? client).put<LmsProgramBindingSetResponses, LmsProgramBindingSetErrors, ThrowOnError>({
     security: [
@@ -4516,6 +4517,10 @@ export const lmsProviderList = <ThrowOnError extends boolean = false>(options?: 
 
 /**
  * Quizzes of a linked course.
+ *
+ * Due, unlock and lock dates, points and question count by default; ask for more
+ * with `fields`. A quiz's score and attempts come with lms.assignment.list (its `assignment_id`);
+ * questions are not available.
  */
 export const lmsQuizList = <ThrowOnError extends boolean = false>(options: Options<LmsQuizListData, ThrowOnError>): RequestResult<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError> => (options.client ?? client).get<LmsQuizListResponses, LmsQuizListErrors, ThrowOnError>({
     security: [
@@ -4950,23 +4955,15 @@ export const scheduleEventList = <ThrowOnError extends boolean = false>(options:
  * that repeats weekly use schedule.meeting.create.
  */
 export const scheduleEventCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventCreateData, ThrowOnError>): RequestResult<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventCreateResponses, ScheduleEventCreateErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/programs/{program_id}/events',
     ...options,
     headers: {
@@ -4976,10 +4973,11 @@ export const scheduleEventCreate = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * Add several one-off events to a Program at once (importers).
+ * Add one or more one-off events: exams, office hours, make-up classes, appointments.
  *
- * Used by importers. An item with the same source_kind and source_ref as an
- * existing event of the Program updates it instead of adding a duplicate.
+ * Times without an offset are read in the Program's time zone. For something
+ * that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+ * source_ref as an existing event of the Program updates it.
  */
 export const scheduleEventCreateMany = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventCreateManyData, ThrowOnError>): RequestResult<ScheduleEventCreateManyResponses, ScheduleEventCreateManyErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventCreateManyResponses, ScheduleEventCreateManyErrors, ThrowOnError>({
     security: [
@@ -5010,7 +5008,9 @@ export const scheduleEventCreateMany = <ThrowOnError extends boolean = false>(op
 /**
  * Delete a one-off event.
  *
- * Irreversible.
+ * Irreversible. Find the id with schedule.event.list. A weekly class is not an
+ * event: cancel one week with schedule.exception.upsert, or remove the class time with
+ * schedule.meeting.delete.
  */
 export const scheduleEventDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventDeleteData, ThrowOnError>): RequestResult<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleEventDeleteResponses, ScheduleEventDeleteErrors, ThrowOnError>({
     security: [
@@ -5056,7 +5056,9 @@ export const scheduleEventGet = <ThrowOnError extends boolean = false>(options: 
 /**
  * Change a one-off event.
  *
- * Moving only `start_at` keeps the event's duration.
+ * Only the fields that are sent change. Moving only `start_at` keeps the event's
+ * duration. Find the id with schedule.event.list; a weekly class is changed with
+ * schedule.meeting.update or, for one week, schedule.exception.upsert.
  */
 export const scheduleEventUpdate = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventUpdateData, ThrowOnError>): RequestResult<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError> => (options.client ?? client).patch<ScheduleEventUpdateResponses, ScheduleEventUpdateErrors, ThrowOnError>({
     security: [
@@ -5206,23 +5208,15 @@ export const scheduleEventTypeUpdate = <ThrowOnError extends boolean = false>(op
  * Types not listed keep their relative order after the listed ones.
  */
 export const scheduleEventTypeReorder = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventTypeReorderData, ThrowOnError>): RequestResult<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError> => (options.client ?? client).put<ScheduleEventTypeReorderResponses, ScheduleEventTypeReorderErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/programs/{program_id}/event-types:order',
     ...options,
     headers: {
@@ -5234,7 +5228,8 @@ export const scheduleEventTypeReorder = <ThrowOnError extends boolean = false>(o
 /**
  * Undo the cancellation or move of one class.
  *
- * The class happens again as regularly scheduled.
+ * The class happens again as regularly scheduled. Use when a class cancelled or
+ * moved with schedule.exception.upsert takes place after all.
  */
 export const scheduleExceptionDelete = <ThrowOnError extends boolean = false>(options: Options<ScheduleExceptionDeleteData, ThrowOnError>): RequestResult<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError> => (options.client ?? client).delete<ScheduleExceptionDeleteResponses, ScheduleExceptionDeleteErrors, ThrowOnError>({
     security: [
@@ -5388,23 +5383,15 @@ export const scheduleMeetingList = <ThrowOnError extends boolean = false>(option
  * class) use schedule.event.create instead.
  */
 export const scheduleMeetingCreate = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateData, ThrowOnError>): RequestResult<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateResponses, ScheduleMeetingCreateErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/courses/{course_id}/meetings',
     ...options,
     headers: {
@@ -5414,10 +5401,12 @@ export const scheduleMeetingCreate = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * Add several weekly class times to a course at once (importers).
+ * Add one or more weekly (or biweekly) class times to a course.
  *
- * Used by importers. An item with the same source_kind and source_ref as an
- * existing meeting of the course updates it instead of adding a duplicate.
+ * Each meeting runs in one of the course's terms; times are wall-clock times in
+ * the Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a
+ * single extra session (exam, make-up class) use schedule.event.create_many instead. An item with the
+ * same source_kind and source_ref as an existing meeting of the course updates it.
  */
 export const scheduleMeetingCreateMany = <ThrowOnError extends boolean = false>(options: Options<ScheduleMeetingCreateManyData, ThrowOnError>): RequestResult<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError> => (options.client ?? client).post<ScheduleMeetingCreateManyResponses, ScheduleMeetingCreateManyErrors, ThrowOnError>({
     security: [
@@ -5935,7 +5924,7 @@ export const tasksItemCount = <ThrowOnError extends boolean = false>(options: Op
  * Use for 'what do I have to do'. `today` includes overdue tasks. For questions
  * about what is due this week prefer calendar.occurrence.list, which merges tasks with assessment
  * deadlines and classes. Filter with list_id, term_id, course_id, search and due_from/due_to;
- * completed tasks are hidden unless the view is `completed` or include_completed is set.
+ * completed tasks are hidden unless the view is `completed` or `completed` is include or only.
  */
 export const tasksItemQuery = <ThrowOnError extends boolean = false>(options: Options<TasksItemQueryData, ThrowOnError>): RequestResult<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError> => (options.client ?? client).get<TasksItemQueryResponses, TasksItemQueryErrors, ThrowOnError>({
     security: [
@@ -6241,7 +6230,8 @@ export const tasksListDelete = <ThrowOnError extends boolean = false>(options: O
 /**
  * Rename a task list or change its color or icon.
  *
- * Partial update: only the fields that are sent change.
+ * Partial update: only the fields that are sent change. Get the id from
+ * tasks.list.list. Tasks are moved between lists with tasks.item.move.
  */
 export const tasksListUpdate = <ThrowOnError extends boolean = false>(options: Options<TasksListUpdateData, ThrowOnError>): RequestResult<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError> => (options.client ?? client).patch<TasksListUpdateResponses, TasksListUpdateErrors, ThrowOnError>({
     security: [
@@ -6275,23 +6265,15 @@ export const tasksListUpdate = <ThrowOnError extends boolean = false>(options: O
  * Lists not named keep their relative order after the named ones.
  */
 export const tasksListReorder = <ThrowOnError extends boolean = false>(options: Options<TasksListReorderData, ThrowOnError>): RequestResult<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError> => (options.client ?? client).put<TasksListReorderResponses, TasksListReorderErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/programs/{program_id}/task-list-order',
     ...options,
     headers: {

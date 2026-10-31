@@ -192,7 +192,9 @@ async def test_errors_name_the_wrong_id_and_the_limit(agent: Agent, model: FakeM
     model.then(call("grading.gradebook.get", {"course_id": "nope"}), say("Not found."))
     await agent.send(session["id"], "grades?")
     error = json.loads(str(model.results(-1)[0].content))["error"]
-    assert error == {"code": "common.not_found", "params": {"kind": "course", "id": "nope"}}
+    assert error["code"] == "common.not_found"
+    assert error["params"] == {"kind": "course", "id": "nope"}
+    assert "find or list tool" in error["hint"]  # the next step, for the model
     model.then(
         call("grading.assessment.update", {"assessment_id": lab["id"], "score_percentage": -5}),
         say("Invalid."),

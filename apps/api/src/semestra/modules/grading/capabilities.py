@@ -3,6 +3,7 @@
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
+from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseRef, Deleted, ProgramRef
@@ -71,6 +72,18 @@ _SUMMARY_FIELDS = (
 # --- scale ----------------------------------------------------------------------------------
 
 
+agent_hints(
+    {
+        "grading.points_invalid": "See reason: points_earned needs points_possible; a target "
+        "cannot exceed the scale maximum.",
+        "grading.category_key_conflict": "That key is taken in this course; choose another or "
+        "update the existing category.",
+        "grading.scale_invalid": "The grading scale breaks the rule named in reason; fix that "
+        "part and send it again.",
+    }
+)
+
+
 @capability(
     name="grading.scale.get",
     summary="Get a Program's grading scale: percentage ranges → grade points and letters.",
@@ -137,7 +150,6 @@ grade, the forecast, or what the remaining assessments must average to reach a t
     effect="read",
     http=Http("GET", "/courses/{course_id}/gradebook"),
     tags=TAGS,
-    agent_core=True,
     agent_output_fields=(
         "course_id",
         "scale",
@@ -218,6 +230,7 @@ async def category_delete(ctx: Ctx, inp: CategoryRef) -> Deleted:
     summary="Set the display order of a course's assessment categories.",
     description="Categories not listed keep their order after the listed ones.",
     effect="write",
+    expose=("http",),  # only the UI reorders
     http=Http("PUT", "/courses/{course_id}/grading-category-order"),
     tags=TAGS,
     agent_output_fields=("items.id", "items.name"),
@@ -276,6 +289,7 @@ async def assessment_find(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCandi
 `due_time` if known) in the Program's time zone. Do not use to record a score on an existing
 assessment; use grading.assessment.update.""",
     effect="write",
+    expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/courses/{course_id}/assessments"),
     tags=TAGS,
     agent_output_fields=("id", "course_id", "title", "due_date", "weight"),
@@ -287,9 +301,11 @@ async def assessment_create(ctx: Ctx, inp: AssessmentCreateInput) -> Assessment:
 
 @capability(
     name="grading.assessment.create_many",
-    summary="Add several assessments at once.",
-    description="""Use for assessments the user typed or listed in the chat. A grading scheme in a
-file goes through imports.session.create, and LMS assignments through lms.assignment.import.
+    summary="Add one or more assessments (quiz, exam, assignment...) to a course gradebook.",
+    description="""Use when the user adds graded items in the chat, one or several. Give each
+deadline as `due_date` (and `due_time` if known) in the Program's time zone. Do not use to record a
+score on an existing assessment; use grading.assessment.update. A grading scheme in a file goes
+through imports.session.create, and LMS assignments through lms.assignment.import.
 Items that carry `source_kind` and `source_ref` are skipped when the course
 already has an assessment from the same source, so repeating an import creates no duplicates.""",
     effect="write",
@@ -313,7 +329,6 @@ change.""",
     effect="write",
     http=Http("PATCH", "/assessments/{assessment_id}"),
     tags=TAGS,
-    agent_core=True,
     preview=service.preview_assessment_update,
     agent_output_fields=("id", "title", "status", CHANGED),
 )
@@ -324,7 +339,9 @@ async def assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
 @capability(
     name="grading.assessment.delete",
     summary="Delete an assessment from a gradebook.",
-    description="Irreversible. To ignore an assessment in the grade, set `dropped` instead.",
+    description="""Irreversible: the score and its place in the grade are gone. To ignore an
+assessment in the grade, set `dropped` with grading.assessment.update instead. Find the id with
+grading.assessment.find.""",
     effect="destructive",
     http=Http("DELETE", "/assessments/{assessment_id}"),
     preview=service.preview_assessment_delete,
@@ -340,6 +357,7 @@ async def assessment_delete(ctx: Ctx, inp: AssessmentRef) -> Deleted:
     summary="Set the order of a course's assessments.",
     description="Assessments not listed keep their order after the listed ones.",
     effect="write",
+    expose=("http",),  # only the UI reorders
     http=Http("PUT", "/courses/{course_id}/assessment-order"),
     tags=TAGS,
 )

@@ -44,7 +44,7 @@ agent_preferences
 - 上下文压缩：请求超过模型上下文 70% 时，先把最近两轮之前读取类工具的结果清掉（不调用模型），还不够才把那些轮次总结为一条摘要消息（用对话模型，摘要不看工具结果）；用户也可以随时手动压缩并写明要保留的重点。细节见实现说明「压缩」。
 
 ### 3.2 工具暴露
-- **始终绑定**（core 集合，约 15 个，按"最常用"挑选，各模块可在 capability 上标 `agent_core=True` 申请，总数上限 20）：例如 `calendar.today.get`、`calendar.occurrence.list`、`academics.course.find`、`academics.term.list`、`tasks.item.query`、`tasks.item.create`、`grading.gradebook.get`、`grading.assessment.find`、`grading.assessment.update`、`files.document.search`。
+- **始终绑定**（core 集合，只放最常用的读工具，各模块可在 capability 上标 `agent_core=True` 申请，总数上限 20）：`calendar.today.get`、`academics.course.find`、`tasks.item.query`、`grading.assessment.find`，加上提示词里点名的 `agent.memory.*` 与 `agent.attachment.read`（2026-10-31 从 17 个减到 8 个，写工具都是搜到再用）。
 - **元工具**：
   - `tools_search(query, limit=8)` → 匹配的 capability 名称、summary、effect（名称、描述、标签的关键词 + embedding 相似度，embedding 不可用时只用关键词）。
   - `tools_load(names)` → 把这些工具加入本会话后续轮次的绑定集合（会话内最多额外 25 个，LRU 淘汰）。
@@ -209,8 +209,10 @@ agent_preferences
 - **步骤前的一句话**（Sem 最新 trace 分析 PR 3，2026-10-20；分组后又按所有者意见取消）：系统提示要求模型在每次调用工具前先说一句不超过 15 词的话（做什么、为什么），思考块里这句话和随后的步骤按顺序平铺显示，不再按这句话折叠成组（套两层折叠反而难看）。只多一句固定提示（不影响缓存）和每批调用十几个输出 token。
 - **模型只看到一种工具名**（2026-10-20）：工具名是能力名把点换成 `__`（OpenAI、Anthropic 的工具名都不允许点）。工具描述、skill 正文（`load_capability` 与 MCP prompt）和附件提示里写的能力名，在发给模型前由 `tools.for_model` 换成工具名，模型不用自己换算。
 - **运行时与注册表**（工具排查 PR-A，2026-10-20）：
-  - `search_tools` 用 SQLite FTS5 的 BM25 排序（`tools.search`，porter 词干，名称权重 4 倍，最多 10 个），不用库自带的关键词计数，也不新增依赖；描述改成"用英文动作词和对象词搜，找不到换个词再试一次"。
-  - 核心工具加上 `tasks.item.create/find/complete/update` 与 `files.document.search`，去掉 `imports.session.get`（导入 skill 会打开它）。
+  - `search_tools` 用 SQLite FTS5 的 BM25 排序（`tools.search`，porter 词干，名称权重 4 倍，最多 10 个；2026-10-31 改成 5 个，与 Anthropic tool search 的默认值一致），不用库自带的关键词计数，也不新增依赖；描述改成"用英文动作词和对象词搜，找不到换个词再试一次"。
+  - 核心工具加上 `tasks.item.create/find/complete/update` 与 `files.document.search`，去掉 `imports.session.get`（导入 skill 会打开它）。2026-10-31 按工具定义评审（`discussions/2026-10-31-Sem工具定义评审.md`）又收窄到上面的 8 个；固定指令里列出可搜索的工具类别（课程与学期、成绩、课表与日历、待办、课程文件、导入、LMS、卡片、设置、插件），模型才知道该搜什么。后端测试里脚本化的对话直接调用原先的核心工具，`tests/conftest.py` 的 `SCRIPTED_CORE` 把它们补回核心，免得每个脚本先写一步搜索。
+  - 只对界面有意义的工具不给 Sem 和 MCP：四个排序工具（`tasks.list.reorder`、`grading.assessment.reorder`、`grading.category.reorder`、`schedule.event_type.reorder`）`expose=("http",)`；课程、考核、上课时间、单次事件的单条 `create` 也只留给界面，Sem/MCP 用 `*_create_many`（接受 1 条起），待办保留单条的 `tasks.item.create`。只给界面的参数用 `Field(json_schema_extra=HTTP_ONLY)`（`core/capability.py`），模型和 MCP 的 schema 里去掉，目前是 LMS 读工具的 `refresh`。`tasks.item.query` 的 `include_completed`/`only_completed` 合并成一个 `completed: exclude | include | only`。
+  - 错误给模型下一步提示：`outcome.error_payload` 在 `{code, params}` 之外加一句英文 `hint`（只到 Sem 和 MCP，HTTP 响应不带，界面仍按 `error_<code>` 翻译）。各模块在 capability 文件里用 `agent_hints({...})`（`core/errors.py`）登记参数说不清的错误码，例如 `tasks.invalid_due`、`files.folder_not_empty`、`lms.course_link_exists`、`common.not_found`。
   - 发给模型的输入 schema 去掉对模型没有用的关键字（`agent/tools.py` 的 `_noise`：Pydantic 的 `title`（字段名为 `title` 的属性保留）、`default: null`、内联后多余的 `discriminator`、`minLength: 1` 和 64–999 的 `maxLength`（名称、id 一类；1000 起的自由文本上限保留，批量写入里一条超长会让整次调用失败）；校验仍由 capability 做），无参数工具不带共用模型的说明，字段描述里的能力名换成工具名。2026-10-31 这样处理后全部工具定义约少 11%，核心工具约 4.7k token。
   - `registry.set_context_default`：agent/MCP 调用可以省略必填的 `program_id`，由 M02 的 `default_program_id` 填成当前 Program（或唯一的 Program）；schema 里它变成可选并注明这一点（agent 看到“省略即当前 Program”，MCP 客户端看到“只有一个 Program 时可省略”）。HTTP 仍然必填。写操作在出卡片前就补全，提案里存的是补全后的参数，所以用户切换范围后再批准仍写入出卡片时的 Program；补全不算用户修改。
   - `@capability(check=...)`：handler 会拒绝的输入在 `registry.validate` 里先检查，agent 的写操作在出确认卡片之前就报错，而不是用户批准之后。同一个函数同时用于卡片前和执行时。
