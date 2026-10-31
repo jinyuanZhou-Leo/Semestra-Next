@@ -488,6 +488,54 @@ async def test_structured_retries_with_the_validation_error(
     assert len(await usage_rows(app)) == 2
 
 
+async def test_structured_falls_back_to_a_tool_call_when_claude_refuses_the_schema(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
+    # A large schema compiles to a grammar over Claude's limit: JSON mode is refused with a 400.
+    models_ok(mock)
+    await ai.provider("anthropic")
+    refused = Response(
+        400,
+        json={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "The compiled grammar is too large, which would cause performance "
+                "issues. Simplify your tool schemas or reduce the number of strict tools.",
+            },
+        },
+    )
+    tool_call = Response(
+        200,
+        json={
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "t",
+                    "name": "Course",
+                    "input": {"code": "APS105", "credits": 0.5},
+                }
+            ],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 3, "output_tokens": 2},
+        },
+    )
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=[refused, tool_call, tool_call])
+    for _ in range(2):
+        async with ai.ctx() as ctx:
+            result = await m06.structured(
+                ctx, "extraction", [Message.user("APS105 0.5")], Course, source_module="t"
+            )
+        assert result == Course(code="APS105", credits=0.5)
+    bodies = [json.loads(call.request.content) for call in route.calls]
+    assert "output_config" in bodies[0]
+    # The next call to the same model with the same schema goes straight to the tool call.
+    for body in bodies[1:]:
+        assert "output_config" not in body
+        assert [t["name"] for t in body["tools"]] == ["Course"]
+    assert [row.error_code for row in await usage_rows(app)].count("ai.request_rejected") == 1
+
+
 async def test_structured_gives_up_with_output_invalid(
     ai: Ai, app: FastAPI, mock: respx.MockRouter
 ):

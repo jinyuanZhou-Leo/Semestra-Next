@@ -361,6 +361,17 @@ def _has_ref(node: Any) -> bool:
     return False
 
 
+# (base URL, provider, model, schema) whose strict JSON mode Claude refused: a large schema
+# compiles to a grammar over the API's limit ("compiled grammar is too large"), so those calls
+# use the forced tool call instead.
+_NO_JSON_MODE: set[tuple[str, str | None, str, str]] = set()
+
+
+def _json_mode_key(resolved: Resolved, schema: type[BaseModel]) -> tuple[str, str | None, str, str]:
+    ep = resolved.endpoint
+    return (ep.base_url, ep.provider_id, resolved.model, schema.__qualname__)
+
+
 def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]) -> Any:
     """The API's JSON schema mode where the provider has one; Anthropic models without it (older
     Claude, most compatible endpoints) get a forced tool call whose input is the result; providers
@@ -369,7 +380,10 @@ def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]
     name = re.sub(r"[^A-Za-z0-9_-]", "_", schema.__name__)[:64] or "result"
     if "structured" not in resolved.endpoint.capabilities:
         return PromptedOutput(schema, name=name)
-    if kind in ANTHROPIC_KINDS and not model.profile.get("supports_json_schema_output"):
+    if kind in ANTHROPIC_KINDS and (
+        not model.profile.get("supports_json_schema_output")
+        or _json_mode_key(resolved, schema) in _NO_JSON_MODE
+    ):
         return ToolOutput(schema, name=name, description="Record the result. Call this once.")
     # Claude's JSON mode is always strict (Pydantic AI adapts the schema to it).
     return NativeOutput(schema, name=name, strict=None if kind in ANTHROPIC_KINDS else False)
@@ -401,7 +415,7 @@ async def structured_with[T: BaseModel](
     call = _Call(ctx, resolved, source_module, source_ref, time.monotonic(), prepared)
     history = convert.to_messages(prepared)
 
-    async def work(model: SemestraModel) -> tuple[T, Usage]:
+    async def attempt(model: SemestraModel) -> tuple[T, Usage]:
         # Invalid output goes back to the model with the validation errors (M06 §5).
         output = _output_spec(resolved, model, schema)
         agent = Agent(model, output_type=output, retries={"output": max_retries})
@@ -409,6 +423,18 @@ async def structured_with[T: BaseModel](
             None, message_history=history, model_settings=_structured_settings(resolved, model)
         )
         return result.output, convert.usage(result.usage)
+
+    async def work(model: SemestraModel) -> tuple[T, Usage]:
+        json_mode = isinstance(_output_spec(resolved, model, schema), NativeOutput)
+        try:
+            return await attempt(model)
+        except AppError as exc:
+            if not (json_mode and resolved.endpoint.kind in ANTHROPIC_KINDS):
+                raise
+            if exc.code != "ai.request_rejected":
+                raise
+        _NO_JSON_MODE.add(_json_mode_key(resolved, schema))
+        return await attempt(model)
 
     return await _run(call, work, whole_answer=True)
 
