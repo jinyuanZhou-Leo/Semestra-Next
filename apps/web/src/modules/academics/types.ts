@@ -77,12 +77,13 @@ export type TermWizardImportSource = {
   onCoursesCreated?: (mapping: CreatedCourseMapping) => Promise<void>
 }
 
-/** An action in the menu of the course info card, e.g. "Update from syllabus" (M08). */
-export type CourseInfoAction = {
+/**
+ * Fills the course's basics from somewhere else, shown above them in the course settings (M08
+ * "Read from a file"). It writes the course itself; `onApplied` then reloads the form.
+ */
+export type CourseInfoFill = {
   id: string
-  title: Message
-  icon: LucideIcon
-  run: (ctx: { programId: string; courseId: string }) => Promise<void> | void
+  component: ComponentType<{ programId: string; courseId: string; onApplied: () => void }>
 }
 
 /** Extra lines on the course info card, e.g. the linked LMS course (M09). `Row` lays one out. */
@@ -115,7 +116,7 @@ export type OnboardingStep = {
 
 export const COURSE_COLUMNS = 'academics.courseColumns'
 export const TERM_WIZARD_IMPORT_SOURCES = 'academics.termWizardImportSources'
-export const COURSE_INFO_ACTIONS = 'academics.courseInfoActions'
+export const COURSE_INFO_FILLS = 'academics.courseInfoFills'
 export const COURSE_INFO_ROWS = 'academics.courseInfoRows'
 export const PROGRAM_SETUP_FIELDS = 'academics.programSetupFields'
 export const ONBOARDING_STEPS = 'academics.onboardingSteps'

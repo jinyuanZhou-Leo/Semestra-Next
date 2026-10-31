@@ -4,16 +4,23 @@ Callers describe what they want as a Pydantic schema whose leaf fields are `Evid
 module wraps the document as untrusted data, splits it when it does not fit the model's context,
 asks for page-and-quote evidence, checks every quote against the page text, and merges the parts.
 What the result means (dates, weights, matching courses) stays with the caller (M08, M02, ...).
+
+The model never sees `Evidenced` itself but a "wire" copy of the schema in which every field is
+required (`wire_schema`): strict structured output (Claude's JSON mode) compiles the schema to a
+grammar, and optional or nullable fields make that grammar grow fast enough to be refused. A large
+schema is read in `parts` (groups of its top-level fields), one request each, side by side.
 """
 
+import asyncio
+import functools
 import json
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, get_args, get_origin
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, create_model, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from semestra.core.context import Ctx
@@ -79,6 +86,114 @@ class Extraction[T: BaseModel]:
     warnings: list[ExtractionWarning] = field(default_factory=lambda: [])
     usage: Usage = field(default_factory=Usage)
     segments: int = 1
+
+
+# --- wire schema ----------------------------------------------------------------------------
+
+
+def _leaf_type(leaf: type[BaseModel]) -> Any:
+    """`T` of an `Evidenced[T]` class (its `value` is `T | None`)."""
+    value = leaf.model_fields["value"].annotation
+    return next(a for a in get_args(value) if a is not type(None))
+
+
+@functools.cache
+def _wire_leaf(value_type: Any) -> type[BaseModel]:
+    # Text that is not stated is "", so only other values need a null (a union in the grammar).
+    value = str if value_type is str else value_type | None
+    name = re.sub(r"\W+", "_", getattr(value_type, "__name__", repr(value_type))).strip("_")
+    return create_model(
+        f"Evidenced_{name}"[:64],
+        value=(value, Field(description='The value; null (or "" for text) when not stated.')),
+        quote=(str, Field(description='Short verbatim quote stating it, or "".')),
+        page=(int, Field(description="Number of the [page N] marker the quote is under, or 0.")),
+        confidence=(float, Field(description="0 to 1: how certain the value is.")),
+    )
+
+
+def _wire_type(annotation: Any) -> Any:
+    if isinstance(annotation, type) and issubclass(annotation, Evidenced):
+        return _wire_leaf(_leaf_type(annotation))
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return wire_schema(annotation)
+    if get_origin(annotation) is list:
+        return list[_wire_type(get_args(annotation)[0])]
+    return annotation
+
+
+@functools.cache
+def wire_schema(schema: type[BaseModel], fields: tuple[str, ...] | None = None) -> type[BaseModel]:
+    """What the model is asked to fill in for `schema` (or only its `fields`): the same shape with
+    every field required and each `Evidenced` leaf flattened to value, quote, page, confidence."""
+    names = fields or tuple(schema.model_fields)
+    suffix = "_".join(fields) if fields else ""
+    definitions: dict[str, Any] = {
+        name: (
+            _wire_type(schema.model_fields[name].annotation),
+            Field(description=schema.model_fields[name].description),
+        )
+        for name in names
+    }
+    name = f"{schema.__name__}_{suffix}" if suffix else schema.__name__
+    return create_model(name[:64], __doc__=schema.__doc__, **definitions)
+
+
+def _from_wire(node: Any) -> Any:
+    """A wire answer as data for the caller's schema."""
+    if isinstance(node, BaseModel):
+        data = {k: _from_wire(getattr(node, k)) for k in type(node).model_fields}
+        if set(data) == {"value", "quote", "page", "confidence"}:
+            value = data["value"]
+            quote = str(data["quote"]).strip()
+            return {
+                "value": None if value == "" else value,
+                "evidence": {"page": data["page"] or None, "quote": quote} if quote else None,
+                "confidence": data["confidence"],
+            }
+        return data
+    if isinstance(node, list):
+        return [_from_wire(v) for v in node]  # pyright: ignore[reportUnknownVariableType]
+    return node
+
+
+def _empty(annotation: Any) -> Any:
+    """Data for a field a part does not ask for: nothing stated."""
+    if isinstance(annotation, type) and issubclass(annotation, Evidenced):
+        return {}
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return {k: _empty(f.annotation) for k, f in annotation.model_fields.items()}
+    if get_origin(annotation) is list:
+        return []
+    return None
+
+
+def schema_complexity(schema: type[BaseModel]) -> tuple[int, int]:
+    """(optional, nullable) property counts of a schema with its references inlined: what
+    Claude's strict mode limits (24 optional, 16 with a union across a request)."""
+    optional = nullable = 0
+
+    def walk(node: Any, defs: dict[str, Any]) -> None:
+        nonlocal optional, nullable
+        if isinstance(node, dict):
+            ref = node.get("$ref")  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+            if isinstance(ref, str):
+                walk(defs[ref.removeprefix("#/$defs/")], defs)
+                return
+            props: dict[str, Any] = node.get("properties", {})  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType, reportAssignmentType]
+            required = set(node.get("required", []))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+            for name, prop in props.items():
+                optional += name not in required
+                nullable += "anyOf" in prop or isinstance(prop.get("type"), list)
+            for key, value in node.items():  # pyright: ignore[reportUnknownVariableType]
+                if key != "$defs":
+                    walk(value, defs)
+        elif isinstance(node, list):
+            for value in node:  # pyright: ignore[reportUnknownVariableType]
+                walk(value, defs)
+
+    js = schema.model_json_schema()
+    walk(js, js.get("$defs", {}))
+    return optional, nullable
 
 
 # --- segmentation ---------------------------------------------------------------------------
@@ -161,19 +276,30 @@ def _halve(segment: _Segment) -> list[_Segment] | None:
 _SYSTEM = """You extract structured data from documents.
 {notice}
 Only use information the documents state. When a value is not stated, leave it null; do not guess.
-Fields shaped like {{"value", "evidence", "confidence"}}: put the value in `value`, copy a short \
-verbatim quote that states it (at most about 200 characters, exactly as written) into \
-`evidence.quote`, set `evidence.page` to the number of the [page N] (or [image N]) marker it is \
-under, and set `confidence` between 0 and 1.
+Fields shaped like {{"value", "quote", "page", "confidence"}}: put the value in `value` (null, or \
+"" for text, when it is not stated), copy a short verbatim quote that states it (at most about 200 \
+characters, exactly as written) into `quote`, set `page` to the number of the [page N] (or \
+[image N]) marker it is under, and set `confidence` between 0 and 1. With no value, leave `quote` \
+"", `page` 0 and `confidence` 0.
 
 Task:
 {instructions}"""
 
 
 def _messages(
-    segment: _Segment, instructions: str, label: str, index: int, total: int
+    segment: _Segment,
+    instructions: str,
+    label: str,
+    index: int,
+    total: int,
+    fields: Sequence[str] | None = None,
 ) -> list[Message]:
     system = _SYSTEM.format(notice=UNTRUSTED_NOTICE, instructions=instructions.strip())
+    if fields:
+        system += (
+            f"\n\nThis answer covers only: {', '.join(fields)}. The rest of the task is answered "
+            "separately."
+        )
     if total > 1:
         system += (
             f"\n\nThe document is split into {total} parts; this is part {index}. Extract what "
@@ -327,10 +453,14 @@ async def extract[T: BaseModel](
     source_module: str,
     source_ref: str | None = None,
     label: str = "document",
+    parts: Sequence[Sequence[str]] | None = None,
     on_segment: OnSegment | None = None,
 ) -> Extraction[T]:
-    """Extracts `schema` from page texts and/or images. `on_segment(done, total)` is called after
-    each part, so a job can report `ctx.stage(..., current=done, total=total)`."""
+    """Extracts `schema` from page texts and/or images. `parts` groups the top-level fields that
+    are asked for together (one request per group and document segment, the groups side by side;
+    fields in no group stay empty); without it the whole schema is one request. `on_segment(done,
+    total)` is called after each request, so a job can report `ctx.stage(..., current=done,
+    total=total)`."""
     texts = [p for p in texts or [] if p.text.strip()]
     images = list(images or [])
     if not texts and not images:
@@ -338,52 +468,82 @@ async def extract[T: BaseModel](
     resolved = await resolve_provider(ctx, purpose)
     ep = resolved.endpoint
     window = catalog.context_window(resolved.model, ep.kind, ep.base_url)
-    overhead = estimate_tokens(instructions) + estimate_tokens(
-        json.dumps(schema.model_json_schema())
-    )
-    budget = max(MIN_SEGMENT_TOKENS, int(window * SEGMENT_SHARE) - overhead - OUTPUT_RESERVE_TOKENS)
+    groups = [tuple(group) for group in parts] if parts else [None]
 
-    pending = _segments(texts, images, budget)
-    results: list[T] = []
-    warnings: list[ExtractionWarning] = []
-    usage = Usage()
-    total = len(pending)
+    total = 0
     done = 0
-    splits = 0
-    cut_splits = 0
-    while pending:
-        segment = pending.pop(0)
-        index = done + 1
-        try:
-            value, used = await structured_with(
-                ctx,
-                resolved,
-                _messages(segment, instructions, label, index, max(total, index)),
-                schema,
-                source_module=source_module,
-                source_ref=source_ref,
-            )
-        except AppError as exc:
-            halves = _halve(segment) if exc.code in _TOO_BIG else None
-            if halves is None or splits >= MAX_SPLITS:
-                raise
-            if exc.code == "ai.output_truncated":
-                # Each cut-off answer is a whole billed output; a model stuck repeating itself is
-                # cut off at any size, so halving stops early.
-                if cut_splits >= MAX_CUT_SPLITS:
-                    raise
-                cut_splits += 1
-            splits += 1
-            pending = [*halves, *pending]
-            total += 1
-            continue
-        usage.add(used)
-        warnings += verify_evidence(value, segment.pages, has_images=bool(segment.images))
-        results.append(value)
-        done += 1
-        if on_segment is not None:
-            await on_segment(done, total)
+    report = asyncio.Lock()
 
+    async def read(group: tuple[str, ...] | None) -> tuple[list[T], Usage]:
+        nonlocal total, done
+        wire = wire_schema(schema, group)
+        overhead = estimate_tokens(instructions) + estimate_tokens(
+            json.dumps(wire.model_json_schema())
+        )
+        budget = max(
+            MIN_SEGMENT_TOKENS, int(window * SEGMENT_SHARE) - overhead - OUTPUT_RESERVE_TOKENS
+        )
+        pending = _segments(texts, images, budget)
+        total += len(pending)
+        results: list[T] = []
+        usage = Usage()
+        mine = 0
+        splits = 0
+        cut_splits = 0
+        while pending:
+            segment = pending.pop(0)
+            index = mine + 1
+            parts_now = mine + 1 + len(pending)
+            try:
+                answer, used = await structured_with(
+                    ctx,
+                    resolved,
+                    _messages(segment, instructions, label, index, parts_now, group),
+                    wire,
+                    source_module=source_module,
+                    source_ref=source_ref,
+                )
+            except AppError as exc:
+                halves = _halve(segment) if exc.code in _TOO_BIG else None
+                if halves is None or splits >= MAX_SPLITS:
+                    raise
+                if exc.code == "ai.output_truncated":
+                    # Each cut-off answer is a whole billed output; a model stuck repeating itself
+                    # is cut off at any size, so halving stops early.
+                    if cut_splits >= MAX_CUT_SPLITS:
+                        raise
+                    cut_splits += 1
+                splits += 1
+                pending = [*halves, *pending]
+                total += 1
+                continue
+            usage.add(used)
+            data = _from_wire(answer)
+            for name, f in schema.model_fields.items():
+                data.setdefault(name, _empty(f.annotation))
+            value = schema.model_validate(data)
+            warnings.extend(verify_evidence(value, segment.pages, has_images=bool(segment.images)))
+            results.append(value)
+            mine += 1
+            async with report:
+                done += 1
+                if on_segment is not None:
+                    await on_segment(done, total)
+        return results, usage
+
+    warnings: list[ExtractionWarning] = []
+    # One part failing stops the others: their answers would be thrown away (but billed), and a
+    # retry of the whole extraction would read them again.
+    try:
+        async with asyncio.TaskGroup() as running:
+            tasks = [running.create_task(read(group)) for group in groups]
+    except ExceptionGroup as failed:
+        raise failed.exceptions[0] from None
+    answers = [task.result() for task in tasks]
+    results = [value for values, _ in answers for value in values]
+    usage = Usage()
+    for _, used in answers:
+        usage.add(used)
     merged = results[0]
     for other in results[1:]:
         merged = _merge(merged, other, "", warnings)

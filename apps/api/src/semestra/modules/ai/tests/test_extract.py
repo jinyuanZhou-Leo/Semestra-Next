@@ -1,5 +1,6 @@
 """Extraction with evidence: quote checks, splitting long documents, merging parts (M06 §5)."""
 
+import asyncio
 import json
 from typing import Any
 
@@ -35,6 +36,25 @@ PAGES = [
 
 def ev(value: Any, page: int | None, quote: str, confidence: float = 0.9) -> dict[str, Any]:
     return {"value": value, "evidence": {"page": page, "quote": quote}, "confidence": confidence}
+
+
+def leaf(
+    value: Any = None, page: int = 0, quote: str = "", confidence: float = 0.9
+) -> dict[str, Any]:
+    """One `Evidenced` field as the model answers it (the wire schema)."""
+    return {"value": value, "quote": quote, "page": page, "confidence": confidence}
+
+
+def answer(
+    course_code: dict[str, Any] | None = None,
+    instructor: dict[str, Any] | None = None,
+    assessments: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "course_code": course_code or leaf(""),
+        "instructor": instructor or leaf(""),
+        "assessments": assessments or [],
+    }
 
 
 def tool_reply(payload: dict[str, Any]) -> Response:
@@ -89,11 +109,11 @@ async def test_extract_wraps_the_document_and_verifies(ai: Ai, mock: respx.MockR
     await ai.provider("anthropic")
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(
         return_value=tool_reply(
-            {
-                "course_code": ev("APS105H1", 1, "APS105H1"),
-                "instructor": ev("Jane Doe", 1, "made up quote"),
-                "assessments": [{"name": ev("Final", 2, "Final exam"), "weight": ev(50, 2, "50%")}],
-            }
+            answer(
+                leaf("APS105H1", 1, "APS105H1"),
+                leaf("Jane Doe", 1, "made up quote"),
+                [{"name": leaf("Final", 2, "Final exam"), "weight": leaf(50, 2, "50%")}],
+            )
         )
     )
     async with ai.ctx() as ctx:
@@ -129,21 +149,21 @@ async def test_long_documents_are_split_and_merged(
     pages = [PageText(1, "Course APS105H1 " * 6), PageText(2, "Instructor Jane Doe " * 6)]
     replies = [
         tool_reply(
-            {
-                "course_code": ev("APS105H1", 1, "Course APS105H1", 0.8),
-                "instructor": {"value": None},
-                "assessments": [{"name": ev("Lab", 1, "Course"), "weight": ev(10, 1, "APS105H1")}],
-            }
+            answer(
+                leaf("APS105H1", 1, "Course APS105H1", 0.8),
+                None,
+                [{"name": leaf("Lab", 1, "Course"), "weight": leaf(10, 1, "APS105H1")}],
+            )
         ),
         tool_reply(
-            {
-                "course_code": ev("APS106", 2, "Instructor", 0.6),
-                "instructor": ev("Jane Doe", 2, "Instructor Jane Doe"),
-                "assessments": [
-                    {"name": ev("lab", 2, "Jane"), "weight": ev(10, 2, "Doe")},
-                    {"name": ev("Exam", 2, "Jane"), "weight": ev(90, 2, "Doe")},
+            answer(
+                leaf("APS106", 2, "Instructor", 0.6),
+                leaf("Jane Doe", 2, "Instructor Jane Doe"),
+                [
+                    {"name": leaf("lab", 2, "Jane"), "weight": leaf(10, 2, "Doe")},
+                    {"name": leaf("Exam", 2, "Jane"), "weight": leaf(90, 2, "Doe")},
                 ],
-            }
+            )
         ),
     ]
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=replies)
@@ -178,7 +198,7 @@ async def test_context_too_long_splits_and_retries(ai: Ai, mock: respx.MockRoute
     models_ok(mock)
     await ai.provider("anthropic")
     too_long = Response(400, json={"error": {"message": "prompt is too long: 300000 tokens"}})
-    ok = tool_reply({"course_code": ev("APS105H1", 1, "APS105H1"), "instructor": {"value": None}})
+    ok = tool_reply(answer(leaf("APS105H1", 1, "APS105H1")))
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=[too_long, ok, ok])
     async with ai.ctx() as ctx:
         result = await m06.extract(
@@ -200,15 +220,9 @@ async def test_an_answer_cut_off_reads_the_part_in_halves(ai: Ai, mock: respx.Mo
             "usage": {"input_tokens": 100, "output_tokens": 16384},
         },
     )
-    first = tool_reply(
-        {"course_code": ev("APS105H1", 1, "APS105H1"), "instructor": {"value": None}}
-    )
+    first = tool_reply(answer(leaf("APS105H1", 1, "APS105H1")))
     second = tool_reply(
-        {
-            "course_code": {"value": None},
-            "instructor": {"value": None},
-            "assessments": [{"name": ev("Final", 2, "Final exam"), "weight": ev(50, 2, "50%")}],
-        }
+        answer(assessments=[{"name": leaf("Final", 2, "Final exam"), "weight": leaf(50, 2, "50%")}])
     )
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=[cut, first, second])
     async with ai.ctx() as ctx:
@@ -266,3 +280,94 @@ def test_segments_respect_the_budget():
     assert len(long) > 1
     assert all(s.tokens() <= 520 for s in long)
     assert "".join(p.text for s in long for p in s.pages) == "line\n" * 2000
+
+
+def test_the_model_fills_in_a_schema_with_every_field_required():
+    wire = extraction.wire_schema(Syllabus)
+    assert extraction.schema_complexity(wire) == (0, 1)  # only the weight can be null
+    answer_ = wire.model_validate(
+        answer(
+            leaf("APS105H1", 1, "APS105H1"), assessments=[{"name": leaf("Final"), "weight": leaf()}]
+        )
+    )
+    value = Syllabus.model_validate(extraction._from_wire(answer_))  # pyright: ignore[reportPrivateUsage]
+    assert value.course_code.evidence == Evidence(page=1, quote="APS105H1")
+    assert value.instructor.value is None  # "" is "not stated"
+    assert value.assessments[0].name.evidence is None
+    assert value.assessments[0].weight.value is None
+
+
+async def test_parts_are_read_in_separate_requests(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+
+    def reply(request: Any) -> Response:
+        fields = set(json.loads(request.content)["output_config"]["format"]["schema"]["properties"])
+        if fields == {"course_code", "instructor"}:
+            return tool_reply(
+                {"course_code": leaf("APS105H1", 1, "APS105H1"), "instructor": leaf("")}
+            )
+        assert fields == {"assessments"}
+        return tool_reply(
+            {
+                "assessments": [
+                    {"name": leaf("Final", 2, "Final exam"), "weight": leaf(50, 2, "50%")}
+                ]
+            }
+        )
+
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=reply)
+    async with ai.ctx() as ctx:
+        result = await m06.extract(
+            ctx,
+            "extraction",
+            Syllabus,
+            texts=PAGES,
+            instructions="x",
+            source_module="imports",
+            parts=[("course_code", "instructor"), ("assessments",)],
+        )
+    assert route.call_count == 2
+    assert "covers only: assessments" in json.dumps(
+        [json.loads(c.request.content)["system"] for c in route.calls]
+    )
+    assert result.value.course_code.value == "APS105H1"
+    assert [a.weight.value for a in result.value.assessments] == [50]
+
+
+async def test_a_failing_part_stops_the_others(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+    slow_started = asyncio.Event()
+    stopped: list[bool] = []
+
+    async def reply(request: Any) -> Response:
+        fields = set(json.loads(request.content)["output_config"]["format"]["schema"]["properties"])
+        if fields == {"assessments"}:
+            slow_started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                stopped.append(True)
+                raise
+            return tool_reply({"assessments": []})
+        await slow_started.wait()
+        return Response(400, json={"type": "error", "error": {"message": "bad"}})
+
+    mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=reply)
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await asyncio.wait_for(
+                m06.extract(
+                    ctx,
+                    "extraction",
+                    Syllabus,
+                    texts=PAGES,
+                    instructions="x",
+                    source_module="imports",
+                    parts=[("course_code", "instructor"), ("assessments",)],
+                ),
+                timeout=10,
+            )
+    assert exc.value.code == "ai.request_rejected"
+    assert stopped == [True]  # the other part's request was cancelled, not left running

@@ -41,7 +41,7 @@ function uploadFile(file: File, signal: AbortSignal, onProgress: (loaded: number
  * Uploads the files one by one, then starts the session (ICS is parsed right away). Picked course
  * files are not uploaded: the session reads them from M07.
  */
-async function uploadAndCreate(
+export async function uploadAndCreate(
   request: FileImportRequest,
   files: File[],
   fileItemIds: string[],
