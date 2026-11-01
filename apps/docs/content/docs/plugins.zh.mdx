@@ -15,8 +15,8 @@ icon: Puzzle
 
 | 形态 | 说明 | 谁来画外框 |
 |---|---|---|
-| Card | 放在作用域（Program / 学期 / 课程 / 今天）的 Board 上，4/6/8 列网格里占 s/m/l/xl 尺寸 | M10 宿主画外框（标题、尺寸工具条、设置入口、移除），插件只写内容区 |
-| Page | 侧边栏里的一个入口（Program 与学期页面）或课程页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
+| Card | 放在作用域（学业项目 / 学期 / 课程 / 今天）的 Board 上，4/6/8 列网格里占 s/m/l/xl 尺寸 | M10 宿主画外框（标题、尺寸工具条、设置入口、移除），插件只写内容区 |
+| Page | 侧边栏里的一个入口（学业项目与学期页面）或课程页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
 | 设置分区 | 插件的账户级或作用域级配置 | M11 自动生成表单 |
 | Capability | 对外的读/写操作，同时是 REST、AI 助手工具和 MCP 工具 | 无 UI |
 
@@ -102,7 +102,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 - `description` 是 AI 读的：什么时候用、怎么找输入（卡片实例用 `layouts.board.get`）、什么情况不要用。
 - `effect` 为 `read | write | destructive`。带 `plugin_id` 的 capability 在插件未安装时被拒绝，也不会出现在 Agent 工具列表里。
 - 绑定卡片实例的 capability 用 `instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)`：卡片不存在、不是自己的、不是该插件的卡片，都统一返回 `common.not_found`。
-- 需要用户所在时区的"今天"，通过卡片所在的 Program 取（`instances.instance_program` + `academics.program_today`），不要在前端算。
+- 需要用户所在时区的"今天"，通过卡片所在的学业项目取（`instances.instance_program` + `academics.program_today`），不要在前端算。
 - 领域错误用 `AppError("<前缀>.<原因>", status, **params)`。
 
 ### 4.3 数据与清理
