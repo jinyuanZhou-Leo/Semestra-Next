@@ -13,7 +13,14 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
@@ -120,6 +127,9 @@ function NameDialog({
             </Field>
             {error ? <FieldError>{error}</FieldError> : null}
             <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+                {m.common_cancel()}
+              </DialogClose>
               <Button type="submit" disabled={pending}>
                 {pending ? m.common_saving() : submitLabel}
               </Button>
@@ -177,6 +187,11 @@ function MoveDialog({
             </Field>
             {update.error ? <FieldError>{errorMessage(update.error)}</FieldError> : null}
             <DialogFooter>
+              <DialogClose
+                render={<Button type="button" variant="outline" disabled={update.isPending} />}
+              >
+                {m.common_cancel()}
+              </DialogClose>
               <Button type="submit" disabled={update.isPending}>
                 {update.isPending ? m.common_saving() : m.files_move()}
               </Button>

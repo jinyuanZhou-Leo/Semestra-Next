@@ -1,6 +1,6 @@
-import { type CSSProperties, useId } from 'react'
+import type { CSSProperties } from 'react'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { m } from '@/paraglide/messages'
-import { FieldLegend, FieldSet } from '@/ui/field'
 import { ColorSwatch } from '@/components/ColorSwatch'
 import { RadioGroup } from '@/ui/radio-group'
 import { colorTint, colorVar } from '../plugin-kit/colors'
@@ -19,32 +19,34 @@ const NAMES: Record<(typeof NOTE_COLORS)[number], () => string> = {
 
 /** Settings of a sticky note: only its color (the text is edited on the card). */
 export default function StickySettingsForm({ value, onChange }: Props) {
-  const id = useId()
   return (
-    <FieldSet className="gap-2">
-      <FieldLegend variant="label" id={id}>
-        {m.sticky_settings_color_label()}
-      </FieldLegend>
-      <RadioGroup
-        aria-labelledby={id}
-        value={value.color}
-        onValueChange={(color) => onChange({ ...value, color: color as StickySettings['color'] })}
-        className="flex flex-wrap gap-2"
-      >
-        {NOTE_COLORS.map((color) => (
-          <ColorSwatch
-            key={color}
-            value={color}
-            aria-label={NAMES[color]()}
-            title={NAMES[color]()}
-            className="rounded-lg border-border"
-            color={colorTint(color, 40)}
-            checkColor="var(--foreground)"
-            // The ring is the full color; the fill stays the soft tint.
-            style={{ '--swatch-color': colorVar(color) } as CSSProperties}
-          />
-        ))}
-      </RadioGroup>
-    </FieldSet>
+    <SettingsGroup>
+      <SettingRow label={m.sticky_settings_color_label()}>
+        {(labelId) => (
+          <RadioGroup
+            aria-labelledby={labelId}
+            value={value.color}
+            onValueChange={(color) =>
+              onChange({ ...value, color: color as StickySettings['color'] })
+            }
+            className="flex flex-wrap gap-2"
+          >
+            {NOTE_COLORS.map((color) => (
+              <ColorSwatch
+                key={color}
+                value={color}
+                aria-label={NAMES[color]()}
+                title={NAMES[color]()}
+                className="rounded-lg border-border"
+                color={colorTint(color, 40)}
+                checkColor="var(--foreground)"
+                // The ring is the full color; the fill stays the soft tint.
+                style={{ '--swatch-color': colorVar(color) } as CSSProperties}
+              />
+            ))}
+          </RadioGroup>
+        )}
+      </SettingRow>
+    </SettingsGroup>
   )
 }

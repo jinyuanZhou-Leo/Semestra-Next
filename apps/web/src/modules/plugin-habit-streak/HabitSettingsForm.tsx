@@ -1,7 +1,6 @@
 import { useId } from 'react'
 import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { m } from '@/paraglide/messages'
-import { Field, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { ColorSwatch } from '@/components/ColorSwatch'
 import { RadioGroup } from '@/ui/radio-group'
@@ -30,42 +29,67 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
   const set = (patch: Partial<HabitSettings>) => onChange({ ...value, ...patch })
   return (
     <div className="space-y-4">
-      <Field>
-        <FieldLabel htmlFor={`${id}-name`}>{m.habit_settings_name_label()}</FieldLabel>
-        <Input
-          id={`${id}-name`}
-          placeholder={m.habit_settings_name_placeholder()}
-          maxLength={60}
-          value={value.name}
-          onChange={(event) => set({ name: event.target.value })}
-        />
-      </Field>
-      <FieldSet className="gap-2">
-        <FieldLegend variant="label" id={`${id}-icon`}>
-          {m.habit_settings_icon_label()}
-        </FieldLegend>
-        <ToggleGroup
-          aria-labelledby={`${id}-icon`}
-          variant="outline"
-          spacing={1.5}
-          value={[value.icon]}
-          onValueChange={(next) => {
-            if (next[0]) set({ icon: next[0] as HabitSettings['icon'] })
-          }}
-          className="flex-wrap"
-        >
-          {HABIT_ICONS.map((name) => (
-            <ToggleGroupItem
-              key={name}
-              value={name}
-              aria-label={name}
-              className="size-9 rounded-xl px-0 text-muted-foreground aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
-            >
-              <HabitIcon name={name} aria-hidden className="size-4" />
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </FieldSet>
+      <SettingsGroup>
+        {[
+          <SettingRow key="name" label={m.habit_settings_name_label()} htmlFor={`${id}-name`}>
+            <Input
+              id={`${id}-name`}
+              className="w-48"
+              placeholder={m.habit_settings_name_placeholder()}
+              maxLength={60}
+              value={value.name}
+              onChange={(event) => set({ name: event.target.value })}
+            />
+          </SettingRow>,
+          <SettingRow key="icon" label={m.habit_settings_icon_label()}>
+            {(labelId) => (
+              <ToggleGroup
+                aria-labelledby={labelId}
+                variant="outline"
+                spacing={1.5}
+                value={[value.icon]}
+                onValueChange={(next) => {
+                  if (next[0]) set({ icon: next[0] as HabitSettings['icon'] })
+                }}
+                className="flex-wrap"
+              >
+                {HABIT_ICONS.map((name) => (
+                  <ToggleGroupItem
+                    key={name}
+                    value={name}
+                    aria-label={name}
+                    className="size-9 rounded-xl px-0 text-muted-foreground aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary"
+                  >
+                    <HabitIcon name={name} aria-hidden className="size-4" />
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            )}
+          </SettingRow>,
+          <SettingRow key="color" label={m.habit_settings_color_label()}>
+            {(labelId) => (
+              <RadioGroup
+                aria-labelledby={labelId}
+                value={value.color}
+                onValueChange={(color) => set({ color: color as HabitSettings['color'] })}
+                className="flex flex-wrap gap-2"
+              >
+                {COLOR_TOKENS.map((token) => (
+                  <ColorSwatch
+                    key={token}
+                    value={token}
+                    aria-label={COLOR_NAMES[token]()}
+                    title={COLOR_NAMES[token]()}
+                    className="size-7"
+                    color={colorVar(token)}
+                    checkColor="var(--background)"
+                  />
+                ))}
+              </RadioGroup>
+            )}
+          </SettingRow>,
+        ]}
+      </SettingsGroup>
       <SettingsGroup>
         {[
           <SettingRow key="goal" label={m.habit_settings_goal_label()}>
@@ -97,7 +121,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
                   const n = Math.trunc(Number(event.target.value))
                   if (n >= 1 && n <= 7) set({ weekly_target: n })
                 }}
-                className="w-20"
+                className="w-28"
               />
             </SettingRow>
           ) : null,
@@ -116,29 +140,6 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
           </SettingRow>,
         ]}
       </SettingsGroup>
-      <FieldSet className="gap-2">
-        <FieldLegend variant="label" id={`${id}-color`}>
-          {m.habit_settings_color_label()}
-        </FieldLegend>
-        <RadioGroup
-          aria-labelledby={`${id}-color`}
-          value={value.color}
-          onValueChange={(color) => set({ color: color as HabitSettings['color'] })}
-          className="flex flex-wrap gap-2"
-        >
-          {COLOR_TOKENS.map((token) => (
-            <ColorSwatch
-              key={token}
-              value={token}
-              aria-label={COLOR_NAMES[token]()}
-              title={COLOR_NAMES[token]()}
-              className="size-7"
-              color={colorVar(token)}
-              checkColor="var(--background)"
-            />
-          ))}
-        </RadioGroup>
-      </FieldSet>
     </div>
   )
 }

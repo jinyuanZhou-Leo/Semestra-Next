@@ -59,6 +59,7 @@ export default defineModule({
 
 - 所有重组件按需加载；页面的 `component`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
+- 自定义的卡片设置表单和设置分区长一个样：用 `@/app/settings` 的 `SettingsGroup` + `SettingRow`（名称在左、控件在右；开关用 Switch，多选一用 `ChoiceControl`），需要整行宽度的选择器（图标、颜色、城市列表）单独占一行或放进 `SettingsBlock`。取消和保存按钮由宿主提供。
 
 ### 3.2 卡片组件
 

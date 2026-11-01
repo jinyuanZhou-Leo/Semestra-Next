@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { ChoiceControl } from '@/app/settings/choice'
@@ -15,6 +22,7 @@ export function ListDialog({
   title,
   initialName = '',
   canChooseLevel,
+  submitLabel = m.common_save(),
   onSubmit,
 }: {
   open: boolean
@@ -22,6 +30,8 @@ export function ListDialog({
   title: string
   initialName?: string
   canChooseLevel?: boolean
+  /** The primary button: "Create" for a new list, "Save" (default) when renaming. */
+  submitLabel?: string
   onSubmit: (value: ListDialogValue) => Promise<unknown>
 }) {
   const [name, setName] = useState(initialName)
@@ -40,7 +50,7 @@ export function ListDialog({
     if (ok) onOpenChange(false)
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="sm:max-w-sm">
         <form
           className="space-y-4"
@@ -76,11 +86,11 @@ export function ListDialog({
             </Field>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <DialogClose render={<Button type="button" variant="outline" disabled={busy} />}>
               {m.common_cancel()}
-            </Button>
+            </DialogClose>
             <Button type="submit" disabled={!valid || busy}>
-              {m.common_save()}
+              {busy ? m.common_saving() : submitLabel}
             </Button>
           </DialogFooter>
         </form>

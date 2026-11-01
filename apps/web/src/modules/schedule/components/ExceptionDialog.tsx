@@ -12,7 +12,14 @@ import { TIME_INPUT } from '@/lib/time-input'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldLabel, FieldTitle } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -350,6 +357,11 @@ export function ExceptionDialog({
             />
           </Field>
           <DialogFooter className="col-span-6">
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={save.isPending} />}
+            >
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? m.common_saving() : m.common_save()}
             </Button>

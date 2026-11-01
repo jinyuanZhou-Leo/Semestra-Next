@@ -1,6 +1,6 @@
 import type { Scope } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { Field, FieldLabel } from '@/ui/field'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select'
 import { useTaskLists } from '../queries'
 import { INBOX, SMART_VIEWS } from '../types'
@@ -33,24 +33,27 @@ export default function ListCardSettingsForm({
     ...lists.map((l) => ({ value: `list:${l.id}`, label: l.name })),
   ]
   return (
-    <Field>
-      <FieldLabel>{m.settings_card_tasks_list_source_label()}</FieldLabel>
-      <Select
-        value={value.source}
-        items={options}
-        onValueChange={(source) => source && onChange({ source })}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
+    <SettingsGroup>
+      <SettingRow label={m.settings_card_tasks_list_source_label()}>
+        {(labelId) => (
+          <Select
+            value={value.source}
+            items={options}
+            onValueChange={(source) => source && onChange({ source })}
+          >
+            <SelectTrigger className="w-56" aria-labelledby={labelId}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </SettingRow>
+    </SettingsGroup>
   )
 }

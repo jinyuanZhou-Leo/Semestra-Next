@@ -119,7 +119,7 @@ export function SettingRow({
   const id = labelId ?? `${generated}-label`
   return (
     <Item {...props}>
-      <ItemContent className="min-w-0 basis-64">
+      <ItemContent className="min-w-0 basis-40">
         <ItemTitle>
           <Label id={id} htmlFor={htmlFor}>
             {label}

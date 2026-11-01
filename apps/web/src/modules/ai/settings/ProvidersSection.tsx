@@ -21,6 +21,7 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -174,6 +175,11 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
           ) : null}
           <FieldError>{update.error ? errorMessage(update.error) : null}</FieldError>
           <DialogFooter>
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={update.isPending} />}
+            >
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit">
               {update.isPending ? m.ai_provider_checking() : m.common_save()}
             </Button>

@@ -73,6 +73,10 @@ export default defineModule({
   `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Pass
   `m.xxx` as the function itself; do not call it at module level (switching language remounts).
 - Add the new plugin's manifest to the list in `app/registry.ts`.
+- A custom card settings form looks like a settings section: one or more `SettingsGroup`s of
+  `SettingRow`s from `@/app/settings` (name on the left, control on the right; Switch for on/off,
+  `ChoiceControl` for one of several). Pickers that need the full width (icons, colors, a list of
+  cities) go in a row of their own or a `SettingsBlock`. The host adds Cancel and Save.
 
 ### 3.2 Card components
 

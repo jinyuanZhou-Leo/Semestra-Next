@@ -6,6 +6,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -89,9 +90,16 @@ export function AddCourseDialog({
             <span className="truncate text-sm text-muted-foreground">
               {m.academics_wizard_summary_courses({ count: filled.length })}
             </span>
-            <Button type="submit" disabled={create.isPending || filled.length === 0}>
-              {create.isPending ? m.common_saving() : m.academics_course_add_submit()}
-            </Button>
+            <div className="flex gap-2">
+              <DialogClose
+                render={<Button type="button" variant="outline" disabled={create.isPending} />}
+              >
+                {m.common_cancel()}
+              </DialogClose>
+              <Button type="submit" disabled={create.isPending || filled.length === 0}>
+                {create.isPending ? m.common_saving() : m.academics_course_add_submit()}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

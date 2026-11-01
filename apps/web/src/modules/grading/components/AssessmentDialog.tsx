@@ -14,7 +14,14 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -259,10 +266,14 @@ function AssessmentForm({
               <FieldError id={`${id}-weight-error`}>{m.grading_weight_invalid()}</FieldError>
             ) : null}
           </Field>
-          <Field className="w-40" data-invalid={touched && scoreInvalid ? true : undefined}>
+          <Field
+            className="min-w-40 flex-1"
+            data-invalid={touched && scoreInvalid ? true : undefined}
+          >
             <FieldLabel htmlFor={`${id}-score`}>{m.grading_assessment_score()}</FieldLabel>
             <Input
               id={`${id}-score`}
+              className="max-w-40"
               placeholder="82 · 18/20"
               value={score}
               aria-invalid={touched && scoreInvalid ? true : undefined}
@@ -295,11 +306,14 @@ function AssessmentForm({
             {m.grading_assessment_dropped()}
           </FieldLabel>
         </Field>
-        <div className="flex justify-end">
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+            {m.common_cancel()}
+          </DialogClose>
           <Button type="submit" disabled={pending}>
             {pending ? m.common_saving() : m.common_save()}
           </Button>
-        </div>
+        </DialogFooter>
       </FieldGroup>
     </form>
   )

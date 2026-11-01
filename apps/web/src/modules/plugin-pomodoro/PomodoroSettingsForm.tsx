@@ -47,7 +47,7 @@ export default function PomodoroSettingsForm({ value, onChange }: Props) {
                 const [min, max] = LIMITS[field]
                 if (n >= min && n <= max) onChange({ ...value, [field]: n })
               }}
-              className="w-20"
+              className="w-28"
             />
           </SettingRow>
         )),
