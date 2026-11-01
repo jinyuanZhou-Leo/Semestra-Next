@@ -11,6 +11,7 @@ from datetime import timedelta
 
 from cryptography.fernet import InvalidToken
 from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -89,23 +90,30 @@ async def get_feed(ctx: Ctx, program_id: str) -> Feed | None:
 
 
 async def create_feed(ctx: Ctx, inp: FeedCreateInput) -> Feed:
-    """Turns the link on; the existing one is returned if it is already on."""
+    """Turns the link on; the existing one is returned if it is already on (also when two requests
+    race: the partial unique index keeps one live link per Program)."""
     await academics.get_program_row(ctx, inp.program_id)
-    if existing := await _active(ctx, inp.program_id):
-        return feed_out(ctx, existing)
-    row = ScheduleFeed(
-        id=new_id(),
-        user_id=ctx.user_id,
-        program_id=inp.program_id,
-        sources=list(dict.fromkeys(inp.sources)),
-        created_at=ctx.now,
+    token = secrets.token_urlsafe(32)
+    created = await ctx.db.execute(
+        insert(ScheduleFeed)
+        .values(
+            id=new_id(),
+            user_id=ctx.user_id,
+            program_id=inp.program_id,
+            token_hash=_token_hash(token),
+            prefix=token[:6],
+            token_encrypted=encrypt(ctx.settings, token),
+            sources=list(dict.fromkeys(inp.sources)),
+            created_at=ctx.now,
+        )
+        .on_conflict_do_nothing()
     )
-    _set_token(ctx, row)
-    ctx.db.add(row)
-    await ctx.db.flush()
-    await events.publish(
-        ctx, "schedule.feed.created", {"feed_id": row.id, "program_id": row.program_id}
-    )
+    row = await _active(ctx, inp.program_id)
+    assert row is not None
+    if created.rowcount:  # pyright: ignore[reportAttributeAccessIssue]
+        await events.publish(
+            ctx, "schedule.feed.created", {"feed_id": row.id, "program_id": row.program_id}
+        )
     return feed_out(ctx, row)
 
 

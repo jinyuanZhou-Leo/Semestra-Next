@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Time,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column
@@ -132,6 +133,16 @@ class ScheduleFeed(Base, OwnedMixin):
     links made before 0029, which show no URL until reset)."""
 
     __tablename__ = "schedule_feeds"
+    __table_args__ = (
+        # One link per Program: two "turn on" requests at once must not leave a second live link.
+        Index(
+            "uq_schedule_feeds_active",
+            "user_id",
+            "program_id",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str] = mapped_column(

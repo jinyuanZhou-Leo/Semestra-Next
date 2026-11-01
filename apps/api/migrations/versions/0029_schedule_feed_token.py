@@ -39,9 +39,17 @@ def upgrade() -> None:
     with op.batch_alter_table("schedule_feeds") as batch:
         batch.add_column(sa.Column("token_encrypted", sa.String(), nullable=True))
         batch.drop_column("name")
+    op.create_index(
+        "uq_schedule_feeds_active",
+        "schedule_feeds",
+        ["user_id", "program_id"],
+        unique=True,
+        sqlite_where=sa.text("revoked_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("uq_schedule_feeds_active", table_name="schedule_feeds")
     with op.batch_alter_table("schedule_feeds") as batch:
         batch.add_column(sa.Column("name", sa.String(), nullable=False, server_default=""))
         batch.drop_column("token_encrypted")
