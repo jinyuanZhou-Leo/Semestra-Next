@@ -108,12 +108,64 @@ async def test_wrong_code_five_times_voids_the_code(
     assert r.status_code == 400  # voided: even the right code no longer works
 
 
-async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
+async def test_code_checks_are_capped_per_email_across_codes(
+    client: AsyncClient, mailer: MemoryMailer, clock: Clock
+) -> None:
+    """New codes reset the per-code limit, so guesses are also capped per address per day."""
+    email = "slow@example.com"
+    statuses = []
+    for _ in range(5):
+        await start(client, email)
+        wrong = "000000" if last_code(mailer, email) != "000000" else "111111"
+        for _ in range(5):
+            r = await client.post("/auth/email/verify", json={"email": email, "code": wrong})
+            statuses.append(r.status_code)
+        clock.advance(minutes=2)
+    assert statuses[:20] == ([400] * 4 + [429]) * 4
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.json()["error"]["code"] == "common.rate_limited"  # even the right code
+    clock.advance(hours=24)
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.status_code == 200
+
+
+async def test_checks_without_a_pending_code_do_not_lock_the_address(
     client: AsyncClient, mailer: MemoryMailer
 ) -> None:
+    email = "victim@example.com"
+    for _ in range(25):
+        r = await client.post("/auth/email/verify", json={"email": email, "code": "123456"})
+        assert r.json()["error"]["code"] == "auth.invalid_code"
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.status_code == 200
+
+
+async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
+    client: AsyncClient, mailer: MemoryMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from semestra.modules.auth import crypto
+
     await start(client, "burst@example.com")
     good = last_code(mailer, "burst@example.com")
     wrong = "000000" if good != "000000" else "111111"
+    comparisons = 0
+    real_code_hash = crypto.code_hash
+
+    def counting_code_hash(*args: str) -> str:  # called once per comparison in _check_code
+        nonlocal comparisons
+        comparisons += 1
+        return real_code_hash(*args)  # pyright: ignore[reportArgumentType]
+
+    monkeypatch.setattr(crypto, "code_hash", counting_code_hash)
     results = await asyncio.gather(
         *(
             client.post("/auth/email/verify", json={"email": "burst@example.com", "code": wrong})
@@ -121,8 +173,8 @@ async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
         )
     )
     codes = [r.json()["error"]["code"] for r in results]
-    assert codes.count("auth.invalid_code") <= 4  # at most max_attempts - 1 plain misses
     assert set(codes) <= {"auth.invalid_code", "auth.too_many_attempts"}  # never a 500
+    assert 1 <= comparisons <= 5  # max_attempts
     r = await client.post("/auth/email/verify", json={"email": "burst@example.com", "code": good})
     assert r.status_code == 400  # the code is void
 

@@ -47,6 +47,9 @@ EMAIL_START_PER_IP = (30, timedelta(hours=1))
 LOGIN_PER_EMAIL = (10, timedelta(minutes=15))
 LOGIN_PER_IP = (50, timedelta(minutes=15))
 CHANGE_EMAIL_PER_USER = (10, timedelta(hours=1))
+# Code checks per address across all its codes. Each code allows only 5 guesses, but new codes
+# can be requested every few minutes, so without this cap a 6-digit code falls to slow guessing.
+CODE_CHECK_PER_EMAIL = (20, timedelta(hours=24))
 # Characters of a personal access token after its prefix kept to tell tokens apart in the list.
 TOKEN_HINT_CHARS = 6
 
@@ -277,6 +280,12 @@ async def _check_code(
         raise AppError("auth.invalid_code", 400)
     if challenge.expires_at <= ctx.now:
         raise AppError("auth.code_expired", 400)
+    # Only checks against a live code count, so requests for an address with no pending code
+    # cannot lock its owner out without a single email reaching them.
+    count, window = CODE_CHECK_PER_EMAIL
+    await ratelimit.hit(
+        ctx.db, ctx.settings, ctx.now, "code_check_email", email, limit=count, window=window
+    )
     # Every guess is counted by one atomic UPDATE *before* the code is compared, so a burst of
     # parallel guesses cannot get more than `max_attempts` comparisons.
     claimed = (
