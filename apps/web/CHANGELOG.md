@@ -1,5 +1,48 @@
 # @semestra/web
 
+## 1.11.0
+
+### Minor Changes
+
+- 7af7a49: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Calendar export is now a menu with image or PDF (with a live preview), calendar file and subscription link.
+  <!-- zh -->
+  日历导出改为菜单，包含图片或 PDF（带实时预览）、日历文件和订阅链接。
+- 7af7a49: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Each program now has one calendar subscription link that you can copy any time, change what it includes, or reset.
+  <!-- zh -->
+  每个学业项目现在只有一个日历订阅链接，可随时复制、调整包含的内容，也能重置。
+- 7af7a49: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  The calendar week view now matches the timetable's look.
+  <!-- zh -->
+  日历周视图的样式与课表统一。
+- 0134a8a: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Card settings now look like the rest of Settings, and every form dialog has a Cancel button next to its main action.
+  <!-- zh -->
+  卡片设置改为与设置页一致的样式，所有表单弹窗都在主按钮旁提供“取消”。
+
+### Patch Changes
+
+- 7af7a49: <!-- area: calendar -->
+  <!-- en -->
+  Fixed the week number in the calendar, the day order in exported images for Sunday-start weeks, and the time format in month view.
+  <!-- zh -->
+  修正了日历中的周次、周日起始时导出图片的日期顺序，以及月视图的时间格式。
+- fd9d879: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording across the interface.
+  <!-- zh -->
+  统一并精简了界面文案。
+- @semestra/api-client@1.11.0
+
 ## 1.10.0
 
 ### Minor Changes

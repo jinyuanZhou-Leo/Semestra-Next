@@ -3,6 +3,21 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.11.0 (2026-11-01)
+
+### Improved
+
+- **General:** Card settings now look like the rest of Settings, and every form dialog has a Cancel button next to its main action.
+- **Calendar:** Calendar export is now a menu with image or PDF (with a live preview), calendar file and subscription link.
+- **Calendar:** Each program now has one calendar subscription link that you can copy any time, change what it includes, or reset.
+- **Calendar:** The calendar week view now matches the timetable's look.
+
+### Fixed
+
+- **General:** Clearer, more consistent wording across the interface.
+- **Calendar:** Fixed the week number in the calendar, the day order in exported images for Sunday-start weeks, and the time format in month view.
+- **Account:** Limited how many times a sign-in code can be checked for one email address per day, to better protect accounts.
+
 ## 1.10.0 (2026-10-31)
 
 ### New
