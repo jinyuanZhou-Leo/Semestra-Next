@@ -108,9 +108,40 @@ async def test_wrong_code_five_times_voids_the_code(
     assert r.status_code == 400  # voided: even the right code no longer works
 
 
-async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
-    client: AsyncClient, mailer: MemoryMailer
+async def test_code_checks_are_capped_per_email_across_codes(
+    client: AsyncClient, mailer: MemoryMailer, clock: Clock
 ) -> None:
+    """New codes reset the per-code limit, so guesses are also capped per address per day."""
+    email = "slow@example.com"
+    statuses = []
+    for _ in range(5):
+        await start(client, email)
+        wrong = "000000" if last_code(mailer, email) != "000000" else "111111"
+        for _ in range(5):
+            r = await client.post("/auth/email/verify", json={"email": email, "code": wrong})
+            statuses.append(r.status_code)
+        clock.advance(minutes=2)
+    assert statuses[:20] == ([400] * 4 + [429]) * 4
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.json()["error"]["code"] == "common.rate_limited"  # even the right code
+    clock.advance(hours=24)
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.status_code == 200
+
+
+async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
+    client: AsyncClient, app, mailer: MemoryMailer
+) -> None:
+    from sqlalchemy import select
+
+    from semestra.modules.auth.models import AuthEmailChallenge
+
     await start(client, "burst@example.com")
     good = last_code(mailer, "burst@example.com")
     wrong = "000000" if good != "000000" else "111111"
@@ -121,8 +152,14 @@ async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
         )
     )
     codes = [r.json()["error"]["code"] for r in results]
-    assert codes.count("auth.invalid_code") <= 4  # at most max_attempts - 1 plain misses
     assert set(codes) <= {"auth.invalid_code", "auth.too_many_attempts"}  # never a 500
+    async with app.state.session_factory() as db:
+        challenge = (
+            await db.execute(
+                select(AuthEmailChallenge).where(AuthEmailChallenge.email == "burst@example.com")
+            )
+        ).scalar_one()
+    assert challenge.attempts <= challenge.max_attempts  # no more comparisons than allowed
     r = await client.post("/auth/email/verify", json={"email": "burst@example.com", "code": good})
     assert r.status_code == 400  # the code is void
 
