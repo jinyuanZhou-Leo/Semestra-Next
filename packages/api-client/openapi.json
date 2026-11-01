@@ -13222,13 +13222,13 @@
         }
       }
     },
-    "/programs/{program_id}/calendar-feeds": {
+    "/programs/{program_id}/calendar-feed": {
       "post": {
         "tags": [
           "schedule"
         ],
-        "summary": "Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.",
-        "description": "Anyone with the link can read the calendar; it is returned only once.",
+        "summary": "Turn on the read-only calendar subscription link (ICS) of a Program.",
+        "description": "Anyone with the link can read the calendar. Returns the existing link if on.",
         "operationId": "scheduleFeedCreate",
         "security": [
           {
@@ -13267,7 +13267,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeedCreated"
+                  "$ref": "#/components/schemas/Feed"
                 }
               }
             }
@@ -13288,9 +13288,9 @@
         "tags": [
           "schedule"
         ],
-        "summary": "List the calendar subscription links of a Program.",
-        "description": "The links themselves are only shown when created.",
-        "operationId": "scheduleFeedList",
+        "summary": "Get the calendar subscription link (ICS) of a Program.",
+        "description": "One link per Program; None while it is off.",
+        "operationId": "scheduleFeedGet",
         "security": [
           {
             "sessionCookie": []
@@ -13318,7 +13318,60 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeedList"
+                  "$ref": "#/components/schemas/FeedState"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/calendar-feeds/{feed_id}/reset": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Give a calendar subscription link a new address.",
+        "description": "Calendars subscribed to the old address stop updating.",
+        "operationId": "scheduleFeedReset",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Feed id",
+              "title": "Feed Id"
+            },
+            "description": "Feed id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
                 }
               }
             }
@@ -13341,7 +13394,7 @@
         "tags": [
           "schedule"
         ],
-        "summary": "Turn off a calendar subscription link.",
+        "summary": "Turn off the calendar subscription link of a Program.",
         "description": "Calendars subscribed to it stop updating.",
         "operationId": "scheduleFeedRevoke",
         "security": [
@@ -13365,6 +13418,67 @@
             "description": "Feed id"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Change what a calendar subscription link contains.",
+        "description": "Subscribed calendars pick up the change on their next refresh.",
+        "operationId": "scheduleFeedUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Feed id",
+              "title": "Feed Id"
+            },
+            "description": "Feed id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedUpdateInputBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -22773,14 +22887,22 @@
             "type": "string",
             "title": "Program Id"
           },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
           "prefix": {
             "type": "string",
             "title": "Prefix",
-            "description": "First characters of the token, to tell links apart"
+            "description": "First characters of the token"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Subscription URL; anyone with it can read the calendar. None for a link that cannot be shown again (made by an older version): reset gives a new one"
           },
           "sources": {
             "items": {
@@ -22829,8 +22951,8 @@
         "required": [
           "id",
           "program_id",
-          "name",
           "prefix",
+          "url",
           "sources",
           "created_at",
           "last_fetched_at",
@@ -22840,13 +22962,47 @@
       },
       "FeedCreateInputBody": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name",
-            "description": "Label for the link, e.g. 'iPhone'"
-          },
+          "sources": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "schedule",
+                "assessments",
+                "tasks",
+                "lms"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Sources",
+            "description": "What the feed contains"
+          }
+        },
+        "type": "object",
+        "title": "FeedCreateInputBody"
+      },
+      "FeedState": {
+        "properties": {
+          "feed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Feed"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Program's link; None while it is off"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feed"
+        ],
+        "title": "FeedState"
+      },
+      "FeedUpdateInputBody": {
+        "properties": {
           "sources": {
             "items": {
               "type": "string",
@@ -22865,43 +23021,9 @@
         },
         "type": "object",
         "required": [
-          "name"
+          "sources"
         ],
-        "title": "FeedCreateInputBody"
-      },
-      "FeedCreated": {
-        "properties": {
-          "feed": {
-            "$ref": "#/components/schemas/Feed"
-          },
-          "url": {
-            "type": "string",
-            "title": "Url",
-            "description": "Subscription URL; shown once, anyone with it can read the feed"
-          }
-        },
-        "type": "object",
-        "required": [
-          "feed",
-          "url"
-        ],
-        "title": "FeedCreated"
-      },
-      "FeedList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Feed"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "FeedList"
+        "title": "FeedUpdateInputBody"
       },
       "FieldUpdate": {
         "properties": {

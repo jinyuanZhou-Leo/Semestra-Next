@@ -8,7 +8,7 @@ import {
   scheduleConflictListOptions,
   scheduleEventListOptions,
   scheduleEventTypeListOptions,
-  scheduleFeedListOptions,
+  scheduleFeedGetOptions,
   scheduleMeetingListForTermOptions,
   scheduleMeetingListOptions,
   settingsPreferenceGetOptions,
@@ -63,11 +63,8 @@ export function useEvents(programId: string, query: { course_id?: string; term_i
   })
 }
 
-export function useFeeds(programId: string, enabled = true) {
-  return useQuery({
-    ...scheduleFeedListOptions({ path: { program_id: programId } }),
-    enabled,
-  })
+export function useFeed(programId: string) {
+  return useQuery(scheduleFeedGetOptions({ path: { program_id: programId } }))
 }
 
 /** The term's weeks (M02), for week pickers and labels. */

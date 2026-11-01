@@ -127,7 +127,9 @@ class ScheduleEvent(Base, OwnedMixin, TimestampMixin):
 
 
 class ScheduleFeed(Base, OwnedMixin):
-    """A read-only ICS subscription link. Only the token's hash is stored."""
+    """A Program's read-only ICS subscription link (at most one not revoked): looked up by the
+    token's hash, the token itself is kept encrypted so the link can be shown again (`None` for
+    links made before 0029, which show no URL until reset)."""
 
     __tablename__ = "schedule_feeds"
 
@@ -137,7 +139,7 @@ class ScheduleFeed(Base, OwnedMixin):
     )
     token_hash: Mapped[str] = mapped_column(String, unique=True)
     prefix: Mapped[str] = mapped_column(String)
-    name: Mapped[str] = mapped_column(String)
+    token_encrypted: Mapped[str | None] = mapped_column(String, default=None)
     sources: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     last_fetched_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)

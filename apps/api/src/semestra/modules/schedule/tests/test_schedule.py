@@ -480,9 +480,8 @@ async def test_ics_export_and_feed(api: Api, client: AsyncClient):
     )
     assert list(Calendar.from_ical(hidden.content).walk("VEVENT")) == []
 
-    created = await api.call(
-        "POST", f"/programs/{program_id}/calendar-feeds", json={"name": "iPhone"}
-    )
+    assert (await api.call("GET", f"/programs/{program_id}/calendar-feed"))["feed"] is None
+    created = await api.call("POST", f"/programs/{program_id}/calendar-feed", json={})
     url = created["url"]
     assert url.startswith("https://test/feeds/")
     assert url.endswith(".ics")
@@ -491,11 +490,27 @@ async def test_ics_export_and_feed(api: Api, client: AsyncClient):
     feed = await anonymous.get(path)
     assert feed.status_code == 200
     assert len(list(Calendar.from_ical(feed.content).walk("VEVENT"))) == 15
-    listed = await api.call("GET", f"/programs/{program_id}/calendar-feeds")
-    assert listed["items"][0]["last_fetched_at"] is not None
-    assert "url" not in listed["items"][0]
+    # One link per Program, shown again; turning it on twice returns the same link.
+    shown = (await api.call("GET", f"/programs/{program_id}/calendar-feed"))["feed"]
+    assert shown["url"] == url
+    assert shown["last_fetched_at"] is not None
+    again = await api.call("POST", f"/programs/{program_id}/calendar-feed", json={})
+    assert again["id"] == created["id"]
 
-    await api.call("DELETE", f"/calendar-feeds/{created['feed']['id']}")
+    # What it contains changes in place; a reset moves it to a new address.
+    updated = await api.call(
+        "PATCH", f"/calendar-feeds/{created['id']}", json={"sources": ["assessments"]}
+    )
+    assert updated["url"] == url
+    assert list(Calendar.from_ical((await anonymous.get(path)).content).walk("VEVENT")) == []
+    reset = await api.call("POST", f"/calendar-feeds/{created['id']}/reset")
+    assert reset["url"] != url
+    assert (await anonymous.get(path)).status_code == 404
+    path = reset["url"].removeprefix("https://test")
+    assert (await anonymous.get(path)).status_code == 200
+
+    await api.call("DELETE", f"/calendar-feeds/{created['id']}")
+    assert (await api.call("GET", f"/programs/{program_id}/calendar-feed"))["feed"] is None
     gone = await anonymous.get(path)
     assert gone.status_code == 404
     assert gone.json()["error"]["code"] == "schedule.feed_revoked"
@@ -511,7 +526,7 @@ async def test_feed_rate_limit(api: Api, client: AsyncClient, app: FastAPI):
         assert (await client.get(f"/feeds/guess{n}.ics")).status_code == 404
     async with app.state.session_factory() as db:
         assert await db.scalar(select(func.count()).select_from(AuthRateLimit)) == 0
-    created = await api.call("POST", f"/programs/{program_id}/calendar-feeds", json={"name": "A"})
+    created = await api.call("POST", f"/programs/{program_id}/calendar-feed", json={})
     path = created["url"].removeprefix("https://test")
     for _ in range(60):
         assert (await client.get(path)).status_code == 200
@@ -597,7 +612,7 @@ async def test_other_users_data_is_not_found(
         ("PATCH", f"/events/{event['id']}"),
         ("DELETE", f"/events/{event['id']}"),
         ("GET", f"/terms/{term_id}/schedule-conflicts"),
-        ("GET", f"/programs/{program_id}/calendar-feeds"),
+        ("GET", f"/programs/{program_id}/calendar-feed"),
         ("GET", f"/programs/{program_id}/calendar.ics?start=2026-01-05&end=2026-01-12"),
     ]:
         body = {"kind": "cancelled"} if method == "PUT" else {} if method == "PATCH" else None
@@ -693,7 +708,7 @@ async def test_feed_window_moves_with_today(api: Api, clock: Clock):
     """The feed covers the last 12 months: a class from a year and a half ago drops out."""
     program_id, term_id, course_id = await api.setup()
     await api.meeting(course_id, term_id)
-    created = await api.call("POST", f"/programs/{program_id}/calendar-feeds", json={"name": "A"})
+    created = await api.call("POST", f"/programs/{program_id}/calendar-feed", json={})
     path = created["url"].removeprefix("https://test")
     clock.advance(days=540)
     r = await api.client.get(path)  # no session needed
