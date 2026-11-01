@@ -161,7 +161,7 @@ function scheduleHandlers(log: Log) {
     http.get(`${API}/terms/:id/meetings`, () => HttpResponse.json({ items: [meeting] })),
     http.get(`${API}/terms/:id/schedule-conflicts`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/events`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/programs/:id/calendar-feeds`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/programs/:id/calendar-feed`, () => HttpResponse.json({ feed: null })),
     http.get(`${API}/me/settings/calendar`, () =>
       HttpResponse.json({
         namespace: 'calendar',
@@ -288,7 +288,7 @@ test('the week view asks for no meetings, events or feeds before they are needed
     server.events.removeListener('request:start', listen)
   }
   expect(gets).toContain('/programs/p1/calendar')
-  expect(gets.filter((path) => /\/meetings$|\/events$|\/calendar-feeds$/.test(path))).toEqual([])
+  expect(gets.filter((path) => /\/meetings$|\/events$|\/calendar-feed$/.test(path))).toEqual([])
 })
 
 test('the calendar asks for the week it opens on without waiting for it to draw, then the weeks either side', async () => {
@@ -401,8 +401,9 @@ test('exporting the week as PNG renders it and saves the file', async () => {
   })
   await openCalendar()
   await userEvent.click(screen.getByRole('button', { name: 'Export' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Image or PDF/ }))
   const dialog = await screen.findByRole('dialog')
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save PNG' }))
   await waitFor(() => expect(clicks).toEqual(['semestra-schedule.png']))
   expect(shots.count).toBe(1)
 })
@@ -423,9 +424,9 @@ test('ICS export leaves out the courses hidden in the filters', async () => {
   await openCalendar()
   await userEvent.click(screen.getByRole('checkbox', { name: 'APS105H1' }))
   await userEvent.click(screen.getByRole('button', { name: 'Export' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Calendar file/ }))
   const dialog = await screen.findByRole('dialog')
-  await userEvent.click(within(dialog).getByRole('button', { name: 'ICS' }))
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Export' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Download .ics' }))
   await waitFor(() => expect(urls).toHaveLength(1))
   expect(urls[0]?.searchParams.getAll('exclude_course_ids')).toEqual(['c1'])
 })

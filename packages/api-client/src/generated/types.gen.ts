@@ -4029,15 +4029,17 @@ export type Feed = {
      */
     program_id: string;
     /**
-     * Name
-     */
-    name: string;
-    /**
      * Prefix
      *
-     * First characters of the token, to tell links apart
+     * First characters of the token
      */
     prefix: string;
+    /**
+     * Url
+     *
+     * Subscription URL; anyone with it can read the calendar. None for a link that cannot be shown again (made by an older version): reset gives a new one
+     */
+    url: string | null;
     /**
      * Sources
      */
@@ -4061,12 +4063,6 @@ export type Feed = {
  */
 export type FeedCreateInputBody = {
     /**
-     * Name
-     *
-     * Label for the link, e.g. 'iPhone'
-     */
-    name: string;
-    /**
      * Sources
      *
      * What the feed contains
@@ -4075,26 +4071,25 @@ export type FeedCreateInputBody = {
 };
 
 /**
- * FeedCreated
+ * FeedState
  */
-export type FeedCreated = {
-    feed: Feed;
+export type FeedState = {
     /**
-     * Url
-     *
-     * Subscription URL; shown once, anyone with it can read the feed
+     * The Program's link; None while it is off
      */
-    url: string;
+    feed: Feed | null;
 };
 
 /**
- * FeedList
+ * FeedUpdateInputBody
  */
-export type FeedList = {
+export type FeedUpdateInputBody = {
     /**
-     * Items
+     * Sources
+     *
+     * What the feed contains
      */
-    items: Array<Feed>;
+    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
 };
 
 /**
@@ -18320,7 +18315,7 @@ export type ScheduleExceptionUpsertResponses = {
 
 export type ScheduleExceptionUpsertResponse = ScheduleExceptionUpsertResponses[keyof ScheduleExceptionUpsertResponses];
 
-export type ScheduleFeedListData = {
+export type ScheduleFeedGetData = {
     body?: never;
     path: {
         /**
@@ -18331,26 +18326,26 @@ export type ScheduleFeedListData = {
         program_id: string;
     };
     query?: never;
-    url: '/programs/{program_id}/calendar-feeds';
+    url: '/programs/{program_id}/calendar-feed';
 };
 
-export type ScheduleFeedListErrors = {
+export type ScheduleFeedGetErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type ScheduleFeedListError = ScheduleFeedListErrors[keyof ScheduleFeedListErrors];
+export type ScheduleFeedGetError = ScheduleFeedGetErrors[keyof ScheduleFeedGetErrors];
 
-export type ScheduleFeedListResponses = {
+export type ScheduleFeedGetResponses = {
     /**
      * Successful Response
      */
-    200: FeedList;
+    200: FeedState;
 };
 
-export type ScheduleFeedListResponse = ScheduleFeedListResponses[keyof ScheduleFeedListResponses];
+export type ScheduleFeedGetResponse = ScheduleFeedGetResponses[keyof ScheduleFeedGetResponses];
 
 export type ScheduleFeedCreateData = {
     body: FeedCreateInputBody;
@@ -18363,7 +18358,7 @@ export type ScheduleFeedCreateData = {
         program_id: string;
     };
     query?: never;
-    url: '/programs/{program_id}/calendar-feeds';
+    url: '/programs/{program_id}/calendar-feed';
 };
 
 export type ScheduleFeedCreateErrors = {
@@ -18379,10 +18374,42 @@ export type ScheduleFeedCreateResponses = {
     /**
      * Successful Response
      */
-    200: FeedCreated;
+    200: Feed;
 };
 
 export type ScheduleFeedCreateResponse = ScheduleFeedCreateResponses[keyof ScheduleFeedCreateResponses];
+
+export type ScheduleFeedResetData = {
+    body?: never;
+    path: {
+        /**
+         * Feed Id
+         *
+         * Feed id
+         */
+        feed_id: string;
+    };
+    query?: never;
+    url: '/calendar-feeds/{feed_id}/reset';
+};
+
+export type ScheduleFeedResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedResetError = ScheduleFeedResetErrors[keyof ScheduleFeedResetErrors];
+
+export type ScheduleFeedResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Feed;
+};
+
+export type ScheduleFeedResetResponse = ScheduleFeedResetResponses[keyof ScheduleFeedResetResponses];
 
 export type ScheduleFeedRevokeData = {
     body?: never;
@@ -18415,6 +18442,38 @@ export type ScheduleFeedRevokeResponses = {
 };
 
 export type ScheduleFeedRevokeResponse = ScheduleFeedRevokeResponses[keyof ScheduleFeedRevokeResponses];
+
+export type ScheduleFeedUpdateData = {
+    body: FeedUpdateInputBody;
+    path: {
+        /**
+         * Feed Id
+         *
+         * Feed id
+         */
+        feed_id: string;
+    };
+    query?: never;
+    url: '/calendar-feeds/{feed_id}';
+};
+
+export type ScheduleFeedUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleFeedUpdateError = ScheduleFeedUpdateErrors[keyof ScheduleFeedUpdateErrors];
+
+export type ScheduleFeedUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Feed;
+};
+
+export type ScheduleFeedUpdateResponse = ScheduleFeedUpdateResponses[keyof ScheduleFeedUpdateResponses];
 
 export type ScheduleMeetingListData = {
     body?: never;

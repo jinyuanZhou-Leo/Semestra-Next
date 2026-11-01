@@ -446,31 +446,33 @@ class Today(BaseModel):
 class Feed(BaseModel):
     id: str
     program_id: str
-    name: str
-    prefix: str = Field(description="First characters of the token, to tell links apart")
+    prefix: str = Field(description="First characters of the token")
+    url: str | None = Field(
+        description="Subscription URL; anyone with it can read the calendar. None for a link "
+        "that cannot be shown again (made by an older version): reset gives a new one"
+    )
     sources: list[FeedSource]
     created_at: datetime
     last_fetched_at: datetime | None
     revoked_at: datetime | None
 
 
-class FeedList(BaseModel):
-    items: list[Feed]
+class FeedState(BaseModel):
+    feed: Feed | None = Field(description="The Program's link; None while it is off")
 
 
 class FeedCreateInput(BaseModel):
     program_id: Id = Field(description="Program id")
-    name: Name = Field(description="Label for the link, e.g. 'iPhone'")
     sources: list[FeedSource] = Field(
-        default_factory=lambda: ["schedule", "assessments", "tasks", "lms"],
+        default_factory=lambda: ["schedule", "assessments", "tasks"],
         min_length=1,
         description="What the feed contains",
     )
 
 
-class FeedCreated(BaseModel):
-    feed: Feed
-    url: str = Field(description="Subscription URL; shown once, anyone with it can read the feed")
+class FeedUpdateInput(BaseModel):
+    feed_id: Id = Field(description="Feed id")
+    sources: list[FeedSource] = Field(min_length=1, description="What the feed contains")
 
 
 class FeedRef(BaseModel):

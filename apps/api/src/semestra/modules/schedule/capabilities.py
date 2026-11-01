@@ -25,10 +25,10 @@ from semestra.modules.schedule.schemas import (
     ExceptionRef,
     ExceptionUpsertInput,
     Feed,
-    FeedCreated,
     FeedCreateInput,
-    FeedList,
     FeedRef,
+    FeedState,
+    FeedUpdateInput,
     Meeting,
     MeetingCreateInput,
     MeetingCreateManyInput,
@@ -492,34 +492,60 @@ async def event_delete(ctx: Ctx, inp: EventRef) -> Deleted:
 
 
 @capability(
-    name="schedule.feed.list",
-    summary="List the calendar subscription links of a Program.",
-    description="The links themselves are only shown when created.",
+    name="schedule.feed.get",
+    summary="Get the calendar subscription link (ICS) of a Program.",
+    description="One link per Program; None while it is off.",
     effect="read",
-    http=Http("GET", "/programs/{program_id}/calendar-feeds"),
+    http=Http("GET", "/programs/{program_id}/calendar-feed"),
     expose=("http",),
     tags=TAGS,
 )
-async def feed_list(ctx: Ctx, inp: ProgramRef) -> FeedList:
-    return FeedList(items=await feeds.list_feeds(ctx, inp.program_id))
+async def feed_get(ctx: Ctx, inp: ProgramRef) -> FeedState:
+    return FeedState(feed=await feeds.get_feed(ctx, inp.program_id))
 
 
 @capability(
     name="schedule.feed.create",
-    summary="Create a read-only calendar subscription link (ICS) for Apple or Google Calendar.",
-    description="Anyone with the link can read the calendar; it is returned only once.",
+    summary="Turn on the read-only calendar subscription link (ICS) of a Program.",
+    description="Anyone with the link can read the calendar. Returns the existing link if on.",
     effect="write",
-    http=Http("POST", "/programs/{program_id}/calendar-feeds"),
+    http=Http("POST", "/programs/{program_id}/calendar-feed"),
     expose=("http",),
     tags=TAGS,
 )
-async def feed_create(ctx: Ctx, inp: FeedCreateInput) -> FeedCreated:
+async def feed_create(ctx: Ctx, inp: FeedCreateInput) -> Feed:
     return await feeds.create_feed(ctx, inp)
 
 
 @capability(
+    name="schedule.feed.update",
+    summary="Change what a calendar subscription link contains.",
+    description="Subscribed calendars pick up the change on their next refresh.",
+    effect="write",
+    http=Http("PATCH", "/calendar-feeds/{feed_id}"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def feed_update(ctx: Ctx, inp: FeedUpdateInput) -> Feed:
+    return await feeds.update_feed(ctx, inp)
+
+
+@capability(
+    name="schedule.feed.reset",
+    summary="Give a calendar subscription link a new address.",
+    description="Calendars subscribed to the old address stop updating.",
+    effect="write",
+    http=Http("POST", "/calendar-feeds/{feed_id}/reset"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def feed_reset(ctx: Ctx, inp: FeedRef) -> Feed:
+    return await feeds.reset_feed(ctx, inp.feed_id)
+
+
+@capability(
     name="schedule.feed.revoke",
-    summary="Turn off a calendar subscription link.",
+    summary="Turn off the calendar subscription link of a Program.",
     description="Calendars subscribed to it stop updating.",
     effect="write",
     http=Http("DELETE", "/calendar-feeds/{feed_id}"),

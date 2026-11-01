@@ -1,15 +1,23 @@
-"""Read-only ICS subscription links (M04 §4); only the token's hash is stored."""
+"""Read-only ICS subscription links (M04 §4).
+
+Looked up by the token's hash; the token is also kept encrypted so the link can be copied again
+(a calendar URL is not a credential to show once, and a leaked one is reset).
+"""
 
 import hashlib
 import secrets
+from contextlib import suppress
 from datetime import timedelta
 
+from cryptography.fernet import InvalidToken
 from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
+from semestra.core.security import decrypt, encrypt
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.schedule.calendar import (
@@ -22,8 +30,8 @@ from semestra.modules.schedule.models import (
 )
 from semestra.modules.schedule.schemas import (
     Feed,
-    FeedCreated,
     FeedCreateInput,
+    FeedUpdateInput,
 )
 from semestra.modules.schedule.sources import calendar_query
 
@@ -40,45 +48,102 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def feed_out(row: ScheduleFeed) -> Feed:
-    return Feed.model_validate(columns(row))
+def feed_out(ctx: Ctx, row: ScheduleFeed) -> Feed:
+    data = columns(row)
+    data["url"] = None
+    if row.token_encrypted and row.revoked_at is None:
+        # A changed encryption key leaves the link unreadable: reset gives a new one.
+        with suppress(InvalidToken):
+            data["url"] = feed_url(ctx, decrypt(ctx.settings, row.token_encrypted))
+    return Feed.model_validate(data)
+
+
+def _set_token(ctx: Ctx, row: ScheduleFeed) -> None:
+    token = secrets.token_urlsafe(32)
+    row.token_hash = _token_hash(token)
+    row.prefix = token[:6]
+    row.token_encrypted = encrypt(ctx.settings, token)
 
 
 def feed_url(ctx: Ctx, token: str) -> str:
     return f"{ctx.settings.public_api_origin.rstrip('/')}/feeds/{token}.ics"
 
 
-async def list_feeds(ctx: Ctx, program_id: str) -> list[Feed]:
-    await academics.get_program_row(ctx, program_id)
-    rows = (
-        await ctx.db.scalars(
-            select(ScheduleFeed)
-            .where(ScheduleFeed.user_id == ctx.user_id, ScheduleFeed.program_id == program_id)
-            .order_by(ScheduleFeed.created_at.desc())
+async def _active(ctx: Ctx, program_id: str) -> ScheduleFeed | None:
+    return await ctx.db.scalar(
+        select(ScheduleFeed)
+        .where(
+            ScheduleFeed.user_id == ctx.user_id,
+            ScheduleFeed.program_id == program_id,
+            ScheduleFeed.revoked_at.is_(None),
         )
-    ).all()
-    return [feed_out(r) for r in rows]
+        .order_by(ScheduleFeed.created_at.desc())
+        .limit(1)
+    )
 
 
-async def create_feed(ctx: Ctx, inp: FeedCreateInput) -> FeedCreated:
+async def get_feed(ctx: Ctx, program_id: str) -> Feed | None:
+    """The Program's subscription link (one per Program, like Google Calendar's secret address)."""
+    await academics.get_program_row(ctx, program_id)
+    row = await _active(ctx, program_id)
+    return feed_out(ctx, row) if row else None
+
+
+async def create_feed(ctx: Ctx, inp: FeedCreateInput) -> Feed:
+    """Turns the link on; the existing one is returned if it is already on (also when two requests
+    race: the partial unique index keeps one live link per Program)."""
     await academics.get_program_row(ctx, inp.program_id)
     token = secrets.token_urlsafe(32)
-    row = ScheduleFeed(
-        id=new_id(),
-        user_id=ctx.user_id,
-        program_id=inp.program_id,
-        token_hash=_token_hash(token),
-        prefix=token[:6],
-        name=inp.name,
-        sources=list(dict.fromkeys(inp.sources)),
-        created_at=ctx.now,
+    created = await ctx.db.execute(
+        insert(ScheduleFeed)
+        .values(
+            id=new_id(),
+            user_id=ctx.user_id,
+            program_id=inp.program_id,
+            token_hash=_token_hash(token),
+            prefix=token[:6],
+            token_encrypted=encrypt(ctx.settings, token),
+            sources=list(dict.fromkeys(inp.sources)),
+            created_at=ctx.now,
+        )
+        .on_conflict_do_nothing()
     )
-    ctx.db.add(row)
+    row = await _active(ctx, inp.program_id)
+    assert row is not None
+    if created.rowcount:  # pyright: ignore[reportAttributeAccessIssue]
+        await events.publish(
+            ctx, "schedule.feed.created", {"feed_id": row.id, "program_id": row.program_id}
+        )
+    return feed_out(ctx, row)
+
+
+async def _own_feed(ctx: Ctx, feed_id: str) -> ScheduleFeed:
+    row = await ctx.db.get(ScheduleFeed, feed_id)
+    if row is None or row.user_id != ctx.user_id or row.revoked_at is not None:
+        raise not_found("feed", feed_id)
+    return row
+
+
+async def _updated(ctx: Ctx, row: ScheduleFeed) -> Feed:
     await ctx.db.flush()
     await events.publish(
-        ctx, "schedule.feed.created", {"feed_id": row.id, "program_id": row.program_id}
+        ctx, "schedule.feed.updated", {"feed_id": row.id, "program_id": row.program_id}
     )
-    return FeedCreated(feed=feed_out(row), url=feed_url(ctx, token))
+    return feed_out(ctx, row)
+
+
+async def update_feed(ctx: Ctx, inp: FeedUpdateInput) -> Feed:
+    row = await _own_feed(ctx, inp.feed_id)
+    row.sources = list(dict.fromkeys(inp.sources))
+    return await _updated(ctx, row)
+
+
+async def reset_feed(ctx: Ctx, feed_id: str) -> Feed:
+    """A new address for the same feed; calendars on the old one stop updating."""
+    row = await _own_feed(ctx, feed_id)
+    _set_token(ctx, row)
+    row.last_fetched_at = None
+    return await _updated(ctx, row)
 
 
 async def revoke_feed(ctx: Ctx, feed_id: str) -> Feed:
@@ -91,7 +156,7 @@ async def revoke_feed(ctx: Ctx, feed_id: str) -> Feed:
         await events.publish(
             ctx, "schedule.feed.revoked", {"feed_id": row.id, "program_id": row.program_id}
         )
-    return feed_out(row)
+    return feed_out(ctx, row)
 
 
 async def feed_by_token(ctx: Ctx, token: str) -> ScheduleFeed:

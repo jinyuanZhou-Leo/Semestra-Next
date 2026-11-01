@@ -23,7 +23,7 @@ const SCHEDULE_QUERIES = [
   'scheduleEventGet',
   'scheduleEventTypeList',
   'scheduleConflictList',
-  'scheduleFeedList',
+  'scheduleFeedGet',
 ] as const
 
 /** Each of these comes with `calendar.changed`, which refreshes the calendar queries. */
@@ -213,7 +213,8 @@ export default defineModule({
       event,
       [...CALENDAR_QUERIES, 'scheduleMeetingList', 'scheduleMeetingListForTerm'],
     ]),
-    ['schedule.feed.created', ['scheduleFeedList']],
-    ['schedule.feed.revoked', ['scheduleFeedList']],
+    ['schedule.feed.created', ['scheduleFeedGet']],
+    ['schedule.feed.updated', ['scheduleFeedGet']],
+    ['schedule.feed.revoked', ['scheduleFeedGet']],
   ]),
 })

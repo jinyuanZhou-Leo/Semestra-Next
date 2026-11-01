@@ -244,7 +244,6 @@ async def populate(
                 program_id=program.id,
                 token_hash=f"{FEED_TOKEN_HASH}-{program.id}",
                 prefix="abcd",
-                name="Phone",
                 created_at=NOW,
             ),
             SettingsUiState(**u, key=f"courses.sort.{program.id}", value={"by": "code"}),

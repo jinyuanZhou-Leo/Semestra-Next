@@ -71,6 +71,8 @@ export function TimetableView({
       items={meetingGridItems(meetings, courses, conflicting, onEditMeeting)}
       dayStart={minutes(dayStart)}
       dayEnd={minutes(dayEnd)}
+      // The calendar's type sizes (FullCalendar's): 13px headers, compact blocks.
+      className="text-[0.8125rem] [&_[data-testid=grid-item]]:text-[0.6875rem]"
     />
   )
 }

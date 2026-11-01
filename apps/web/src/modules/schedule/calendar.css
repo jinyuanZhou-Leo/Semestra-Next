@@ -1,10 +1,10 @@
 /* FullCalendar's own variables, mapped to the theme tokens (M00 §4.6: no hard-coded colors). */
 .semestra-calendar {
-  --fc-border-color: var(--border);
+  --fc-border-color: color-mix(in oklab, var(--border) 70%, transparent);
   --fc-page-bg-color: var(--background);
   --fc-neutral-bg-color: var(--muted);
   --fc-neutral-text-color: var(--muted-foreground);
-  --fc-today-bg-color: color-mix(in oklab, var(--primary) 7%, transparent);
+  --fc-today-bg-color: color-mix(in oklab, var(--primary) 5%, transparent);
   --fc-now-indicator-color: var(--destructive);
   --fc-list-event-hover-bg-color: var(--muted);
   --fc-highlight-color: color-mix(in oklab, var(--primary) 15%, transparent);
@@ -14,9 +14,71 @@
   font-size: 0.8125rem;
 }
 
-.semestra-calendar .fc-timegrid-event.semestra-item,
+/*
+ * The week view drawn like the timetable (WeekGrid, M04 §5.2): no outer frame, columns split by
+ * a single line, one line per hour with its label sitting on the line, rounded blocks with a
+ * straight course-colored bar (drawn by the event content).
+ */
+.semestra-calendar .fc-scrollgrid,
+.semestra-calendar .fc-theme-standard .fc-scrollgrid {
+  border: 0;
+}
+.semestra-calendar .fc-theme-standard th,
+.semestra-calendar .fc-col-header-cell {
+  border-width: 0;
+}
+.semestra-calendar .fc-timegrid .fc-scrollgrid-section-header > th,
+.semestra-calendar .fc-timegrid .fc-scrollgrid-section > td {
+  border-width: 0;
+}
+.semestra-calendar .fc-timegrid-col,
+.semestra-calendar .fc-timegrid .fc-daygrid-day {
+  border-width: 0 0 0 1px;
+}
+.semestra-calendar .fc-timegrid-axis,
+.semestra-calendar .fc-timegrid-slot-label {
+  border-width: 0;
+}
+.semestra-calendar .fc-timegrid-slot {
+  height: 48px;
+}
+.semestra-calendar .fc-timegrid-slot-label {
+  vertical-align: top;
+}
+.semestra-calendar .fc-timegrid-slot-label-cushion {
+  display: block;
+  transform: translateY(-50%);
+  padding: 0 6px;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.semestra-calendar .fc-col-header-cell-cushion {
+  display: block;
+  padding: 0 4px 6px;
+  color: var(--foreground);
+  font-weight: 500;
+}
+.semestra-calendar .fc-timegrid .fc-daygrid-body {
+  border-bottom: 1px solid var(--fc-border-color);
+}
+.semestra-calendar .fc-timegrid-divider {
+  display: none;
+}
+
+.semestra-calendar .fc-timegrid-event.semestra-item {
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  box-shadow: none;
+  margin: 1px 2px;
+}
+.semestra-calendar .fc-timegrid-event .fc-event-main {
+  padding: 0;
+}
 .semestra-calendar .fc-daygrid-block-event.semestra-item {
   border-width: 0 0 0 3px;
+  border-radius: 4px;
 }
 
 .semestra-calendar .fc-bg-event .fc-event-title {
@@ -24,11 +86,17 @@
   font-style: normal;
 }
 
-.semestra-calendar .fc-col-header-cell-cushion,
 .semestra-calendar .fc-daygrid-day-number,
 .semestra-calendar .fc-list-day-text,
 .semestra-calendar .fc-list-day-side-text,
 .semestra-calendar .fc-week-number {
   color: var(--muted-foreground);
   font-weight: 500;
+}
+.semestra-calendar .fc-timegrid-axis-cushion {
+  color: var(--muted-foreground);
+}
+/* Room above the first hour line so its label is not cut off (WeekGrid's inset). */
+.semestra-calendar .fc-timegrid-body {
+  margin-top: 8px;
 }

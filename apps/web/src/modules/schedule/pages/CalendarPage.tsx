@@ -1,4 +1,10 @@
-import type { EventChangeArg, EventContentArg, EventInput } from '@fullcalendar/core'
+import type {
+  DayHeaderContentArg,
+  EventChangeArg,
+  EventContentArg,
+  EventInput,
+  FormatterInput,
+} from '@fullcalendar/core'
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -19,7 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Link2,
+  ChevronDown,
   ListFilter,
   Plus,
   TriangleAlert,
@@ -29,19 +35,25 @@ import type { PageProps } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
-import { firstDayOfWeek } from '@/lib/format'
+import { firstDayOfWeek, getFormatPreferences } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { useCourses, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/ui/sheet'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import '../calendar.css'
 import { DragChoiceDialog } from '../components/DragChoiceDialog'
 import { EventDialog, type EventSlot } from '../components/EventDialog'
-import { ExportDialog } from '../components/ExportDialog'
-import { FeedsDialog } from '../components/FeedsDialog'
+import { SHARE_KINDS, ShareDialog, type ShareKind } from '../components/ExportDialog'
 import { FilterPanel } from '../components/FilterPanel'
 import { MeetingDialog } from '../components/MeetingDialog'
 import { MoveDialog, type MoveTarget } from '../components/MoveDialog'
@@ -76,6 +88,20 @@ const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
 // Module constants: FullCalendar resets its view (and reports the dates again) when these change.
 const PLUGINS = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
 const LOCALES = [zhCnLocale]
+const DAY_HEADER_FORMAT = { weekday: 'short' } as const
+// Times follow the user's clock preference (M11), like `formatTime` elsewhere.
+const TIME_FORMATS = {
+  auto: { hour: '2-digit', minute: '2-digit' },
+  '12h': { hour: 'numeric', minute: '2-digit', hour12: true },
+  '24h': { hour: '2-digit', minute: '2-digit', hour12: false },
+} as const satisfies Record<string, FormatterInput>
+// The week view draws its day headers like the timetable (weekday, the date under it).
+const VIEWS = {
+  timeGridWeek: { dayHeaderContent: (arg: DayHeaderContentArg) => <WeekDayHeader arg={arg} /> },
+}
+
+/** A week row or column is named after the term week holding most of its days. */
+const midWeek = (firstDay: string) => plusDays(firstDay, 3)
 
 /** The term calendar (M04 §5.2). */
 export default function CalendarPage({ scope }: PageProps) {
@@ -120,17 +146,18 @@ function TermCalendar({
   // The day the calendar reports showing; until it has drawn, the one it opens on.
   const [shownDate, setShownDate] = useState<string | null>(null)
   const [title, setTitle] = useState('')
+  // The first day the view shows, so the week label agrees with the week-number column.
+  const [rangeStart, setRangeStart] = useState<string | null>(null)
 
   const [details, setDetails] = useState<Occurrence | null>(null)
   const [move, setMove] = useState<MoveTarget | null>(null)
   const [meetingEdit, setMeetingEdit] = useState<Meeting | null>(null)
   const [eventEdit, setEventEdit] = useState<{ event?: OneOffEvent; slot?: EventSlot } | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
-  const [exporting, setExporting] = useState(false)
-  const [feeds, setFeeds] = useState(false)
+  const [share, setShare] = useState<ShareKind | null>(null)
   // Only the timetable and the export show meetings; the other views show occurrences, and
   // editing one fetches its meeting or event when asked.
-  const termMeetings = useTermMeetings(term.id, view === 'timetable' || exporting)
+  const termMeetings = useTermMeetings(term.id, view === 'timetable' || share === 'image')
   const meetings = termMeetings.items
 
   // The meeting or event behind an occurrence, for its editor: fetched when its details open,
@@ -307,7 +334,7 @@ function TermCalendar({
     const week = weekOf(weeks, day)
     return week ? weekLabel(week.number, week.break_info?.name) : ''
   }
-  const currentWeek = weekOf(weeks, anchor)
+  const currentWeek = weekOf(weeks, rangeStart ? midWeek(rangeStart) : anchor)
   const detailsCourse = details ? courses.find((c) => c.id === details.course_id) : undefined
   const editingCourse = meetingEdit
     ? courses.find((c) => c.id === meetingEdit.course_id)
@@ -409,7 +436,6 @@ function TermCalendar({
               </ToggleGroupItem>
             </ToggleGroup>
             <Button
-              variant="outline"
               size="sm"
               onClick={() => {
                 const slot = `${anchor}T09:00`
@@ -419,18 +445,30 @@ function TermCalendar({
               <Plus aria-hidden />
               {m.schedule_event_add()}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setExporting(true)}>
-              <Download aria-hidden />
-              {m.schedule_export()}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={m.schedule_feeds()}
-              onClick={() => setFeeds(true)}
-            >
-              <Link2 aria-hidden />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="secondary" size="sm">
+                    <Download aria-hidden />
+                    {m.schedule_share()}
+                    <ChevronDown aria-hidden />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-72">
+                {SHARE_KINDS.map((item) => (
+                  <DropdownMenuItem key={item.kind} onClick={() => setShare(item.kind)}>
+                    <item.icon aria-hidden />
+                    <span className="min-w-0">
+                      <span className="block">{item.label()}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {item.description()}
+                      </span>
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -466,7 +504,13 @@ function TermCalendar({
                 nowIndicator
                 now={now}
                 weekNumbers
-                weekNumberContent={(arg) => weekNumberLabel(markerDay(arg.date))}
+                weekNumberContent={(arg) => weekNumberLabel(midWeek(markerDay(arg.date)))}
+                dayHeaderFormat={DAY_HEADER_FORMAT}
+                views={VIEWS}
+                slotDuration="01:00:00"
+                snapDuration="00:15:00"
+                slotLabelFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
+                eventTimeFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
                 allDayText={m.schedule_all_day()}
                 noEventsText={m.schedule_no_events()}
                 events={fcEvents}
@@ -496,6 +540,7 @@ function TermCalendar({
                 eventContent={renderEventContent}
                 datesSet={(arg) => {
                   setTitle(arg.view.title)
+                  setRangeStart(isoDay(arg.start))
                   const type = arg.view.type
                   const nextView =
                     type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
@@ -589,8 +634,10 @@ function TermCalendar({
           setDrag(null)
         }}
       />
-      {exporting ? (
-        <ExportDialog
+      {share ? (
+        <ShareDialog
+          kind={share}
+          onKindChange={setShare}
           programId={programId}
           termId={term.id}
           termName={term.name}
@@ -605,20 +652,59 @@ function TermCalendar({
           hiddenCourses={filters.hiddenCourses}
           settings={settings}
           open
-          onOpenChange={setExporting}
+          onOpenChange={(open) => !open && setShare(null)}
         />
       ) : null}
-      <FeedsDialog programId={programId} open={feeds} onOpenChange={setFeeds} />
     </div>
   )
 }
 
 const renderEventContent = (arg: EventContentArg) => <EventContent arg={arg} />
 
+/** A week view's day header as in the timetable (WeekGrid): the weekday, the date under it. */
+function WeekDayHeader({ arg }: { arg: DayHeaderContentArg }) {
+  return (
+    <span className={cn('block text-center', arg.isToday && 'text-primary')}>
+      {arg.text}
+      <span
+        className={cn('block font-normal text-muted-foreground', arg.isToday && 'text-primary')}
+      >
+        {arg.date.getDate()}
+      </span>
+    </span>
+  )
+}
+
 function EventContent({ arg }: { arg: EventContentArg }) {
   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
   if (!o) return <span className="fc-event-title">{arg.event.title}</span>
   const conflict = (o.meta?.conflicts_with?.length ?? 0) > 0
+  if (arg.view.type === 'timeGridWeek' && !arg.event.allDay) {
+    // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place.
+    return (
+      <div className="flex h-full min-w-0 overflow-hidden leading-tight">
+        <span
+          aria-hidden
+          className="w-1 shrink-0"
+          style={{ backgroundColor: occurrenceColor(o) }}
+        />
+        <span className="min-w-0 flex-1 px-1 py-0.5">
+          <span className="flex items-center gap-1 font-medium">
+            {conflict ? (
+              <TriangleAlert
+                aria-label={m.schedule_conflict()}
+                className="size-3 shrink-0 text-destructive"
+              />
+            ) : null}
+            <span className="truncate">{o.title}</span>
+          </span>
+          {o.location ? (
+            <span className="block truncate text-muted-foreground">{o.location}</span>
+          ) : null}
+        </span>
+      </div>
+    )
+  }
   return (
     <div className="flex min-w-0 flex-col overflow-hidden px-1 leading-tight">
       <span className="flex items-center gap-1 truncate font-medium">
