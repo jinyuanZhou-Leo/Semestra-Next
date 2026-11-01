@@ -5,8 +5,16 @@ import { describeFields, type JsonSchema } from '../settings/schema'
 import { fieldDescription, fieldLabel } from '../settings/texts'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
+import { FieldError } from '@/ui/field'
+import { SettingRow, SettingsGroup } from '../settings/rows'
 import type { CardContribution, Scope } from '../extensions'
 import { cardNamespace } from './settings'
 
@@ -38,18 +46,17 @@ function GeneratedForm({
   }) as JsonSchema
   const fields = describeFields(schema, card.settings?.fields)
   return (
-    <div className="space-y-4">
+    <SettingsGroup>
       {fields.map((field) => {
         const id = `${baseId}-${field.key}`
-        const description = fieldDescription(namespace, field.key)
         return (
-          <Field key={field.key} orientation="horizontal" className="items-start justify-between">
-            <FieldContent className="min-w-0">
-              <FieldLabel id={`${id}-label`} htmlFor={id}>
-                {fieldLabel(namespace, field.key)}
-              </FieldLabel>
-              {description ? <FieldDescription>{description}</FieldDescription> : null}
-            </FieldContent>
+          <SettingRow
+            key={field.key}
+            label={fieldLabel(namespace, field.key)}
+            description={fieldDescription(namespace, field.key)}
+            labelId={`${id}-label`}
+            htmlFor={id}
+          >
             <FieldControlView
               namespace={namespace}
               field={field}
@@ -58,10 +65,10 @@ function GeneratedForm({
               value={value[field.key]}
               onChange={(next) => onChange({ ...value, [field.key]: next })}
             />
-          </Field>
+          </SettingRow>
         )
       })}
-    </div>
+    </SettingsGroup>
   )
 }
 
@@ -101,7 +108,8 @@ export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onS
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent>
+      {/* Wide enough for a settings row: the name on the left, a w-56 control on the right. */}
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{m.board_card_settings_title({ card: card.title() })}</DialogTitle>
         </DialogHeader>
@@ -117,16 +125,11 @@ export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onS
           )}
           {invalid ? <FieldError>{m.board_card_settings_invalid()}</FieldError> : null}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => onOpenChange(false)}
-            >
+            <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
               {m.common_cancel()}
-            </Button>
+            </DialogClose>
             <Button type="submit" disabled={pending}>
-              {m.common_save()}
+              {pending ? m.common_saving() : m.common_save()}
             </Button>
           </DialogFooter>
         </form>

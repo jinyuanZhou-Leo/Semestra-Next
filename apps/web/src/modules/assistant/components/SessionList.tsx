@@ -23,7 +23,14 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,7 +99,10 @@ function RenameDialog({
     onError: toastError,
   })
   return (
-    <Dialog open={session !== null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={session !== null}
+      onOpenChange={(next) => !update.isPending && onOpenChange(next)}
+    >
       <DialogContent className="sm:max-w-sm">
         <form
           className="space-y-4"
@@ -116,9 +126,11 @@ function RenameDialog({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={update.isPending} />}
+            >
               {m.common_cancel()}
-            </Button>
+            </DialogClose>
             <Button type="submit" disabled={!title.trim() || update.isPending}>
               {m.common_save()}
             </Button>

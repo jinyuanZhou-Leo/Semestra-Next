@@ -8,7 +8,14 @@ import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -164,6 +171,11 @@ export function MoveDialog({
             />
           </Field>
           <DialogFooter className="col-span-3">
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={save.isPending} />}
+            >
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? m.common_saving() : m.common_save()}
             </Button>

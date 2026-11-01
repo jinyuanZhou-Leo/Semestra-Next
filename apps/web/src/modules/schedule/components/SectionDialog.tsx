@@ -9,7 +9,14 @@ import { TIME_INPUT } from '@/lib/time-input'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import {
   Field,
   FieldDescription,
@@ -378,6 +385,11 @@ export function SectionDialog({
           )}
 
           <DialogFooter>
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={save.isPending} />}
+            >
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? m.common_saving() : m.common_save()}
             </Button>

@@ -17,7 +17,14 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
@@ -416,6 +423,9 @@ export function EventDialog({
                 {m.schedule_event_delete()}
               </Button>
             ) : null}
+            <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={pending}>
               {pending ? m.common_saving() : m.common_save()}
             </Button>

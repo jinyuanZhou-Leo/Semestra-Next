@@ -83,10 +83,11 @@ export function ProgramForm({
           <FieldLabel id={`${id}-tz`}>{m.academics_program_timezone()}</FieldLabel>
           <TimezoneSelect aria-labelledby={`${id}-tz`} value={timezone} onChange={setTimezone} />
         </Field>
-        <Field data-invalid={creditsError || undefined} className="max-w-40">
+        <Field data-invalid={creditsError || undefined}>
           <FieldLabel htmlFor={`${id}-credits`}>{m.academics_program_default_credits()}</FieldLabel>
           <Input
             id={`${id}-credits`}
+            className="max-w-40"
             type="number"
             inputMode="decimal"
             step="any"

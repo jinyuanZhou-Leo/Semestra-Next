@@ -8,7 +8,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { DialogFooter } from '@/ui/dialog'
+import { DialogClose, DialogFooter } from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { useProviderUis } from '../providers'
@@ -119,6 +119,9 @@ export function ConnectionForm({
                 {m.lms_connection_back()}
               </Button>
             ) : null}
+            <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={!complete}>
               {pending ? m.lms_connection_checking() : m.lms_connection_save()}
             </Button>

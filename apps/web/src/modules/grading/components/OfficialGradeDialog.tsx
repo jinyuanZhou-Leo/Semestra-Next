@@ -7,6 +7,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -90,6 +91,11 @@ function OfficialGradeForm({ result, onDone }: { result: CourseResult; onDone: (
           ) : null}
         </Field>
         <DialogFooter>
+          <DialogClose
+            render={<Button type="button" variant="outline" disabled={update.isPending} />}
+          >
+            {m.common_cancel()}
+          </DialogClose>
           <Button type="submit" disabled={update.isPending}>
             {update.isPending ? m.common_saving() : m.common_save()}
           </Button>

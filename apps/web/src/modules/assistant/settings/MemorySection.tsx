@@ -26,6 +26,7 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -407,6 +408,11 @@ function MemoryForm({
         </Field>
         <FieldError>{save.error ? errorMessage(save.error) : null}</FieldError>
         <DialogFooter>
+          <DialogClose
+            render={<Button type="button" variant="outline" disabled={save.isPending} />}
+          >
+            {m.common_cancel()}
+          </DialogClose>
           <Button type="submit" disabled={!canSave}>
             {save.isPending ? m.common_saving() : m.common_save()}
           </Button>

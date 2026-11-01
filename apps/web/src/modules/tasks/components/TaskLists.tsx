@@ -129,6 +129,7 @@ function useListEditing({
           open
           onOpenChange={setCreating}
           title={m.tasks_list_new()}
+          submitLabel={m.tasks_list_create()}
           canChooseLevel={Boolean(termId)}
           onSubmit={async ({ name, termLevel }) => {
             const created = await actions.createList(programId, {

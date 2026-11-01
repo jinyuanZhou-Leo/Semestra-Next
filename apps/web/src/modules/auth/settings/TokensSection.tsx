@@ -21,6 +21,7 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -174,6 +175,11 @@ function CreateTokenDialog({
                 : null}
             </FieldError>
             <DialogFooter>
+              <DialogClose
+                render={<Button type="button" variant="outline" disabled={create.isPending} />}
+              >
+                {m.common_cancel()}
+              </DialogClose>
               <Button type="submit" disabled={!name.trim() || (needsPassword && password === '')}>
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
               </Button>

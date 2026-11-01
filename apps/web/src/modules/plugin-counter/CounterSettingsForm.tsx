@@ -1,9 +1,8 @@
 import { useId, useState } from 'react'
 import { m } from '@/paraglide/messages'
-import { Field, FieldError, FieldLabel } from '@/ui/field'
+import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
+import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/ui/item'
-import { Label } from '@/ui/label'
 import { Switch } from '@/ui/switch'
 import { applyEdit, problemOf } from './counter'
 import { COUNTER_LABEL_MAX, type CounterSettings } from './schema'
@@ -47,54 +46,59 @@ export default function CounterSettingsForm({ value, onChange }: Props) {
   ]
 
   return (
-    <div className="space-y-4">
-      <Field>
-        <FieldLabel htmlFor={`${id}-label`}>{m.counter_settings_label_label()}</FieldLabel>
-        <Input
-          id={`${id}-label`}
-          placeholder={m.counter_settings_label_placeholder()}
-          maxLength={COUNTER_LABEL_MAX}
-          value={value.label}
-          onChange={(event) => edit({ label: event.target.value })}
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-4">
-        {numbers.map(([field, label, error]) => (
-          <Field key={field} data-invalid={error ? true : undefined}>
-            <FieldLabel htmlFor={`${id}-${field}`}>{label}</FieldLabel>
+    <div className="space-y-3">
+      <SettingsGroup>
+        {[
+          <SettingRow
+            key="label"
+            label={m.counter_settings_label_label()}
+            htmlFor={`${id}-label-input`}
+          >
             <Input
-              id={`${id}-${field}`}
-              type="number"
-              min={field === 'step' ? 1 : undefined}
-              value={value[field]}
-              onChange={number(field)}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-${field}-error` : undefined}
+              id={`${id}-label-input`}
+              className="w-48"
+              placeholder={m.counter_settings_label_placeholder()}
+              maxLength={COUNTER_LABEL_MAX}
+              value={value.label}
+              onChange={(event) => edit({ label: event.target.value })}
             />
-            {error ? <FieldError id={`${id}-${field}-error`}>{error}</FieldError> : null}
-          </Field>
-        ))}
-      </div>
-      <ItemGroup className="rounded-2xl border">
-        <Item render={<li />}>
-          <ItemContent>
-            <ItemTitle>
-              <Label id={`${id}-ring`}>{m.counter_settings_show_ring_label()}</Label>
-            </ItemTitle>
-          </ItemContent>
-          <ItemActions>
-            <Switch
-              aria-labelledby={`${id}-ring`}
-              checked={value.show_ring}
-              onCheckedChange={(checked) => edit({ show_ring: checked })}
-            />
-          </ItemActions>
-        </Item>
-      </ItemGroup>
+          </SettingRow>,
+          ...numbers.map(([field, label, error]) => (
+            <SettingRow key={field} label={label} htmlFor={`${id}-${field}`}>
+              <div className="flex flex-col items-end gap-1">
+                <Input
+                  id={`${id}-${field}`}
+                  type="number"
+                  className="w-28"
+                  min={field === 'step' ? 1 : undefined}
+                  value={value[field]}
+                  onChange={number(field)}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? `${id}-${field}-error` : undefined}
+                />
+                {error ? (
+                  <FieldError id={`${id}-${field}-error`} className="text-xs">
+                    {error}
+                  </FieldError>
+                ) : null}
+              </div>
+            </SettingRow>
+          )),
+          <SettingRow key="ring" label={m.counter_settings_show_ring_label()}>
+            {(labelId) => (
+              <Switch
+                aria-labelledby={labelId}
+                checked={value.show_ring}
+                onCheckedChange={(checked) => edit({ show_ring: checked })}
+              />
+            )}
+          </SettingRow>,
+        ]}
+      </SettingsGroup>
       {clampedTo !== null ? (
-        <output className="block text-sm text-muted-foreground">
-          {m.counter_settings_clamped({ value: clampedTo })}
-        </output>
+        <SettingsNote>
+          <output>{m.counter_settings_clamped({ value: clampedTo })}</output>
+        </SettingsNote>
       ) : null}
     </div>
   )

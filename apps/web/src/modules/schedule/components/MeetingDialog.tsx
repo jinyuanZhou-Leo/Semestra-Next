@@ -12,7 +12,14 @@ import { useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
 import { Field, FieldError, FieldLabel, FieldTitle } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Clock2 } from 'lucide-react'
@@ -390,6 +397,9 @@ export function MeetingDialog({
                 {m.schedule_meeting_delete()}
               </Button>
             ) : null}
+            <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+              {m.common_cancel()}
+            </DialogClose>
             <Button type="submit" disabled={pending}>
               {pending ? m.common_saving() : m.common_save()}
             </Button>
