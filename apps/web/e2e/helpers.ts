@@ -25,7 +25,7 @@ export async function signUp(page: Page, email: string, name: string) {
   await page.goto('/login')
   await page.getByLabel('Email').fill(email)
   await page.getByRole('button', { name: 'Continue' }).click()
-  await expect(page.getByText(/We sent a 6-digit code/)).toBeVisible()
+  await expect(page.getByText(/A 6-digit code was sent/)).toBeVisible()
   await expect.poll(() => latestCode(email)).toMatch(/^\d{6}$/)
   await page.keyboard.type(latestCode(email))
   await page.getByLabel('Name').fill(name)

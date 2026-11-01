@@ -34,7 +34,7 @@ test('existing account: email → code → signed in', async () => {
   renderWithRouter(<LoginFlow onSignedIn={onSignedIn} />)
 
   await enterEmail('ada@example.com')
-  expect(await screen.findByText(/We sent a 6-digit code to ada@example.com/)).toBeInTheDocument()
+  expect(await screen.findByText(/A 6-digit code was sent to ada@example.com/)).toBeInTheDocument()
   await userEvent.keyboard('123456') // the OTP field has focus; typing submits on the 6th digit
   await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(user))
 })
@@ -59,7 +59,7 @@ test('new account: email → code → profile → signed in', async () => {
   renderWithRouter(<LoginFlow onSignedIn={onSignedIn} />)
 
   await enterEmail('ada@example.com')
-  await screen.findByText(/We sent a 6-digit code/)
+  await screen.findByText(/A 6-digit code was sent/)
   await userEvent.keyboard('654321')
   const name = await screen.findByLabelText('Name')
   await userEvent.type(name, 'Ada')
@@ -78,7 +78,7 @@ test('a wrong code shows the translated error and clears the field', async () =>
   )
   renderWithRouter(<LoginFlow onSignedIn={vi.fn<(user: UserOut) => void>()} />)
   await enterEmail('ada@example.com')
-  await screen.findByText(/We sent a 6-digit code/)
+  await screen.findByText(/A 6-digit code was sent/)
   await userEvent.keyboard('111111')
   expect(await screen.findByRole('alert')).toHaveTextContent("That code isn't right")
 })

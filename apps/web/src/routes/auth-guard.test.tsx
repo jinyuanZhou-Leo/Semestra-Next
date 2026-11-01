@@ -77,7 +77,7 @@ test('an off-site redirect target is ignored', async () => {
 test('/login/reset renders the reset form, not the sign-in form', async () => {
   server.use(signedOut(), noGoogle, healthy)
   mount('/login/reset')
-  expect(await screen.findByRole('heading', { name: 'Reset your password' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeInTheDocument()
 })
 
 const settingsData = [

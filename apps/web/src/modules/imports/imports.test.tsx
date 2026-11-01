@@ -86,7 +86,7 @@ test('the review groups items by course, marks problems and filters to them', as
   expect(await screen.findByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
   // The first item is selected: its issue and the evidence of its title are shown.
   // Once on the row (its tooltip text) and once in the editor.
-  expect(screen.getAllByText('Couldn\'t work out the date "Week 7"')).toHaveLength(2)
+  expect(screen.getAllByText("Couldn't work out the date “Week 7”")).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Where Title came from' })).toBeInTheDocument()
 
   await userEvent.click(screen.getByRole('switch', { name: 'Only items with problems' }))
@@ -449,14 +449,14 @@ test('a single-file source replaces the file, a multi-file one adds to the list'
   const { unmount } = renderWithRouter(
     <ImportDialog request={icsRequest('syllabus')} onClose={() => {}} />,
   )
-  await screen.findByText('Drop files here, or click to choose')
+  await screen.findByText('Drop files here, or choose them')
   await pickFile('a.pdf')
   await pickFile('b.pdf')
   expect(await screen.findByText('a.pdf')).toBeInTheDocument()
   expect(screen.getByText('b.pdf')).toBeInTheDocument()
   unmount()
   renderWithRouter(<ImportDialog request={icsRequest('ics')} onClose={() => {}} />)
-  await screen.findByText('Drop a file here, or click to choose')
+  await screen.findByText('Drop a file here, or choose one')
   await pickFile('a.ics')
   await pickFile('b.ics')
   expect(await screen.findByText('b.ics')).toBeInTheDocument()
