@@ -135,16 +135,37 @@ async def test_code_checks_are_capped_per_email_across_codes(
     assert r.status_code == 200
 
 
-async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
-    client: AsyncClient, app, mailer: MemoryMailer
+async def test_checks_without_a_pending_code_do_not_lock_the_address(
+    client: AsyncClient, mailer: MemoryMailer
 ) -> None:
-    from sqlalchemy import select
+    email = "victim@example.com"
+    for _ in range(25):
+        r = await client.post("/auth/email/verify", json={"email": email, "code": "123456"})
+        assert r.json()["error"]["code"] == "auth.invalid_code"
+    await start(client, email)
+    r = await client.post(
+        "/auth/email/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.status_code == 200
 
-    from semestra.modules.auth.models import AuthEmailChallenge
+
+async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
+    client: AsyncClient, mailer: MemoryMailer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from semestra.modules.auth import crypto
 
     await start(client, "burst@example.com")
     good = last_code(mailer, "burst@example.com")
     wrong = "000000" if good != "000000" else "111111"
+    comparisons = 0
+    real_code_hash = crypto.code_hash
+
+    def counting_code_hash(*args: str) -> str:  # called once per comparison in _check_code
+        nonlocal comparisons
+        comparisons += 1
+        return real_code_hash(*args)  # pyright: ignore[reportArgumentType]
+
+    monkeypatch.setattr(crypto, "code_hash", counting_code_hash)
     results = await asyncio.gather(
         *(
             client.post("/auth/email/verify", json={"email": "burst@example.com", "code": wrong})
@@ -153,13 +174,7 @@ async def test_parallel_guesses_cannot_exceed_the_attempt_limit(
     )
     codes = [r.json()["error"]["code"] for r in results]
     assert set(codes) <= {"auth.invalid_code", "auth.too_many_attempts"}  # never a 500
-    async with app.state.session_factory() as db:
-        challenge = (
-            await db.execute(
-                select(AuthEmailChallenge).where(AuthEmailChallenge.email == "burst@example.com")
-            )
-        ).scalar_one()
-    assert challenge.attempts <= challenge.max_attempts  # no more comparisons than allowed
+    assert 1 <= comparisons <= 5  # max_attempts
     r = await client.post("/auth/email/verify", json={"email": "burst@example.com", "code": good})
     assert r.status_code == 400  # the code is void
 

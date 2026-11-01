@@ -263,10 +263,6 @@ async def _check_code(
     user_id: str | None = None,
 ) -> AuthEmailChallenge:
     """Validates a code against the newest open challenge; counts wrong attempts."""
-    count, window = CODE_CHECK_PER_EMAIL
-    await ratelimit.hit(
-        ctx.db, ctx.settings, ctx.now, "code_check_email", email, limit=count, window=window
-    )
     stmt = select(AuthEmailChallenge).where(
         AuthEmailChallenge.email == email,
         AuthEmailChallenge.purpose == purpose,
@@ -284,6 +280,12 @@ async def _check_code(
         raise AppError("auth.invalid_code", 400)
     if challenge.expires_at <= ctx.now:
         raise AppError("auth.code_expired", 400)
+    # Only checks against a live code count, so requests for an address with no pending code
+    # cannot lock its owner out without a single email reaching them.
+    count, window = CODE_CHECK_PER_EMAIL
+    await ratelimit.hit(
+        ctx.db, ctx.settings, ctx.now, "code_check_email", email, limit=count, window=window
+    )
     # Every guess is counted by one atomic UPDATE *before* the code is compared, so a burst of
     # parallel guesses cannot get more than `max_attempts` comparisons.
     claimed = (
