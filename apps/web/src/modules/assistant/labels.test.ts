@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { fieldLabel, formatValue, plainArgs } from './labels'
+import { fieldLabel, formatValue } from './labels'
 
 test('accept and reject read as decisions only in the decision field', () => {
   expect(formatValue('accept', 'decision')).toBe('Keep')
@@ -14,9 +14,6 @@ test('dates read in the UI format, ranges as one range', () => {
   ).toMatch(/^Fall 2026 \(Sep 7\s–\sDec 31, 2026\)$/u)
 })
 
-test('paging arguments stay off the list and common arguments have names', () => {
-  expect(plainArgs({ query: 'lab', page_from: 1, page_to: 4, limit: 20, cursor: 'x' })).toEqual([
-    ['query', 'lab'],
-  ])
+test('common arguments have names', () => {
   expect(fieldLabel('query')).toBe('Search')
 })

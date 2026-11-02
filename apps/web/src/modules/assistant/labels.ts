@@ -34,37 +34,6 @@ export function skillTitle(
   return title[getLocale()] ?? title.en ?? Object.values(title)[0] ?? fallback
 }
 
-const ID_ARG = /(^id$|^fields$|_ids?$)/
-/** Paging arguments: pages are on the step's line, the rest is plumbing. */
-const PAGING_ARG = /^(page_from|page_to|cursor|limit|offset)$/
-
-/**
- * Arguments as people read them: without ids (the step names them) and without objects that
- * only held ids. Undefined when nothing is left.
- */
-export function plainValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    const items = value.map(plainValue).filter((v) => v !== undefined)
-    return items.length > 0 || value.length === 0 ? items : undefined
-  }
-  if (value !== null && typeof value === 'object') {
-    const kept = Object.entries(value)
-      .filter(([key]) => !ID_ARG.test(key))
-      .map(([key, inner]) => [key, plainValue(inner)] as const)
-      .filter(([, inner]) => inner !== undefined)
-    if (kept.every(([key]) => key === 'kind')) return undefined
-    return Object.fromEntries(kept)
-  }
-  return value
-}
-
-export function plainArgs(args: Record<string, unknown>): [string, unknown][] {
-  return Object.entries(args)
-    .filter(([key]) => !ID_ARG.test(key) && !PAGING_ARG.test(key))
-    .map(([key, value]) => [key, plainValue(value)] as [string, unknown])
-    .filter(([, value]) => value !== undefined)
-}
-
 /** A field's name for people: a shared translation when there is one, else its words. */
 export function fieldLabel(field: string, schemaTitle?: string): string {
   return (
@@ -162,6 +131,9 @@ export function stepLine(step: Step, skillTitles: ReadonlyMap<string, string>): 
     if (typeof preview?.target === 'string') target = preview.target
   }
   const details: string[] = []
+  // What a search looked for: the one argument of a read worth seeing on its line.
+  const query = [args.query, args.search].find((v) => typeof v === 'string' && v.trim())
+  if (typeof query === 'string' && query !== target) details.push(`“${query.trim()}”`)
   const from = num(args.page_from)
   const to = num(args.page_to)
   if (from !== null) {

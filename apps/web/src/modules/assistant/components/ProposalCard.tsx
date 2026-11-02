@@ -22,6 +22,7 @@ import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { Textarea } from '@/ui/textarea'
 import { capabilityTitle, fieldLabel, formatValue } from '../labels'
+import type { Change } from '../stream'
 import type { Decision } from '../use-chat'
 
 type Schema = {
@@ -33,9 +34,6 @@ type Schema = {
   properties?: Record<string, Schema>
   $defs?: Record<string, Schema>
 }
-
-/** `count`: how many there are in all when `after` (or `before`) lists only the first ones. */
-type Change = { field: string; before?: unknown; after?: unknown; count?: number }
 
 type Preview = {
   target?: string
@@ -62,7 +60,7 @@ type Editable = { key: string; schema: Schema; kind: 'text' | 'number' | 'boolea
 
 /** The arguments a person can change: plain values, not ids. */
 function editableFields(proposal: AgentProposalOut): Editable[] {
-  const root = proposal.input_schema as Schema
+  const root = (proposal.input_schema ?? {}) as Schema
   const out: Editable[] = []
   for (const [key, raw] of Object.entries(root.properties ?? {})) {
     if (key === 'id' || key.endsWith('_id') || key.endsWith('_ids')) continue
@@ -192,18 +190,24 @@ function changeText(
   return text
 }
 
-/** A proposal's before → after list (M12 §3.5), on the card and later in its step. A value a
- * delete removes is struck through, without a "cleared" after it. */
-export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
+/** A write's before → after list (M12 §3.5), on its card and later in its step. A value a
+ * delete removes is struck through, without a "cleared" after it. `schema` (the card's input
+ * schema, only while it waits) names fields the shared labels do not. */
+export function ChangeList({
+  changes,
+  destructive = false,
+  schema,
+}: {
+  changes: readonly Change[]
+  destructive?: boolean
+  schema?: Record<string, unknown> | null
+}) {
   const modules = useAllModules()
-  const preview = (proposal.preview ?? {}) as Preview
-  const root = proposal.input_schema as Schema
-  const changes = preview.changes ?? []
   if (changes.length === 0) return null
+  const root = (schema ?? {}) as Schema
   const cardTitles = new Map(
     modules.flatMap((module) => (module.cards ?? []).map((card) => [card.id, card.title()])),
   )
-  const destructive = proposal.effect === 'destructive'
   return (
     <dl className="space-y-1 text-sm">
       {changes.map((change) => {
@@ -235,6 +239,21 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
         )
       })}
     </dl>
+  )
+}
+
+/** What a proposal changes, from the capability's preview. */
+export function proposalChanges(proposal: AgentProposalOut): Change[] {
+  return ((proposal.preview ?? {}) as Preview).changes ?? []
+}
+
+export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
+  return (
+    <ChangeList
+      changes={proposalChanges(proposal)}
+      destructive={proposal.effect === 'destructive'}
+      schema={proposal.input_schema}
+    />
   )
 }
 

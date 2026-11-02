@@ -64,7 +64,8 @@ from semestra.core.events import events
 from semestra.modules.agent import history, memory, outcome, service, skills, tools
 from semestra.modules.agent.compaction import compact, compact_now
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
-from semestra.modules.agent.decisions import close_calls, edited, make_preview
+from semestra.modules.agent.decisions import close_calls, edited
+from semestra.modules.agent.display import make_preview
 from semestra.modules.agent.models import AgentMessage, AgentProposal, AgentSession
 from semestra.modules.agent.outcome import Outcome
 from semestra.modules.agent.runtime import ChatLike, agent_ctx
@@ -189,7 +190,14 @@ def _tool(cap: Capability) -> tools.ToolFunction:
         else:
             token = memory.conversation.set(turn.session_id)
             try:
-                result = await outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+                result = await outcome.invoke(
+                    turn.state,
+                    turn.user_id,
+                    turn.scope,
+                    cap.name,
+                    args,
+                    changes=cap.name not in memory.WRITES,
+                )
             finally:
                 memory.conversation.reset(token)
         return _tool_return(cap, call_id, result, turn)
