@@ -12,12 +12,17 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from semestra.core.capability import registry
+import structlog
+from pydantic import BaseModel
+
+from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.labels import lookup
 
 # A `*_ref` value that points at a record: `course:<id>`, `term:<id>`, or an import's `item:<id>`.
+log = structlog.get_logger()
+
 _REF = re.compile(r"^(course|term|item):(.+)$")
 
 
@@ -249,4 +254,40 @@ async def preview(ctx: Ctx, capability: str, args: dict[str, Any]) -> dict[str, 
     names = await labels(ctx, capability, rest)
     if names:
         out["target"] = " · ".join(names)
+    return out
+
+
+async def _generic_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
+    """Each argument as a change, before → after for an update, ids by name.
+    A failure here leaves the card without details, never without the card."""
+    try:
+        return await preview(ctx, cap.name, args)
+    except Exception:
+        log.exception("agent_display_failed", capability=cap.name)
+        return {"changes": []}
+
+
+async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
+    """The capability's own `preview` (changes with before → after, a link), else the
+    arguments as a list. Raises `common.validation` for arguments the model got wrong, and the
+    capability's own `check` errors, before the card is shown."""
+    inp = await registry.validate(ctx, cap, args, "agent")
+    out: dict[str, Any] = {"changes": []}
+    if cap.preview is not None:
+        own = await cap.preview(ctx, inp)
+        if isinstance(own, BaseModel):
+            out = own.model_dump(mode="json")
+        elif isinstance(own, dict):
+            out = dict(own)  # pyright: ignore[reportUnknownArgumentType]
+    else:
+        out = await _generic_preview(ctx, cap, args)
+    if not out.get("target"):
+        # What the card is about, by name: the ids in the arguments are never shown.
+        try:
+            names = await labels(ctx, cap.name, args)
+        except Exception:
+            log.exception("agent_display_failed", capability=cap.name)
+            names = []
+        if names:
+            out["target"] = " · ".join(names)
     return out

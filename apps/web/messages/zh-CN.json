@@ -1856,6 +1856,7 @@
   "assistant_field_subfolders": "子文件夹",
   "assistant_field_uncategorized": "将变为未分类",
   "assistant_field_import_items": "条目",
+  "assistant_field_items": "条目",
   "error_agent_busy": "Sem 还在回答，请稍后再试。",
   "error_agent_tool_limit_reached": "已跳过：Sem 这条消息的步骤数已达上限。",
   "error_agent_repeated_call": "已跳过：Sem 已经多次发起完全相同的调用。",

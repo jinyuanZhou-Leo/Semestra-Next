@@ -3,6 +3,10 @@ import { EventSourceParserStream } from 'eventsource-parser/stream'
 import { csrfHeaders, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
+/** One value a write changes (M12 §3.5); `count`: how many there are in all when `after` (or
+ * `before`) lists only the first ones. */
+export type Change = { field: string; before?: unknown; after?: unknown; count?: number }
+
 /** What the server tells the chat about one tool call: names behind its ids, and counts. */
 export type StepDisplay = {
   /** What it was about, by name (a term, a course code, a file). */
@@ -16,6 +20,10 @@ export type StepDisplay = {
   /** An import's accepted items per type, and its open issues. */
   accepted?: Record<string, number>
   issues?: number
+  /** What a write that ran without asking changed, as its card would have shown it. */
+  changes?: Change[]
+  /** Where that write can be seen. */
+  link?: { to: string }
 }
 
 /** A file quoted by a tool result (M07); `[[cite:<id>]]` in the answer points at it. */

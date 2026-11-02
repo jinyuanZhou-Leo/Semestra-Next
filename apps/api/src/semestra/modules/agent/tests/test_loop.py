@@ -660,6 +660,9 @@ async def test_remember_auto_approves_later_calls(agent: Agent, model: FakeModel
     )
     events = await agent.send(session["id"], "make it 70")
     assert events_named(events, "proposal") == []
+    # Its step shows what the card would have: the stored value before it ran → the new one.
+    [ran] = events_named(events, "tool_result")
+    assert ran["display"]["changes"] == [{"field": "score_percentage", "before": 60.0, "after": 70}]
     # The write already ran, so answering again could repeat it.
     last = (await agent.detail(session["id"]))["messages"][-1]["id"]
     out = await agent.stream(

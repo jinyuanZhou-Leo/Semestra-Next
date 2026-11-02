@@ -8,14 +8,14 @@ from dataclasses import dataclass
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
 from pydantic_ai.messages import ModelRequest, ToolCallPart, ToolReturnPart
 from starlette.datastructures import State
 
 from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.modules.agent import display, history, outcome, service, tools
+from semestra.modules.agent import history, outcome, service, tools
+from semestra.modules.agent.display import make_preview
 from semestra.modules.agent.models import AgentProposal, AgentSession
 from semestra.modules.agent.outcome import Outcome
 from semestra.modules.agent.runtime import agent_ctx
@@ -27,42 +27,6 @@ CONTINUE_NOTE = "The user pressed Continue: carry on from where you stopped."
 
 
 # --- what a card shows ------------------------------------------------------------------------
-
-
-async def _generic_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
-    """Each argument as a change, before → after for an update, ids by name (agent/display).
-    A failure here leaves the card without details, never without the card."""
-    try:
-        return await display.preview(ctx, cap.name, args)
-    except Exception:
-        log.exception("agent_display_failed", capability=cap.name)
-        return {"changes": []}
-
-
-async def make_preview(ctx: Ctx, cap: Capability, args: dict[str, Any]) -> dict[str, Any]:
-    """The capability's own `preview` (changes with before → after, a link), else the
-    arguments as a list. Raises `common.validation` for arguments the model got wrong, and the
-    capability's own `check` errors, before the card is shown."""
-    inp = await registry.validate(ctx, cap, args, "agent")
-    out: dict[str, Any] = {"changes": []}
-    if cap.preview is not None:
-        preview = await cap.preview(ctx, inp)
-        if isinstance(preview, BaseModel):
-            out = preview.model_dump(mode="json")
-        elif isinstance(preview, dict):
-            out = dict(preview)  # pyright: ignore[reportUnknownArgumentType]
-    else:
-        out = await _generic_preview(ctx, cap, args)
-    if not out.get("target"):
-        # What the card is about, by name: the ids in the arguments are never shown.
-        try:
-            names = await display.labels(ctx, cap.name, args)
-        except Exception:
-            log.exception("agent_display_failed", capability=cap.name)
-            names = []
-        if names:
-            out["target"] = " · ".join(names)
-    return out
 
 
 def edited(prop: AgentProposal, called: dict[str, Any]) -> bool:

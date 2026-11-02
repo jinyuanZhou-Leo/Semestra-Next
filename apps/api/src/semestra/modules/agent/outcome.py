@@ -76,16 +76,23 @@ async def invoke(
     *,
     surface: Surface = "agent",
     auth: AuthInfo | None = None,
+    changes: bool = False,
 ) -> Outcome:
     """Runs a capability in its own transaction as the agent (or MCP client), then dispatches
-    its events so open pages refresh."""
+    its events so open pages refresh. `changes`: a write that runs without a card; its step
+    shows what the card would have (before → after), worked out before it runs."""
     async with agent_ctx(state, user_id, scope=scope, actor=surface) as ctx:
         ctx.auth = auth
         try:
+            card = await _card(ctx, name, args) if changes else {}
             out = await registry.invoke(ctx, name, args, surface)
             await ctx.db.commit()
             payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
             shown = await _display(ctx, name, args, payload) if surface == "agent" else {}
+            if card.get("changes"):
+                shown["changes"] = card["changes"]
+            if isinstance(card.get("link"), dict):
+                shown["link"] = card["link"]
         except AppError as exc:
             await ctx.db.rollback()
             return Outcome(False, error_payload(exc), exc.code)
@@ -96,6 +103,20 @@ async def invoke(
             return error("common.internal")
     await run_after_commit(ctx)
     return Outcome(True, payload, citations=citations(payload), display=shown)
+
+
+async def _card(ctx: Ctx, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """What the confirmation card of this write would show. Wrong arguments fail as the call
+    itself would; any other failure only leaves the step without its changes."""
+    try:
+        cap = registry.get(name)
+        filled = await registry.with_context_args(ctx, cap, args)
+        return await display.make_preview(ctx, cap, filled)
+    except AppError:
+        raise
+    except Exception:
+        log.exception("agent_display_failed", capability=name)
+        return {}
 
 
 async def _display(ctx: Ctx, name: str, args: dict[str, Any], payload: Any) -> dict[str, Any]:

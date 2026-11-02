@@ -18,17 +18,10 @@ import {
   TraceLine,
   TraceTitle,
 } from '@/ui/trace'
-import {
-  capabilityTitle,
-  fieldLabel,
-  formatValue,
-  plainArgs,
-  skillTitle,
-  stepLine,
-} from '../labels'
+import { capabilityTitle, skillTitle, stepLine } from '../labels'
 import type { ProcessEntry, Step, StepStatus, ViewItem } from '../transcript'
 import { Markdown } from './Markdown'
-import { ProposalChanges, proposalLink } from './ProposalCard'
+import { ChangeList, proposalChanges, proposalLink } from './ProposalCard'
 
 type Shown = Exclude<StepStatus, 'waiting'>
 
@@ -52,20 +45,6 @@ function traceStatus(status: Shown): 'running' | 'error' | undefined {
   if (status === 'running') return 'running'
   if (status === 'error') return 'error'
   return undefined
-}
-
-/** The arguments as a short list, without ids (the line names what they point to). */
-function ArgList({ args }: { args: [string, unknown][] }) {
-  return (
-    <dl className="space-y-1 text-sm">
-      {args.map(([key, value]) => (
-        <div key={key} className="flex flex-wrap items-baseline gap-x-2">
-          <dt className="text-muted-foreground">{fieldLabel(key)}</dt>
-          <dd className="min-w-0">{formatValue(value, key)}</dd>
-        </div>
-      ))}
-    </dl>
-  )
 }
 
 /**
@@ -100,16 +79,27 @@ function StepRow({
       ) : null}
     </TraceLine>
   )
+  // It opens only to what the line cannot say: what a write changed (as its card showed it,
+  // or would have when it ran without one) and why a call failed. A read is its line: its
+  // arguments are the model's plumbing.
   const proposal = step.proposal
-  const link = status === 'done' && proposal ? proposalLink(proposal) : null
-  const args = proposal ? [] : plainArgs(step.args)
-  if (status === 'running' || (args.length === 0 && !proposal && !step.errorCode)) return line
+  const changes = proposal
+    ? proposalChanges(proposal)
+    : step.changed
+      ? (step.display?.changes ?? [])
+      : []
+  const shown = proposal ? proposalLink(proposal) : (step.display?.link?.to ?? null)
+  const link = status === 'done' ? shown : null
+  if (status === 'running' || (changes.length === 0 && !link && !step.errorCode)) return line
   return (
     <TraceCollapsible>
       <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
       <TraceCollapsibleContent className="space-y-2">
-        {proposal ? <ProposalChanges proposal={proposal} /> : null}
-        {args.length > 0 ? <ArgList args={args} /> : null}
+        <ChangeList
+          changes={changes}
+          destructive={proposal?.effect === 'destructive'}
+          schema={proposal?.input_schema}
+        />
         {step.errorCode ? (
           <CodeBlock size="sm" variant="destructive">
             <CodeBlockContent wrap>
