@@ -59,7 +59,7 @@ class LmsProvider(Protocol):
 - 所有返回值都是本模块定义的、与平台无关的 DTO（`schemas/dto.py`），provider 负责把平台数据映射过来。DTO 带 `external_id`、`web_url`（在原平台打开）和 `raw_kind`（调试用）。
 - HTML 内容（页面、公告、syllabus、作业描述）由**模块**统一清洗，provider 只负责取回原文。清洗使用 `nh3`：允许基本排版、表格、图片和链接；链接加 `rel="noopener noreferrer" target="_blank"`。provider 可以提供 `rewrite_internal_link(url) -> InternalRef | None`，把平台内部链接改写为内部引用（如 `{kind:'page', ref}`），供插件在应用内跳转。
 - 错误映射由 provider 实现，但只能抛本模块定义的错误码（第 9 节）。
-- 前端也有对应的 provider 注册：扩展点 **`lms.providerUi`**，每个 provider 贡献 `{ kind, label, logo, ConfigForm, credentialHelp }`。表单字段校验与后端 `config_model`/`credentials_model` 一致，由 OpenAPI 生成的类型约束。
+- 前端也有对应的 provider 注册：扩展点 **`lms.providerUi`**，每个 provider 贡献 `{ kind, label, logo, ConfigForm, isComplete }`（获取凭证的说明由 `ConfigForm` 自己渲染，随连接方式变化）。表单字段校验与后端 `config_model`/`credentials_model` 一致，由 OpenAPI 生成的类型约束。
 
 ### 2.2 功能标志 `LmsFeature`
 `courses`、`navigation`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`calendar`。`lms.provider.list` 返回每个 provider 的功能标志，界面根据它隐藏不支持的入口。Canvas 全部支持。
@@ -67,10 +67,11 @@ class LmsProvider(Protocol):
 ### 2.3 Canvas Provider（`modules/lms/providers/canvas/`）
 - Canvas REST API v1，认证使用 `Authorization: Bearer <token>`，按 `Link` 头分页（单次最多 50 页，超出后截断并在结果中标记 `truncated`）。
 - 配置 `base_url` 的规范化与旧版一致：没有协议时补 `https://`；只允许 http/https（托管版只允许 https）；拒绝查询串和片段；拒绝 `/api/v1` 路径；去掉末尾斜杠。访问令牌校验：不含空白和 `@`，长度至少 8。
+- **凭证两种形态**：① 手填个人访问令牌（`access_token`，默认，托管版与自托管都可用）；② 自托管开启 `SEMESTRA_LMS_CANVAS_SIGN_IN` 后，可在学校登录页完成 SSO/MFA，把回调地址粘回应用（`sign_in.py`）。后者借用 Canvas 官方移动端 OAuth 客户端（`sso.canvaslms.com/api/v1/mobile_verify.json`），换到的 refresh token 长期有效，access token 临近过期或 401 时自动续期；续期后的凭证在请求提交后用单独短事务写回（与读缓存一样，不在读请求事务里写库）。关闭开关后不再续期：已有连接在 access token 过期后变为 `lms.invalid_credentials`，用户改填令牌；删除或更换这类连接时仍会尽力撤销（必要时用 refresh token 换一次 access token）。文件预览和下载与其它读取一样，遇 401 续期后重试一次。`credentials_hint` 为 `{method: "sign_in"}` 或令牌掩码。只允许 https（`lms.sign_in_https_required`）：换码和续期都会发送 client secret 与 refresh token。删除或更换凭证时，提交后尽力向 Canvas 撤销旧令牌：撤销需要有效的 access token，所以过期时先续期，遇 401 再续期重试一次；refresh token 已失效说明用户已在 Canvas 上移除，不算失败；其它失败只记日志。未验证：按 Canvas 开源代码，开发者密钥开了 `force_token_reuse` 时重新登录不返回 refresh token，换码以 `lms.sign_in_failed`（`no_token`）失败，旧连接不受影响（可删除后重连）；开了 `replace_tokens` 时登录会废掉同一密钥下的其它令牌，包括手机 App 的。移动端密钥是否开启这两项无法从外部确认。
 - 所有请求都通过 `core.http.safe_client()`。文件下载跟随的重定向只允许同源或 Canvas 文件 CDN，每一跳都要在解析后检查不是私网地址。
 - `navigation` 映射 Canvas tabs：`home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`discussions` 映射为对应的内置类型，`type=external` 映射为 `external`，其它映射为 `unknown`。
 - `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，同时获取 `type=event` 与 `type=assignment`。
-- 错误映射：带 `WWW-Authenticate` 的 401 → `lms.invalid_credentials`；不带的 401（已登录但某个页面或文件被锁）和普通 403 → `lms.forbidden`；403 且正文含 `Rate Limit Exceeded` 或 `X-Rate-Limit-Remaining` 已降到 0 → `lms.rate_limited`（Canvas 默认用 403 限流，站点开启后才用 429；没有 `Retry-After`，按 60 秒）；429 → `lms.rate_limited`（带 `retry_after`）；404 → `common.not_found`；网络错误或超时 → `lms.unreachable`；私网地址 → `lms.blocked_address`。
+- 错误映射：带 `WWW-Authenticate` 的 401 → `lms.invalid_credentials`；不带的 401（已登录但某个页面或文件被锁）和普通 403 → `lms.forbidden`；403 且正文含 `Rate Limit Exceeded` 或 `X-Rate-Limit-Remaining` 已降到 0 → `lms.rate_limited`（Canvas 默认用 403 限流，站点开启后才用 429；没有 `Retry-After`，按 60 秒）；429 → `lms.rate_limited`（带 `retry_after`）；404 → `common.not_found`；网络错误或超时 → `lms.unreachable`；私网地址 → `lms.blocked_address`；学校登录未开启 → `lms.sign_in_disabled`；Canvas 不认识该校 → `lms.sign_in_unavailable`；学校登录用了 http 地址 → `lms.sign_in_https_required`；粘贴的回调无授权码/已过期 → `lms.sign_in_failed`。
 
 ### 2.4 读缓存
 所有读取接口都经过模块级缓存：先查进程内 LRU（按字节限 64 MB），再查 SQLite `lms_cache`，TTL 5 分钟。缓存键为 `(user_id, connection_id, 方法, 参数)`，每条带范围（`course:<外部课程 id>` 或 `calendar`），凭证更新时清除该连接的全部缓存，`lms.course.refresh` 只清一门课的范围和日历。请求带 `?refresh=true` 时绕过缓存。读取不在请求事务里写库：`lms_cache` 在请求提交后用单独的短事务写入。
@@ -120,10 +121,11 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ## 5. Capabilities
 | name | effect | http | 说明 |
 |---|---|---|---|
-| `lms.provider.list` | read | GET /lms/providers | provider 列表、功能标志、配置字段 schema |
+| `lms.provider.list` | read | GET /lms/providers | provider 列表、功能标志、配置字段 schema、是否支持学校页登录（`sign_in`） |
+| `lms.connection.sign_in.start` | read | POST /lms/connections:sign-in | 返回要打开的学校登录地址；`expose=("http",)`，仅 `sign_in` 为真的 provider |
 | `lms.connection.list` | read | GET /lms/connections | 凭证只返回掩码；`expose=("http",)` |
-| `lms.connection.create` | write | POST /lms/connections | 先验证再保存；`expose=("http",)` |
-| `lms.connection.update` | write | PATCH /lms/connections/{id} | 修改凭证时重新验证；`expose=("http",)` |
+| `lms.connection.create` | write | POST /lms/connections | 先验证再保存；可传 `credentials` 或 `sign_in`（粘贴的回调地址）；`expose=("http",)` |
+| `lms.connection.update` | write | PATCH /lms/connections/{id} | 修改凭证时重新验证；可传 `credentials` 或 `sign_in`；`expose=("http",)` |
 | `lms.connection.delete` | destructive | DELETE /lms/connections/{id} | 参数 `detach_all`；`expose=("http",)` |
 | `lms.connection.validate` | read | POST /lms/connections:validate | 保存前测试；`expose=("http",)` |
 | `lms.program.binding.get` / `.set` / `.clear` | read / write / write | GET/PUT/DELETE /programs/{id}/lms-binding | 规则见第 3 节 |
@@ -166,7 +168,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ## 7. 前端
 ### 7.1 设置
-- **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 令牌失效 / 缺少令牌 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；平台表单（Canvas：实例地址、访问令牌）下面一直显示获取令牌的 3 步说明（`credentialHelp` 收到当前填写的 config，第 1 步链接到 `https://<地址>/profile/settings`），最后验证并保存。手机上使用抽屉。
+- **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 凭证失效 / 缺少凭证 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；Canvas 表单：自托管开启学校登录时先选「学校账号 / API 令牌」（编辑时直接进入连接所用的方式，返回可重选）。令牌路径是一个表单：实例地址、访问令牌 + 获取令牌的 3 步说明（第 1 步链接到 `https://<地址>/profile/settings`）。学校账号路径先显示风险提示（是否使用由用户自行决定，本应用不承担后果；已有学校登录的连接重新登录时不再显示），确认后分 3 步，每步只做一件事：① 填地址，继续时取登录链接（错误显示在这一步）；② 点真实链接打开登录页（请求之后再 `window.open` 会被浏览器拦截），在学校页面完成 SSO/MFA，最后停在 `sso.canvaslms.com/canvas/login?code=…`（手机 App 才拦截这个地址，浏览器里是 404 页面，属正常，文案要说明）；③ 粘贴回调地址、填名称、保存。编辑已有的学校登录时先显示地址和名称，可直接保存，也可“重新登录”进入这 3 步。分步由 `ConfigForm` 通过 `frame(fields, step)` 声明，表单外框仍在 `ConnectionForm`。最后验证并保存。手机上使用抽屉。
 - **Program 设置 → LMS**：选择绑定的连接；已有关联时禁用更换，并说明原因和关联数量。
 - **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：已关联时显示一行（provider 图标块、外部代码与名称、学期与连接名、状态 Badge + 相对时间、"在平台中打开"图标按钮、⋯ 菜单："刷新课程信息"（即 `lms.course.link.sync`，只刷新外部课程元数据）/ 更换课程… / 解除关联…），下方是"日历与作业变化"开关（即 `sync_enabled`）；关联出错时显示 Alert，令牌/权限类错误给"打开 LMS 连接"，其余给"重试"。未关联时是一个可搜索的 Combobox，选中即关联（只认点击/回车选中，触发器上的键入联想不算），课程代码匹配的排在"建议"组，其余按学期分组，已被其它课程关联的项禁用并注明是哪门课程，底部 Checkbox"包括往期课程"；更换时当前课程禁用，选中后先确认。Program 未绑定连接时显示引导；账户里一个连接都没有时直接引导去添加连接。
 
@@ -205,7 +207,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 **后端**
 - 导入流程直接用 M08 的 session，所以 M09 在 M08（#32）之后合并。迁移号 `0013`，在 M08 的 `0012` 之后。
 - Provider 方法的第一个参数是 `io`（`providers/base.py` 的 `Io`：共享的安全出站客户端、配置、`truncated` 标记），`normalize_config` 额外接收 `settings`（判断是否允许 http 和私网地址）。Canvas 的文件下载只跟随同源或 Canvas 文件 CDN（`.instructure.com`、`.canvas-user-content.com`、`.inscloudgate.net`、`instructure-uploads.s3.amazonaws.com`）的重定向，令牌只发给同源；每一跳都检查目标地址是否公网。分页只跟随同源的 `Link: rel=next`，最多 50 页，超出时返回 `truncated: true`。
-- 凭证以 `v1:<Fernet 密文>` 存在 `credentials_encrypted`，响应里只有 `credentials_hint`（掩码）和 `has_credentials`。新增错误码 `lms.credentials_missing`（409）：数据导入后或密钥轮换后凭证无法解密时出现，界面提示重新填写。`lms.invalid_credentials` 用 400 而不是 401，避免触发前端的"会话已过期"对话框。
+- 凭证以 `v1:<Fernet 密文>` 存在 `credentials_encrypted`，响应里只有 `credentials_hint`（掩码）和 `has_credentials`。新增错误码 `lms.credentials_missing`（409）：数据导入后或密钥轮换后凭证无法解密时出现，界面提示重新填写。`lms.invalid_credentials` 用 400 而不是 401，避免触发前端的"会话已过期"对话框。自托管学校登录（`SEMESTRA_LMS_CANVAS_SIGN_IN`）把 refresh token、client_id/secret、过期时间一并加密存下；`service.fresh` 在临近过期或读路径 401 时续期，结果先放进 `app.state.lms` 的内存，提交后再短事务写回。
 - 修改连接的配置（例如地址）时必须重新填写凭证，否则返回 `lms.credentials_missing`：已保存的令牌永远不会发往新地址。令牌格式不对时返回 `lms.invalid_credentials`（reason `format`）。
 - 课程导入的 session 提交时，如果学业项目已经换绑到别的连接，课程照常创建，但不建立关联（关联必须使用当前绑定的连接）。
 - 定期任务 `lms.refresh_status`（每 6 小时）重新验证连接状态并清理过期缓存；读缓存在内存 LRU（`app.state.lms`）和表 `lms_cache` 两层，TTL 5 分钟，`refresh=true` 跳过缓存。
@@ -221,7 +223,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 **前端**
 - 账户设置"集成"组下的"LMS 连接"沿用 AI 服务商分区的列表行样式（`Item` 行 + 行内按钮），没有用表格；手机端仍是对话框，没有做抽屉。删除正在使用的连接时确认框说明会解除多少关联，确认后以 `detach_all=true` 删除。
 - 学业项目设置与课程设置的 LMS 分区都在"集成"组。更换关联课程前有确认框：旧关联的导入记录会被清除（之后不再检测这些作业的变化）。课程设置里选择外部课程按平台学期分组（当前学期在前），被其它课程关联的项灰显并写明是哪门课程。
-- 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, description?, summary?, ConfigForm, credentialHelp, isComplete }`；`description` 是选择服务商时名称下的一行说明，`summary(config)` 给出连接行上除名称外的标识，Canvas 是实例地址）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）、`grading.courseGradesBanners`（成绩页顶部提示，`LmsUpdatesBanner` 挂在这里）。
+- 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, description?, summary?, ConfigForm, isComplete }`；`description` 是选择服务商时名称下的一行说明，`summary(config)` 给出连接行上除名称外的标识，Canvas 是实例地址）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）、`grading.courseGradesBanners`（成绩页顶部提示，`LmsUpdatesBanner` 挂在这里）。
 - M08 的 `openImport` 新增两种请求：`source: 'picker'`（来源自己创建 session 的第一步，例如 LMS 课程/作业选择）和 `source: 'session'`（已有 session 直接进入审核，例如作业变更）。学期向导的来源用 M08 导出的 `wizardImportSource` 包装，所以 LMS 课程也走"向导创建课程 → 提交 session"的流程，关联在提交时创建。向导路径下课程只带课程号和名称，平台上的课程全名（alias）和网址不会写入。
 - **前端不写死 Canvas**（UIUX 第三轮）：连接列表每行显示服务商图标与名称（`useProviderName`：provider UI 的 `label`，没有前端贡献时退回后端 `lms.provider.list` 的 `display_name`）；"添加连接"对话框第一步总是选服务商（服务商列表随连接列表预取，加载中是一行 Skeleton，没有可用服务商时显示 Empty；列出后端提供、且前端有 `lms.providerUi` 贡献的服务商，目前只有 Canvas 也照样走这一步），第二步是该服务商贡献的表单，可"返回"重选，标题为"添加 {provider} 连接"；编辑时服务商固定。学业项目设置的连接下拉也带服务商图标。通用文案都从服务商名称取："从 {provider} 导入课程"、"{provider} 作业"、"{provider} 课程"、"{provider} 上没有课程/作业"、"在 {provider} 中打开"、变更提示条。学期向导与成绩页"导入"菜单里的名称依赖当前学业项目绑定的服务商，因此 M02 的 `TermWizardImportSource` 和 M03 的 `AssessmentImportSource` 新增可选 `Title` 组件（拿到 `programId`/`courseId` 后渲染）和 `query`（宿主随页面预取 `Title` 要读的数据，打开菜单时名称不再从 LMS 变成 Canvas），M08 的 `ImportPicker` 新增可选 `Title`；没有绑定或加载中时退回"从 LMS 导入课程"。命令面板的命令名称是静态字符串，仍是"从 LMS 导入课程"。
 - "从 LMS 导入课程"目前入口是学期向导和学期页的命令面板（命令 `lms.import-courses`），学期页和学业项目页上没有单独的按钮。

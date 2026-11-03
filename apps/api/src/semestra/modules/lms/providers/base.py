@@ -8,7 +8,7 @@ an `Io` (the outbound HTTP client and a place to report truncated lists).
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, ClassVar, Protocol
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
 import httpx
 from pydantic import BaseModel
@@ -157,6 +157,40 @@ class LmsProvider(Protocol):
         start: datetime,
         end: datetime,
     ) -> list[LmsCalendarEvent]: ...
+
+
+@runtime_checkable
+class SignInProvider(Protocol):
+    """Optional: connecting by signing in on the platform's own page instead of pasting a token,
+    with credentials that the module renews (`service.fresh`) and stores again."""
+
+    def sign_in_enabled(self, settings: Settings) -> bool: ...
+    async def start_sign_in(self, io: Io, cfg: BaseModel) -> str:
+        """The address to open in the user's browser."""
+        ...
+
+    async def finish_sign_in(self, io: Io, cfg: BaseModel, pasted: str, now: datetime) -> BaseModel:
+        """Credentials from what the user pasted back (the address the sign-in ended on)."""
+        ...
+
+    def credentials_stale(self, creds: BaseModel, now: datetime) -> bool: ...
+    def can_refresh(self, creds: BaseModel) -> bool: ...
+    async def refresh_credentials(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, now: datetime
+    ) -> BaseModel:
+        """Renewed credentials; `lms.invalid_credentials` once the sign-in was revoked."""
+        ...
+
+    async def revoke_credentials(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, now: datetime
+    ) -> None:
+        """Ends the sign-in, renewing expired credentials if the platform needs a live token.
+        Raises when it could not; already ended is not a failure."""
+        ...
+
+
+def sign_in_support(provider: LmsProvider) -> SignInProvider | None:
+    return provider if isinstance(provider, SignInProvider) else None
 
 
 _providers: dict[str, LmsProvider] = {}

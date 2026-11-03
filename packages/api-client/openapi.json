@@ -9614,6 +9614,56 @@
         }
       }
     },
+    "/lms/connections:sign-in": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Start connecting an LMS by signing in on the platform's own page.",
+        "description": "Returns the address to open in the user's browser; the address that page ends\non goes to lms.connection.create (or update) as `sign_in`. Only where the server allows it\n(providers with `sign_in`). Not for agents.",
+        "operationId": "lmsConnectionSignInStart",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInStartInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInStart"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/lms/connections:validate": {
       "post": {
         "tags": [
@@ -19641,13 +19691,28 @@
             "type": "object",
             "title": "Credentials",
             "description": "Provider credentials, e.g. {access_token}; stored encrypted"
+          },
+          "sign_in": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1,
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign In",
+            "description": "Instead of credentials: the address the platform's sign-in page ended on (lms.connection.sign_in.start)"
           }
         },
         "type": "object",
         "required": [
           "provider",
-          "config",
-          "credentials"
+          "config"
         ],
         "title": "ConnectionCreateInputBody"
       },
@@ -19774,6 +19839,22 @@
             ],
             "title": "Credentials",
             "description": "New credentials (checked before saving)"
+          },
+          "sign_in": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1,
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign In",
+            "description": "Instead of credentials: a new sign-in on the platform's page"
           }
         },
         "type": "object",
@@ -29529,6 +29610,12 @@
             "type": "object",
             "title": "Credentials Schema",
             "description": "JSON schema of `credentials`"
+          },
+          "sign_in": {
+            "type": "boolean",
+            "title": "Sign In",
+            "description": "Connections can be made by signing in on the platform's page (this server)",
+            "default": false
           }
         },
         "type": "object",
@@ -31336,6 +31423,42 @@
           "json_schema"
         ],
         "title": "SettingsSchemaOut"
+      },
+      "SignInStart": {
+        "properties": {
+          "authorize_url": {
+            "type": "string",
+            "title": "Authorize Url",
+            "description": "Open in the user's browser to sign in"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authorize_url"
+        ],
+        "title": "SignInStart"
+      },
+      "SignInStartInputBody": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Provider",
+            "description": "Provider kind: canvas"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Provider settings, e.g. {base_url}"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "config"
+        ],
+        "title": "SignInStartInputBody"
       },
       "SimulateCourseInputBody": {
         "properties": {

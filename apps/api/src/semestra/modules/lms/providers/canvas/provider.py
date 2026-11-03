@@ -23,6 +23,7 @@ from semestra.core.errors import AppError
 from semestra.core.http import is_public_address
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers.base import Io
+from semestra.modules.lms.providers.canvas import sign_in
 from semestra.modules.lms.providers.canvas.config import (
     API_PREFIX,
     CanvasConfig,
@@ -120,8 +121,12 @@ def _cfg(cfg: BaseModel) -> CanvasConfig:
     return cast(CanvasConfig, cfg)
 
 
+def _creds(creds: BaseModel) -> CanvasCredentials:
+    return cast(CanvasCredentials, creds)
+
+
 def _token(creds: BaseModel) -> str:
-    return cast(CanvasCredentials, creds).access_token.get_secret_value()
+    return _creds(creds).access_token.get_secret_value()
 
 
 def _text(value: Any) -> str | None:
@@ -294,7 +299,37 @@ class CanvasProvider:
         return CanvasCredentials.model_validate({"access_token": normalize_token(str(value or ""))})
 
     def mask_credentials(self, creds: BaseModel) -> dict[str, str]:
+        if sign_in.refreshable(_creds(creds)):
+            return {"method": "sign_in"}
         return {"access_token": mask_token(_token(creds))}
+
+    # --- signing in on the school's page (self-hosting, `sign_in.py`) ----------------------
+
+    def sign_in_enabled(self, settings: Settings) -> bool:
+        return settings.lms_canvas_sign_in
+
+    async def start_sign_in(self, io: Io, cfg: BaseModel) -> str:
+        client_id, _ = await sign_in.mobile_client(io, _cfg(cfg))
+        return sign_in.authorize_url(_cfg(cfg), client_id)
+
+    async def finish_sign_in(self, io: Io, cfg: BaseModel, pasted: str, now: datetime) -> BaseModel:
+        return await sign_in.exchange(io, _cfg(cfg), pasted, now)
+
+    def credentials_stale(self, creds: BaseModel, now: datetime) -> bool:
+        return sign_in.stale(_creds(creds), now)
+
+    def can_refresh(self, creds: BaseModel) -> bool:
+        return sign_in.refreshable(_creds(creds))
+
+    async def refresh_credentials(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, now: datetime
+    ) -> BaseModel:
+        return await sign_in.refresh(io, _cfg(cfg), _creds(creds), now)
+
+    async def revoke_credentials(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, now: datetime
+    ) -> None:
+        await sign_in.revoke(io, _cfg(cfg), _creds(creds), now)
 
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         base = _cfg(cfg).base_url

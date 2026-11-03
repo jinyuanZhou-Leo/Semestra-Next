@@ -33,10 +33,26 @@ class ProviderInfo(BaseModel):
     features: list[LmsFeature]
     config_schema: dict[str, Any] = Field(description="JSON schema of `config`")
     credentials_schema: dict[str, Any] = Field(description="JSON schema of `credentials`")
+    sign_in: bool = Field(
+        default=False,
+        description="Connections can be made by signing in on the platform's page (this server)",
+    )
 
 
 class ProviderList(BaseModel):
     items: list[ProviderInfo]
+
+
+class SignInStartInput(BaseModel):
+    provider: Annotated[str, Field(max_length=32)] = Field(description="Provider kind: canvas")
+    config: dict[str, Any] = Field(description="Provider settings, e.g. {base_url}")
+
+
+class SignInStart(BaseModel):
+    authorize_url: str = Field(description="Open in the user's browser to sign in")
+
+
+SignInPasted = Annotated[SecretStr, Field(min_length=1, max_length=4000)]
 
 
 # --- connections ----------------------------------------------------------------------------
@@ -75,7 +91,13 @@ class ConnectionCreateInput(BaseModel):
     )
     config: dict[str, Any] = Field(description="Provider settings, e.g. {base_url}")
     credentials: dict[str, SecretStr] = Field(
-        description="Provider credentials, e.g. {access_token}; stored encrypted"
+        default_factory=dict,
+        description="Provider credentials, e.g. {access_token}; stored encrypted",
+    )
+    sign_in: SignInPasted | None = Field(
+        default=None,
+        description="Instead of credentials: the address the platform's sign-in page ended on "
+        "(lms.connection.sign_in.start)",
     )
 
 
@@ -85,6 +107,9 @@ class ConnectionUpdateInput(BaseModel):
     config: dict[str, Any] | None = Field(default=None, description="New provider settings")
     credentials: dict[str, SecretStr] | None = Field(
         default=None, description="New credentials (checked before saving)"
+    )
+    sign_in: SignInPasted | None = Field(
+        default=None, description="Instead of credentials: a new sign-in on the platform's page"
     )
 
 

@@ -4,13 +4,13 @@ description: Link Semestra to your Canvas account, a program and its courses.
 ---
 
 Semestra connects to learning platforms through providers. Canvas is the only provider today.
-A connection reads from Canvas with your own access token; Semestra never writes to Canvas.
+A connection reads from Canvas with your own credentials; Semestra never writes to Canvas.
 
 There are three levels, each set up once:
 
 | Level      | Where                                                     | What it holds                                         |
 | ---------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| Connection | Account settings → **Integrations → LMS connections**     | Canvas address and access token. You can have several |
+| Connection | Account settings → **Integrations → LMS connections**     | Canvas address and credentials. You can have several  |
 | Program    | Program settings → **Integrations → LMS**                 | Which connection this program's courses use           |
 | Course     | Course settings → **Integrations → LMS**                  | Which Canvas course this course is linked to          |
 
@@ -40,6 +40,47 @@ saved token is never sent to a different server.
 
 Connections are re-checked every six hours. A connection whose token was revoked or expired is
 marked with an error until you update it.
+
+### Sign in with a school account
+
+Self-hosted instances that set [`SEMESTRA_LMS_CANVAS_SIGN_IN`](/docs/self-hosting/configuration#canvas)
+can connect without making a token: when you add a connection, choose **School account** instead
+of **API token**. Read the notice about the risks and continue if you accept them, then follow the
+three steps. Whether to use this is your decision, and Semestra accepts no responsibility for any
+consequences.
+
+<Steps>
+<Step>
+
+Enter your Canvas address, which must use `https://`.
+
+</Step>
+<Step>
+
+Choose **Open Canvas login**, sign in on your school's page and finish any verification. Semestra
+never sees your password.
+
+</Step>
+<Step>
+
+Canvas stops on a “Page Not Found” page at `sso.canvaslms.com`. That is expected: the address
+carries the sign-in code. Copy its full address into **Address after sign-in**
+and choose **Check and save**. The code in it lasts a few minutes, so sign in again if it has expired.
+
+</Step>
+</Steps>
+
+Semestra stores the resulting tokens encrypted and renews the access token on its own, so the
+connection lasts until the sign-in is ended. Deleting the connection or replacing its sign-in also
+tries to end the old sign-in on Canvas. If that fails, for example because Canvas can't be reached,
+remove **Semestra** yourself under _Approved integrations_ in Canvas. Removing it there makes the
+connection show an error until you sign in again.
+
+This method uses the Canvas Android app's OAuth client and identifies itself as that app. Instructure
+does not offer it for third-party apps: it may be against your school's policies or the Canvas
+terms, and it can stop working at any time. Signing in here might also sign you out of the Canvas
+app on your phone, or the other way round. Canvas sites that the mobile apps don't know, such as
+many on-premises ones, can't use it. If you are unsure, use a personal access token.
 
 ## 2. Bind a program
 

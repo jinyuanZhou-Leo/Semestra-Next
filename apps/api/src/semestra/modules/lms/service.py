@@ -15,8 +15,10 @@ from typing import Any
 import structlog
 from cryptography.fernet import InvalidToken
 from pydantic import BaseModel, SecretStr
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
+from starlette.datastructures import State
 
+from semestra.core.config import Settings
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
@@ -31,7 +33,14 @@ from semestra.modules.lms.models import (
     LmsImportedRef,
     LmsProgramBinding,
 )
-from semestra.modules.lms.providers import Io, LmsProvider, all_providers, get_provider
+from semestra.modules.lms.providers import (
+    Io,
+    LmsProvider,
+    SignInProvider,
+    all_providers,
+    get_provider,
+    sign_in_support,
+)
 from semestra.modules.lms.schemas.dto import (
     INTERNAL,
     WRITE_FEATURES,
@@ -53,6 +62,8 @@ from semestra.modules.lms.schemas.io import (
     LinkSetInput,
     ProgramBinding,
     ProviderInfo,
+    SignInStart,
+    SignInStartInput,
 )
 from semestra.modules.lms.settings import writes_allowed
 
@@ -65,7 +76,7 @@ CREDENTIALS_VERSION = "v1"
 # --- providers ------------------------------------------------------------------------------
 
 
-def providers() -> list[ProviderInfo]:
+def providers(settings: Settings) -> list[ProviderInfo]:
     return [
         ProviderInfo(
             kind=p.kind,
@@ -73,9 +84,30 @@ def providers() -> list[ProviderInfo]:
             features=sorted(p.features),
             config_schema=p.config_model.model_json_schema(),
             credentials_schema=p.credentials_model.model_json_schema(),
+            sign_in=_sign_in_enabled(p, settings),
         )
         for p in all_providers()
     ]
+
+
+def _sign_in_enabled(provider: LmsProvider, settings: Settings) -> bool:
+    support = sign_in_support(provider)
+    return support is not None and support.sign_in_enabled(settings)
+
+
+def _sign_in(ctx: Ctx, provider: LmsProvider) -> SignInProvider:
+    support = sign_in_support(provider)
+    if support is None or not support.sign_in_enabled(ctx.settings):
+        raise lms_error("lms.sign_in_disabled")
+    return support
+
+
+async def start_sign_in(ctx: Ctx, inp: SignInStartInput) -> SignInStart:
+    provider = get_provider(inp.provider)
+    support = _sign_in(ctx, provider)
+    cfg = provider.normalize_config(inp.config, ctx.settings)
+    async with io(ctx) as i:
+        return SignInStart(authorize_url=await support.start_sign_in(i, cfg))
 
 
 # --- credentials ----------------------------------------------------------------------------
@@ -85,11 +117,27 @@ def _plain(raw: dict[str, SecretStr] | None) -> dict[str, Any]:
     return {k: v.get_secret_value() for k, v in (raw or {}).items()}
 
 
+async def _new_credentials(
+    ctx: Ctx,
+    provider: LmsProvider,
+    cfg: BaseModel,
+    credentials: dict[str, SecretStr] | None,
+    pasted: SecretStr | None,
+) -> BaseModel:
+    """What the form sent: pasted credentials, or the address a sign-in ended on."""
+    if pasted is None:
+        return provider.normalize_credentials(_plain(credentials))
+    support = _sign_in(ctx, provider)
+    async with io(ctx) as i:
+        return await support.finish_sign_in(i, cfg, pasted.get_secret_value(), ctx.now)
+
+
 def _seal(ctx: Ctx, creds: BaseModel) -> str:
     dumped = {
         k: v.get_secret_value() if isinstance(v, SecretStr) else v for k, v in dict(creds).items()
     }
-    return f"{CREDENTIALS_VERSION}:{encrypt(ctx.settings, json.dumps(dumped))}"
+    plain = json.dumps(dumped, default=lambda v: v.isoformat())  # datetimes (expiry)
+    return f"{CREDENTIALS_VERSION}:{encrypt(ctx.settings, plain)}"
 
 
 def _open(ctx: Ctx, provider: LmsProvider, row: LmsConnection) -> BaseModel:
@@ -203,7 +251,7 @@ async def _check(
 async def create_connection(ctx: Ctx, inp: ConnectionCreateInput) -> Connection:
     provider = get_provider(inp.provider)
     cfg = provider.normalize_config(inp.config, ctx.settings)
-    creds = provider.normalize_credentials(_plain(inp.credentials))
+    creds = await _new_credentials(ctx, provider, cfg, inp.credentials, inp.sign_in)
     summary = await _check(ctx, provider, cfg, creds)
     row = LmsConnection(
         user_id=ctx.user_id,
@@ -239,8 +287,8 @@ async def update_connection(ctx: Ctx, inp: ConnectionUpdateInput) -> Connection:
         new_cfg = provider.normalize_config(inp.config, ctx.settings)
         changed |= new_cfg != cfg
         cfg = new_cfg
-    if "credentials" in sent and inp.credentials is not None:
-        creds = provider.normalize_credentials(_plain(inp.credentials))
+    if inp.sign_in is not None or ("credentials" in sent and inp.credentials is not None):
+        creds = await _new_credentials(ctx, provider, cfg, inp.credentials, inp.sign_in)
         changed = True
     elif changed:
         # The saved credentials never go to a new address: a typo would hand them to that host.
@@ -249,6 +297,7 @@ async def update_connection(ctx: Ctx, inp: ConnectionUpdateInput) -> Connection:
         creds = None
     if changed and creds is not None:
         summary = await _check(ctx, provider, cfg, creds)
+        _revoke_later(ctx, provider, row)
         row.config_json = cfg.model_dump(mode="json")
         row.credentials_encrypted = _seal(ctx, creds)
         row.credentials_hint_json = provider.mask_credentials(creds)
@@ -286,6 +335,7 @@ async def delete_connection(ctx: Ctx, connection_id: str, detach_all: bool) -> C
         await _remove_link(ctx, link)
     await ctx.db.execute(delete(LmsProgramBinding).where(LmsProgramBinding.connection_id == row.id))
     await cache.drop_connection(ctx, row.id)
+    _revoke_later(ctx, get_provider(row.provider), row)
     await ctx.db.delete(row)
     await ctx.db.flush()
     await events.publish(ctx, "lms.connection.deleted", {"connection_id": connection_id})
@@ -309,11 +359,11 @@ async def validate(ctx: Ctx, inp: ConnectionValidateInput) -> ConnectionCheck:
         )
         if inp.credentials is not None:
             creds = provider.normalize_credentials(_plain(inp.credentials))
+            summary = await _check(ctx, provider, cfg, creds)
         elif row is not None and cfg == _config(provider, row):
-            creds = _open(ctx, provider, row)
+            summary = await _check_saved(ctx, await bound(ctx, row))
         else:
             raise lms_error("lms.credentials_missing")
-        summary = await _check(ctx, provider, cfg, creds)
     except AppError as exc:
         if row is not None and inp.config is None and inp.credentials is None:
             await _record(ctx, row, exc.code)
@@ -377,8 +427,7 @@ async def refresh_all(ctx: Ctx) -> None:
         if not row.credentials_encrypted:
             continue
         try:
-            provider = get_provider(row.provider)
-            await _check(ctx, provider, _config(provider, row), _open(ctx, provider, row))
+            await _check_saved(ctx, await bound(ctx, row))
         except AppError as exc:
             await _record(ctx, row, exc.code)
         except Exception:
@@ -409,7 +458,108 @@ class Bound:
 
 async def bound(ctx: Ctx, row: LmsConnection) -> Bound:
     provider = get_provider(row.provider)
-    return Bound(row, provider, _config(provider, row), _open(ctx, provider, row))
+    renewed = cache.runtime(ctx.state).renewed(row.id, row.credentials_encrypted)
+    creds = renewed if renewed is not None else _open(ctx, provider, row)
+    return Bound(row, provider, _config(provider, row), creds)
+
+
+async def fresh(ctx: Ctx, b: Bound, *, force: bool = False) -> bool:
+    """Renews signed-in credentials that are about to expire (or, with `force`, ones the
+    platform just refused); True when `b.creds` changed. Renewed credentials are used at once,
+    kept in memory and stored once the request commits, in a short transaction of their own:
+    reads never write in the request's transaction (see `cache.py`). Once the server turns the
+    sign-in off nothing renews, so these connections fail when their access token expires."""
+    support = sign_in_support(b.provider)
+    if support is None or not support.sign_in_enabled(ctx.settings):
+        return False
+    if not support.can_refresh(b.creds):
+        return False
+    if not force and not support.credentials_stale(b.creds, ctx.now):
+        return False
+    rt = cache.runtime(ctx.state)
+    sealed = b.row.credentials_encrypted
+    async with rt.renewal_lock(b.row.id):
+        # Another request may have renewed them while this one waited.
+        latest = rt.renewed(b.row.id, sealed)
+        if latest is not None and latest != b.creds:
+            b.creds = latest
+            return True
+        async with io(ctx) as i:
+            b.creds = await support.refresh_credentials(i, b.cfg, b.creds, ctx.now)
+        rt.renew(b.row.id, sealed, b.creds)
+    ctx.after_commit.append(_StoreRenewed(ctx.state, b.row.id, sealed, _seal(ctx, b.creds)))
+    return True
+
+
+async def _with_fresh[T](ctx: Ctx, b: Bound, run: Callable[[], Awaitable[T]]) -> T:
+    """`run` with renewed credentials, once more after renewing them if the platform refused
+    them (revoked meanwhile, or the server's clock is off)."""
+    await fresh(ctx, b)
+    try:
+        return await run()
+    except AppError as exc:
+        if exc.code != "lms.invalid_credentials" or not await fresh(ctx, b, force=True):
+            raise
+    return await run()
+
+
+async def _check_saved(ctx: Ctx, b: Bound) -> ConnectionSummary:
+    return await _with_fresh(ctx, b, lambda: _check(ctx, b.provider, b.cfg, b.creds))
+
+
+class _StoreRenewed:
+    """Writes renewed credentials after the request commits (an `after_commit` callback),
+    unless the user replaced the credentials meanwhile."""
+
+    def __init__(self, state: State, connection_id: str, replaces: str | None, sealed: str):
+        self.state, self.connection_id = state, connection_id
+        self.replaces, self.sealed = replaces, sealed
+
+    async def __call__(self) -> None:
+        try:
+            async with system_ctx(self.state) as sys:
+                await sys.db.execute(
+                    update(LmsConnection)
+                    .where(
+                        LmsConnection.id == self.connection_id,
+                        LmsConnection.credentials_encrypted == self.replaces,
+                    )
+                    .values(credentials_encrypted=self.sealed)
+                )
+                await sys.db.commit()
+        except Exception:
+            # Memory still has them; the next renewal stores them again.
+            log.warning("lms_credentials_store_failed", exc_info=True)
+
+
+def _revoke_later(ctx: Ctx, provider: LmsProvider, row: LmsConnection) -> None:
+    """Ends a sign-in on the platform once the connection dropping it is committed: the user
+    no longer sees it listed under the platform's approved integrations. Best effort, so a
+    failure is only logged."""
+    support = sign_in_support(provider)
+    if support is None or not row.credentials_encrypted:
+        return
+    try:
+        renewed = cache.runtime(ctx.state).renewed(row.id, row.credentials_encrypted)
+        creds = renewed if renewed is not None else _open(ctx, provider, row)
+        cfg = _config(provider, row)
+    except AppError:
+        return
+    if not support.can_refresh(creds):
+        return
+    settings, now = ctx.settings, ctx.now
+
+    async def revoke() -> None:
+        try:
+            async with safe_client(settings) as client:
+                io_ = Io(client=client, settings=settings)
+                await support.revoke_credentials(io_, cfg, creds, now)
+        except AppError as exc:
+            log.warning("lms_sign_in_revoke_failed", error=exc.code, params=exc.params)
+        except Exception:
+            log.warning("lms_sign_in_revoke_failed", exc_info=True)
+
+    ctx.after_commit.append(revoke)
 
 
 def require_feature(b: Bound, feature: LmsFeature) -> None:
@@ -426,16 +576,26 @@ async def require_write(ctx: Ctx, b: Bound, feature: LmsFeature) -> None:
     require_feature(b, feature)
 
 
-async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple[T, bool]:
-    """Runs one provider call; returns its result and whether a list was truncated."""
+async def attempt[T](ctx: Ctx, b: Bound, run: Callable[[], Awaitable[T]]) -> T:
+    """One read from the platform: `run` with renewed credentials, marking the connection if the
+    failure says it is broken. `run` reads `b.creds` itself, because a retry changes them."""
     try:
-        async with io(ctx) as i:
-            result = await fn(i)
-            return result, i.truncated
+        return await _with_fresh(ctx, b, run)
     except AppError as exc:
         if exc.code in BROKEN_ON_READ:
             await _record_failure(ctx, b.row.id, exc.code)
         raise
+
+
+async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple[T, bool]:
+    """Runs one provider call; returns its result and whether a list was truncated."""
+
+    async def run() -> tuple[T, bool]:
+        async with io(ctx) as i:
+            result = await fn(i)
+            return result, i.truncated
+
+    return await attempt(ctx, b, run)
 
 
 class NotCached(Exception):

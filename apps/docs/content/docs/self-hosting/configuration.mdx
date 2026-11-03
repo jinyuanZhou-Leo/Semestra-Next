@@ -52,6 +52,20 @@ With `false`, requests to user-chosen hosts are refused when the host resolves t
 loopback or link-local address: AI base URLs with `common.egress_blocked`, Canvas addresses with
 `lms.blocked_address`. Every redirect target Canvas sends goes through the same check.
 
+## Canvas
+
+| Variable                      | Default (self-hosted) | Meaning                                                                                                     |
+| ----------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `SEMESTRA_LMS_CANVAS_SIGN_IN` | `false`               | Lets users [connect Canvas with their school account](/docs/lms#sign-in-with-a-school-account) over https |
+
+This option uses the OAuth client and User-Agent of the Canvas Android app, which Instructure did
+not issue to Semestra. Your school's policies or the Canvas terms may not allow that, and it can
+stop working at any time. Check before you turn it on; the risk is yours. Personal access tokens
+work with or without it.
+
+Turning it off stops renewing existing school sign-ins. Those connections show invalid credentials
+once their access token expires, within about an hour, until the user adds a personal access token.
+
 ## AI
 
 | Variable                               | Default | Meaning                                                    |
