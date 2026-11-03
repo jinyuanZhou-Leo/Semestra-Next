@@ -1,12 +1,20 @@
+import { lmsConnectionSignInStartMutation } from '@semestra/api-client/react-query'
+import { useMutation } from '@tanstack/react-query'
 import canvasLogo from 'simple-icons/icons/canvas.svg?url'
-import { ArrowUpRight } from 'lucide-react'
-import { useId } from 'react'
+import { ArrowUpRight, ChevronRight, ExternalLink, GraduationCap, KeyRound } from 'lucide-react'
+import { useId, useState, type ReactNode } from 'react'
 import { BrandLogo } from '@/components/BrandLogo'
+import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { Field, FieldDescription, FieldLabel } from '@/ui/field'
+import { Button } from '@/ui/button'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemContent, ItemTitle } from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import type { LmsConfigFormProps, LmsProviderUi } from '../types'
+
+type Method = 'sign_in' | 'token'
+/** The school sign-in, one thing at a time; `saved` is an existing sign-in that can just stay. */
+type SignInStep = 'saved' | 'address' | 'login' | 'paste'
 
 function CanvasLogo({ className }: { className?: string }) {
   return <BrandLogo src={canvasLogo} className={className} />
@@ -23,45 +31,257 @@ function canvasHost(value: string | undefined): string | null {
   }
 }
 
-/** Canvas: the school's Canvas address and a personal access token (M09 §2.3). */
+/** Null asks first. A saved connection opens on the method it uses. */
+function defaultMethod(
+  signInEnabled: boolean,
+  editing: boolean,
+  hints: Record<string, string>,
+): Method | null {
+  if (!signInEnabled) return 'token'
+  if (!editing) return null
+  return hints.method === 'sign_in' ? 'sign_in' : 'token'
+}
+
+function MethodOption({
+  icon,
+  title,
+  description,
+  onPick,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  onPick: () => void
+}) {
+  return (
+    <Item
+      variant="outline"
+      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Item's children label it
+      render={<button type="button" />}
+      className="text-left"
+      onClick={onPick}
+    >
+      <ItemMedia variant="icon">{icon}</ItemMedia>
+      <ItemContent>
+        <ItemTitle>{title}</ItemTitle>
+        <ItemDescription>{description}</ItemDescription>
+      </ItemContent>
+      <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+    </Item>
+  )
+}
+
+function StepHeading({ step, title }: { step: number; title: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">
+        {m.lms_canvas_sign_in_step({ current: step, total: 3 })}
+      </p>
+      <p className="font-medium">{title}</p>
+    </div>
+  )
+}
+
+/**
+ * Canvas: where the server allows both, first how to connect. A personal token is one form; the
+ * school sign-in is a few steps, because each happens somewhere else (M09 §7.1).
+ */
 function CanvasForm({
   config,
   credentials,
   onConfig,
   onCredentials,
+  signIn,
+  onSignIn,
+  signInEnabled,
   editing,
   hints,
+  kind,
+  frame,
 }: LmsConfigFormProps) {
   const id = useId()
-  return (
+  // Undefined until the user picks: the default follows the provider list once it has loaded.
+  const [picked, setPicked] = useState<Method | null>()
+  const method = picked !== undefined ? picked : defaultMethod(signInEnabled, editing, hints)
+  const savedSignIn = editing && hints.method === 'sign_in'
+  const [step, setStep] = useState<SignInStep>(savedSignIn ? 'saved' : 'address')
+  const start = useMutation(lmsConnectionSignInStartMutation())
+  const address = config.base_url?.trim() ?? ''
+  // A real link, opened by the user's own click: browsers block a tab opened after a request.
+  const loginUrl = start.data?.authorize_url
+
+  const toMethods = () => setPicked(null)
+  const pick = (next: Method) => {
+    setPicked(next)
+    if (next === 'token') onSignIn('')
+    else onCredentials({})
+    start.reset()
+  }
+
+  const addressField = (onEnter?: () => void) => (
+    <Field>
+      <FieldLabel htmlFor={`${id}-url`}>{m.lms_canvas_base_url()}</FieldLabel>
+      <Input
+        id={`${id}-url`}
+        inputMode="url"
+        spellCheck={false}
+        autoComplete="off"
+        placeholder="canvas.example.edu"
+        value={config.base_url ?? ''}
+        onChange={(e) => {
+          onConfig({ ...config, base_url: e.target.value })
+          // What came from the old address is no use for the new one.
+          onSignIn('')
+          start.reset()
+        }}
+        onKeyDown={(e) => {
+          if (!onEnter || e.key !== 'Enter') return
+          e.preventDefault()
+          onEnter()
+        }}
+      />
+    </Field>
+  )
+
+  if (method === null) {
+    return frame(
+      <ItemGroup className="gap-2" aria-label={m.lms_canvas_method()}>
+        <MethodOption
+          icon={<GraduationCap aria-hidden className="size-5" />}
+          title={m.lms_canvas_method_sign_in()}
+          description={m.lms_canvas_method_sign_in_description()}
+          onPick={() => pick('sign_in')}
+        />
+        <MethodOption
+          icon={<KeyRound aria-hidden className="size-5" />}
+          title={m.lms_canvas_method_token()}
+          description={m.lms_canvas_method_token_description()}
+          onPick={() => pick('token')}
+        />
+      </ItemGroup>,
+      { noAction: true },
+    )
+  }
+
+  if (method === 'token') {
+    return frame(
+      <>
+        {addressField()}
+        <Field>
+          <FieldLabel htmlFor={`${id}-token`}>
+            {editing ? m.lms_canvas_new_token() : m.lms_canvas_token()}
+          </FieldLabel>
+          <Input
+            id={`${id}-token`}
+            type="password"
+            autoComplete="off"
+            placeholder={editing ? hints.access_token : undefined}
+            value={credentials.access_token ?? ''}
+            onChange={(e) => onCredentials({ ...credentials, access_token: e.target.value })}
+          />
+          {editing ? <FieldDescription>{m.lms_canvas_token_keep()}</FieldDescription> : null}
+        </Field>
+        <CanvasHelp config={config} />
+      </>,
+      signInEnabled ? { back: toMethods } : undefined,
+    )
+  }
+
+  if (step === 'saved') {
+    return frame(
+      <>
+        {addressField()}
+        <Field>
+          <FieldDescription>{m.lms_canvas_sign_in_keep()}</FieldDescription>
+          <div>
+            <Button type="button" variant="outline" onClick={() => setStep('address')}>
+              {m.lms_canvas_sign_in_again()}
+            </Button>
+          </div>
+        </Field>
+      </>,
+      { back: toMethods },
+    )
+  }
+
+  if (step === 'address') {
+    const getLink = () => {
+      if (!address || start.isPending) return
+      start.mutate(
+        { body: { provider: kind, config: { base_url: address } } },
+        { onSuccess: () => setStep('login') },
+      )
+    }
+    return frame(
+      <>
+        <StepHeading step={1} title={m.lms_canvas_sign_in_step_address()} />
+        {addressField(getLink)}
+        {start.error ? <FieldError>{errorMessage(start.error)}</FieldError> : null}
+      </>,
+      {
+        back: savedSignIn ? () => setStep('saved') : toMethods,
+        next: {
+          label: start.isPending
+            ? m.lms_canvas_sign_in_preparing()
+            : m.lms_canvas_sign_in_continue(),
+          disabled: !address || start.isPending,
+          onClick: getLink,
+        },
+      },
+    )
+  }
+
+  if (step === 'login') {
+    return frame(
+      <>
+        <StepHeading step={2} title={m.lms_canvas_sign_in_step_login()} />
+        <p className="text-muted-foreground">{m.lms_canvas_sign_in_step_login_description()}</p>
+        <div>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={
+              <a
+                href={loginUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={m.lms_canvas_sign_in_open()}
+              />
+            }
+          >
+            <ExternalLink aria-hidden />
+            {m.lms_canvas_sign_in_open()}
+          </Button>
+        </div>
+      </>,
+      {
+        back: () => setStep('address'),
+        next: {
+          label: m.lms_canvas_sign_in_continue(),
+          disabled: false,
+          onClick: () => setStep('paste'),
+        },
+      },
+    )
+  }
+
+  return frame(
     <>
+      <StepHeading step={3} title={m.lms_canvas_sign_in_step_paste()} />
       <Field>
-        <FieldLabel htmlFor={`${id}-url`}>{m.lms_canvas_base_url()}</FieldLabel>
+        <FieldLabel htmlFor={`${id}-callback`}>{m.lms_canvas_sign_in_paste()}</FieldLabel>
         <Input
-          id={`${id}-url`}
-          inputMode="url"
+          id={`${id}-callback`}
           spellCheck={false}
           autoComplete="off"
-          placeholder="canvas.example.edu"
-          value={config.base_url ?? ''}
-          onChange={(e) => onConfig({ ...config, base_url: e.target.value })}
+          placeholder="https://sso.canvaslms.com/canvas/login?code=…"
+          value={signIn}
+          onChange={(e) => onSignIn(e.target.value)}
         />
+        <FieldDescription>{m.lms_canvas_sign_in_paste_hint()}</FieldDescription>
       </Field>
-      <Field>
-        <FieldLabel htmlFor={`${id}-token`}>
-          {editing ? m.lms_canvas_new_token() : m.lms_canvas_token()}
-        </FieldLabel>
-        <Input
-          id={`${id}-token`}
-          type="password"
-          autoComplete="off"
-          placeholder={editing ? hints.access_token : undefined}
-          value={credentials.access_token ?? ''}
-          onChange={(e) => onCredentials({ ...credentials, access_token: e.target.value })}
-        />
-        {editing ? <FieldDescription>{m.lms_canvas_token_keep()}</FieldDescription> : null}
-      </Field>
-    </>
+    </>,
+    { back: () => setStep('login'), saveDisabled: !signIn.trim() },
   )
 }
 
@@ -106,10 +326,12 @@ export const canvasUi: LmsProviderUi = {
       ? config.base_url.replace(/^https?:\/\//, '')
       : null,
   ConfigForm: CanvasForm,
-  credentialHelp: CanvasHelp,
-  isComplete: ({ config, credentials }, saved) => {
+  isComplete: ({ config, credentials, signIn }, saved) => {
     const url = config.base_url?.trim() ?? ''
+    if (!url) return false
     const sameAddress = saved !== null && url === (saved.base_url ?? '')
-    return url !== '' && (sameAddress || Boolean(credentials.access_token?.trim()))
+    if (signIn.trim()) return true
+    if (sameAddress) return true
+    return Boolean(credentials.access_token?.trim())
   },
 }

@@ -31,6 +31,7 @@ const PROVIDERS = {
       features: ['courses', 'assignments'],
       config_schema: {},
       credentials_schema: {},
+      sign_in: false,
     },
   ],
 }
@@ -120,7 +121,9 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   ).toHaveAttribute('href', 'https://q.utoronto.ca/profile/settings')
   await userEvent.type(within(dialog).getByLabelText('API token'), 'wrong-token')
   await userEvent.click(save)
-  expect(await within(dialog).findByText("The API token isn't valid")).toBeInTheDocument()
+  expect(
+    await within(dialog).findByText("The platform credentials aren't valid"),
+  ).toBeInTheDocument()
 
   await userEvent.clear(within(dialog).getByLabelText('API token'))
   await userEvent.type(within(dialog).getByLabelText('API token'), '7~abcdefghxy')
@@ -135,6 +138,53 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   expect(await screen.findByText('U of T Quercus')).toBeInTheDocument()
   expect(screen.getByText(/Canvas · q\.utoronto\.ca/)).toBeInTheDocument()
   expect(screen.queryByText(/abcdefgh/)).toBeNull()
+})
+
+test('school-page sign-in links to Canvas and pastes the callback address', async () => {
+  const created = vi.fn<(body: unknown) => void>()
+  let saved: Connection[] = []
+  server.use(
+    http.get(`${API}/lms/providers`, () =>
+      HttpResponse.json({ items: [{ ...PROVIDERS.items[0], sign_in: true }] }),
+    ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: saved })),
+    http.post(`${API}/lms/connections:sign-in`, async ({ request }) => {
+      const body = (await request.json()) as { config: { base_url: string } }
+      expect(body.config.base_url).toBe('q.utoronto.ca')
+      return HttpResponse.json({
+        authorize_url: 'https://q.utoronto.ca/login/oauth2/auth?client_id=1',
+      })
+    }),
+    http.post(`${API}/lms/connections`, async ({ request }) => {
+      const body = await request.json()
+      created(body)
+      saved = [connection({ credentials_hint: { method: 'sign_in' } })]
+      return HttpResponse.json(saved[0])
+    }),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: /School account/ }))
+  await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  const login = await within(dialog).findByRole('button', { name: 'Open Canvas login' })
+  expect(login).toHaveAttribute('href', 'https://q.utoronto.ca/login/oauth2/auth?client_id=1')
+  expect(login).toHaveAttribute('target', '_blank')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  expect(within(dialog).getByRole('button', { name: 'Check and save' })).toBeDisabled()
+  await userEvent.type(
+    within(dialog).getByLabelText('Address after sign-in'),
+    'https://sso.canvaslms.com/canvas/login?code=abc',
+  )
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(created).toHaveBeenCalledWith({
+    provider: 'canvas',
+    display_name: null,
+    config: { base_url: 'q.utoronto.ca' },
+    sign_in: 'https://sso.canvaslms.com/canvas/login?code=abc',
+  })
 })
 
 test('platforms the frontend has no form for are not offered', async () => {

@@ -1,6 +1,7 @@
 """Canvas configuration and credentials (M09 §2.3), with the old app's base URL rules."""
 
 import re
+from datetime import datetime
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr
@@ -19,6 +20,12 @@ class CanvasConfig(BaseModel):
 
 class CanvasCredentials(BaseModel):
     access_token: SecretStr = Field(description="Canvas access token (Account → Settings)")
+    # Set when the user signed in on the school's login page (`sign_in.py`) instead of pasting a
+    # token: the access token then lasts an hour and is renewed with the refresh token.
+    refresh_token: SecretStr | None = None
+    client_id: str | None = None
+    client_secret: SecretStr | None = None
+    expires_at: datetime | None = None
 
 
 def normalize_base_url(raw: str, settings: Settings) -> str:

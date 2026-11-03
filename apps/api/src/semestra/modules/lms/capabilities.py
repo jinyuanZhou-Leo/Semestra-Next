@@ -56,6 +56,8 @@ from semestra.modules.lms.schemas.io import (
     QuizList,
     QuizzesInput,
     SavedFile,
+    SignInStart,
+    SignInStartInput,
     SubmissionInput,
     TermAnnouncementList,
     TermAnnouncementsInput,
@@ -91,7 +93,22 @@ _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LI
     agent_output_fields=("items.kind", "items.display_name", "items.features"),
 )
 async def providers_list(ctx: Ctx, inp: NoInput) -> ProviderList:
-    return ProviderList(items=service.providers())
+    return ProviderList(items=service.providers(ctx.settings))
+
+
+@capability(
+    name="lms.connection.sign_in.start",
+    summary="Start connecting an LMS by signing in on the platform's own page.",
+    description="""Returns the address to open in the user's browser; the address that page ends
+on goes to lms.connection.create (or update) as `sign_in`. Only where the server allows it
+(providers with `sign_in`). Not for agents.""",
+    effect="read",
+    http=Http("POST", "/lms/connections:sign-in"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def connection_sign_in_start(ctx: Ctx, inp: SignInStartInput) -> SignInStart:
+    return await service.start_sign_in(ctx, inp)
 
 
 @capability(

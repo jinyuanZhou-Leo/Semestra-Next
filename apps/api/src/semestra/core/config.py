@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     ai_warm_up: bool = True
     # Outbound requests to user-chosen hosts may reach private networks (self-hosting only).
     allow_private_egress: bool = False
+    # Self-hosting only: connect Canvas by signing in on the school's own login page, through
+    # the Canvas mobile app's OAuth client, for a refresh token that does not expire (M09 §2.3).
+    lms_canvas_sign_in: bool = False
 
     storage_backend: Literal["local"] = "local"
     storage_local_root: Path = Path("./data/storage")

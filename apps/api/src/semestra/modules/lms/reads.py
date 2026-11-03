@@ -400,6 +400,7 @@ async def open_file(
     from semestra.core.http import safe_client
     from semestra.modules.lms.providers import Io
 
+    await service.fresh(ctx, b)
     client = safe_client(ctx.settings)
     stream = b.provider.open_file(
         Io(client=client, settings=ctx.settings), b.cfg, b.creds, ext, meta
