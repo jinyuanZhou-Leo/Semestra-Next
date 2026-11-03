@@ -218,14 +218,14 @@ function CanvasForm({
 
   if (step === 'notice') {
     return frame(
-      <>
-        <Alert>
-          <TriangleAlert aria-hidden />
-          <AlertTitle>{m.lms_canvas_sign_in_notice_title()}</AlertTitle>
-          <AlertDescription>{m.lms_canvas_sign_in_notice_description()}</AlertDescription>
-        </Alert>
-        <p className="font-medium">{m.lms_canvas_sign_in_notice_responsibility()}</p>
-      </>,
+      <Alert variant="destructive">
+        <TriangleAlert aria-hidden />
+        <AlertTitle>{m.lms_canvas_sign_in_notice_title()}</AlertTitle>
+        <AlertDescription>
+          <p>{m.lms_canvas_sign_in_notice_description()}</p>
+          <p className="mt-2 font-medium">{m.lms_canvas_sign_in_notice_responsibility()}</p>
+        </AlertDescription>
+      </Alert>,
       {
         back: toMethods,
         next: {
