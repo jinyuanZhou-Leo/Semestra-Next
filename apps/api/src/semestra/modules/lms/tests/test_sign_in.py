@@ -1,6 +1,8 @@
 """Canvas school-page sign-in (self-hosting): mobile_verify, code paste, refresh (M09 §2.3)."""
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import respx
@@ -11,12 +13,13 @@ from semestra.core.config import Settings
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
-from semestra.modules.lms import service
-from semestra.modules.lms.models import LmsConnection
+from semestra.modules.lms import reads, service
+from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.providers import Io
 from semestra.modules.lms.providers.canvas import CanvasProvider
 from semestra.modules.lms.providers.canvas import sign_in as canvas_sign_in
 from semestra.modules.lms.providers.canvas.config import CanvasConfig, CanvasCredentials
+from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.tests.conftest import CANVAS, TOKEN, Api, canvas_api
 
 MOBILE = "https://sso.canvaslms.com/api/v1/mobile_verify.json"
@@ -209,8 +212,8 @@ async def test_sign_in_needs_https(api: Api, settings: Settings, monkeypatch: py
     assert err["error"]["code"] == "lms.sign_in_https_required"
 
 
-async def _saved_sign_in(api: Api, app) -> str:
-    """A saved sign-in whose access token is about to expire."""
+async def _saved_sign_in(api: Api, app, expires_in: timedelta = timedelta(minutes=1)) -> str:
+    """A saved sign-in; by default its access token is about to expire."""
     me = await api.call("GET", "/account/me")
     async with system_ctx(app.state, me["id"]) as ctx:
         p = CanvasProvider()
@@ -227,7 +230,7 @@ async def _saved_sign_in(api: Api, app) -> str:
                     refresh_token=SecretStr("refresh-keep"),
                     client_id=CLIENT_ID,
                     client_secret=SecretStr(CLIENT_SECRET),
-                    expires_at=ctx.now + timedelta(minutes=1),
+                    expires_at=ctx.now + expires_in,
                 ),
             ),
             credentials_hint_json={"method": "sign_in"},
@@ -298,6 +301,53 @@ async def test_new_sign_in_revokes_the_old_one(
     )
 
     assert revoked.called
+
+
+async def test_turning_sign_in_off_stops_renewals(api: Api, app, mock: respx.MockRouter):
+    renewal = mock.post(f"{CANVAS}/login/oauth2/token").mock(return_value=Response(400))
+    mock.get(f"{CANVAS}/api/v1/users/self/profile").mock(
+        return_value=Response(401, headers={"WWW-Authenticate": 'Bearer realm="canvas-lms"'})
+    )
+    connection_id = await _saved_sign_in(api, app)
+
+    check = await api.call(
+        "POST", "/lms/connections:validate", json={"connection_id": connection_id}
+    )
+
+    assert check["ok"] is False
+    assert check["error_code"] == "lms.invalid_credentials"
+    assert not renewal.called
+
+
+async def test_opening_a_file_renews_a_refused_token(
+    api: Api, app, mock: respx.MockRouter, settings: Settings, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "lms_canvas_sign_in", True)
+    mock.post(f"{CANVAS}/login/oauth2/token").mock(
+        return_value=Response(200, json={"access_token": "new-access", "expires_in": 3600})
+    )
+    download = mock.get(f"{CANVAS}/files/1/download").mock(
+        side_effect=[
+            Response(401, headers={"WWW-Authenticate": 'Bearer realm="canvas-lms"'}),
+            Response(200, content=b"hello"),
+        ]
+    )
+    connection_id = await _saved_sign_in(api, app, expires_in=timedelta(hours=1))
+    me = await api.call("GET", "/account/me")
+
+    async with system_ctx(app.state, me["id"]) as ctx:
+        row = await ctx.db.get_one(LmsConnection, connection_id)
+        link = SimpleNamespace(external_course_id="101")
+        _, chunks = await reads.open_file(
+            ctx,
+            "course",
+            "1",
+            meta=FileMeta(external_id="1", name="a.pdf", download_url=f"{CANVAS}/files/1/download"),
+            linked=(cast(LmsCourseLink, link), await service.bound(ctx, row)),
+        )
+        assert b"".join([chunk async for chunk in chunks]) == b"hello"
+
+    assert download.calls[-1].request.headers["Authorization"] == "Bearer new-access"
 
 
 async def test_fresh_renews_stale_credentials(

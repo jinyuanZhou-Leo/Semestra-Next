@@ -400,15 +400,19 @@ async def open_file(
     from semestra.core.http import safe_client
     from semestra.modules.lms.providers import Io
 
-    await service.fresh(ctx, b)
     client = safe_client(ctx.settings)
-    stream = b.provider.open_file(
-        Io(client=client, settings=ctx.settings), b.cfg, b.creds, ext, meta
-    )
+
+    async def begin() -> tuple[AsyncIterator[bytes], bytes]:
+        opened = b.provider.open_file(
+            Io(client=client, settings=ctx.settings), b.cfg, b.creds, ext, meta
+        )
+        try:
+            return opened, await anext(opened)
+        except StopAsyncIteration:
+            return opened, b""
+
     try:
-        first = await anext(stream)
-    except StopAsyncIteration:
-        first = b""
+        stream, first = await service.attempt(ctx, b, begin)
     except BaseException:
         await client.aclose()
         raise

@@ -467,9 +467,12 @@ async def fresh(ctx: Ctx, b: Bound, *, force: bool = False) -> bool:
     """Renews signed-in credentials that are about to expire (or, with `force`, ones the
     platform just refused); True when `b.creds` changed. Renewed credentials are used at once,
     kept in memory and stored once the request commits, in a short transaction of their own:
-    reads never write in the request's transaction (see `cache.py`)."""
+    reads never write in the request's transaction (see `cache.py`). Once the server turns the
+    sign-in off nothing renews, so these connections fail when their access token expires."""
     support = sign_in_support(b.provider)
-    if support is None or not support.can_refresh(b.creds):
+    if support is None or not support.sign_in_enabled(ctx.settings):
+        return False
+    if not support.can_refresh(b.creds):
         return False
     if not force and not support.credentials_stale(b.creds, ctx.now):
         return False
@@ -573,6 +576,17 @@ async def require_write(ctx: Ctx, b: Bound, feature: LmsFeature) -> None:
     require_feature(b, feature)
 
 
+async def attempt[T](ctx: Ctx, b: Bound, run: Callable[[], Awaitable[T]]) -> T:
+    """One read from the platform: `run` with renewed credentials, marking the connection if the
+    failure says it is broken. `run` reads `b.creds` itself, because a retry changes them."""
+    try:
+        return await _with_fresh(ctx, b, run)
+    except AppError as exc:
+        if exc.code in BROKEN_ON_READ:
+            await _record_failure(ctx, b.row.id, exc.code)
+        raise
+
+
 async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple[T, bool]:
     """Runs one provider call; returns its result and whether a list was truncated."""
 
@@ -581,12 +595,7 @@ async def call[T](ctx: Ctx, b: Bound, fn: Callable[[Io], Awaitable[T]]) -> tuple
             result = await fn(i)
             return result, i.truncated
 
-    try:
-        return await _with_fresh(ctx, b, run)
-    except AppError as exc:
-        if exc.code in BROKEN_ON_READ:
-            await _record_failure(ctx, b.row.id, exc.code)
-        raise
+    return await attempt(ctx, b, run)
 
 
 class NotCached(Exception):
