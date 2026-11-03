@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.11.2 (2026-11-03)
+
+### Fixed
+
+- **AI:** Corrected the descriptions of the Sem and light-task purposes in model settings.
+
 ## 1.11.1 (2026-11-03)
 
 ### Fixed
