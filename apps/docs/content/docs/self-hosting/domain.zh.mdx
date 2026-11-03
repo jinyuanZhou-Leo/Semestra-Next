@@ -1,0 +1,49 @@
+---
+title: 有域名的服务器
+description: 公网服务器，由内置的 Caddy 提供 HTTPS，不需要别的网页服务器。
+---
+
+适用于服务器上没有其他程序占用 80 和 443 端口的情况。已经有网页服务器的话，请看[放在已有的反向代理后面](./reverse-proxy.mdx)。
+
+<Steps>
+<Step>
+
+### 把域名指向服务器
+
+为域名添加 A 记录（IPv6 再加 AAAA 记录），并在服务器防火墙里开放 80 和 443 端口。Caddy 申请证书需要这两个端口。
+
+</Step>
+<Step>
+
+### 在 `.env` 里设置四项
+
+```bash title=".env"
+COMPOSE_PROFILES=https
+SEMESTRA_DOMAIN=semestra.example.com
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+`COMPOSE_PROFILES=https` 让每条 `docker compose` 命令都带上内置的 Caddy。`SEMESTRA_BIND=127.0.0.1` 让 8000
+端口不对公网开放，只能经 Caddy 访问。
+
+</Step>
+<Step>
+
+### 启动
+
+```bash
+docker compose up -d
+```
+
+打开 `https://semestra.example.com`。Caddy 会自动申请和续期证书。
+
+</Step>
+<Step>
+
+### 配置邮件
+
+公网服务器请配置[邮件](./email.mdx)，让验证码直接发给用户，不用你去翻日志。
+
+</Step>
+</Steps>

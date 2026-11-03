@@ -1,0 +1,60 @@
+---
+title: 镜像
+description: 默认镜像或小镜像、固定版本，或者自己构建镜像。
+---
+
+两种镜像都在 GitHub 容器镜像仓库 `ghcr.io/jinyuanzhou-leo/semestra-allinone`，并且都是公开的。
+
+| 镜像                  | 标签                          | 平台          | 内存    | 在 `.env` 里选择                   |
+| --------------------- | ----------------------------- | ------------- | ------- | ---------------------------------- |
+| 带本机 OCR（默认）    | `latest-ocr`、`1.2.0-ocr`     | amd64、arm64  | 约 3 GB | 不用设置                           |
+| 不带本机 OCR          | `latest`、`1.2.0`             | amd64         | 约 1 GB | `SEMESTRA_IMAGE_VARIANT=`（留空）  |
+
+arm64 机器（如树莓派、Apple Silicon 上的 Docker）请用默认镜像。
+
+## 本机 OCR
+
+默认镜像在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（只用 CPU）识别扫描版 PDF 和照片，不会为此调用
+AI 模型。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，每页约 2 秒。
+
+每个用户在 AI 设置 → 模型的 **OCR** 一行里选择模型：本机的 PaddleOCR 模型，或某个服务商的模型。本机模型在第一次用到时下载到
+数据卷，应用里会显示进度。服务器之后不能联网的话，请趁还能联网时先下载：
+
+```bash
+docker compose exec semestra semestra ocr-models --all
+```
+
+用小镜像时，用户在 **OCR** 一行里选服务商的模型。改 `SEMESTRA_IMAGE_VARIANT` 再运行 `docker compose up -d`
+就能来回切换，数据不受影响。
+
+## 固定版本
+
+`latest` 会跟随每次发布。想自己决定何时升级，在 `.env` 里写上版本：
+
+```bash title=".env"
+SEMESTRA_VERSION=1.2.0
+```
+
+## 自己构建镜像
+
+在仓库根目录运行：
+
+```bash
+docker build -f deploy/docker/Dockerfile --target allinone-ocr \
+  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-ocr .
+```
+
+小镜像用 `--target allinone` 和标签 `:local`。然后让 compose 文件使用它：
+
+```bash title="deploy/selfhost/.env"
+SEMESTRA_VERSION=local
+```
+
+升级时 `git pull`、重新构建，再运行 `docker compose up -d`（不要用 `docker compose pull`）。
+
+网页应用的构建参数，会写进镜像：
+
+| 参数                 | 作用                                                              |
+| -------------------- | ----------------------------------------------------------------- |
+| `VITE_EMAIL_DOMAINS` | 登录页输入 `@` 后提示的域名，例如 `school.edu,gmail.com`          |
+| `VITE_SENTRY_DSN`    | 把浏览器里的错误报告给你的 Sentry 项目                            |

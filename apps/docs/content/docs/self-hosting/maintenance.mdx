@@ -1,0 +1,81 @@
+---
+title: Upgrade and back up
+description: Save the generated keys, upgrade, take backups and restore them.
+---
+
+Everything lives in the `semestra-data` volume (`/data` in the container): the databases, uploaded
+files and `secrets.env`.
+
+## Save the keys first
+
+On the first start the container writes `/data/secrets.env` with `SEMESTRA_SECRET_KEY` and
+`SEMESTRA_ENCRYPTION_KEY`. Copy it off the server once; it never changes.
+
+```bash
+docker compose cp semestra:/data/secrets.env ./secrets.env.backup
+```
+
+<Callout type="warn">
+  Without `SEMESTRA_ENCRYPTION_KEY`, the AI keys and Canvas connections your users saved can no
+  longer be decrypted. Database backups do not include this file.
+</Callout>
+
+## Upgrade
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Database migrations run on start and only move forward, so take a backup first. Release notes are
+in the [changelog](/docs/changelog).
+
+## One-off backup
+
+```bash
+docker compose exec semestra semestra backup /data/backups
+docker compose cp semestra:/data/backups ./semestra-backup
+docker compose cp semestra:/data/secrets.env ./semestra-backup/
+```
+
+The snapshot is consistent while the app keeps running. Add `--db-only` to skip uploaded files.
+
+## Daily backup
+
+```bash
+mkdir backups && sudo chown 10001 backups
+```
+
+Uncomment `- ./backups:/backups` in `docker-compose.yml`, add this to `.env`, and run
+`docker compose up -d`:
+
+```bash title=".env"
+SEMESTRA_BACKUP_DIR=/backups
+SEMESTRA_BACKUP_KEEP=7
+```
+
+The app then keeps the newest seven snapshots of each database in `backups/db` and mirrors
+uploaded files into `backups/storage`. Copy the folder to another machine regularly: a backup on
+the same disk does not survive that disk.
+
+## Restore
+
+Put the backup in `./semestra-backup` with `db/`, `storage/` and `secrets.env` (for a daily backup,
+copy in the `secrets.env` you saved):
+
+```bash
+docker compose down
+docker run --rm -v semestra_semestra-data:/data -v "$PWD/semestra-backup:/in:ro" alpine sh -c '
+  cp /in/db/semestra-<timestamp>.sqlite /data/semestra.db &&
+  rm -f /data/semestra.db-wal /data/semestra.db-shm &&
+  cp -r /in/storage /data/ && cp /in/secrets.env /data/ &&
+  chown -R 10001:10001 /data'
+docker compose up -d
+```
+
+Pick the newest `semestra-<timestamp>.sqlite` in `db/`. The same steps move an instance to a new
+server.
+
+## Per-user export
+
+Each user can also export their own data as a zip file and import it into another account or
+instance. See [Export, restore and delete](/docs/data).

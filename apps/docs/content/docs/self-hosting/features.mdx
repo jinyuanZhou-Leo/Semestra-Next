@@ -1,0 +1,50 @@
+---
+title: Optional features
+description: Set them in .env, then run docker compose up -d.
+---
+
+## Canvas school account sign-in
+
+```bash title=".env"
+SEMESTRA_LMS_CANVAS_SIGN_IN=true
+```
+
+Users can then [connect Canvas by signing in with their school account](/docs/lms#sign-in-with-a-school-account)
+instead of creating an access token. The Canvas address must use `https://`.
+
+<Callout type="warn">
+  This uses the OAuth client and User-Agent of the Canvas Android app, which Instructure did not
+  issue to Semestra. Your school's policies or the Canvas terms may not allow it, and it can stop
+  working at any time. Check before you turn it on; the risk is yours.
+</Callout>
+
+Turning it off again stops renewing these connections: they show invalid credentials within about
+an hour, until the user adds an access token. Access tokens work either way.
+
+## A shared AI provider
+
+Give every user a default model, used when they have not added their own provider. To run Ollama
+next to Semestra, add the `ai-local` profile and pull the models:
+
+```bash title=".env"
+# With the bundled Caddy: COMPOSE_PROFILES=https,ai-local
+COMPOSE_PROFILES=ai-local
+SEMESTRA_INSTANCE_AI_KIND=ollama
+SEMESTRA_INSTANCE_AI_BASE_URL=http://ollama:11434
+SEMESTRA_INSTANCE_AI_CHAT_MODEL=qwen3:8b
+SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
+```
+
+```bash
+docker compose up -d
+docker compose exec ollama ollama pull qwen3:8b
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+Any other provider works the same way; see [Instance-wide provider](/docs/ai/instance-provider).
+
+## Services on your network
+
+The compose file sets `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`, so users can add an Ollama or a Canvas
+on a private address (`192.168.x.x`, `10.x.x.x`). On a public server shared with people you do not
+trust, set it to `false`: the server then refuses to call private and loopback addresses.

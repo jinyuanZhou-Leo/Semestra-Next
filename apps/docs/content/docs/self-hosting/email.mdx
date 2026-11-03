@@ -38,3 +38,9 @@ SEMESTRA_RESEND_API_KEY=...
 
 The sending domain must be verified in Resend. `SEMESTRA_EMAIL_REPLY_TO` sets an optional
 reply-to address for either backend.
+
+<Callout type="warn">
+  Once email works, anyone who can reach the instance can create an account. Single-user mode
+  (`SEMESTRA_SINGLE_USER`, sign-up closes after the first account) is planned but not implemented
+  yet; until then, keep a public instance behind your own access control if it is only for you.
+</Callout>

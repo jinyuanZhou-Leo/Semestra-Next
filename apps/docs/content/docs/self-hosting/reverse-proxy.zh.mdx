@@ -1,0 +1,79 @@
+---
+title: 放在已有的反向代理后面
+description: 服务器上已经运行 nginx、Caddy 或 Traefik。Semestra 监听 127.0.0.1:8000，由你的代理负责 HTTPS。
+---
+
+<Steps>
+<Step>
+
+### 在 `.env` 里设置两项
+
+```bash title=".env"
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+不带 `https` profile 启动：
+
+```bash
+docker compose up -d
+```
+
+</Step>
+<Step>
+
+### 把域名代理到 `127.0.0.1:8000`
+
+你的代理需要：
+
+- **不缓冲 `/events/stream`。** 这是一个服务器推送事件流，让打开的页面保持最新。
+- **允许最大 1100 MB 的请求体**，即用户能导入的最大备份。
+- 传递常用的 `X-Forwarded-For` 和 `X-Forwarded-Proto` 头。
+
+nginx：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name semestra.example.com;
+    # ssl_certificate ... 与你的其他站点相同
+
+    client_max_body_size 1100m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /events/stream {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 1h;
+    }
+}
+```
+
+Caddy：
+
+```text
+semestra.example.com {
+	request_body {
+		max_size 1100MB
+	}
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+	}
+}
+```
+
+</Step>
+</Steps>
+
+代理在另一台机器上时，把 `SEMESTRA_BIND` 设为它连接的地址，并在防火墙里只放行那台机器。Semestra 信任来自任何地址的
+`X-Forwarded-*` 头，所以 8000 端口不能让其他人访问到。

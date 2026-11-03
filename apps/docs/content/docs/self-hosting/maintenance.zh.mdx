@@ -1,0 +1,71 @@
+---
+title: 升级与备份
+description: 保存生成的密钥、升级、备份和恢复。
+---
+
+所有数据都在 `semestra-data` 卷（容器里的 `/data`）中：数据库、上传的文件和 `secrets.env`。
+
+## 先保存密钥
+
+首次启动时容器会写入 `/data/secrets.env`，包含 `SEMESTRA_SECRET_KEY` 和 `SEMESTRA_ENCRYPTION_KEY`。把它复制到服务器以外的地方保存一次即可，它不会再变。
+
+```bash
+docker compose cp semestra:/data/secrets.env ./secrets.env.backup
+```
+
+<Callout type="warn">
+  没有 `SEMESTRA_ENCRYPTION_KEY`，用户保存的 AI 密钥和 Canvas 连接就无法再解密。数据库备份不包含这个文件。
+</Callout>
+
+## 升级
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+数据库迁移在启动时自动执行，且只能向前，所以请先备份。发布说明见[更新日志](/docs/changelog)。
+
+## 一次性备份
+
+```bash
+docker compose exec semestra semestra backup /data/backups
+docker compose cp semestra:/data/backups ./semestra-backup
+docker compose cp semestra:/data/secrets.env ./semestra-backup/
+```
+
+应用运行时也能得到一致的快照。加 `--db-only` 可以跳过上传的文件。
+
+## 每日备份
+
+```bash
+mkdir backups && sudo chown 10001 backups
+```
+
+取消 `docker-compose.yml` 里 `- ./backups:/backups` 的注释，在 `.env` 里加上下面两行，再运行 `docker compose up -d`：
+
+```bash title=".env"
+SEMESTRA_BACKUP_DIR=/backups
+SEMESTRA_BACKUP_KEEP=7
+```
+
+之后应用会在 `backups/db` 里为每个数据库保留最近 7 份快照，并把上传的文件镜像到 `backups/storage`。请定期把这个目录复制到别的机器：和数据在同一块盘上的备份扛不住磁盘损坏。
+
+## 恢复
+
+把备份放在 `./semestra-backup`，里面有 `db/`、`storage/` 和 `secrets.env`（每日备份需要放入你保存的 `secrets.env`）：
+
+```bash
+docker compose down
+docker run --rm -v semestra_semestra-data:/data -v "$PWD/semestra-backup:/in:ro" alpine sh -c '
+  cp /in/db/semestra-<timestamp>.sqlite /data/semestra.db &&
+  rm -f /data/semestra.db-wal /data/semestra.db-shm &&
+  cp -r /in/storage /data/ && cp /in/secrets.env /data/ &&
+  chown -R 10001:10001 /data'
+docker compose up -d
+```
+
+`<timestamp>` 选 `db/` 里最新的那份。迁移到新服务器也是同样的步骤。
+
+## 按用户导出
+
+每个用户也可以把自己的数据导出成 zip 文件，再导入到另一个账户或实例。见[导出、恢复与删除](/docs/data)。

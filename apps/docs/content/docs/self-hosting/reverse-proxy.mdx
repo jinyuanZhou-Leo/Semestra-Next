@@ -1,0 +1,81 @@
+---
+title: Behind your own reverse proxy
+description: The server already runs nginx, Caddy or Traefik. Semestra listens on 127.0.0.1:8000 and your proxy handles HTTPS.
+---
+
+<Steps>
+<Step>
+
+### Set two values in `.env`
+
+```bash title=".env"
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+Start it without the `https` profile:
+
+```bash
+docker compose up -d
+```
+
+</Step>
+<Step>
+
+### Proxy the domain to `127.0.0.1:8000`
+
+Your proxy needs to:
+
+- **Not buffer `/events/stream`.** It is a server-sent events stream that keeps open pages up to
+  date.
+- **Accept request bodies up to 1100 MB**, the largest backup a user can import.
+- Pass the usual `X-Forwarded-For` and `X-Forwarded-Proto` headers.
+
+nginx:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name semestra.example.com;
+    # ssl_certificate ... as for your other sites
+
+    client_max_body_size 1100m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /events/stream {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 1h;
+    }
+}
+```
+
+Caddy:
+
+```text
+semestra.example.com {
+	request_body {
+		max_size 1100MB
+	}
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+	}
+}
+```
+
+</Step>
+</Steps>
+
+If the proxy runs on another machine, set `SEMESTRA_BIND` to the address it connects to and allow
+only that machine through the firewall. Semestra trusts `X-Forwarded-*` headers from any address,
+so port 8000 must not be reachable by anyone else.

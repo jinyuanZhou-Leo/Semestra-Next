@@ -1,0 +1,41 @@
+---
+title: 本机或局域网
+description: 在自己的电脑上试用 Semestra，或在家里的机器上运行，不需要域名。
+---
+
+## 在这台电脑上
+
+```bash
+docker compose up -d
+```
+
+打开 `http://localhost:8000`。首次启动不到一分钟：容器会拉取镜像、生成密钥并创建数据库。`.env` 里什么都不用改。
+
+用任意邮箱登录，验证码打印在日志里：
+
+```bash
+docker compose logs -f semestra
+```
+
+## 从局域网里的其他设备访问
+
+在一台机器（家用服务器、NAS、闲置电脑）上运行，用手机或笔记本打开。在 `.env` 里写上其他设备要用的地址：
+
+```bash title=".env"
+SEMESTRA_PUBLIC_URL=http://192.168.1.20:8000
+```
+
+```bash
+docker compose up -d
+```
+
+邮件里的链接和日历订阅链接都使用这个地址。请在路由器里给这台机器固定 IP，让地址一直有效。
+
+要从外网访问，请改用域名和 HTTPS：[有域名的服务器](./domain.mdx)。
+
+## 停止或删除
+
+```bash
+docker compose down        # 停止；数据保留在 semestra-data 卷里
+docker compose down -v     # 停止并删除全部数据
+```

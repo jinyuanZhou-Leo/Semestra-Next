@@ -1,0 +1,53 @@
+---
+title: Server with a domain
+description: A public server with HTTPS from the bundled Caddy. No other web server needed.
+---
+
+Use this when nothing else on the server listens on ports 80 and 443. If it already runs a web
+server, follow [Behind your own reverse proxy](./reverse-proxy.mdx) instead.
+
+<Steps>
+<Step>
+
+### Point the domain at the server
+
+Create an A record (and AAAA for IPv6) for the domain, and open ports 80 and 443 in the server's
+firewall. Caddy needs both to get the certificate.
+
+</Step>
+<Step>
+
+### Set four values in `.env`
+
+```bash title=".env"
+COMPOSE_PROFILES=https
+SEMESTRA_DOMAIN=semestra.example.com
+SEMESTRA_PUBLIC_URL=https://semestra.example.com
+SEMESTRA_BIND=127.0.0.1
+```
+
+`COMPOSE_PROFILES=https` adds the bundled Caddy to every `docker compose` command.
+`SEMESTRA_BIND=127.0.0.1` keeps port 8000 off the public interface, so the only way in is through
+Caddy.
+
+</Step>
+<Step>
+
+### Start
+
+```bash
+docker compose up -d
+```
+
+Open `https://semestra.example.com`. Caddy gets and renews the certificate on its own.
+
+</Step>
+<Step>
+
+### Set up email
+
+On a public server, configure [email](./email.mdx) so codes reach users without you reading the
+log.
+
+</Step>
+</Steps>

@@ -1,0 +1,44 @@
+---
+title: 可选功能
+description: 在 .env 里设置，然后运行 docker compose up -d。
+---
+
+## Canvas 学校账号登录
+
+```bash title=".env"
+SEMESTRA_LMS_CANVAS_SIGN_IN=true
+```
+
+之后用户可以[用学校账号登录来连接 Canvas](/docs/lms#用学校账号登录)，不必创建访问令牌。Canvas 地址必须是 `https://`。
+
+<Callout type="warn">
+  这个功能使用 Canvas Android App 的 OAuth 客户端和 User-Agent，Instructure 并没有把它们发给 Semestra。学校政策或 Canvas 条款可能不允许这样做，它也可能随时失效。开启前请自行确认，风险由你承担。
+</Callout>
+
+再次关闭后，这些连接不再续期：约一小时内会显示凭证失效，直到用户改填访问令牌。无论是否开启，访问令牌都可以使用。
+
+## 全实例 AI 服务商
+
+给所有用户一个默认模型，用户没有添加自己的服务商时使用。要在 Semestra 旁边运行 Ollama，加上 `ai-local` profile 并拉取模型：
+
+```bash title=".env"
+# 同时使用内置 Caddy 时：COMPOSE_PROFILES=https,ai-local
+COMPOSE_PROFILES=ai-local
+SEMESTRA_INSTANCE_AI_KIND=ollama
+SEMESTRA_INSTANCE_AI_BASE_URL=http://ollama:11434
+SEMESTRA_INSTANCE_AI_CHAT_MODEL=qwen3:8b
+SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
+```
+
+```bash
+docker compose up -d
+docker compose exec ollama ollama pull qwen3:8b
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+其他服务商的配置方式相同，见[全实例服务商](/docs/ai/instance-provider)。
+
+## 局域网里的服务
+
+compose 文件设置了 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`，用户可以添加内网地址（`192.168.x.x`、`10.x.x.x`）上的 Ollama 或
+Canvas。公网服务器上有你不信任的用户时，请设为 `false`：服务器将拒绝访问内网和回环地址。
