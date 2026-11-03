@@ -91,18 +91,10 @@ program is linked, the binding cannot be changed or removed.
 
 ## 3. Link courses
 
-Either [import courses from Canvas](./imports.mdx), which links them as they are created, or open
-an existing course's settings → **Integrations → LMS**, open the course list, search by code or
-name and pick one: picking links it. Canvas courses whose code matches come first under
-**Suggested**; past courses are hidden until you check **Include past courses** at the bottom of
-the list. A Canvas course can be linked to only one course per program, so ones linked elsewhere
-cannot be picked. A year-long course has a single link.
-
-A linked course shows as one row: the Canvas course, its term and connection, a status and when
-it was last refreshed. Its **⋯** menu has **Refresh course details** (reads the course's code,
-name, term and address from Canvas again; assignments and the calendar are not affected),
-**Change course…** (asks first) and **Unlink…**. When the course can't be read, the reason shows
-below; for an invalid token or missing permission you can open the LMS connections from there.
+Either [import courses from Canvas](./imports.mdx), which links them as they are created, or
+pick the Canvas course in an existing course's settings → **Integrations → LMS**. A Canvas course
+can be linked to only one course per program, and a year-long course has a single link. The same
+place refreshes the course's details from Canvas, links a different course or unlinks it.
 
 Each link has a **Calendar and assignment changes** switch. When it is off, the course's Canvas
 deadlines leave the calendar and assignment changes are no longer detected; the Canvas tab and
@@ -111,18 +103,15 @@ Sem can still read the course.
 ## What you get from a link
 
 - **Canvas tab** (a plugin, installed per account): announcements, assignments, modules, pages,
-  files, quizzes, grades and the syllabus of the linked course, read live from Canvas. Files are
-  listed with their size and last update, and can be sorted by name, size or date. Tabs the app
-  can't show itself (People, external tools such as Piazza) are listed under **Open in Canvas**
-  in the course menu and open Canvas in a new tab.
+  files, quizzes, grades and the syllabus of the linked course, read live from Canvas. Tabs the
+  app can't show itself, such as People or Piazza, open in Canvas.
 - **Calendar**: assignment due dates and Canvas calendar events of courses with **Calendar and
   assignment changes** on appear in the term calendar. Assignments you already imported are not shown twice.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
 
-Reads are cached for five minutes. The Canvas tab shows when the course was last read, at the
-bottom of the course menu (or next to the menu's drop-down on narrower windows); the refresh
-button beside it bypasses the cache.
+Reads are cached for five minutes; refreshing in the Canvas tab reads the course again right
+away.
 
 ## Self-hosted Canvas
 
