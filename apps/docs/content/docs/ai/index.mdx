@@ -15,7 +15,7 @@ Account settings, under **AI**:
 | ------------- | ------------------------------------------------------------------------ |
 | **Providers** | Your providers: type, name, base URL, key, and what the endpoint can do  |
 | **Models**    | Which model serves each purpose, and optional model parameters           |
-| **Usage**     | Tokens and estimated cost today, the last 7 or 30 days, or all time        |
+| **Usage**     | Tokens used and their estimated cost                                       |
 
 ## How keys are stored
 
@@ -38,24 +38,12 @@ Each AI call has a purpose, and each purpose needs one capability from the provi
 | Search           | Finding passages in your course files                 | `embedding` |
 | Light tasks      | Conversation titles, tidying Sem's memory              | `chat`      |
 
-## Long conversations
-
-The ring next to Sem's message box shows how much of the model's context the conversation
-fills. Hover it to see what takes the space: Sem's instructions and memory, tools, the summary of earlier messages, your
-messages and Sem's answers, files and pages Sem read, and attachments.
-
-When the context is nearly full, Sem compacts the conversation on its own before answering:
-it summarizes earlier messages and keeps the latest ones word for word. To do it yourself,
-choose **Compact conversation** at the bottom of that card, or type `/compact`, optionally
-followed by what the summary must keep. A conversation with a single message has nothing
-to compact yet. While it runs, the messages being compacted fade and you can't send a new
-message; afterwards **Compacted · View summary** in the conversation shows the summary.
+## File indexing
 
 New course files are read and indexed as soon as they are added, which is when scanned pages go
 to the image model and passages to the search model. To control that spending, turn off
 **File indexing → Index new files automatically** in the program's (or a course's) settings. Files
-added while it is off show **Not indexed** with an **Index** button, and an import that needs one of
-them indexes it on its own.
+added while it is off are indexed when you ask for it, or when an import needs them.
 
 ## Which model answers
 
