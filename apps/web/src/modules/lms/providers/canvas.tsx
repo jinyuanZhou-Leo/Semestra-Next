@@ -277,11 +277,6 @@ function CanvasForm({
       <>
         <StepHeading step={2} title={m.lms_canvas_sign_in_step_login()} />
         <p className="text-muted-foreground">{m.lms_canvas_sign_in_step_login_description()}</p>
-        <Alert>
-          <Info aria-hidden />
-          <AlertTitle>{m.lms_canvas_sign_in_not_found_title()}</AlertTitle>
-          <AlertDescription>{m.lms_canvas_sign_in_not_found_description()}</AlertDescription>
-        </Alert>
         <div className="flex justify-center">
           <Button
             size="lg"
@@ -299,6 +294,11 @@ function CanvasForm({
             {m.lms_canvas_sign_in_open()}
           </Button>
         </div>
+        <Alert>
+          <Info aria-hidden />
+          <AlertTitle>{m.lms_canvas_sign_in_not_found_title()}</AlertTitle>
+          <AlertDescription>{m.lms_canvas_sign_in_not_found_description()}</AlertDescription>
+        </Alert>
       </>,
       {
         back: () => setStep('address'),
