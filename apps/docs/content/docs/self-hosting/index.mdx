@@ -27,14 +27,8 @@ cp .env.example .env   # optional, every setting has a default
 
 ### Get the image
 
-The repository and its images are private for now. Either sign in to the registry with a GitHub
-token that has `read:packages`:
-
-```bash
-docker login ghcr.io
-```
-
-or build the image yourself from the repository root:
+Docker Compose pulls the image from the GitHub Container Registry the first time you start it, so
+there is nothing to do here. To build the image yourself instead, run this from the repository root:
 
 ```bash
 docker build -f deploy/docker/Dockerfile --target allinone-ocr \
