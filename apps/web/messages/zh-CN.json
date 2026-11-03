@@ -2291,7 +2291,6 @@
   "lms_canvas_help_step_copy": "复制令牌，粘贴到上面的输入框（令牌只显示一次）",
   "lms_canvas_description": "学校的 Canvas 站点。",
   "lms_connection_name": "名称",
-  "lms_connection_note": "保存前会先验证，凭证加密保存，之后不再显示。",
   "lms_connection_save": "验证并保存",
   "lms_connection_checking": "正在验证…",
   "lms_connection_check": "测试连接",

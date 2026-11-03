@@ -258,9 +258,7 @@ function AddConnectionDialog({ open, onClose }: { open: boolean; onClose: () => 
                 : m.lms_connection_add()}
             </DialogTitle>
           </div>
-          <DialogDescription>
-            {kind ? m.lms_connection_note() : m.lms_connection_pick_provider()}
-          </DialogDescription>
+          {kind ? null : <DialogDescription>{m.lms_connection_pick_provider()}</DialogDescription>}
         </DialogHeader>
         {!open ? null : kind ? (
           <ConnectionForm
@@ -363,7 +361,6 @@ export function ConnectionsSection() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{m.lms_connection_edit()}</DialogTitle>
-            <DialogDescription>{m.lms_connection_note()}</DialogDescription>
           </DialogHeader>
           {editing ? (
             <ConnectionForm

@@ -2291,7 +2291,6 @@
   "lms_canvas_help_step_copy": "Copy the token into the field above. Canvas shows it only once.",
   "lms_canvas_description": "Your school's Canvas site.",
   "lms_connection_name": "Name",
-  "lms_connection_note": "Checked before saving and stored encrypted; secrets are never shown again.",
   "lms_connection_save": "Check and save",
   "lms_connection_checking": "Checking…",
   "lms_connection_check": "Test connection",
