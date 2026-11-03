@@ -188,6 +188,51 @@ test('school-page sign-in links to Canvas and pastes the callback address', asyn
   })
 })
 
+test('school sign-in errors mark the field they are about', async () => {
+  const refused = (code: string) => {
+    const { status, body } = apiError(code, 422)
+    return HttpResponse.json(body, { status })
+  }
+  let startError = true
+  server.use(
+    http.get(`${API}/lms/providers`, () =>
+      HttpResponse.json({ items: [{ ...PROVIDERS.items[0], sign_in: true }] }),
+    ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+    http.post(`${API}/lms/connections:sign-in`, () =>
+      startError
+        ? refused('lms.sign_in_https_required')
+        : HttpResponse.json({ authorize_url: 'https://q.utoronto.ca/login/oauth2/auth' }),
+    ),
+    http.post(`${API}/lms/connections`, () => refused('lms.sign_in_failed')),
+  )
+  renderWithRouter(<ConnectionsSection />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: /School account/ }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'I understand, continue' }))
+  const address = within(dialog).getByLabelText('Canvas address')
+  await userEvent.type(address, 'http://q.utoronto.ca')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  expect(
+    await within(dialog).findByText('School sign-in needs an https:// address'),
+  ).toBeInTheDocument()
+  expect(address).toHaveAttribute('aria-invalid', 'true')
+
+  startError = false
+  await userEvent.clear(address)
+  await userEvent.type(address, 'q.utoronto.ca')
+  expect(address).not.toHaveAttribute('aria-invalid')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  await within(dialog).findByRole('button', { name: 'Open Canvas login' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  const pasted = within(dialog).getByLabelText('Address after sign-in')
+  await userEvent.type(pasted, 'https://sso.canvaslms.com/canvas/login?code=old')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Check and save' }))
+  await waitFor(() => expect(pasted).toHaveAttribute('aria-invalid', 'true'))
+  expect(pasted).toHaveAccessibleDescription(/sign-in address couldn't be used/)
+})
+
 test('platforms the frontend has no form for are not offered', async () => {
   server.use(
     http.get(`${API}/lms/providers`, () =>

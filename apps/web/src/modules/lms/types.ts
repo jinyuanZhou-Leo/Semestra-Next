@@ -42,6 +42,8 @@ export type LmsFormStep = {
   noAction?: boolean
   /** The last step still misses what it asks for. */
   saveDisabled?: boolean
+  /** The fields show `saveError` on the field it is about, so the form does not repeat it. */
+  showsSaveError?: boolean
   /** Instead of the form's own Back (to the platform list), if any. */
   back?: () => void
 }
@@ -60,6 +62,8 @@ export type LmsConfigFormProps = {
   editing: boolean
   hints: Record<string, string>
   kind: string
+  /** Why the last save failed, in words. */
+  saveError: string | null
   /** Lays out the form's fields with the rest of the form; what the provider's form returns. */
   frame: (fields: ReactNode, step?: LmsFormStep) => ReactNode
 }

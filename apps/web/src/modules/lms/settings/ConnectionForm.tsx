@@ -95,6 +95,7 @@ export function ConnectionForm({
   }
 
   const Form = ui?.ConfigForm
+  const saveError = error ? errorMessage(error) : null
 
   const frame = (fields: ReactNode, step: LmsFormStep = {}) => {
     const back = step.back ?? onBack
@@ -114,7 +115,7 @@ export function ConnectionForm({
             />
           </Field>
         ) : null}
-        {last ? <FieldError>{error ? errorMessage(error) : null}</FieldError> : null}
+        {last && !step.showsSaveError ? <FieldError>{saveError}</FieldError> : null}
         <DialogFooter>
           {back ? (
             <Button type="button" variant="ghost" onClick={back} className="sm:mr-auto">
@@ -154,6 +155,7 @@ export function ConnectionForm({
             editing={editing}
             hints={connection?.credentials_hint ?? {}}
             kind={kind}
+            saveError={saveError}
             frame={frame}
           />
         ) : (

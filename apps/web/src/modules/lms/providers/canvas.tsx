@@ -109,6 +109,7 @@ function CanvasForm({
   editing,
   hints,
   kind,
+  saveError,
   frame,
 }: LmsConfigFormProps) {
   const id = useId()
@@ -130,11 +131,17 @@ function CanvasForm({
     start.reset()
   }
 
-  const addressField = (onEnter?: () => void) => (
-    <Field>
+  const addressField = ({
+    onEnter,
+    error,
+    description,
+  }: { onEnter?: () => void; error?: string; description?: string } = {}) => (
+    <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={`${id}-url`}>{m.lms_canvas_base_url()}</FieldLabel>
       <Input
         id={`${id}-url`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-url-error` : undefined}
         inputMode="url"
         spellCheck={false}
         autoComplete="off"
@@ -152,6 +159,8 @@ function CanvasForm({
           onEnter()
         }}
       />
+      {error ? <FieldError id={`${id}-url-error`}>{error}</FieldError> : null}
+      {description && !error ? <FieldDescription>{description}</FieldDescription> : null}
     </Field>
   )
 
@@ -202,15 +211,12 @@ function CanvasForm({
   if (step === 'saved') {
     return frame(
       <>
-        {addressField()}
-        <Field>
-          <FieldDescription>{m.lms_canvas_sign_in_keep()}</FieldDescription>
-          <div>
-            <Button type="button" variant="outline" onClick={() => setStep('address')}>
-              {m.lms_canvas_sign_in_again()}
-            </Button>
-          </div>
-        </Field>
+        {addressField({ description: m.lms_canvas_sign_in_keep() })}
+        <div>
+          <Button type="button" variant="outline" onClick={() => setStep('address')}>
+            {m.lms_canvas_sign_in_again()}
+          </Button>
+        </div>
       </>,
       { back: toMethods },
     )
@@ -248,8 +254,10 @@ function CanvasForm({
     return frame(
       <>
         <StepHeading step={1} title={m.lms_canvas_sign_in_step_address()} />
-        {addressField(getLink)}
-        {start.error ? <FieldError>{errorMessage(start.error)}</FieldError> : null}
+        {addressField({
+          onEnter: getLink,
+          error: start.error ? errorMessage(start.error) : undefined,
+        })}
       </>,
       {
         back: () => setStep(savedSignIn ? 'saved' : 'notice'),
@@ -306,20 +314,26 @@ function CanvasForm({
   return frame(
     <>
       <StepHeading step={3} title={m.lms_canvas_sign_in_step_paste()} />
-      <Field>
+      <Field data-invalid={saveError ? true : undefined}>
         <FieldLabel htmlFor={`${id}-callback`}>{m.lms_canvas_sign_in_paste()}</FieldLabel>
         <Input
           id={`${id}-callback`}
+          aria-invalid={saveError ? true : undefined}
+          aria-describedby={saveError ? `${id}-callback-error` : undefined}
           spellCheck={false}
           autoComplete="off"
           placeholder="https://sso.canvaslms.com/canvas/login?code=…"
           value={signIn}
           onChange={(e) => onSignIn(e.target.value)}
         />
-        <FieldDescription>{m.lms_canvas_sign_in_paste_hint()}</FieldDescription>
+        {saveError ? (
+          <FieldError id={`${id}-callback-error`}>{saveError}</FieldError>
+        ) : (
+          <FieldDescription>{m.lms_canvas_sign_in_paste_hint()}</FieldDescription>
+        )}
       </Field>
     </>,
-    { back: () => setStep('login'), saveDisabled: !signIn.trim() },
+    { back: () => setStep('login'), saveDisabled: !signIn.trim(), showsSaveError: true },
   )
 }
 
