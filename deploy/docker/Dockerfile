@@ -50,6 +50,7 @@ RUN apt-get update \
     && chown semestra:semestra /app /data
 COPY --chown=semestra:semestra apps/api/alembic.ini /app/alembic.ini
 COPY --chown=semestra:semestra apps/api/migrations /app/migrations
+COPY --chown=semestra:semestra THIRD_PARTY_NOTICES.md /app/THIRD_PARTY_NOTICES.md
 COPY deploy/docker/entrypoint.sh /usr/local/bin/semestra-entrypoint
 RUN chmod 0755 /usr/local/bin/semestra-entrypoint
 ENV PATH="/opt/venv/bin:$PATH" \
