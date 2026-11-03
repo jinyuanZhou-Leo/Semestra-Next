@@ -25,13 +25,7 @@ cp .env.example .env   # 可选，每个设置都有默认值
 
 ### 获取镜像
 
-仓库和镜像目前是私有的。可以用带 `read:packages` 权限的 GitHub 令牌登录镜像仓库：
-
-```bash
-docker login ghcr.io
-```
-
-也可以在仓库根目录自己构建：
+Docker Compose 第一次启动时会从 GitHub 容器镜像仓库拉取镜像，这一步不用做任何事。想自己构建镜像的话，在仓库根目录运行：
 
 ```bash
 docker build -f deploy/docker/Dockerfile --target allinone-ocr \

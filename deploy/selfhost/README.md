@@ -18,9 +18,6 @@ docker compose up -d
 Open <http://localhost:8000> (or `http://<server-ip>:8000`). The first start takes under a minute: the container creates its secrets, migrates the database and starts.
 打开 <http://localhost:8000>（或 `http://<服务器 IP>:8000`）。首次启动不到一分钟：容器会生成密钥、迁移数据库并启动。
 
-> The repository is private for now. Until the image is published publicly, run `docker login ghcr.io` with a token that has `read:packages`, or build locally: `docker build -f deploy/docker/Dockerfile --target allinone-ocr -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest-ocr .` from the repository root.
-> 仓库目前是私有的。镜像公开之前，用有 `read:packages` 权限的 token 执行 `docker login ghcr.io`，或在仓库根目录自行构建（命令见上）。
-
 ### Verification codes / 验证码
 
 Email defaults to `console`: sign-in codes are printed in the log.
