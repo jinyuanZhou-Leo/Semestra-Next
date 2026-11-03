@@ -36,3 +36,7 @@ SEMESTRA_RESEND_API_KEY=...
 ```
 
 发件域名需要先在 Resend 里验证。`SEMESTRA_EMAIL_REPLY_TO` 可以为两种方式设置回复地址。
+
+<Callout type="warn">
+  邮件能发出后，任何能访问实例的人都可以注册账户。单用户模式（`SEMESTRA_SINGLE_USER`，第一个账户之后关闭注册）已在规划中，但尚未实现；在那之前，如果公网实例只给自己用，请放在你自己的访问控制之后。
+</Callout>

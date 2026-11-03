@@ -1,0 +1,66 @@
+---
+title: Images
+description: The default image or the smaller one, a fixed version, or an image you build yourself.
+---
+
+Both images are on the GitHub Container Registry as `ghcr.io/jinyuanzhou-leo/semestra-allinone`
+and are public.
+
+| Image                     | Tags                          | Platforms     | RAM     | Select with `.env`                 |
+| ------------------------- | ----------------------------- | ------------- | ------- | ---------------------------------- |
+| With local OCR (default)  | `latest-ocr`, `1.2.0-ocr`     | amd64, arm64  | ~3 GB   | nothing                            |
+| Without local OCR         | `latest`, `1.2.0`             | amd64         | ~1 GB   | `SEMESTRA_IMAGE_VARIANT=` (empty)  |
+
+On an arm64 machine, such as a Raspberry Pi or Docker on Apple Silicon, use the default image.
+
+## Local OCR
+
+The default image reads scanned PDF pages and photos on the server with
+[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) (CPU only), so no AI model is called for
+them. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, about 2
+seconds per page.
+
+Each user picks the model in the **OCR** row of AI settings → Models: a local PaddleOCR model or
+a provider's model. Local models download into the data volume the first time they are needed,
+and the app shows the progress. A server that will lose internet access needs them fetched while
+it still has it:
+
+```bash
+docker compose exec semestra semestra ocr-models --all
+```
+
+With the smaller image, users choose a provider's model for **OCR**. Switch either way by changing
+`SEMESTRA_IMAGE_VARIANT` and running `docker compose up -d`; no data changes.
+
+## Stay on one version
+
+`latest` follows every release. To upgrade only when you choose, set the version in `.env`:
+
+```bash title=".env"
+SEMESTRA_VERSION=1.2.0
+```
+
+## Build the image yourself
+
+From the repository root:
+
+```bash
+docker build -f deploy/docker/Dockerfile --target allinone-ocr \
+  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-ocr .
+```
+
+Use `--target allinone` and the tag `:local` for the smaller image. Then point the compose file at
+it:
+
+```bash title="deploy/selfhost/.env"
+SEMESTRA_VERSION=local
+```
+
+To upgrade, `git pull`, build again and run `docker compose up -d` (not `docker compose pull`).
+
+Build arguments for the web app, baked into the image:
+
+| Argument             | Effect                                                           |
+| -------------------- | ---------------------------------------------------------------- |
+| `VITE_EMAIL_DOMAINS` | Domains suggested after `@` on the sign-in page, e.g. `school.edu,gmail.com` |
+| `VITE_SENTRY_DSN`    | Report errors in the browser to your Sentry project              |
