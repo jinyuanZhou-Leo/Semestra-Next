@@ -1,5 +1,16 @@
 # @semestra/web
 
+## 1.11.2
+
+### Patch Changes
+
+- 7a8cfbc: <!-- area: ai -->
+  <!-- en -->
+  Corrected the descriptions of the Sem and light-task purposes in model settings.
+  <!-- zh -->
+  更正模型设置里 Sem 与轻量任务的用途说明。
+- @semestra/api-client@1.11.2
+
 ## 1.11.1
 
 ### Patch Changes

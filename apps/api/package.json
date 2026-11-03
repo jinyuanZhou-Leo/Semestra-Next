@@ -1,7 +1,7 @@
 {
   "name": "@semestra/api",
   "private": true,
-  "version": "1.11.1",
+  "version": "1.11.2",
   "description": "pnpm wrapper so the Python backend takes part in root scripts; the real project is pyproject.toml",
   "scripts": {
     "dev": "uv run semestra dev",
