@@ -6,6 +6,9 @@ integrations. The user signs in (SSO, MFA) in their own browser tab: Semestra ne
 password. The client's redirect address belongs to Canvas, so the browser stops on it and the
 user pastes that address back, which carries the authorization code. Only over https: the
 exchange and every renewal send the client secret and the refresh token.
+
+Written with reference to mcp-canvas-lms (MIT, Copyright (c) 2024 David Montgomery); see
+THIRD_PARTY_NOTICES.md.
 """
 
 from datetime import datetime, timedelta
