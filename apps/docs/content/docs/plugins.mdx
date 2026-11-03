@@ -5,7 +5,7 @@ icon: Puzzle
 ---
 
 This applies to first-party plugins (the counter, habit streak, Pomodoro, sticky note and world
-clock of M14 are all written this way). The reference implementation is the template plugin
+clock are all written this way). The reference implementation is the template plugin
 `hello-note`:
 
 - Frontend: `apps/web/src/modules/_template-plugin/`
@@ -19,12 +19,12 @@ export adapter).
 
 | Form           | Description                                                                                         | Who draws the frame                                                                             |
 | -------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Card           | Sits on a scope's board (Program / term / course / today), size s/m/l/xl on a 4/6/8-column grid     | The M10 host draws the frame (title, size toolbar, settings entry, remove); the plugin draws only the content |
+| Card           | Sits on a scope's board (Program / term / course / today), size s/m/l/xl on a 4/6/8-column grid     | The host draws the frame (title, size toolbar, settings entry, remove); the plugin draws only the content |
 | Page           | An entry in the sidebar (Program and term pages) or a tab in the course header, free layout         | The host only wraps it in a `PluginBoundary`                                                    |
-| Settings section | The plugin's account-level or scope-level configuration                                           | M11 generates the form                                                                          |
+| Settings section | The plugin's account-level or scope-level configuration                                           | Generated from the schema                                                                          |
 | Capability     | A read/write operation, at once a REST endpoint, an assistant tool and an MCP tool                  | No UI                                                                                           |
 
-Plugins are installed and uninstalled per account (M10). Uninstalling only hides the plugin and
+Plugins are installed and uninstalled per account. Uninstalling only hides the plugin and
 keeps its data; when the user chooses "also delete data", `plugins.purge` is published and the
 plugin must clean up its own rows.
 
@@ -117,7 +117,7 @@ export default defineModule({
   CLI and never edit `src/ui/` by hand. Tables use TanStack Table.
 - Icon buttons have an `aria-label`; changing numbers use `aria-live="polite"`; animations respect
   reduced motion, both the system's `prefers-reduced-motion` (`useReducedMotion` from
-  `motion/react`) and the M11 preference written to `<html data-reduce-motion="on">`. If either is
+  `motion/react`) and the app's reduce-motion preference written to `<html data-reduce-motion="on">`. If either is
   set, do not animate (see `plugin-kit/Burst.tsx`).
 - Ask for confirmation only for destructive actions that cannot be undone and have no other
   confirmation step; submitting a form is the confirmation.
@@ -145,7 +145,7 @@ both languages).
 ```
 
 - `description` is read by the AI: when to use it, how to find its inputs (card instances via
-  `layouts.board.get`), and when not to use it.
+  `layouts.card.list`), and when not to use it.
 - `effect` is `read | write | destructive`. A capability with `plugin_id` is refused while the
   plugin is not installed and is left out of the agent's tool list.
 - Capabilities bound to a card instance use
@@ -158,7 +158,7 @@ both languages).
 ### 4.3 Data and cleanup
 
 - Tables use `OwnedMixin` (with `user_id`) and refer to the card by `instance_id`, which is not a
-  foreign key (M10 owns card instances).
+  foreign key (card instances belong to the layouts module).
 - Subscribe to `layouts.card.deleted` (filter by `card_id`) to delete that card's rows, and to
   `plugins.purge` (filter by `plugin_id`) to delete all of the user's rows. `plugins.purge` is
   published inside the uninstall transaction, so subscribe with
@@ -169,15 +169,15 @@ both languages).
 - Migrations follow the single Alembic chain: import your `models` in `migrations/env.py`, run
   `alembic revision --autogenerate`, and check the result.
 
-### 4.4 Export and import adapter (M13 §3)
+### 4.4 Export and import adapter
 
 Provide the four callbacks `export / import_ / preview / purge`. Imports must be idempotent (no
 duplicate rows on a repeated import), and `id_map` remaps ids across modules. The complete example
 is `plugins_builtin/portability.py`, registered in `plugins_builtin/__init__.py` with
-`register_portability(..., tables=(...))`; add a new plugin's tables in both places, or M13's
-coverage test fails (every table with `user_id` must belong to an adapter and be emptied by it).
-A plugin with no data of its own (such as the template's sticky note, whose text lives in the
-card settings) can have an empty adapter.
+`register_portability(..., tables=(...))`; add a new plugin's tables in both places, or the
+portability coverage test fails (every table with `user_id` must belong to an adapter and be emptied by it).
+A plugin with no data of its own (such as the sticky note, whose text lives in the card
+settings) can have an empty adapter.
 
 ### 4.5 Agent skill
 
