@@ -166,6 +166,7 @@ test('school-page sign-in links to Canvas and pastes the callback address', asyn
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
   const dialog = await screen.findByRole('dialog')
   await userEvent.click(within(dialog).getByRole('button', { name: /School account/ }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'I understand, continue' }))
   await userEvent.type(within(dialog).getByLabelText('Canvas address'), 'q.utoronto.ca')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
   const login = await within(dialog).findByRole('button', { name: 'Open Canvas login' })

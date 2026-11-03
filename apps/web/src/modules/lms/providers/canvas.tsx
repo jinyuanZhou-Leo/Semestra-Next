@@ -1,11 +1,20 @@
 import { lmsConnectionSignInStartMutation } from '@semestra/api-client/react-query'
 import { useMutation } from '@tanstack/react-query'
 import canvasLogo from 'simple-icons/icons/canvas.svg?url'
-import { ArrowUpRight, ChevronRight, ExternalLink, GraduationCap, KeyRound } from 'lucide-react'
+import {
+  ArrowUpRight,
+  ChevronRight,
+  ExternalLink,
+  GraduationCap,
+  Info,
+  KeyRound,
+  TriangleAlert,
+} from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 import { BrandLogo } from '@/components/BrandLogo'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -13,8 +22,11 @@ import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } f
 import type { LmsConfigFormProps, LmsProviderUi } from '../types'
 
 type Method = 'sign_in' | 'token'
-/** The school sign-in, one thing at a time; `saved` is an existing sign-in that can just stay. */
-type SignInStep = 'saved' | 'address' | 'login' | 'paste'
+/**
+ * The school sign-in, one thing at a time, after a notice of what the user takes on. `saved` is
+ * an existing sign-in that can just stay: its owner has seen the notice.
+ */
+type SignInStep = 'saved' | 'notice' | 'address' | 'login' | 'paste'
 
 function CanvasLogo({ className }: { className?: string }) {
   return <BrandLogo src={canvasLogo} className={className} />
@@ -104,7 +116,7 @@ function CanvasForm({
   const [picked, setPicked] = useState<Method | null>()
   const method = picked !== undefined ? picked : defaultMethod(signInEnabled, editing, hints)
   const savedSignIn = editing && hints.method === 'sign_in'
-  const [step, setStep] = useState<SignInStep>(savedSignIn ? 'saved' : 'address')
+  const [step, setStep] = useState<SignInStep>(savedSignIn ? 'saved' : 'notice')
   const start = useMutation(lmsConnectionSignInStartMutation())
   const address = config.base_url?.trim() ?? ''
   // A real link, opened by the user's own click: browsers block a tab opened after a request.
@@ -204,6 +216,27 @@ function CanvasForm({
     )
   }
 
+  if (step === 'notice') {
+    return frame(
+      <>
+        <Alert>
+          <TriangleAlert aria-hidden />
+          <AlertTitle>{m.lms_canvas_sign_in_notice_title()}</AlertTitle>
+          <AlertDescription>{m.lms_canvas_sign_in_notice_description()}</AlertDescription>
+        </Alert>
+        <p className="font-medium">{m.lms_canvas_sign_in_notice_responsibility()}</p>
+      </>,
+      {
+        back: toMethods,
+        next: {
+          label: m.lms_canvas_sign_in_notice_accept(),
+          disabled: false,
+          onClick: () => setStep('address'),
+        },
+      },
+    )
+  }
+
   if (step === 'address') {
     const getLink = () => {
       if (!address || start.isPending) return
@@ -219,7 +252,7 @@ function CanvasForm({
         {start.error ? <FieldError>{errorMessage(start.error)}</FieldError> : null}
       </>,
       {
-        back: savedSignIn ? () => setStep('saved') : toMethods,
+        back: () => setStep(savedSignIn ? 'saved' : 'notice'),
         next: {
           label: start.isPending
             ? m.lms_canvas_sign_in_preparing()
@@ -236,6 +269,11 @@ function CanvasForm({
       <>
         <StepHeading step={2} title={m.lms_canvas_sign_in_step_login()} />
         <p className="text-muted-foreground">{m.lms_canvas_sign_in_step_login_description()}</p>
+        <Alert>
+          <Info aria-hidden />
+          <AlertTitle>{m.lms_canvas_sign_in_not_found_title()}</AlertTitle>
+          <AlertDescription>{m.lms_canvas_sign_in_not_found_description()}</AlertDescription>
+        </Alert>
         <div>
           <Button
             variant="outline"
