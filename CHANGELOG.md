@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.11.1 (2026-11-03)
+
+### Fixed
+
+- **Canvas:** Self-hosted instances can connect Canvas with a school account instead of a personal access token.
+
 ## 1.11.0 (2026-11-01)
 
 ### Improved
