@@ -126,7 +126,12 @@ export function ConnectionForm({
             {m.common_cancel()}
           </DialogClose>
           {step.next ? (
-            <Button type="button" disabled={step.next.disabled} onClick={step.next.onClick}>
+            <Button
+              type="button"
+              variant={step.next.secondary ? 'secondary' : 'default'}
+              disabled={step.next.disabled}
+              onClick={step.next.onClick}
+            >
               {step.next.label}
             </Button>
           ) : null}

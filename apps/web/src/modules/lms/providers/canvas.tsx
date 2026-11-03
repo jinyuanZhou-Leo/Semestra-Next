@@ -282,9 +282,9 @@ function CanvasForm({
           <AlertTitle>{m.lms_canvas_sign_in_not_found_title()}</AlertTitle>
           <AlertDescription>{m.lms_canvas_sign_in_not_found_description()}</AlertDescription>
         </Alert>
-        <div>
+        <div className="flex justify-center">
           <Button
-            variant="outline"
+            size="lg"
             nativeButton={false}
             render={
               <a
@@ -306,6 +306,8 @@ function CanvasForm({
           label: m.lms_canvas_sign_in_continue(),
           disabled: false,
           onClick: () => setStep('paste'),
+          // Opening the login comes first on this step.
+          secondary: true,
         },
       },
     )

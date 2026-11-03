@@ -37,7 +37,7 @@ export type LmsProviderUi = {
 /** How a step of the form ends. By default: the name field, then "Check and save". */
 export type LmsFormStep = {
   /** A step before the last one: no name field, and this button instead of saving. */
-  next?: { label: string; disabled: boolean; onClick: () => void }
+  next?: { label: string; disabled: boolean; onClick: () => void; secondary?: boolean }
   /** A step with its own way forward (a list to pick from): no name field, no main button. */
   noAction?: boolean
   /** The last step still misses what it asks for. */
