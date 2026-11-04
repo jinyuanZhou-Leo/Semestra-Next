@@ -65,7 +65,7 @@ docs/                设计稿与模块规格
 - **拉了新提交后 `pnpm dev` 报 `no such table: core_jobs` 等**：本地 SQLite 没迁移到最新 head（新模块带来新迁移）。`semestra dev` 现在启动前会自动 `alembic upgrade head`（`--no-migrate` 可跳过）；单独起服务或用 `serve` 时需手动 `pnpm --filter @semestra/api migrate`。
 - **Python 版本**：见上；`apps/api/.python-version` 是 `3.14`，uv 会选已安装的最新 3.14.x。
 - **uvicorn**：不要写 `uvicorn[standard]`（在 3.15 时代 PyYAML 没有 wheel；现在保持手动列出的依赖，免得多拉包）。
-- **OpenAPI 生成器与 TS 7**：`@hey-api/openapi-ts` 在 TS 7 下直接崩（`Cannot read properties of undefined (reading 'AnyKeyword')`）。生成器依赖的 `typescript@6.0.3` 只放在 `packages/api-client`，不要升级或删除；也不要把它引入 `apps/web`。
+- **OpenAPI 生成器与 TS 7**：`@hey-api/openapi-ts` 在 TS 7 下直接崩（`Cannot read properties of undefined (reading 'AnyKeyword')`）。生成器依赖的 `typescript@6.0.3` 只放在 `packages/api-client`，不要升级或删除；也不要把它引入 `apps/web`。`apps/site` 同样固定 `typescript@6.0.3`：`astro check` 不支持 TypeScript 7。
 - **`@hey-api/client-fetch` 包已内置**，不要再单独安装这个依赖，配置里直接写插件名即可。
 - **改了后端接口后必须跑 `pnpm gen:api` 并提交生成结果**，否则 CI 的 contract 检查会失败。
 - **TanStack Router**：`src/routeTree.gen.ts` 要提交（`typecheck` 依赖它）；Paraglide 产物 `src/paraglide/` 不提交，`typecheck` 与 `test` 脚本会先 `pnpm i18n:compile`。
