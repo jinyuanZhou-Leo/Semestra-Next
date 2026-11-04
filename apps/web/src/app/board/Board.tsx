@@ -613,7 +613,9 @@ function BoardView({
                         onResize={(size) =>
                           relayout((current) => resizeItem(current, card.id, size, cols))
                         }
-                        onOpenDialog={(kind) => setDialog({ card, kind, open: true })}
+                        onOpenDialog={(dialogKind) =>
+                          setDialog({ card, kind: dialogKind, open: true })
+                        }
                       />
                       {editing && movable && contribution.sizes.length > 1 ? (
                         <span
