@@ -66,9 +66,10 @@ export type PromptEditorHandle = {
 
 /**
  * `@` also works right after Chinese or Japanese text and full-width punctuation, where no space
- * comes before it; `a@b` still does not open the menu.
+ * comes before it; `a@b` still does not open the menu. Checked in `allow`: Tiptap's
+ * `allowedPrefixes` takes single characters, not ranges.
  */
-const AFTER_CJK = [' ', '\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef']
+const AFTER_CJK = /^[\s\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]?$/
 
 function OptionLabel({ option }: { option: Option }) {
   const [icon, label, hint] =
@@ -248,10 +249,12 @@ export function PromptEditor({
   const trigger = (char: string, menuChar: '/' | '@') => ({
     char,
     items: () => [],
-    allowedPrefixes: menuChar === '@' ? AFTER_CJK : undefined,
+    allowedPrefixes: menuChar === '@' ? null : undefined,
     // A skill or `/compact` starts the input, and there is one at most.
     allow: ({ state, range }: { state: EditorState; range: Range }) =>
-      menuChar === '@' || (slash && range.from === 1 && leadNode(state.doc) === null),
+      menuChar === '@'
+        ? AFTER_CJK.test(state.doc.textBetween(Math.max(0, range.from - 1), range.from))
+        : slash && range.from === 1 && leadNode(state.doc) === null,
     render: () => ({
       onStart: (props: { query: string; range: Range }) => {
         setMenu({ char: menuChar, query: props.query, range: props.range })

@@ -34,7 +34,7 @@ async def test_create_checks_the_key_and_stores_it_encrypted(
     assert created["capabilities_editable"] is False
     assert created["last_checked_at"] is not None
     request = mock.calls.last.request
-    assert request.headers["x-api-key"] == ANTHROPIC_KEY
+    assert request.headers["authorization"] == f"Bearer {ANTHROPIC_KEY}"
 
     async with app.state.session_factory() as db:
         row = (await db.scalars(select(AiProvider))).one()

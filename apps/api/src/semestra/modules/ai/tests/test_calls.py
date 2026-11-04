@@ -435,7 +435,9 @@ async def test_gemini_conversion_and_structured(ai: Ai, mock: respx.MockRouter):
         )
     assert result == Title(title="Week 3")
     body = json.loads(route.calls.last.request.content)
-    assert body["systemInstruction"]["parts"] == [{"text": "Name it."}]
+    # Pydantic AI appends its own note on `<system>` tags for models without mid-conversation
+    # system messages.
+    assert body["systemInstruction"]["parts"][0] == {"text": "Name it."}
     assert body["contents"][0]["parts"][1]["inlineData"]["data"] == "iVBORyBmYWtl"
     assert body["generationConfig"]["responseMimeType"] == "application/json"
     assert body["generationConfig"]["responseJsonSchema"]["properties"]["title"]["type"] == "string"

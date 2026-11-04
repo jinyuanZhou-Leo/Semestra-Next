@@ -882,9 +882,16 @@ async def test_loading_a_skill_gives_its_workflow_and_tools(agent: Agent, model:
     model.then(call("load_capability", {"id": "record-grades"}), say("ok"))
     await agent.send(session["id"], "I got a score")
     assert "record-grades" in model.instructions_of(0)  # the catalog
-    assert "Recording grades" in str(model.results(1)[0].content)
+    # The workflow follows the result in the system voice, after the tool row.
+    assert "Recording grades" not in str(model.results(1)[0].content)
+    assert "Recording grades" in model.text_of(1)
     assert "grading__assessment__create_many" not in model.tools_of(0)
     assert "grading__assessment__create_many" in model.tools_of(1)
+    # It is stored with the tool row, so the next message finds it where it was sent.
+    model.then(say("ok"))
+    await agent.send(session["id"], "and another")
+    sent = [str(m.parts) for m in model.requests[2][0] if isinstance(m, ModelRequest)]
+    assert ["Recording grades" in parts for parts in sent] == [False, True, False]
 
 
 async def test_a_loaded_skills_tools_stay_callable_in_the_next_message(

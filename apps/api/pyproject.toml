@@ -24,11 +24,11 @@ dependencies = [
     "pillow>=13.0.0",
     "pillow-heif>=1.8.1",
     "pydantic>=2.14.1",
-    "pydantic-ai-slim[anthropic,google,openai]==2.57.0",
+    "pydantic-ai-slim[anthropic,google,openai]==2.65.0",
     "pydantic-settings>=2.16.0",
     "pyjwt>=2.15.1",
-    "pymupdf>=1.28.2,<2",
-    "pymupdf4llm>=0.3.4,<1",
+    "pymupdf>=2.1",
+    "pymupdf4llm>=2.1",
     "python-docx>=1.2.0",
     "python-dotenv>=1.2.4",
     "python-multipart>=0.0.32",
@@ -56,10 +56,6 @@ semestra = "semestra.cli:main"
 [build-system]
 requires = ["uv_build>=0.10.10,<0.14.0"]
 build-backend = "uv_build"
-
-[tool.uv]
-# anthropic 2.x 与 pydantic-ai 2.57 / M06 bridge 不兼容（出站防护测试失败），升级前先适配 adapters/。
-constraint-dependencies = ["anthropic<2"]
 
 [tool.uv.build-backend]
 module-name = "semestra"
