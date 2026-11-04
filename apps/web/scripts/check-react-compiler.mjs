@@ -1,11 +1,11 @@
 // Fails when React Compiler skips a component or hook (M00 §4.1). Vite compiles with
 // `panicThreshold: 'none'`, so a violation of the Rules of React (ref read/written during render,
 // setState during render, mutated props or state...) silently falls back to uncompiled code.
-// This runs the same compiler over `src` and reports every bail-out.
+// This runs the same compiler (Oxc's native port, as in `vite.config.ts`) over `src` and reports
+// every diagnostic; with `panicThreshold: 'none'` each one means a function was left uncompiled.
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { transformSync } from '@babel/core'
-import reactCompiler from 'babel-plugin-react-compiler'
+import { transform } from 'oxc-transform-react'
 
 const root = path.resolve(import.meta.dirname, '../src')
 const skip = new Set(['ui', 'ai-elements', 'paraglide', 'generated'])
@@ -32,43 +32,33 @@ function* files(dir) {
   }
 }
 
+// Same options as `react({ compiler })` in `vite.config.ts`.
+const compilerOptions = { eslintSuppressionRules: [], reportDiagnostics: true }
+
 const failures = []
-let compiled = 0
-for (const file of files(root)) {
-  transformSync(readFileSync(file, 'utf8'), {
-    filename: file,
-    babelrc: false,
-    configFile: false,
-    parserOpts: { plugins: ['jsx', 'typescript'] },
-    plugins: [
-      [
-        reactCompiler,
-        {
-          logger: {
-            logEvent(_, event) {
-              if (event.kind === 'CompileSuccess') compiled += 1
-              else if (event.kind === 'CompileError' || event.kind === 'CompileSkip') {
-                const detail = event.detail
-                const line =
-                  (typeof detail?.loc === 'object' ? detail.loc?.start.line : undefined) ??
-                  detail?.details?.[0]?.loc?.start.line ??
-                  event.fnLoc?.start.line ??
-                  0
-                const reason = detail?.reason ?? event.reason ?? event.kind
-                const name = path.relative(root, file)
-                if (allowed.some(([f, text]) => f === name && reason.includes(text))) return
-                failures.push(`${name}:${line}  ${reason}`)
-              }
-            },
-          },
-        },
-      ],
-    ],
-  })
-}
+let memoized = 0
+let checked = 0
+await Promise.all(
+  [...files(root)].map(async (file) => {
+    const source = readFileSync(file, 'utf8')
+    const result = await transform(file, source, { reactCompiler: compilerOptions })
+    checked += 1
+    // Every compiled function that caches anything starts with `const $ = _c(n)`.
+    memoized += result.code.match(/\b_c\d*\(\d+\)/g)?.length ?? 0
+    const name = path.relative(root, file)
+    for (const error of result.errors) {
+      const start = error.labels[0]?.start
+      const line = start === undefined ? 0 : source.slice(0, start).split('\n').length
+      if (allowed.some(([f, text]) => f === name && error.message.includes(text))) continue
+      failures.push(`${name}:${line}  ${error.message}`)
+    }
+  }),
+)
 
 if (failures.length > 0) {
-  console.error(`React Compiler skipped ${failures.length} function(s):\n${failures.join('\n')}`)
+  console.error(`React Compiler left code uncompiled (${failures.length} diagnostic(s)):\n${failures.join('\n')}`)
   process.exit(1)
 }
-console.log(`React Compiler: ${compiled} functions compiled, none skipped.`)
+console.log(
+  `React Compiler: ${checked} files, ${memoized} functions memoized, none skipped.`,
+)

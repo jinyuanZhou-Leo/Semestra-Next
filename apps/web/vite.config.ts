@@ -1,11 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import babel from '@rolldown/plugin-babel'
 import { paraglideVitePlugin } from '@inlang/paraglide-js'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react'
 import { type Plugin, defineConfig, normalizePath } from 'vite'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 
@@ -66,8 +65,10 @@ export default defineConfig({
       emitTsDeclarations: true,
       strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
     }),
-    react(),
-    babel({ presets: [reactCompilerPreset()] }),
+    // React Compiler runs natively (Oxc's Rust port, `oxc-transform-react`) instead of through Babel.
+    // `oxlint-disable … react-hooks/*` comments do not opt a function out: Babel's compiler only
+    // reads `eslint-disable`, and the few effects that skip a dependency on purpose stay compiled.
+    react({ compiler: { eslintSuppressionRules: [] } }),
     tailwindcss(),
     preloadFonts(),
     viteStaticCopy({
