@@ -1,7 +1,7 @@
 # Self-hosting Semestra / 自部署 Semestra
 
-One container serves both the API and the web app. You need Docker with the Compose plugin and about 3 GB of RAM: the default image reads scanned pages on the server, which takes up to 2 GB while it runs. Without that, the smaller image needs about 1 GB ([Local OCR](#local-ocr--本机-ocr)).
-一个容器同时提供 API 和网页，需要装有 Compose 插件的 Docker 和约 3 GB 内存：默认镜像会在服务器上识别扫描页，识别时最多占用 2 GB。不需要这个功能时，换成小镜像只要约 1 GB（见[本机 OCR](#local-ocr--本机-ocr)）。
+One container serves both the API and the web app. You need Docker with the Compose plugin and about 3 GB of RAM: the default image reads scanned pages and embeds text for search on the server, each taking up to 2 GB while it runs. Without them, the smaller image needs about 1 GB ([Local OCR](#local-ocr--本机-ocr)).
+一个容器同时提供 API 和网页，需要装有 Compose 插件的 Docker 和约 3 GB 内存：默认镜像会在服务器上识别扫描页、计算搜索用的向量，运行时各最多占用 2 GB。不需要这些功能时，换成小镜像只要约 1 GB（见[本机 OCR](#local-ocr--本机-ocr)）。
 
 The full guide (HTTPS, email, backups, AI, every setting) is in the docs site: `apps/docs/content/docs/self-hosting`, or run `pnpm docs:dev`.
 完整指南（HTTPS、邮件、备份、AI、全部设置）在文档站里：`apps/docs/content/docs/self-hosting`，或运行 `pnpm docs:dev`。
@@ -18,7 +18,7 @@ docker compose up -d
 Open <http://localhost:8000> (or `http://<server-ip>:8000`). The first start takes under a minute: the container creates its secrets, migrates the database and starts.
 打开 <http://localhost:8000>（或 `http://<服务器 IP>:8000`）。首次启动不到一分钟：容器会生成密钥、迁移数据库并启动。
 
-> The repository is private for now. Until the image is published publicly, run `docker login ghcr.io` with a token that has `read:packages`, or build locally: `docker build -f deploy/docker/Dockerfile --target allinone-ocr -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest-ocr .` from the repository root.
+> The repository is private for now. Until the image is published publicly, run `docker login ghcr.io` with a token that has `read:packages`, or build locally: `docker build -f deploy/docker/Dockerfile --target allinone-local -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest-local .` from the repository root.
 > 仓库目前是私有的。镜像公开之前，用有 `read:packages` 权限的 token 执行 `docker login ghcr.io`，或在仓库根目录自行构建（命令见上）。
 
 ### Verification codes / 验证码
@@ -134,14 +134,17 @@ An Ollama running elsewhere on your network works too: set its URL as `SEMESTRA_
 
 ## Local OCR / 本机 OCR
 
-The default image (`semestra-allinone:<version>-ocr`) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. It runs on amd64 and arm64, including Docker on Apple Silicon. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per page with the default model.
-默认镜像（`semestra-allinone:<版本>-ocr`）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。
+The default image (`semestra-allinone:<version>-local`) reads scanned PDF pages and photos on this machine with PaddleOCR (PP-OCRv6, on ONNX Runtime, CPU only), so no AI model is called for them. It runs on amd64 and arm64, including Docker on Apple Silicon. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per page with the default model.
+默认镜像（`semestra-allinone:<版本>-local`）用 PaddleOCR（PP-OCRv6，ONNX Runtime，只用 CPU）在本机识别扫描版 PDF 和照片，不会为此调用 AI 模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。
 
 Each user can pick another model (PP-OCRv6 tiny/small/medium, PP-OCRv5 mobile/server) or a provider's model in the **OCR** row of AI settings; `SEMESTRA_LOCAL_OCR_MODEL` sets the one used until they do. The image holds no model: each one downloads (from Hugging Face, or PaddleOCR's other mirrors) into the data volume the first time it is needed, when a user picks it or a scanned file arrives, and the app shows the download's progress. All users share the download, and it survives upgrades. A server without internet access needs them fetched while it still has it: `docker compose exec semestra semestra ocr-models --all`.
 每个用户可以在 AI 设置的 **OCR** 一行换成别的模型（PP-OCRv6 tiny/small/medium、PP-OCRv5 mobile/server）或某个服务商的模型；`SEMESTRA_LOCAL_OCR_MODEL` 设定用户没选时用的模型。镜像里不带模型：每个模型在第一次用到时（用户选中它，或有扫描文件要识别）从 Hugging Face（或 PaddleOCR 的其他镜像源）下载到数据卷，应用里会显示下载进度。所有用户共用下载好的模型，升级后也不用重新下载。服务器之后不能联网的话，请趁还能联网时先下载：`docker compose exec semestra semestra ocr-models --all`。
 
-To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run `docker compose up -d`; users then choose a provider's model for **OCR**. Set it back to `-ocr` to return.
-要换成不带它的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空），再运行 `docker compose up -d`；用户之后在 **OCR** 一行里选服务商的模型。改回 `-ocr` 即可换回来。
+The same image embeds text for search on this machine (ONNX models from Hugging Face, CPU only; default `multilingual-e5-small`, about 2 GB of RAM at most), so **Search** works without an AI provider. Users pick a model in the **Search** row of AI settings, or type the name of any Hugging Face model with an ONNX version. Models download like OCR models; `docker compose exec semestra semestra embedding-models --all` fetches them ahead of time.
+同一个镜像还会在本机计算搜索用的向量（Hugging Face 上的 ONNX 模型，只用 CPU；默认 `multilingual-e5-small`，内存最多约 2 GB），不接 AI 服务商也能用**搜索**。用户在 AI 设置的**搜索**一行选模型，也可以输入任何带 ONNX 版本的 Hugging Face 模型名。模型和 OCR 模型一样按需下载；`docker compose exec semestra semestra embedding-models --all` 可以提前下载。
+
+To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run `docker compose up -d`; users then choose a provider's model for **OCR** and **Search**. Set it back to `-local` to return.
+要换成不带它的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空），再运行 `docker compose up -d`；用户之后在 **OCR** 和**搜索**一行里选服务商的模型。改回 `-local` 即可换回来。
 
 ## Troubleshooting / 排错
 

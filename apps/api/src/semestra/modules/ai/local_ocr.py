@@ -15,11 +15,7 @@ import importlib.util
 import io
 import os
 import shutil
-import tempfile
 import threading
-import time
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -29,6 +25,8 @@ import structlog
 
 from semestra.core.config import Settings
 from semestra.core.context import Ctx
+from semestra.modules.ai import local_download
+from semestra.modules.ai.local_download import Download, Progress
 from semestra.modules.ai.models import AiModelAssignment
 
 log = structlog.get_logger(__name__)
@@ -141,35 +139,12 @@ def downloaded(model: str) -> bool:
     return all((models_dir() / part).is_dir() for part in _parts(model))
 
 
-@dataclass
-class _Download:
-    """A download in progress, shared by everyone waiting for the same model."""
-
-    staging: Path
-    total: int | None = None  # bytes, once known
-    finished: threading.Event = field(default_factory=threading.Event)
-    error: BaseException | None = None
-
-    def received(self) -> int:
-        size = 0
-        for root, _, files in os.walk(self.staging):
-            for name in files:
-                with contextlib.suppress(OSError):
-                    size += os.path.getsize(os.path.join(root, name))
-        return size
-
-
-_DOWNLOADS: dict[str, _Download] = {}
-_DOWNLOADS_LOCK = threading.Lock()
-
 # Seconds between progress reports while a model downloads.
 DOWNLOAD_POLL_SECONDS = 0.5
-# A staging directory this old was left by a server that stopped mid-download; a younger one may
-# belong to another process downloading the same model (`semestra ocr-models` next to the server).
-STALE_STAGING_SECONDS = 3600
+_KEY = "ocr:"
 
 
-def _fetch(model: str, state: _Download) -> None:
+def _fetch(model: str, state: Download) -> None:
     """Downloads the model's missing packages, from Hugging Face with a known size when it can
     (so progress has a total), otherwise through PaddleX's own list of mirrors. Each package is
     staged next to the cache and moved in whole, so a stopped download leaves nothing half done."""
@@ -188,7 +163,7 @@ def _fetch(model: str, state: _Download) -> None:
             (state.staging / part).rename(target / part)
 
 
-def _fetch_from_hugging_face(parts: list[str], state: _Download) -> None:
+def _fetch_from_hugging_face(parts: list[str], state: Download) -> None:
     # Plain HTTPS rather than Xet: each file grows on disk as it arrives (what the progress
     # measures), and no chunk cache is left behind. Read when huggingface_hub is first imported.
     os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
@@ -214,57 +189,24 @@ def _fetch_from_mirrors(parts: list[str]) -> None:
         official_models.get_model_path(part.removesuffix("_onnx"), model_formats=("onnx",))
 
 
-def _run(model: str, state: _Download) -> None:
-    try:
-        _fetch(model, state)
-    except BaseException as exc:  # handed to whoever waits
-        state.error = exc
-    finally:
-        shutil.rmtree(state.staging, ignore_errors=True)
-        with _DOWNLOADS_LOCK:
-            _DOWNLOADS.pop(model, None)
-        state.finished.set()
-
-
-async def download(
-    model: str, progress: Callable[[int, int | None], Awaitable[None]] | None = None
-) -> None:
+async def download(model: str, progress: Progress | None = None) -> None:
     """Makes sure the model is on disk, reporting `progress(bytes_received, total_bytes)` while
-    it downloads. Callers asking for the same model share one download, and it carries on in the
-    background if a caller stops waiting (a cancelled job), so the bytes are not wasted."""
+    it downloads (shared by everyone waiting for it; see `local_download.ensure`)."""
     if model not in MODELS:
         raise ValueError(f"unknown local OCR model {model!r}")
-    if downloaded(model):
-        return
-    with _DOWNLOADS_LOCK:
-        state = _DOWNLOADS.get(model)
-        if state is None:
-            models_dir().mkdir(parents=True, exist_ok=True)
-            cutoff = time.time() - STALE_STAGING_SECONDS
-            for stale in models_dir().glob(f".{model}-*"):
-                with contextlib.suppress(OSError):
-                    if stale.stat().st_mtime < cutoff:
-                        shutil.rmtree(stale, ignore_errors=True)
-            # On the same file system as the cache, so finished packages move in one rename.
-            staging = Path(tempfile.mkdtemp(prefix=f".{model}-", dir=models_dir()))
-            state = _DOWNLOADS[model] = _Download(staging)
-            threading.Thread(target=_run, args=(model, state), daemon=True).start()
-    while not state.finished.is_set():
-        if progress is not None:
-            await progress(await anyio.to_thread.run_sync(state.received), state.total)
-        await anyio.sleep(DOWNLOAD_POLL_SECONDS)
-    if state.error is not None:
-        raise state.error
-    if not downloaded(model):
-        raise RuntimeError(f"{model} is still missing after its download")
-    if progress is not None and state.total is not None:
-        await progress(state.total, state.total)
+    await local_download.ensure(
+        _KEY + model,
+        parent=models_dir(),
+        present=lambda: downloaded(model),
+        fetch=lambda state: _fetch(model, state),
+        progress=progress,
+        poll_seconds=DOWNLOAD_POLL_SECONDS,
+    )
 
 
 def downloading() -> list[str]:
     """The models this process is downloading now, whoever asked for them."""
-    with _DOWNLOADS_LOCK:
-        return [m for m in MODELS if m in _DOWNLOADS]
+    return [m for m in local_download.downloading(_KEY) if m in MODELS]
 
 
 def download_blocking(model: str) -> None:

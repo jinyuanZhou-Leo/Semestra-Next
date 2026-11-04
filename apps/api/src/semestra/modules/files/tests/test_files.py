@@ -139,6 +139,10 @@ async def test_a_page_the_ocr_model_fails_on_is_skipped(fx: Fx, fake_ai: FakeAi)
     assert (await fx.search("photosynthesis"))["results"]
 
 
+def _local(status: dict[str, Any], purpose: str = "ocr") -> dict[str, Any]:
+    return next(entry for entry in status["local"] if entry["purpose"] == purpose)
+
+
 async def test_local_ocr_reads_scanned_pages_without_a_model(
     fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
@@ -181,15 +185,17 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv5_mobile"}
     await fx.call("PUT", "/ai/assignments", json=body)
     status = await fx.call("GET", "/ai/status")
-    assert status["local_ocr_downloaded"] == ["PP-OCRv6_medium"]
-    job_id = status["local_ocr_download_job"]
+    assert _local(status)["downloaded"] == ["PP-OCRv6_medium"]
+    job_id = _local(status)["download_job"]
     await fx.run_jobs()
     job = await fx.call("GET", f"/jobs/{job_id}")
     assert (job["status"], job["step"], job["step_current"]) == ("succeeded", "downloading", 4)
     status = await fx.call("GET", "/ai/status")
-    assert status["local_ocr_downloaded"] == ["PP-OCRv6_medium", "PP-OCRv5_mobile"]
-    assert status["local_ocr_download_job"] is None
-    assert (await fx.call("POST", "/ai/local-ocr/download", json={}))["job_id"] is None
+    assert _local(status)["downloaded"] == ["PP-OCRv6_medium", "PP-OCRv5_mobile"]
+    assert _local(status)["download_job"] is None
+    assert (await fx.call("POST", "/ai/local-models/download", json={"purpose": "ocr"}))[
+        "job_id"
+    ] is None
 
     await fx.upload_ready("photo2.png", make_png("second"))
     assert pages[-1][0] == "PP-OCRv5_mobile"
@@ -203,12 +209,12 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     monkeypatch.setattr(local_ocr, "_fetch_from_mirrors", unreachable)
     body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv6_tiny"}
     await fx.call("PUT", "/ai/assignments", json=body)
-    job_id = (await fx.call("GET", "/ai/status"))["local_ocr_download_job"]
+    job_id = _local(await fx.call("GET", "/ai/status"))["download_job"]
     await fx.run_jobs()
     job = await fx.call("GET", f"/jobs/{job_id}")
     assert (job["status"], job["error_code"]) == ("failed", "ai.local_ocr_download_failed")
     # The OCR row keeps showing the failure (and a retry) after a reload.
-    assert (await fx.call("GET", "/ai/status"))["local_ocr_download_job"] == job_id
+    assert _local(await fx.call("GET", "/ai/status"))["download_job"] == job_id
     fake_ai.enabled.add("ocr")
     item = await fx.upload_ready("photo3.png", make_png("third"))
     assert item["ocr_skipped_pages"] == 1

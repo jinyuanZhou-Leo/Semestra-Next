@@ -214,7 +214,12 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
     async def complete_with(ctx: Any, resolved: Any, messages: Any, **kwargs: Any) -> Any:
         return await complete(ctx, "ocr", messages, **kwargs)
 
-    async def embed(ctx: Any, texts: list[str], *, source_module: str) -> ai.EmbeddingResult:
+    async def embedding_model(ctx: Any) -> tuple[str, str]:
+        return "fake", fake.model
+
+    async def embed(
+        ctx: Any, texts: list[str], *, source_module: str, query: bool = False
+    ) -> ai.EmbeddingResult:
         if fake.fail_embedding or (
             fake.fail_embedding_on is not None and any(fake.fail_embedding_on in t for t in texts)
         ):
@@ -223,7 +228,7 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
             raise AppError("ai.timeout", 504)
         fake.embed_calls.append(list(texts))
         result = ai.EmbeddingResult(
-            model=fake.model, dim=DIM, vectors=[fake_vector(t) for t in texts]
+            model=fake.model, dim=DIM, vectors=[fake_vector(t) for t in texts], provider_kind="fake"
         )
         if fake.after_embed is not None:
             fake.after_embed(fake)
@@ -234,4 +239,5 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
     monkeypatch.setattr(ai, "complete", complete)
     monkeypatch.setattr(ai, "complete_with", complete_with)
     monkeypatch.setattr(ai, "embed", embed)
+    monkeypatch.setattr(ai, "embedding_model", embedding_model)
     return fake

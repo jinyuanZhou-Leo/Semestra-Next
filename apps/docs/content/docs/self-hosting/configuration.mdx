@@ -67,7 +67,7 @@ See [Instance-wide provider](/docs/ai/instance-provider).
 
 ## Local OCR
 
-The default image (tag ending in `-ocr`) reads scanned PDF pages and photos on the server with
+The default image (tag ending in `-local`) reads scanned PDF pages and photos on the server with
 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) on ONNX Runtime, CPU only, so no AI model
 is called for them. Each user can pick a local PaddleOCR model in the **OCR** row of AI settings →
 Models (the default is the one below), or use a provider's model instead. It runs on amd64 and
@@ -86,14 +86,50 @@ docker compose exec semestra semestra ocr-models --all
 ```
 
 To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run
-`docker compose up -d`; users then choose a provider's model for **OCR**. Set it back to `-ocr` to
-return.
+`docker compose up -d`; users then choose a provider's model for **OCR** and **Search**. Set it back to
+`-local` to return.
 
 | Variable                   | Default           | Meaning                                                       |
 | -------------------------- | ----------------- | ------------------------------------------------------------- |
-| `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
+| `SEMESTRA_LOCAL_OCR`       | `true` in `-local` | Read scanned pages on the server                              |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | Default model: `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
 | `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | Time allowed per page (plus two minutes to load the model); raise it on a very slow CPU |
+
+## Local embedding
+
+The default image also turns text into vectors for search on the server, so **Search** works
+without an AI provider. It runs [ONNX](https://onnx.ai) models from Hugging Face on ONNX Runtime,
+CPU only. Each user picks a model in the **Search** row of AI settings → Models:
+
+| Model                   | Notes                                                         |
+| ----------------------- | ------------------------------------------------------------- |
+| `multilingual-e5-small` | Default. Smallest and fastest: about 20 passages a second on an Apple M3, at most about 2 GB of RAM |
+| `bge-m3`                | Balanced, good in Chinese and English; needs more memory      |
+| `qwen3-embedding-0.6b`  | Most accurate, slower                                         |
+
+Users can also type the name of any Hugging Face model that has an ONNX version (an `onnx/`
+folder and a `tokenizer.json`), such as `BAAI/bge-small-zh-v1.5`. Models download into the data
+volume the first time they are needed, like OCR models; files stay searchable by keyword until
+then, and their vectors are added once the model is here. Changing models rebuilds the vectors in
+the background. To fetch models ahead of time:
+
+```sh
+docker compose exec semestra semestra embedding-models --all
+```
+
+The model stays loaded in its own process and exits after ten idle minutes. Docker cannot use a
+Mac's GPU, and Core ML through ONNX Runtime used tens of gigabytes of memory in our tests, so this
+runs on the CPU. For GPU speed, run [Ollama](/docs/ai/ollama) on the host and pick its embedding
+model instead.
+
+| Variable                          | Default                       | Meaning                                         |
+| --------------------------------- | ----------------------------- | ----------------------------------------------- |
+| `SEMESTRA_LOCAL_EMBEDDING`        | `true` in `-local`            | Embed text on the server                        |
+| `SEMESTRA_LOCAL_EMBEDDING_MODEL`  | `multilingual-e5-small`       | Default model (one of the table above, or a Hugging Face name) |
+| `SEMESTRA_LOCAL_EMBEDDING_CUSTOM` | `true`                        | Let users add Hugging Face models; turn off on a shared server to save disk |
+| `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                           | Largest Hugging Face model users may add        |
+| `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                          | CPU threads (0: half the cores)                 |
+| `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`                   | Unload the model after this long without use    |
 
 ## Background work and backups
 

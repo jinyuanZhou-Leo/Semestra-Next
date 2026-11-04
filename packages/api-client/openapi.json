@@ -4176,19 +4176,19 @@
         ]
       }
     },
-    "/ai/local-ocr/download": {
+    "/ai/local-models/download": {
       "post": {
         "tags": [
           "ai"
         ],
-        "summary": "Download a local OCR model to this self-hosted server.",
-        "description": "Defaults to the user's OCR model. Returns the download job's id, or null when\nthe model is already here. Not for agents.",
-        "operationId": "aiLocalOcrDownload",
+        "summary": "Download a model this self-hosted server runs itself (OCR or embedding).",
+        "description": "Defaults to the user's model for that purpose. Returns the download job's id,\nor null when the model is already here. Not for agents.",
+        "operationId": "aiLocalModelDownload",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LocalOcrDownloadInputBody"
+                "$ref": "#/components/schemas/LocalModelDownloadInputBody"
               }
             }
           },
@@ -4200,7 +4200,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LocalOcrDownload"
+                  "$ref": "#/components/schemas/LocalModelDownload"
                 }
               }
             }
@@ -16709,48 +16709,12 @@
             "type": "array",
             "title": "Items"
           },
-          "local_ocr_models": {
+          "local": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/LocalModels"
             },
             "type": "array",
-            "title": "Local Ocr Models"
-          },
-          "local_ocr_default": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Local Ocr Default"
-          },
-          "local_ocr_downloaded": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Local Ocr Downloaded"
-          },
-          "local_ocr_downloading": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Local Ocr Downloading"
-          },
-          "local_ocr_download_job": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Local Ocr Download Job"
+            "title": "Local"
           }
         },
         "type": "object",
@@ -18069,7 +18033,7 @@
               }
             ],
             "title": "Provider Id",
-            "description": "Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model."
+            "description": "Provider to use; null removes the choice (the recommended default applies), or, for ocr and embedding with a local model name in `model`, picks that model this server runs itself."
           },
           "model": {
             "anyOf": [
@@ -25728,7 +25692,7 @@
         ],
         "title": "LmsCourse"
       },
-      "LocalOcrDownload": {
+      "LocalModelDownload": {
         "properties": {
           "job_id": {
             "anyOf": [
@@ -25746,11 +25710,75 @@
         "required": [
           "job_id"
         ],
-        "title": "LocalOcrDownload"
+        "title": "LocalModelDownload"
       },
-      "LocalOcrDownloadInputBody": {
+      "LocalModelDownloadInputBody": {
         "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "ocr",
+              "embedding"
+            ],
+            "title": "Purpose",
+            "description": "What the model is for."
+          },
           "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "A local model; defaults to the one this user's purpose uses."
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose"
+        ],
+        "title": "LocalModelDownloadInputBody"
+      },
+      "LocalModels": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "ocr",
+              "embedding"
+            ],
+            "title": "Purpose"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "default": {
+            "type": "string",
+            "title": "Default"
+          },
+          "downloaded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Downloaded"
+          },
+          "downloading": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Downloading"
+          },
+          "download_job": {
             "anyOf": [
               {
                 "type": "string"
@@ -25759,12 +25787,25 @@
                 "type": "null"
               }
             ],
-            "title": "Model",
-            "description": "A local OCR model; defaults to the one that reads this user's scanned pages."
+            "title": "Download Job"
+          },
+          "custom": {
+            "type": "boolean",
+            "title": "Custom",
+            "default": false
           }
         },
         "type": "object",
-        "title": "LocalOcrDownloadInputBody"
+        "required": [
+          "purpose",
+          "models",
+          "default",
+          "downloaded",
+          "downloading",
+          "download_job"
+        ],
+        "title": "LocalModels",
+        "description": "Models a self-hosted server runs itself for one purpose (local OCR, local embedding)."
       },
       "Meeting": {
         "properties": {

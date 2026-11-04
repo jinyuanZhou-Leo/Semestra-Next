@@ -529,14 +529,24 @@ test('a local OCR model downloads from its row, which then shows the progress', 
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
         items: [...statusItems().filter((s) => s.purpose !== 'ocr'), local],
-        local_ocr_models: ['PP-OCRv6_tiny', 'PP-OCRv6_medium'],
-        local_ocr_default: 'PP-OCRv6_medium',
-        local_ocr_downloaded: ['PP-OCRv6_tiny'],
-        local_ocr_download_job: jobId,
+        local: [
+          {
+            purpose: 'ocr',
+            models: ['PP-OCRv6_tiny', 'PP-OCRv6_medium'],
+            default: 'PP-OCRv6_medium',
+            downloaded: ['PP-OCRv6_tiny'],
+            downloading: [],
+            download_job: jobId,
+          },
+        ],
       }),
     ),
-    http.post(`${API}/ai/local-ocr/download`, async ({ request }) => {
-      requests.push({ method: 'POST', path: '/ai/local-ocr/download', body: await request.json() })
+    http.post(`${API}/ai/local-models/download`, async ({ request }) => {
+      requests.push({
+        method: 'POST',
+        path: '/ai/local-models/download',
+        body: await request.json(),
+      })
       jobId = 'j1'
       return HttpResponse.json({ job_id: jobId })
     }),
@@ -565,7 +575,7 @@ test('a local OCR model downloads from its row, which then shows the progress', 
   renderWithQuery(<ModelsSection />)
   expect(await screen.findByText(/PP-OCRv6_medium isn't on this server yet/)).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Download now' }))
-  expect(requests.at(-1)).toMatchObject({ body: { model: 'PP-OCRv6_medium' } })
+  expect(requests.at(-1)).toMatchObject({ body: { purpose: 'ocr', model: 'PP-OCRv6_medium' } })
   expect(await screen.findByText('45/133 MB')).toBeInTheDocument()
   expect(screen.getByText('Downloading the OCR model')).toBeInTheDocument()
   expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
@@ -576,6 +586,44 @@ test('a local OCR model downloads from its row, which then shows the progress', 
     "Downloads the first time it's used",
   )
   expect(screen.getByRole('option', { name: /^PP-OCRv6_tiny/ })).not.toHaveTextContent('Downloads')
+})
+
+test('a server that allows it runs a Hugging Face model typed into the search box', async () => {
+  const local = { ...statusItems().find((s) => s.purpose === 'embedding')! }
+  Object.assign(local, { available: true, source: 'local', model: 'bge-m3' })
+  server.use(
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: [...statusItems().filter((s) => s.purpose !== 'embedding'), local],
+        local: [
+          {
+            purpose: 'embedding',
+            models: ['multilingual-e5-small', 'bge-m3', 'qwen3-embedding-0.6b'],
+            default: 'bge-m3',
+            downloaded: ['bge-m3'],
+            downloading: [],
+            download_job: null,
+            custom: true,
+          },
+        ],
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  await waitFor(() => expect(modelBox('Search')).toHaveTextContent('bge-m3'))
+  await user.click(modelBox('Search'))
+  await user.type(
+    await screen.findByPlaceholderText('Search or type a model name'),
+    'BAAI/bge-small-zh',
+  )
+  await user.click(await screen.findByRole('option', { name: /Use BAAI\/bge-small-zh from/ }))
+  await waitFor(() =>
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      body: { purpose: 'embedding', provider_id: null, model: 'BAAI/bge-small-zh' },
+    }),
+  )
 })
 
 test('with no provider the models page is one empty state that leads to adding one', async () => {

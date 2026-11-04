@@ -29,6 +29,14 @@ def main(argv: list[str] | None = None) -> None:
     ocr.add_argument("--model", help="model pair (default SEMESTRA_LOCAL_OCR_MODEL)")
     ocr.add_argument("--all", action="store_true", help="every model pair users can pick")
 
+    embedding = sub.add_parser(
+        "embedding-models", help="download local embedding models (needs the embedding extra)"
+    )
+    embedding.add_argument(
+        "--model", help="preset or Hugging Face repository (default SEMESTRA_LOCAL_EMBEDDING_MODEL)"
+    )
+    embedding.add_argument("--all", action="store_true", help="every preset")
+
     check = sub.add_parser("check-sessions", help="list what went wrong in Sem conversations")
     check.add_argument("db", nargs="?", help="SQLite file (default: the configured database)")
     check.add_argument("--since", help="only sessions updated at or after this ISO date")
@@ -106,6 +114,20 @@ def main(argv: list[str] | None = None) -> None:
             model = args.model or os.environ.get("SEMESTRA_LOCAL_OCR_MODEL", default)
             for name in local_ocr.MODELS if args.all else (model,):
                 local_ocr.download_blocking(name)
+                sys.stdout.write(f"{name}: ready\n")
+        case "embedding-models":
+            from semestra.core.config import Settings
+            from semestra.modules.ai import local_embedding
+
+            # Not get_settings(): an image build has no secrets yet (only the paths matter).
+            settings = Settings(env="dev")
+            names = (
+                local_embedding.PRESETS
+                if args.all
+                else (args.model or local_embedding.default_model(settings),)
+            )
+            for name in names:
+                local_embedding.download_blocking(settings, name)
                 sys.stdout.write(f"{name}: ready\n")
         case "check-sessions":
             from pathlib import Path

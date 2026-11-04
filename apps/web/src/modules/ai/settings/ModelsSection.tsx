@@ -1,8 +1,14 @@
-import type { Assignment, ModelList, Provider, PurposeStatus } from '@semestra/api-client'
+import type {
+  Assignment,
+  LocalModels,
+  ModelList,
+  Provider,
+  PurposeStatus,
+} from '@semestra/api-client'
 import {
   aiAssignmentGetOptions,
   aiAssignmentUpdateMutation,
-  aiLocalOcrDownloadMutation,
+  aiLocalModelDownloadMutation,
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiStatusGetOptions,
@@ -44,7 +50,7 @@ import { ItemDescription } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import {
-  LOCAL_OCR_HINTS,
+  LOCAL_MODEL_HINTS,
   PROVIDER_ERROR_LABEL,
   PURPOSE_HINTS,
   PURPOSE_TITLES,
@@ -57,12 +63,12 @@ import { ProviderMark } from './ProviderForm'
 /** The models each enabled provider offers, by provider id. */
 type ModelLists = ReadonlyMap<string, { data?: ModelList; isError: boolean }>
 
-/** One choice in a task's model box: "Auto", a model of one provider, or a local OCR model. */
+/** One choice in a task's model box: "Auto", a model of one provider, or one this server runs. */
 type ModelOption = {
   key: string
-  /** Null for "Auto" and for local OCR models. */
+  /** Null for "Auto" and for local models. */
   providerId: string | null
-  /** A PaddleOCR model this self-hosted server runs itself (OCR only). */
+  /** A model this self-hosted server runs itself (OCR, embedding). */
   local?: boolean
   model: string
   label: string
@@ -84,8 +90,15 @@ type ModelGroup = {
 const AUTO_KEY = 'auto'
 const LOCAL_KEY = 'local'
 
-function localOption(model: string, downloaded: boolean): ModelOption {
-  const hint = LOCAL_OCR_HINTS[model]?.() ?? null
+/** A Hugging Face repository name, which a server that allows it can run as a local model. */
+const HF_REPO = /^[A-Za-z0-9][\w.-]*\/[\w.-]+$/
+
+function localGroupLabel(purpose: AiPurpose): string {
+  return purpose === 'ocr' ? m.ai_models_local_group() : m.ai_models_local_group_embedding()
+}
+
+function localOption(purpose: AiPurpose, model: string, downloaded: boolean): ModelOption {
+  const hint = LOCAL_MODEL_HINTS[model]?.() ?? null
   return {
     key: `${LOCAL_KEY}/${model}`,
     providerId: null,
@@ -95,7 +108,7 @@ function localOption(model: string, downloaded: boolean): ModelOption {
     detail: downloaded
       ? hint
       : [hint, m.ai_models_local_needs_download()].filter(Boolean).join(' · '),
-    search: `${model} paddleocr ocr`.toLowerCase(),
+    search: `${model} ${purpose === 'ocr' ? 'paddleocr' : 'hugging face'}`.toLowerCase(),
   }
 }
 
@@ -118,15 +131,17 @@ function modelName(lists: ModelLists, providerId: string | null, model: string |
 }
 
 /**
- * A local OCR model that is not on this server yet: its download's progress, or a note that it
+ * A local model that is not on this server yet: its download's progress, or a note that it
  * downloads on first use with a button to fetch it now (and to try again after a failure).
  */
 function LocalModelDownload({
+  purpose,
   model,
   downloaded,
   downloading,
   jobId,
 }: {
+  purpose: 'ocr' | 'embedding'
   model: string
   downloaded: boolean
   /** Downloading for someone else, e.g. inside a file's processing. */
@@ -136,7 +151,7 @@ function LocalModelDownload({
   const queryClient = useQueryClient()
   const { status } = useJob(jobId)
   const start = useMutation({
-    ...aiLocalOcrDownloadMutation(),
+    ...aiLocalModelDownloadMutation(),
     onSuccess: () => invalidateAi(queryClient),
     onError: toastError,
   })
@@ -146,7 +161,7 @@ function LocalModelDownload({
       size="sm"
       className="h-auto p-0"
       disabled={start.isPending}
-      onClick={() => start.mutate({ body: { model } })}
+      onClick={() => start.mutate({ body: { purpose, model } })}
     >
       {m.ai_models_local_download()}
     </Button>
@@ -170,7 +185,10 @@ function LocalModelDownload({
   }
   return (
     <ItemDescription>
-      {m.ai_models_local_download_note({ model })} {button}
+      {purpose === 'ocr'
+        ? m.ai_models_local_download_note({ model })
+        : m.ai_models_local_download_note_embedding({ model })}{' '}
+      {button}
     </ItemDescription>
   )
 }
@@ -195,23 +213,14 @@ function PurposeRow({
   providers,
   lists,
   status,
-  localModels,
-  localDefault,
-  localDownloaded,
-  localDownloading,
-  downloadJob,
+  local,
 }: {
   assignment: Assignment
   providers: readonly Provider[]
   lists: ModelLists
   status: PurposeStatus | undefined
-  /** OCR on a self-hosted server with local OCR: the PaddleOCR models it can run. */
-  localModels: readonly string[]
-  localDefault: string | null
-  /** The local models already on this server, and the user's unfinished model download. */
-  localDownloaded: readonly string[]
-  localDownloading: readonly string[]
-  downloadJob: string | null
+  /** The models a self-hosted server runs itself for this purpose, if it has any. */
+  local: LocalModels | null
 }) {
   const queryClient = useQueryClient()
   const purpose = assignment.purpose as AiPurpose
@@ -226,12 +235,11 @@ function PurposeRow({
 
   // "Auto" follows the recommendation, which may change as providers come and go.
   const recommended = assignment.recommended
-  const autoWhere =
-    localModels.length > 0 && localDefault
-      ? `${m.ai_models_local_group()} · ${localDefault}`
-      : recommended
-        ? `${providerOf(recommended.provider_id)?.display_name ?? ''} · ${modelName(lists, recommended.provider_id, recommended.model)}`
-        : null
+  const autoWhere = local
+    ? `${localGroupLabel(purpose)} · ${local.default}`
+    : recommended
+      ? `${providerOf(recommended.provider_id)?.display_name ?? ''} · ${modelName(lists, recommended.provider_id, recommended.model)}`
+      : null
   const auto: ModelOption = {
     key: AUTO_KEY,
     providerId: null,
@@ -278,16 +286,23 @@ function PurposeRow({
       }
     })
     .filter((group) => group.items.length > 0)
-  if (localModels.length > 0) {
-    groups.unshift({
-      id: LOCAL_KEY,
-      label: m.ai_models_local_group(),
-      logo: null,
-      items: localModels.map((model) => localOption(model, localDownloaded.includes(model))),
-    })
+  if (local) {
+    const items = local.models.map((model) =>
+      localOption(purpose, model, local.downloaded.includes(model)),
+    )
+    // A server that allows it runs any Hugging Face model with an ONNX version: typed by name.
+    if (local.custom && HF_REPO.test(typed) && !items.some((item) => item.model === typed)) {
+      items.push({
+        ...localOption(purpose, typed, false),
+        label: m.ai_models_local_use_hf({ model: typed }),
+        typed: true,
+      })
+    }
+    groups.unshift({ id: LOCAL_KEY, label: localGroupLabel(purpose), logo: null, items })
   }
   const all = [{ id: AUTO_KEY, label: '', logo: null, items: [auto] }, ...groups]
   const anyManual =
+    local?.custom === true ||
     groups.some((group) => group.items.some((item) => item.typed)) ||
     providers.some((p) => canServe(p, purpose) && lists.get(p.id)?.data?.manual_entry)
 
@@ -335,12 +350,13 @@ function PurposeRow({
         // Nothing until the status arrives, so no row flashes "Unavailable" on first load.
         status === undefined ? null : !status.available ? (
           <ItemDescription>{m.ai_models_unavailable()}</ItemDescription>
-        ) : status.source === 'local' && status.model ? (
+        ) : status.source === 'local' && status.model && local ? (
           <LocalModelDownload
+            purpose={local.purpose}
             model={status.model}
-            downloaded={localDownloaded.includes(status.model)}
-            downloading={localDownloading.includes(status.model)}
-            jobId={downloadJob}
+            downloaded={local.downloaded.includes(status.model)}
+            downloading={local.downloading.includes(status.model)}
+            jobId={local.download_job ?? null}
           />
         ) : (
           <ProviderProblem provider={providerOf(status.provider_id)} />
@@ -463,7 +479,8 @@ export function ModelsSection() {
   const status = useQuery({
     ...aiStatusGetOptions(),
     // Only the user whose job it is hears that a download finished: poll while one runs.
-    refetchInterval: (query) => (query.state.data?.local_ocr_downloading?.length ? 3000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.local?.some((entry) => entry.downloading.length) ? 3000 : false,
   })
   const enabled = (providers.data?.items ?? []).filter((p) => p.enabled)
   // Shared by every task's box; the server caches each provider's list.
@@ -476,11 +493,11 @@ export function ModelsSection() {
   const lists: ModelLists = new Map(
     enabled.flatMap((p, i) => (results[i] ? [[p.id, results[i]] as const] : [])),
   )
-  // This server's OCR counts as a model: its row stays visible with no provider.
+  // Models this server runs itself count: their rows stay visible with no provider.
   const noProviders =
     providers.data?.items.length === 0 &&
     !status.data?.items.some((item) => item.source === 'instance') &&
-    !status.data?.local_ocr_models?.length
+    !status.data?.local?.length
   if (noProviders) return <NoProviders />
 
   return (
@@ -497,13 +514,10 @@ export function ModelsSection() {
                   providers={providers.data?.items ?? []}
                   lists={lists}
                   status={purposeStatus}
-                  localModels={
-                    assignment.purpose === 'ocr' ? (status.data?.local_ocr_models ?? []) : []
+                  local={
+                    status.data?.local?.find((entry) => entry.purpose === assignment.purpose) ??
+                    null
                   }
-                  localDefault={status.data?.local_ocr_default ?? null}
-                  localDownloaded={status.data?.local_ocr_downloaded ?? []}
-                  localDownloading={status.data?.local_ocr_downloading ?? []}
-                  downloadJob={status.data?.local_ocr_download_job ?? null}
                 />
               )
             })}
