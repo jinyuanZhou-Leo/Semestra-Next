@@ -326,6 +326,9 @@ test('course settings: guidance without a binding, then the calendar switch and 
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
     ),
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({ program_id: 'p1', connection_id: null, connection: null, link_count: 0 }),
+    ),
   )
   const first = renderWithRouter(<CourseLmsSection scope={scope} />)
   expect(await screen.findByText('No LMS connection for this program')).toBeInTheDocument()

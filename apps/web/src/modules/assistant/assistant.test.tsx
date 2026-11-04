@@ -127,7 +127,6 @@ beforeEach(() => {
   }
   const world = defaultWorld()
   server.use(
-    ...academicsHandlers(world),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
         items: [
@@ -169,6 +168,7 @@ beforeEach(() => {
       srv.sent.push({ path, body })
       return srv.reply(path, body)
     }),
+    ...academicsHandlers(world),
   )
 })
 

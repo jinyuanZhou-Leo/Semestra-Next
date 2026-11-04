@@ -80,6 +80,9 @@ function aiHandlers() {
     return body as Record<string, unknown> | undefined
   }
   return [
+    // Remembered view state (the usage table's grouping), none saved.
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/ai/status`, () => HttpResponse.json({ items: statusItems() })),
     http.get(`${API}/ai/providers`, () => HttpResponse.json({ items: world.providers })),
     http.post(`${API}/ai/providers`, async ({ request }) => {

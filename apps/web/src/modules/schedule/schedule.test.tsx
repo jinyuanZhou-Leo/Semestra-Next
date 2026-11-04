@@ -12,7 +12,7 @@ import { type World, academicsHandlers, defaultWorld } from '@/modules/academics
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
-import { API, newQueryClient, server, user } from '@/test-utils'
+import { API, newQueryClient, renderWithRouter, server, user } from '@/test-utils'
 import TodayCard from './cards/TodayCard'
 import { EventDialog } from './components/EventDialog'
 import schedule from './manifest'
@@ -442,15 +442,14 @@ test("the today card shows the now line after the day's last class", async () =>
       }),
     ),
   )
-  render(
-    <QueryClientProvider client={newQueryClient()}>
-      <TodayCard
-        scope={{ kind: 'program', programId: 'p1' }}
-        instanceId="c1"
-        size="xl"
-        settings={undefined}
-      />
-    </QueryClientProvider>,
+  // The card links to the calendar.
+  renderWithRouter(
+    <TodayCard
+      scope={{ kind: 'program', programId: 'p1' }}
+      instanceId="c1"
+      size="xl"
+      settings={undefined}
+    />,
   )
   const list = await screen.findByRole('list')
   expect(within(list).getAllByRole('listitem').at(-1)).toHaveAccessibleName('Now')
