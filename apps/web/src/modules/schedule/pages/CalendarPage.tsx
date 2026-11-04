@@ -5,6 +5,8 @@ import FullCalendar, {
   type EventDisplayInfo,
   type EventInput,
   type FormatterInput,
+  type ListDayHeaderInnerInfo,
+  type SlotHeaderInfo,
 } from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/react/daygrid'
 import interactionPlugin from '@fullcalendar/react/interaction'
@@ -38,7 +40,7 @@ import type { PageProps } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
-import { firstDayOfWeek, getFormatPreferences } from '@/lib/format'
+import { firstDayOfWeek, getFormatPreferences, intl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { useCourses, useTerms } from '@/modules/academics/queries'
@@ -98,6 +100,7 @@ const TIME_FORMATS = {
   '12h': { hour: 'numeric', minute: '2-digit', hour12: true },
   '24h': { hour: '2-digit', minute: '2-digit', hour12: false },
 } as const satisfies Record<string, FormatterInput>
+const FRAME = 'rounded-2xl overflow-clip'
 // Course blocks are the course color mixed into the page (the theme fills them solid).
 const TINTED =
   'text-[0.85em] border-0! bg-[color-mix(in_oklab,var(--fc-event-color)_18%,var(--background))]! shadow-none!'
@@ -117,24 +120,51 @@ const VIEWS = {
     weekNumberHeaderClass: 'text-muted-foreground font-medium',
     allDayHeaderClass: 'text-muted-foreground',
     slotHeaderClass: 'border-0! items-start!',
-    slotHeaderInnerClass:
-      '-translate-y-1/2 px-1.5 text-[0.7rem]! text-muted-foreground tabular-nums',
+    // Each label sits on its hour line; the first one hangs below it, so nothing is cut off and
+    // the columns run on unbroken from the all-day row.
+    slotHeaderInnerClass: (arg: SlotHeaderInfo) =>
+      cn(
+        'px-1.5 text-[0.7rem]! text-muted-foreground tabular-nums',
+        !arg.isFirst && '-translate-y-1/2',
+      ),
     columnEventClass: `${TINTED} m-px rounded-[calc(var(--radius)-2px)]! overflow-hidden`,
     columnEventInnerClass: 'p-0!',
-    // Room above the first hour line so its label is not cut off (WeekGrid's inset).
-    allDayDividerClass: 'mb-2 border-t-0! pb-0! bg-transparent!',
+    allDayDividerClass: 'border-t-0! pb-0! bg-transparent!',
   },
-  listWeek: { listDayHeaderInnerClass: 'font-medium! text-muted-foreground' },
+  // The framed views take the rounded frame of the app's other tables (SettingsTable, M11).
+  dayGridMonth: {
+    viewClass: FRAME,
+    // "Week 3" as plain secondary text in the corner, like the week view's header.
+    inlineWeekNumberClass: 'bg-transparent! px-1.5! pt-1! text-muted-foreground',
+  },
+  listWeek: {
+    viewClass: FRAME,
+    listDayHeaderInnerClass: (arg: ListDayHeaderInnerInfo) =>
+      cn('font-medium! text-muted-foreground', arg.isToday && 'text-primary!'),
+  },
 }
-// All-day and month-view blocks: the tint with the course color as a bar on the left.
-const ROW_EVENT_CLASS = `${TINTED} border-l-[3px]! border-l-(--fc-event-color)! rounded-sm!`
+// All-day and multi-day blocks: the tint with a straight course-colored bar on the left, which
+// the block's rounded corners clip, as in the week view and the timetable.
+const ROW_EVENT_CLASS = `${TINTED} relative overflow-hidden rounded-[calc(var(--radius)-6px)]! pl-[3px]! before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-(--fc-event-color)`
 
-const rangeTitle = (start: Date, end: Date) =>
-  new Intl.DateTimeFormat(getLocale(), {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).formatRange(start, end)
+const LONG_DATE = { year: 'numeric', month: 'long', day: 'numeric' } as const
+/**
+ * A week's days, "November 2 – 8, 2026". ICU has no Chinese range pattern and falls back to
+ * "2026/11/2 – 2026/11/8", unlike the long dates around it, so Chinese drops from the end what
+ * it shares with the start: "2026年11月2日 – 8日".
+ */
+const rangeTitle = (start: Date, end: Date) => {
+  if (!getLocale().startsWith('zh'))
+    return intl(Intl.DateTimeFormat, LONG_DATE).formatRange(start, end)
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const endFormat =
+    sameYear && start.getMonth() === end.getMonth()
+      ? ({ day: 'numeric' } as const)
+      : sameYear
+        ? ({ month: 'long', day: 'numeric' } as const)
+        : LONG_DATE
+  return `${intl(Intl.DateTimeFormat, LONG_DATE).format(start)} – ${intl(Intl.DateTimeFormat, endFormat).format(end)}`
+}
 
 /** A week row or column is named after the term week holding most of its days. */
 const midWeek = (firstDay: string) => plusDays(firstDay, 3)
