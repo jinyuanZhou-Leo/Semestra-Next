@@ -22,7 +22,7 @@ type Message = { type: string; data: unknown; origin?: string }
 
 type JobProgressEvent = Pick<
   JobOut,
-  'kind' | 'status' | 'progress' | 'step' | 'step_current' | 'step_total'
+  'kind' | 'status' | 'progress' | 'step' | 'step_current' | 'step_total' | 'finished_at'
 > & {
   job_id: string
 }
