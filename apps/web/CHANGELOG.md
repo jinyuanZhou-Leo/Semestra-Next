@@ -1,5 +1,16 @@
 # @semestra/web
 
+## 1.11.3
+
+### Patch Changes
+
+- 5c2e717: <!-- area: calendar -->
+  <!-- en -->
+  The calendar now runs on FullCalendar 7, and the agenda view no longer shows each course dot twice.
+  <!-- zh -->
+  日历升级到 FullCalendar 7，日程视图不再重复显示课程色点。
+- @semestra/api-client@1.11.3
+
 ## 1.11.2
 
 ### Patch Changes
