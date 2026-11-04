@@ -127,7 +127,7 @@ const VIEWS = {
         'px-1.5 text-[0.7rem]! text-muted-foreground tabular-nums',
         !arg.isFirst && '-translate-y-1/2',
       ),
-    columnEventClass: `${TINTED} m-px rounded-[calc(var(--radius)-2px)]! overflow-hidden`,
+    columnEventClass: `${TINTED} m-px rounded-[calc(var(--radius)-2px)]!`,
     columnEventInnerClass: 'p-0!',
     allDayDividerClass: 'border-t-0! pb-0! bg-transparent!',
   },
@@ -143,9 +143,10 @@ const VIEWS = {
       cn('font-medium! text-muted-foreground', arg.isToday && 'text-primary!'),
   },
 }
-// All-day and multi-day blocks: the tint with a straight course-colored bar on the left, which
-// the block's rounded corners clip, as in the week view and the timetable.
-const ROW_EVENT_CLASS = `${TINTED} relative overflow-hidden rounded-[calc(var(--radius)-6px)]! pl-[3px]! before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-(--fc-event-color)`
+// All-day and multi-day blocks: the tint with a course-colored bar on the left, as in the week view
+// and the timetable. The bar takes the block's corners itself: clipping the block would cut off
+// half of FullCalendar's resize handles, which stick out past its edges.
+const ROW_EVENT_CLASS = `${TINTED} relative rounded-[calc(var(--radius)-6px)]! pl-[3px]! before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[inherit] before:bg-(--fc-event-color)`
 
 const LONG_DATE = { year: 'numeric', month: 'long', day: 'numeric' } as const
 /**
@@ -758,7 +759,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
       <div className="flex h-full min-w-0 overflow-hidden leading-tight">
         <span
           aria-hidden
-          className="w-1 shrink-0"
+          className="w-1 shrink-0 rounded-l-[calc(var(--radius)-2px)]"
           style={{ backgroundColor: occurrenceColor(o) }}
         />
         <span className="min-w-0 flex-1 px-1 py-0.5">
