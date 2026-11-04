@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.11.3 (2026-11-03)
+
+### Fixed
+
+- **Calendar:** The calendar now runs on FullCalendar 7, and the agenda view no longer shows each course dot twice.
+
 ## 1.11.2 (2026-11-03)
 
 ### Fixed

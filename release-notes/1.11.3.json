@@ -1,0 +1,13 @@
+{
+  "version": "1.11.3",
+  "date": "2026-11-03",
+  "level": "patch",
+  "items": [
+    {
+      "kind": "fixed",
+      "area": "calendar",
+      "en": "The calendar now runs on FullCalendar 7, and the agenda view no longer shows each course dot twice.",
+      "zh": "日历升级到 FullCalendar 7，日程视图不再重复显示课程色点。"
+    }
+  ]
+}
