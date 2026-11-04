@@ -1,1 +1,1 @@
-{ "pages": ["index", "self-hosting", "ai", "mcp", "lms", "api", "plugins", "data", "calendar", "mobile", "changelog"] }
+{"pages": ["index", "changelog", "---Using Semestra---", "sem", "ai", "lms", "calendar", "data", "mobile", "mcp", "---Running your own---", "self-hosting", "---Developers---", "api", "plugins"]}

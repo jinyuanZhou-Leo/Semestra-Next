@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.messages import (
     SYNTHESIZED_TOOL_RETURN_METADATA_KEY,
+    InstructionDeltaPart,
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ThinkingPart,
     ToolAvailabilityDeltaPart,
@@ -20,8 +20,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from semestra.core.db import new_id
 from semestra.modules.agent import history, service
-from semestra.modules.agent.models import AgentSession
+from semestra.modules.agent.models import AgentMessage, AgentSession
 from semestra.modules.agent.runtime import agent_ctx
 
 if TYPE_CHECKING:
@@ -83,8 +84,12 @@ class Store:
             for m in messages
             if isinstance(m, ModelRequest)
             for p in m.parts
-            if isinstance(p, ToolReturnPart | RetryPromptPart)
+            if isinstance(p, ToolReturnPart)
         }
+        # Each stored tool row by the `id()` of its results, and the instruction changes
+        # already stored with one.
+        self.rows: dict[int, tuple[str, ModelRequest]] = {}
+        self.stated: set[int] = set()
 
     async def answer(
         self, response: ModelResponse, answer: Answer, *, paused: str | None = None
@@ -144,13 +149,13 @@ class Store:
             save_state(session, self.turn)
             await ctx.db.commit()
 
-    def _new_results(self, message: ModelRequest) -> list[ToolReturnPart | RetryPromptPart]:
+    def _new_results(self, message: ModelRequest) -> list[ToolReturnPart]:
         """Results in `message` not stored yet. Returns Pydantic AI made up for calls an earlier
         interruption left unanswered are not stored: it makes them again on every run."""
         return [
             p
             for p in message.parts
-            if isinstance(p, ToolReturnPart | RetryPromptPart)
+            if isinstance(p, ToolReturnPart)
             and id(p) not in self.answered
             and not (
                 isinstance(p, ToolReturnPart)
@@ -159,6 +164,27 @@ class Store:
             )
         ]
 
+    def _new_instructions(self, message: ModelRequest) -> list[InstructionDeltaPart]:
+        return [
+            p
+            for p in message.parts
+            if isinstance(p, InstructionDeltaPart) and id(p) not in self.stated
+        ]
+
+    def _late_instructions(
+        self, messages: Sequence[ModelMessage]
+    ) -> list[tuple[str, ModelRequest, list[InstructionDeltaPart]]]:
+        """Instructions Pydantic AI added to a stored tool row's request when it sent the next
+        one (a loaded skill's workflow, from 2.65 on): they belong to that row."""
+        late = []
+        for m in messages:
+            if not isinstance(m, ModelRequest) or not (parts := self._new_instructions(m)):
+                continue
+            row = next((self.rows[id(p)] for p in m.parts if id(p) in self.rows), None)
+            if row is not None:
+                late.append((*row, parts))
+        return late
+
     async def sync(self, messages: Sequence[ModelMessage]) -> None:
         """New tool results become tool rows."""
         new = [
@@ -166,26 +192,43 @@ class Store:
             for m in messages
             if isinstance(m, ModelRequest) and (parts := self._new_results(m))
         ]
-        if not new:
+        late = self._late_instructions(messages)
+        if not new and not late:
             return
         async with agent_ctx(self.turn.state, self.turn.user_id, scope=None) as ctx:
             session = await service.get_session_row(ctx, self.turn.session_id)
+            for row_id, stored, parts in late:
+                self.stated.update(id(p) for p in parts)
+                stored.parts = [*stored.parts, *parts]
+                row = await ctx.db.get(AgentMessage, row_id)
+                if row is not None:
+                    row.model_parts = history.dump(stored)
             for m, parts in new:
                 self.answered.update(id(p) for p in parts)
-                kept = [*parts, *reveals(m, parts)]
+                stated = self._new_instructions(m)
+                self.stated.update(id(p) for p in stated)
+                kept = [*parts, *reveals(m, parts), *stated]
                 request = replace(m, parts=kept) if len(kept) != len(m.parts) else m
                 blocks = history.request_blocks(request)
                 history.strip_full(request)
                 row = service.add_message(
-                    ctx, session, "tool", blocks, model_parts=history.dump(request)
+                    ctx,
+                    session,
+                    "tool",
+                    blocks,
+                    message_id=new_id(),  # known before the flush, for `rows`
+                    model_parts=history.dump(request),
                 )
                 self.turn.rows.mark(request, row.id)
+                # A copy: the run's own request goes on changing.
+                saved = replace(request, parts=list(request.parts))
+                self.rows.update((id(p), (row.id, saved)) for p in parts)
             save_state(session, self.turn)
             await ctx.db.commit()
 
 
 def reveals(
-    message: ModelRequest, results: Sequence[ToolReturnPart | RetryPromptPart]
+    message: ModelRequest, results: Sequence[ToolReturnPart]
 ) -> list[ToolAvailabilityDeltaPart]:
     """The tools these results revealed (a loaded skill's, say). Pydantic AI keeps them next to
     the result in the same request; without them a history loaded back from the rows no longer
@@ -198,7 +241,7 @@ def reveals(
     ]
 
 
-def result_event(message_id: str, part: ToolReturnPart | RetryPromptPart) -> list[Event]:
+def result_event(message_id: str, part: ToolReturnPart) -> list[Event]:
     block = history.result_block(part)
     out = [
         event(
@@ -213,7 +256,7 @@ def result_event(message_id: str, part: ToolReturnPart | RetryPromptPart) -> lis
             **({"display": block["display"]} if "display" in block else {}),
         )
     ]
-    meta = part.metadata if isinstance(part, ToolReturnPart) else None
+    meta = part.metadata
     if isinstance(meta, dict):
         out += [event("citation", **c) for c in meta.get("citations", [])]
     return out

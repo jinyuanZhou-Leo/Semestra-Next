@@ -32,6 +32,7 @@ from semestra.core.errors import AppError
 from semestra.modules.ai import local_download
 from semestra.modules.ai.local_download import Download, Progress
 from semestra.modules.ai.models import AiModelAssignment
+from semestra.modules.ai.resolve import try_resolve
 
 log = structlog.get_logger(__name__)
 
@@ -129,11 +130,15 @@ def valid(settings: Settings, model: str) -> bool:
 
 async def choice(ctx: Ctx) -> str | None:
     """The local model that embeds this user's texts, or None when a provider's model does:
-    local embedding is not installed, or the user picked a provider's model."""
+    local embedding is not installed, the user picked a provider's model, or (on automatic) a
+    provider or the instance has an embedding model. Automatic only falls back to the local
+    model, so turning local embedding on never moves anyone's vectors to a different model."""
     if not available(ctx.settings):
         return None
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, "embedding"))
     if row is None:
+        if await try_resolve(ctx, "embedding", with_key=False) is not None:
+            return None
         return default_model(ctx.settings)
     if row.provider_id is not None:
         return None

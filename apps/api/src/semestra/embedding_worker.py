@@ -30,6 +30,10 @@ class _Model:
     # Empty key/value caches a decoder export (Qwen3) asks for: (name, shape with -1 for the
     # batch, numpy dtype name).
     caches: tuple[tuple[str, tuple[int, ...], str], ...]
+    pad: int
+    # Last-token pooling reads the end-of-text token's state (Qwen3-Embedding); a tokenizer
+    # that does not add it itself gets it appended.
+    eos: int | None
     device: str
 
 
@@ -86,8 +90,8 @@ def _load(folder: str, wanted: str, thread_count: int) -> _Model:
         ),
         0,
     )
-    tokenizer.enable_padding(direction="right", pad_id=pad_id)
-    return _Model(session, tokenizer, spec, names, caches, used)
+    eos = tokenizer.token_to_id("<|endoftext|>") if spec["pooling"] == "last" else None
+    return _Model(session, tokenizer, spec, names, caches, pad_id, eos, used)
 
 
 def _embed(model: _Model, texts: Sequence[str], kind: str) -> list[list[float]]:
@@ -95,14 +99,19 @@ def _embed(model: _Model, texts: Sequence[str], kind: str) -> list[list[float]]:
 
     spec = model.spec
     prefix = spec["query_prefix"] if kind == "query" else spec["passage_prefix"]
+    limit = spec["max_tokens"]
     # Similar lengths together, so a batch pads little.
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
     out: list[list[float]] = [[] for _ in texts]
     for start in range(0, len(order), BATCH):
         indexes = order[start : start + BATCH]
         encodings = model.tokenizer.encode_batch([prefix + texts[i] for i in indexes])
-        ids = np.array([e.ids for e in encodings], dtype=np.int64)
-        mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
+        rows: list[list[int]] = [e.ids for e in encodings]
+        if model.eos is not None:
+            rows = [r if r and r[-1] == model.eos else [*r[: limit - 1], model.eos] for r in rows]
+        width = max(len(r) for r in rows)
+        ids = np.array([r + [model.pad] * (width - len(r)) for r in rows], dtype=np.int64)
+        mask = np.array([[1] * len(r) + [0] * (width - len(r)) for r in rows], dtype=np.int64)
         feed = {"input_ids": ids, "attention_mask": mask}
         if "token_type_ids" in model.inputs:
             feed["token_type_ids"] = np.zeros_like(ids)
@@ -123,7 +132,7 @@ def _embed(model: _Model, texts: Sequence[str], kind: str) -> list[list[float]]:
             hidden = np.asarray(result, dtype=np.float32)
             if spec["pooling"] == "cls":
                 vectors = hidden[:, 0]
-            elif spec["pooling"] == "last":  # right padding: the last real token
+            elif spec["pooling"] == "last":  # padded on the right: the last real token
                 vectors = hidden[np.arange(len(hidden)), mask.sum(axis=1) - 1]
             else:
                 weights = mask[:, :, None].astype(np.float32)

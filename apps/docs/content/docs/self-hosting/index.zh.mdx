@@ -1,110 +1,43 @@
 ---
-title: 用 Docker Compose 运行
-description: 一个容器同时提供 API 和网页应用。启动、登录、升级。
+title: 自部署
+description: 用 Docker Compose 运行自己的实例。按运行的位置选择对应的部署方式。
 ---
 
-`semestra-allinone` 镜像在 8000 端口上用同一个源提供 API 和网页应用，全部数据都在一个 Docker 卷里。你需要装有
-Compose 插件的 Docker，以及大约 3 GB 内存：默认镜像会在服务器上识别扫描页、计算搜索用的向量，运行时各最多占用 2 GB。
-不带这些功能的小镜像只要约 1 GB（见[本机 OCR](/docs/self-hosting/configuration#本机-ocr)和[本机 embedding](/docs/self-hosting/configuration#本机-embedding)）。
+一个容器在 8000 端口同时提供 API 和网页应用，全部数据都在一个 Docker 卷里。你需要装有 Compose 插件的 Docker，以及约
+3 GB 内存（[小镜像](./images.mdx)约 1 GB）。
 
-## 启动
-
-<Steps>
-<Step>
-
-### 获取 compose 文件
+仓库和镜像都是公开的，不需要登录任何账号。每种部署方式都从这里开始：
 
 ```bash
 git clone https://github.com/jinyuanZhou-Leo/Semestra-Next.git
 cd Semestra-Next/deploy/selfhost
-cp .env.example .env   # 可选，每个设置都有默认值
+cp .env.example .env
 ```
 
-</Step>
-<Step>
+## 选择部署方式
 
-### 获取镜像
+| 运行在哪里                                     | 用户打开的地址                 | 指南                                       |
+| ---------------------------------------------- | ------------------------------ | ------------------------------------------ |
+| 你自己的电脑，或家里局域网中的一台机器         | `http://localhost:8000` 或 `http://<IP>:8000` | [本机或局域网](./local.mdx) |
+| 有域名的服务器，由内置的 Caddy 提供 HTTPS      | `https://semestra.example.com` | [有域名的服务器](./domain.mdx)             |
+| 服务器上已经有 nginx、Traefik 等反向代理       | `https://semestra.example.com` | [放在已有的反向代理后面](./reverse-proxy.mdx) |
 
-仓库和镜像目前是私有的。可以用带 `read:packages` 权限的 GitHub 令牌登录镜像仓库：
+之后，无论哪种方式：
 
-```bash
-docker login ghcr.io
-```
+- [邮件](./email.mdx)：把验证码发到邮箱，而不是打印在日志里。
+- [升级与备份](./maintenance.mdx)：首先保管好 `/data/secrets.env`。
+- [镜像](./images.mdx)：默认镜像或小镜像、固定版本、自己构建。
+- [可选功能](./features.mdx)：Canvas 学校账号登录、全实例 AI 服务商。
+- [全部设置](./configuration.mdx)
 
-也可以在仓库根目录自己构建：
+## 排错
 
-```bash
-docker build -f deploy/docker/Dockerfile --target allinone-local \
-  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:latest-local .
-```
+| 现象                                         | 检查                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| 容器反复重启                                 | `docker compose logs semestra`                                            |
+| 登录后又回到登录页                           | `SEMESTRA_PUBLIC_URL` 以 `https://` 开头，但你打开的是 `http://` 地址。请打开 https 地址 |
+| 收不到验证码                                 | 没有配置[邮件](./email.mdx)时，验证码在 `docker compose logs semestra` 里 |
+| “SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod” | compose 文件里的 `SEMESTRA_AUTO_SECRETS` 被删掉了，且没有设置密钥 |
+| 绑定挂载的目录报权限错误                     | `sudo chown -R 10001:10001 <目录>`：容器以 uid 10001 运行                 |
 
-</Step>
-<Step>
-
-### 启动
-
-```bash
-docker compose up -d
-```
-
-打开 `http://localhost:8000`（或 `http://<服务器 IP>:8000`）。第一次启动时容器会生成密钥、迁移数据库，然后开始服务，
-用时不到一分钟。
-
-</Step>
-<Step>
-
-### 登录
-
-输入你的邮箱。在[配置邮件](./email.mdx)之前，验证码会打印在日志里：
-
-```bash
-docker compose logs -f semestra
-```
-
-</Step>
-</Steps>
-
-## 备份生成的密钥
-
-第一次启动时，容器会写入 `/data/secrets.env`，其中有 `SEMESTRA_SECRET_KEY`（签发会话和令牌）和
-`SEMESTRA_ENCRYPTION_KEY`（加密用户保存的 AI 和 Canvas 密钥）。在 `.env` 里设置的值优先。
-
-<Callout type="warn">
-  丢失 `SEMESTRA_ENCRYPTION_KEY` 后，已保存的服务商密钥和 Canvas 令牌都无法再解密。请把这个文件复制到安全的地方。
-</Callout>
-
-```bash
-docker compose cp semestra:/data/secrets.env ./secrets.env.backup
-```
-
-## 升级
-
-```bash
-docker compose pull && docker compose up -d
-```
-
-每次启动都会运行数据库迁移（`alembic upgrade head`），迁移只能向前，所以请先[做好备份](./backup.mdx)。如果想固定在某个版本而不是
-`latest`，在 `.env` 里设置 `SEMESTRA_VERSION=1.2.0`。
-
-## 健康检查
-
-| 路径       | 返回                                                         |
-| ---------- | ------------------------------------------------------------ |
-| `/healthz` | 进程在运行时返回 `{"status": "ok"}`                          |
-| `/readyz`  | 数据库可用且后台任务在运行时返回 `ok`，否则返回 `503`        |
-
-镜像内置了 Docker `HEALTHCHECK`。
-
-## 排查问题
-
-| 现象                                                     | 检查                                                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 容器不停重启                                             | `docker compose logs semestra`                                                       |
-| “SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod” | compose 文件里去掉了 `SEMESTRA_AUTO_SECRETS`，又没有设置密钥              |
-| 从另一台机器用 HTTP 访问时无法登录                       | 把 `SEMESTRA_PUBLIC_URL` 设成你实际打开的地址，或[启用 HTTPS](./https.mdx)            |
-| 绑定挂载目录出现权限错误                                 | `sudo chown -R 10001:10001 <目录>`：容器以 uid 10001 运行                             |
-
-## 尚未提供
-
-单用户模式（`SEMESTRA_SINGLE_USER`：第一个访问者成为管理员并关闭注册）已在计划中，但还没有实现：这个变量会被接受，但不起作用。
-配置真实邮件后，任何能访问你实例的人都可以用邮箱注册账户，所以目前请把实例放在内网，或放在你自己的访问控制之后。
+进程运行时 `/healthz` 就有响应，数据库和后台任务就绪后 `/readyz` 才返回成功（否则返回 `503`）。镜像自带 Docker `HEALTHCHECK`。

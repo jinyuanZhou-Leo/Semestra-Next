@@ -1,5 +1,21 @@
 # @semestra/api-client
 
+## 1.12.0
+
+No changes in this release.
+
+## 1.11.3
+
+No changes in this release.
+
+## 1.11.2
+
+No changes in this release.
+
+## 1.11.1
+
+No changes in this release.
+
 ## 1.11.0
 
 No changes in this release.

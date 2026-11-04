@@ -1,0 +1,45 @@
+---
+title: Computer or local network
+description: Try Semestra on your own computer, or run it on a machine at home without a domain.
+---
+
+## On this computer
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:8000`. The first start takes under a minute: the container pulls the image,
+generates its keys and creates the database. Nothing in `.env` needs to change.
+
+Sign in with any email address. The verification code is printed in the log:
+
+```bash
+docker compose logs -f semestra
+```
+
+## From other devices on your network
+
+Run it on one machine (a home server, a NAS, a spare computer) and open it from your phone or
+laptop. Set the address the other devices will use in `.env`:
+
+```bash title=".env"
+SEMESTRA_PUBLIC_URL=http://192.168.1.20:8000
+```
+
+```bash
+docker compose up -d
+```
+
+Links in emails and calendar subscription links use this address. Give the machine a fixed IP in
+your router so it stays valid.
+
+To reach it from outside your network, put it on a domain with HTTPS instead:
+[Server with a domain](./domain.mdx).
+
+## Stop or remove
+
+```bash
+docker compose down        # stop; data stays in the semestra-data volume
+docker compose down -v     # stop and delete all data
+```

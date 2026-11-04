@@ -250,6 +250,7 @@ def _event(job: CoreJob) -> Event:
         "step": job.step,
         "step_current": job.step_current,
         "step_total": job.step_total,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
     return Event(JOB_PROGRESS, data, job.user_id)
 
@@ -518,10 +519,14 @@ class JobRunner:
     async def _run_handler(self, job: CoreJob) -> CoreJob | None:
         handler = _handlers.get(job.kind)
         now: datetime = self.state.now()
-        end = _end_values(now)
+
+        def end() -> dict[str, Any]:
+            # When the job ended, not when it started: the status bar times "done" from it.
+            return _end_values(self.state.now())
+
         if handler is None:
             return await self._update(
-                job.id, {"status": "failed", "error_code": "core.job_unknown_kind", **end}
+                job.id, {"status": "failed", "error_code": "core.job_unknown_kind", **end()}
             )
 
         async def report(values: dict[str, Any]) -> None:
@@ -542,7 +547,7 @@ class JobRunner:
                 result = await handler.fn(ctx, payload)
             except JobCancelled:
                 await ctx.db.rollback()
-                return await self._update(job.id, {"status": "cancelled", **end})
+                return await self._update(job.id, {"status": "cancelled", **end()})
             except (AppError, ValidationError) as exc:
                 await ctx.db.rollback()
                 code, params = (
@@ -552,14 +557,14 @@ class JobRunner:
                 )
                 return await self._update(
                     job.id,
-                    {"status": "failed", "error_code": code, "error_params": params, **end},
+                    {"status": "failed", "error_code": code, "error_params": params, **end()},
                 )
             except Exception:
                 await ctx.db.rollback()
                 log.exception("job_failed", job_id=job.id, kind=job.kind, attempt=job.attempts)
                 error = {"error_code": "common.internal", "error_params": None}
                 if job.attempts >= job.max_attempts:
-                    return await self._update(job.id, {"status": "failed", **error, **end})
+                    return await self._update(job.id, {"status": "failed", **error, **end()})
                 retry = {
                     "status": "pending",
                     "run_after": now + _backoff(job.attempts),
@@ -574,7 +579,7 @@ class JobRunner:
                 "result": result.model_dump(mode="json"),
                 "error_code": None,
                 "error_params": None,
-                **end,
+                **end(),
             }
             row = await self._update(job.id, done, db=ctx.db)
             if row is None:

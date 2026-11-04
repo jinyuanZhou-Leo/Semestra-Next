@@ -11,14 +11,17 @@ to a minute) would make every other write in the app time out. The second level 
 after the request commits, in a short transaction of its own.
 """
 
+import asyncio
 import hashlib
 import json
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
 from cachetools import LRUCache
+from pydantic import BaseModel
 from sqlalchemy import delete
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from starlette.datastructures import State
@@ -59,6 +62,21 @@ class LmsRuntime:
 
     def __init__(self) -> None:
         self.lru: LRUCache[str, Entry] = LRUCache(maxsize=LRU_BYTES, getsizeof=_size)
+        # Renewed sign-in credentials (`service.fresh`) until they are stored, by connection,
+        # with the stored credentials they replace: new ones saved by the user win.
+        self._renewed: dict[str, tuple[str | None, BaseModel]] = {}
+        self._renewal_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+    def renewed(self, connection_id: str, stored: str | None) -> BaseModel | None:
+        hit = self._renewed.get(connection_id)
+        return hit[1] if hit is not None and hit[0] == stored else None
+
+    def renew(self, connection_id: str, replaces: str | None, creds: BaseModel) -> None:
+        self._renewed[connection_id] = (replaces, creds)
+
+    def renewal_lock(self, connection_id: str) -> asyncio.Lock:
+        """One renewal at a time per connection; the others use its result."""
+        return self._renewal_locks[connection_id]
 
     def get(self, key: str, now: datetime) -> Any | None:
         hit = self.lru.get(key)

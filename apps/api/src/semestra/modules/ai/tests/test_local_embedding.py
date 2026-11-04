@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import respx
 
 from semestra.core.errors import AppError
 from semestra.modules import ai as ai_module
 from semestra.modules.ai import local_embedding, local_embedding_runtime
 from semestra.modules.ai.local_download import Download
-from semestra.modules.ai.tests.conftest import Ai
+from semestra.modules.ai.tests.conftest import Ai, models_ok
 
 RunJobs = Callable[[], Awaitable[None]]
 
@@ -121,3 +122,19 @@ async def test_custom_models_are_checked_before_they_are_saved(
 
     async with ai.ctx() as ctx:
         assert await local_embedding.choice(ctx) == "BAAI/bge-small-zh-v1.5"
+
+
+async def test_auto_keeps_a_providers_embedding_model(
+    ai: Ai, local: dict[str, Any], mock: respx.MockRouter
+):
+    # Turning local embedding on (e.g. by upgrading the image) must not move vectors elsewhere.
+    models_ok(mock)
+    await ai.provider("openai")
+    row = next(
+        s for s in (await ai.call("GET", "/ai/status"))["items"] if s["purpose"] == "embedding"
+    )
+    assert row["source"] != "local"
+    async with ai.ctx() as ctx:
+        assert await local_embedding.choice(ctx) is None
+        await ai_module.local_jobs.prepare_embedding(ctx)
+    assert local["fetched"] == []

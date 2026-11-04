@@ -72,6 +72,11 @@ class _Runtime:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        # Search waits on a query; indexing a file can wait. A long file goes to the child in
+        # batches, and a query waiting for the child goes before the file's next batch.
+        self._turn = threading.Condition(self._lock)
+        self._count = threading.Lock()
+        self._queries = 0
         self._process: BaseProcess | None = None
         self._conn: Connection | None = None
         self._last_used = 0.0
@@ -127,31 +132,56 @@ class _Runtime:
     def embed(
         self, folder: Path, settings: Settings, texts: list[str], kind: Kind
     ) -> list[list[float]]:
-        with self._lock:
-            self._idle_seconds = settings.local_embedding_idle_seconds
-            self._last_used = time.monotonic()
+        size = embedding_worker.BATCH
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), size):
+            vectors += self._embed_batch(folder, settings, texts[start : start + size], kind)
+        return vectors
+
+    def _embed_batch(
+        self, folder: Path, settings: Settings, texts: list[str], kind: Kind
+    ) -> list[list[float]]:
+        query = kind == "query"
+        if query:
+            with self._count:
+                self._queries += 1
+        with self._turn:
+            if query:
+                with self._count:
+                    self._queries -= 1
+            else:
+                self._turn.wait_for(lambda: self._queries == 0)
             try:
-                conn = self._start()
-                load = (
-                    "load",
-                    str(folder),
-                    device(settings.local_embedding_device),
-                    threads(settings.local_embedding_threads),
-                )
-                self._ask(conn, load, LOAD_SECONDS)
-                seconds = BATCH_SECONDS * max(1, -(-len(texts) // embedding_worker.BATCH))
-                vectors = self._ask(conn, ("embed", texts, kind), seconds)
-            except TimeoutError:
-                self._stop()
-                raise AppError("ai.timeout", 504) from None
-            except (EOFError, OSError, RuntimeError) as exc:
-                log.warning("local_embedding_failed", error=repr(exc))
-                self._stop()
-                raise AppError("ai.local_model_failed", 500) from exc
+                return self._ask_embed(folder, settings, texts, kind)
             finally:
-                self._last_used = time.monotonic()
-            assert isinstance(vectors, list)
-            return vectors  # pyright: ignore[reportUnknownVariableType]
+                self._turn.notify_all()
+
+    def _ask_embed(
+        self, folder: Path, settings: Settings, texts: list[str], kind: Kind
+    ) -> list[list[float]]:
+        self._idle_seconds = settings.local_embedding_idle_seconds
+        self._last_used = time.monotonic()
+        try:
+            conn = self._start()
+            load = (
+                "load",
+                str(folder),
+                device(settings.local_embedding_device),
+                threads(settings.local_embedding_threads),
+            )
+            self._ask(conn, load, LOAD_SECONDS)
+            vectors = self._ask(conn, ("embed", texts, kind), BATCH_SECONDS)
+        except TimeoutError:
+            self._stop()
+            raise AppError("ai.timeout", 504) from None
+        except (EOFError, OSError, RuntimeError) as exc:
+            log.warning("local_embedding_failed", error=repr(exc))
+            self._stop()
+            raise AppError("ai.local_model_failed", 500) from exc
+        finally:
+            self._last_used = time.monotonic()
+        assert isinstance(vectors, list)
+        return vectors  # pyright: ignore[reportUnknownVariableType]
 
     def close(self) -> None:
         with self._lock:

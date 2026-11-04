@@ -20,8 +20,11 @@ import { formatHotkey } from '@/app/hotkeys'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
+import { useSetTheme } from '@/app/preferences'
 import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
+import { type Theme, useTheme } from '@/app/theme'
+import { THEME_OPTIONS } from '@/app/theme-options'
 import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
@@ -36,6 +39,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
@@ -125,6 +130,25 @@ function ProgramHeader({ programs, current }: { programs: Program[]; current: Pr
   )
 }
 
+/** The theme choices of Settings → Appearance, one menu away. */
+function ThemeMenuGroup() {
+  const { theme } = useTheme()
+  const setTheme = useSetTheme()
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>{m.settings_theme_label()}</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+        {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+          <DropdownMenuRadioItem key={value} value={value}>
+            <Icon aria-hidden />
+            {label()}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuGroup>
+  )
+}
+
 function AccountMenu() {
   const { user } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
@@ -156,6 +180,8 @@ function AccountMenu() {
               <span className="truncate text-xs text-muted-foreground">{user.email}</span>
             </DropdownMenuLabel>
           </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <ThemeMenuGroup />
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => setSigningOut(true)}>
             <LogOut aria-hidden />

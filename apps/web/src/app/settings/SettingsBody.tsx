@@ -13,13 +13,22 @@ import {
   Palette,
   Plug,
   Puzzle,
+  Search,
+  SearchX,
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
-import { type CSSProperties, useEffect, useEffectEvent, useState } from 'react'
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from 'react'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -29,8 +38,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
+import { Button } from '@/ui/button'
 import { DialogDescription, DialogTitle } from '@/ui/dialog'
-import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@/ui/native-select'
 import {
   Sidebar,
@@ -38,6 +55,8 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -55,7 +74,8 @@ import {
 } from './groups'
 import { type PathIds, type SettingsPath, scopeIdAt, useSettingsPath } from './scope-path'
 import { PATH_LEVEL_NAMES, ScopePath } from './ScopePath'
-import { SettingsSections } from './SettingsSections'
+import { searchWords, useSectionSearch } from './search'
+import { SectionFrame, SettingsSections } from './SettingsSections'
 import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
 
 const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
@@ -111,6 +131,24 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
     groups[0]
   const title = name ?? m.settings_title()
 
+  // Search (M11 §5.2): every section of the level is rendered, the ones without the words hidden.
+  const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query)
+  const searching = searchWords(deferredQuery).length > 0
+  const paneKey = path.pending ? '' : `${level}:${scopeIdAt(level, path) ?? ''}`
+  const { ref: searchRef, matched: found } = useSectionSearch(searching ? deferredQuery : '')
+  const matched = searching ? found : undefined
+  const isHit = (section: { id: string }) => matched?.has(section.id) === true
+  const hitGroups = groups.filter((group) => group.sections.some(isHit))
+  const navRuns = searching ? clusterNavigation(hitGroups, level) : runs
+  const clearOnEscape = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Esc clears the search first; only an empty field lets it close the dialog.
+    if (event.key === 'Escape' && query) {
+      event.stopPropagation()
+      setQuery('')
+    }
+  }
+
   // Another level keeps the group on screen when that level has one with the same name.
   const goTo = (next: SettingsLevel, ids: PathIds) => {
     setPicked(ids)
@@ -163,13 +201,30 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
         style={{ '--sidebar-width': '15rem' } as CSSProperties}
       >
         <Sidebar collapsible="none" className="hidden border-r md:flex">
+          <SidebarHeader className="px-3 pt-3 pb-0">
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <SidebarInput
+                type="search"
+                aria-label={m.settings_search_label()}
+                placeholder={m.settings_search_label()}
+                className="pl-8"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={clearOnEscape}
+              />
+            </div>
+          </SidebarHeader>
           <SidebarContent>
             <ScopePath path={path} onSelect={goTo} />
             {/* The Separator's `data-horizontal:w-full` outranks SidebarSeparator's `w-auto`, so with
                 side margins it ends up wider than the column and the sidebar scrolls sideways. */}
             <SidebarSeparator className="mx-3 data-horizontal:w-auto" />
             <nav aria-label={m.settings_title()}>
-              {runs.map((run) => (
+              {navRuns.map((run) => (
                 <SidebarGroup key={run.cluster ?? 'all'}>
                   {run.cluster ? (
                     <SidebarGroupLabel>{CLUSTER_TITLES[run.cluster]()}</SidebarGroupLabel>
@@ -178,12 +233,16 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
                     <SidebarMenu>
                       {run.groups.map((group) => {
                         const Icon = GROUP_ICONS[group.id]
+                        const active = !searching && group.id === current?.id
                         return (
                           <SidebarMenuItem key={group.id}>
                             <SidebarMenuButton
-                              isActive={group.id === current?.id}
-                              aria-current={group.id === current?.id ? 'page' : undefined}
-                              onClick={() => select(group.id)}
+                              isActive={active}
+                              aria-current={active ? 'page' : undefined}
+                              onClick={() => {
+                                setQuery('')
+                                select(group.id)
+                              }}
                             >
                               <Icon aria-hidden />
                               <span>{GROUP_TITLES[group.id]()}</span>
@@ -208,7 +267,11 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
                 <BreadcrumbSeparator className="max-md:hidden" />
                 <BreadcrumbItem>
                   <BreadcrumbPage className="max-md:hidden">
-                    {current ? GROUP_TITLES[current.id]() : null}
+                    {searching
+                      ? m.settings_search_results()
+                      : current
+                        ? GROUP_TITLES[current.id]()
+                        : null}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -258,11 +321,47 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
           </header>
           {/* Keyed by scope and group: a new one opens at its top and its forms start fresh. */}
           <div
-            key={`${level}:${scopeIdAt(level, path) ?? ''}:${current?.id ?? ''}`}
-            className="flex-1 overflow-y-auto px-4 pb-8 md:px-6"
+            key={`${paneKey}:${searching ? '?' : (current?.id ?? '')}`}
+            className="flex flex-1 flex-col overflow-y-auto px-4 pb-8 md:px-6"
           >
-            {path.pending ? null : current ? (
-              <div className="mx-auto max-w-3xl">
+            {path.pending ? null : searching ? (
+              <>
+                {matched?.size === 0 ? (
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <SearchX />
+                      </EmptyMedia>
+                      <EmptyTitle>{m.settings_search_empty_title()}</EmptyTitle>
+                      <EmptyDescription>{m.settings_search_empty_description()}</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button variant="outline" onClick={() => setQuery('')}>
+                        {m.settings_search_clear()}
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                ) : null}
+                <div ref={searchRef} className="mx-auto w-full max-w-3xl space-y-10">
+                  {groups.map((group) => (
+                    <div key={group.id} hidden={!group.sections.some(isHit)} className="space-y-6">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {GROUP_TITLES[group.id]()}
+                      </p>
+                      {group.sections.map((section) => (
+                        <SectionFrame
+                          key={section.id}
+                          section={section}
+                          scope={scope}
+                          hidden={!isHit(section)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : current ? (
+              <div className="mx-auto w-full max-w-3xl">
                 <SettingsSections level={level} scope={scope} group={current.id} />
               </div>
             ) : (

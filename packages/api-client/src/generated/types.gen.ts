@@ -2180,6 +2180,12 @@ export type ConnectionCreateInputBody = {
     config: {
         [key: string]: unknown;
     };
+    /**
+     * Sign In
+     *
+     * Instead of credentials: the address the platform's sign-in page ended on (lms.connection.sign_in.start)
+     */
+    sign_in?: null;
 };
 
 /**
@@ -2252,6 +2258,12 @@ export type ConnectionUpdateInputBody = {
      * New credentials (checked before saving)
      */
     credentials?: null;
+    /**
+     * Sign In
+     *
+     * Instead of credentials: a new sign-in on the platform's page
+     */
+    sign_in?: null;
 };
 
 /**
@@ -7805,6 +7817,12 @@ export type ProviderInfo = {
     credentials_schema: {
         [key: string]: unknown;
     };
+    /**
+     * Sign In
+     *
+     * Connections can be made by signing in on the platform's page (this server)
+     */
+    sign_in?: boolean;
 };
 
 /**
@@ -8841,6 +8859,38 @@ export type SettingsSchemaOut = {
      * JSON Schema of the namespace's fields
      */
     json_schema: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * SignInStart
+ */
+export type SignInStart = {
+    /**
+     * Authorize Url
+     *
+     * Open in the user's browser to sign in
+     */
+    authorize_url: string;
+};
+
+/**
+ * SignInStartInputBody
+ */
+export type SignInStartInputBody = {
+    /**
+     * Provider
+     *
+     * Provider kind: canvas
+     */
+    provider: string;
+    /**
+     * Config
+     *
+     * Provider settings, e.g. {base_url}
+     */
+    config: {
         [key: string]: unknown;
     };
 };
@@ -11187,9 +11237,15 @@ export type ConnectionCreateInputBodyWritable = {
      *
      * Provider credentials, e.g. {access_token}; stored encrypted
      */
-    credentials: {
+    credentials?: {
         [key: string]: string;
     };
+    /**
+     * Sign In
+     *
+     * Instead of credentials: the address the platform's sign-in page ended on (lms.connection.sign_in.start)
+     */
+    sign_in?: string | null;
 };
 
 /**
@@ -11218,6 +11274,12 @@ export type ConnectionUpdateInputBodyWritable = {
     credentials?: {
         [key: string]: string;
     } | null;
+    /**
+     * Sign In
+     *
+     * Instead of credentials: a new sign-in on the platform's page
+     */
+    sign_in?: string | null;
 };
 
 /**
@@ -16375,6 +16437,31 @@ export type LmsConnectionUpdateResponses = {
 };
 
 export type LmsConnectionUpdateResponse = LmsConnectionUpdateResponses[keyof LmsConnectionUpdateResponses];
+
+export type LmsConnectionSignInStartData = {
+    body: SignInStartInputBody;
+    path?: never;
+    query?: never;
+    url: '/lms/connections:sign-in';
+};
+
+export type LmsConnectionSignInStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsConnectionSignInStartError = LmsConnectionSignInStartErrors[keyof LmsConnectionSignInStartErrors];
+
+export type LmsConnectionSignInStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignInStart;
+};
+
+export type LmsConnectionSignInStartResponse = LmsConnectionSignInStartResponses[keyof LmsConnectionSignInStartResponses];
 
 export type LmsConnectionValidateData = {
     body: ConnectionValidateInputBodyWritable;

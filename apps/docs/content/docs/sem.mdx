@@ -1,0 +1,28 @@
+---
+title: Sem
+description: How Sem asks before changing your data, what it remembers, and how it handles long conversations.
+icon: MessageCircle
+---
+
+Sem is the assistant in Semestra. It needs an [AI provider](/docs/ai) with a model for the **Sem**
+purpose.
+
+## Approving changes
+
+Sem reads freely. Before it creates or changes something, it shows a confirmation card with the
+change, and nothing happens until you approve it. Account settings → **AI → Permissions** sets
+which changes Sem may make without asking: **Ask every time**, **By module**, or **Auto-approve
+all**. Deleting always needs your approval.
+
+## Memory
+
+Sem remembers lasting facts about you, how you want it to work, your plans, and where to find
+things. Review and edit them in account settings → **AI → Memory**. A **Temporary chat** neither
+reads nor saves memories.
+
+## Long conversations
+
+When the conversation nearly fills the model's context, Sem compacts it before answering: it
+summarizes earlier messages and keeps the latest ones word for word. To do it yourself, type
+`/compact`, optionally followed by what the summary must keep. While it runs you can't send a new
+message.

@@ -13,6 +13,12 @@ import pymupdf4llm
 
 from semestra.modules.files.parse.detect import Detected, decode_text
 
+# pymupdf4llm 2.x defaults to PyMuPDF's layout model (ONNX), which took about twice the time
+# and four times the memory per page, and has no header identification hook. The rule-based
+# reader keeps parsing within the child's memory limit on a small server; our own OCR covers
+# scanned pages.
+pymupdf4llm.use_layout(False)
+
 MAX_PAGES = 500
 OCR_MIN_CHARS = 50
 LOGICAL_PAGE_CHARS = 3000

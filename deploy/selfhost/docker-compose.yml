@@ -1,8 +1,8 @@
 # Self-hosted Semestra: one container serves both the API and the web app.
 #
 #   docker compose up -d                      # http://localhost:8000
-#   docker compose --profile https up -d      # automatic HTTPS for your own domain (see README)
-#   docker compose --profile ai-local up -d   # plus a local Ollama for chat/embeddings
+#   COMPOSE_PROFILES=https in .env            # plus Caddy: automatic HTTPS for your own domain
+#   COMPOSE_PROFILES=ai-local in .env         # plus a local Ollama for chat/embeddings
 #
 # Settings go in a .env file next to this one (copy .env.example). Everything has a default.
 name: semestra

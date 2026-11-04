@@ -403,12 +403,12 @@ test('plugins appear once the catalog says they are installed', async () => {
 })
 
 test('the status bar keeps running jobs, recent successes and unseen failures', () => {
-  const now = Date.parse('2026-01-01T00:00:10Z')
+  const now = Date.parse('2026-01-01T00:00:30Z')
   const job = (id: string, status: string, finished: string | null) =>
     ({ id, status, finished_at: finished }) as Parameters<typeof visibleJobs>[0][number]
   const jobs = [
     job('run', 'running', null),
-    job('done-now', 'succeeded', '2026-01-01T00:00:09Z'),
+    job('done-now', 'succeeded', '2026-01-01T00:00:20Z'),
     job('done-old', 'succeeded', '2026-01-01T00:00:01Z'),
     job('failed', 'failed', '2026-01-01T00:00:05Z'),
     job('failed-seen', 'failed', '2026-01-01T00:00:05Z'),

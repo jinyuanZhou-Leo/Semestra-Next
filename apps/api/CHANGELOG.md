@@ -1,5 +1,27 @@
 # @semestra/api
 
+## 1.12.0
+
+No changes in this release.
+
+## 1.11.3
+
+No changes in this release.
+
+## 1.11.2
+
+No changes in this release.
+
+## 1.11.1
+
+### Patch Changes
+
+- 9f1ca3e: <!-- area: canvas -->
+  <!-- en -->
+  Self-hosted instances can connect Canvas with a school account instead of a personal access token.
+  <!-- zh -->
+  自托管实例可用学校账号连接 Canvas，无需个人访问令牌。
+
 ## 1.11.0
 
 ### Patch Changes

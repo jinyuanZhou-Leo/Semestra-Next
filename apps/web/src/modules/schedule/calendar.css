@@ -1,102 +1,47 @@
-/* FullCalendar's own variables, mapped to the theme tokens (M00 §4.6: no hard-coded colors). */
+/*
+ * FullCalendar's classic theme, colored with the theme tokens (M00 §4.6: no hard-coded colors).
+ * This stands in for the theme's own palette.css: the tokens already follow light/dark and the
+ * accent, so there is no dark block. On :root because popovers and drag mirrors live in <body>.
+ */
+:root {
+  --fc-classic-button: var(--secondary);
+  --fc-classic-button-border: var(--border);
+  --fc-classic-button-strong: var(--accent);
+  --fc-classic-button-strong-border: var(--border);
+  --fc-classic-button-outline: var(--ring);
+  --fc-classic-button-foreground: var(--secondary-foreground);
+
+  --fc-classic-primary: var(--primary);
+  --fc-classic-primary-foreground: var(--primary-foreground);
+
+  --fc-classic-event: var(--primary);
+  --fc-classic-event-contrast: var(--primary-foreground);
+  --fc-classic-background-event: var(--muted-foreground);
+  --fc-classic-background-event-opacity: 10%;
+  --fc-classic-background-event-foreground-opacity: 100%;
+  --fc-classic-highlight: color-mix(in oklab, var(--primary) 15%, transparent);
+  --fc-classic-today: color-mix(in oklab, var(--primary) 5%, transparent);
+  --fc-classic-now: var(--destructive);
+  --fc-classic-small-dot-width: 8px;
+  --fc-classic-large-dot-width: 10px;
+
+  --fc-classic-background: var(--background);
+  --fc-classic-faint: color-mix(in oklab, var(--muted) 50%, transparent);
+  --fc-classic-muted: var(--muted);
+  --fc-classic-strong: color-mix(in oklab, var(--muted-foreground) 25%, transparent);
+
+  --fc-classic-foreground: var(--foreground);
+  --fc-classic-faint-foreground: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+  --fc-classic-muted-foreground: var(--muted-foreground);
+
+  --fc-classic-border: color-mix(in oklab, var(--border) 70%, transparent);
+  --fc-classic-strong-border: var(--border);
+}
+
 .semestra-calendar {
-  --fc-border-color: color-mix(in oklab, var(--border) 70%, transparent);
-  --fc-page-bg-color: var(--background);
-  --fc-neutral-bg-color: var(--muted);
-  --fc-neutral-text-color: var(--muted-foreground);
-  --fc-today-bg-color: color-mix(in oklab, var(--primary) 5%, transparent);
-  --fc-now-indicator-color: var(--destructive);
-  --fc-list-event-hover-bg-color: var(--muted);
-  --fc-highlight-color: color-mix(in oklab, var(--primary) 15%, transparent);
-  --fc-bg-event-color: var(--muted-foreground);
-  --fc-bg-event-opacity: 0.1;
-  --fc-event-text-color: var(--foreground);
   font-size: 0.8125rem;
 }
-
-/*
- * The week view drawn like the timetable (WeekGrid, M04 §5.2): no outer frame, columns split by
- * a single line, one line per hour with its label sitting on the line, rounded blocks with a
- * straight course-colored bar (drawn by the event content).
- */
-.semestra-calendar .fc-scrollgrid,
-.semestra-calendar .fc-theme-standard .fc-scrollgrid {
-  border: 0;
-}
-.semestra-calendar .fc-theme-standard th,
-.semestra-calendar .fc-col-header-cell {
-  border-width: 0;
-}
-.semestra-calendar .fc-timegrid .fc-scrollgrid-section-header > th,
-.semestra-calendar .fc-timegrid .fc-scrollgrid-section > td {
-  border-width: 0;
-}
-.semestra-calendar .fc-timegrid-col,
-.semestra-calendar .fc-timegrid .fc-daygrid-day {
-  border-width: 0 0 0 1px;
-}
-.semestra-calendar .fc-timegrid-axis,
-.semestra-calendar .fc-timegrid-slot-label {
-  border-width: 0;
-}
-.semestra-calendar .fc-timegrid-slot {
-  height: 48px;
-}
-.semestra-calendar .fc-timegrid-slot-label {
-  vertical-align: top;
-}
-.semestra-calendar .fc-timegrid-slot-label-cushion {
-  display: block;
-  transform: translateY(-50%);
-  padding: 0 6px;
-  color: var(--muted-foreground);
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
-}
-.semestra-calendar .fc-col-header-cell-cushion {
-  display: block;
-  padding: 0 4px 6px;
-  color: var(--foreground);
-  font-weight: 500;
-}
-.semestra-calendar .fc-timegrid .fc-daygrid-body {
-  border-bottom: 1px solid var(--fc-border-color);
-}
-.semestra-calendar .fc-timegrid-divider {
-  display: none;
-}
-
-.semestra-calendar .fc-timegrid-event.semestra-item {
-  border: 0;
-  border-radius: calc(var(--radius) - 2px);
-  overflow: hidden;
-  box-shadow: none;
-  margin: 1px 2px;
-}
-.semestra-calendar .fc-timegrid-event .fc-event-main {
-  padding: 0;
-}
-.semestra-calendar .fc-daygrid-block-event.semestra-item {
-  border-width: 0 0 0 3px;
-  border-radius: 4px;
-}
-
-.semestra-calendar .fc-bg-event .fc-event-title {
-  color: var(--muted-foreground);
-  font-style: normal;
-}
-
-.semestra-calendar .fc-daygrid-day-number,
-.semestra-calendar .fc-list-day-text,
-.semestra-calendar .fc-list-day-side-text,
-.semestra-calendar .fc-week-number {
-  color: var(--muted-foreground);
-  font-weight: 500;
-}
-.semestra-calendar .fc-timegrid-axis-cushion {
-  color: var(--muted-foreground);
-}
-/* Room above the first hour line so its label is not cut off (WeekGrid's inset). */
-.semestra-calendar .fc-timegrid-body {
-  margin-top: 8px;
+/* The theme sets 16px on its root; the calendar keeps the page's compact size. */
+.semestra-calendar > * {
+  font-size: inherit;
 }

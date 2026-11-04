@@ -129,6 +129,8 @@ def settings(tmp_path: Path, migrated_template: Path) -> Settings:
         storage_local_root=tmp_path / "storage",
         jobs_autostart=False,  # tests run the queue with `run_jobs()`
         ai_warm_up=False,
+        # A developer .env may turn this on for manual checks; tests opt in per case.
+        lms_canvas_sign_in=False,
     )
 
 

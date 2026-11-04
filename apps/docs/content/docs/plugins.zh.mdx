@@ -4,7 +4,7 @@ description: 怎样写一个第一方插件：卡片、页面、设置、capabil
 icon: Puzzle
 ---
 
-适用于第一方插件（M14 的计数器、习惯打卡、番茄钟、便签、世界时钟都按这个方式写）。参考实现是模板插件 `hello-note`：
+适用于第一方插件（计数器、习惯打卡、番茄钟、便签、世界时钟都按这个方式写）。参考实现是模板插件 `hello-note`：
 
 - 前端：`apps/web/src/modules/_template-plugin/`
 - 后端：`apps/api/src/semestra/modules/plugins_builtin/_template/`
@@ -15,12 +15,12 @@ icon: Puzzle
 
 | 形态 | 说明 | 谁来画外框 |
 |---|---|---|
-| Card | 放在作用域（学业项目 / 学期 / 课程 / 今天）的 Board 上，4/6/8 列网格里占 s/m/l/xl 尺寸 | M10 宿主画外框（标题、尺寸工具条、设置入口、移除），插件只写内容区 |
+| Card | 放在作用域（学业项目 / 学期 / 课程 / 今天）的 Board 上，4/6/8 列网格里占 s/m/l/xl 尺寸 | 宿主画外框（标题、尺寸工具条、设置入口、移除），插件只写内容区 |
 | Page | 侧边栏里的一个入口（学业项目与学期页面）或课程页头的一个标签页，整页自由布局 | 宿主只包一层 `PluginBoundary` |
-| 设置分区 | 插件的账户级或作用域级配置 | M11 自动生成表单 |
+| 设置分区 | 插件的账户级或作用域级配置 | 按 schema 自动生成表单 |
 | Capability | 对外的读/写操作，同时是 REST、AI 助手工具和 MCP 工具 | 无 UI |
 
-插件按账户安装/卸载（M10）。卸载只隐藏，不删数据；用户选择"同时删除数据"时发布 `plugins.purge`，插件必须清理自己的行。
+插件按账户安装/卸载。卸载只隐藏，不删数据；用户选择"同时删除数据"时发布 `plugins.purge`，插件必须清理自己的行。
 
 ## 2. 目录与命名
 
@@ -78,7 +78,7 @@ export default defineModule({
 
 - 只用令牌：`bg-primary`、`text-muted-foreground`；课程/学科色用 `subjectColor`。不要写 `oklch(...)` 或 `sky-500`。
 - 控件用 `@/ui/` 里的 shadcn 组件（Button、Input、Textarea、Checkbox、Switch、RadioGroup、Select…），不要手写 `<input>`、`<button>` 样式；新组件用 shadcn CLI 安装，不要手改 `src/ui/`。表格用 TanStack Table。
-- 图标按钮要有 `aria-label`；会变的数字用 `aria-live="polite"`；动画尊重减少动效：系统的 `prefers-reduced-motion`（`motion/react` 的 `useReducedMotion`）和 M11 偏好写到 `<html data-reduce-motion="on">`，两者任一为真就不播放（参考 `plugin-kit/Burst.tsx`）。
+- 图标按钮要有 `aria-label`；会变的数字用 `aria-live="polite"`；动画尊重减少动效：系统的 `prefers-reduced-motion`（`motion/react` 的 `useReducedMotion`）和应用的减少动效偏好写到 `<html data-reduce-motion="on">`，两者任一为真就不播放（参考 `plugin-kit/Burst.tsx`）。
 - 破坏性操作只在"没有其他确认步骤且不可撤销"时才弹确认；表单提交本身就是确认。
 
 ## 4. 后端
@@ -100,7 +100,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
             plugin_id=PLUGIN_ID)
 ```
 
-- `description` 是 AI 读的：什么时候用、怎么找输入（卡片实例用 `layouts.board.get`）、什么情况不要用。
+- `description` 是 AI 读的：什么时候用、怎么找输入（卡片实例用 `layouts.card.list`）、什么情况不要用。
 - `effect` 为 `read | write | destructive`。带 `plugin_id` 的 capability 在插件未安装时被拒绝，也不会出现在 Agent 工具列表里。
 - 绑定卡片实例的 capability 用 `instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS)`：卡片不存在、不是自己的、不是该插件的卡片，都统一返回 `common.not_found`。
 - 需要用户所在时区的"今天"，通过卡片所在的学业项目取（`instances.instance_program` + `academics.program_today`），不要在前端算。
@@ -108,13 +108,13 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 
 ### 4.3 数据与清理
 
-- 表用 `OwnedMixin`（带 `user_id`），以 `instance_id` 关联卡片；`instance_id` 不是外键（卡片实例由 M10 管）。
+- 表用 `OwnedMixin`（带 `user_id`），以 `instance_id` 关联卡片；`instance_id` 不是外键（卡片实例归布局模块管理）。
 - 订阅 `layouts.card.deleted`（按 `card_id` 过滤）删除该卡片的行；订阅 `plugins.purge`（按 `plugin_id` 过滤）删除用户的全部行；它在卸载事务内发布，订阅要写 `@events.subscribe("plugins.purge", in_transaction=True)`，抛错会让卸载回滚。想让统计在卡片删除后保留的，可以只响应 `plugins.purge`（番茄钟这样做）。数据放在 `useUiPref` 里的插件，在同一订阅里用 `settings.service.purge_ui_state(ctx, user_id, '<前缀>')` 一并清掉。
 - 迁移走 Alembic 单一链：在 `migrations/env.py` import 你的 `models`，`alembic revision --autogenerate`，检查生成结果。
 
-### 4.4 导出/导入适配器（M13 §3）
+### 4.4 导出/导入适配器
 
-提供 `export / import_ / preview / purge` 四个回调，导入要幂等（重复导入不产生重复行），`id_map` 用来重映射跨模块 id。完整例子是 `plugins_builtin/portability.py`，它在 `plugins_builtin/__init__.py` 里用 `register_portability(..., tables=(...))` 注册；新插件的表要加进这两处，否则 M13 的覆盖测试（每张带 `user_id` 的表都要有适配器负责并能清空）会失败。没有自己数据的插件（如模板里的便签，文本在卡片设置里）适配器可以为空。
+提供 `export / import_ / preview / purge` 四个回调，导入要幂等（重复导入不产生重复行），`id_map` 用来重映射跨模块 id。完整例子是 `plugins_builtin/portability.py`，它在 `plugins_builtin/__init__.py` 里用 `register_portability(..., tables=(...))` 注册；新插件的表要加进这两处，否则数据导出的覆盖测试（每张带 `user_id` 的表都要有适配器负责并能清空）会失败。没有自己数据的插件（如便签，文本在卡片设置里）适配器可以为空。
 
 ### 4.5 Agent skill
 
@@ -122,7 +122,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 
 ## 5. 测试要求
 
-- 前端：每个卡片在**所有声明的尺寸**下渲染；设置 schema 的校验（含缺字段的旧数据）；两个实例互不干扰；有计时/日期逻辑的用纯函数 + 假时钟测。使用 `@/test-utils` 的 `renderWithQuery` 与 msw `server`。
+- 前端：每个卡片在**所有声明的尺寸**下渲染；设置 schema 的校验（含缺字段的旧数据）；两个实例互不干扰；有计时/日期逻辑的用纯函数 + 假时钟测。使用 `@/test-utils` 的 `renderWithQuery` 与 msw `server`。卡片调用的每个接口都要有 handler：没有 handler 的请求会让测试失败。
 - 后端：capability 走 REST 的成功/失败路径（错误码与 params）；归属检查（别人的实例、别的卡片 id 返回 404）；事件订阅（卡片删除、purge）；导出→清空→导入的往返。卡片实例在测试里用 `plugins_builtin/tests/conftest.py` 的 `cards` fixture 模拟。
 - 改了后端接口要跑 `pnpm gen:api` 并提交生成结果。
 

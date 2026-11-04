@@ -1,7 +1,7 @@
 {
   "name": "@semestra/docs",
   "private": true,
-  "version": "1.11.0",
+  "version": "1.12.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/generate-api.ts && node scripts/generate-changelog.ts && next dev --port 3001",
@@ -12,26 +12,26 @@
     "format": "oxfmt src scripts"
   },
   "dependencies": {
-    "cn": "0.5.0",
-    "fumadocs-core": "16.17.7",
-    "fumadocs-mdx": "15.4.9",
-    "fumadocs-openapi": "12.5.4",
-    "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.7",
-    "lucide-react": "1.58.0",
-    "next": "16.4.2",
+    "cn": "0.5.2",
+    "fumadocs-core": "16.17.10",
+    "fumadocs-mdx": "15.4.10",
+    "fumadocs-openapi": "12.5.8",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.17.10",
+    "lucide-react": "1.66.0",
+    "next": "16.4.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "shiki": "4.5.0"
+    "shiki": "4.6.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.3",
+    "@tailwindcss/postcss": "4.3.4",
     "@types/mdx": "2.0.14",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "postcss": "8.5.31",
+    "postcss": "8.5.32",
     "serve": "14.2.6",
-    "tailwindcss": "4.3.3",
+    "tailwindcss": "4.3.4",
     "typescript": "7.0.2"
   }
 }

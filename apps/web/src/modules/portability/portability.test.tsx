@@ -119,6 +119,7 @@ test('shows the quota used and what takes it; without a quota, only the bytes us
     )
   const view = mount()
   server.use(
+    http.get(`${API}/me/exports`, () => HttpResponse.json({ items: [] })),
     storage(50 * MB),
     http.get(`${API}/files-usage/breakdown`, () =>
       HttpResponse.json({

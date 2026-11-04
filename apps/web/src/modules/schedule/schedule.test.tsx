@@ -12,7 +12,7 @@ import { type World, academicsHandlers, defaultWorld } from '@/modules/academics
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
 import { routeTree } from '@/routeTree.gen'
-import { API, newQueryClient, server, user } from '@/test-utils'
+import { API, newQueryClient, renderWithRouter, server, user } from '@/test-utils'
 import TodayCard from './cards/TodayCard'
 import { EventDialog } from './components/EventDialog'
 import schedule from './manifest'
@@ -23,7 +23,7 @@ type CalendarProps = {
   eventDrop: (info: unknown) => void
   datesSet: (info: unknown) => void
   initialDate: string
-  weekNumberContent: (arg: { date: Date }) => string
+  weekNumberHeaderContent: (arg: { date?: Date }) => string
 }
 const calendar = vi.hoisted(() => ({ props: null as CalendarProps | null }))
 
@@ -342,15 +342,13 @@ test('dragging a class asks whether to move only this one, which saves an except
 })
 
 test('the week number beside the days is the term week of the first day shown, west of UTC too', async () => {
-  // FullCalendar passes its UTC-based date marker here; read as a local date it is the
-  // day before in Toronto, which fell in the previous term week.
+  // FullCalendar passes the local midnight of the first day shown; read in UTC it would be the
+  // next day, and as a UTC marker the day before in Toronto (the previous term week).
   const tz = process.env.TZ
   process.env.TZ = 'America/Toronto'
   try {
     await openCalendar()
-    expect(calendar.props?.weekNumberContent({ date: new Date(Date.UTC(2026, 0, 11)) })).toBe(
-      'Week 2',
-    )
+    expect(calendar.props?.weekNumberHeaderContent({ date: new Date(2026, 0, 11) })).toBe('Week 2')
   } finally {
     process.env.TZ = tz
   }
@@ -444,15 +442,14 @@ test("the today card shows the now line after the day's last class", async () =>
       }),
     ),
   )
-  render(
-    <QueryClientProvider client={newQueryClient()}>
-      <TodayCard
-        scope={{ kind: 'program', programId: 'p1' }}
-        instanceId="c1"
-        size="xl"
-        settings={undefined}
-      />
-    </QueryClientProvider>,
+  // The card links to the calendar.
+  renderWithRouter(
+    <TodayCard
+      scope={{ kind: 'program', programId: 'p1' }}
+      instanceId="c1"
+      size="xl"
+      settings={undefined}
+    />,
   )
   const list = await screen.findByRole('list')
   expect(within(list).getAllByRole('listitem').at(-1)).toHaveAccessibleName('Now')

@@ -353,6 +353,36 @@ export default function PluginCatalog() {
     },
   })
 
+  // Opened from the details dialog, the confirmation is nested in it, so Esc closes only the
+  // confirmation even before focus has moved into it.
+  const confirm = (
+    <ConfirmDialog
+      open={confirming}
+      onOpenChange={setConfirming}
+      title={removing ? m.plugins_uninstall_title({ name: removing.name }) : ''}
+      description={m.plugins_uninstall_description()}
+      extra={
+        <Field orientation="horizontal" className="items-start">
+          <Checkbox id={purgeId} checked={purge} onCheckedChange={(checked) => setPurge(checked)} />
+          <FieldContent>
+            <FieldLabel htmlFor={purgeId} className="font-normal">
+              {m.plugins_purge_label()}
+            </FieldLabel>
+            <FieldDescription>{m.plugins_purge_hint()}</FieldDescription>
+          </FieldContent>
+        </Field>
+      }
+      confirmLabel={purge ? m.plugins_uninstall_and_purge() : m.plugins_uninstall()}
+      pending={removingPending}
+      onConfirm={() => {
+        if (!removing) return
+        void uninstall(removing, purge).then((done) => {
+          if (done) setConfirming(false)
+        })
+      }}
+    />
+  )
+
   return (
     <div className="space-y-8">
       {/* The section above already says "Plugins": the marketplace goes without a heading. */}
@@ -458,37 +488,10 @@ export default function PluginCatalog() {
       <Dialog open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
         <DialogContent className="flex max-h-[min(44rem,calc(100svh-2rem))] flex-col sm:max-w-xl">
           {open ? <PluginDetails {...actionsFor(open)} /> : null}
+          {open ? confirm : null}
         </DialogContent>
       </Dialog>
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={removing ? m.plugins_uninstall_title({ name: removing.name }) : ''}
-        description={m.plugins_uninstall_description()}
-        extra={
-          <Field orientation="horizontal" className="items-start">
-            <Checkbox
-              id={purgeId}
-              checked={purge}
-              onCheckedChange={(checked) => setPurge(checked)}
-            />
-            <FieldContent>
-              <FieldLabel htmlFor={purgeId} className="font-normal">
-                {m.plugins_purge_label()}
-              </FieldLabel>
-              <FieldDescription>{m.plugins_purge_hint()}</FieldDescription>
-            </FieldContent>
-          </Field>
-        }
-        confirmLabel={purge ? m.plugins_uninstall_and_purge() : m.plugins_uninstall()}
-        pending={removingPending}
-        onConfirm={() => {
-          if (!removing) return
-          void uninstall(removing, purge).then((done) => {
-            if (done) setConfirming(false)
-          })
-        }}
-      />
+      {open ? null : confirm}
     </div>
   )
 }

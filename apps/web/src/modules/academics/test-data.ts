@@ -131,6 +131,20 @@ export function academicsHandlers(world: World) {
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })),
     http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [] })),
+    // Every setting at its default, at any level.
+    http.get(`${API}/me/settings/:namespace`, ({ params, request }) => {
+      const search = new URL(request.url).searchParams
+      return HttpResponse.json({
+        namespace: params.namespace,
+        scope_type: search.get('scope_type') ?? 'account',
+        scope_id: search.get('scope_id'),
+        values: {},
+        sources: {},
+        inherited: {},
+      })
+    }),
+    // No AI configured (the shell's Sem entry and AI actions ask).
+    http.get(`${API}/ai/status`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs`, () => HttpResponse.json({ items: world.programs })),
     http.get(`${API}/programs/:id`, ({ params }) => {
       const found = world.programs.find((p) => p.id === params.id)

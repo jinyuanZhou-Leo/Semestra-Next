@@ -1,16 +1,21 @@
-import type {
-  DayHeaderContentArg,
-  EventChangeArg,
-  EventContentArg,
-  EventInput,
-  FormatterInput,
-} from '@fullcalendar/core'
-import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import interactionPlugin from '@fullcalendar/interaction'
-import listPlugin from '@fullcalendar/list'
-import FullCalendar from '@fullcalendar/react'
-import timeGridPlugin from '@fullcalendar/timegrid'
+import FullCalendar, {
+  type CalendarRef,
+  type DayHeaderInfo,
+  type EventChangeInfo,
+  type EventDisplayInfo,
+  type EventInput,
+  type FormatterInput,
+  type ListDayHeaderInnerInfo,
+  type SlotHeaderInfo,
+} from '@fullcalendar/react'
+import dayGridPlugin from '@fullcalendar/react/daygrid'
+import interactionPlugin from '@fullcalendar/react/interaction'
+import listPlugin from '@fullcalendar/react/list'
+import zhCnLocale from '@fullcalendar/react/locales/zh-cn'
+import '@fullcalendar/react/skeleton.css'
+import classicThemePlugin from '@fullcalendar/react/themes/classic'
+import '@fullcalendar/react/themes/classic/theme.css'
+import timeGridPlugin from '@fullcalendar/react/timegrid'
 import type { Meeting, OneOffEvent, Occurrence, Term } from '@semestra/api-client'
 import {
   scheduleEventGetOptions,
@@ -35,7 +40,7 @@ import type { PageProps } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
-import { firstDayOfWeek, getFormatPreferences } from '@/lib/format'
+import { firstDayOfWeek, getFormatPreferences, intl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { useCourses, useTerms } from '@/modules/academics/queries'
@@ -77,7 +82,7 @@ import {
   useTermMeetings,
 } from '../queries'
 import { isoDay } from '@/lib/day'
-import { hhmm, isoWeekday, markerDay, plusDays, toWall, todayIn, wall } from '../time'
+import { hhmm, isoWeekday, plusDays, toWall, todayIn, wall } from '../time'
 
 const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
   week: 'timeGridWeek',
@@ -86,7 +91,7 @@ const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
 }
 
 // Module constants: FullCalendar resets its view (and reports the dates again) when these change.
-const PLUGINS = [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
+const PLUGINS = [classicThemePlugin, dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]
 const LOCALES = [zhCnLocale]
 const DAY_HEADER_FORMAT = { weekday: 'short' } as const
 // Times follow the user's clock preference (M11), like `formatTime` elsewhere.
@@ -95,9 +100,71 @@ const TIME_FORMATS = {
   '12h': { hour: 'numeric', minute: '2-digit', hour12: true },
   '24h': { hour: '2-digit', minute: '2-digit', hour12: false },
 } as const satisfies Record<string, FormatterInput>
-// The week view draws its day headers like the timetable (weekday, the date under it).
+const FRAME = 'rounded-2xl overflow-clip'
+// Course blocks are the course color mixed into the page (the theme fills them solid).
+const TINTED =
+  'text-[0.85em] border-0! bg-[color-mix(in_oklab,var(--fc-event-color)_18%,var(--background))]! shadow-none!'
+/*
+ * The week view drawn like the timetable (WeekGrid, M04 §5.2): no outer frame, columns split by
+ * a single line, one line per hour with its label sitting on the line, rounded blocks with a
+ * straight course-colored bar (drawn by the event content). The theme's own classes still apply;
+ * these are added to them, `!` where they must win.
+ */
 const VIEWS = {
-  timeGridWeek: { dayHeaderContent: (arg: DayHeaderContentArg) => <WeekDayHeader arg={arg} /> },
+  timeGridWeek: {
+    borderless: true,
+    slotMinHeight: 48,
+    dayHeaderContent: (arg: DayHeaderInfo) => <WeekDayHeader arg={arg} />,
+    dayHeaderClass: 'border-0!',
+    dayHeaderInnerClass: 'font-medium',
+    weekNumberHeaderClass: 'text-muted-foreground font-medium',
+    allDayHeaderClass: 'text-muted-foreground',
+    slotHeaderClass: 'border-0! items-start!',
+    // Each label sits on its hour line; the first one hangs below it, so nothing is cut off and
+    // the columns run on unbroken from the all-day row.
+    slotHeaderInnerClass: (arg: SlotHeaderInfo) =>
+      cn(
+        'px-1.5 text-[0.7rem]! text-muted-foreground tabular-nums',
+        !arg.isFirst && '-translate-y-1/2',
+      ),
+    columnEventClass: `${TINTED} m-px rounded-[calc(var(--radius)-2px)]!`,
+    columnEventInnerClass: 'p-0!',
+    allDayDividerClass: 'border-t-0! pb-0! bg-transparent!',
+  },
+  // The framed views take the rounded frame of the app's other tables (SettingsTable, M11).
+  dayGridMonth: {
+    viewClass: FRAME,
+    // "Week 3" as plain secondary text in the corner, like the week view's header.
+    inlineWeekNumberClass: 'bg-transparent! px-1.5! pt-1! text-muted-foreground',
+  },
+  listWeek: {
+    viewClass: FRAME,
+    listDayHeaderInnerClass: (arg: ListDayHeaderInnerInfo) =>
+      cn('font-medium! text-muted-foreground', arg.isToday && 'text-primary!'),
+  },
+}
+// All-day and multi-day blocks: the tint with a course-colored bar on the left, as in the week view
+// and the timetable. The bar takes the block's corners itself: clipping the block would cut off
+// half of FullCalendar's resize handles, which stick out past its edges.
+const ROW_EVENT_CLASS = `${TINTED} relative rounded-[calc(var(--radius)-6px)]! pl-[3px]! before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[inherit] before:bg-(--fc-event-color)`
+
+const LONG_DATE = { year: 'numeric', month: 'long', day: 'numeric' } as const
+/**
+ * A week's days, "November 2 – 8, 2026". ICU has no Chinese range pattern and falls back to
+ * "2026/11/2 – 2026/11/8", unlike the long dates around it, so Chinese drops from the end what
+ * it shares with the start: "2026年11月2日 – 8日".
+ */
+const rangeTitle = (start: Date, end: Date) => {
+  if (!getLocale().startsWith('zh'))
+    return intl(Intl.DateTimeFormat, LONG_DATE).formatRange(start, end)
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const endFormat =
+    sameYear && start.getMonth() === end.getMonth()
+      ? ({ day: 'numeric' } as const)
+      : sameYear
+        ? ({ month: 'long', day: 'numeric' } as const)
+        : LONG_DATE
+  return `${intl(Intl.DateTimeFormat, LONG_DATE).format(start)} – ${intl(Intl.DateTimeFormat, endFormat).format(end)}`
 }
 
 /** A week row or column is named after the term week holding most of its days. */
@@ -129,7 +196,7 @@ function TermCalendar({
   timezone: string
 }) {
   const queryClient = useQueryClient()
-  const calendarRef = useRef<FullCalendar>(null)
+  const calendarRef = useRef<CalendarRef>(null)
   const settings = useCalendarSettings(term.id)
   const sources = useCalendarSources()
   const courses = useCourses(programId, term.id).data?.items ?? []
@@ -241,10 +308,9 @@ function TermCalendar({
         allDay: o.all_day ?? false,
         editable,
         durationEditable: editable,
-        classNames: ['semestra-item', o.status === 'cancelled' ? 'line-through opacity-60' : ''],
-        borderColor: occurrenceColor(o),
-        backgroundColor: `color-mix(in oklab, ${occurrenceColor(o)} 18%, var(--background))`,
-        textColor: 'var(--foreground)',
+        className: o.status === 'cancelled' ? 'line-through opacity-60' : undefined,
+        color: occurrenceColor(o),
+        contrastColor: 'var(--foreground)',
         extendedProps: { occurrence: o },
       }
     }),
@@ -258,7 +324,7 @@ function TermCalendar({
     })),
   ]
 
-  const onChange = (info: EventChangeArg) => {
+  const onChange = (info: EventChangeInfo) => {
     const o = info.event.extendedProps.occurrence as Occurrence | undefined
     const start = info.event.start
     if (!o || !start) return info.revert()
@@ -492,7 +558,6 @@ function TermCalendar({
                 plugins={PLUGINS}
                 initialView={FC_VIEW[view]}
                 initialDate={anchor}
-                headerToolbar={false}
                 height="auto"
                 locales={LOCALES}
                 locale={getLocale().startsWith('zh') ? 'zh-cn' : 'en'}
@@ -504,12 +569,16 @@ function TermCalendar({
                 nowIndicator
                 now={now}
                 weekNumbers
-                weekNumberContent={(arg) => weekNumberLabel(midWeek(markerDay(arg.date)))}
+                weekNumberHeaderContent={(arg) =>
+                  arg.date ? weekNumberLabel(midWeek(isoDay(arg.date))) : ''
+                }
+                inlineWeekNumberContent={(arg) => weekNumberLabel(midWeek(isoDay(arg.date)))}
                 dayHeaderFormat={DAY_HEADER_FORMAT}
                 views={VIEWS}
+                rowEventClass={ROW_EVENT_CLASS}
                 slotDuration="01:00:00"
                 snapDuration="00:15:00"
-                slotLabelFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
+                slotHeaderFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
                 eventTimeFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
                 allDayText={m.schedule_all_day()}
                 noEventsText={m.schedule_no_events()}
@@ -539,7 +608,12 @@ function TermCalendar({
                 eventResize={onChange}
                 eventContent={renderEventContent}
                 datesSet={(arg) => {
-                  setTitle(arg.view.title)
+                  // FullCalendar 7 titles a week by its month alone; ours names the days.
+                  setTitle(
+                    arg.view.type === 'dayGridMonth'
+                      ? arg.view.title
+                      : rangeTitle(arg.start, new Date(arg.end.getTime() - 1)),
+                  )
                   setRangeStart(isoDay(arg.start))
                   const type = arg.view.type
                   const nextView =
@@ -659,10 +733,10 @@ function TermCalendar({
   )
 }
 
-const renderEventContent = (arg: EventContentArg) => <EventContent arg={arg} />
+const renderEventContent = (arg: EventDisplayInfo) => <EventContent arg={arg} />
 
 /** A week view's day header as in the timetable (WeekGrid): the weekday, the date under it. */
-function WeekDayHeader({ arg }: { arg: DayHeaderContentArg }) {
+function WeekDayHeader({ arg }: { arg: DayHeaderInfo }) {
   return (
     <span className={cn('block text-center', arg.isToday && 'text-primary')}>
       {arg.text}
@@ -675,7 +749,7 @@ function WeekDayHeader({ arg }: { arg: DayHeaderContentArg }) {
   )
 }
 
-function EventContent({ arg }: { arg: EventContentArg }) {
+function EventContent({ arg }: { arg: EventDisplayInfo }) {
   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
   if (!o) return <span className="fc-event-title">{arg.event.title}</span>
   const conflict = (o.meta?.conflicts_with?.length ?? 0) > 0
@@ -685,7 +759,7 @@ function EventContent({ arg }: { arg: EventContentArg }) {
       <div className="flex h-full min-w-0 overflow-hidden leading-tight">
         <span
           aria-hidden
-          className="w-1 shrink-0"
+          className="w-1 shrink-0 rounded-l-[calc(var(--radius)-2px)]"
           style={{ backgroundColor: occurrenceColor(o) }}
         />
         <span className="min-w-0 flex-1 px-1 py-0.5">
@@ -705,16 +779,26 @@ function EventContent({ arg }: { arg: EventContentArg }) {
       </div>
     )
   }
+  if (arg.view.type === 'listWeek') {
+    // The custom content stands in for FullCalendar's time and title, so it draws both.
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="w-28 shrink-0 text-muted-foreground tabular-nums">
+          {arg.timeText || m.schedule_all_day()}
+        </span>
+        {conflict ? (
+          <TriangleAlert
+            aria-label={m.schedule_conflict()}
+            className="size-3 shrink-0 text-destructive"
+          />
+        ) : null}
+        <span className="truncate font-medium">{o.title}</span>
+      </span>
+    )
+  }
   return (
     <div className="flex min-w-0 flex-col overflow-hidden px-1 leading-tight">
       <span className="flex items-center gap-1 truncate font-medium">
-        {arg.view.type === 'dayGridMonth' || arg.view.type === 'listWeek' ? (
-          <span
-            aria-hidden
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: occurrenceColor(o) }}
-          />
-        ) : null}
         {conflict ? (
           <TriangleAlert
             aria-label={m.schedule_conflict()}

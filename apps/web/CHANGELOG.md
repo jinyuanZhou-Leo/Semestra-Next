@@ -1,5 +1,62 @@
 # @semestra/web
 
+## 1.12.0
+
+### Minor Changes
+
+- ec5ee42: <!-- area: settings -->
+  <!-- en -->
+  Search settings, with matching options shown and highlighted in place.
+  <!-- zh -->
+  设置支持搜索，匹配的选项会就地显示并高亮。
+- b713e80: <!-- area: settings -->
+  <!-- en -->
+  Switch between light, dark and system themes from the account menu or the command palette.
+  <!-- zh -->
+  可以在账户菜单或命令面板中切换浅色、深色和跟随系统主题。
+
+### Patch Changes
+
+- bc6e7ca: <!-- area: plugins -->
+  <!-- en -->
+  Pressing Esc on the uninstall confirmation closes only the confirmation, never the plugin details behind it.
+  <!-- zh -->
+  在卸载确认框上按 Esc 只会关闭确认框，不会连带关闭后面的插件详情。
+- @semestra/api-client@1.12.0
+
+## 1.11.3
+
+### Patch Changes
+
+- 5c2e717: <!-- area: calendar -->
+  <!-- en -->
+  The calendar now runs on FullCalendar 7, and the agenda view no longer shows each course dot twice.
+  <!-- zh -->
+  日历升级到 FullCalendar 7，日程视图不再重复显示课程色点。
+- @semestra/api-client@1.11.3
+
+## 1.11.2
+
+### Patch Changes
+
+- 7a8cfbc: <!-- area: ai -->
+  <!-- en -->
+  Corrected the descriptions of the Sem and light-task purposes in model settings.
+  <!-- zh -->
+  更正模型设置里 Sem 与轻量任务的用途说明。
+- @semestra/api-client@1.11.2
+
+## 1.11.1
+
+### Patch Changes
+
+- 9f1ca3e: <!-- area: canvas -->
+  <!-- en -->
+  Self-hosted instances can connect Canvas with a school account instead of a personal access token.
+  <!-- zh -->
+  自托管实例可用学校账号连接 Canvas，无需个人访问令牌。
+- @semestra/api-client@1.11.1
+
 ## 1.11.0
 
 ### Minor Changes

@@ -25,6 +25,13 @@ STATUS = {
     # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
     "lms.writes_disabled": 409,
     "lms.file_too_large": 413,
+    # Signing in on the platform's page (self-hosting): off on this server, not offered for the
+    # address (Canvas does not know the school), a plain-http address (the exchange sends secrets),
+    # or the pasted address carried no usable code.
+    "lms.sign_in_disabled": 403,
+    "lms.sign_in_unavailable": 422,
+    "lms.sign_in_https_required": 422,
+    "lms.sign_in_failed": 400,
 }
 
 # Errors that say the connection itself is broken (they mark it `error`). `lms.invalid_config`

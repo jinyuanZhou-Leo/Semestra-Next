@@ -1,10 +1,10 @@
 ---
-title: Configuration
-description: Every setting is an environment variable with the SEMESTRA_ prefix.
+title: All settings
+description: Every setting is an environment variable in deploy/selfhost/.env.
 ---
 
-Put settings in `deploy/selfhost/.env`. The compose file passes the file to the container and
-fills in the variables marked _compose_ below. The full list with comments is
+Put settings in `deploy/selfhost/.env` and run `docker compose up -d`. The compose file passes the
+file to the container and sets the defaults marked _compose_ below. The full list with comments is
 `deploy/.env.example`; the source of truth is `apps/api/src/semestra/core/config.py`.
 
 ## Compose file
@@ -13,11 +13,13 @@ These are read by `docker-compose.yml` itself.
 
 | Variable              | Default                 | Meaning                                                                    |
 | --------------------- | ----------------------- | -------------------------------------------------------------------------- |
-| `SEMESTRA_VERSION`    | `latest`                | Image tag, e.g. `1.2.0`                                                    |
-| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Sets the web and API origins and CORS              |
+| `SEMESTRA_VERSION`    | `latest`                | Image version, e.g. `1.2.0` ([Images](./images.mdx))                       |
+| `SEMESTRA_IMAGE_VARIANT` | `-ocr`               | Empty for the image without local OCR                                      |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Used in email and calendar links; `https://` makes cookies Secure |
 | `SEMESTRA_PORT`       | `8000`                  | Host port                                                                  |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | Host interface. Use `127.0.0.1` behind a reverse proxy                     |
-| `SEMESTRA_DOMAIN`     | (empty)                 | Domain for the bundled Caddy (`--profile https`)                           |
+| `SEMESTRA_DOMAIN`     | (empty)                 | Domain for the bundled Caddy ([Server with a domain](./domain.mdx))        |
+| `COMPOSE_PROFILES`    | (empty)                 | `https` adds the bundled Caddy, `ai-local` a bundled Ollama                |
 
 ## Accounts and sign-in
 
@@ -52,6 +54,12 @@ With `false`, requests to user-chosen hosts are refused when the host resolves t
 loopback or link-local address: AI base URLs with `common.egress_blocked`, Canvas addresses with
 `lms.blocked_address`. Every redirect target Canvas sends goes through the same check.
 
+## Canvas
+
+| Variable                      | Default | Meaning                                                                         |
+| ----------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `SEMESTRA_LMS_CANVAS_SIGN_IN` | `false` | [Canvas school account sign-in](./features.mdx#canvas-school-account-sign-in)   |
+
 ## AI
 
 | Variable                               | Default | Meaning                                                    |
@@ -67,69 +75,13 @@ See [Instance-wide provider](/docs/ai/instance-provider).
 
 ## Local OCR
 
-The default image (tag ending in `-local`) reads scanned PDF pages and photos on the server with
-[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) on ONNX Runtime, CPU only, so no AI model
-is called for them. Each user can pick a local PaddleOCR model in the **OCR** row of AI settings →
-Models (the default is the one below), or use a provider's model instead. It runs on amd64 and
-arm64 (including Docker on Apple Silicon). Reading
-takes up to 2 GB of RAM on top of the app's 1 GB, one document at a time, and about 2 seconds per
-page with the default model.
-
-The image holds no model. Each one downloads (from Hugging Face, or PaddleOCR's other mirrors) into
-the data volume the first time it is needed, when a user picks it or a scanned file arrives, and the
-app shows the download's progress in AI settings and in the file's status. All users share the
-download, and it survives upgrades. A server that will lose internet access needs the models
-fetched while it still has it:
-
-```sh
-docker compose exec semestra semestra ocr-models --all
-```
-
-To switch to the smaller image without it, set `SEMESTRA_IMAGE_VARIANT=` (empty) in `.env` and run
-`docker compose up -d`; users then choose a provider's model for **OCR** and **Search**. Set it back to
-`-local` to return.
+Only in the default image; see [Images](./images.mdx#local-ocr).
 
 | Variable                   | Default           | Meaning                                                       |
 | -------------------------- | ----------------- | ------------------------------------------------------------- |
-| `SEMESTRA_LOCAL_OCR`       | `true` in `-local` | Read scanned pages on the server                              |
+| `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | Default model: `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
 | `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | Time allowed per page (plus two minutes to load the model); raise it on a very slow CPU |
-
-## Local embedding
-
-The default image also turns text into vectors for search on the server, so **Search** works
-without an AI provider. It runs [ONNX](https://onnx.ai) models from Hugging Face on ONNX Runtime,
-CPU only. Each user picks a model in the **Search** row of AI settings → Models:
-
-| Model                   | Notes                                                         |
-| ----------------------- | ------------------------------------------------------------- |
-| `multilingual-e5-small` | Default. Smallest and fastest: about 20 passages a second on an Apple M3, at most about 2 GB of RAM |
-| `bge-m3`                | Balanced, good in Chinese and English; needs more memory      |
-| `qwen3-embedding-0.6b`  | Most accurate, slower                                         |
-
-Users can also type the name of any Hugging Face model that has an ONNX version (an `onnx/`
-folder and a `tokenizer.json`), such as `BAAI/bge-small-zh-v1.5`. Models download into the data
-volume the first time they are needed, like OCR models; files stay searchable by keyword until
-then, and their vectors are added once the model is here. Changing models rebuilds the vectors in
-the background. To fetch models ahead of time:
-
-```sh
-docker compose exec semestra semestra embedding-models --all
-```
-
-The model stays loaded in its own process and exits after ten idle minutes. Docker cannot use a
-Mac's GPU, and Core ML through ONNX Runtime used tens of gigabytes of memory in our tests, so this
-runs on the CPU. For GPU speed, run [Ollama](/docs/ai/ollama) on the host and pick its embedding
-model instead.
-
-| Variable                          | Default                       | Meaning                                         |
-| --------------------------------- | ----------------------------- | ----------------------------------------------- |
-| `SEMESTRA_LOCAL_EMBEDDING`        | `true` in `-local`            | Embed text on the server                        |
-| `SEMESTRA_LOCAL_EMBEDDING_MODEL`  | `multilingual-e5-small`       | Default model (one of the table above, or a Hugging Face name) |
-| `SEMESTRA_LOCAL_EMBEDDING_CUSTOM` | `true`                        | Let users add Hugging Face models; turn off on a shared server to save disk |
-| `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                           | Largest Hugging Face model users may add        |
-| `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                          | CPU threads (0: half the cores)                 |
-| `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`                   | Unload the model after this long without use    |
 
 ## Background work and backups
 

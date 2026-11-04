@@ -10,6 +10,7 @@ import {
 import { render } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import type { ReactElement } from 'react'
+import { afterEach } from 'vitest'
 import '@/app/api'
 import { QUERY_DEFAULTS } from '@/app/query-client'
 import { ThemeProvider } from '@/app/theme'
@@ -17,6 +18,18 @@ import { ThemeProvider } from '@/app/theme'
 export const API = 'http://localhost:8000'
 
 export const server = setupServer()
+
+// A request without a handler fails the test that made it, instead of only logging (the test
+// then ran against a network error it didn't mean to test). Give the screen every endpoint it
+// calls; `academicsHandlers` covers the signed-in shell.
+const unhandled: string[] = []
+server.events.on('request:unhandled', ({ request }) => {
+  unhandled.push(`${request.method} ${request.url}`)
+})
+afterEach(() => {
+  const found = unhandled.splice(0)
+  if (found.length > 0) throw new Error(`Requests without a handler:\n${found.join('\n')}`)
+})
 
 export function newQueryClient() {
   return new QueryClient({

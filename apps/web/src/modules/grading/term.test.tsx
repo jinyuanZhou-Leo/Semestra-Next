@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import type { Scope } from '@/app/extensions'
+import { program } from '@/modules/academics/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { Toaster } from '@/ui/sonner'
 import UpcomingCard from './cards/UpcomingCard'
@@ -249,6 +250,7 @@ test('the Upcoming card asks the server for the scope in one request', async () 
         ],
       })
     }),
+    http.get(`${API}/programs/p1`, () => HttpResponse.json(program())),
     http.get(`${API}/courses/c1`, () =>
       HttpResponse.json({ id: 'c1', program_id: 'p1', title: 'Course c1', code: 'C1' }),
     ),

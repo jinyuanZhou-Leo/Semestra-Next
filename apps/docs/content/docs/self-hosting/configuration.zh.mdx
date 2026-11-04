@@ -1,9 +1,9 @@
 ---
-title: 配置
-description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
+title: 全部设置
+description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 ---
 
-把设置写在 `deploy/selfhost/.env` 里。compose 文件会把它传给容器，并填好下面标为 _compose_ 的变量。带注释的完整列表见
+把设置写在 `deploy/selfhost/.env` 里，再运行 `docker compose up -d`。compose 文件会把它传给容器，并设置下面标为 _compose_ 的默认值。带注释的完整列表见
 `deploy/.env.example`；以 `apps/api/src/semestra/core/config.py` 为准。
 
 ## Compose 文件
@@ -12,11 +12,13 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 
 | 变量                  | 默认值                  | 含义                                                     |
 | --------------------- | ----------------------- | -------------------------------------------------------- |
-| `SEMESTRA_VERSION`    | `latest`                | 镜像标签，例如 `1.2.0`                                   |
-| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。决定网页和 API 的源以及 CORS             |
+| `SEMESTRA_VERSION`    | `latest`                | 镜像版本，例如 `1.2.0`（见[镜像](./images.mdx)）          |
+| `SEMESTRA_IMAGE_VARIANT` | `-ocr`               | 留空则使用不带本机 OCR 的镜像                            |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。用于邮件和日历链接；`https://` 时 cookie 带 Secure |
 | `SEMESTRA_PORT`       | `8000`                  | 宿主机端口                                               |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | 宿主机网卡。放在反向代理后面时用 `127.0.0.1`             |
-| `SEMESTRA_DOMAIN`     | （空）                  | 内置 Caddy 使用的域名（`--profile https`）               |
+| `SEMESTRA_DOMAIN`     | （空）                  | 内置 Caddy 使用的域名（见[有域名的服务器](./domain.mdx)） |
+| `COMPOSE_PROFILES`    | （空）                  | `https` 加入内置 Caddy，`ai-local` 加入内置 Ollama       |
 
 ## 账户与登录
 
@@ -50,6 +52,12 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 设为 `false` 时，访问用户填写的主机如果解析到内网、回环或链路本地地址，会被拒绝：AI 接口地址返回 `common.egress_blocked`，Canvas
 地址返回 `lms.blocked_address`。Canvas 返回的每个重定向目标也要通过同样的检查。
 
+## Canvas
+
+| 变量                          | 默认值  | 含义                                                         |
+| ----------------------------- | ------- | ------------------------------------------------------------ |
+| `SEMESTRA_LMS_CANVAS_SIGN_IN` | `false` | [Canvas 学校账号登录](./features.mdx#canvas-学校账号登录)    |
+
 ## AI
 
 | 变量                                   | 默认值 | 含义                                       |
@@ -65,58 +73,13 @@ description: 所有设置都是带 SEMESTRA_ 前缀的环境变量。
 
 ## 本机 OCR
 
-默认镜像（标签以 `-local` 结尾）在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（ONNX Runtime，只用
-CPU）识别扫描版 PDF 和照片，不会为此调用 AI 模型。每个用户可以在 AI 设置 → 模型的 **OCR** 一行里选择本机的 PaddleOCR
-模型（默认是下表的模型），也可以改用某个服务商的模型。支持 amd64 与 arm64（包括 Apple Silicon 上的 Docker）。识别时在应用
-本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，默认模型每页约 2 秒。
-
-镜像里不带模型。每个模型在第一次用到时（用户选中它，或有扫描文件要识别）从 Hugging Face（或 PaddleOCR 的其他镜像源）下载到
-数据卷，应用会在 AI 设置和文件状态里显示下载进度。所有用户共用下载好的模型，升级后也不用重新下载。服务器之后不能联网的话，
-请趁还能联网时先下载：
-
-```sh
-docker compose exec semestra semestra ocr-models --all
-```
-
-要换成不带它的小镜像，在 `.env` 里写 `SEMESTRA_IMAGE_VARIANT=`（留空），再运行 `docker compose up -d`；用户之后在 **OCR**
-和**搜索**一行里选服务商的模型。改回 `-local` 即可换回来。
+只有默认镜像带这个功能，见[镜像](./images.mdx#本机-ocr)。
 
 | 变量                       | 默认值              | 含义                                                         |
 | -------------------------- | ------------------- | ------------------------------------------------------------ |
-| `SEMESTRA_LOCAL_OCR`       | `-local` 镜像里为 `true` | 在服务器上识别扫描页                                      |
+| `SEMESTRA_LOCAL_OCR`       | `-ocr` 镜像里为 `true` | 在服务器上识别扫描页                                      |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium`   | 默认模型：`PP-OCRv6_tiny`、`_small`、`_medium`、`PP-OCRv5_mobile`、`PP-OCRv5_server` |
 | `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | 每页允许的时间（另加两分钟加载模型）；CPU 很慢时调大 |
-
-## 本机 embedding
-
-默认镜像还会在服务器上把文本转成用于搜索的向量，所以不接 AI 服务商也能用**搜索**。它用 ONNX Runtime（只用 CPU）运行
-Hugging Face 上的 [ONNX](https://onnx.ai) 模型。每个用户可以在 AI 设置 → 模型的**搜索**一行里选择：
-
-| 模型                    | 说明                                                       |
-| ----------------------- | ---------------------------------------------------------- |
-| `multilingual-e5-small` | 默认。最小最快：Apple M3 上每秒约 20 段，内存最多约 2 GB |
-| `bge-m3`                | 均衡，中英文都好，需要更多内存                             |
-| `qwen3-embedding-0.6b`  | 最准确，较慢                                               |
-
-也可以直接输入任何带 ONNX 版本（有 `onnx/` 文件夹和 `tokenizer.json`）的 Hugging Face 模型名，例如
-`BAAI/bge-small-zh-v1.5`。模型和 OCR 模型一样，第一次用到时下载到数据卷；下载完成前文件仍可按关键词搜索，下载后会自动补上
-向量。换模型后会在后台重建向量。想提前下载：
-
-```sh
-docker compose exec semestra semestra embedding-models --all
-```
-
-模型常驻在单独的进程里，空闲十分钟后退出。Docker 用不了 Mac 的 GPU，而经 ONNX Runtime 调用 Core ML 在我们的测试里会占用
-几十 GB 内存，所以这里只用 CPU。想用 GPU 加速，可以在宿主机上运行 [Ollama](/docs/ai/ollama)，改选它的 embedding 模型。
-
-| 变量                              | 默认值                     | 含义                                             |
-| --------------------------------- | -------------------------- | ------------------------------------------------ |
-| `SEMESTRA_LOCAL_EMBEDDING`        | `-local` 镜像里为 `true`   | 在服务器上计算向量                               |
-| `SEMESTRA_LOCAL_EMBEDDING_MODEL`  | `multilingual-e5-small`    | 默认模型（上表之一，或 Hugging Face 模型名）     |
-| `SEMESTRA_LOCAL_EMBEDDING_CUSTOM` | `true`                     | 允许用户添加 Hugging Face 模型；多人共用的服务器可关掉以节省磁盘 |
-| `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                        | 用户可添加的 Hugging Face 模型的大小上限         |
-| `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                       | CPU 线程数（0 表示核数的一半）                   |
-| `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`                | 闲置这么久后卸载模型                             |
 
 ## 后台任务与备份
 

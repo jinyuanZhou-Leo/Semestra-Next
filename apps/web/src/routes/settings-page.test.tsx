@@ -56,6 +56,38 @@ beforeEach(() => {
       HttpResponse.json({ auto_approve: [], mcp_allow_destructive: false }),
     ),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    // The rest of the account's sections, empty (search renders every one).
+    http.get(`${API}/ai/assignments`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/ai/usage`, () =>
+      HttpResponse.json({
+        since: '2026-01-01T00:00:00Z',
+        until: '2026-01-31T00:00:00Z',
+        totals: {
+          calls: 0,
+          errors: 0,
+          input_tokens: 0,
+          cached_tokens: 0,
+          output_tokens: 0,
+          cost_usd: 0,
+        },
+        cost_complete: true,
+        by_day: [],
+        by_purpose: [],
+        by_module: [],
+        by_model: [],
+      }),
+    ),
+    http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/storage/usage`, () =>
+      HttpResponse.json({ used_bytes: 0, quota_bytes: 0, by_module: {} }),
+    ),
+    http.get(`${API}/files-usage/breakdown`, () =>
+      HttpResponse.json({ by_course: [], by_type: [] }),
+    ),
+    http.get(`${API}/me/data-counts`, () => HttpResponse.json({ tables: {}, limits: {} })),
+    http.get(`${API}/me/exports`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/me/preferences`, () => HttpResponse.json(current)),
     http.patch(`${API}/me/preferences`, async ({ request }) => {
       const patch = (await request.json()) as Record<string, unknown>
@@ -106,6 +138,30 @@ test('the settings dialog groups sections in a navigation and shows the chosen g
   expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument()
   expect(router.state.location.search).toEqual({ settings: 'account/account' })
   expect(router.state.location.pathname).toBe('/onboarding')
+})
+
+test('searching shows the sections of every group whose text holds the words', async () => {
+  mount('/?settings=account/account')
+  const search = await screen.findByRole('searchbox', { name: 'Search settings' })
+  expect(await screen.findByRole('heading', { name: 'Profile' })).toBeVisible()
+
+  // A row inside a section is found, not only section titles.
+  await userEvent.type(search, 'first day')
+  expect(await screen.findByRole('heading', { name: 'Language and time' })).toBeVisible()
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Profile', hidden: true })).not.toBeVisible(),
+  )
+  const nav = screen.getByRole('navigation', { name: 'Settings' })
+  expect(within(nav).getByRole('button', { name: 'Preferences' })).toBeInTheDocument()
+  expect(within(nav).queryByRole('button', { name: 'Account' })).not.toBeInTheDocument()
+
+  await userEvent.type(search, ' zzqq')
+  expect(await screen.findByText('No matching settings')).toBeInTheDocument()
+
+  // Esc clears the search before it would close the dialog.
+  await userEvent.keyboard('{Escape}')
+  expect(search).toHaveValue('')
+  expect(await screen.findByRole('heading', { name: 'Profile' })).toBeVisible()
 })
 
 test('an unknown group shows the first one instead of an empty dialog', async () => {
@@ -212,4 +268,20 @@ test('an old AI link with a section lands on the page holding it', async () => {
     await screen.findByRole('heading', { name: 'MCP server' }, { timeout: 5000 }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'AI providers' })).not.toBeInTheDocument()
+})
+
+test('a link inside the dialog to other settings does not make Close step back to it', async () => {
+  const router = mount('/')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
+  router.history.push('/onboarding?settings=account/ai-mcp', { settingsOpened: true })
+  const dialog = await screen.findByRole('dialog')
+
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Create an API token' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'account/security' }),
+  )
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.search).toEqual({})
 })
