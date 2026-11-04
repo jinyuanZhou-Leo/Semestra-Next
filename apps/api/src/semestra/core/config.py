@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # `local_embedding_custom`, any Hugging Face model that has an ONNX export) when the extra is
     # installed and this is on (the `-local` image does).
     local_embedding: bool = False
-    # Used when a user picks none: multilingual-e5-small | bge-m3 | qwen3-embedding-0.6b.
+    # Used when a user picks none: multilingual-e5-small | bge-m3, or a Hugging Face repo.
     local_embedding_model: str = "multilingual-e5-small"
     # Users may add Hugging Face models; files are shared by the whole server, so a busy
     # multi-user server may turn this off. Larger models are refused.

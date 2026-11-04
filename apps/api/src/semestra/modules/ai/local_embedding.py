@@ -65,14 +65,9 @@ PRESETS: dict[str, Preset] = {
         "intfloat/multilingual-e5-small", "mean", query_prefix="query: ", passage_prefix="passage: "
     ),
     "bge-m3": Preset("Xenova/bge-m3", "cls"),
-    "qwen3-embedding-0.6b": Preset(
-        "onnx-community/Qwen3-Embedding-0.6B-ONNX",
-        "last",
-        query_prefix=(
-            "Instruct: Given a search query, retrieve relevant passages that answer the query\n"
-            "Query:"
-        ),
-    ),
+    # Not Qwen3-Embedding-0.6B: its int8 export strays from the original (cosine 0.83-0.88,
+    # and a text's vector depends on its batch), fp16 runs at 0.7 texts a second on an M3 CPU
+    # (2026-11-04). Users can still add it by name.
 }
 DEFAULT = "multilingual-e5-small"
 # Chunks are far shorter than any model's limit; longer input only costs time.

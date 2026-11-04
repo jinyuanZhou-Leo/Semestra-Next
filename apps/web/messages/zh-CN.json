@@ -1042,7 +1042,6 @@
   "ai_models_local_use_hf": "使用 Hugging Face 上的 {model}",
   "ai_local_embedding_e5_small": "最小最快",
   "ai_local_embedding_bge_m3": "均衡，中英文都好",
-  "ai_local_embedding_qwen3": "最准确，较慢",
   "ai_job_local_ocr_download": "OCR 模型下载",
   "job_step_ai_local_ocr_download_downloading": "下载 OCR 模型",
   "job_step_ai_local_ocr_download_downloading_count": "{current}/{total} MB",

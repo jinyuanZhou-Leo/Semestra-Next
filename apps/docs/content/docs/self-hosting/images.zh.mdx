@@ -40,7 +40,6 @@ docker compose exec semestra semestra ocr-models --all
 | ----------------------- | ------------------------------------------------------------- |
 | `multilingual-e5-small` | 默认。最小最快：Apple M3 上每秒约 27 段，使用时占用约 1 GB 内存 |
 | `bge-m3`                | 均衡，中英文都好；占用内存更多                                |
-| `qwen3-embedding-0.6b`  | 最准确，较慢                                                  |
 
 用户也可以输入任何带 ONNX 版本（有 `onnx/` 目录和 `tokenizer.json`）的 Hugging Face 模型名。模型和 OCR 模型一样在第一次用到时下载到数据卷；下载完成前文件只能按关键词搜索，下载后会补上向量。
 换模型会在后台重建向量。提前下载：

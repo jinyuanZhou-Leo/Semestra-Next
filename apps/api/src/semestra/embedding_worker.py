@@ -58,7 +58,8 @@ def _load(folder: str, wanted: str, thread_count: int) -> _Model:
             session = onnxruntime.InferenceSession(
                 str(path / spec["onnx"]), options, providers=[_PROVIDERS[wanted], _CPU]
             )
-            used = wanted
+            # ORT may fall back to the CPU quietly (a missing CUDA library): report what runs.
+            used = wanted if _PROVIDERS[wanted] in session.get_providers() else "cpu"
         except Exception:  # a driver or an operator the device lacks: the CPU still works
             traceback.print_exc()
     if session is None:
