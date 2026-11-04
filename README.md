@@ -66,7 +66,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
   <img alt="Task list with priorities, flags, due dates and course tags" src="docs/assets/screenshots/tasks-light.webp" />
 </picture>
 
-- **A Today page** with your next class, what's due in the next 7 days and today's tasks. Choose the page Semestra opens on in **Settings → Preferences**.
+- **A Today page** with your next class, what's due in the next 7 days and today's tasks. Choose the page Semestra opens on in **Settings → Preferences → Start page**.
 - **Tasks with lists, smart lists and quick add.** Type `Fri lab report !!!` and the date and priority fill themselves in. Tasks can belong to a course, and assessments can create matching tasks when you turn that on.
 - **Pages you arrange yourself.** Every program, term and course page is a board of cards you can reorder, resize and extend with plugins.
 - **On your phone**, Semestra opens a smaller app with Today, Tasks and Sem, and can be added to the home screen.
@@ -168,7 +168,7 @@ apps/
   site/                Landing page (Astro)
 packages/
   api-client/          TypeScript client generated from OpenAPI (don't edit src/generated)
-deploy/                Dockerfile, self-host compose, release and deploy scripts
+deploy/                Dockerfile, self-host compose and Caddyfile
 docs/
   specs/               One design spec per module, M00 to M17
 ```

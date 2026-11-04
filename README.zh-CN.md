@@ -66,7 +66,7 @@ Semestra 是给大学生用的学期规划工具。建好学业项目，加上�
   <img alt="待办列表：优先级、标记、截止日期与课程标签" src="docs/assets/screenshots/tasks-zh-light.webp" />
 </picture>
 
-- **今天页**：下一节课、未来 7 天到期的内容和今天的待办。打开应用时先进入哪个页面，可以在 **设置 → 偏好设置** 里选。
+- **今天页**：下一节课、未来 7 天到期的内容和今天的待办。打开应用时先进入哪个页面，可以在 **设置 → 偏好 → 起始页** 里选。
 - **待办支持列表、智能列表和快速添加**：输入 `Fri lab report !!!`，日期和优先级会自动识别。待办可以归属课程，考核也能自动生成待办（在设置里开启）。
 - **页面自己排**：学业项目、学期和课程的页面都是卡片看板，可以排序、调整大小，还能用插件扩展。
 - **手机上也能用**：在手机上打开是精简版，包含今天、待办和 Sem，可以添加到主屏幕。
@@ -168,7 +168,7 @@ apps/
   site/                官网（Astro）
 packages/
   api-client/          由 OpenAPI 生成的 TypeScript 客户端（不要手改 src/generated）
-deploy/                Dockerfile、自部署 compose、发布与部署脚本
+deploy/                Dockerfile、自部署 compose 与 Caddyfile
 docs/
   specs/               每个模块一份设计规格，M00 到 M17
 ```
