@@ -33,13 +33,14 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/academics-dark.webp" />
-  <img alt="Terms and courses page showing a finished term's courses with credits, final grades and GPA" src="docs/assets/screenshots/academics-light.webp" />
+  <img alt="Terms and courses page: the current term's courses with credits and current marks" src="docs/assets/screenshots/academics-light.webp" />
 </picture>
 
 - **A gradebook for every course** with weighted categories, dropped assessments, scores as points or percentages, and a live current mark.
 - **Forecasts and plan mode.** Set a target and see the average you need on what's left, or try "what if" scores without touching your real marks.
 - **Term and cumulative GPA** with built-in scales (UofT 4.0 by default, plus US 4.33, standard 4.0, Australian 7 and Korean 4.5) or your own conversion table.
 - **Full-year courses** that span several terms and still carry one final grade.
+- **An academic summary** for the whole program, with cumulative GPA and charts of GPA and credits by term.
 
 ### Schedule and calendar
 
@@ -50,7 +51,8 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 
 - **Weekly class meetings by section** (lecture, tutorial, practical) with rooms, week ranges and one-off cancellations.
 - **One calendar for everything:** classes, assessment deadlines, task due dates, events and your LMS calendar, in week, month, list or timetable view.
-- **Conflict warnings** when two meetings overlap, plus **ICS export and subscription links** for the calendar on your phone.
+- **Conflict warnings** when two meetings overlap.
+- **Export and subscribe.** Save the calendar as an image, a PDF or an `.ics` file, or add one subscription link per program to Google Calendar or your phone. The link can be reset or turned off at any time.
 
 ### Today and tasks
 
@@ -64,9 +66,16 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
   <img alt="Task list with priorities, flags, due dates and course tags" src="docs/assets/screenshots/tasks-light.webp" />
 </picture>
 
-- **A Today page** with your next class, what's due this week and today's tasks.
+- **A Today page** with your next class, what's due in the next 7 days and today's tasks. Choose the page Semestra opens on in **Settings → Preferences → Start page**.
 - **Tasks with lists, smart lists and quick add.** Type `Fri lab report !!!` and the date and priority fill themselves in. Tasks can belong to a course, and assessments can create matching tasks when you turn that on.
 - **Pages you arrange yourself.** Every program, term and course page is a board of cards you can reorder, resize and extend with plugins.
+- **On your phone**, Semestra opens a smaller app with Today, Tasks and Sem, and can be added to the home screen.
+
+### Course files
+
+- **Upload slides, notes and readings to each course**, preview PDFs in the app, and search inside them by keyword or, with an embedding model, by meaning.
+- **Scanned pages are read with OCR**, through your AI provider or, on a self-hosted server, a local OCR model.
+- **Sem cites your files.** Answers that use a document link to the exact pages.
 
 ### Sem, the AI assistant
 
@@ -78,7 +87,8 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 - **Ask about anything in your account**, like "what do I need on the midterm?" or "move my ECE243 lab to Friday". Sem uses the same capabilities as the app and by default shows a confirmation card before it changes your data.
 - **Bring your own key** for Anthropic, OpenAI, Google Gemini, Ollama, or any OpenAI- or Anthropic-compatible endpoint. Usage and cost are tracked per model.
 - **Smart import.** Drop in a syllabus, a timetable or an ICS file, then review the extracted courses, meetings and assessments before anything is saved.
-- **Memory, skills and temporary chats**, and an **MCP server** at `/mcp` so external clients can use the same tools with an API token.
+- **Memory, skills and temporary chats.** Long conversations are compacted automatically, and the context ring shows how much room is left.
+- **Permissions per feature** decide what Sem may do on its own and what needs your confirmation, and MCP clients can only delete data once you allow it. An **MCP server** at `/mcp` lets external clients use the same tools with an API token.
 
 ### Plugins and integrations
 
@@ -89,7 +99,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 
 - **Canvas LMS:** link a Canvas course to import its assignments, overlay its calendar, and browse announcements, grades, modules, pages and quizzes in a Canvas tab.
 - **First-party plugins**, installed per account: habit streak, Pomodoro timer, sticky notes, counter and world clock. See the [plugin authoring guide](apps/docs/content/docs/plugins.mdx).
-- **Settings that inherit** from account to program, term and course; light and dark themes; full English and Simplified Chinese.
+- **Settings that inherit** from account to program, term and course, with search across every setting; light and dark themes with an accent color; full English and Simplified Chinese.
 - **Your data stays yours:** export everything to one archive, import it into another instance, or delete your account.
 
 ## Tech stack
@@ -98,7 +108,7 @@ This repository is a ground-up rewrite of the original [Semestra](https://github
 |---|---|
 | Backend | FastAPI, SQLAlchemy 2, Alembic, SQLite (with FTS5 and sqlite-vec), Python 3.14 via uv |
 | AI | Pydantic AI agent loop on the official provider SDKs, through an SSRF-safe HTTP client |
-| Frontend | React 19, TypeScript 7, Vite 8, TanStack Router (SPA), TanStack Query, Table and Form, React Compiler |
+| Frontend | React 19, TypeScript 7, Vite 8, TanStack Router (SPA), TanStack Query and Table, React Compiler (Oxc) |
 | UI | shadcn/ui on Base UI, Tailwind CSS 4, AI Elements, FullCalendar |
 | i18n | Paraglide JS (`en`, `zh-CN`) |
 | API client | Generated from the OpenAPI schema with `@hey-api/openapi-ts` |
@@ -146,9 +156,7 @@ cp .env.example .env    # optional
 docker compose up -d    # then open http://localhost:8000
 ```
 
-The image isn't public yet: see [deploy/selfhost/README.md](deploy/selfhost/README.md) to log in to `ghcr.io` or build it locally.
-
-Email, secrets, backups and upgrades are covered in [deploy/selfhost/README.md](deploy/selfhost/README.md), and every environment variable is documented in [deploy/.env.example](deploy/.env.example).
+The images are public on `ghcr.io`. [deploy/selfhost/README.md](deploy/selfhost/README.md) covers running on your local network, on a server with a domain (bundled Caddy with automatic HTTPS) or behind your own reverse proxy, plus upgrades. Email, backups, image choice, optional features such as local OCR, and every setting are in the [self-hosting docs](apps/docs/content/docs/self-hosting), and every environment variable is listed in [deploy/.env.example](deploy/.env.example).
 
 ## Project structure
 
@@ -157,11 +165,12 @@ apps/
   api/                 FastAPI backend: src/semestra/{core, modules/*}
   web/                 React SPA: src/{routes, app, modules/*, ui, components, lib}
   docs/                Documentation site (Fumadocs, static): self-hosting, AI, MCP, LMS, API
+  site/                Landing page (Astro)
 packages/
   api-client/          TypeScript client generated from OpenAPI (don't edit src/generated)
-deploy/                Dockerfile, self-host compose, release and deploy scripts
+deploy/                Dockerfile, self-host compose and Caddyfile
 docs/
-  specs/               One design spec per module, M00 to M16
+  specs/               One design spec per module, M00 to M17
 ```
 
 Most features are a module on both sides: `academics`, `grading`, `schedule`, `tasks`, `files`, `imports`, `lms`, `ai`, `plugins`, `settings`, `portability` and more (the assistant is `agent` in the API and `assistant` in the web app). A backend module declares **capabilities**, and by default each one becomes a REST route, an assistant tool and an MCP tool from a single definition. A frontend module registers its pages, cards and settings with `defineModule`.
