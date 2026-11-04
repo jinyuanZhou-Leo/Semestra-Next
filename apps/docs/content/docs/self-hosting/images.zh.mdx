@@ -7,8 +7,10 @@ description: 默认镜像或小镜像、固定版本，或者自己构建镜像�
 
 | 镜像                  | 标签                          | 平台          | 内存    | 在 `.env` 里选择                   |
 | --------------------- | ----------------------------- | ------------- | ------- | ---------------------------------- |
-| 带本机 OCR（默认）    | `latest-ocr`、`1.2.0-ocr`     | amd64、arm64  | 约 3 GB | 不用设置                           |
-| 不带本机 OCR          | `latest`、`1.2.0`             | amd64         | 约 1 GB | `SEMESTRA_IMAGE_VARIANT=`（留空）  |
+| 带本机 OCR 与 embedding（默认） | `latest-local`、`1.2.0-local` | amd64、arm64 | 约 4 GB | 不用设置               |
+| 不带这两项            | `latest`、`1.2.0`             | amd64         | 约 1 GB | `SEMESTRA_IMAGE_VARIANT=`（留空）  |
+
+默认镜像以前的后缀是 `-ocr`；`-ocr` 标签作为别名保留到 2.0。
 
 arm64 机器（如树莓派、Apple Silicon 上的 Docker）请用默认镜像。
 
@@ -24,8 +26,31 @@ AI 模型。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存�
 docker compose exec semestra semestra ocr-models --all
 ```
 
-用小镜像时，用户在 **OCR** 一行里选服务商的模型。改 `SEMESTRA_IMAGE_VARIANT` 再运行 `docker compose up -d`
+用小镜像时，用户在 **OCR** 和**搜索**两行里选服务商的模型。改 `SEMESTRA_IMAGE_VARIANT` 再运行 `docker compose up -d`
 就能来回切换，数据不受影响。
+
+## 本机 embedding
+
+默认镜像还会在服务器上计算搜索用的向量，不接 AI 服务商也能在文件里做语义搜索。它用 ONNX Runtime 跑 Hugging Face 上的
+[ONNX](https://onnx.ai) 模型，只用 CPU。用户已经有带 embedding 模型的服务商（或服务器配置了
+[全实例服务商](/docs/ai/instance-provider)）时，**自动**会继续用它；没有时才用本机的默认模型。用户也可以在 AI 设置 → 模型的
+**搜索**一行里选模型：
+
+| 模型                    | 说明                                                          |
+| ----------------------- | ------------------------------------------------------------- |
+| `multilingual-e5-small` | 默认。最小最快：Apple M3 上每秒约 27 段，使用时占用约 1 GB 内存 |
+| `bge-m3`                | 均衡，中英文都好；占用内存更多                                |
+| `qwen3-embedding-0.6b`  | 最准确，较慢                                                  |
+
+用户也可以输入任何带 ONNX 版本（有 `onnx/` 目录和 `tokenizer.json`）的 Hugging Face 模型名。模型和 OCR 模型一样在第一次用到时下载到数据卷；下载完成前文件只能按关键词搜索，下载后会补上向量。
+换模型会在后台重建向量。提前下载：
+
+```bash
+docker compose exec semestra semestra embedding-models --all
+```
+
+模型常驻在单独的进程里，空闲十分钟后退出。Docker 用不了 Mac 的 GPU，所以这里只用 CPU；想用 GPU，可以在宿主机上跑
+[Ollama](/docs/ai/ollama)，再选它的 embedding 模型。相关设置见[全部设置](./configuration.mdx#本机-embedding)。
 
 ## 固定版本
 
@@ -40,8 +65,8 @@ SEMESTRA_VERSION=1.2.0
 在仓库根目录运行：
 
 ```bash
-docker build -f deploy/docker/Dockerfile --target allinone-ocr \
-  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-ocr .
+docker build -f deploy/docker/Dockerfile --target allinone-local \
+  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-local .
 ```
 
 小镜像用 `--target allinone` 和标签 `:local`。然后让 compose 文件使用它：

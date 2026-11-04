@@ -14,8 +14,9 @@ from pathlib import Path
 from typing import Any
 
 # Texts per inference call. Activations grow with the batch size and the square of the length.
-# Measured on an M3 (2026-11-04): e5-small int8 embeds about 27 texts of ~360 tokens a second
-# with 8 per call, and the process peaks at about 2.2 GB (it keeps that until it idles out).
+# Measured 2026-11-04 with e5-small int8 and texts of ~360 tokens: about 27 a second on an M3;
+# in a 2-core Linux container about 15 a second, the process peaking at about 0.9 GB.
+# Batches of 4 did not lower the peak.
 BATCH = 8
 _PROVIDERS = {"cuda": "CUDAExecutionProvider"}
 _CPU = "CPUExecutionProvider"

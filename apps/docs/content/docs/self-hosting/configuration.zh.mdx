@@ -13,7 +13,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | 变量                  | 默认值                  | 含义                                                     |
 | --------------------- | ----------------------- | -------------------------------------------------------- |
 | `SEMESTRA_VERSION`    | `latest`                | 镜像版本，例如 `1.2.0`（见[镜像](./images.mdx)）          |
-| `SEMESTRA_IMAGE_VARIANT` | `-ocr`               | 留空则使用不带本机 OCR 的镜像                            |
+| `SEMESTRA_IMAGE_VARIANT` | `-local`             | 留空则使用不带本机 OCR 与 embedding 的镜像               |
 | `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。用于邮件和日历链接；`https://` 时 cookie 带 Secure |
 | `SEMESTRA_PORT`       | `8000`                  | 宿主机端口                                               |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | 宿主机网卡。放在反向代理后面时用 `127.0.0.1`             |
@@ -77,9 +77,22 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 
 | 变量                       | 默认值              | 含义                                                         |
 | -------------------------- | ------------------- | ------------------------------------------------------------ |
-| `SEMESTRA_LOCAL_OCR`       | `-ocr` 镜像里为 `true` | 在服务器上识别扫描页                                      |
+| `SEMESTRA_LOCAL_OCR`       | `-local` 镜像里为 `true` | 在服务器上识别扫描页                                      |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium`   | 默认模型：`PP-OCRv6_tiny`、`_small`、`_medium`、`PP-OCRv5_mobile`、`PP-OCRv5_server` |
 | `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | 每页允许的时间（另加两分钟加载模型）；CPU 很慢时调大 |
+
+## 本机 embedding
+
+只有默认镜像带这个功能，见[镜像](./images.mdx#本机-embedding)。
+
+| 变量                              | 默认值                   | 含义                                            |
+| --------------------------------- | ------------------------ | ----------------------------------------------- |
+| `SEMESTRA_LOCAL_EMBEDDING`        | `-local` 镜像里为 `true` | 在服务器上计算搜索用的向量                      |
+| `SEMESTRA_LOCAL_EMBEDDING_MODEL`  | `multilingual-e5-small`  | 默认模型（预设名或 Hugging Face 模型名）        |
+| `SEMESTRA_LOCAL_EMBEDDING_CUSTOM` | `true`                   | 允许用户添加 Hugging Face 模型；多人共用的服务器可关掉以节省磁盘 |
+| `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                      | 用户可添加的模型大小上限                        |
+| `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                     | CPU 线程数（0：一半核心）                       |
+| `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`              | 这么久没用就卸载模型                            |
 
 ## 后台任务与备份
 

@@ -14,7 +14,7 @@ These are read by `docker-compose.yml` itself.
 | Variable              | Default                 | Meaning                                                                    |
 | --------------------- | ----------------------- | -------------------------------------------------------------------------- |
 | `SEMESTRA_VERSION`    | `latest`                | Image version, e.g. `1.2.0` ([Images](./images.mdx))                       |
-| `SEMESTRA_IMAGE_VARIANT` | `-ocr`               | Empty for the image without local OCR                                      |
+| `SEMESTRA_IMAGE_VARIANT` | `-local`             | Empty for the image without local OCR and embedding                        |
 | `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Used in email and calendar links; `https://` makes cookies Secure |
 | `SEMESTRA_PORT`       | `8000`                  | Host port                                                                  |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | Host interface. Use `127.0.0.1` behind a reverse proxy                     |
@@ -79,9 +79,22 @@ Only in the default image; see [Images](./images.mdx#local-ocr).
 
 | Variable                   | Default           | Meaning                                                       |
 | -------------------------- | ----------------- | ------------------------------------------------------------- |
-| `SEMESTRA_LOCAL_OCR`       | `true` in `-ocr`  | Read scanned pages on the server                              |
+| `SEMESTRA_LOCAL_OCR`       | `true` in `-local` | Read scanned pages on the server                              |
 | `SEMESTRA_LOCAL_OCR_MODEL` | `PP-OCRv6_medium` | Default model: `PP-OCRv6_tiny`, `_small`, `_medium`, `PP-OCRv5_mobile`, `PP-OCRv5_server` |
 | `SEMESTRA_LOCAL_OCR_PAGE_TIMEOUT_SECONDS` | `60` | Time allowed per page (plus two minutes to load the model); raise it on a very slow CPU |
+
+## Local embedding
+
+Only in the default image; see [Images](./images.mdx#local-embedding).
+
+| Variable                          | Default                  | Meaning                                         |
+| --------------------------------- | ------------------------ | ----------------------------------------------- |
+| `SEMESTRA_LOCAL_EMBEDDING`        | `true` in `-local`       | Embed text on the server                        |
+| `SEMESTRA_LOCAL_EMBEDDING_MODEL`  | `multilingual-e5-small`  | Default model (a preset or a Hugging Face name) |
+| `SEMESTRA_LOCAL_EMBEDDING_CUSTOM` | `true`                   | Let users add Hugging Face models; turn off on a shared server to save disk |
+| `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                      | Largest Hugging Face model users may add        |
+| `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                     | CPU threads (0: half the cores)                 |
+| `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`              | Unload the model after this long without use    |
 
 ## Background work and backups
 
