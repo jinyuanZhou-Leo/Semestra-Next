@@ -47,8 +47,10 @@ export function settingsHref(place: Place, target?: SettingsTarget): string {
 
 /**
  * The settings dialog lives in the URL (`?settings=<level>/<group>&scope=<id>#section`) so a link
- * opens it and Back closes it. Switching groups or levels replaces the entry; only opening adds
- * one.
+ * opens it and Back closes it. Only opening from a closed dialog adds an entry: switching groups or
+ * levels, and links inside the dialog that open other settings ("Add a provider" in AI models),
+ * replace it, so one Close (or Back) always leaves the dialog instead of stepping to the
+ * previous level.
  */
 export function useSettingsDialog() {
   const router = useRouter()
@@ -60,7 +62,8 @@ export function useSettingsDialog() {
   const place = { pathname, searchStr }
 
   const open = (next: SettingsTarget) => {
-    router.history.push(settingsHref(place, next), { settingsOpened: true })
+    if (target) router.history.replace(settingsHref(place, next), { settingsOpened: opened })
+    else router.history.push(settingsHref(place, next), { settingsOpened: true })
   }
   const select = (group: string, section?: string) => {
     if (!target) return
