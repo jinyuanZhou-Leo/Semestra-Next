@@ -108,6 +108,30 @@ test('the settings dialog groups sections in a navigation and shows the chosen g
   expect(router.state.location.pathname).toBe('/onboarding')
 })
 
+test('searching shows the sections of every group whose text holds the words', async () => {
+  mount('/?settings=account/account')
+  const search = await screen.findByRole('searchbox', { name: 'Search settings' })
+  expect(await screen.findByRole('heading', { name: 'Profile' })).toBeVisible()
+
+  // A row inside a section is found, not only section titles.
+  await userEvent.type(search, 'first day')
+  expect(await screen.findByRole('heading', { name: 'Language and time' })).toBeVisible()
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Profile', hidden: true })).not.toBeVisible(),
+  )
+  const nav = screen.getByRole('navigation', { name: 'Settings' })
+  expect(within(nav).getByRole('button', { name: 'Preferences' })).toBeInTheDocument()
+  expect(within(nav).queryByRole('button', { name: 'Account' })).not.toBeInTheDocument()
+
+  await userEvent.type(search, ' zzqq')
+  expect(await screen.findByText('No matching settings')).toBeInTheDocument()
+
+  // Esc clears the search before it would close the dialog.
+  await userEvent.keyboard('{Escape}')
+  expect(search).toHaveValue('')
+  expect(await screen.findByRole('heading', { name: 'Profile' })).toBeVisible()
+})
+
 test('an unknown group shows the first one instead of an empty dialog', async () => {
   mount('/?settings=account/nope')
   expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument()

@@ -15,15 +15,24 @@ import { SaveIndicator, type SectionStatus, SectionStatusContext } from './statu
 export function SectionFrame({
   section,
   scope,
+  hidden,
 }: {
   section: SettingsSectionContribution
   scope?: Scope
+  /** Kept rendered but out of sight (a section that does not match the settings search). */
+  hidden?: boolean
 }) {
   const [status, setStatus] = useState<SectionStatus>({ status: 'idle' })
   const headingId = `settings-${section.id}-title`
   const Custom = section.component
   return (
-    <section id={section.id} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
+    <section
+      id={section.id}
+      data-settings-section
+      hidden={hidden}
+      aria-labelledby={headingId}
+      className="scroll-mt-6 space-y-4"
+    >
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2
