@@ -269,3 +269,19 @@ test('an old AI link with a section lands on the page holding it', async () => {
   ).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'AI providers' })).not.toBeInTheDocument()
 })
+
+test('a link inside the dialog to other settings does not make Close step back to it', async () => {
+  const router = mount('/')
+  await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
+  router.history.push('/onboarding?settings=account/ai-mcp', { settingsOpened: true })
+  const dialog = await screen.findByRole('dialog')
+
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Create an API token' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'account/security' }),
+  )
+  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(router.state.location.search).toEqual({})
+})
