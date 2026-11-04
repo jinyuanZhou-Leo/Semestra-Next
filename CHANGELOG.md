@@ -3,6 +3,17 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.12.0 (2026-11-04)
+
+### New
+
+- **Settings:** Search settings, with matching options shown and highlighted in place.
+- **Settings:** Switch between light, dark and system themes from the account menu or the command palette.
+
+### Fixed
+
+- **Plugins:** Pressing Esc on the uninstall confirmation closes only the confirmation, never the plugin details behind it.
+
 ## 1.11.3 (2026-11-03)
 
 ### Fixed
