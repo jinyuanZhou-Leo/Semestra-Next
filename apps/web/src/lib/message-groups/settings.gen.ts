@@ -53,6 +53,7 @@ export const settingsMessages = {
   settings_cluster_features: m.settings_cluster_features,
   settings_cluster_personal: m.settings_cluster_personal,
   settings_cluster_system: m.settings_cluster_system,
+  settings_command_theme: m.settings_command_theme,
   settings_danger_zone: m.settings_danger_zone,
   settings_description: m.settings_description,
   settings_dialog_description: m.settings_dialog_description,

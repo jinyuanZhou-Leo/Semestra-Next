@@ -391,6 +391,7 @@
   "settings_theme_system": "System",
   "settings_theme_light": "Light",
   "settings_theme_dark": "Dark",
+  "settings_command_theme": "Change theme",
   "settings_accent_label": "Accent color",
   "settings_accent_neutral": "Neutral",
   "settings_accent_blue": "Blue",
