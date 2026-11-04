@@ -30,7 +30,7 @@ import { useModules, useStatusItems } from '../registry'
 import { useUiPref } from '../ui-pref'
 
 /** How long a finished job stays in the bar. */
-export const DONE_VISIBLE_MS = 3000
+export const DONE_VISIBLE_MS = 15_000
 /** Failed jobs older than this are no longer shown, seen or not. */
 const FAILED_VISIBLE_MS = 7 * 24 * 3600 * 1000
 const SEEN_KEY = 'layout.status_seen_failures'
@@ -201,7 +201,8 @@ function JobRow({
 /**
  * The host's own line (M10 §5.6): the user's background jobs. One job shows its stage and
  * progress, several a count; clicking opens the list with progress, cancel and a link to where
- * each job belongs. Finished jobs stay ~3 s; failures stay until the list has been opened.
+ * each job belongs. Finished jobs stay ~15 s (and while the list is open); failures stay until
+ * the list has been opened.
  */
 function JobsLine() {
   const { state } = useSidebar()
@@ -213,12 +214,15 @@ function JobsLine() {
     ?.items
   const [seen, setSeen] = useUiPref<string[]>(SEEN_KEY, [])
   const [open, setOpen] = useState(false)
+  // Jobs the list showed when it opened: none of them vanishes under the user while it is open.
+  const [held, setHeld] = useState<readonly string[]>([])
   const kinds = useModules().flatMap((module) => module.jobKinds ?? [])
   const all = mergeJobs(recent, running, pending)
   const now = useNow((at) =>
     all.some((job) => job.status === 'succeeded' && finishedAgo(job, at) < DONE_VISIBLE_MS),
   )
-  const jobs = visibleJobs(all, seen, now)
+  const shown = visibleJobs(all, seen, now)
+  const jobs = open ? all.filter((job) => shown.includes(job) || held.includes(job.id)) : shown
   const active = jobs.filter((job) => ACTIVE.has(job.status))
   const [only] = jobs.length === 1 ? jobs : []
   const progress = useSmoothedProgress(only?.progress ?? 0, only?.status === 'running')
@@ -270,7 +274,14 @@ function JobsLine() {
 
   return (
     <SidebarMenuItem>
-      <Popover open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) return close()
+          setHeld(jobs.map((job) => job.id))
+          setOpen(true)
+        }}
+      >
         <PopoverTrigger render={<SidebarMenuButton tooltip={item.label} size="sm" />}>
           <LineFace {...item} />
         </PopoverTrigger>

@@ -75,6 +75,15 @@ async def staged(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+@job_handler("test.slow")
+async def slow(ctx: JobCtx, payload: Payload) -> Result:
+    running_clock[0].advance(minutes=5)
+    return Result()
+
+
+running_clock: list[Clock] = []
+
+
 async def start(app: FastAPI, user_id: str, kind: str, **kwargs: Any) -> str:
     async with system_ctx(app.state, user_id) as ctx:
         job = await enqueue(ctx, kind, Payload(name=kwargs.pop("name", kind)), **kwargs)
@@ -305,3 +314,15 @@ async def test_sqlite_statistics_are_refreshed(app: FastAPI, make_user: MakeUser
     async with app.state.session_factory() as db:
         analyzed = (await db.execute(text("SELECT DISTINCT tbl FROM sqlite_stat1"))).scalars()
         assert "core_jobs" in set(analyzed)
+
+
+async def test_finished_at_is_when_the_job_ends(app: FastAPI, make_user: MakeUser, clock: Clock):
+    # The status bar shows a success for a few seconds from `finished_at`, live from the event.
+    running_clock[:] = [clock]
+    user = await make_user()
+    with collect_events(app, user.id) as messages:
+        job_id = await start(app, user.id, "test.slow")
+        await app.state.jobs.run_until_idle()
+    assert (await get(app, job_id)).finished_at == clock.now
+    assert messages[-1]["data"]["status"] == "succeeded"
+    assert messages[-1]["data"]["finished_at"] == clock.now.isoformat()
