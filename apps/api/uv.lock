@@ -2888,7 +2888,7 @@ wheels = [
 
 [[package]]
 name = "semestra-api"
-version = "1.11.3"
+version = "1.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

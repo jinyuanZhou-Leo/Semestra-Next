@@ -1,5 +1,29 @@
 # @semestra/web
 
+## 1.12.0
+
+### Minor Changes
+
+- ec5ee42: <!-- area: settings -->
+  <!-- en -->
+  Search settings, with matching options shown and highlighted in place.
+  <!-- zh -->
+  设置支持搜索，匹配的选项会就地显示并高亮。
+- b713e80: <!-- area: settings -->
+  <!-- en -->
+  Switch between light, dark and system themes from the account menu or the command palette.
+  <!-- zh -->
+  可以在账户菜单或命令面板中切换浅色、深色和跟随系统主题。
+
+### Patch Changes
+
+- bc6e7ca: <!-- area: plugins -->
+  <!-- en -->
+  Pressing Esc on the uninstall confirmation closes only the confirmation, never the plugin details behind it.
+  <!-- zh -->
+  在卸载确认框上按 Esc 只会关闭确认框，不会连带关闭后面的插件详情。
+- @semestra/api-client@1.12.0
+
 ## 1.11.3
 
 ### Patch Changes
