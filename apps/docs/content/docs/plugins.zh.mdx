@@ -122,7 +122,7 @@ register_settings(namespace="plugin.hello-note", schema=HelloNoteSettings,
 
 ## 5. 测试要求
 
-- 前端：每个卡片在**所有声明的尺寸**下渲染；设置 schema 的校验（含缺字段的旧数据）；两个实例互不干扰；有计时/日期逻辑的用纯函数 + 假时钟测。使用 `@/test-utils` 的 `renderWithQuery` 与 msw `server`。
+- 前端：每个卡片在**所有声明的尺寸**下渲染；设置 schema 的校验（含缺字段的旧数据）；两个实例互不干扰；有计时/日期逻辑的用纯函数 + 假时钟测。使用 `@/test-utils` 的 `renderWithQuery` 与 msw `server`。卡片调用的每个接口都要有 handler：没有 handler 的请求会让测试失败。
 - 后端：capability 走 REST 的成功/失败路径（错误码与 params）；归属检查（别人的实例、别的卡片 id 返回 404）；事件订阅（卡片删除、purge）；导出→清空→导入的往返。卡片实例在测试里用 `plugins_builtin/tests/conftest.py` 的 `cards` fixture 模拟。
 - 改了后端接口要跑 `pnpm gen:api` 并提交生成结果。
 

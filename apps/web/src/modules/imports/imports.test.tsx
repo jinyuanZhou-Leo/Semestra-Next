@@ -2,7 +2,7 @@ import type { ImportItem, ImportSessionDetail } from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { CourseInfoFill, syllabusCandidates } from './components/CourseInfoFill'
 import { ImportDialog } from './components/ImportDialog'
@@ -13,6 +13,32 @@ import { itemDetail } from './labels'
 import { finishImport, openImport } from './launcher'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
+beforeEach(() => {
+  server.use(
+    // The upload size limit, and the reading job once a session starts (tests override both).
+    http.get(`${API}/files-usage`, () =>
+      HttpResponse.json({
+        used_bytes: 0,
+        files_bytes: 0,
+        quota_bytes: 52_428_800,
+        max_upload_bytes: 26_214_400,
+      }),
+    ),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'imports.extract',
+        status: 'running',
+        progress: 0,
+        step: null,
+        step_current: null,
+        step_total: null,
+        attempts: 1,
+        cancel_requested: false,
+      }),
+    ),
+  )
+})
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

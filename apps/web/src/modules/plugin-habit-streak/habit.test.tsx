@@ -110,6 +110,8 @@ function ringWithToggle(options: { before: number; after: number; delayMs?: numb
         current_streak: options.before,
       }),
     ),
+    // Refetched after a check-in.
+    http.get(`${API}/habit/instances/i1/checkins`, () => HttpResponse.json({ items: [] })),
     http.post(`${API}/habit/instances/i1/checkins/toggle`, async ({ request }) => {
       const body = (await request.json()) as { date: string }
       toggles.push(body.date)

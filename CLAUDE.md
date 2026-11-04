@@ -105,6 +105,7 @@ docs/                设计稿与模块规格
 - **后台任务在自己的事务里写过库之后不要再 `ctx.stage()`/`ctx.report()`**：进度用单独的短事务写，SQLite 只允许一个写者，会等满 `busy_timeout` 后报 `database is locked`。把最后一次进度报告放在第一次写库之前（M13 导入就是这样）。
 - **`/_authed` 的登录检查在 loader 里，不在 `beforeLoad`**（为了让外壳代码和数据与 `/account/me` 并行，M01 §12）：子路由的 `beforeLoad` 要读数据时先 `await requireSignIn(queryClient, location.href)`，否则未登录访问会先收到 401 而不是跳到登录页。
 - **`index.html` 里有启动画面（`#boot`）**：它按真实外壳的尺寸画侧边栏（宽 16rem，各行 36px，顶部切换器 56px），在首个页面渲染完成前显示（M11 §9）。改了侧边栏的结构或尺寸，要同步改这里，否则加载完成时页面会跳一下。
+- **前端测试里没有 handler 的请求会让测试失败**（`test-utils.tsx` 监听 msw 的 `request:unhandled`，在 `afterEach` 里报出）：界面调用的每个接口都要给 handler；登录后外壳要的接口（含 `/ai/status`、各级 `/me/settings/:namespace`）在 `academicsHandlers` 里。注意 `server.use(...)` 里同一次传入的 handler 先写的优先，要覆盖 `academicsHandlers` 里的接口就写在它前面。
 - jsdom 没有 `EventSource`：`test-setup.ts` 装了 `FakeEventSource`（`src/test-event-source.ts`），测试里用 `FakeEventSource.last().emit({type, data})` 模拟推送。
 
 ## 已完成的模块

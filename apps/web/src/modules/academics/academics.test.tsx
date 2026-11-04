@@ -109,6 +109,18 @@ beforeEach(() => {
       }),
     ),
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
+    // Pages these tests open on the way (a term's calendar, Sem's conversations), empty.
+    http.get(`${API}/programs/:id/calendar`, () =>
+      HttpResponse.json({
+        timezone: 'America/Toronto',
+        start: '2025-08-31',
+        end: '2025-09-07',
+        items: [],
+        weeks: [],
+        breaks: [],
+      }),
+    ),
+    http.get(`${API}/agent/sessions`, () => HttpResponse.json({ items: [] })),
     ...academicsHandlers(world),
   )
 })
