@@ -11,7 +11,7 @@
     "generate": "openapi-ts"
   },
   "dependencies": {
-    "@tanstack/react-query": "5.104.3"
+    "@tanstack/react-query": "5.105.3"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",

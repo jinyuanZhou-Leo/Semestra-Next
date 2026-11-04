@@ -152,7 +152,7 @@ function groupsOf(items: readonly GradeItem[], assignments: GradesState['assignm
   const groups = new Map<string, Group>()
   for (const g of items) {
     const key = g.group_name ?? ''
-    const group = groups.get(key) ?? {
+    const group: Group = groups.get(key) ?? {
       key,
       name: g.group_name || m.canvas_tab_group_none(),
       weight: assignments.get(g.external_id)?.group_weight ?? null,

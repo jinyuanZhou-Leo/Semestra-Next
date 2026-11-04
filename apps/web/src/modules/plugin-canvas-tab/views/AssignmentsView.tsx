@@ -162,7 +162,7 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
   const groups = new Map<string, Group>()
   for (const a of items) {
     const key = a.group_id ?? a.group_name ?? ''
-    const group = groups.get(key) ?? {
+    const group: Group = groups.get(key) ?? {
       key,
       name: a.group_name || m.canvas_tab_group_none(),
       weight: a.group_weight ?? null,
