@@ -87,8 +87,9 @@ def anthropic_client(client: httpx.AsyncClient, ep: Endpoint) -> AsyncAnthropic:
     return AsyncAnthropic(
         base_url=_strip(ep.base_url, "/v1"),
         api_key=key,
-        # Some compatible gateways read a bearer token instead of `x-api-key`: send both.
-        auth_token=key if ep.kind == "anthropic_compatible" else None,
+        # anthropic 2.x sends the key as a bearer token; compatible gateways may still read only
+        # `x-api-key`, so they get both.
+        default_headers={"x-api-key": key} if ep.kind == "anthropic_compatible" else None,
         http_client=sdk_client(client, has_key=bool(ep.api_key)),
         max_retries=0,
     )

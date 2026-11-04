@@ -16,12 +16,13 @@ from datetime import datetime
 from typing import Any
 
 from pydantic_ai.messages import (
+    InstructionDeltaPart,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
     ModelRequestPart,
     ModelResponse,
-    RetryPromptPart,
+    RetryFeedbackPart,
     TextPart,
     ThinkingPart,
     ToolAvailabilityDeltaPart,
@@ -156,7 +157,7 @@ def open_calls(messages: Sequence[ModelMessage]) -> list[ToolCallPart]:
         for m in messages[at + 1 :]
         if isinstance(m, ModelRequest)
         for p in m.parts
-        if isinstance(p, ToolReturnPart | RetryPromptPart)
+        if isinstance(p, ToolReturnPart)
     }
     return [
         p
@@ -201,20 +202,20 @@ def response_blocks(response: ModelResponse, thinking_ms: int | None) -> list[di
     return blocks
 
 
-def result_block(part: ToolReturnPart | RetryPromptPart) -> dict[str, Any]:
+def result_block(part: ToolReturnPart) -> dict[str, Any]:
     """The UI's block for one tool result. Our tools put `ok`, `error_code`, `changed` and the
-    uncut text (`full`) in the return's metadata, which the model never sees."""
+    uncut text (`full`) in the return's metadata, which the model never sees. A call Pydantic AI
+    sent back to the model (bad arguments, a tool not found yet) has no metadata."""
     name = part.tool_name or ""
-    if isinstance(part, RetryPromptPart):
-        content = part.model_response()
-        missing = "Unknown tool" in content or "not available yet" in content
-        meta: dict[str, Any] = {
-            "ok": False,
-            "error_code": "common.not_found" if missing else "common.validation",
-        }
-    else:
-        content = part.model_response_str()
-        meta = dict(part.metadata or {}) if isinstance(part.metadata, dict) else {}
+    content = part.model_response_str(wrap_if_error=False)
+    meta = dict(part.metadata or {}) if isinstance(part.metadata, dict) else {}
+    if part.outcome == "retried":
+        cause = part.retry.cause if part.retry is not None else None
+        # Rows stored before Pydantic AI 2.65 load without a cause.
+        missing = cause in ("unknown_tool", "unavailable_tool") or (
+            cause is None and ("Unknown tool" in content or "not available yet" in content)
+        )
+        meta = {"ok": False, "error_code": "common.not_found" if missing else "common.validation"}
     block: dict[str, Any] = {
         "type": "tool_result",
         "call_id": part.tool_call_id,
@@ -240,9 +241,9 @@ def request_blocks(request: ModelRequest) -> list[dict[str, Any]]:
     blocks: list[dict[str, Any]] = []
     citations: list[dict[str, Any]] = []
     for part in request.parts:
-        if isinstance(part, ToolReturnPart | RetryPromptPart) and part.tool_name:
+        if isinstance(part, ToolReturnPart) and part.tool_name:
             blocks.append(result_block(part))
-            meta = part.metadata if isinstance(part, ToolReturnPart) else None
+            meta = part.metadata
             if isinstance(meta, dict):
                 citations += [{"type": "citation", **c} for c in meta.get("citations", [])]
     return blocks + citations
@@ -273,12 +274,12 @@ def estimate_tokens(messages: Sequence[ModelMessage]) -> int:
                 chars += len(part.content)
             elif isinstance(part, ToolCallPart):
                 chars += len(part.args_as_json_str()) + len(part.tool_name)
-            elif isinstance(part, ToolReturnPart | RetryPromptPart):
-                chars += len(
-                    part.model_response_str()
-                    if isinstance(part, ToolReturnPart)
-                    else part.model_response()
-                )
+            elif isinstance(part, ToolReturnPart):
+                chars += len(part.model_response_str())
+            elif isinstance(part, RetryFeedbackPart):
+                chars += len(part.model_response())
+            elif isinstance(part, InstructionDeltaPart):
+                chars += len(part.content or "")
     return chars // CHARS_PER_TOKEN + images * IMAGE_TOKENS
 
 
@@ -335,8 +336,10 @@ def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> C
                 # What `search_tools`/`load_capability` return are tool definitions.
                 found = part.tool_name in (tools.SEARCH_TOOLS, tools.LOAD_CAPABILITY)
                 chars["tools" if found else "reads"] += len(part.model_response_str())
-            elif isinstance(part, RetryPromptPart):
+            elif isinstance(part, RetryFeedbackPart):
                 chars["reads"] += len(part.model_response())
+            elif isinstance(part, InstructionDeltaPart):  # a loaded skill's workflow
+                chars["instructions"] += len(part.content or "")
     parts = {k: v // CHARS_PER_TOKEN for k, v in chars.items()}
     parts["attachments"] += images * IMAGE_TOKENS
     for kind in ("instructions", "tools"):
