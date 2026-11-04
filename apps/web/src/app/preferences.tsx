@@ -9,7 +9,7 @@ import { useCallback, useEffect } from 'react'
 import { toastError } from '@/lib/errors'
 import { getFormatPreferences, setFormatPreferences } from '@/lib/format'
 import { clearLocaleChosen, useLocale, wasLocaleChosenSignedOut } from './locale'
-import { useTheme } from './theme'
+import { type Theme, useTheme } from './theme'
 
 export const PREFERENCES_STALE = 5 * 60_000
 
@@ -51,6 +51,20 @@ export function useUpdatePreferences() {
     },
     [queryClient, queryKey, mutate],
   )
+}
+
+/**
+ * Returns `setTheme(theme)`: switches the theme at once and saves it as the account preference.
+ * Every place that changes the theme (Settings → Appearance, the account menu, the command
+ * palette) goes through it, so they all show the same choice.
+ */
+export function useSetTheme() {
+  const { setTheme } = useTheme()
+  const update = useUpdatePreferences()
+  return (theme: Theme) => {
+    setTheme(theme)
+    update({ theme })
+  }
 }
 
 /**

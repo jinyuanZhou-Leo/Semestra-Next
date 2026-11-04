@@ -1,7 +1,28 @@
-import { DoorOpen, Info, Languages, Palette, Settings } from 'lucide-react'
-import { defineModule, preloadable } from '@/app/extensions'
+import { DoorOpen, Info, Languages, Palette, Settings, SunMoon } from 'lucide-react'
+import { type CommandContribution, defineModule, preloadable } from '@/app/extensions'
+import { useSetTheme } from '@/app/preferences'
+import { useTheme } from '@/app/theme'
+import { THEME_OPTIONS } from '@/app/theme-options'
 import { m } from '@/paraglide/messages'
 import { WhatsNew } from './WhatsNew'
+
+/** "Change theme →" in the command palette: the three choices of Settings → Appearance. */
+const themeCommand: CommandContribution = {
+  id: 'settings.theme',
+  title: m.settings_command_theme,
+  keywords: ['theme', 'dark', 'light', 'appearance', '主题', '深色', '浅色', '外观'],
+  icon: SunMoon,
+  useChildren: function useThemeChildren() {
+    const { theme } = useTheme()
+    const setTheme = useSetTheme()
+    return THEME_OPTIONS.filter((option) => option.value !== theme).map((option) => ({
+      id: option.value,
+      title: option.label(),
+      icon: option.icon,
+      run: () => setTheme(option.value),
+    }))
+  },
+}
 
 /** M11 设置与偏好: the settings framework itself lives in `app/settings`; this is its content. */
 export default defineModule({
@@ -51,6 +72,7 @@ export default defineModule({
       component: preloadable(() => import('./AboutSettings')),
     },
   ],
+  commands: [themeCommand],
   // "What's new" after an update (minor and major versions, once per account).
   overlays: [WhatsNew],
   uiPrefPrefixes: ['release.'],

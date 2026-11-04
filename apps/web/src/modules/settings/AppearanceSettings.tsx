@@ -1,7 +1,8 @@
 import { useId } from 'react'
 import { ACCENTS, type Accent, type ReduceMotion, type Theme } from '@/app/appearance'
-import { usePreferences, useUpdatePreferences } from '@/app/preferences'
+import { usePreferences, useSetTheme, useUpdatePreferences } from '@/app/preferences'
 import { useTheme } from '@/app/theme'
+import { THEME_OPTIONS } from '@/app/theme-options'
 import { ColorSwatch } from '@/components/ColorSwatch'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { cn } from '@/lib/utils'
@@ -9,14 +10,6 @@ import { m } from '@/paraglide/messages'
 import { Field, FieldContent, FieldLabel, FieldTitle } from '@/ui/field'
 import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
-
-const THEMES: readonly Theme[] = ['system', 'light', 'dark']
-
-const THEME_LABELS: Record<Theme, () => string> = {
-  system: m.settings_theme_system,
-  light: m.settings_theme_light,
-  dark: m.settings_theme_dark,
-}
 
 export const ACCENT_LABELS: Record<Accent, () => string> = {
   neutral: m.settings_accent_neutral,
@@ -125,6 +118,7 @@ function AppearanceForm({
   const id = useId()
   const update = useUpdatePreferences()
   const applied = useTheme()
+  const setTheme = useSetTheme()
 
   return (
     <SettingsGroup>
@@ -133,12 +127,11 @@ function AppearanceForm({
           aria-labelledby={`${id}-theme`}
           value={theme}
           onValueChange={(next) => {
-            applied.setTheme(next as Theme)
-            update({ theme: next as Theme })
+            setTheme(next as Theme)
           }}
           className="grid w-full grid-cols-3 gap-3 sm:w-[28rem]"
         >
-          {THEMES.map((option) => (
+          {THEME_OPTIONS.map(({ value: option, label }) => (
             <FieldLabel
               key={option}
               htmlFor={`${id}-theme-${option}`}
@@ -151,7 +144,7 @@ function AppearanceForm({
                   </span>
                 </FieldContent>
                 <div className="flex items-center justify-between gap-2">
-                  <FieldTitle>{THEME_LABELS[option]()}</FieldTitle>
+                  <FieldTitle>{label()}</FieldTitle>
                   <RadioGroupItem value={option} id={`${id}-theme-${option}`} />
                 </div>
               </Field>

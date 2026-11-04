@@ -391,6 +391,7 @@
   "settings_theme_system": "跟随系统",
   "settings_theme_light": "浅色",
   "settings_theme_dark": "深色",
+  "settings_command_theme": "更换主题",
   "settings_accent_label": "强调色",
   "settings_accent_neutral": "中性",
   "settings_accent_blue": "蓝色",
