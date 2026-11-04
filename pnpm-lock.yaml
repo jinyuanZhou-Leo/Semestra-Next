@@ -335,24 +335,9 @@ importers:
       '@fontsource-variable/inter':
         specifier: 5.3.0
         version: 5.3.0
-      '@fullcalendar/core':
-        specifier: 6.1.22
-        version: 6.1.22
-      '@fullcalendar/daygrid':
-        specifier: 6.1.22
-        version: 6.1.22(@fullcalendar/core@6.1.22)
-      '@fullcalendar/interaction':
-        specifier: 6.1.22
-        version: 6.1.22(@fullcalendar/core@6.1.22)
-      '@fullcalendar/list':
-        specifier: 6.1.22
-        version: 6.1.22(@fullcalendar/core@6.1.22)
       '@fullcalendar/react':
-        specifier: 6.1.22
-        version: 6.1.22(@fullcalendar/core@6.1.22)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@fullcalendar/timegrid':
-        specifier: 6.1.22
-        version: 6.1.22(@fullcalendar/core@6.1.22)
+        specifier: 7.1.3
+        version: 7.1.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(temporal-polyfill@1.0.6)
       '@lobehub/icons-static-svg':
         specifier: 1.102.0
         version: 1.102.0
@@ -521,6 +506,9 @@ importers:
       streamdown:
         specifier: 2.7.1
         version: 2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@7.2.0)
+      temporal-polyfill:
+        specifier: 1.0.6
+        version: 1.0.6
       tokenlens:
         specifier: 1.3.1
         version: 1.3.1
@@ -1442,35 +1430,23 @@ packages:
   '@fontsource/jetbrains-mono@5.3.0':
     resolution: {integrity: sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A==}
 
-  '@fullcalendar/core@6.1.22':
-    resolution: {integrity: sha512-ju5PJUE++zr8XXCGtlXlrodF6doUy9BDfzx+VmE0B+XDBM2A5cUi/aU3M1ANfw/StmKhwqew7Ps7bXMiv/JREg==}
-
-  '@fullcalendar/daygrid@6.1.22':
-    resolution: {integrity: sha512-cpom5+bAvsGG5nX+snsCtpMIyyhAr+QlseD9mhz5Vq7rMBTzx43mSkz6IBvQ3vz5h2idbDmT1cggEn/dzZwt9Q==}
+  '@full-ui/headless-calendar@7.1.3':
+    resolution: {integrity: sha512-CFomIp87osqY65Hlu2c0e2ZnofBe9tKOO8IoPzIfSPVDK/+aGz4Itj6mLu4xPjIvzRDQiopcVzYlip6u1bvYxw==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.22
+      temporal-polyfill: ^1.0.1
 
-  '@fullcalendar/interaction@6.1.22':
-    resolution: {integrity: sha512-r8Njw8aPNFGRwDjVAh9NTh3ZJib5tcUoLi/BM4uYJt5Cs9tDiirmImaqxhx56hclVFX7ktd5CdaMX0+ArSbm5A==}
+  '@fullcalendar/core@7.1.3':
+    resolution: {integrity: sha512-DLGXqX7CnuUQHH679FgE6+jc927wa708ydIcnfVx372IOK/OiDZjqc+IBwuKnu2EyqleCooDoAnUAcvXBhHosA==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.22
+      '@full-ui/headless-calendar': 7.1.3
+      temporal-polyfill: ^1.0.1
 
-  '@fullcalendar/list@6.1.22':
-    resolution: {integrity: sha512-7e5kZbeT3fhtXsts6VMQxbGtpoCFOZCxrIckHfn5VTrRh8Up0TKoYj/AOaIj94uz0qebWgaLXwd9Ijiu3uTwjg==}
+  '@fullcalendar/react@7.1.3':
+    resolution: {integrity: sha512-tZNr0hylQwFy8bOEAiMRv6KCc0mVFlCFLDPdiSoo8IZz17WWe9feB0FnU902jKX/Gi7djDIzAhLCkDbgecCknw==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.22
-
-  '@fullcalendar/react@6.1.22':
-    resolution: {integrity: sha512-H7woM4nhvXjyM4Up2D3iSp5f8o3pRPGkiHRixvxxvIMdSMBxboGTqCI7T/vjnAfz5TCxXdeX5HxmSHeANsa6gg==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.22
-      react: ^16.7.0 || ^17 || ^18 || ^19
-      react-dom: ^16.7.0 || ^17 || ^18 || ^19
-
-  '@fullcalendar/timegrid@6.1.22':
-    resolution: {integrity: sha512-gNMtkXrkfN3iszXty+pYbJwGxcozL0xBVKYmEd1lm0DMEbrffpVJyV+vifmtl/eIbWCNRWrMWUtGLbYy/ukykA==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.22
+      react: ^17 || ^18 || ^19
+      react-dom: ^17 || ^18 || ^19
+      temporal-polyfill: ^1.0.1
 
   '@fuma-translate/react@1.0.2':
     resolution: {integrity: sha512-uOiOtBx3nRXR8Nu1GzBf1tApgF1FErDBTHxRIAQeyQdyOoZbrNRN6H4kDCWObY4qyGeGbHydG0DHzgeUgFDMIw==}
@@ -5926,9 +5902,6 @@ packages:
     resolution: {integrity: sha512-C+y9x90UElAddDZmV4qOx9W53B61PO7cIqWz2dQsWlwswuq4mr8NEwytdGKboYbQlGZ3awrkTeNvcZiZNHnQ8A==}
     engines: {node: '>=20'}
 
-  preact@10.12.1:
-    resolution: {integrity: sha512-l8386ixSsBdbreOAkqtrwqHwdvR35ID8c3rKPa8lCWuO86dBi32QWHV4vfsZK1utLLFMvw+Z5Ad4XLkZzchscg==}
-
   prettier@3.9.10:
     resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
@@ -6587,6 +6560,15 @@ packages:
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
+
+  temporal-polyfill@1.0.6:
+    resolution: {integrity: sha512-tYyEry1HLGUDbm2356W3iYD0OZdo7rlP7h98Zr/EnjqLZQwTAfcBDUvJnJbfA15v/vQad57hJZScG5O0W2oKEA==}
+
+  temporal-spec@1.0.1:
+    resolution: {integrity: sha512-wxVoanmDeavXie1vu2JaQ3WIc3JZnWAOYFBsJyATaVsXsycKYUflGsyBmrRSnoCpZJpwPyr38VpgSUlQ8CbFxg==}
+
+  temporal-utils@1.0.3:
+    resolution: {integrity: sha512-9jbTSX3HvkOWvDpNpFzwX/d1mkCrgQgwLmVTOEiuocZGKHsrQJtttGZFmybJ2zYP5zCSZuU5ZyeS8+eOEPABiQ==}
 
   tiny-inflate@1.0.3:
     resolution: {integrity: sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==}
@@ -8140,32 +8122,22 @@ snapshots:
 
   '@fontsource/jetbrains-mono@5.3.0': {}
 
-  '@fullcalendar/core@6.1.22':
+  '@full-ui/headless-calendar@7.1.3(temporal-polyfill@1.0.6)':
     dependencies:
-      preact: 10.12.1
+      temporal-polyfill: 1.0.6
 
-  '@fullcalendar/daygrid@6.1.22(@fullcalendar/core@6.1.22)':
+  '@fullcalendar/core@7.1.3(@full-ui/headless-calendar@7.1.3(temporal-polyfill@1.0.6))(temporal-polyfill@1.0.6)':
     dependencies:
-      '@fullcalendar/core': 6.1.22
+      '@full-ui/headless-calendar': 7.1.3(temporal-polyfill@1.0.6)
+      temporal-polyfill: 1.0.6
 
-  '@fullcalendar/interaction@6.1.22(@fullcalendar/core@6.1.22)':
+  '@fullcalendar/react@7.1.3(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(temporal-polyfill@1.0.6)':
     dependencies:
-      '@fullcalendar/core': 6.1.22
-
-  '@fullcalendar/list@6.1.22(@fullcalendar/core@6.1.22)':
-    dependencies:
-      '@fullcalendar/core': 6.1.22
-
-  '@fullcalendar/react@6.1.22(@fullcalendar/core@6.1.22)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
-    dependencies:
-      '@fullcalendar/core': 6.1.22
+      '@full-ui/headless-calendar': 7.1.3(temporal-polyfill@1.0.6)
+      '@fullcalendar/core': 7.1.3(@full-ui/headless-calendar@7.1.3(temporal-polyfill@1.0.6))(temporal-polyfill@1.0.6)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
-
-  '@fullcalendar/timegrid@6.1.22(@fullcalendar/core@6.1.22)':
-    dependencies:
-      '@fullcalendar/core': 6.1.22
-      '@fullcalendar/daygrid': 6.1.22(@fullcalendar/core@6.1.22)
+      temporal-polyfill: 1.0.6
 
   '@fuma-translate/react@1.0.2(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -12628,8 +12600,6 @@ snapshots:
 
   powershell-utils@0.2.1: {}
 
-  preact@10.12.1: {}
-
   prettier@3.9.10: {}
 
   pretty-format@27.5.1:
@@ -13487,6 +13457,15 @@ snapshots:
   tailwindcss@4.3.4: {}
 
   tapable@2.3.3: {}
+
+  temporal-polyfill@1.0.6:
+    dependencies:
+      temporal-spec: 1.0.1
+      temporal-utils: 1.0.3
+
+  temporal-spec@1.0.1: {}
+
+  temporal-utils@1.0.3: {}
 
   tiny-inflate@1.0.3: {}
 
