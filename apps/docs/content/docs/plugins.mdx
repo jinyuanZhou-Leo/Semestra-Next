@@ -195,7 +195,7 @@ in `messages/*.json`; a backend test checks it.
 - Frontend: render every card in **every declared size**; validate the settings schema
   (including old data with missing fields); two instances do not interfere; timer and date logic
   as pure functions with a fake clock. Use `renderWithQuery` from `@/test-utils` and the msw
-  `server`.
+  `server`. Give every endpoint the card calls a handler: a request without one fails the test.
 - Backend: success and failure paths of each capability over REST (error codes and params);
   ownership checks (someone else's instance or another card id returns 404); event subscriptions
   (card deletion, purge); an export → purge → import round trip. Card instances are simulated with
