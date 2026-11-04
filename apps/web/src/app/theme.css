@@ -600,3 +600,9 @@
 [data-reduce-motion='on'] .scroll-fade {
   animation-duration: auto !important;
 }
+
+/* Words found by the settings search (`app/settings/search.ts`, CSS Custom Highlight API). */
+::highlight(settings-search) {
+  background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+  color: var(--foreground);
+}
