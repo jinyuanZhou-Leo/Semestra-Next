@@ -34,9 +34,11 @@ log = structlog.get_logger(__name__)
 type Kind = Literal["query", "passage"]
 type Device = Literal["cpu", "cuda"]
 
-# Seconds a model may take to load (from disk; downloads happen before), and per batch.
+# Seconds a model may take to load (from disk; downloads happen before), and per batch. The
+# batch limit only catches a stuck child: Qwen3 in fp16 takes ~11 s a batch on an M3 and may be
+# ten times slower on a small VPS, and a timeout kills the child (so the next batch reloads).
 LOAD_SECONDS = 300
-BATCH_SECONDS = 120
+BATCH_SECONDS = 600
 _PROVIDERS: dict[Device, str] = {"cuda": "CUDAExecutionProvider", "cpu": "CPUExecutionProvider"}
 
 

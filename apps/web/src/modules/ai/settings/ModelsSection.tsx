@@ -235,7 +235,10 @@ function PurposeRow({
 
   // "Auto" follows the recommendation, which may change as providers come and go.
   const recommended = assignment.recommended
-  const autoWhere = local
+  // Local OCR comes first; local embedding only when no provider or instance model embeds.
+  const autoLocal =
+    local && (purpose !== 'embedding' || (!recommended && status?.source !== 'instance'))
+  const autoWhere = autoLocal
     ? `${localGroupLabel(purpose)} · ${local.default}`
     : recommended
       ? `${providerOf(recommended.provider_id)?.display_name ?? ''} · ${modelName(lists, recommended.provider_id, recommended.model)}`

@@ -78,14 +78,14 @@ From the repository root:
 
 ```bash
 docker build -f deploy/docker/Dockerfile --target allinone-local \
-  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-local .
+  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:dev-local .
 ```
 
-Use `--target allinone` and the tag `:local` for the smaller image. Then point the compose file at
+Use `--target allinone` and the tag `:dev` for the smaller image. Then point the compose file at
 it:
 
 ```bash title="deploy/selfhost/.env"
-SEMESTRA_VERSION=local
+SEMESTRA_VERSION=dev
 ```
 
 To upgrade, `git pull`, build again and run `docker compose up -d` (not `docker compose pull`).

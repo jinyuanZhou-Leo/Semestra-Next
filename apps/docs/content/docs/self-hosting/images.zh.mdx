@@ -66,13 +66,13 @@ SEMESTRA_VERSION=1.2.0
 
 ```bash
 docker build -f deploy/docker/Dockerfile --target allinone-local \
-  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:local-local .
+  -t ghcr.io/jinyuanzhou-leo/semestra-allinone:dev-local .
 ```
 
-小镜像用 `--target allinone` 和标签 `:local`。然后让 compose 文件使用它：
+小镜像用 `--target allinone` 和标签 `:dev`。然后让 compose 文件使用它：
 
 ```bash title="deploy/selfhost/.env"
-SEMESTRA_VERSION=local
+SEMESTRA_VERSION=dev
 ```
 
 升级时 `git pull`、重新构建，再运行 `docker compose up -d`（不要用 `docker compose pull`）。
