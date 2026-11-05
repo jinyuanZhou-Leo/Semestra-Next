@@ -69,7 +69,7 @@ loopback or link-local address: AI base URLs with `common.egress_blocked`, Canva
 | `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | (empty) | Model for chat, document reading and titles                |
 | `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | (empty) | Model for search embeddings                                |
 | `SEMESTRA_INSTANCE_AI_API_KEY`         | (empty) | Its key, optional for Ollama                               |
-| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`     | Most requests sent to it at once (0: 4); e.g. `1` for a small Ollama server |
+| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`     | Most requests sent to it at once (0: no limit); e.g. `1` for a small Ollama server |
 | `SEMESTRA_AI_WARM_UP`                  | `true`  | Load the AI libraries in the background after start        |
 
 See [Instance-wide provider](/docs/ai/instance-provider).

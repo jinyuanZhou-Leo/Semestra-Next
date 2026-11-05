@@ -17,8 +17,10 @@ from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import select
 from structlog.testing import capture_logs
 
+from semestra.core import jobs
 from semestra.core.errors import AppError
 from semestra.modules import ai as m06
+from semestra.modules.ai.adapters.limits import Limiters
 from semestra.modules.ai.llm import Document, Image, Message, Text
 from semestra.modules.ai.models import AiProvider, AiUsageEvent
 from semestra.modules.ai.tests.conftest import (
@@ -220,7 +222,6 @@ async def test_gives_up_after_three_retries(ai: Ai, mock: respx.MockRouter):
 
 
 def test_a_job_waits_a_rate_limit_out_longer(monkeypatch: pytest.MonkeyPatch):
-    from semestra.core import jobs
     from semestra.modules.ai.adapters import base
 
     monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 1.0)
@@ -258,6 +259,35 @@ async def test_requests_wait_for_the_providers_limit(ai: Ai, mock: respx.MockRou
             await m06.embed(ctx, ["x"], source_module="files")
 
     await asyncio.gather(one(), one(), one())
+    assert most == 1
+
+
+async def test_background_requests_leave_one_slot_for_the_user():
+    gate = Limiters().gate("https://api.example", "pv1", 2)
+    release = asyncio.Event()
+    background_running = 0
+    most = 0
+
+    async def background() -> None:
+        nonlocal background_running, most
+
+        async def notify() -> None:
+            return None
+
+        jobs._running.set(jobs._Running("job", notify))
+        async with gate():
+            background_running += 1
+            most = max(most, background_running)
+            await release.wait()
+            background_running -= 1
+
+    tasks = [asyncio.create_task(background()) for _ in range(3)]
+    await asyncio.sleep(0.01)
+    # Two slots: background work holds one, and the user's request gets the other at once.
+    async with asyncio.timeout(1), gate():
+        pass
+    release.set()
+    await asyncio.gather(*tasks)
     assert most == 1
 
 

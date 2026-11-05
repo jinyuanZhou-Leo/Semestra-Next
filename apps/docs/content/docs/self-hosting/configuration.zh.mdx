@@ -67,7 +67,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | （空） | 用于对话、读取文档和生成标题的模型         |
 | `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | （空） | 用于搜索的向量模型                         |
 | `SEMESTRA_INSTANCE_AI_API_KEY`         | （空） | 它的密钥，Ollama 可不填                    |
-| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`    | 同时发给它的请求数上限（0：4）；配置较低的 Ollama 服务器可设为 `1` |
+| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`    | 同时发给它的请求数上限（0：不限）；配置较低的 Ollama 服务器可设为 `1` |
 | `SEMESTRA_AI_WARM_UP`                  | `true` | 启动后在后台预先加载 AI 相关库             |
 
 见[全实例服务商](/docs/ai/instance-provider)。

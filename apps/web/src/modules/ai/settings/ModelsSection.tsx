@@ -617,13 +617,12 @@ function AdvancedSection({ assignments }: { assignments: readonly Assignment[] }
         <span className="font-medium">{m.ai_provider_advanced()}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-2 space-y-3">
+        <div className="mt-2">
           <SettingsGroup>
             {assignments.map((assignment) => (
               <MaxOutputRow key={assignment.purpose} assignment={assignment} />
             ))}
           </SettingsGroup>
-          <SettingsNote>{m.ai_models_max_output_note()}</SettingsNote>
         </div>
       </CollapsibleContent>
     </Collapsible>

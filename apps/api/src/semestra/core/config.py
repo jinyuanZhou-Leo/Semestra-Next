@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     instance_ai_chat_model: str = ""
     instance_ai_embedding_model: str = ""
     instance_ai_api_key: str = ""
-    # Most requests sent to it at once (e.g. 1 for a small Ollama server); 0 = the default (4).
+    # Most requests sent to it at once (e.g. 1 for a small Ollama server); 0 = no limit.
     instance_ai_max_concurrency: int = 0
     # Dev only: write prompts and outputs to DATA_DIR/ai-debug/ (never in prod).
     ai_debug_log: bool = False

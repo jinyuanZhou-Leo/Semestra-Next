@@ -54,7 +54,8 @@ tasks wait longer. Search has no output to limit.
 
 ## Requests at a time
 
-Semestra sends at most four requests to one provider at once; the others wait their turn. To
+Semestra sends at most four requests to one provider at once; the others wait their turn.
+Background work never takes the last one, so Sem and search do not wait behind it. To
 change this, open **Edit** in the provider's ⋯ menu and set **Most requests at a time** under
 **Advanced**. Lower it if the provider often reports too many requests.
 

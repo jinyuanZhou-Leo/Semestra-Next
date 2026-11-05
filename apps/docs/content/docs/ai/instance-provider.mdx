@@ -22,7 +22,7 @@ SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
 | `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | Serves Sem, document reading and titles                                                       |
 | `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | Serves file search; leave empty for none                                                      |
 | `SEMESTRA_INSTANCE_AI_API_KEY`         | The key, when the provider needs one                                                          |
-| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | Most requests sent to it at once (default 4); `1` suits a small Ollama server                 |
+| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | Most requests sent to it at once (default: no limit); `1` suits a small Ollama server        |
 
 What the instance provider can do follows from the variables: a chat model gives chat, tools and
 structured output, plus image reading for Anthropic, OpenAI and Gemini; an embedding model gives
