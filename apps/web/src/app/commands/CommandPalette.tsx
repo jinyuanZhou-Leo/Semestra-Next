@@ -182,8 +182,14 @@ function EntryItem({ entry, onSelect }: { entry: Entry; onSelect: (entry: Entry)
       {entry.subtitle ? (
         <span className="min-w-0 truncate text-xs text-muted-foreground">{entry.subtitle}</span>
       ) : null}
-      {entry.hotkey ? <CommandShortcut>{formatHotkey(entry.hotkey)}</CommandShortcut> : null}
-      {entry.opens ? <ChevronRight aria-hidden className="ml-auto" /> : null}
+      {/* One trailing slot: CommandItem appends a hidden check icon with `ml-auto`, which a
+          second `ml-auto` element would split the free space with; `CommandShortcut` hides it. */}
+      {entry.hotkey || entry.opens ? (
+        <CommandShortcut className="flex items-center gap-1">
+          {entry.hotkey ? formatHotkey(entry.hotkey) : null}
+          {entry.opens ? <ChevronRight aria-hidden /> : null}
+        </CommandShortcut>
+      ) : null}
     </CommandItem>
   )
 }
