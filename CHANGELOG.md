@@ -3,6 +3,24 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.14.0 (2026-11-05)
+
+### New
+
+- **AI:** Background tasks wait out provider rate limits and show when they are waiting. Each provider can limit how many requests run at once.
+- **AI:** Each AI task can set its own output limit under Advanced, also when its model is on Auto.
+- **AI:** Changing the search model asks for confirmation when files already have search vectors that would be rebuilt.
+- **AI:** The model picker shows each on-server model's size, speed and accuracy, and on-server OCR models download only when first needed.
+
+### Fixed
+
+- **General:** Command palette submenu arrows now align to the right edge, and the ask row reads "Sem:".
+- **Files:** Improved search accuracy for common embedding models, smaller Gemini vectors, and support for services that accept only small batches.
+- **Files:** Search falls back to keywords within seconds when the embedding model is slow.
+- **Import:** Long syllabi and scanned documents import reliably, and reading them is faster and cheaper.
+- **Self-hosting:** Rebuilding search indexes and downloading models no longer hold up imports and new files.
+- **Self-hosting:** Faster local OCR and local search when users choose different models.
+
 ## 1.13.0 (2026-11-04)
 
 ### New
