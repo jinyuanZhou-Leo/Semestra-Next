@@ -1,0 +1,31 @@
+{
+  "version": "1.13.0",
+  "date": "2026-11-04",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "new",
+      "area": "self-hosting",
+      "en": "Self-hosted servers can run search embedding models locally, so file search works without an AI provider. Choose a built-in model or any Hugging Face model with an ONNX version. The default image is now tagged -local; the -ocr tag still works.",
+      "zh": "自部署服务器可以在本机运行搜索用的 embedding 模型，不接 AI 服务商也能搜索文件内容。可以选内置模型，也可以使用 Hugging Face 上任何带 ONNX 版本的模型。默认镜像的标签改为 -local，原来的 -ocr 标签仍然可用。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Finished background tasks now stay in the status bar for about 15 seconds, and while the task list is open.",
+      "zh": "后台任务完成后会在状态条保留约 15 秒，任务列表打开期间也不会消失。"
+    },
+    {
+      "kind": "fixed",
+      "area": "calendar",
+      "en": "Polished the calendar: rounded month and agenda views, cleaner all-day events and week numbers, and clearer date ranges.",
+      "zh": "优化日历细节：月视图与日程视图改为圆角，全天事件与周次显示更简洁，日期范围更清晰。"
+    },
+    {
+      "kind": "fixed",
+      "area": "settings",
+      "en": "Closing settings after following a link to another settings page now closes the dialog in one step.",
+      "zh": "在设置内跳转到其他设置页后，点一次关闭即可退出设置。"
+    }
+  ]
+}
