@@ -161,24 +161,30 @@ async def _substring(
 async def _rebuild_if_stale(ctx: Ctx, space: str) -> None:
     """The user's vectors are in another space than their model writes now (the way a provider's
     model is called changed with an update, or a local model's file did): rebuild them, after
-    this request, as when the model is changed in the settings."""
+    this request, as when the model is changed in the settings. Only documents with retries
+    left, as the periodic retry does: one that keeps failing is not sent again on every search."""
     assert ctx.user_id is not None
     user_id = ctx.user_id
+    # The job imports the pipeline, which imports this module.
+    from semestra.modules.files.jobs import ReindexPayload
+    from semestra.modules.files.pipeline import retries_left
+
     stale = await ctx.db.scalar(
         select(FilesIndexState.item_id)
         .where(
             FilesIndexState.user_id == user_id,
             FilesIndexState.vector_fingerprint.is_not(None),
             FilesIndexState.vector_fingerprint != space,
+            retries_left(),
         )
         .limit(1)
     )
     if stale is None:
         return
-    from semestra.modules.files.jobs import ReindexPayload  # jobs imports the pipeline
 
     async def rebuild(system: Ctx) -> None:
-        await enqueue(system, "files.reindex_vectors", ReindexPayload(), dedupe_key="reindex")
+        payload = ReindexPayload(retry=True)
+        await enqueue(system, "files.reindex_vectors", payload, dedupe_key="reindex")
 
     async def later() -> None:
         await run_as_system(ctx.state, user_id, rebuild)

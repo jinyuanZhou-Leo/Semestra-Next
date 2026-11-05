@@ -415,6 +415,22 @@ async def test_embedding_batches_shrink_to_what_the_endpoint_takes(ai: Ai, mock:
     assert sizes == [25, 10, 10, 5, 10, 2]
 
 
+async def test_embedding_refusals_about_something_else_are_not_retried_smaller(
+    ai: Ai, mock: respx.MockRouter
+):
+    models_ok(mock)
+    await ai.provider("openai")
+    message = "the dimensions parameter is not supported by this model"
+    route = mock.post(f"{OPENAI}/embeddings").mock(
+        return_value=Response(400, json={"error": {"message": message}})
+    )
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await m06.embed(ctx, [f"t{i}" for i in range(25)], source_module="files")
+    assert exc.value.code == "ai.request_rejected"
+    assert route.call_count == 1
+
+
 async def test_embedding_not_available_with_anthropic_only(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("anthropic")

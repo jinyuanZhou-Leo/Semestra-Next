@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Any
 
+import httpx
 import pytest
 import respx
 from httpx import Response
@@ -256,6 +257,20 @@ async def test_answers_cut_off_again_stop_after_two_splits(ai: Ai, mock: respx.M
     assert exc.value.code == "ai.output_truncated"
     # Four pages, then two, then one: a model repeating itself is not chased any further.
     assert route.call_count == 3
+
+
+async def test_a_part_that_runs_out_of_time_is_read_in_halves_once(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("anthropic")
+    route = mock.post(f"{ANTHROPIC}/v1/messages").mock(side_effect=httpx.ReadTimeout("slow"))
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError) as exc:
+            await m06.extract(
+                ctx, "extraction", Syllabus, texts=PAGES, instructions="x", source_module="imports"
+            )
+    assert exc.value.code == "ai.timeout"
+    # The whole part, then its first half: a provider that stalled is not waited on again.
+    assert route.call_count == 2
 
 
 async def test_extract_needs_input(ai: Ai):

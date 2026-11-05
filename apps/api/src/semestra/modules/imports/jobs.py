@@ -28,7 +28,9 @@ class ExtractResult(BaseModel):
 
 STAGES = [("reading", 15), ("extracting", 75), ("checking", 10)]
 # Model errors that may pass: a file that hits one is read once more before it counts as failed.
-TRANSIENT = {"ai.timeout", "ai.rate_limited", "ai.provider_unreachable"}
+# Not `ai.timeout`: the time limit follows the output limit, so a timeout comes back on a second
+# read (and is billed twice); `ai.extract` reads the part in halves instead.
+TRANSIENT = {"ai.rate_limited", "ai.provider_unreachable"}
 SOURCE_ATTEMPTS = 2
 SOURCE_RETRY_SECONDS = 20.0
 

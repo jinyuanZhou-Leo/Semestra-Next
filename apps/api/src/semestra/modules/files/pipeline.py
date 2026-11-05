@@ -544,7 +544,8 @@ async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
     return done
 
 
-def _retries_left() -> ColumnElement[bool]:
+def retries_left() -> ColumnElement[bool]:
+    """Documents whose vectors have not failed `VECTOR_RETRIES` times yet."""
     return func.coalesce(FilesIndexState.vector_failures, 0) < VECTOR_RETRIES
 
 
@@ -574,7 +575,7 @@ async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: b
                     .where(
                         FilesItem.user_id == ctx.user_id,
                         FilesItem.active_document_id.is_not(None),
-                        *([_retries_left()] if retry else []),
+                        *([retries_left()] if retry else []),
                     )
                     .order_by(FilesItem.id)
                 )

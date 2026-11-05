@@ -564,6 +564,26 @@ async def test_search_rebuilds_vectors_left_in_an_old_space(fx: Fx, fake_ai: Fak
     assert again["results"]
 
 
+async def test_search_stops_rebuilding_a_document_that_keeps_failing(fx: Fx, fake_ai: FakeAi):
+    from sqlalchemy import func, select
+
+    from semestra.core.jobs import CoreJob
+    from semestra.modules.files import pipeline
+
+    fake_ai.enabled.add("embedding")
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    fake_ai.model = "fake-embed+prefixed"
+    fake_ai.fail_embedding_on = "midterm"  # the document; the query still embeds
+    for _ in range(pipeline.VECTOR_RETRIES + 2):
+        await fx.search("photosynthesis", mode="semantic")
+        await fx.run_jobs()
+    async with fx.app.state.session_factory() as db:
+        rebuilds = await db.scalar(
+            select(func.count()).where(CoreJob.kind == "files.reindex_vectors")
+        )
+    assert rebuilds == pipeline.VECTOR_RETRIES
+
+
 async def test_embedding_failure_keeps_keyword_search_and_is_retried(
     fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
 ):

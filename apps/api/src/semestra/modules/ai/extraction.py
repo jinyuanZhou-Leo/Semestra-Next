@@ -44,6 +44,11 @@ IMAGES_PER_SEGMENT = 8
 IMAGE_TOKENS = 1_600
 MAX_SPLITS = 6
 MAX_CUT_SPLITS = 2  # of those, after an answer cut off at the output limit
+# Of those, after a request that ran out of time. A request's time limit is worked out from its
+# output limit (`answer_timeout`), so a timeout most likely means an answer too long to finish:
+# halves answer in less time. A provider that has stalled would time out on the halves too, so
+# only once.
+MAX_TIMEOUT_SPLITS = 1
 
 
 class Evidence(BaseModel):
@@ -436,8 +441,9 @@ def _merge_leaf(
 
 # --- entry point ----------------------------------------------------------------------------
 
-# A part too long to read, or whose answer does not fit the model's output: read it in halves.
-_TOO_BIG = ("ai.context_too_long", "ai.output_truncated")
+# A part too long to read, or whose answer does not fit the model's output or its time: read it
+# in halves.
+_TOO_BIG = ("ai.context_too_long", "ai.output_truncated", "ai.timeout")
 
 OnSegment = Callable[[int, int], Awaitable[None]]
 
@@ -490,6 +496,7 @@ async def extract[T: BaseModel](
         mine = 0
         splits = 0
         cut_splits = 0
+        timeout_splits = 0
         while pending:
             segment = pending.pop(0)
             index = mine + 1
@@ -513,6 +520,10 @@ async def extract[T: BaseModel](
                     if cut_splits >= MAX_CUT_SPLITS:
                         raise
                     cut_splits += 1
+                if exc.code == "ai.timeout":
+                    if timeout_splits >= MAX_TIMEOUT_SPLITS:
+                        raise
+                    timeout_splits += 1
                 splits += 1
                 pending = [*halves, *pending]
                 total += 1

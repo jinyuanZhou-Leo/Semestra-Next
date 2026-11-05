@@ -508,7 +508,8 @@ async def embed(
     key = (ep.base_url, ep.provider_id)
     vectors: list[list[float]] = []
     pending = list(texts)
-    trying: int | None = None  # a smaller batch after a refusal, kept once it goes through
+    trying: int | None = None  # a smaller batch after a refusal
+    learnt: int | None = None  # the endpoint's own limit, kept once a batch that size goes through
     while pending:
         size = trying or rt.embed_batch.get(key, EMBED_BATCH)
         batch = pending[:size]
@@ -520,13 +521,16 @@ async def embed(
                 )
         except AppError as exc:
             _finish(call, Usage(), error=exc)
-            trying = _smaller_batch(exc, len(batch))
-            if trying is None:
+            smaller = _smaller_batch(exc, len(batch))
+            if smaller is None:
                 raise
+            trying, keep = smaller
+            learnt = trying if keep else None
             continue
         _finish(call, usage)
-        if trying is not None:  # the endpoint's limit, for its next requests too
-            rt.embed_batch[key] = trying
+        if learnt is not None:  # the endpoint's limit, for its next requests too
+            rt.embed_batch[key] = learnt
+            learnt = None
         vectors.extend(batch_vectors)
         pending = pending[len(batch) :]
     dim = len(vectors[0]) if vectors else 0
@@ -535,15 +539,19 @@ async def embed(
     )
 
 
-def _smaller_batch(error: AppError, size: int) -> int | None:
-    """After a refused batch: the size the endpoint said it takes, else half; None when a single
-    text was refused (or the refusal is about something else)."""
-    if size <= 1 or error.code not in ("ai.request_rejected", "ai.context_too_long"):
+def _smaller_batch(error: AppError, size: int) -> tuple[int, bool] | None:
+    """After a refused batch: a smaller one, and whether the endpoint's later requests take that
+    size too. The size the endpoint says it takes is kept; half of a batch too long in tokens (or
+    413) is only for this call, as later batches may be shorter. None for any other refusal: a
+    wrong model name, an unsupported option or one refused text fails at every size."""
+    if size <= 1:
         return None
     limit = error.params.get("batch_limit")
-    if isinstance(limit, int) and 0 < limit < size:
-        return limit
-    return size // 2
+    if error.code == "ai.request_rejected" and isinstance(limit, int) and 0 < limit < size:
+        return limit, True
+    if error.code == "ai.context_too_long":
+        return size // 2, False
+    return None
 
 
 # --- for other modules ----------------------------------------------------------------------
