@@ -93,6 +93,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                      | 用户可添加的模型大小上限                        |
 | `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                     | CPU 线程数（0：一半核心）                       |
 | `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`              | 这么久没用就卸载模型                            |
+| `SEMESTRA_LOCAL_EMBEDDING_MAX_LOADED` | `2`                | 同时保留加载的模型数（每个各占一份内存）        |
 
 ## 后台任务与备份
 

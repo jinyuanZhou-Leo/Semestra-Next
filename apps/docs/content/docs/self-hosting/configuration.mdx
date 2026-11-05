@@ -95,6 +95,7 @@ Only in the default image; see [Images](./images.mdx#local-embedding).
 | `SEMESTRA_LOCAL_EMBEDDING_MAX_GB` | `3`                      | Largest Hugging Face model users may add        |
 | `SEMESTRA_LOCAL_EMBEDDING_THREADS` | `0`                     | CPU threads (0: half the cores)                 |
 | `SEMESTRA_LOCAL_EMBEDDING_IDLE_SECONDS` | `600`              | Unload the model after this long without use    |
+| `SEMESTRA_LOCAL_EMBEDDING_MAX_LOADED` | `2`                | Models kept loaded at once (each uses its own memory) |
 
 ## Background work and backups
 

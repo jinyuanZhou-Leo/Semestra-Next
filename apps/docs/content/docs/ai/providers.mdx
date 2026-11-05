@@ -38,6 +38,17 @@ you ticked vision.
 On **Models** each purpose can override temperature (0 to 2), the output token limit, and the
 reasoning effort (`minimal`, `low`, `medium`, `high`) for models that support it.
 
+## Reading documents and search
+
+- Reading a document into fields (a syllabus import, scanned pages) runs with reasoning turned
+  off, or as low as the model allows, unless you set a reasoning effort for that purpose.
+- For file search, Semestra embeds queries and documents the way known retrieval models expect:
+  the prefixes of nomic-embed-text, E5, Qwen3 Embedding and EmbeddingGemma, and Gemini's task
+  types, with 768-dimensional Gemini vectors. When this changes for your model, your files are
+  re-indexed after your next search; until then search matches by keyword.
+- A service that takes fewer texts per request (Alibaba Cloud Model Studio takes 10) gets smaller
+  batches automatically.
+
 ## Private addresses
 
 On a server where `SEMESTRA_ALLOW_PRIVATE_EGRESS` is `false` (the hosted version and a plain

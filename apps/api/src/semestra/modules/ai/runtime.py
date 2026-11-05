@@ -36,6 +36,9 @@ class AiRuntime:
         self._tasks: set[asyncio.Task[None]] = set()
         # (provider id, provider updated_at) → listed models; a changed key or URL misses.
         self._models: dict[tuple[str, str], _CachedModels] = {}
+        # (base URL, provider id) → the most inputs its embeddings endpoint took in one request,
+        # learnt from a refusal (`calls.embed`).
+        self.embed_batch: dict[tuple[str, str | None], int] = {}
 
     def _spawn(self, state: State, write: Any) -> None:
         try:

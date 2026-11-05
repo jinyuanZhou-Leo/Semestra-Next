@@ -1,5 +1,6 @@
 """End-to-end behaviour of the files module over HTTP (M07 §9)."""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -153,11 +154,19 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     pages: list[tuple[str, bytes]] = []
     fetched: list[str] = []
 
-    async def ocr_isolated(model: str, pngs: list[bytes], **limits: float):
+    class Session:
+        def __init__(self, model: str) -> None:
+            self.model = model
+
+        async def read(self, pngs: list[bytes], **limits: float):
+            for index, png in enumerate(pngs):
+                pages.append((self.model, png))
+                yield Recognized(index, "Photosynthesis\nturns light into sugar")
+
+    @asynccontextmanager
+    async def ocr_session(model: str, **limits: float):
         assert local_ocr.downloaded(model)
-        for index, png in enumerate(pngs):
-            pages.append((model, png))
-            yield Recognized(index, "Photosynthesis\nturns light into sugar")
+        yield Session(model)
 
     def fetch(parts: list[str], state: Any) -> None:
         state.total = 2_000_000 * len(parts)
@@ -171,7 +180,7 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     monkeypatch.setattr("semestra.core.jobs.PROGRESS_THROTTLE_SECONDS", 0)
     monkeypatch.setattr(local_ocr, "_fetch_from_hugging_face", fetch)
     monkeypatch.setattr(local_ocr, "available", lambda settings: True)
-    monkeypatch.setattr(pipeline, "ocr_isolated", ocr_isolated)
+    monkeypatch.setattr(pipeline, "ocr_session", ocr_session)
 
     # The first scanned file downloads the default model inside its own job.
     item = await fx.upload_ready("photo.png", make_png())
@@ -540,6 +549,19 @@ async def test_semantic_search_within_files_and_repeated_queries(
     await fx.search("grading midterm", mode="semantic")
     await fx.search("grading midterm", mode="semantic")
     assert fake_ai.embed_calls == []  # the query was embedded by the first search
+
+
+async def test_search_rebuilds_vectors_left_in_an_old_space(fx: Fx, fake_ai: FakeAi):
+    fake_ai.enabled.add("embedding")
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    # The model is now called differently (e.g. with prefixes after an update): a new space.
+    fake_ai.model = "fake-embed+prefixed"
+    first = await fx.search("grading midterm", mode="semantic")
+    assert first["mode_used"] == "keyword"
+    await fx.run_jobs()
+    again = await fx.search("grading midterm", mode="semantic")
+    assert again["mode_used"] == "semantic"
+    assert again["results"]
 
 
 async def test_embedding_failure_keeps_keyword_search_and_is_retried(

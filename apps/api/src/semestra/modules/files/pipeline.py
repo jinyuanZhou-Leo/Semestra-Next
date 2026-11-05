@@ -8,6 +8,7 @@ step makes it the item's active document and removes the previous one.
 import hashlib
 import re
 from collections.abc import Sequence
+from contextlib import aclosing, nullcontext
 from dataclasses import dataclass, field
 
 import anyio.to_thread
@@ -32,8 +33,9 @@ from semestra.modules.files.models import (
 )
 from semestra.modules.files.parse import ParsedDocument, ParseError, detect
 from semestra.modules.files.parse.isolated import (
+    OcrSession,
     Parsed,
-    ocr_isolated,
+    ocr_session,
     parse_isolated,
     render_isolated,
 )
@@ -335,48 +337,55 @@ async def _ocr(
         parsed.pages[index].markdown = text.strip()
         read_pages += 1
 
-    async def read_locally(model: str, batch: list[int], pngs: list[bytes], done: int) -> None:
+    async def read_locally(
+        session: OcrSession, batch: list[int], pngs: list[bytes], done: int
+    ) -> None:
         nonlocal read_pages, stopped
         page_limit = ctx.settings.local_ocr_page_timeout_seconds
         try:
-            pages = ocr_isolated(
-                model, pngs, load_limit=LOCAL_OCR_LOAD_SECONDS, page_limit=page_limit
-            )
-            async for page in pages:
-                parsed.pages[batch[page.index]].markdown = page.text.strip()
-                read_pages += 1
-                # A page can take seconds: keep the bar moving and stop the child on cancel.
-                await ctx.stage("ocr", current=done + page.index + 1, total=len(needed))
-                await ctx.check_cancelled()
+            async with aclosing(session.read(pngs, page_limit=page_limit)) as pages:
+                async for page in pages:
+                    parsed.pages[batch[page.index]].markdown = page.text.strip()
+                    read_pages += 1
+                    # A page can take seconds: keep the bar moving and stop the child on cancel.
+                    await ctx.stage("ocr", current=done + page.index + 1, total=len(needed))
+                    await ctx.check_cancelled()
         except ParseError as exc:
             # A broken install, a missing model or running out of time fails every batch alike.
-            log.warning("files_local_ocr_failed", code=exc.code, model=model)
+            log.warning("files_local_ocr_failed", code=exc.code, model=local)
             stopped = True
 
     size = OCR_BATCH if local is None else LOCAL_OCR_BATCH
-    for start in range(0, len(needed), size):
-        if stopped:
-            break
-        await ctx.check_cancelled()
-        await ctx.stage("ocr", current=start, total=len(needed))
-        batch = needed[start : start + size]
-        try:
-            pngs = await render_isolated(
-                data,
-                pdf=kind == "pdf",
-                pages=batch,
-                time_limit=ctx.settings.files_parse_timeout_seconds,
-                memory_limit=ctx.settings.files_parse_memory_bytes,
-            )
-        except ParseError as exc:
-            log.warning("files_ocr_render_failed", code=exc.code)
-            continue
-        if local is not None:
-            await read_locally(local, batch, pngs, start)
-            continue
-        async with anyio.create_task_group() as group:
-            for index, png in zip(batch, pngs, strict=False):
-                group.start_soon(read, index, png)
+    # Local OCR keeps one child, and its loaded engine, for the whole document.
+    session_cm = (
+        ocr_session(local, load_limit=LOCAL_OCR_LOAD_SECONDS)
+        if local is not None
+        else nullcontext(None)
+    )
+    async with session_cm as session:
+        for start in range(0, len(needed), size):
+            if stopped:
+                break
+            await ctx.check_cancelled()
+            await ctx.stage("ocr", current=start, total=len(needed))
+            batch = needed[start : start + size]
+            try:
+                pngs = await render_isolated(
+                    data,
+                    pdf=kind == "pdf",
+                    pages=batch,
+                    time_limit=ctx.settings.files_parse_timeout_seconds,
+                    memory_limit=ctx.settings.files_parse_memory_bytes,
+                )
+            except ParseError as exc:
+                log.warning("files_ocr_render_failed", code=exc.code)
+                continue
+            if session is not None:
+                await read_locally(session, batch, pngs, start)
+                continue
+            async with anyio.create_task_group() as group:
+                for index, png in zip(batch, pngs, strict=False):
+                    group.start_soon(read, index, png)
     await ctx.stage("ocr", current=len(needed), total=len(needed))
     model = (
         ai.local_ocr.model_tag(local) if local is not None else resolved.model if resolved else ""

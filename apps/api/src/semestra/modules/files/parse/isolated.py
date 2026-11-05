@@ -10,15 +10,17 @@ chat attachments together cannot stack up their memory limits.
 """
 
 import asyncio
+import contextlib
 import multiprocessing
 import time
 import traceback
 import weakref
 from collections.abc import AsyncGenerator, Callable, Sequence
-from contextlib import aclosing
+from contextlib import aclosing, asynccontextmanager
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from multiprocessing.context import ForkServerContext, SpawnContext
+from multiprocessing.process import BaseProcess
 
 import anyio
 import anyio.to_thread
@@ -139,15 +141,19 @@ def _render_child(
         conn.close()
 
 
-def _ocr_child(conn: Connection, model: str, pngs: Sequence[bytes]) -> None:
-    """Local OCR (M06 `local_ocr`) of the given page images. The engine loads here, so its
-    memory goes when the child ends and a crash takes only the child down."""
+def _ocr_child(conn: Connection, model: str) -> None:
+    """Local OCR (M06 `local_ocr`) of the page images it is sent, a list at a time, until
+    `None`; each list is answered page by page and closed with `None`. The engine loads once
+    here, so its memory goes when the child ends and a crash takes only the child down."""
     try:
         from semestra.modules.ai import local_ocr
 
-        for index, png in enumerate(pngs):
-            conn.send(Recognized(index, local_ocr.recognize(model, png)))
-        conn.send(None)
+        while (pngs := conn.recv()) is not None:
+            for index, png in enumerate(pngs):
+                conn.send(Recognized(index, local_ocr.recognize(model, png)))
+            conn.send(None)
+    except EOFError:
+        pass  # the parent went away
     except MemoryError:
         conn.send(_Failed("files.too_complex", {}))
     except Exception:
@@ -157,18 +163,61 @@ def _ocr_child(conn: Connection, model: str, pngs: Sequence[bytes]) -> None:
         conn.close()
 
 
-async def ocr_isolated(
-    model: str, pngs: Sequence[bytes], *, load_limit: float, page_limit: float
-) -> AsyncGenerator[Recognized]:
-    """Text of each page image, read by local OCR in a child process, one child at a time
-    (each holds a gigabyte or more). The first page gets `load_limit` more to load the model;
-    each later one `page_limit` from the page before. Raises `ParseError` when it fails or runs
-    out of time."""
-    run = _run(_ocr_child, (model, list(pngs)), load_limit + page_limit, step_limit=page_limit)
-    async with _ocr_limiter(), aclosing(run) as m:
-        async for message in m:
+class OcrSession:
+    """One local OCR child for a whole document (`ocr_session`): the engine loads once, and
+    pages are sent to it in batches as they are rendered."""
+
+    def __init__(self, conn: Connection, process: BaseProcess, load_limit: float) -> None:
+        self._conn = conn
+        self._process = process
+        self._first_limit = load_limit  # what the first page may take on top of `page_limit`
+
+    async def read(self, pngs: Sequence[bytes], *, page_limit: float) -> AsyncGenerator[Recognized]:
+        """Text of each page image, in order. Raises `ParseError` when the child fails or a page
+        runs out of time (the session cannot be used after that)."""
+        await anyio.to_thread.run_sync(self._conn.send, list(pngs))
+        deadline = time.monotonic() + self._first_limit + page_limit
+        self._first_limit = 0
+        while True:
+            ready = await anyio.to_thread.run_sync(self._conn.poll, _POLL_SECONDS)
+            if time.monotonic() > deadline:
+                raise ParseError("files.too_complex")
+            if not ready:
+                continue
+            try:
+                message = await anyio.to_thread.run_sync(self._conn.recv)
+            except EOFError, OSError:  # the child died
+                await anyio.to_thread.run_sync(self._process.join, 5)
+                code = "files.too_complex" if (self._process.exitcode or 0) < 0 else None
+                raise ParseError(code or "files.parse_failed") from None
+            if message is None:
+                return
+            if isinstance(message, _Failed):
+                raise ParseError(message.code, **message.params)
+            deadline = time.monotonic() + page_limit
             if isinstance(message, Recognized):
                 yield message
+
+
+@asynccontextmanager
+async def ocr_session(model: str, *, load_limit: float) -> AsyncGenerator[OcrSession]:
+    """A local OCR child for one document; one at a time on the server (each holds a gigabyte
+    or more). The first page gets `load_limit` more to load the model."""
+    async with _ocr_limiter(), _limiter():
+        ours, theirs = multiprocessing.Pipe()
+        process = _context().Process(target=_ocr_child, args=(theirs, model), daemon=True)
+        await anyio.to_thread.run_sync(process.start)
+        theirs.close()
+        try:
+            yield OcrSession(ours, process, load_limit)
+        finally:
+            with contextlib.suppress(OSError, ValueError):
+                ours.send(None)
+            ours.close()
+            await anyio.to_thread.run_sync(process.join, 2)
+            if process.is_alive():
+                process.kill()
+                await anyio.to_thread.run_sync(process.join, 5)
 
 
 def _ocr_limiter() -> anyio.CapacityLimiter:

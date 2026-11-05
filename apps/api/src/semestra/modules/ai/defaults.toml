@@ -45,3 +45,37 @@ default = 32000
 "deepseek" = 128000
 "qwen" = 32000
 "llama3" = 128000
+
+# How to embed with a provider's model, by model-name prefix (longest wins, matched without a
+# `vendor/` prefix or an Ollama `:tag`). Open retrieval models expect a different prefix on
+# queries and documents; `dimensions` asks models that support shorter vectors (Matryoshka) for
+# fewer: 768 of Gemini's 3072 search almost as well at a quarter of the storage and scan time.
+# Gemini's task type (query or document) is set by the client itself. Changing an entry changes
+# the vector space, so the vectors are rebuilt.
+[embedding_profiles."gemini-embedding"]
+dimensions = 768
+
+[embedding_profiles."nomic-embed-text"]
+query_prefix = "search_query: "
+document_prefix = "search_document: "
+
+[embedding_profiles."mxbai-embed-large"]
+query_prefix = "Represent this sentence for searching relevant passages: "
+
+[embedding_profiles."snowflake-arctic-embed"]
+query_prefix = "Represent this sentence for searching relevant passages: "
+
+[embedding_profiles."embeddinggemma"]
+query_prefix = "task: search result | query: "
+document_prefix = "title: none | text: "
+
+[embedding_profiles."multilingual-e5"]
+query_prefix = "query: "
+document_prefix = "passage: "
+
+[embedding_profiles."e5-"]
+query_prefix = "query: "
+document_prefix = "passage: "
+
+[embedding_profiles."qwen3-embedding"]
+query_prefix = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"

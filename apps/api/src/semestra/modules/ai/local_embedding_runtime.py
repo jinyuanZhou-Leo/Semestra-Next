@@ -3,17 +3,21 @@
 
 Embedding happens for every search query as well as for every new document, so the model stays
 loaded in one long-lived process instead of a process per call: a query then takes milliseconds,
-not the seconds a model takes to load. The process starts on first use, keeps one model at a
-time, and exits after `local_embedding_idle_seconds` without a request. A crash or a call that
+not the seconds a model takes to load. The process starts on first use, keeps up to
+`local_embedding_max_loaded` models (users who picked different models take turns without
+reloading), and exits after `local_embedding_idle_seconds` without a request. A crash or a call that
 runs out of time ends it; the next call starts a fresh one.
 
 Requests are served one at a time; a search query waits at most for the batch in progress.
+Among documents, batches for a model already loaded go before those that would load another, so
+two users indexing with different models do not make the child reload at every batch.
 """
 
 import multiprocessing
 import os
 import threading
 import time
+from collections import Counter
 from collections.abc import Sequence
 from functools import cache
 from multiprocessing.connection import Connection
@@ -79,6 +83,10 @@ class _Runtime:
         self._turn = threading.Condition(self._lock)
         self._count = threading.Lock()
         self._queries = 0
+        # Document batches waiting, by model folder; the folders loaded in the child, oldest
+        # first (the child evicts the same way).
+        self._waiting: Counter[str] = Counter()
+        self._loaded: list[str] = []
         self._process: BaseProcess | None = None
         self._conn: Connection | None = None
         self._last_used = 0.0
@@ -110,6 +118,7 @@ class _Runtime:
                 self._process.kill()
             self._process.join(5)
         self._process = self._conn = None
+        self._loaded = []
 
     def _reap(self) -> None:
         while True:
@@ -144,6 +153,7 @@ class _Runtime:
         self, folder: Path, settings: Settings, texts: list[str], kind: Kind
     ) -> list[list[float]]:
         query = kind == "query"
+        name = str(folder)
         if query:
             with self._count:
                 self._queries += 1
@@ -152,11 +162,20 @@ class _Runtime:
                 with self._count:
                     self._queries -= 1
             else:
-                self._turn.wait_for(lambda: self._queries == 0)
+                self._waiting[name] += 1
+                try:
+                    self._turn.wait_for(lambda: self._queries == 0 and self._my_turn(name))
+                finally:
+                    self._waiting[name] -= 1
             try:
                 return self._ask_embed(folder, settings, texts, kind)
             finally:
                 self._turn.notify_all()
+
+    def _my_turn(self, name: str) -> bool:
+        """A document batch for a model that is not loaded waits while batches for loaded ones
+        do (holds `_lock`)."""
+        return name in self._loaded or not any(self._waiting[f] for f in self._loaded)
 
     def _ask_embed(
         self, folder: Path, settings: Settings, texts: list[str], kind: Kind
@@ -165,13 +184,17 @@ class _Runtime:
         self._last_used = time.monotonic()
         try:
             conn = self._start()
+            keep = max(1, settings.local_embedding_max_loaded)
             load = (
                 "load",
                 str(folder),
                 device(settings.local_embedding_device),
                 threads(settings.local_embedding_threads),
+                keep,
             )
             self._ask(conn, load, LOAD_SECONDS)
+            others = [f for f in self._loaded if f != str(folder)]
+            self._loaded = [*(others[-(keep - 1) :] if keep > 1 else []), str(folder)]
             vectors = self._ask(conn, ("embed", texts, kind), BATCH_SECONDS)
         except TimeoutError:
             self._stop()
@@ -198,7 +221,11 @@ async def embed(
 ) -> list[list[float]]:
     """Vectors of `texts` with the model in `folder`. Raises `ai.timeout` or
     `ai.local_model_failed`."""
-    return await anyio.to_thread.run_sync(_runtime.embed, folder, settings, list(texts), kind)
+    # Abandoned on cancel: a search that stops waiting (it answers by keyword) leaves the batch to
+    # finish in its thread, so the model it loaded is there for the next query.
+    return await anyio.to_thread.run_sync(
+        _runtime.embed, folder, settings, list(texts), kind, abandon_on_cancel=True
+    )
 
 
 def close() -> None:

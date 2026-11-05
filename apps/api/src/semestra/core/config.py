@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     local_embedding_threads: int = 0
     # The child process exits after this long without a request, giving its memory back.
     local_embedding_idle_seconds: float = 600
+    # How many models stay loaded at once (users who picked different models take turns without
+    # reloading). Each costs its own memory: about 0.9 GB for e5-small, 1.6 GB for bge-m3.
+    local_embedding_max_loaded: int = 2
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"

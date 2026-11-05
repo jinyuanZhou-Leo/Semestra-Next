@@ -392,6 +392,29 @@ async def test_openai_embeddings_in_batches(ai: Ai, app: FastAPI, mock: respx.Mo
     ]
 
 
+async def test_embedding_batches_shrink_to_what_the_endpoint_takes(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    await ai.provider("openai")
+    sizes: list[int] = []
+
+    def answer(request: Any) -> Response:
+        inputs = json.loads(request.content)["input"]
+        sizes.append(len(inputs))
+        if len(inputs) > 10:
+            message = "batch size is invalid, it should not be larger than 10"
+            return Response(400, json={"error": {"message": message}})
+        data = [{"index": i, "embedding": [1.0, 0.0]} for i in range(len(inputs))]
+        return Response(200, json={"data": data, "usage": {"prompt_tokens": len(inputs)}})
+
+    mock.post(f"{OPENAI}/embeddings").mock(side_effect=answer)
+    async with ai.ctx() as ctx:
+        result = await m06.embed(ctx, [f"t{i}" for i in range(25)], source_module="files")
+        assert len(result.vectors) == 25
+        await m06.embed(ctx, [f"t{i}" for i in range(12)], source_module="files")
+    # The limit read from the refusal is kept for the endpoint's later requests.
+    assert sizes == [25, 10, 10, 5, 10, 2]
+
+
 async def test_embedding_not_available_with_anthropic_only(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("anthropic")
@@ -659,7 +682,7 @@ async def test_gemini_and_ollama_completions(ai: Ai, app: FastAPI, mock: respx.M
 async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("ollama")
-    mock.post(f"{OLLAMA}/v1/embeddings").mock(
+    ollama_route = mock.post(f"{OLLAMA}/v1/embeddings").mock(
         return_value=Response(
             200,
             json={
@@ -672,7 +695,11 @@ async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     )
     async with ai.ctx() as ctx:
         result = await m06.embed(ctx, ["hello"], source_module="files")
-    assert (result.model, result.dim) == ("nomic-embed-text", 2)
+        await m06.embed(ctx, ["hi"], source_module="files", query=True)
+    # nomic-embed-text tells queries from documents by a prefix, which names the vector space.
+    assert (result.model, result.dim) == ("nomic-embed-text+prefixed", 2)
+    sent = [json.loads(c.request.content)["input"] for c in ollama_route.calls]
+    assert sent == [["search_document: hello"], ["search_query: hi"]]
 
     gemini = await ai.provider("gemini")
     await ai.call(
@@ -692,3 +719,5 @@ async def test_ollama_and_gemini_embeddings(ai: Ai, mock: respx.MockRouter):
     body = json.loads(route.calls.last.request.content)
     assert body["requests"][0]["model"] == "models/gemini-embedding-001"
     assert body["requests"][0]["content"]["parts"] == [{"text": "a"}]
+    assert body["requests"][0]["taskType"] == "RETRIEVAL_DOCUMENT"
+    assert body["requests"][0]["outputDimensionality"] == 768

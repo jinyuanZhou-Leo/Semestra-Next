@@ -7,6 +7,7 @@ model's.
 
 import json
 import traceback
+from collections import OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
@@ -147,10 +148,11 @@ def _embed(model: _Model, texts: Sequence[str], kind: str) -> list[list[float]]:
 
 
 def serve(conn: Connection) -> None:
-    """The child's loop: `("load", folder, device, threads)` then `("embed", texts, kind)`
-    requests, each answered with `("ok", value)` or `("error", reason)`."""
+    """The child's loop: `("load", folder, device, threads, keep)` then `("embed", texts, kind)`
+    requests, each answered with `("ok", value)` or `("error", reason)`. Up to `keep` models stay
+    loaded, the least recently used going first."""
+    models: OrderedDict[str, _Model] = OrderedDict()
     model: _Model | None = None
-    folder: str | None = None
     while True:
         try:
             message = conn.recv()
@@ -158,12 +160,14 @@ def serve(conn: Connection) -> None:
             return
         try:
             match message:
-                case ("load", str(wanted_folder), str(wanted), int(thread_count)):
-                    if folder != wanted_folder:
-                        model = None  # one model at a time
-                        model = _load(wanted_folder, wanted, thread_count)
-                        folder = wanted_folder
-                    assert model is not None
+                case ("load", str(folder), str(wanted), int(thread_count), int(keep)):
+                    model = models.get(folder)
+                    if model is None:
+                        while models and len(models) >= max(1, keep):
+                            models.popitem(last=False)
+                        model = None  # the evicted model's memory goes before the next loads
+                        model = models[folder] = _load(folder, wanted, thread_count)
+                    models.move_to_end(folder)
                     conn.send(("ok", model.device))
                 case ("embed", list(texts), str(kind)):
                     assert model is not None
