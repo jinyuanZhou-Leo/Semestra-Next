@@ -23,8 +23,9 @@ them. Reading takes up to 2 GB of RAM on top of the app's 1 GB, one document at 
 seconds per page.
 
 Each user picks the model in the **OCR** row of AI settings → Models: a local PaddleOCR model or
-a provider's model. Local models download into the data volume the first time they are needed,
-and the app shows the progress. A server that will lose internet access needs them fetched while
+a provider's model. The picker shows each local model's download size, speed and accuracy. Local
+models download into the data volume the first time they are needed, or when the user clicks
+**Download** in that row, and the app shows the progress. A server that will lose internet access needs them fetched while
 it still has it:
 
 ```bash

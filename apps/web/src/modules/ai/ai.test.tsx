@@ -576,12 +576,18 @@ test('a local OCR model downloads from its row, which then shows the progress', 
   )
   const user = userEvent.setup()
   renderWithQuery(<ModelsSection />)
-  expect(await screen.findByText(/PP-OCRv6_medium isn't on this server yet/)).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Download now' }))
+  expect(await screen.findByText('Not downloaded')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Download' }))
   expect(requests.at(-1)).toMatchObject({ body: { purpose: 'ocr', model: 'PP-OCRv6_medium' } })
   expect(await screen.findByText('45/133 MB')).toBeInTheDocument()
-  expect(screen.getByText('Downloading the OCR model')).toBeInTheDocument()
-  expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
+  expect(screen.queryByText('Not downloaded')).not.toBeInTheDocument()
+
+  // The picker shows each local model's size, speed and accuracy.
+  await user.click(modelBox('OCR'))
+  const tiny = await screen.findByRole('option', { name: /^PP-OCRv6_tiny/ })
+  expect(tiny).toHaveTextContent('6.4 MB')
+  expect(tiny).toHaveTextContent('Speed: 3 of 3')
+  expect(tiny).toHaveTextContent('Accuracy: 1 of 3')
 })
 
 test('a server that allows it runs a Hugging Face model typed into the search box', async () => {

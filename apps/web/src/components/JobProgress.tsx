@@ -20,7 +20,8 @@ export function JobProgress({
   jobId: string
   /** The job if already loaded, e.g. from a list. */
   job?: JobOut
-  variant?: 'bar' | 'ring' | 'inline'
+  /** `compact`: a short bar and the count (or percent) on one line, under a settings row. */
+  variant?: 'bar' | 'ring' | 'inline' | 'compact'
   className?: string
 }) {
   const { job, status, progress, stageLabel, stageName, count } = useJob(jobId, seed)
@@ -48,6 +49,18 @@ export function JobProgress({
     return (
       <span className={cn('text-xs text-muted-foreground tabular-nums', className)}>
         {percent ? `${text} · ${percent}` : text}
+      </span>
+    )
+  }
+  if (variant === 'compact') {
+    return (
+      <span className={cn('flex items-center gap-2 text-xs text-muted-foreground', className)}>
+        <Progress
+          value={value}
+          aria-label={text}
+          className="w-40 [&_[data-slot=progress-track]]:h-1"
+        />
+        <span className="tabular-nums">{status === 'running' && count ? count.text : percent}</span>
       </span>
     )
   }
