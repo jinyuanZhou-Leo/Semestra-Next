@@ -187,9 +187,7 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     status = await fx.call("GET", "/ai/status")
     assert _local(status)["downloaded"] == ["PP-OCRv6_medium"]
     assert _local(status)["download_job"] is None
-    job_id = (await fx.call("POST", "/ai/local-models/download", json={"purpose": "ocr"}))[
-        "job_id"
-    ]
+    job_id = (await fx.call("POST", "/ai/local-models/download", json={"purpose": "ocr"}))["job_id"]
     assert _local(await fx.call("GET", "/ai/status"))["download_job"] == job_id
     await fx.run_jobs()
     job = await fx.call("GET", f"/jobs/{job_id}")
@@ -213,9 +211,7 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     monkeypatch.setattr(local_ocr, "_fetch_from_mirrors", unreachable)
     body = {"purpose": "ocr", "provider_id": None, "model": "PP-OCRv6_tiny"}
     await fx.call("PUT", "/ai/assignments", json=body)
-    job_id = (await fx.call("POST", "/ai/local-models/download", json={"purpose": "ocr"}))[
-        "job_id"
-    ]
+    job_id = (await fx.call("POST", "/ai/local-models/download", json={"purpose": "ocr"}))["job_id"]
     await fx.run_jobs()
     job = await fx.call("GET", f"/jobs/{job_id}")
     assert (job["status"], job["error_code"]) == ("failed", "ai.local_ocr_download_failed")
