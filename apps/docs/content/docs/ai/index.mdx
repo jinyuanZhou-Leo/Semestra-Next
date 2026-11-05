@@ -45,6 +45,10 @@ to the image model and passages to the search model. To control that spending, t
 **File indexing → Index new files automatically** in the program's (or a course's) settings. Files
 added while it is off are indexed when you ask for it, or when an import needs them.
 
+Search vectors belong to the model that made them, so changing the search model rebuilds them for
+every indexed file in the background. When files already have vectors, the settings ask before
+switching.
+
 ## Which model answers
 
 For each purpose, Semestra takes the first of:

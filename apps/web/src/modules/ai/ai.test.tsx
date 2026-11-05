@@ -610,6 +610,15 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
         ],
       }),
     ),
+    http.get(`${API}/files-usage`, () =>
+      HttpResponse.json({
+        used_bytes: 0,
+        files_bytes: 0,
+        quota_bytes: 0,
+        max_upload_bytes: 0,
+        vector_files: 3,
+      }),
+    ),
   )
   const user = userEvent.setup()
   renderWithQuery(<ModelsSection />)
@@ -620,6 +629,11 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
     'BAAI/bge-small-zh',
   )
   await user.click(await screen.findByRole('option', { name: /Use BAAI\/bge-small-zh from/ }))
+  // Files already have vectors from bge-m3: switching asks first.
+  const dialog = await screen.findByRole('alertdialog')
+  expect(dialog).toHaveTextContent('files: 3')
+  expect(requests.some((r) => r.method === 'PUT')).toBe(false)
+  await user.click(within(dialog).getByRole('button', { name: 'Change' }))
   await waitFor(() =>
     expect(requests.at(-1)).toMatchObject({
       method: 'PUT',

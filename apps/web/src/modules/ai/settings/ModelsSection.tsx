@@ -12,12 +12,14 @@ import {
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiStatusGetOptions,
+  filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, Download, KeyRound, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { JobProgress } from '@/components/JobProgress'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { useJob } from '@/hooks/use-job'
@@ -255,9 +257,14 @@ function PurposeRow({
   const purpose = assignment.purpose as AiPurpose
   const title = PURPOSE_TITLES[purpose]()
   const [query, setQuery] = useState('')
+  // A new embedding model waiting for confirmation, with how many files it would re-embed.
+  const [confirm, setConfirm] = useState<{ option: ModelOption; files: number } | null>(null)
   const update = useMutation({
     ...aiAssignmentUpdateMutation(),
-    onSuccess: () => invalidateAi(queryClient),
+    onSuccess: () => {
+      setConfirm(null)
+      return invalidateAi(queryClient)
+    },
     onError: toastError,
   })
   const providerOf = (id: string | null | undefined) => providers.find((p) => p.id === id)
@@ -360,9 +367,7 @@ function PurposeRow({
       ? modelName(lists, status.provider_id, status.model)
       : null
 
-  const pick = (next: ModelOption | null) => {
-    setQuery('')
-    if (!next || next.key === selected.key) return
+  const save = (next: ModelOption) =>
     update.mutate({
       body: next.providerId
         ? { purpose, provider_id: next.providerId, model: next.model }
@@ -370,6 +375,36 @@ function PurposeRow({
           ? { purpose, provider_id: null, model: next.model }
           : { purpose, provider_id: null },
     })
+
+  // The model an option leads to, to tell whether picking it changes the vector space.
+  const current = status?.available
+    ? status.source === 'instance'
+      ? 'instance'
+      : `${status.provider_id ?? LOCAL_KEY}/${status.model}`
+    : null
+  const leadsTo = (option: ModelOption) =>
+    option.key !== AUTO_KEY
+      ? option.key
+      : autoLocal
+        ? `${LOCAL_KEY}/${local.default}`
+        : recommended
+          ? `${recommended.provider_id}/${recommended.model}`
+          : status?.source === 'instance'
+            ? 'instance'
+            : null
+
+  const pick = async (next: ModelOption | null) => {
+    setQuery('')
+    if (!next || next.key === selected.key) return
+    // Search vectors belong to one model: switching rebuilds every file's, so ask first.
+    if (purpose === 'embedding' && current !== null && leadsTo(next) !== current) {
+      const usage = await queryClient.fetchQuery({ ...filesUsageGetOptions(), staleTime: 0 })
+      if (usage.vector_files > 0) {
+        setConfirm({ option: next, files: usage.vector_files })
+        return
+      }
+    }
+    save(next)
   }
 
   return (
@@ -487,6 +522,15 @@ function PurposeRow({
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={m.ai_models_reembed_title()}
+        description={m.ai_models_reembed_description({ count: confirm?.files ?? 0 })}
+        confirmLabel={m.ai_models_reembed_confirm()}
+        pending={update.isPending}
+        onConfirm={() => confirm && save(confirm.option)}
+      />
     </SettingRow>
   )
 }

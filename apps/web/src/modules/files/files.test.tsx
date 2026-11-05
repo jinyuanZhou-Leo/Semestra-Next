@@ -120,6 +120,7 @@ beforeEach(() => {
         files_bytes: 2048,
         quota_bytes: 52_428_800,
         max_upload_bytes: 26_214_400,
+        vector_files: 0,
       }),
     ),
     // Uploads go through XHR for their progress: a cross-origin preflight in tests.
@@ -251,7 +252,13 @@ test('links ask before leaving, and can remember the site', async () => {
 test('uploads that cannot fit are refused before sending', () => {
   const big = new File(['x'.repeat(10)], 'big.pdf')
   const small = new File(['x'], 'small.pdf')
-  const usage = { used_bytes: 95, files_bytes: 95, quota_bytes: 100, max_upload_bytes: 8 }
+  const usage = {
+    used_bytes: 95,
+    files_bytes: 95,
+    quota_bytes: 100,
+    max_upload_bytes: 8,
+    vector_files: 0,
+  }
   const plan = planUpload([big, small], usage)
   expect(plan.tooLarge).toEqual([big])
   expect(plan.accepted).toEqual([small])

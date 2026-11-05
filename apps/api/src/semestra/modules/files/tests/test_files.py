@@ -508,6 +508,7 @@ async def test_semantic_and_hybrid_search_with_embeddings(fx: Fx, fake_ai: FakeA
     fake_ai.enabled.add("embedding")
     item = await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
     assert fake_ai.embed_calls
+    assert (await fx.call("GET", "/files-usage"))["vector_files"] == 1
 
     semantic = await fx.search("grading midterm", mode="semantic")
     assert semantic["mode_used"] == "semantic"
@@ -682,6 +683,7 @@ async def test_delete_removes_bytes_index_and_page_images(fx: Fx):
     assert any(item["id"] in k for k in await storage_keys(fx))
     usage = await fx.call("GET", "/files-usage")
     assert usage["files_bytes"] == item["size_bytes"]
+    assert usage["vector_files"] == 0  # no embedding model
 
     await fx.call("DELETE", f"/files/{item['id']}")
     assert not any(item["id"] in k for k in await storage_keys(fx))

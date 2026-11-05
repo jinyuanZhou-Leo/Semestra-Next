@@ -23325,6 +23325,11 @@
           "max_upload_bytes": {
             "type": "integer",
             "title": "Max Upload Bytes"
+          },
+          "vector_files": {
+            "type": "integer",
+            "title": "Vector Files",
+            "description": "Course files with search vectors; a new embedding model rebuilds them"
           }
         },
         "type": "object",
@@ -23332,7 +23337,8 @@
           "used_bytes",
           "files_bytes",
           "quota_bytes",
-          "max_upload_bytes"
+          "max_upload_bytes",
+          "vector_files"
         ],
         "title": "FilesUsageGet"
       },

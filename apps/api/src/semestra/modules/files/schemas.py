@@ -298,6 +298,9 @@ class FilesUsageGet(BaseModel):
     files_bytes: int = Field(description="Of which course files")
     quota_bytes: int = Field(description="0 means unlimited")
     max_upload_bytes: int
+    vector_files: int = Field(
+        description="Course files with search vectors; a new embedding model rebuilds them"
+    )
 
 
 FileType = Literal["pdf", "image", "office", "text", "other"]
