@@ -398,9 +398,16 @@ function PurposeRow({
     if (!next || next.key === selected.key) return
     // Search vectors belong to one model: switching rebuilds every file's, so ask first.
     if (purpose === 'embedding' && current !== null && leadsTo(next) !== current) {
-      const usage = await queryClient.fetchQuery({ ...filesUsageGetOptions(), staleTime: 0 })
-      if (usage.vector_files > 0) {
-        setConfirm({ option: next, files: usage.vector_files })
+      let files: number
+      try {
+        files = (await queryClient.fetchQuery({ ...filesUsageGetOptions(), staleTime: 0 }))
+          .vector_files
+      } catch (error) {
+        toastError(error)
+        return
+      }
+      if (files > 0) {
+        setConfirm({ option: next, files })
         return
       }
     }
