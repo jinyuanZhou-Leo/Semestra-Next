@@ -1402,7 +1402,7 @@
   "commands_group_actions": "操作",
   "commands_group_results": "搜索结果",
   "commands_group_ask": "问 Sem",
-  "commands_ask": "提问：{question}",
+  "commands_ask": "Sem：{question}",
   "plugins_manage": "管理插件",
   "hotkeys_title": "键盘快捷键",
   "hotkeys_palette": "打开命令面板",

@@ -1402,7 +1402,7 @@
   "commands_group_actions": "Actions",
   "commands_group_results": "Search results",
   "commands_group_ask": "Ask Sem",
-  "commands_ask": "Ask: {question}",
+  "commands_ask": "Sem: {question}",
   "plugins_manage": "Manage plugins",
   "hotkeys_title": "Keyboard shortcuts",
   "hotkeys_palette": "Open the command palette",
