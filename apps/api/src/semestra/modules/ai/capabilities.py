@@ -6,6 +6,7 @@ from semestra.modules.ai import service
 from semestra.modules.ai.schemas import (
     AiStatusGet,
     AssignmentList,
+    AssignmentParamsInput,
     AssignmentUpdateInput,
     LocalModelDownload,
     LocalModelDownloadInput,
@@ -128,6 +129,19 @@ async def assignment_get(ctx: Ctx, inp: NoInput) -> AssignmentList:
 )
 async def assignment_update(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentList:
     return await service.update_assignment(ctx, inp)
+
+
+@capability(
+    name="ai.assignment.update_params",
+    summary="Set the model parameters of one AI purpose (output limit, reasoning effort).",
+    description="They apply whichever model serves the purpose, Auto included. Not for agents.",
+    effect="write",
+    http=Http("PUT", "/ai/assignments/params"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def assignment_update_params(ctx: Ctx, inp: AssignmentParamsInput) -> AssignmentList:
+    return await service.update_assignment_params(ctx, inp)
 
 
 @capability(

@@ -25,7 +25,14 @@ from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 
 from semestra.core.errors import AppError
-from semestra.modules.ai.adapters.base import MAX_RETRIES, Endpoint, backoff, map_error, retryable
+from semestra.modules.ai.adapters.base import (
+    Endpoint,
+    backoff,
+    map_error,
+    retry_delay,
+    retryable,
+)
+from semestra.modules.ai.adapters.limits import Gate, no_gate
 
 SUMMARY = "openai_reasoning_summary"
 
@@ -37,19 +44,27 @@ _NO_SUMMARY: set[tuple[str, str | None]] = set()
 Record = Callable[[float, ModelResponse | None, AppError | None], None]
 
 
-async def retrying[T](make: Callable[[], Awaitable[T]], model: str | None = None) -> T:
-    for attempt in range(MAX_RETRIES + 1):
+async def retrying[T](
+    make: Callable[[], Awaitable[T]], model: str | None = None, gate: Gate = no_gate
+) -> T:
+    """`make()` until it works, retried as `retry_delay` says. Each try takes a slot from `gate`
+    (the provider's limit of requests at a time), given back while waiting to try again."""
+    attempt = 0
+    waited = 0.0
+    while True:
         try:
-            return await make()
+            async with gate():
+                return await make()
         except AppError:
             raise
         except Exception as exc:
             error = map_error(exc, model)
-            if retryable(error, exc) and attempt < MAX_RETRIES:
-                await backoff(attempt, error)
-                continue
-            raise error from None
-    raise AssertionError("unreachable")
+            delay = retry_delay(attempt, error, waited) if retryable(error, exc) else None
+            if delay is None:
+                raise error from None
+            await backoff(delay, error)
+            attempt += 1
+            waited += delay
 
 
 @dataclass(init=False)
@@ -57,6 +72,7 @@ class SemestraModel(WrapperModel):
     endpoint: Endpoint
     defaults: ModelSettings
     record: Record | None
+    gate: Gate
 
     def __init__(
         self,
@@ -65,11 +81,13 @@ class SemestraModel(WrapperModel):
         *,
         defaults: ModelSettings | None = None,
         record: Record | None = None,
+        gate: Gate = no_gate,
     ) -> None:
         super().__init__(wrapped)
         self.endpoint = endpoint
         self.defaults = defaults or ModelSettings()
         self.record = record
+        self.gate = gate
 
     def _key(self) -> tuple[str, str | None]:
         return (self.endpoint.base_url, self.endpoint.provider_id)
@@ -118,6 +136,7 @@ class SemestraModel(WrapperModel):
                         messages, self._merged(model_settings, summary), model_request_parameters
                     ),
                     self.model_name,
+                    self.gate,
                 ),
             )
         except AppError as exc:
@@ -136,6 +155,8 @@ class SemestraModel(WrapperModel):
     ) -> AsyncGenerator[StreamedResponse]:
         started = time.monotonic()
         async with AsyncExitStack() as stack:
+            # The slot is held until the stream ends (retries of its start included).
+            await stack.enter_async_context(self.gate())
 
             async def start(summary: bool) -> StreamedResponse:
                 return await stack.enter_async_context(

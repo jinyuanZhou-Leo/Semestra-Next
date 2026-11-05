@@ -1,5 +1,6 @@
 """Model calls through the Python interface: resolution, adapters, retries, usage (M06 §4, §5)."""
 
+import asyncio
 import json
 from typing import Any
 
@@ -16,8 +17,10 @@ from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import select
 from structlog.testing import capture_logs
 
+from semestra.core import jobs
 from semestra.core.errors import AppError
 from semestra.modules import ai as m06
+from semestra.modules.ai.adapters.limits import Limiters
 from semestra.modules.ai.llm import Document, Image, Message, Text
 from semestra.modules.ai.models import AiProvider, AiUsageEvent
 from semestra.modules.ai.tests.conftest import (
@@ -216,6 +219,76 @@ async def test_gives_up_after_three_retries(ai: Ai, mock: respx.MockRouter):
             await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
     assert (exc.value.code, exc.value.params) == ("ai.rate_limited", {"retry_after": 7})
     assert route.call_count == 4
+
+
+def test_a_job_waits_a_rate_limit_out_longer(monkeypatch: pytest.MonkeyPatch):
+    from semestra.modules.ai.adapters import base
+
+    monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 1.0)
+    limited = AppError("ai.rate_limited", 429, retry_after=60)
+    # Someone waiting on the answer: three short tries.
+    assert base.retry_delay(0, limited, 0) == 30
+    assert base.retry_delay(3, limited, 90) is None
+    # A job: the limit's own wait, for minutes in all; other errors as before.
+    monkeypatch.setattr(jobs, "in_job", lambda: True)
+    assert base.retry_delay(3, limited, 180) == 60
+    assert base.retry_delay(4, limited, 250) is None
+    assert base.retry_delay(3, AppError("ai.provider_unreachable", 502), 0) is None
+
+
+async def test_requests_wait_for_the_providers_limit(ai: Ai, mock: respx.MockRouter):
+    models_ok(mock)
+    created = await ai.provider("openai")
+    await ai.call("PATCH", f"/ai/providers/{created['id']}", json={"max_concurrency": 1})
+    running, most = 0, 0
+
+    async def answer(request: Any) -> Response:
+        nonlocal running, most
+        running += 1
+        most = max(most, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return Response(
+            200, json={"data": [{"index": 0, "embedding": [1.0]}], "usage": {"prompt_tokens": 1}}
+        )
+
+    mock.post(f"{OPENAI}/embeddings").mock(side_effect=answer)
+
+    async def one() -> None:
+        async with ai.ctx() as ctx:
+            await m06.embed(ctx, ["x"], source_module="files")
+
+    await asyncio.gather(one(), one(), one())
+    assert most == 1
+
+
+async def test_background_requests_leave_one_slot_for_the_user():
+    gate = Limiters().gate("https://api.example", "pv1", 2)
+    release = asyncio.Event()
+    background_running = 0
+    most = 0
+
+    async def background() -> None:
+        nonlocal background_running, most
+
+        async def notify() -> None:
+            return None
+
+        jobs._running.set(jobs._Running("job", notify))
+        async with gate():
+            background_running += 1
+            most = max(most, background_running)
+            await release.wait()
+            background_running -= 1
+
+    tasks = [asyncio.create_task(background()) for _ in range(3)]
+    await asyncio.sleep(0.01)
+    # Two slots: background work holds one, and the user's request gets the other at once.
+    async with asyncio.timeout(1), gate():
+        pass
+    release.set()
+    await asyncio.gather(*tasks)
+    assert most == 1
 
 
 @pytest.mark.parametrize(

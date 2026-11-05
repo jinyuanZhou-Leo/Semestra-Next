@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     # Background jobs (M00 §3.7): worker tasks in the API process. Tests turn autostart off and
     # drive the queue themselves.
     job_concurrency: int = 2
+    # Of those, how many may run bulk jobs (rebuilding vectors, model downloads) at once.
+    job_bulk_concurrency: int = 1
     jobs_autostart: bool = True
     # Import the AI SDKs in a thread after start (seconds of work tests don't need).
     ai_warm_up: bool = True
@@ -130,6 +132,8 @@ class Settings(BaseSettings):
     instance_ai_chat_model: str = ""
     instance_ai_embedding_model: str = ""
     instance_ai_api_key: str = ""
+    # Most requests sent to it at once (e.g. 1 for a small Ollama server); 0 = no limit.
+    instance_ai_max_concurrency: int = 0
     # Dev only: write prompts and outputs to DATA_DIR/ai-debug/ (never in prod).
     ai_debug_log: bool = False
 

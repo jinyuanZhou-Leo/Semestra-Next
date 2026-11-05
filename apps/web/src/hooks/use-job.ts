@@ -11,6 +11,31 @@ import { m } from '@/paraglide/messages'
 
 export type JobCount = { current: number; total: number }
 
+type Waits = Pick<JobOut, 'status' | 'waiting'>
+
+/** Whether the job is waiting: queued behind other jobs, or for its provider. */
+export function jobIsWaiting(job: Waits) {
+  return job.status === 'pending' || (job.status === 'running' && job.waiting != null)
+}
+
+/** When a waiting job expects to go on, if it knows (a rate limit's wait). */
+export function jobWaitsUntil(job: Waits): number | null {
+  const until = job.status === 'running' ? job.waiting?.until : null
+  return until ? new Date(until).getTime() : null
+}
+
+/** What a waiting job waits for, e.g. "Rate limited by the provider, continuing in about 40 s". */
+export function jobWaitingText(job: Waits, now: number) {
+  const reason = job.status === 'running' ? job.waiting?.reason : null
+  if (reason === 'ai.provider_busy') return m.job_waiting_provider_busy()
+  if (reason === 'ai.rate_limited') {
+    const until = jobWaitsUntil(job)
+    const seconds = until === null ? 0 : Math.ceil((until - now) / 1000)
+    return seconds > 0 ? m.job_waiting_rate_limited({ seconds }) : m.job_waiting_rate_limited_soon()
+  }
+  return m.job_pending()
+}
+
 /**
  * Text for the job's current stage: `job_step_<kind>_<step>` (dots in `kind` become underscores),
  * with the count inside the stage when the job reports one, and a prefix when it is a retry.

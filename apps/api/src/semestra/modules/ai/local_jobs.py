@@ -77,13 +77,13 @@ async def download_with_progress(
     await events.publish(ctx, DOWNLOADED[purpose], {"model": model})
 
 
-@job_handler(KINDS["ocr"], stages=[("downloading", 1)], max_attempts=1)
+@job_handler(KINDS["ocr"], stages=[("downloading", 1)], max_attempts=1, lane="bulk")
 async def download_ocr(ctx: JobCtx, payload: DownloadPayload) -> DownloadResult:
     await download_with_progress(ctx, "ocr", payload.model, "downloading")
     return DownloadResult(model=payload.model)
 
 
-@job_handler(KINDS["embedding"], stages=[("downloading", 1)], max_attempts=1)
+@job_handler(KINDS["embedding"], stages=[("downloading", 1)], max_attempts=1, lane="bulk")
 async def download_embedding(ctx: JobCtx, payload: DownloadPayload) -> DownloadResult:
     await download_with_progress(ctx, "embedding", payload.model, "downloading")
     # The user's documents were indexed by keyword only while the model was missing: adding

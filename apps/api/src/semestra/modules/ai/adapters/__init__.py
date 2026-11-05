@@ -14,6 +14,7 @@ from semestra.core.errors import AppError
 from semestra.modules.ai import catalog
 from semestra.modules.ai.adapters import convert
 from semestra.modules.ai.adapters.base import Adapter, Endpoint, ModelInfo, ModelParams, map_error
+from semestra.modules.ai.adapters.limits import Gate, no_gate
 from semestra.modules.ai.adapters.model import Record, SemestraModel, retrying
 from semestra.modules.ai.adapters.sdk import (
     ANTHROPIC_KINDS,
@@ -28,10 +29,13 @@ from semestra.modules.ai.llm import Usage
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
 
 
-async def _once[T](make: Callable[[], Awaitable[T]], model: str | None = None) -> T:
+async def _once[T](
+    make: Callable[[], Awaitable[T]], model: str | None = None, gate: Gate = no_gate
+) -> T:
     """One attempt, errors mapped like `retrying` (a search query does not wait for retries)."""
     try:
-        return await make()
+        async with gate():
+            return await make()
     except AppError:
         raise
     except Exception as exc:
@@ -44,13 +48,16 @@ def semestra_model(
     model: str,
     params: ModelParams,
     record: Record | None = None,
+    gate: Gate = no_gate,
 ) -> SemestraModel:
-    """The provider's Pydantic AI model wrapped with M06's retries, errors and usage hook."""
+    """The provider's Pydantic AI model wrapped with M06's retries, errors, usage hook and the
+    endpoint's limit of requests at a time (`gate`)."""
     return SemestraModel(
         chat_model(client, ep, model),
         ep,
         defaults=convert.settings_for(ep.kind, params),
         record=record,
+        gate=gate,
     )
 
 
@@ -67,6 +74,7 @@ class ProviderAdapter:
         *,
         query: bool = False,
         retry: bool = True,
+        gate: Gate = no_gate,
     ) -> tuple[list[list[float]], Usage]:
         if self.kind in ANTHROPIC_KINDS:
             raise AppError("ai.capability_unsupported", 400, capability="embedding")
@@ -87,6 +95,7 @@ class ProviderAdapter:
                     model=model, contents=list(inputs), config=config
                 ),
                 model,
+                gate,
             )
             vectors = [list(e.values or []) for e in result.embeddings or []]
             # The Gemini API reports no token counts: estimate them for the usage log.
@@ -99,6 +108,7 @@ class ProviderAdapter:
             result = await run(
                 lambda: oai.embeddings.create(model=model, input=inputs, dimensions=dimensions),
                 model,
+                gate,
             )
             vectors = [list(r.embedding) for r in sorted(result.data, key=lambda r: r.index)]
             used = Usage(input_tokens=result.usage.prompt_tokens if result.usage else 0)

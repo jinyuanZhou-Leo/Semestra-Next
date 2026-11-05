@@ -24,6 +24,8 @@ class AiProvider(Base, OwnedMixin, TimestampMixin):
     key_hint: Mapped[str | None] = mapped_column(String, default=None)
     capabilities: Mapped[list[str]] = mapped_column(JSON, default=list)
     enabled: Mapped[bool] = mapped_column(default=True)
+    # Most requests sent to the provider at once; None = the default (`adapters.limits`).
+    max_concurrency: Mapped[int | None] = mapped_column(Integer, default=None)
     last_checked_at: Mapped[datetime | None] = mapped_column(default=None)
     last_error_code: Mapped[str | None] = mapped_column(String, default=None)
 
@@ -42,8 +44,10 @@ class AiModelAssignment(Base):
     provider_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("ai_providers.id", ondelete="CASCADE"), index=True
     )
-    model: Mapped[str] = mapped_column(String)
-    # {temperature?, max_tokens?, reasoning_effort?}, validated by `schemas.ModelParams`.
+    # None with no provider: "Auto", kept for its `params`.
+    model: Mapped[str | None] = mapped_column(String, default=None)
+    # {temperature?, max_tokens?, reasoning_effort?}, validated by `schemas.ModelParams`. They
+    # belong to the purpose: they stay when the model changes, and apply on "Auto" too.
     params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 

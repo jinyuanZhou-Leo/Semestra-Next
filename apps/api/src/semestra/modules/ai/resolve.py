@@ -45,6 +45,7 @@ def endpoint_for(settings: Settings, row: AiProvider, *, with_key: bool = True) 
         capabilities=provider_capabilities(row),
         provider_id=row.id,
         display_name=row.display_name,
+        max_concurrency=row.max_concurrency,
     )
 
 
@@ -69,6 +70,7 @@ def instance_endpoint(settings: Settings) -> Endpoint | None:
         capabilities=tuple(capabilities),
         provider_id=None,
         display_name="instance",
+        max_concurrency=settings.instance_ai_max_concurrency or None,
     )
 
 
@@ -97,10 +99,13 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
     # 1. The user's choice for this purpose (ignored while its provider is turned off, or once
     #    the capability it needs was unticked on an editable provider).
     assignment = await ctx.db.get(AiModelAssignment, (ctx.user_id, purpose))
+    # The purpose's parameters, whichever model serves it.
+    params = ModelParams(**assignment.params) if assignment is not None else ModelParams()
     # (A local OCR choice has no provider; `local_ocr.choice` handles it before this.)
     row = by_id.get(assignment.provider_id or "") if assignment is not None else None
     if (
         assignment is not None
+        and assignment.model
         and row is not None
         and can_serve(provider_capabilities(row), purpose)
     ):
@@ -108,7 +113,7 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
             purpose,
             endpoint_for(ctx.settings, row, with_key=with_key),
             assignment.model,
-            ModelParams(**assignment.params),
+            params,
             "assignment",
         )
 
@@ -120,7 +125,7 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
                 purpose,
                 endpoint_for(ctx.settings, row, with_key=with_key),
                 model,
-                ModelParams(),
+                params,
                 "default",
             )
 
@@ -131,7 +136,7 @@ async def try_resolve(ctx: Ctx, purpose: Purpose, *, with_key: bool = True) -> R
     instance = instance_endpoint(ctx.settings)
     model = _instance_model(ctx.settings, purpose)
     if instance is not None and model and can_serve(instance.capabilities, purpose):
-        return Resolved(purpose, instance, model, ModelParams(), "instance")
+        return Resolved(purpose, instance, model, params, "instance")
 
     # OCR split off from vision later: whatever reads images can read scanned pages, e.g. a
     # compatible endpoint the user gave a vision model but no OCR model.

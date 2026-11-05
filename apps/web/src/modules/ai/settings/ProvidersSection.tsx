@@ -7,7 +7,16 @@ import {
 } from '@semestra/api-client/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Pencil, PlugZap, Plus, Power, PowerOff, Trash2 } from 'lucide-react'
+import {
+  ChevronRight,
+  KeyRound,
+  Pencil,
+  PlugZap,
+  Plus,
+  Power,
+  PowerOff,
+  Trash2,
+} from 'lucide-react'
 import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
@@ -28,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import {
   Empty,
@@ -110,6 +120,11 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
   const [baseUrl, setBaseUrl] = useState(provider.base_url ?? '')
   const [apiKey, setApiKey] = useState('')
   const [capabilities, setCapabilities] = useState<Capability[]>(provider.capabilities)
+  const [concurrency, setConcurrency] = useState(provider.max_concurrency?.toString() ?? '')
+  const concurrencyValue = concurrency.trim() === '' ? null : Number(concurrency)
+  const concurrencyValid =
+    concurrencyValue === null ||
+    (Number.isInteger(concurrencyValue) && concurrencyValue >= 1 && concurrencyValue <= 32)
   const update = useMutation(aiProviderUpdateMutation())
 
   const submit = (e: FormEvent) => {
@@ -120,6 +135,8 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
       body.base_url = baseUrl.trim()
     if (apiKey.trim()) body.api_key = apiKey.trim()
     if (provider.capabilities_editable) body.capabilities = capabilities
+    if (!concurrencyValid) return
+    if (concurrencyValue !== provider.max_concurrency) body.max_concurrency = concurrencyValue
     update.mutate(
       { path: { id: provider.id }, body },
       {
@@ -173,6 +190,53 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
           {provider.capabilities_editable ? (
             <CapabilityChecks value={capabilities} onChange={setCapabilities} />
           ) : null}
+          <Collapsible defaultOpen={provider.max_concurrency !== null}>
+            <CollapsibleTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="group/trigger -ml-2 max-w-full justify-start font-normal aria-expanded:bg-transparent"
+                />
+              }
+            >
+              <ChevronRight
+                aria-hidden
+                className="text-muted-foreground transition-transform group-data-panel-open/trigger:rotate-90"
+              />
+              <span className="font-medium">{m.ai_provider_advanced()}</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+              {/* The left rule ties the fields to the trigger; padding keeps focus rings visible. */}
+              <FieldGroup className="mt-3 ml-1.5 w-auto border-l-2 py-1 pr-1 pl-4">
+                <Field data-invalid={concurrencyValid ? undefined : true}>
+                  <FieldLabel htmlFor={`${id}-concurrency`}>
+                    {m.ai_provider_max_concurrency()}
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-concurrency`}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={32}
+                    placeholder="4"
+                    className="w-24"
+                    aria-describedby={`${id}-concurrency-hint`}
+                    aria-invalid={concurrencyValid ? undefined : true}
+                    value={concurrency}
+                    onChange={(e) => setConcurrency(e.target.value)}
+                  />
+                  <FieldDescription id={`${id}-concurrency-hint`}>
+                    {m.ai_provider_max_concurrency_hint()}
+                  </FieldDescription>
+                  <FieldError>
+                    {concurrencyValid ? null : m.ai_provider_max_concurrency_invalid()}
+                  </FieldError>
+                </Field>
+              </FieldGroup>
+            </CollapsibleContent>
+          </Collapsible>
           <FieldError>{update.error ? errorMessage(update.error) : null}</FieldError>
           <DialogFooter>
             <DialogClose

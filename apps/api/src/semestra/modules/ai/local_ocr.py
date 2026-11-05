@@ -64,7 +64,7 @@ async def choice(ctx: Ctx) -> str | None:
     if not available(ctx.settings):
         return None
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, "ocr"))
-    if row is None:
+    if row is None or (row.provider_id is None and row.model is None):  # Auto
         return default_model(ctx.settings)
     if row.provider_id is not None:
         return None
@@ -74,7 +74,7 @@ async def choice(ctx: Ctx) -> str | None:
 async def picked(ctx: Ctx) -> bool:
     """Whether the user chose a local model for OCR themselves, rather than leaving it on Auto."""
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, "ocr"))
-    return row is not None and row.provider_id is None
+    return row is not None and row.provider_id is None and row.model is not None
 
 
 def model_tag(model: str) -> str:

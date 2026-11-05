@@ -3,10 +3,11 @@ import { coreJobCancel } from '@semestra/api-client'
 import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { CircleAlert, CircleCheck, LoaderCircle, X } from 'lucide-react'
-import { Fragment, useEffect, useState } from 'react'
+import { CircleAlert, CircleCheck, Clock3, LoaderCircle, X } from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { JobProgress } from '@/components/JobProgress'
-import { jobStageLabel } from '@/hooks/use-job'
+import { jobIsWaiting, jobStageLabel } from '@/hooks/use-job'
+import { useNow } from '@/hooks/use-now'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -36,18 +37,6 @@ const FAILED_VISIBLE_MS = 7 * 24 * 3600 * 1000
 const SEEN_KEY = 'layout.status_seen_failures'
 
 const ACTIVE = new Set(['pending', 'running'])
-
-/** The current time, ticking while `tick(now)` holds (a finished job is waiting to go away). */
-function useNow(tick: (now: number) => boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  const ticking = tick(now)
-  useEffect(() => {
-    if (!ticking) return
-    const timer = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(timer)
-  }, [ticking])
-  return now
-}
 
 function finishedAgo(job: JobOut, now: number): number {
   return job.finished_at ? now - new Date(job.finished_at).getTime() : Number.POSITIVE_INFINITY
@@ -99,7 +88,7 @@ function LineFace({ icon: Icon, label, tone, spin }: StatusItem & { spin?: boole
 }
 
 /** The thin progress bar under a line; hidden on the icon rail. */
-function LineProgress({ label, tone, progress }: StatusItem) {
+function LineProgress({ label, tone, progress, waiting }: StatusItem & { waiting?: boolean }) {
   if (progress == null) return null
   return (
     <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
@@ -108,6 +97,7 @@ function LineProgress({ label, tone, progress }: StatusItem) {
         aria-label={label}
         className={cn(
           '[&_[data-slot=progress-track]]:h-0.5',
+          waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
           tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
           tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
         )}
@@ -224,8 +214,13 @@ function JobsLine() {
   const shown = visibleJobs(all, seen, now)
   const jobs = open ? all.filter((job) => shown.includes(job) || held.includes(job.id)) : shown
   const active = jobs.filter((job) => ACTIVE.has(job.status))
+  const waiting = active.filter(jobIsWaiting).length
   const [only] = jobs.length === 1 ? jobs : []
-  const progress = useSmoothedProgress(only?.progress ?? 0, only?.status === 'running')
+  const onlyWaits = only !== undefined && jobIsWaiting(only)
+  const progress = useSmoothedProgress(
+    only?.progress ?? 0,
+    only?.status === 'running' && !onlyWaits,
+  )
 
   // Already-gone failures need not be remembered; keep the list short.
   const markSeen = () => {
@@ -242,7 +237,7 @@ function JobsLine() {
 
   if (jobs.length === 0) return null
 
-  let item: StatusItem & { spin?: boolean }
+  let item: StatusItem & { spin?: boolean; waiting?: boolean }
   if (only && only.status === 'failed') {
     item = {
       icon: CircleAlert,
@@ -255,6 +250,14 @@ function JobsLine() {
       tone: 'success',
       label: m.status_job_done({ name: jobTitle(only, kinds) }),
     }
+  } else if (only && onlyWaits) {
+    item = {
+      icon: Clock3,
+      label: m.status_job_waiting({ name: jobTitle(only, kinds) }),
+      // A queued job has not started: no bar yet.
+      progress: only.status === 'running' ? progress : undefined,
+      waiting: true,
+    }
   } else if (only) {
     item = {
       icon: LoaderCircle,
@@ -262,11 +265,16 @@ function JobsLine() {
       label: `${jobStageLabel(only)} · ${Math.round(progress)}%`,
       progress,
     }
+  } else if (active.length > 0 && waiting === active.length) {
+    item = { icon: Clock3, label: m.status_jobs_waiting({ count: waiting }) }
   } else if (active.length > 0) {
     item = {
       icon: LoaderCircle,
       spin: true,
-      label: m.status_jobs_running({ count: active.length }),
+      label:
+        waiting > 0
+          ? m.status_jobs_running_waiting({ running: active.length - waiting, waiting })
+          : m.status_jobs_running({ count: active.length }),
     }
   } else {
     item = { icon: CircleAlert, tone: 'error', label: m.status_jobs_failed({ count: jobs.length }) }

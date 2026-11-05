@@ -1142,6 +1142,22 @@ export type AssignmentOut = {
 };
 
 /**
+ * AssignmentParamsInputBody
+ */
+export type AssignmentParamsInputBody = {
+    /**
+     * Purpose
+     *
+     * Which purpose to configure.
+     */
+    purpose: 'chat' | 'extraction' | 'vision' | 'ocr' | 'embedding' | 'title';
+    /**
+     * Its model parameters, whichever model serves it (on Auto too).
+     */
+    params: ModelParams;
+};
+
+/**
  * AssignmentUpdate
  */
 export type AssignmentUpdate = {
@@ -1187,9 +1203,9 @@ export type AssignmentUpdateInputBody = {
      */
     model?: string | null;
     /**
-     * Model parameters.
+     * Model parameters for the purpose; left out, the current ones stay.
      */
-    params?: ModelParams;
+    params?: ModelParams | null;
 };
 
 /**
@@ -5527,6 +5543,7 @@ export type JobOut = {
      * Finished At
      */
     finished_at: string | null;
+    waiting?: JobWaiting | null;
 };
 
 /**
@@ -5541,6 +5558,24 @@ export type JobPage = {
      * Next Cursor
      */
     next_cursor: string | null;
+};
+
+/**
+ * JobWaiting
+ */
+export type JobWaiting = {
+    /**
+     * Reason
+     *
+     * What the running job waits for: `ai.provider_busy` (the provider's limit of requests at a time) or `ai.rate_limited`.
+     */
+    reason: string;
+    /**
+     * Until
+     *
+     * When it expects to go on, if known.
+     */
+    until?: string | null;
 };
 
 export type JsonValue = unknown;
@@ -7706,6 +7741,10 @@ export type Provider = {
      */
     enabled: boolean;
     /**
+     * Max Concurrency
+     */
+    max_concurrency: number | null;
+    /**
      * Last Checked At
      */
     last_checked_at: string | null;
@@ -7865,6 +7904,12 @@ export type ProviderUpdateInputBody = {
      * Turn the provider on or off.
      */
     enabled?: boolean | null;
+    /**
+     * Max Concurrency
+     *
+     * Most requests sent to the provider at once; null for the default (4).
+     */
+    max_concurrency?: number | null;
 };
 
 /**
@@ -11392,6 +11437,12 @@ export type ProviderUpdateInputBodyWritable = {
      * Turn the provider on or off.
      */
     enabled?: boolean | null;
+    /**
+     * Max Concurrency
+     *
+     * Most requests sent to the provider at once; null for the default (4).
+     */
+    max_concurrency?: number | null;
 };
 
 export type HealthzData = {
@@ -13663,6 +13714,31 @@ export type AiAssignmentUpdateResponses = {
 };
 
 export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
+
+export type AiAssignmentUpdateParamsData = {
+    body: AssignmentParamsInputBody;
+    path?: never;
+    query?: never;
+    url: '/ai/assignments/params';
+};
+
+export type AiAssignmentUpdateParamsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiAssignmentUpdateParamsError = AiAssignmentUpdateParamsErrors[keyof AiAssignmentUpdateParamsErrors];
+
+export type AiAssignmentUpdateParamsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesAiSchemasAssignmentList;
+};
+
+export type AiAssignmentUpdateParamsResponse = AiAssignmentUpdateParamsResponses[keyof AiAssignmentUpdateParamsResponses];
 
 export type AiLocalModelDownloadData = {
     body: LocalModelDownloadInputBody;

@@ -13,6 +13,11 @@
 * Every state or progress change publishes `core.job.progress` to the job's owner (SSE);
   progress-only updates are throttled to one per 250 ms.
 * `@periodic("core.cleanup", every=timedelta(hours=1))` runs a function in this process.
+* Jobs run in two lanes: `lane="bulk"` (rebuilding every vector, model downloads: minutes to
+  hours) may hold at most `job_bulk_concurrency` workers, so the others stay free for the jobs a
+  user is waiting on (an import, a new file).
+* `async with waiting("ai.rate_limited", until=...)` inside a job tells its owner what the job is
+  waiting for (`JobOut.waiting`); kept in memory, as it changes too often to be worth a write.
 """
 
 import asyncio
@@ -22,7 +27,8 @@ import os
 import socket
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, get_type_hints
@@ -103,6 +109,17 @@ class CoreJob(Base, OwnedMixin):
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
 
 
+Lane = Literal["default", "bulk"]
+
+
+class JobWaiting(BaseModel):
+    reason: str = Field(
+        description="What the running job waits for: `ai.provider_busy` (the provider's limit of "
+        "requests at a time) or `ai.rate_limited`."
+    )
+    until: datetime | None = Field(default=None, description="When it expects to go on, if known.")
+
+
 class JobOut(BaseModel):
     id: str
     kind: str
@@ -120,10 +137,67 @@ class JobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    waiting: JobWaiting | None = None
 
     @classmethod
     def of(cls, job: CoreJob) -> JobOut:
-        return cls.model_validate(job, from_attributes=True)
+        out = cls.model_validate(job, from_attributes=True)
+        if job.status == "running":
+            out.waiting = _waiting_now(job.id)
+        return out
+
+
+# --- what a running job waits for -----------------------------------------------------------
+
+# Job id → what it waits for, newest last (pages read side by side may each wait).
+_waits: dict[str, list[JobWaiting]] = {}
+
+
+@dataclass(frozen=True)
+class _Running:
+    job_id: str
+    notify: Callable[[], Awaitable[None]]
+
+
+_running: ContextVar[_Running | None] = ContextVar("semestra_running_job", default=None)
+
+
+def _waiting_now(job_id: str) -> JobWaiting | None:
+    waits = _waits.get(job_id)
+    return waits[-1] if waits else None
+
+
+def in_job() -> bool:
+    """Whether this code runs inside a job handler (background work may wait longer)."""
+    return _running.get() is not None
+
+
+@contextlib.asynccontextmanager
+async def waiting(reason: str, *, until: datetime | None = None) -> AsyncGenerator[None]:
+    """Shows the owner that the job is waiting (`JobOut.waiting`) while the block runs. Does
+    nothing outside a job."""
+    job = _running.get()
+    if job is None:
+        yield
+        return
+    entry = JobWaiting(reason=reason, until=until)
+    _waits.setdefault(job.job_id, []).append(entry)
+    await job.notify()
+    try:
+        yield
+    except BaseException:
+        _forget(job.job_id, entry)
+        raise
+    _forget(job.job_id, entry)
+    await job.notify()
+
+
+def _forget(job_id: str, entry: JobWaiting) -> None:
+    waits = _waits.get(job_id, [])
+    if entry in waits:
+        waits.remove(entry)
+    if not waits:
+        _waits.pop(job_id, None)
 
 
 class JobCancelled(Exception):
@@ -210,13 +284,18 @@ class JobHandler:
     fn: Callable[[JobCtx, Any], Awaitable[BaseModel]]
     max_attempts: int
     stages: tuple[tuple[str, float], ...]
+    lane: Lane = "default"
 
 
 _handlers: dict[str, JobHandler] = {}
 
 
 def job_handler(
-    kind: str, *, max_attempts: int = 3, stages: Sequence[tuple[str, float]] = ()
+    kind: str,
+    *,
+    max_attempts: int = 3,
+    stages: Sequence[tuple[str, float]] = (),
+    lane: Lane = "default",
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -235,13 +314,14 @@ def job_handler(
         for model in (payload_model, result_model):
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
-        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts, tuple(stages))
+        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts, tuple(stages), lane)
         return fn
 
     return decorate
 
 
 def _event(job: CoreJob) -> Event:
+    waiting = _waiting_now(job.id) if job.status == "running" else None
     data = {
         "job_id": job.id,
         "kind": job.kind,
@@ -251,6 +331,7 @@ def _event(job: CoreJob) -> Event:
         "step_current": job.step_current,
         "step_total": job.step_total,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "waiting": waiting.model_dump(mode="json") if waiting else None,
     }
     return Event(JOB_PROGRESS, data, job.user_id)
 
@@ -363,6 +444,15 @@ async def optimize_sqlite(ctx: Ctx) -> None:
 # --- worker ---------------------------------------------------------------------------------
 
 
+def _lane(kind: str) -> Lane:
+    handler = _handlers.get(kind)
+    return handler.lane if handler else "default"
+
+
+def _bulk_kinds() -> list[str]:
+    return [kind for kind, handler in _handlers.items() if handler.lane == "bulk"]
+
+
 def _end_values(now: datetime) -> dict[str, Any]:
     return {"finished_at": now, "lease_owner": None, "lease_expires_at": None, "dedupe_key": None}
 
@@ -374,9 +464,12 @@ def _backoff(attempts: int) -> timedelta:
 class JobRunner:
     """Workers and the periodic scheduler for one process (`app.state.jobs`)."""
 
-    def __init__(self, state: State, concurrency: int = 2) -> None:
+    def __init__(self, state: State, concurrency: int = 2, bulk: int = 1) -> None:
         self.state = state
         self.concurrency = concurrency
+        # Workers bulk jobs may hold; at least one is left for the others (unless there is one).
+        self.bulk = max(1, min(bulk, concurrency - 1))
+        self._bulk_running = 0
         self.owner = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self._wake = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
@@ -426,19 +519,34 @@ class JobRunner:
                 log.exception("periodic_task_failed", task=task.name)
 
     async def run_one(self) -> bool:
-        job = await self._claim()
-        if job is None:
-            return False
-        await self._execute(job)
-        return True
+        # A bulk slot is taken before claiming (no await in between), so two workers polling at
+        # once cannot both start a bulk job; it is given back when the job is not one.
+        held = self._bulk_running < self.bulk
+        bulk_ok = held
+        if held:
+            self._bulk_running += 1
+        try:
+            job = await self._claim(bulk_ok=bulk_ok)
+            if held and job is not None and _lane(job.kind) != "bulk":
+                self._bulk_running -= 1
+                held = False
+            if job is None:
+                return False
+            await self._execute(job)
+            return True
+        finally:
+            if held:
+                self._bulk_running -= 1
 
-    async def _claim(self) -> CoreJob | None:
+    async def _claim(self, *, bulk_ok: bool = True) -> CoreJob | None:
         now: datetime = self.state.now()
         lease_lapsed = and_(CoreJob.status == "running", CoreJob.lease_expires_at < now)
         async with self.state.session_factory() as db:
             # Most polls find nothing: check with a read first, so an idle worker does not take
             # SQLite's write lock every POLL_SECONDS.
             due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
+            if not bulk_ok:
+                due = and_(due, CoreJob.kind.not_in(_bulk_kinds()))
             if await db.scalar(select(CoreJob.id).where(due).limit(1)) is None:
                 return None
             # Jobs whose worker died: cancel if asked, fail if out of attempts.
@@ -529,10 +637,18 @@ class JobRunner:
                 job.id, {"status": "failed", "error_code": "core.job_unknown_kind", **end()}
             )
 
+        last = job
+
         async def report(values: dict[str, Any]) -> None:
+            nonlocal last
             row = await self._update(job.id, values)
             if row is not None:
+                last = row
                 await events.dispatch(self.state, _event(row))
+
+        async def notify() -> None:
+            # What it waits for changed: the last progress again, without a write.
+            await events.dispatch(self.state, _event(last))
 
         async with system_ctx(self.state, job.user_id) as base:
             ctx = JobCtx(
@@ -544,7 +660,12 @@ class JobRunner:
             )
             try:
                 payload = handler.payload_model.model_validate(job.payload)
-                result = await handler.fn(ctx, payload)
+                token = _running.set(_Running(job.id, notify))
+                try:
+                    result = await handler.fn(ctx, payload)
+                finally:
+                    _running.reset(token)
+                    _waits.pop(job.id, None)
             except JobCancelled:
                 await ctx.db.rollback()
                 return await self._update(job.id, {"status": "cancelled", **end()})

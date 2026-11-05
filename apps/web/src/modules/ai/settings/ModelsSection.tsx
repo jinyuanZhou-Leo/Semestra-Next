@@ -8,6 +8,7 @@ import type {
 import {
   aiAssignmentGetOptions,
   aiAssignmentUpdateMutation,
+  aiAssignmentUpdateParamsMutation,
   aiLocalModelDownloadMutation,
   aiProviderListModelsOptions,
   aiProviderListOptions,
@@ -15,7 +16,7 @@ import {
   filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, Download, KeyRound, Plus } from 'lucide-react'
+import { ChevronRight, CircleAlert, Download, KeyRound, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -49,6 +50,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
+import { FieldError } from '@/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/ui/input-group'
 import { ItemDescription } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
@@ -542,6 +546,89 @@ function PurposeRow({
   )
 }
 
+const MAX_OUTPUT_TOKENS = 200_000
+
+/** One task's own output limit, kept whichever model serves it (Auto too). */
+function MaxOutputRow({ assignment }: { assignment: Assignment }) {
+  const queryClient = useQueryClient()
+  const purpose = assignment.purpose as AiPurpose
+  const id = `ai-max-output-${purpose}`
+  const saved = assignment.params.max_tokens ?? null
+  const [draft, setDraft] = useState(saved?.toString() ?? '')
+  const update = useMutation({
+    ...aiAssignmentUpdateParamsMutation(),
+    onSuccess: () => invalidateAi(queryClient),
+    onError: toastError,
+  })
+  const tokens = draft.trim() === '' ? null : Number(draft)
+  const valid =
+    tokens === null || (Number.isInteger(tokens) && tokens >= 1 && tokens <= MAX_OUTPUT_TOKENS)
+  const save = () => {
+    if (valid && tokens !== saved) {
+      update.mutate({ body: { purpose, params: { ...assignment.params, max_tokens: tokens } } })
+    }
+  }
+  return (
+    <SettingRow
+      label={m.ai_models_max_output({ purpose: PURPOSE_TITLES[purpose]() })}
+      description={purpose === 'extraction' ? m.ai_models_max_output_extraction_hint() : null}
+      htmlFor={id}
+      note={valid ? null : <FieldError>{m.ai_models_max_output_invalid()}</FieldError>}
+    >
+      <InputGroup className="w-40">
+        <InputGroupInput
+          id={id}
+          type="text"
+          inputMode="numeric"
+          placeholder={m.ai_models_max_output_default()}
+          aria-invalid={valid ? undefined : true}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save()
+          }}
+        />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{m.ai_models_max_output_tokens()}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+    </SettingRow>
+  )
+}
+
+/** Under the models: each task's output limit, folded away unless one is set. */
+function AdvancedSection({ assignments }: { assignments: readonly Assignment[] }) {
+  return (
+    <Collapsible defaultOpen={assignments.some((a) => a.params.max_tokens != null)}>
+      <CollapsibleTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="group/trigger -ml-2 justify-start font-normal aria-expanded:bg-transparent"
+          />
+        }
+      >
+        <ChevronRight
+          aria-hidden
+          className="text-muted-foreground transition-transform group-data-panel-open/trigger:rotate-90"
+        />
+        <span className="font-medium">{m.ai_provider_advanced()}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-2">
+          <SettingsGroup>
+            {assignments.map((assignment) => (
+              <MaxOutputRow key={assignment.purpose} assignment={assignment} />
+            ))}
+          </SettingsGroup>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 /** No provider at all: one empty state that leads to adding one. */
 function NoProviders() {
   const settings = useSettingsDialog()
@@ -620,6 +707,14 @@ export function ModelsSection() {
             })}
           </SettingsGroup>
           <SettingsNote>{m.ai_models_intro()}</SettingsNote>
+          <AdvancedSection
+            // Embeddings have no output, and a model this server runs takes no limit.
+            assignments={data.items.filter(
+              (a) =>
+                a.purpose !== 'embedding' &&
+                status.data?.items.find((s) => s.purpose === a.purpose)?.source !== 'local',
+            )}
+          />
         </div>
       )}
     </AsyncBoundary>

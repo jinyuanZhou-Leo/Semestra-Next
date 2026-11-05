@@ -35,8 +35,11 @@ you ticked vision.
 
 ## Model parameters
 
-On **Models** each purpose can override temperature (0 to 2), the output token limit, and the
-reasoning effort (`minimal`, `low`, `medium`, `high`) for models that support it.
+Under **Advanced** at the bottom of **Models**, each task can have its own limit on output per
+request, in tokens. It applies whichever model serves the task, Auto included; leave it empty to
+use the model's default. Raise it for reading documents if a long syllabus is read only in part.
+How long Semestra waits for an answer is worked out from this limit, so a higher one lets long
+tasks wait longer. Search has no output to limit.
 
 ## Reading documents and search
 
@@ -48,6 +51,17 @@ reasoning effort (`minimal`, `low`, `medium`, `high`) for models that support it
   re-indexed after your next search; until then search matches by keyword.
 - A service that takes fewer texts per request (Alibaba Cloud Model Studio takes 10) gets smaller
   batches automatically.
+
+## Requests at a time
+
+Semestra sends at most four requests to one provider at once; the others wait their turn.
+Background work never takes the last one, so Sem and search do not wait behind it. To
+change this, open **Edit** in the provider's ⋯ menu and set **Most requests at a time** under
+**Advanced**. Lower it if the provider often reports too many requests.
+
+Background work (imports, scanned pages, search indexing) waits out a provider's rate limit for
+up to five minutes; the status bar shows it as waiting. Sem and search give up after a few
+seconds, so you are not kept waiting.
 
 ## Private addresses
 

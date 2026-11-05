@@ -16,7 +16,8 @@ from sqlalchemy import update
 from sqlalchemy.exc import OperationalError
 from starlette.datastructures import State
 
-from semestra.modules.ai.adapters.base import ModelInfo
+from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
+from semestra.modules.ai.adapters.limits import Gate, Limiters, no_gate
 from semestra.modules.ai.models import AiProvider, AiUsageEvent
 
 log = structlog.get_logger()
@@ -39,6 +40,13 @@ class AiRuntime:
         # (base URL, provider id) → the most inputs its embeddings endpoint took in one request,
         # learnt from a refusal (`calls.embed`).
         self.embed_batch: dict[tuple[str, str | None], int] = {}
+        self._limiters = Limiters()
+
+    def gate(self, ep: Endpoint) -> Gate:
+        """A slot of the endpoint's limit of requests at a time, for each request to it."""
+        if ep.provider_id is None and ep.max_concurrency is None:
+            return no_gate  # the instance provider, unless the server set a limit
+        return self._limiters.gate(ep.base_url, ep.provider_id, ep.max_concurrency)
 
     def _spawn(self, state: State, write: Any) -> None:
         try:

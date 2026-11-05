@@ -46,7 +46,7 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
 
 
-@job_handler("files.reindex_vectors", stages=[("embedding", 1)], max_attempts=2)
+@job_handler("files.reindex_vectors", stages=[("embedding", 1)], max_attempts=2, lane="bulk")
 async def reindex_vectors(ctx: JobCtx, payload: ReindexPayload) -> ReindexResult:
     return ReindexResult(items_rebuilt=await pipeline.reindex_vectors(ctx, retry=payload.retry))
 

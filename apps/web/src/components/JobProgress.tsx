@@ -1,5 +1,7 @@
 import type { JobOut } from '@semestra/api-client'
-import { useJob } from '@/hooks/use-job'
+import { Clock3 } from 'lucide-react'
+import { jobIsWaiting, jobWaitingText, jobWaitsUntil, useJob } from '@/hooks/use-job'
+import { useNow } from '@/hooks/use-now'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -26,7 +28,10 @@ export function JobProgress({
 }) {
   const { job, status, progress, stageLabel, stageName, count } = useJob(jobId, seed)
   const active = status === 'pending' || status === 'running'
-  const displayed = Math.round(useSmoothedProgress(progress, status === 'running'))
+  const waiting = job ? jobIsWaiting(job) : false
+  const displayed = Math.round(useSmoothedProgress(progress, status === 'running' && !waiting))
+  // Ticks while a rate limit's wait counts down.
+  const now = useNow((at) => job != null && (jobWaitsUntil(job) ?? 0) > at, 1000)
   if (!job) return null
 
   const text =
@@ -38,8 +43,8 @@ export function JobProgress({
           })
         : status === 'cancelled'
           ? m.job_cancelled()
-          : status === 'pending'
-            ? m.job_pending()
+          : waiting
+            ? jobWaitingText(job, now)
             : stageLabel
   const value = status === 'succeeded' ? 100 : displayed
   const tone = status === 'failed' ? 'error' : status === 'succeeded' ? 'success' : 'default'
@@ -87,8 +92,11 @@ export function JobProgress({
             tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          <span className="truncate">{status === 'running' && count ? stageName : text}</span>
-          {status === 'running' && count ? (
+          {waiting ? <Clock3 aria-hidden className="size-3.5 shrink-0 translate-y-px" /> : null}
+          <span className="truncate">
+            {status === 'running' && count && !waiting ? stageName : text}
+          </span>
+          {status === 'running' && count && !waiting ? (
             <span className="shrink-0 tabular-nums">{count.text}</span>
           ) : null}
         </span>
@@ -99,6 +107,7 @@ export function JobProgress({
         aria-label={text}
         className={cn(
           '[&_[data-slot=progress-track]]:h-1',
+          waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
           tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
           tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
         )}

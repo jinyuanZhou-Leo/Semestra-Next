@@ -29,6 +29,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     capabilities: ['chat', 'tools', 'vision', 'structured'],
     capabilities_editable: false,
     enabled: true,
+    max_concurrency: null,
     last_checked_at: '2026-01-15T12:00:00Z',
     last_error_code: null,
     created_at: '2026-01-15T12:00:00Z',
@@ -40,6 +41,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
 type World = {
   providers: Provider[]
   assignments: Record<string, { provider_id: string; model: string }>
+  params: Record<string, Assignment['params']>
 }
 let world: World
 const requests: { method: string; path: string; body: unknown }[] = []
@@ -133,7 +135,7 @@ function aiHandlers() {
           purpose,
           provider_id: world.assignments[purpose]?.provider_id ?? null,
           model: world.assignments[purpose]?.model ?? null,
-          params: {},
+          params: world.params[purpose] ?? {},
           recommended:
             world.providers[0] && purpose !== 'embedding'
               ? { provider_id: world.providers[0].id, model: 'claude-sonnet-5-5' }
@@ -152,11 +154,16 @@ function aiHandlers() {
       else delete world.assignments[body.purpose]
       return HttpResponse.json({ items: [] })
     }),
+    http.put(`${API}/ai/assignments/params`, async ({ request }) => {
+      const body = (await record(request)) as { purpose: string; params: Assignment['params'] }
+      world.params[body.purpose] = body.params
+      return HttpResponse.json({ items: [] })
+    }),
   ]
 }
 
 beforeEach(() => {
-  world = { providers: [], assignments: {} }
+  world = { providers: [], assignments: {}, params: {} }
   requests.length = 0
   server.use(...aiHandlers())
 })
@@ -487,6 +494,26 @@ test('a model is picked from one searchable list, and Auto goes back to the reco
       body: { purpose: 'extraction', provider_id: null },
     }),
   )
+})
+
+test("a task's output limit is set under Advanced, and applies on Auto too", async () => {
+  world.providers.push(provider())
+  const user = userEvent.setup()
+  renderWithQuery(<ModelsSection />)
+  await user.click(await screen.findByRole('button', { name: 'Advanced' }))
+  await user.type(
+    screen.getByLabelText('Reading documents · most output per request'),
+    '32000{Enter}',
+  )
+  await waitFor(() =>
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      path: '/ai/assignments/params',
+      body: { purpose: 'extraction', params: { max_tokens: 32000 } },
+    }),
+  )
+  // Embeddings have no output to limit.
+  expect(screen.queryByLabelText('Search · most output per request')).not.toBeInTheDocument()
 })
 
 test('an endpoint that lists no models takes the name typed into the search box', async () => {

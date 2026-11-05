@@ -4,12 +4,15 @@ import asyncio
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 import httpx
 import structlog
 
+from semestra.core import jobs
 from semestra.core.errors import AppError
+from semestra.modules.ai.adapters.limits import Gate, no_gate
 from semestra.modules.ai.llm import ProviderCapability, Usage
 
 log = structlog.get_logger()
@@ -18,6 +21,11 @@ log = structlog.get_logger()
 MAX_RETRIES = 3
 RETRY_BASE_SECONDS = 1.0  # tests set this to 0
 MAX_RETRY_AFTER_SECONDS = 30.0
+# A request made from a job waits a rate limit out for this long in all (per-minute limits need
+# tens of seconds), each wait up to BACKGROUND_MAX_WAIT_SECONDS, at most BACKGROUND_RETRIES times.
+BACKGROUND_PATIENCE_SECONDS = 300.0
+BACKGROUND_MAX_WAIT_SECONDS = 90.0
+BACKGROUND_RETRIES = 10
 # A request gives up after this long; a stream after this long without data.
 CALL_TIMEOUT_SECONDS = 120.0
 STREAM_IDLE_TIMEOUT_SECONDS = 60.0
@@ -43,6 +51,8 @@ class Endpoint:
     capabilities: tuple[ProviderCapability, ...]
     provider_id: str | None  # None = the instance-wide provider
     display_name: str
+    # Most requests sent at once (`limits`); None = the default.
+    max_concurrency: int | None = None
 
     def __repr__(self) -> str:  # keep the key out of tracebacks and logs
         return f"Endpoint(kind={self.kind!r}, base_url={self.base_url!r})"
@@ -73,6 +83,7 @@ class Adapter(Protocol):
         *,
         query: bool = False,
         retry: bool = True,
+        gate: Gate = no_gate,
     ) -> tuple[list[list[float]], Usage]: ...
 
     async def list_models(self, client: httpx.AsyncClient, ep: Endpoint) -> list[ModelInfo]: ...
@@ -226,8 +237,27 @@ def retryable(error: AppError, exc: BaseException) -> bool:
     )
 
 
-async def backoff(attempt: int, error: AppError) -> None:
-    delay = RETRY_BASE_SECONDS * (2**attempt)
+def retry_delay(attempt: int, error: AppError, waited: float) -> float | None:
+    """How long to wait before trying again after `attempt` failed tries (and `waited` seconds of
+    waiting so far), or None to give up. A job waits longer for a rate limit (see the limits
+    above); everything else gets MAX_RETRIES tries with a short backoff."""
+    patient = error.code == "ai.rate_limited" and jobs.in_job()
+    if attempt >= (BACKGROUND_RETRIES if patient else MAX_RETRIES):
+        return None
+    cap = BACKGROUND_MAX_WAIT_SECONDS if patient else MAX_RETRY_AFTER_SECONDS
+    delay = min(RETRY_BASE_SECONDS * (2**attempt), cap)
     if (after := error.params.get("retry_after")) is not None:
-        delay = min(float(after), MAX_RETRY_AFTER_SECONDS) if RETRY_BASE_SECONDS else 0
-    await asyncio.sleep(delay)
+        delay = min(float(after), cap) if RETRY_BASE_SECONDS else 0
+    if patient and waited + delay > BACKGROUND_PATIENCE_SECONDS:
+        return None
+    return delay
+
+
+async def backoff(delay: float, error: AppError) -> None:
+    """Waits `delay` seconds; a job shows it is waiting out a rate limit."""
+    if error.code != "ai.rate_limited":
+        await asyncio.sleep(delay)
+        return
+    until = datetime.now(UTC) + timedelta(seconds=delay)
+    async with jobs.waiting("ai.rate_limited", until=until):
+        await asyncio.sleep(delay)

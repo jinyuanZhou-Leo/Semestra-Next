@@ -280,7 +280,9 @@ async def _run[T](
         read = answer_timeout(resolved.params.max_tokens) if whole_answer else None
         async with _client(call.ctx, stream=False, read=read) as client:
             ep = resolved.endpoint
-            return await work(semestra_model(client, ep, resolved.model, resolved.params, record))
+            gate = runtime(call.ctx.state).gate(ep)
+            model = semestra_model(client, ep, resolved.model, resolved.params, record, gate)
+            return await work(model)
     except AppError as exc:
         failure = exc
         raise
@@ -517,7 +519,7 @@ async def embed(
         try:
             async with _client(ctx, stream=False) as client:
                 batch_vectors, usage = await adapter_for(ep.kind).embed(
-                    client, ep, resolved.model, batch, query=query, retry=retry
+                    client, ep, resolved.model, batch, query=query, retry=retry, gate=rt.gate(ep)
                 )
         except AppError as exc:
             _finish(call, Usage(), error=exc)
@@ -627,6 +629,7 @@ async def agent_model(
         )
 
     async with _client(ctx, stream=True) as client:
+        gate = runtime(ctx.state).gate(ep)
         yield AgentModel(
-            semestra_model(client, ep, resolved.model, resolved.params, record), resolved
+            semestra_model(client, ep, resolved.model, resolved.params, record, gate), resolved
         )

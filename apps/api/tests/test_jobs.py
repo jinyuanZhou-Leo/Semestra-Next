@@ -82,6 +82,21 @@ async def slow(ctx: JobCtx, payload: Payload) -> Result:
 
 
 running_clock: list[Clock] = []
+seen_waiting: list[Any] = []
+
+
+@job_handler("test.bulk", lane="bulk")
+async def bulk(ctx: JobCtx, payload: Payload) -> Result:
+    return Result()
+
+
+@job_handler("test.waits")
+async def waits(ctx: JobCtx, payload: Payload) -> Result:
+    async with jobs.waiting("ai.provider_busy"), ctx.state.session_factory() as db:
+        row = await db.get(CoreJob, ctx.job_id)
+        assert row is not None
+        seen_waiting.append(jobs.JobOut.of(row).waiting)
+    return Result()
 
 
 async def start(app: FastAPI, user_id: str, kind: str, **kwargs: Any) -> str:
@@ -326,3 +341,29 @@ async def test_finished_at_is_when_the_job_ends(app: FastAPI, make_user: MakeUse
     assert (await get(app, job_id)).finished_at == clock.now
     assert messages[-1]["data"]["status"] == "succeeded"
     assert messages[-1]["data"]["finished_at"] == clock.now.isoformat()
+
+
+async def test_bulk_jobs_leave_a_worker_for_the_others(app: FastAPI, make_user: MakeUser):
+    user = await make_user()
+    rebuild = await start(app, user.id, "test.bulk")
+    upload = await start(app, user.id, "test.ok")
+    runner = JobRunner(app.state, concurrency=2, bulk=1)
+    runner._bulk_running = 1  # another worker is already rebuilding
+    assert await runner.run_one() is True
+    assert (await get(app, upload)).status == "succeeded"
+    assert (await get(app, rebuild)).status == "pending"  # older, but waits for the bulk slot
+    runner._bulk_running = 0
+    assert await runner.run_one() is True
+    assert (await get(app, rebuild)).status == "succeeded"
+
+
+async def test_a_job_shows_what_it_waits_for(app: FastAPI, make_user: MakeUser):
+    user = await make_user()
+    seen_waiting.clear()
+    with collect_events(app, user.id) as messages:
+        job_id = await start(app, user.id, "test.waits")
+        await app.state.jobs.run_until_idle()
+    assert [w.reason for w in seen_waiting] == ["ai.provider_busy"]
+    waits = [m["data"]["waiting"] for m in messages if m["data"].get("status") == "running"]
+    assert waits[-2:] == [{"reason": "ai.provider_busy", "until": None}, None]
+    assert jobs.JobOut.of(await get(app, job_id)).waiting is None
