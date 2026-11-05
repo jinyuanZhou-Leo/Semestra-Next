@@ -1032,7 +1032,6 @@
   "ai_models_local_accuracy": "准确",
   "ai_models_local_level": "{label}：{level}/3",
   "ai_models_local_missing": "未下载",
-  "ai_models_local_download_failed": "下载失败，请检查服务器网络",
   "ai_models_local_retry": "重试",
   "ai_models_local_download": "下载",
   "ai_models_local_downloading": "正在下载…",

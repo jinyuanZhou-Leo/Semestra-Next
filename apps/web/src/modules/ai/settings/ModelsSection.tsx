@@ -22,7 +22,7 @@ import { JobProgress } from '@/components/JobProgress'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { useJob } from '@/hooks/use-job'
 import { formatBytes } from '@/lib/format'
-import { toastError } from '@/lib/errors'
+import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -171,7 +171,7 @@ function LocalModelDownload({
   jobId: string | null
 }) {
   const queryClient = useQueryClient()
-  const { status } = useJob(jobId)
+  const { job, status } = useJob(jobId)
   const start = useMutation({
     ...aiLocalModelDownloadMutation(),
     onSuccess: () => invalidateAi(queryClient),
@@ -192,7 +192,14 @@ function LocalModelDownload({
   if (jobId && failed) {
     return (
       <ItemDescription className="flex flex-wrap items-center gap-2 text-destructive">
-        {m.ai_models_local_download_failed()}
+        {status === 'cancelled'
+          ? m.job_cancelled()
+          : errorMessage({
+              error: {
+                code: job?.error_code ?? 'common.internal',
+                params: job?.error_params ?? {},
+              },
+            })}
         {button}
       </ItemDescription>
     )

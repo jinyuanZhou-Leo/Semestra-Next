@@ -1032,7 +1032,6 @@
   "ai_models_local_accuracy": "Accuracy",
   "ai_models_local_level": "{label}: {level} of 3",
   "ai_models_local_missing": "Not downloaded",
-  "ai_models_local_download_failed": "Couldn't download. Check this server's internet connection.",
   "ai_models_local_retry": "Retry",
   "ai_models_local_download": "Download",
   "ai_models_local_downloading": "Downloading…",

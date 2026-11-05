@@ -507,7 +507,12 @@ async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
     `retry` (the periodic retry) leaves out documents that already failed VECTOR_RETRIES times."""
     store = get_vector_store()
     if not await ai.available(ctx, "embedding"):
-        await ai.local_jobs.prepare_embedding(ctx)
+        # A local model is fetched only once there is something to embed with it.
+        has_text = await ctx.db.scalar(
+            select(FilesChunk.id).where(FilesChunk.user_id == ctx.user_id).limit(1)
+        )
+        if has_text is not None:
+            await ai.local_jobs.prepare_embedding(ctx)
         await ctx.skip_stage("embedding")
         return 0
     async with ctx.state.session_factory() as db:

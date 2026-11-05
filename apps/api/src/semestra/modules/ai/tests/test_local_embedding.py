@@ -114,6 +114,8 @@ async def test_custom_models_are_checked_before_they_are_saved(
     entry = _entry(await ai.call("GET", "/ai/status"))
     assert entry["models"][-1] == "BAAI/bge-small-zh-v1.5"
     assert entry["download_job"] is None  # downloads when first needed, or from settings
+    await run_jobs()  # the vector rebuild has nothing to embed, so it fetches nothing
+    assert local["fetched"] == []
     body = {"purpose": "embedding"}
     await ai.call("POST", "/ai/local-models/download", json=body)
     await run_jobs()
