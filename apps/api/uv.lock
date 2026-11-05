@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
@@ -7,22 +7,22 @@ resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
     "python_full_version >= '3.15' and sys_platform == 'emscripten' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
     "(python_full_version >= '3.15' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')",
-    "python_full_version < '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
-    "python_full_version < '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
-    "python_full_version < '3.15' and sys_platform == 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
-    "(python_full_version < '3.15' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')",
     "python_full_version >= '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version >= '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version >= '3.15' and sys_platform == 'win32' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version >= '3.15' and sys_platform == 'emscripten' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "(python_full_version >= '3.15' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr')",
+    "python_full_version >= '3.15' and extra != 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
+    "python_full_version < '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
+    "python_full_version < '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
+    "python_full_version < '3.15' and sys_platform == 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
+    "python_full_version < '3.15' and sys_platform == 'emscripten' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
+    "(python_full_version < '3.15' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')",
     "python_full_version < '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version < '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version < '3.15' and sys_platform == 'win32' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version < '3.15' and sys_platform == 'emscripten' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "(python_full_version < '3.15' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr')",
-    "python_full_version >= '3.15' and extra != 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
     "python_full_version < '3.15' and extra != 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr'",
 ]
 conflicts = [[
@@ -236,7 +236,7 @@ version = "4.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.15' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.15'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a1/98/7e457a3b014976887a050561955c0b76e1e7e2d6e27b78ecef2ef80518f2/anyio-4.16.0.tar.gz", hash = "sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb", size = 310971, upload-time = "2026-11-01T11:20:07.282Z" }
 wheels = [
@@ -357,7 +357,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -625,7 +625,7 @@ name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/af/182eb91b0df3fe75c4d9f26fe70684569566745f6ba7e5c9c73a862c5252/cryptography-50.0.2.tar.gz", hash = "sha256:7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5", size = 880623, upload-time = "2026-09-30T15:30:04.884Z" }
 wheels = [
@@ -1059,11 +1059,11 @@ name = "httpx2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
-    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
-    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "anyio", marker = "sys_platform != 'emscripten'" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten'" },
     { name = "idna" },
-    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/73/5ca2cedf5e4e50423d1c258877865a6b62793633b561c58499f8aeb33b7e/httpx2-2.16.0.tar.gz", hash = "sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f", size = 103116, upload-time = "2026-10-21T07:09:46.348Z" }
 wheels = [
@@ -1087,7 +1087,7 @@ dependencies = [
     { name = "click" },
     { name = "filelock" },
     { name = "fsspec" },
-    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'ARM64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'ARM64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
     { name = "httpx2" },
     { name = "packaging" },
     { name = "pyyaml" },
@@ -1490,12 +1490,12 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/8d/e0d339616f4810e9051d4aba6887afab289ab1f81875fe908b606cdfd0e3/mcp-2.3.0.tar.gz", hash = "sha256:8b147a50441cf059dc88c684e0aeed3687f0aa0f39c6cde7b90330effd2b34d8", size = 4171955, upload-time = "2026-10-02T22:06:56.091Z" }
 wheels = [
@@ -1751,10 +1751,10 @@ name = "onnxruntime-gpu"
 version = "1.31.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "flatbuffers" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "protobuf" },
+    { name = "flatbuffers", marker = "sys_platform != 'darwin'" },
+    { name = "numpy", marker = "sys_platform != 'darwin'" },
+    { name = "packaging", marker = "sys_platform != 'darwin'" },
+    { name = "protobuf", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/56/23015d5deaf361d85eacf5db7d9c2d60552c728f5c1884dbf279a3e42d19/onnxruntime_gpu-1.31.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:52a9ec263f331678e8fcb4f71a6fa44e5f901f0aac0b61fbe5a61517f2b4cc7d", size = 255572322, upload-time = "2026-10-26T19:10:53.757Z" },
@@ -2507,7 +2507,7 @@ name = "pytest"
 version = "9.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -2925,7 +2925,7 @@ wheels = [
 
 [[package]]
 name = "semestra-api"
-version = "1.12.0"
+version = "1.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -2965,7 +2965,7 @@ dependencies = [
     { name = "structlog" },
     { name = "tzdata" },
     { name = "uvicorn" },
-    { name = "uvloop", marker = "sys_platform != 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "uvloop", marker = "sys_platform != 'win32'" },
     { name = "watchfiles" },
     { name = "websockets" },
 ]
@@ -3376,7 +3376,7 @@ name = "tqdm"
 version = "4.70.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz", hash = "sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4", size = 171846, upload-time = "2026-09-11T07:25:16.601Z" }
 wheels = [

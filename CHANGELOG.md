@@ -3,6 +3,18 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.13.0 (2026-11-04)
+
+### New
+
+- **Self-hosting:** Self-hosted servers can run search embedding models locally, so file search works without an AI provider. Choose a built-in model or any Hugging Face model with an ONNX version. The default image is now tagged -local; the -ocr tag still works.
+
+### Fixed
+
+- **General:** Finished background tasks now stay in the status bar for about 15 seconds, and while the task list is open.
+- **Calendar:** Polished the calendar: rounded month and agenda views, cleaner all-day events and week numbers, and clearer date ranges.
+- **Settings:** Closing settings after following a link to another settings page now closes the dialog in one step.
+
 ## 1.12.0 (2026-11-04)
 
 ### New

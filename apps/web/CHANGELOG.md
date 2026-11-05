@@ -1,5 +1,26 @@
 # @semestra/web
 
+## 1.13.0
+
+### Patch Changes
+
+- 8a5064b: <!-- area: calendar -->
+  <!-- en -->
+  Polished the calendar: rounded month and agenda views, cleaner all-day events and week numbers, and clearer date ranges.
+  <!-- zh -->
+  优化日历细节：月视图与日程视图改为圆角，全天事件与周次显示更简洁，日期范围更清晰。
+- c9c83ad: <!-- area: general -->
+  <!-- en -->
+  Finished background tasks now stay in the status bar for about 15 seconds, and while the task list is open.
+  <!-- zh -->
+  后台任务完成后会在状态条保留约 15 秒，任务列表打开期间也不会消失。
+- cdc4e1c: <!-- area: settings -->
+  <!-- en -->
+  Closing settings after following a link to another settings page now closes the dialog in one step.
+  <!-- zh -->
+  在设置内跳转到其他设置页后，点一次关闭即可退出设置。
+- @semestra/api-client@1.13.0
+
 ## 1.12.0
 
 ### Minor Changes

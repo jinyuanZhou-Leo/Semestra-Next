@@ -1,5 +1,23 @@
 # @semestra/api
 
+## 1.13.0
+
+### Minor Changes
+
+- 3692fa4: <!-- area: self-hosting -->
+  <!-- en -->
+  Self-hosted servers can run search embedding models locally, so file search works without an AI provider. Choose a built-in model or any Hugging Face model with an ONNX version. The default image is now tagged -local; the -ocr tag still works.
+  <!-- zh -->
+  自部署服务器可以在本机运行搜索用的 embedding 模型，不接 AI 服务商也能搜索文件内容。可以选内置模型，也可以使用 Hugging Face 上任何带 ONNX 版本的模型。默认镜像的标签改为 -local，原来的 -ocr 标签仍然可用。
+
+### Patch Changes
+
+- c9c83ad: <!-- area: general -->
+  <!-- en -->
+  Finished background tasks now stay in the status bar for about 15 seconds, and while the task list is open.
+  <!-- zh -->
+  后台任务完成后会在状态条保留约 15 秒，任务列表打开期间也不会消失。
+
 ## 1.12.0
 
 No changes in this release.
