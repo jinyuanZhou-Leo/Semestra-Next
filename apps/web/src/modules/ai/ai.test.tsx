@@ -601,7 +601,7 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
         local: [
           {
             purpose: 'embedding',
-            models: ['multilingual-e5-small', 'bge-m3'],
+            models: ['multilingual-e5-small', 'bge-m3', 'qwen3-embedding-0.6b'],
             default: 'bge-m3',
             downloaded: ['bge-m3'],
             downloading: [],

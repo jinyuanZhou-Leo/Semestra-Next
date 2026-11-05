@@ -57,6 +57,8 @@ class Preset:
     pooling: Pooling
     query_prefix: str = ""
     passage_prefix: str = ""
+    # The export to use on every device, when the usual pick (int8 on the CPU) is not good enough.
+    onnx: str = ""
 
 
 # The presets, smallest first. Each comes from a repository with ready-made ONNX exports.
@@ -65,9 +67,18 @@ PRESETS: dict[str, Preset] = {
         "intfloat/multilingual-e5-small", "mean", query_prefix="query: ", passage_prefix="passage: "
     ),
     "bge-m3": Preset("Xenova/bge-m3", "cls"),
-    # Not Qwen3-Embedding-0.6B: its int8 export strays from the original (cosine 0.83-0.88,
-    # and a text's vector depends on its batch), fp16 runs at 0.7 texts a second on an M3 CPU
-    # (2026-11-04). Users can still add it by name.
+    # fp16 even on the CPU: the int8 export strays from the original model (cosine 0.83-0.88,
+    # and a text's vector depends on its batch); fp16 matches it, at about 0.7 texts of ~360
+    # tokens a second on an M3 (2026-11-04).
+    "qwen3-embedding-0.6b": Preset(
+        "onnx-community/Qwen3-Embedding-0.6B-ONNX",
+        "last",
+        query_prefix=(
+            "Instruct: Given a web search query, retrieve relevant passages that answer the query\n"
+            "Query:"
+        ),
+        onnx="onnx/model_fp16.onnx",
+    ),
 }
 DEFAULT = "multilingual-e5-small"
 # Chunks are far shorter than any model's limit; longer input only costs time.
@@ -220,7 +231,8 @@ def plan(settings: Settings, model: str) -> _Plan:
     """What to download for `model`, from its repository's file list (blocking). Raises
     `ai.local_model_*` errors for a repository that does not exist, has no ONNX export or
     tokenizer, or is larger than the server allows."""
-    repo = PRESETS[model].repo if model in PRESETS else model
+    preset = PRESETS.get(model)
+    repo = preset.repo if preset else model
     try:
         info = _api().model_info(repo, files_metadata=True)
     except Exception as exc:
@@ -231,6 +243,8 @@ def plan(settings: Settings, model: str) -> _Plan:
         raise AppError("ai.local_model_unreachable", 502, model=model) from exc
     sizes = {s.rfilename: s.size or 0 for s in info.siblings or []}
     preferred = _GPU_FILES if _gpu_device(settings) else _CPU_FILES
+    if preset and preset.onnx:
+        preferred = (preset.onnx,)
     onnx = next((f for f in preferred if f in sizes), None)
     if onnx is None or "tokenizer.json" not in sizes:
         raise AppError("ai.local_model_no_onnx", 400, model=model)

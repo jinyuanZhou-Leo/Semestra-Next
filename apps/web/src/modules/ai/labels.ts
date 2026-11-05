@@ -135,6 +135,7 @@ export const LOCAL_MODEL_HINTS: Record<string, Message> = {
   'PP-OCRv5_server': m.ai_local_ocr_v5_server,
   'multilingual-e5-small': m.ai_local_embedding_e5_small,
   'bge-m3': m.ai_local_embedding_bge_m3,
+  'qwen3-embedding-0.6b': m.ai_local_embedding_qwen3,
 }
 
 export const CAPABILITY_TITLES: Record<Capability, Message> = {

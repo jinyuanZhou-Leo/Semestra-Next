@@ -132,7 +132,7 @@ COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 # No model is in the image: each downloads into the data volume the first time it is needed,
 # with progress in the app. This one is used until a user picks another in settings
 # (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server; embedding: multilingual-e5-small,
-# bge-m3). Embedding models go to /data/models/embedding.
+# bge-m3, qwen3-embedding-0.6b). Embedding models go to /data/models/embedding.
 ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
 ARG LOCAL_EMBEDDING_MODEL=multilingual-e5-small
 ENV SEMESTRA_SERVE_WEB=true \
