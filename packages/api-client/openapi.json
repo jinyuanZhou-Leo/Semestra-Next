@@ -4176,6 +4176,56 @@
         ]
       }
     },
+    "/ai/assignments/params": {
+      "put": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Set the model parameters of one AI purpose (output limit, reasoning effort).",
+        "description": "They apply whichever model serves the purpose, Auto included. Not for agents.",
+        "operationId": "aiAssignmentUpdateParams",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentParamsInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__ai__schemas__AssignmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/ai/local-models/download": {
       "post": {
         "tags": [
@@ -18027,6 +18077,33 @@
         ],
         "title": "AssignmentOut"
       },
+      "AssignmentParamsInputBody": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "extraction",
+              "vision",
+              "ocr",
+              "embedding",
+              "title"
+            ],
+            "title": "Purpose",
+            "description": "Which purpose to configure."
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelParams",
+            "description": "Its model parameters, whichever model serves it (on Auto too)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "params"
+        ],
+        "title": "AssignmentParamsInputBody"
+      },
       "AssignmentUpdate": {
         "properties": {
           "external_id": {
@@ -18100,8 +18177,15 @@
             "description": "Model name at that provider."
           },
           "params": {
-            "$ref": "#/components/schemas/ModelParams",
-            "description": "Model parameters."
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelParams"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model parameters for the purpose; left out, the current ones stay."
           }
         },
         "type": "object",
@@ -25536,6 +25620,16 @@
               }
             ],
             "title": "Finished At"
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobWaiting"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -25586,6 +25680,33 @@
           "next_cursor"
         ],
         "title": "JobPage"
+      },
+      "JobWaiting": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "What the running job waits for: `ai.provider_busy` (the provider's limit of requests at a time) or `ai.rate_limited`."
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until",
+            "description": "When it expects to go on, if known."
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "JobWaiting"
       },
       "JsonValue": {},
       "LinkCreateInputBody": {
@@ -29417,6 +29538,17 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "max_concurrency": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Concurrency"
+          },
           "last_checked_at": {
             "anyOf": [
               {
@@ -29461,6 +29593,7 @@
           "capabilities",
           "capabilities_editable",
           "enabled",
+          "max_concurrency",
           "last_checked_at",
           "last_error_code",
           "created_at",
@@ -29750,6 +29883,20 @@
             ],
             "title": "Enabled",
             "description": "Turn the provider on or off."
+          },
+          "max_concurrency": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 32.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Concurrency",
+            "description": "Most requests sent to the provider at once; null for the default (4)."
           }
         },
         "type": "object",

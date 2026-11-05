@@ -37,6 +37,10 @@ ai_model_assignments               # 每个用途用哪个模型
   provider_id, model (如 "claude-sonnet-5-5" / "gpt-…" / "nomic-embed-text"),
   params JSON {temperature?, max_tokens?, reasoning_effort?}
   PRIMARY KEY (user_id, purpose)
+  # provider_id 与 model 都为空 = “自动”但带参数：params 对自动选出的模型（推荐、实例级）同样生效；
+  # 既是自动又没有参数时不留行。参数单独用 `ai.assignment.update_params`（PUT /ai/assignments/params）改，
+  # 换模型（`ai.assignment.update` 不带 params）保留原参数，删除服务商时它的行改回自动并保留参数。
+  # 前端在模型页底部“高级”折叠区按用途设置单次最多输出（embedding 与本机 OCR 没有）；温度与推理强度只能通过 API 设置。
 
 ai_usage_events
   id, user_id, purpose, provider_kind, model, source_module, source_ref?,
@@ -158,4 +162,6 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
   - 结构化抽取默认不推理：Anthropic 类仍显式关闭 thinking，其余用 Pydantic AI 的 `thinking=False`（OpenAI 推理模型用最低强度、Gemini 关闭或最低思考）；用户为该用途设置了推理强度时（OpenAI 类）以用户为准。
   - 服务商 embedding 按 `defaults.toml` 的 `[embedding_profiles]`（按模型名前缀，去掉 `vendor/` 与 Ollama `:tag`）区分查询和文档：nomic-embed-text、E5、Qwen3 Embedding、EmbeddingGemma 等加前缀，Gemini 传 `task_type` 并取 768 维。带前缀的模型在向量空间名里加 `+prefixed`（`embedding_model()` 与 `EmbeddingResult.model`），所以已有向量会重建（M07 在搜索时发现旧空间后排重建）。
   - 批量 embedding 只在被拒原因和批大小有关时缩小：报错里有条数上限（如百炼“不大于 10”，解析进 `ai.request_rejected` 的 `batch_limit`）就按它重试，成功后按端点记在 `AiRuntime.embed_batch`；`ai.context_too_long`（含 413）只在这次调用里减半，不记住。其它 400（模型名错、参数不支持、某一段被拒）直接报错。Gemini 429 的 `retryDelay`（响应体）也当作 Retry-After。
+  - 按端点限并发（`adapters/limits.py`，Pydantic AI 的 `ConcurrencyLimiter`，每个 app 一组，存在 `AiRuntime`）：每次请求（含 embedding，流式请求占到流结束）先取一个名额，上限是服务商的 `max_concurrency`（`ai_providers` 新列，编辑服务商对话框“高级”里设置，1–32），没设为 4；全实例服务商用 `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY`。等名额时任务显示 `ai.provider_busy`。重试的退避期间让出名额。
+  - 限流等待按调用方区分（`base.retry_delay`）：任务里（`jobs.in_job()`）的 `ai.rate_limited` 最多重试 10 次、每次最多等 90 s、合计最多 5 分钟，等待期间任务显示 `ai.rate_limited` 和预计继续的时间；交互请求（Sem、搜索）仍是 3 次、每次最多 30 s。M07 的 OCR 仍把 `ai.rate_limited` 当作停止码：到这里时已经等了几分钟，多半是按天的额度。
   - `embed(retry=False)` 只请求一次（搜索查询用）。本机 embedding 子进程最多保留 `local_embedding_max_loaded`（默认 2）个模型（LRU），父进程让已加载模型的文档批次先走，减少不同用户不同模型之间的来回加载。

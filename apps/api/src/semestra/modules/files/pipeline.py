@@ -55,7 +55,8 @@ LOCAL_OCR_BATCH = 32
 LOCAL_OCR_LOAD_SECONDS = 120
 OCR_CONCURRENCY = 4
 # Errors that would be the same for every page or document: OCR stops and the rest are
-# skipped, a reindex stops.
+# skipped, a reindex stops. `ai.rate_limited` only comes after the request has waited the limit
+# out for minutes (M06 `adapters.limits`): a daily quota, not a per-minute one.
 OCR_STOP_CODES = frozenset({
     "ai.invalid_key", "ai.model_not_found", "ai.not_configured", "ai.capability_unsupported",
     "ai.provider_unreachable", "ai.rate_limited", "ai.cancelled",

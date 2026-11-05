@@ -142,11 +142,11 @@ async def choice(ctx: Ctx) -> str | None:
     if not available(ctx.settings):
         return None
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, "embedding"))
-    if row is None:
+    if row is None or (row.provider_id is None and row.model is None):  # Auto
         if await try_resolve(ctx, "embedding", with_key=False) is not None:
             return None
         return default_model(ctx.settings)
-    if row.provider_id is not None:
+    if row.provider_id is not None or row.model is None:
         return None
     return row.model if valid(ctx.settings, row.model) else default_model(ctx.settings)
 

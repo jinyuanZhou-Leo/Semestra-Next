@@ -8,6 +8,7 @@ from structlog.testing import capture_logs
 
 from semestra.core.security import decrypt
 from semestra.modules.ai.models import AiModelAssignment, AiProvider
+from semestra.modules.ai.resolve import try_resolve
 from semestra.modules.ai.tests.conftest import (
     ANTHROPIC,
     ANTHROPIC_KEY,
@@ -207,10 +208,27 @@ async def test_status_assignments_and_delete(ai: Ai, mock: respx.MockRouter, app
     deleted = await ai.call("DELETE", f"/ai/providers/{openai['id']}")
     assert deleted["cleared_purposes"] == ["chat"]
     async with app.state.session_factory() as db:
-        assert (await db.scalars(select(AiModelAssignment))).all() == []
+        [left] = (await db.scalars(select(AiModelAssignment))).all()
+    # Chat is back on Auto; its parameters belong to the purpose and stay.
+    assert (left.purpose, left.provider_id, left.model, left.params) == (
+        "chat", None, None, {"temperature": 0.2}
+    )  # fmt: skip
     status = {s["purpose"]: s for s in (await ai.call("GET", "/ai/status"))["items"]}
     assert status["chat"]["provider_id"] == anthropic["id"]
     assert not status["embedding"]["available"]
+    async with ai.ctx() as ctx:
+        resolved = await try_resolve(ctx, "chat")
+    assert resolved is not None
+    assert (resolved.source, resolved.params.temperature) == ("default", 0.2)
+
+    # Parameters on their own, for a purpose left on Auto.
+    tuned = await ai.call(
+        "PUT",
+        "/ai/assignments/params",
+        json={"purpose": "extraction", "params": {"max_tokens": 32000}},
+    )
+    extraction = next(a for a in tuned["items"] if a["purpose"] == "extraction")
+    assert (extraction["provider_id"], extraction["params"]["max_tokens"]) == (None, 32000)
 
     await ai.call("DELETE", f"/ai/providers/{anthropic['id']}")
     status = await ai.call("GET", "/ai/status")
@@ -288,6 +306,7 @@ async def test_capabilities_are_http_only():
         "ai.provider.list_models",
         "ai.assignment.get",
         "ai.assignment.update",
+        "ai.assignment.update_params",
         "ai.status.get",
         "ai.usage.summarize",
     }

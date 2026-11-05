@@ -6,7 +6,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from sqlalchemy import ColumnElement, and_, case, delete, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
@@ -30,6 +30,7 @@ from semestra.modules.ai.schemas import (
     AiStatusGet,
     Assignment,
     AssignmentList,
+    AssignmentParamsInput,
     AssignmentUpdateInput,
     LocalModelDownload,
     LocalModelDownloadInput,
@@ -66,6 +67,7 @@ def to_schema(row: AiProvider) -> Provider:
         capabilities=list(provider_capabilities(row)),
         capabilities_editable=catalog.KIND_INFO[row.kind].capabilities is None,  # pyright: ignore[reportArgumentType]
         enabled=row.enabled,
+        max_concurrency=row.max_concurrency,
         last_checked_at=row.last_checked_at,
         last_error_code=row.last_error_code,
         created_at=row.created_at,
@@ -220,6 +222,8 @@ async def update_provider(ctx: Ctx, inp: ProviderUpdateInput) -> Provider:
         row.capabilities = list(dict.fromkeys(inp.capabilities or []))
     if "enabled" in sent and inp.enabled is not None:
         row.enabled = inp.enabled
+    if "max_concurrency" in sent:
+        row.max_concurrency = inp.max_concurrency
     if recheck:
         await _check(ctx, endpoint_for(ctx.settings, row))
         row.last_checked_at = ctx.now
@@ -241,12 +245,15 @@ async def delete_provider(ctx: Ctx, provider_id: str) -> ProviderDeleted:
             )
         )
     )
-    await ctx.db.execute(
-        delete(AiModelAssignment).where(
+    # Its purposes go back to Auto, keeping their parameters.
+    for assignment in await ctx.db.scalars(
+        select(AiModelAssignment).where(
             AiModelAssignment.user_id == ctx.user_id,
             AiModelAssignment.provider_id == provider_id,
         )
-    )
+    ):
+        await _save_assignment(ctx, assignment, assignment.purpose, None, None, assignment.params)  # pyright: ignore[reportArgumentType]
+    await ctx.db.flush()
     await ctx.db.delete(row)
     await events.publish(ctx, "ai.provider.deleted", {"provider_id": provider_id})
     await _publish_changes(ctx, before)
@@ -318,8 +325,13 @@ async def list_assignments(ctx: Ctx) -> AssignmentList:
 
 
 async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentList:
+    """Choose a purpose's model. Its parameters stay unless `params` is sent."""
     before = await _effective(ctx)
     row = await ctx.db.get(AiModelAssignment, (ctx.user_id, inp.purpose))
+    kept: dict[str, Any] = row.params if row is not None else {}
+    params = inp.params.model_dump(exclude_none=True) if inp.params is not None else kept
+    provider_id: str | None = None
+    model: str | None = None
     if inp.provider_id is None and inp.model is not None and inp.purpose in ("ocr", "embedding"):
         # A model this self-hosted server runs itself.
         model = inp.model.strip()
@@ -333,43 +345,56 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
                 raise _invalid("model", "unknown")
             # A Hugging Face model the server cannot use is refused before it is saved.
             await local_embedding.check(ctx.settings, model)
-        if row is None:
-            ctx.db.add(
-                AiModelAssignment(
-                    user_id=ctx.user_id, purpose=inp.purpose, provider_id=None, model=model
-                )
-            )
-        else:
-            row.provider_id = None
-            row.model = model
-            row.params = {}
         # Not fetched yet: it downloads the first time it is needed, or from the settings row.
-    elif inp.provider_id is None:
-        if row is not None:
-            await ctx.db.delete(row)
-    else:
+    elif inp.provider_id is not None:
         provider = await _get_row(ctx, inp.provider_id)
         if not can_serve(provider_capabilities(provider), inp.purpose):
             raise AppError("ai.capability_unsupported", 400, capability=PURPOSE_NEEDS[inp.purpose])
         if not inp.model or not inp.model.strip():
             raise _invalid("model", "missing")
-        params = inp.params.model_dump(exclude_none=True)
-        if row is None:
-            ctx.db.add(
-                AiModelAssignment(
-                    user_id=ctx.user_id,
-                    purpose=inp.purpose,
-                    provider_id=provider.id,
-                    model=inp.model.strip(),
-                    params=params,
-                )
-            )
-        else:
-            row.provider_id = provider.id
-            row.model = inp.model.strip()
-            row.params = params
+        provider_id, model = provider.id, inp.model.strip()
+    await _save_assignment(ctx, row, inp.purpose, provider_id, model, params)
     await _publish_changes(ctx, before)
     return await list_assignments(ctx)
+
+
+async def update_assignment_params(ctx: Ctx, inp: AssignmentParamsInput) -> AssignmentList:
+    """A purpose's model parameters, kept whichever model serves it."""
+    row = await ctx.db.get(AiModelAssignment, (ctx.user_id, inp.purpose))
+    provider_id = row.provider_id if row is not None else None
+    model = row.model if row is not None else None
+    await _save_assignment(
+        ctx, row, inp.purpose, provider_id, model, inp.params.model_dump(exclude_none=True)
+    )
+    await ctx.db.flush()
+    return await list_assignments(ctx)
+
+
+async def _save_assignment(
+    ctx: Ctx,
+    row: AiModelAssignment | None,
+    purpose: Purpose,
+    provider_id: str | None,
+    model: str | None,
+    params: dict[str, Any],
+) -> None:
+    """Writes a purpose's choice; "Auto" with no parameters is no row at all."""
+    if provider_id is None and model is None and not params:
+        if row is not None:
+            await ctx.db.delete(row)
+        return
+    if row is None:
+        ctx.db.add(
+            AiModelAssignment(
+                user_id=ctx.user_id,
+                purpose=purpose,
+                provider_id=provider_id,
+                model=model,
+                params=params,
+            )
+        )
+        return
+    row.provider_id, row.model, row.params = provider_id, model, params
 
 
 # --- status ---------------------------------------------------------------------------------

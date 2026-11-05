@@ -21,6 +21,7 @@ SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL=nomic-embed-text
 | `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | 用于 Sem、读取文档和标题                                                                     |
 | `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | 用于文件搜索；留空表示不提供                                                                 |
 | `SEMESTRA_INSTANCE_AI_API_KEY`         | 服务商需要时填写密钥                                                                         |
+| `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | 同时发给它的请求数上限（默认 4）；配置较低的 Ollama 服务器适合设为 `1` |
 
 全实例服务商的能力由这些变量决定：对话模型提供对话、工具调用和结构化输出，Anthropic、OpenAI 和 Gemini 还提供读取图片；向量模型提供搜索。
 使用 Ollama 或兼容接口时，读取图片需要用户自己的服务商。

@@ -20,6 +20,8 @@ class Provider(BaseModel):
     # False for kinds whose capabilities are fixed (the user cannot edit them).
     capabilities_editable: bool
     enabled: bool
+    # Most requests sent at once; None = the default (4).
+    max_concurrency: int | None
     last_checked_at: datetime | None
     last_error_code: str | None
     created_at: datetime
@@ -58,6 +60,12 @@ class ProviderUpdateInput(BaseModel):
         default=None, description="New capabilities (compatible kinds and ollama only)."
     )
     enabled: bool | None = Field(default=None, description="Turn the provider on or off.")
+    max_concurrency: int | None = Field(
+        default=None,
+        ge=1,
+        le=32,
+        description="Most requests sent to the provider at once; null for the default (4).",
+    )
 
 
 class ProviderRef(BaseModel):
@@ -126,7 +134,17 @@ class AssignmentUpdateInput(BaseModel):
     model: str | None = Field(
         default=None, min_length=1, max_length=200, description="Model name at that provider."
     )
-    params: ModelParams = Field(default_factory=ModelParams, description="Model parameters.")
+    params: ModelParams | None = Field(
+        default=None,
+        description="Model parameters for the purpose; left out, the current ones stay.",
+    )
+
+
+class AssignmentParamsInput(BaseModel):
+    purpose: Purpose = Field(description="Which purpose to configure.")
+    params: ModelParams = Field(
+        description="Its model parameters, whichever model serves it (on Auto too)."
+    )
 
 
 # --- status and usage -----------------------------------------------------------------------

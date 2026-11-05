@@ -211,10 +211,10 @@ test('plugin sections stay out of the account navigation level listing', async (
 })
 
 test('the status bar shows running jobs and module items, and hides empty lines', async () => {
+  // The second job waits for its provider.
+  const waiting = { ...job, id: 'j2', waiting: { reason: 'ai.provider_busy', until: null } }
   server.use(
-    http.get(`${API}/jobs`, () =>
-      HttpResponse.json({ items: [job, { ...job, id: 'j2' }], next_cursor: null }),
-    ),
+    http.get(`${API}/jobs`, () => HttpResponse.json({ items: [job, waiting], next_cursor: null })),
   )
   const timer = {
     ...template,
@@ -236,7 +236,7 @@ test('the status bar shows running jobs and module items, and hides empty lines'
     </ModuleRegistry>,
   )
   const bar = await screen.findByRole('list', { name: 'In progress' })
-  expect(await screen.findByText('2 tasks running')).toBeInTheDocument()
+  expect(await screen.findByText('1 running, 1 waiting')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: '12:00 left' })).toHaveAttribute('href', '/')
   expect(bar.querySelectorAll('li')).toHaveLength(2)
 })

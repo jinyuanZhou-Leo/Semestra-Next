@@ -50,7 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = make_engine(settings)
         app.state.engine = engine
         app.state.session_factory = make_sessionmaker(engine)
-        runner = jobs.JobRunner(app.state, settings.job_concurrency)
+        runner = jobs.JobRunner(app.state, settings.job_concurrency, settings.job_bulk_concurrency)
         app.state.jobs = runner
         if settings.jobs_autostart:
             runner.start()
