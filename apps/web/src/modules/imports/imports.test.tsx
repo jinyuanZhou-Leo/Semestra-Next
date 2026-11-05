@@ -22,6 +22,7 @@ beforeEach(() => {
         files_bytes: 0,
         quota_bytes: 52_428_800,
         max_upload_bytes: 26_214_400,
+        vector_files: 0,
       }),
     ),
     http.get(`${API}/jobs/j1`, () =>

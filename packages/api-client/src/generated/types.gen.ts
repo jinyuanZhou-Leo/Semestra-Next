@@ -4264,6 +4264,12 @@ export type FilesUsageGet = {
      * Max Upload Bytes
      */
     max_upload_bytes: number;
+    /**
+     * Vector Files
+     *
+     * Course files with search vectors; a new embedding model rebuilds them
+     */
+    vector_files: number;
 };
 
 /**

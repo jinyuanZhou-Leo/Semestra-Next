@@ -12,16 +12,19 @@ import {
   aiProviderListModelsOptions,
   aiProviderListOptions,
   aiStatusGetOptions,
+  filesUsageGetOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert, KeyRound, Plus } from 'lucide-react'
+import { CircleAlert, Download, KeyRound, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { JobProgress } from '@/components/JobProgress'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { useJob } from '@/hooks/use-job'
-import { toastError } from '@/lib/errors'
+import { formatBytes } from '@/lib/format'
+import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -50,7 +53,8 @@ import { ItemDescription } from '@/ui/item'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
 import {
-  LOCAL_MODEL_HINTS,
+  LOCAL_MODELS,
+  type LocalLevel,
   PROVIDER_ERROR_LABEL,
   PURPOSE_HINTS,
   PURPOSE_TITLES,
@@ -78,6 +82,8 @@ type ModelOption = {
   search: string
   /** The name typed into the search box, for endpoints that list no models. */
   typed?: boolean
+  /** Download size, speed and accuracy of a local preset. */
+  info?: (typeof LOCAL_MODELS)[string]
 }
 
 type ModelGroup = {
@@ -97,17 +103,15 @@ function localGroupLabel(purpose: AiPurpose): string {
   return purpose === 'ocr' ? m.ai_models_local_group() : m.ai_models_local_group_embedding()
 }
 
-function localOption(purpose: AiPurpose, model: string, downloaded: boolean): ModelOption {
-  const hint = LOCAL_MODEL_HINTS[model]?.() ?? null
+function localOption(purpose: AiPurpose, model: string): ModelOption {
   return {
     key: `${LOCAL_KEY}/${model}`,
     providerId: null,
     local: true,
     model,
     label: model,
-    detail: downloaded
-      ? hint
-      : [hint, m.ai_models_local_needs_download()].filter(Boolean).join(' · '),
+    detail: null,
+    info: LOCAL_MODELS[model],
     search: `${model} ${purpose === 'ocr' ? 'paddleocr' : 'hugging face'}`.toLowerCase(),
   }
 }
@@ -130,9 +134,29 @@ function modelName(lists: ModelLists, providerId: string | null, model: string |
   return listed?.display_name || model
 }
 
+/** Three short segments, so local models compare at a glance. */
+function Level({ label, level }: { label: string; level: LocalLevel }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="sr-only">{m.ai_models_local_level({ label, level })}</span>
+      <span aria-hidden>{label}</span>
+      <span aria-hidden className="inline-flex gap-0.5">
+        {[1, 2, 3].map((n) => (
+          <span
+            key={n}
+            className={
+              n <= level ? 'h-1 w-3.5 rounded-full bg-primary' : 'h-1 w-3.5 rounded-full bg-muted'
+            }
+          />
+        ))}
+      </span>
+    </span>
+  )
+}
+
 /**
- * A local model that is not on this server yet: its download's progress, or a note that it
- * downloads on first use with a button to fetch it now (and to try again after a failure).
+ * A local model that is not on this server yet: a button to fetch it (it also downloads the
+ * first time it is needed), its download's progress, or why the download failed.
  */
 function LocalModelDownload({
   purpose,
@@ -149,45 +173,52 @@ function LocalModelDownload({
   jobId: string | null
 }) {
   const queryClient = useQueryClient()
-  const { status } = useJob(jobId)
+  const { job, status } = useJob(jobId)
   const start = useMutation({
     ...aiLocalModelDownloadMutation(),
     onSuccess: () => invalidateAi(queryClient),
     onError: toastError,
   })
+  const failed = status === 'failed' || status === 'cancelled'
   const button = (
     <Button
-      variant="link"
-      size="sm"
-      className="h-auto p-0"
+      variant="outline"
+      size="xs"
       disabled={start.isPending}
       onClick={() => start.mutate({ body: { purpose, model } })}
     >
-      {m.ai_models_local_download()}
+      {failed ? null : <Download data-icon="inline-start" />}
+      {failed ? m.ai_models_local_retry() : m.ai_models_local_download()}
     </Button>
   )
-  if (jobId && status !== 'succeeded') {
+  if (jobId && failed) {
     return (
-      <div className="space-y-1">
-        <JobProgress jobId={jobId} className="sm:max-w-72" />
-        {status === 'failed' || status === 'cancelled' ? button : null}
-      </div>
+      <ItemDescription className="flex flex-wrap items-center gap-2 text-destructive">
+        {status === 'cancelled'
+          ? m.job_cancelled()
+          : errorMessage({
+              error: {
+                code: job?.error_code ?? 'common.internal',
+                params: job?.error_params ?? {},
+              },
+            })}
+        {button}
+      </ItemDescription>
     )
   }
+  if (jobId && status !== 'succeeded') return <JobProgress jobId={jobId} variant="compact" />
   if (downloaded) return null
   if (downloading) {
     return (
       <ItemDescription className="flex items-center gap-1.5">
         <Spinner className="size-3.5" />
-        {m.ai_models_local_downloading({ model })}
+        {m.ai_models_local_downloading()}
       </ItemDescription>
     )
   }
   return (
-    <ItemDescription>
-      {purpose === 'ocr'
-        ? m.ai_models_local_download_note({ model })
-        : m.ai_models_local_download_note_embedding({ model })}{' '}
+    <ItemDescription className="flex flex-wrap items-center gap-2">
+      {m.ai_models_local_missing()}
       {button}
     </ItemDescription>
   )
@@ -226,9 +257,14 @@ function PurposeRow({
   const purpose = assignment.purpose as AiPurpose
   const title = PURPOSE_TITLES[purpose]()
   const [query, setQuery] = useState('')
+  // A new embedding model waiting for confirmation, with how many files it would re-embed.
+  const [confirm, setConfirm] = useState<{ option: ModelOption; files: number } | null>(null)
   const update = useMutation({
     ...aiAssignmentUpdateMutation(),
-    onSuccess: () => invalidateAi(queryClient),
+    onSuccess: () => {
+      setConfirm(null)
+      return invalidateAi(queryClient)
+    },
     onError: toastError,
   })
   const providerOf = (id: string | null | undefined) => providers.find((p) => p.id === id)
@@ -290,13 +326,11 @@ function PurposeRow({
     })
     .filter((group) => group.items.length > 0)
   if (local) {
-    const items = local.models.map((model) =>
-      localOption(purpose, model, local.downloaded.includes(model)),
-    )
+    const items = local.models.map((model) => localOption(purpose, model))
     // A server that allows it runs any Hugging Face model with an ONNX version: typed by name.
     if (local.custom && HF_REPO.test(typed) && !items.some((item) => item.model === typed)) {
       items.push({
-        ...localOption(purpose, typed, false),
+        ...localOption(purpose, typed),
         label: m.ai_models_local_use_hf({ model: typed }),
         typed: true,
       })
@@ -333,9 +367,7 @@ function PurposeRow({
       ? modelName(lists, status.provider_id, status.model)
       : null
 
-  const pick = (next: ModelOption | null) => {
-    setQuery('')
-    if (!next || next.key === selected.key) return
+  const save = (next: ModelOption) =>
     update.mutate({
       body: next.providerId
         ? { purpose, provider_id: next.providerId, model: next.model }
@@ -343,6 +375,43 @@ function PurposeRow({
           ? { purpose, provider_id: null, model: next.model }
           : { purpose, provider_id: null },
     })
+
+  // The model an option leads to, to tell whether picking it changes the vector space.
+  const current = status?.available
+    ? status.source === 'instance'
+      ? 'instance'
+      : `${status.provider_id ?? LOCAL_KEY}/${status.model}`
+    : null
+  const leadsTo = (option: ModelOption) =>
+    option.key !== AUTO_KEY
+      ? option.key
+      : autoLocal
+        ? `${LOCAL_KEY}/${local.default}`
+        : recommended
+          ? `${recommended.provider_id}/${recommended.model}`
+          : status?.source === 'instance'
+            ? 'instance'
+            : null
+
+  const pick = async (next: ModelOption | null) => {
+    setQuery('')
+    if (!next || next.key === selected.key) return
+    // Search vectors belong to one model: switching rebuilds every file's, so ask first.
+    if (purpose === 'embedding' && current !== null && leadsTo(next) !== current) {
+      let files: number
+      try {
+        files = (await queryClient.fetchQuery({ ...filesUsageGetOptions(), staleTime: 0 }))
+          .vector_files
+      } catch (error) {
+        toastError(error)
+        return
+      }
+      if (files > 0) {
+        setConfirm({ option: next, files })
+        return
+      }
+    }
+    save(next)
   }
 
   return (
@@ -422,8 +491,24 @@ function PurposeRow({
                 <ComboboxCollection>
                   {(item: ModelOption) => (
                     <ComboboxItem key={item.key} value={item}>
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate">{item.label}</span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="flex items-baseline justify-between gap-3">
+                          <span className="truncate">{item.label}</span>
+                          {item.info ? (
+                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                              {formatBytes(item.info.bytes)}
+                            </span>
+                          ) : null}
+                        </span>
+                        {item.info ? (
+                          <span className="flex gap-4 text-xs text-muted-foreground">
+                            <Level label={m.ai_models_local_speed()} level={item.info.speed} />
+                            <Level
+                              label={m.ai_models_local_accuracy()}
+                              level={item.info.accuracy}
+                            />
+                          </span>
+                        ) : null}
                         {item.detail ? (
                           <span
                             className={
@@ -444,6 +529,15 @@ function PurposeRow({
           </ComboboxList>
         </ComboboxContent>
       </Combobox>
+      <ConfirmDialog
+        open={confirm !== null}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={m.ai_models_reembed_title()}
+        description={m.ai_models_reembed_description({ count: confirm?.files ?? 0 })}
+        confirmLabel={m.ai_models_reembed_confirm()}
+        pending={update.isPending}
+        onConfirm={() => confirm && save(confirm.option)}
+      />
     </SettingRow>
   )
 }

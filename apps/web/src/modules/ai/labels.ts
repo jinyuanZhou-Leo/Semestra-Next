@@ -123,19 +123,27 @@ export const PURPOSE_HINTS: Record<AiPurpose, Message> = {
   title: m.ai_purpose_title_hint,
 }
 
+/** Where a model stands among the server's own models of the same purpose (1 = lowest). */
+export type LocalLevel = 1 | 2 | 3
+
 /**
- * What sets apart the models a self-hosted server runs itself: PaddleOCR (`local_ocr.MODELS`)
- * and the embedding presets (`local_embedding.PRESETS`).
+ * The models a self-hosted server runs itself: PaddleOCR (`local_ocr.MODELS`) and the embedding
+ * presets (`local_embedding.PRESETS`). Sizes are the download from Hugging Face; speed and
+ * accuracy only rank the models of one purpose against each other (measured 2026-10-28 and
+ * 2026-11-04 on an Apple M3).
  */
-export const LOCAL_MODEL_HINTS: Record<string, Message> = {
-  'PP-OCRv6_tiny': m.ai_local_ocr_v6_tiny,
-  'PP-OCRv6_small': m.ai_local_ocr_v6_small,
-  'PP-OCRv6_medium': m.ai_local_ocr_v6_medium,
-  'PP-OCRv5_mobile': m.ai_local_ocr_v5_mobile,
-  'PP-OCRv5_server': m.ai_local_ocr_v5_server,
-  'multilingual-e5-small': m.ai_local_embedding_e5_small,
-  'bge-m3': m.ai_local_embedding_bge_m3,
-  'qwen3-embedding-0.6b': m.ai_local_embedding_qwen3,
+export const LOCAL_MODELS: Record<
+  string,
+  { bytes: number; speed: LocalLevel; accuracy: LocalLevel }
+> = {
+  'PP-OCRv6_tiny': { bytes: 6_700_000, speed: 3, accuracy: 1 },
+  'PP-OCRv5_mobile': { bytes: 21_500_000, speed: 3, accuracy: 1 },
+  'PP-OCRv6_small': { bytes: 31_700_000, speed: 2, accuracy: 2 },
+  'PP-OCRv6_medium': { bytes: 139_300_000, speed: 1, accuracy: 3 },
+  'PP-OCRv5_server': { bytes: 172_800_000, speed: 1, accuracy: 2 },
+  'multilingual-e5-small': { bytes: 135_000_000, speed: 3, accuracy: 1 },
+  'bge-m3': { bytes: 587_000_000, speed: 2, accuracy: 2 },
+  'qwen3-embedding-0.6b': { bytes: 1_200_000_000, speed: 1, accuracy: 3 },
 }
 
 export const CAPABILITY_TITLES: Record<Capability, Message> = {

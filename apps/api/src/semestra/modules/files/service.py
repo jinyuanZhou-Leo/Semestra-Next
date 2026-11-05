@@ -780,6 +780,15 @@ async def usage(ctx: Ctx) -> FilesUsageGet:
         files_bytes=total.by_module.get("files", 0),
         quota_bytes=total.quota_bytes,
         max_upload_bytes=ctx.settings.files_max_upload_bytes,
+        vector_files=await ctx.db.scalar(
+            select(func.count())
+            .select_from(FilesIndexState)
+            .where(
+                FilesIndexState.user_id == ctx.user_id,
+                FilesIndexState.vector_document_id.is_not(None),
+            )
+        )
+        or 0,
     )
 
 

@@ -19,8 +19,8 @@ arm64 机器（如树莓派、Apple Silicon 上的 Docker）请用默认镜像�
 默认镜像在服务器上用 [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)（只用 CPU）识别扫描版 PDF 和照片，不会为此调用
 AI 模型。识别时在应用本身约 1 GB 之外再占用最多 2 GB 内存，一次处理一个文档，每页约 2 秒。
 
-每个用户在 AI 设置 → 模型的 **OCR** 一行里选择模型：本机的 PaddleOCR 模型，或某个服务商的模型。本机模型在第一次用到时下载到
-数据卷，应用里会显示进度。服务器之后不能联网的话，请趁还能联网时先下载：
+每个用户在 AI 设置 → 模型的 **OCR** 一行里选择模型：本机的 PaddleOCR 模型，或某个服务商的模型。选择器里会显示每个本机模型的
+下载大小、速度和准确程度。本机模型在第一次用到时、或用户在该行点**下载**时下载到数据卷，应用里会显示进度。服务器之后不能联网的话，请趁还能联网时先下载：
 
 ```bash
 docker compose exec semestra semestra ocr-models --all

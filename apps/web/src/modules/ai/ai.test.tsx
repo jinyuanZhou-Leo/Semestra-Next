@@ -576,19 +576,18 @@ test('a local OCR model downloads from its row, which then shows the progress', 
   )
   const user = userEvent.setup()
   renderWithQuery(<ModelsSection />)
-  expect(await screen.findByText(/PP-OCRv6_medium isn't on this server yet/)).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Download now' }))
+  expect(await screen.findByText('Not downloaded')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Download' }))
   expect(requests.at(-1)).toMatchObject({ body: { purpose: 'ocr', model: 'PP-OCRv6_medium' } })
   expect(await screen.findByText('45/133 MB')).toBeInTheDocument()
-  expect(screen.getByText('Downloading the OCR model')).toBeInTheDocument()
-  expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
+  expect(screen.queryByText('Not downloaded')).not.toBeInTheDocument()
 
-  // The picker says which models still need a download.
+  // The picker shows each local model's size, speed and accuracy.
   await user.click(modelBox('OCR'))
-  expect(await screen.findByRole('option', { name: /^PP-OCRv6_medium/ })).toHaveTextContent(
-    "Downloads the first time it's used",
-  )
-  expect(screen.getByRole('option', { name: /^PP-OCRv6_tiny/ })).not.toHaveTextContent('Downloads')
+  const tiny = await screen.findByRole('option', { name: /^PP-OCRv6_tiny/ })
+  expect(tiny).toHaveTextContent('6.4 MB')
+  expect(tiny).toHaveTextContent('Speed: 3 of 3')
+  expect(tiny).toHaveTextContent('Accuracy: 1 of 3')
 })
 
 test('a server that allows it runs a Hugging Face model typed into the search box', async () => {
@@ -611,6 +610,15 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
         ],
       }),
     ),
+    http.get(`${API}/files-usage`, () =>
+      HttpResponse.json({
+        used_bytes: 0,
+        files_bytes: 0,
+        quota_bytes: 0,
+        max_upload_bytes: 0,
+        vector_files: 3,
+      }),
+    ),
   )
   const user = userEvent.setup()
   renderWithQuery(<ModelsSection />)
@@ -621,6 +629,11 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
     'BAAI/bge-small-zh',
   )
   await user.click(await screen.findByRole('option', { name: /Use BAAI\/bge-small-zh from/ }))
+  // Files already have vectors from bge-m3: switching asks first.
+  const dialog = await screen.findByRole('alertdialog')
+  expect(dialog).toHaveTextContent('files: 3')
+  expect(requests.some((r) => r.method === 'PUT')).toBe(false)
+  await user.click(within(dialog).getByRole('button', { name: 'Change' }))
   await waitFor(() =>
     expect(requests.at(-1)).toMatchObject({
       method: 'PUT',
