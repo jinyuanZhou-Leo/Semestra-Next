@@ -1033,7 +1033,6 @@
   "ai_local_ocr_v6_small": "Fast, good accuracy",
   "ai_local_ocr_v6_tiny": "Smallest and fastest, less accurate",
   "ai_models_local_group": "This server · PaddleOCR",
-  "ai_models_local_needs_download": "Downloads the first time it's used",
   "ai_models_local_download_note": "{model} isn't on this server yet. It downloads the first time a scanned page is read.",
   "ai_models_local_download": "Download now",
   "ai_models_local_downloading": "Downloading {model}…",

@@ -343,8 +343,7 @@ async def update_assignment(ctx: Ctx, inp: AssignmentUpdateInput) -> AssignmentL
             row.provider_id = None
             row.model = model
             row.params = {}
-        # Picking a model fetches it now, so the first file does not wait for it.
-        await local_jobs.start_download(ctx, inp.purpose, model)
+        # Not fetched yet: it downloads the first time it is needed, or from the settings row.
     elif inp.provider_id is None:
         if row is not None:
             await ctx.db.delete(row)

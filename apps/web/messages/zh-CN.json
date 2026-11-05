@@ -1033,7 +1033,6 @@
   "ai_local_ocr_v6_small": "较快，准确率不错",
   "ai_local_ocr_v6_tiny": "最小最快，准确率较低",
   "ai_models_local_group": "本服务器 · PaddleOCR",
-  "ai_models_local_needs_download": "首次使用时下载",
   "ai_models_local_download_note": "{model} 还没有下载到本服务器，第一次识别扫描页时会自动下载。",
   "ai_models_local_download": "现在下载",
   "ai_models_local_downloading": "正在下载 {model}…",

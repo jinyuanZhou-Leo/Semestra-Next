@@ -582,13 +582,6 @@ test('a local OCR model downloads from its row, which then shows the progress', 
   expect(await screen.findByText('45/133 MB')).toBeInTheDocument()
   expect(screen.getByText('Downloading the OCR model')).toBeInTheDocument()
   expect(screen.queryByText(/isn't on this server yet/)).not.toBeInTheDocument()
-
-  // The picker says which models still need a download.
-  await user.click(modelBox('OCR'))
-  expect(await screen.findByRole('option', { name: /^PP-OCRv6_medium/ })).toHaveTextContent(
-    "Downloads the first time it's used",
-  )
-  expect(screen.getByRole('option', { name: /^PP-OCRv6_tiny/ })).not.toHaveTextContent('Downloads')
 })
 
 test('a server that allows it runs a Hugging Face model typed into the search box', async () => {

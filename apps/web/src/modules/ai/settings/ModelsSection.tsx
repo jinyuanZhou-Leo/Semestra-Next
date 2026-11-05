@@ -97,17 +97,14 @@ function localGroupLabel(purpose: AiPurpose): string {
   return purpose === 'ocr' ? m.ai_models_local_group() : m.ai_models_local_group_embedding()
 }
 
-function localOption(purpose: AiPurpose, model: string, downloaded: boolean): ModelOption {
-  const hint = LOCAL_MODEL_HINTS[model]?.() ?? null
+function localOption(purpose: AiPurpose, model: string): ModelOption {
   return {
     key: `${LOCAL_KEY}/${model}`,
     providerId: null,
     local: true,
     model,
     label: model,
-    detail: downloaded
-      ? hint
-      : [hint, m.ai_models_local_needs_download()].filter(Boolean).join(' · '),
+    detail: LOCAL_MODEL_HINTS[model]?.() ?? null,
     search: `${model} ${purpose === 'ocr' ? 'paddleocr' : 'hugging face'}`.toLowerCase(),
   }
 }
@@ -291,12 +288,12 @@ function PurposeRow({
     .filter((group) => group.items.length > 0)
   if (local) {
     const items = local.models.map((model) =>
-      localOption(purpose, model, local.downloaded.includes(model)),
+      localOption(purpose, model),
     )
     // A server that allows it runs any Hugging Face model with an ONNX version: typed by name.
     if (local.custom && HF_REPO.test(typed) && !items.some((item) => item.model === typed)) {
       items.push({
-        ...localOption(purpose, typed, false),
+        ...localOption(purpose, typed),
         label: m.ai_models_local_use_hf({ model: typed }),
         typed: true,
       })
