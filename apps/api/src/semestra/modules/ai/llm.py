@@ -93,6 +93,8 @@ class EmbeddingResult:
     model: str
     dim: int
     vectors: list[list[float]]
+    # The provider kind, or "local" for a model this server runs (`local_embedding`).
+    provider_kind: str = ""
 
 
 @dataclass(frozen=True)

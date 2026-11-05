@@ -7,8 +7,9 @@ from fastapi import FastAPI
 
 from semestra.modules.ai import (  # noqa: F401  (registers on import)
     capabilities,
+    local_embedding,
+    local_jobs,
     local_ocr,
-    local_ocr_jobs,
     models,
     portability,
 )
@@ -20,6 +21,7 @@ from semestra.modules.ai.calls import (
     complete,
     complete_with,
     embed,
+    embedding_model,
     structured,
     wrap_untrusted,
 )
@@ -67,9 +69,11 @@ __all__ = [
     "complete",
     "complete_with",
     "embed",
+    "embedding_model",
     "extract",
+    "local_embedding",
+    "local_jobs",
     "local_ocr",
-    "local_ocr_jobs",
     "register",
     "resolve_provider",
     "structured",

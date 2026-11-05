@@ -4,14 +4,15 @@
 #   docker build -f deploy/docker/Dockerfile --target api         -t semestra-api .
 #   docker build -f deploy/docker/Dockerfile --target api-office  -t semestra-api:office .
 #   docker build -f deploy/docker/Dockerfile --target allinone    -t semestra-allinone .
-#   docker build -f deploy/docker/Dockerfile --target allinone-ocr -t semestra-allinone:ocr .
+#   docker build -f deploy/docker/Dockerfile --target allinone-local -t semestra-allinone:local .
 #
 # Targets:
 #   api         FastAPI backend only
 #   api-office  api + headless LibreOffice for converting legacy Office files
 #   allinone    api + the built SPA served from the same origin (self-hosting)
-#   allinone-ocr  allinone + local OCR of scanned pages (PaddleOCR on ONNX Runtime; models are
-#               downloaded into /data when first needed); for self-hosting, amd64 and arm64
+#   allinone-local  allinone + local OCR of scanned pages (PaddleOCR) and local embedding for
+#               search, both on ONNX Runtime (models are downloaded into /data when first
+#               needed); for self-hosting, amd64 and arm64
 
 # trixie: its SQLite (3.46) has the FTS5 contentless_delete option the files index needs (>= 3.43).
 ARG PYTHON_IMAGE=python:3.14-slim-trixie
@@ -32,13 +33,14 @@ COPY apps/api/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
-# The same plus the `ocr` extra (PaddleOCR, ONNX Runtime) for the allinone-ocr image.
-FROM api-builder AS api-builder-ocr
+# The same plus the `ocr` and `embedding` extras (PaddleOCR, ONNX Runtime, tokenizers) for the
+# allinone-local image.
+FROM api-builder AS api-builder-local
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable --extra ocr
+    uv sync --locked --no-dev --no-editable --extra ocr --extra embedding
 
 # ---- backend runtime -----------------------------------------------------------------------
-# Everything but the virtualenv, shared by api and allinone-ocr (which has its own).
+# Everything but the virtualenv, shared by api and allinone-local (which has its own).
 FROM ${PYTHON_IMAGE} AS runtime
 # System libraries for the document pipeline (M07) belong in this layer.
 RUN apt-get update \
@@ -116,24 +118,28 @@ COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web
 
-# ---- all-in-one with local OCR (self-hosting) ----------------------------------------------
+# ---- all-in-one with local OCR and embedding (self-hosting) --------------------------------
 # Built from the shared runtime rather than allinone, so the image has one virtualenv, not two.
-FROM runtime AS allinone-ocr
+FROM runtime AS allinone-local
 USER root
 # OpenCV (pulled in by PaddleOCR) links against these.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
     && rm -rf /var/lib/apt/lists/*
 USER semestra
-COPY --from=api-builder-ocr /opt/venv /opt/venv
+COPY --from=api-builder-local /opt/venv /opt/venv
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 # No model is in the image: each downloads into the data volume the first time it is needed,
 # with progress in the app. This one is used until a user picks another in settings
-# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server).
+# (PP-OCRv6_tiny|small|medium, PP-OCRv5_mobile|server; embedding: multilingual-e5-small,
+# bge-m3, qwen3-embedding-0.6b). Embedding models go to /data/models/embedding.
 ARG LOCAL_OCR_MODEL=PP-OCRv6_medium
+ARG LOCAL_EMBEDDING_MODEL=multilingual-e5-small
 ENV SEMESTRA_SERVE_WEB=true \
     SEMESTRA_WEB_DIST_DIR=/app/web \
     SEMESTRA_LOCAL_OCR=true \
     SEMESTRA_LOCAL_OCR_MODEL=${LOCAL_OCR_MODEL} \
+    SEMESTRA_LOCAL_EMBEDDING=true \
+    SEMESTRA_LOCAL_EMBEDDING_MODEL=${LOCAL_EMBEDDING_MODEL} \
     PADDLE_PDX_CACHE_HOME=/data/ocr-models \
     PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True

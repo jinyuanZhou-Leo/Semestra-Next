@@ -501,25 +501,9 @@ export type AiStatusGet = {
      */
     items: Array<PurposeStatus>;
     /**
-     * Local Ocr Models
+     * Local
      */
-    local_ocr_models?: Array<string>;
-    /**
-     * Local Ocr Default
-     */
-    local_ocr_default?: string | null;
-    /**
-     * Local Ocr Downloaded
-     */
-    local_ocr_downloaded?: Array<string>;
-    /**
-     * Local Ocr Downloading
-     */
-    local_ocr_downloading?: Array<string>;
-    /**
-     * Local Ocr Download Job
-     */
-    local_ocr_download_job?: string | null;
+    local?: Array<LocalModels>;
 };
 
 /**
@@ -1193,7 +1177,7 @@ export type AssignmentUpdateInputBody = {
     /**
      * Provider Id
      *
-     * Provider to use; null removes the choice (the recommended default applies), or, for ocr with a local model name in `model`, picks that local OCR model.
+     * Provider to use; null removes the choice (the recommended default applies), or, for ocr and embedding with a local model name in `model`, picks that model this server runs itself.
      */
     provider_id: string | null;
     /**
@@ -5668,9 +5652,9 @@ export type LmsCourse = {
 };
 
 /**
- * LocalOcrDownload
+ * LocalModelDownload
  */
-export type LocalOcrDownload = {
+export type LocalModelDownload = {
     /**
      * Job Id
      */
@@ -5678,15 +5662,57 @@ export type LocalOcrDownload = {
 };
 
 /**
- * LocalOcrDownloadInputBody
+ * LocalModelDownloadInputBody
  */
-export type LocalOcrDownloadInputBody = {
+export type LocalModelDownloadInputBody = {
+    /**
+     * Purpose
+     *
+     * What the model is for.
+     */
+    purpose: 'ocr' | 'embedding';
     /**
      * Model
      *
-     * A local OCR model; defaults to the one that reads this user's scanned pages.
+     * A local model; defaults to the one this user's purpose uses.
      */
     model?: string | null;
+};
+
+/**
+ * LocalModels
+ *
+ * Models a self-hosted server runs itself for one purpose (local OCR, local embedding).
+ */
+export type LocalModels = {
+    /**
+     * Purpose
+     */
+    purpose: 'ocr' | 'embedding';
+    /**
+     * Models
+     */
+    models: Array<string>;
+    /**
+     * Default
+     */
+    default: string;
+    /**
+     * Downloaded
+     */
+    downloaded: Array<string>;
+    /**
+     * Downloading
+     */
+    downloading: Array<string>;
+    /**
+     * Download Job
+     */
+    download_job: string | null;
+    /**
+     * Custom
+     */
+    custom?: boolean;
 };
 
 /**
@@ -13632,30 +13658,30 @@ export type AiAssignmentUpdateResponses = {
 
 export type AiAssignmentUpdateResponse = AiAssignmentUpdateResponses[keyof AiAssignmentUpdateResponses];
 
-export type AiLocalOcrDownloadData = {
-    body: LocalOcrDownloadInputBody;
+export type AiLocalModelDownloadData = {
+    body: LocalModelDownloadInputBody;
     path?: never;
     query?: never;
-    url: '/ai/local-ocr/download';
+    url: '/ai/local-models/download';
 };
 
-export type AiLocalOcrDownloadErrors = {
+export type AiLocalModelDownloadErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type AiLocalOcrDownloadError = AiLocalOcrDownloadErrors[keyof AiLocalOcrDownloadErrors];
+export type AiLocalModelDownloadError = AiLocalModelDownloadErrors[keyof AiLocalModelDownloadErrors];
 
-export type AiLocalOcrDownloadResponses = {
+export type AiLocalModelDownloadResponses = {
     /**
      * Successful Response
      */
-    200: LocalOcrDownload;
+    200: LocalModelDownload;
 };
 
-export type AiLocalOcrDownloadResponse = AiLocalOcrDownloadResponses[keyof AiLocalOcrDownloadResponses];
+export type AiLocalModelDownloadResponse = AiLocalModelDownloadResponses[keyof AiLocalModelDownloadResponses];
 
 export type AiProviderListData = {
     body?: never;

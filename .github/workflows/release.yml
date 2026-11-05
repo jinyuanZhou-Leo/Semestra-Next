@@ -44,8 +44,9 @@ jobs:
           - { image: semestra-api, target: api, suffix: "" }
           - { image: semestra-api, target: api-office, suffix: "-office" }
           - { image: semestra-allinone, target: allinone, suffix: "" }
-          # Self-hosting with local OCR; arm64 too, for Docker on Apple Silicon.
-          - { image: semestra-allinone, target: allinone-ocr, suffix: "-ocr", platforms: "linux/amd64,linux/arm64" }
+          # Self-hosting with local OCR and embedding; arm64 too, for Docker on Apple Silicon.
+          # Also tagged with its old name (-ocr) until 2.0, so existing installs keep updating.
+          - { image: semestra-allinone, target: allinone-local, suffix: "-local", alias: "-ocr", platforms: "linux/amd64,linux/arm64" }
     steps:
       - uses: actions/checkout@v6
         with: { fetch-depth: 0, ref: "refs/tags/${{ env.TAG }}" }
@@ -61,9 +62,11 @@ jobs:
           ref="ghcr.io/${owner}/${{ matrix.image }}"
           {
             echo "tags<<EOF"
-            echo "${ref}:${version}${{ matrix.suffix }}"
-            # Pre-releases (v1.2.0-rc1) never move "latest".
-            if [[ "$version" != *-* ]]; then echo "${ref}:latest${{ matrix.suffix }}"; fi
+            for suffix in "${{ matrix.suffix }}" ${{ matrix.alias }}; do
+              echo "${ref}:${version}${suffix}"
+              # Pre-releases (v1.2.0-rc1) never move "latest".
+              if [[ "$version" != *-* ]]; then echo "${ref}:latest${suffix}"; fi
+            done
             echo "EOF"
           } >>"$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v3

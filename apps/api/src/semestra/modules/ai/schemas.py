@@ -120,7 +120,8 @@ class AssignmentUpdateInput(BaseModel):
     purpose: Purpose = Field(description="Which purpose to configure.")
     provider_id: str | None = Field(
         description="Provider to use; null removes the choice (the recommended default applies), "
-        "or, for ocr with a local model name in `model`, picks that local OCR model."
+        "or, for ocr and embedding with a local model name in `model`, picks that model this "
+        "server runs itself."
     )
     model: str | None = Field(
         default=None, min_length=1, max_length=200, description="Model name at that provider."
@@ -137,7 +138,7 @@ class PurposeStatus(BaseModel):
     purpose: Purpose
     available: bool
     # How the model was chosen: the user's choice, a provider default, the instance provider, or
-    # (OCR only) the self-hosted install's own OCR engine, which `model` then names.
+    # (OCR and embedding) a model the self-hosted install runs itself, which `model` then names.
     source: Source | None
     provider_id: str | None
     provider_kind: ProviderKind | None
@@ -145,28 +146,41 @@ class PurposeStatus(BaseModel):
     model: str | None
 
 
+class LocalModels(BaseModel):
+    """Models a self-hosted server runs itself for one purpose (local OCR, local embedding)."""
+
+    purpose: Literal["ocr", "embedding"]
+    # What a user can pick: the built-in models, then (embedding) Hugging Face models already on
+    # this server or picked by this user, by repository name.
+    models: list[str]
+    # The one used when the user picks nothing.
+    default: str
+    downloaded: list[str]
+    # Downloading now for anyone (a file being processed, another user's pick).
+    downloading: list[str]
+    # The user's download of the model this purpose uses (a `core.job`, while it runs or after
+    # it failed).
+    download_job: str | None
+    # Whether the user may add a Hugging Face model by its repository name.
+    custom: bool = False
+
+
 class AiStatusGet(BaseModel):
     items: list[PurposeStatus]
-    # Self-hosted installs with local OCR: the PaddleOCR models a user can pick for OCR, the one
-    # used when they pick nothing, the ones already on this server, and the user's download of
-    # the model their OCR uses (a `core.job`, while it runs or after it failed). Empty and null
-    # elsewhere.
-    local_ocr_models: list[str] = Field(default_factory=list)
-    local_ocr_default: str | None = None
-    local_ocr_downloaded: list[str] = Field(default_factory=list)
-    # Models downloading now for anyone (a file being processed, another user's pick).
-    local_ocr_downloading: list[str] = Field(default_factory=list)
-    local_ocr_download_job: str | None = None
+    # Self-hosted installs only; empty elsewhere.
+    local: list[LocalModels] = Field(default_factory=list)
 
 
-class LocalOcrDownloadInput(BaseModel):
+class LocalModelDownloadInput(BaseModel):
+    purpose: Literal["ocr", "embedding"] = Field(description="What the model is for.")
     model: str | None = Field(
         default=None,
-        description="A local OCR model; defaults to the one that reads this user's scanned pages.",
+        max_length=200,
+        description="A local model; defaults to the one this user's purpose uses.",
     )
 
 
-class LocalOcrDownload(BaseModel):
+class LocalModelDownload(BaseModel):
     # The download's job id; null when the model is already on this server.
     job_id: str | None
 

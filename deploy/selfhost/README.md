@@ -5,7 +5,7 @@
 ## English
 
 One container serves the API and the web app on port 8000; all data lives in the `semestra-data`
-volume. You need Docker with the Compose plugin and about 3 GB of RAM (1 GB with the smaller
+volume. You need Docker with the Compose plugin and about 4 GB of RAM (1 GB with the smaller
 image). The repository and the images are public.
 
 ```bash
@@ -59,7 +59,7 @@ setting: [`apps/docs/content/docs/self-hosting`](../../apps/docs/content/docs/se
 ## 中文
 
 一个容器在 8000 端口同时提供 API 和网页应用，全部数据都在 `semestra-data` 卷里。需要装有 Compose 插件的 Docker，以及约
-3 GB 内存（小镜像约 1 GB）。仓库和镜像都是公开的。
+4 GB 内存（小镜像约 1 GB）。仓库和镜像都是公开的。
 
 ```bash
 git clone https://github.com/jinyuanZhou-Leo/Semestra-Next.git

@@ -29,7 +29,7 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.http import safe_client
-from semestra.modules.ai import catalog
+from semestra.modules.ai import catalog, local_embedding, local_embedding_runtime
 from semestra.modules.ai.adapters import SemestraModel, adapter_for, convert, semestra_model
 from semestra.modules.ai.adapters.base import CALL_TIMEOUT_SECONDS, STREAM_IDLE_TIMEOUT_SECONDS
 from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS
@@ -444,9 +444,38 @@ async def structured[T: BaseModel](
 # --- embeddings -----------------------------------------------------------------------------
 
 
-async def embed(ctx: Ctx, texts: Sequence[str], *, source_module: str) -> EmbeddingResult:
-    """Vectors for `texts` with the user's embedding model; `model` and `dim` identify the
-    vector space (M07 rebuilds its index when they change)."""
+async def embedding_model(ctx: Ctx) -> tuple[str, str]:
+    """`(provider kind, model)` that `embed` uses for this user now ("local" for a model this
+    server runs). Raises `ai.not_configured` when there is none."""
+    local = await local_embedding.choice(ctx)
+    if local is not None:
+        return "local", local_embedding.model_tag(ctx.settings, local)
+    resolved = await resolve_provider(ctx, "embedding")
+    return resolved.endpoint.kind, resolved.model
+
+
+async def embed(
+    ctx: Ctx, texts: Sequence[str], *, source_module: str, query: bool = False
+) -> EmbeddingResult:
+    """Vectors for `texts` with the user's embedding model; `provider_kind`, `model` and `dim`
+    identify the vector space (M07 rebuilds its index when they change). `query` marks search
+    queries, which some models embed with an instruction in front."""
+    local = await local_embedding.choice(ctx)
+    if local is not None:
+        if not local_embedding.downloaded(ctx.settings, local):
+            raise AppError("ai.local_model_missing", 409, model=local)
+        vectors = await local_embedding_runtime.embed(
+            local_embedding.model_dir(ctx.settings, local),
+            ctx.settings,
+            texts,
+            "query" if query else "passage",
+        )
+        return EmbeddingResult(
+            model=local_embedding.model_tag(ctx.settings, local),
+            dim=len(vectors[0]) if vectors else 0,
+            vectors=vectors,
+            provider_kind="local",
+        )
     resolved = await resolve_provider(ctx, "embedding")
     ep = resolved.endpoint
     vectors: list[list[float]] = []
@@ -468,14 +497,17 @@ async def embed(ctx: Ctx, texts: Sequence[str], *, source_module: str) -> Embedd
         _finish(call, usage)
         vectors.extend(batch_vectors)
     dim = len(vectors[0]) if vectors else 0
-    return EmbeddingResult(model=resolved.model, dim=dim, vectors=vectors)
+    return EmbeddingResult(model=resolved.model, dim=dim, vectors=vectors, provider_kind=ep.kind)
 
 
 # --- for other modules ----------------------------------------------------------------------
 
 
 async def available(ctx: Ctx, purpose: Purpose) -> bool:
-    """Whether a feature that needs `purpose` can run for this user right now."""
+    """Whether a feature that needs `purpose` can run for this user right now. A local embedding
+    model counts once it is on this server (`local_jobs.prepare_embedding` fetches it)."""
+    if purpose == "embedding" and (local := await local_embedding.choice(ctx)) is not None:
+        return local_embedding.downloaded(ctx.settings, local)
     return await try_resolve(ctx, purpose, with_key=False) is not None
 
 

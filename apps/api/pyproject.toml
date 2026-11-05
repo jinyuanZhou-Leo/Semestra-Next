@@ -49,6 +49,17 @@ dependencies = [
 [project.optional-dependencies]
 # Local OCR of scanned pages (PaddleOCR's PP-OCRv6/v5 models on ONNX Runtime), for self-hosted images.
 ocr = ["onnxruntime>=1.31.1", "paddleocr>=3.7.0"]
+# Local text embedding (ONNX models from Hugging Face), for self-hosted images.
+embedding = ["huggingface-hub>=2.3.0", "numpy>=2.3.5", "onnxruntime>=1.31.1", "tokenizers>=0.23.3"]
+# Both of the above on an NVIDIA GPU (Linux, Windows), instead of `ocr` and `embedding`: the GPU
+# build of ONNX Runtime replaces the CPU one, so they cannot be installed together.
+local-cuda = [
+    "huggingface-hub>=2.3.0",
+    "numpy>=2.3.5",
+    "onnxruntime-gpu>=1.31.1; sys_platform != 'darwin'",
+    "paddleocr>=3.7.0",
+    "tokenizers>=0.23.3",
+]
 
 [project.scripts]
 semestra = "semestra.cli:main"
@@ -56,6 +67,12 @@ semestra = "semestra.cli:main"
 [build-system]
 requires = ["uv_build>=0.10.10,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+conflicts = [
+    [{ extra = "local-cuda" }, { extra = "ocr" }],
+    [{ extra = "local-cuda" }, { extra = "embedding" }],
+]
 
 [tool.uv.build-backend]
 module-name = "semestra"

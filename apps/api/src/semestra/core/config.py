@@ -70,6 +70,25 @@ class Settings(BaseSettings):
     # finishes. No address-space limit:
     # ONNX Runtime reserves far more virtual memory than it uses.
     local_ocr_page_timeout_seconds: float = 60
+    # Local embedding (self-hosting, `semestra-api[embedding]`): text embedding models on ONNX
+    # Runtime in a long-lived child process. Users can pick one of the presets (or, with
+    # `local_embedding_custom`, any Hugging Face model that has an ONNX export) when the extra is
+    # installed and this is on (the `-local` image does).
+    local_embedding: bool = False
+    # Used when a user picks none: multilingual-e5-small | bge-m3 | qwen3-embedding-0.6b.
+    local_embedding_model: str = "multilingual-e5-small"
+    # Users may add Hugging Face models; files are shared by the whole server, so a busy
+    # multi-user server may turn this off. Larger models are refused.
+    local_embedding_custom: bool = True
+    local_embedding_max_gb: float = 3
+    # Where models are kept (default `<DATA_DIR>/models/embedding`).
+    local_embedding_dir: Path | None = None
+    # auto picks CUDA (the `local-cuda` extra) when it is there, otherwise the CPU.
+    local_embedding_device: Literal["auto", "cpu", "cuda"] = "auto"
+    # Inference threads (0 = half the cores, leaving the rest to the API).
+    local_embedding_threads: int = 0
+    # The child process exits after this long without a request, giving its memory back.
+    local_embedding_idle_seconds: float = 600
 
     email_backend: Literal["console", "smtp", "resend"] = "console"
     email_from: str = "Semestra <no-reply@semestra.jyleo.cc>"

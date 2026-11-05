@@ -73,6 +73,8 @@ async def retry_vectors(ctx: Ctx) -> None:
     for user_id in list(await ctx.db.scalars(missing)):
 
         async def again(user_ctx: Ctx) -> None:
+            # A local model that is not here yet is fetched first; its download rebuilds.
+            await ai.local_jobs.prepare_embedding(user_ctx)
             if await ai.available(user_ctx, "embedding"):
                 await enqueue(
                     user_ctx,

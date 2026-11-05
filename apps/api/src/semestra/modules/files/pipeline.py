@@ -294,7 +294,7 @@ async def _ocr(
     if local is not None and not ai.local_ocr.downloaded(local):
         # Fetched before the OCR deadline starts; the job shows megabytes received.
         try:
-            await ai.local_ocr_jobs.download_with_progress(ctx, local, "ocr_model")
+            await ai.local_jobs.download_with_progress(ctx, "ocr", local, "ocr_model")
         except AppError as exc:
             log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
             # On Auto, the user's AI model reads the pages instead; a model they picked does not.
@@ -391,6 +391,8 @@ async def _embed(
     searchable by keyword and a later reindex adds the vectors."""
     store = get_vector_store()
     if not refs or not await ai.available(ctx, "embedding"):
+        # A local model still to download: fetched in its own job, which then adds the vectors.
+        await ai.local_jobs.prepare_embedding(ctx)
         await ctx.skip_stage("embedding")
         return None
     async with ctx.state.session_factory() as db:
@@ -505,6 +507,7 @@ async def reindex_vectors(ctx: JobCtx, *, retry: bool = False) -> int:
     `retry` (the periodic retry) leaves out documents that already failed VECTOR_RETRIES times."""
     store = get_vector_store()
     if not await ai.available(ctx, "embedding"):
+        await ai.local_jobs.prepare_embedding(ctx)
         await ctx.skip_stage("embedding")
         return 0
     async with ctx.state.session_factory() as db:
