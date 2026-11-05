@@ -218,7 +218,7 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
         return "fake", fake.model
 
     async def embed(
-        ctx: Any, texts: list[str], *, source_module: str, query: bool = False
+        ctx: Any, texts: list[str], *, source_module: str, query: bool = False, retry: bool = True
     ) -> ai.EmbeddingResult:
         if fake.fail_embedding or (
             fake.fail_embedding_on is not None and any(fake.fail_embedding_on in t for t in texts)

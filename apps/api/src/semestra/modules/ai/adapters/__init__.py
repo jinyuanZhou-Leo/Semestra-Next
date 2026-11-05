@@ -6,11 +6,14 @@ official SDKs (Pydantic AI has no model listing). Every request goes through the
 the caller passes in (`bridge.py`).
 """
 
+from collections.abc import Awaitable, Callable
+
 import httpx
 
 from semestra.core.errors import AppError
+from semestra.modules.ai import catalog
 from semestra.modules.ai.adapters import convert
-from semestra.modules.ai.adapters.base import Adapter, Endpoint, ModelInfo, ModelParams
+from semestra.modules.ai.adapters.base import Adapter, Endpoint, ModelInfo, ModelParams, map_error
 from semestra.modules.ai.adapters.model import Record, SemestraModel, retrying
 from semestra.modules.ai.adapters.sdk import (
     ANTHROPIC_KINDS,
@@ -23,6 +26,16 @@ from semestra.modules.ai.llm import Usage
 
 # Compatible endpoints often have no model listing: the user types the model name instead.
 _LISTING_OPTIONAL = frozenset(("anthropic_compatible", "openai_compatible", "openai_responses"))
+
+
+async def _once[T](make: Callable[[], Awaitable[T]], model: str | None = None) -> T:
+    """One attempt, errors mapped like `retrying` (a search query does not wait for retries)."""
+    try:
+        return await make()
+    except AppError:
+        raise
+    except Exception as exc:
+        raise map_error(exc, model) from None
 
 
 def semestra_model(
@@ -46,21 +59,47 @@ class ProviderAdapter:
         self.kind = kind
 
     async def embed(
-        self, client: httpx.AsyncClient, ep: Endpoint, model: str, texts: list[str]
+        self,
+        client: httpx.AsyncClient,
+        ep: Endpoint,
+        model: str,
+        texts: list[str],
+        *,
+        query: bool = False,
+        retry: bool = True,
     ) -> tuple[list[list[float]], Usage]:
         if self.kind in ANTHROPIC_KINDS:
             raise AppError("ai.capability_unsupported", 400, capability="embedding")
+        profile = catalog.embedding_profile(model)
+        prefix = profile.query_prefix if query else profile.document_prefix
+        inputs = [prefix + t for t in texts] if prefix else list(texts)
+        run = retrying if retry else _once
         if self.kind == "gemini":
+            from google.genai.types import EmbedContentConfig
+
             google = google_client(client, ep)
-            result = await retrying(
-                lambda: google.aio.models.embed_content(model=model, contents=list(texts)), model
+            config = EmbedContentConfig(
+                task_type="RETRIEVAL_QUERY" if query else "RETRIEVAL_DOCUMENT",
+                output_dimensionality=profile.dimensions,
+            )
+            result = await run(
+                lambda: google.aio.models.embed_content(
+                    model=model, contents=list(inputs), config=config
+                ),
+                model,
             )
             vectors = [list(e.values or []) for e in result.embeddings or []]
             # The Gemini API reports no token counts: estimate them for the usage log.
-            used = Usage(input_tokens=sum(len(t) for t in texts) // 4)
+            used = Usage(input_tokens=sum(len(t) for t in inputs) // 4)
         else:
+            from openai import omit as OMIT
+
             oai = openai_client(client, ep)
-            result = await retrying(lambda: oai.embeddings.create(model=model, input=texts), model)
+            dimensions = profile.dimensions or OMIT
+            result = await run(
+                lambda: oai.embeddings.create(model=model, input=inputs, dimensions=dimensions),
+                model,
+            )
             vectors = [list(r.embedding) for r in sorted(result.data, key=lambda r: r.index)]
             used = Usage(input_tokens=result.usage.prompt_tokens if result.usage else 0)
         if len(vectors) != len(texts):

@@ -7,6 +7,7 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -142,3 +143,28 @@ async def test_auto_keeps_a_providers_embedding_model(
         assert await local_embedding.choice(ctx) is None
         await ai_module.local_jobs.prepare_embedding(ctx)
     assert local["fetched"] == []
+
+
+def test_the_worker_keeps_recent_models_loaded(monkeypatch: pytest.MonkeyPatch):
+    import multiprocessing
+    import threading
+
+    from semestra import embedding_worker
+
+    loads: list[str] = []
+
+    def load(folder: str, wanted: str, thread_count: int) -> object:
+        loads.append(folder)
+        return SimpleNamespace(device="cpu")
+
+    monkeypatch.setattr(embedding_worker, "_load", load)
+    ours, theirs = multiprocessing.Pipe()
+    worker = threading.Thread(target=embedding_worker.serve, args=(theirs,), daemon=True)
+    worker.start()
+    for folder in ("a", "b", "a", "b", "c", "b", "a"):
+        ours.send(("load", folder, "cpu", 1, 2))
+        assert ours.recv() == ("ok", "cpu")
+    ours.close()
+    worker.join(5)
+    # Two users' models take turns without reloading; a third evicts the least recently used.
+    assert loads == ["a", "b", "c", "a"]

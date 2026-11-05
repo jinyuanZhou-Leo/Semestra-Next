@@ -1,6 +1,7 @@
 """What every provider kind shares: the request shape, retries and error mapping."""
 
 import asyncio
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -17,9 +18,19 @@ log = structlog.get_logger()
 MAX_RETRIES = 3
 RETRY_BASE_SECONDS = 1.0  # tests set this to 0
 MAX_RETRY_AFTER_SECONDS = 30.0
-# A call gives up after this long; a stream after this long without data.
+# A request gives up after this long; a stream after this long without data.
 CALL_TIMEOUT_SECONDS = 120.0
 STREAM_IDLE_TIMEOUT_SECONDS = 60.0
+# A structured answer may be long: its request gets CALL_TIMEOUT_SECONDS to read the input and
+# start, plus the time the model's output limit takes at a slow MIN_TOKENS_PER_SECOND. Without a
+# limit from the user, DEFAULT_OUTPUT_TOKENS is assumed (Pydantic AI's cap for models it does
+# not know).
+MIN_TOKENS_PER_SECOND = 25
+DEFAULT_OUTPUT_TOKENS = 16_384
+
+
+def answer_timeout(max_tokens: int | None) -> float:
+    return CALL_TIMEOUT_SECONDS + (max_tokens or DEFAULT_OUTPUT_TOKENS) / MIN_TOKENS_PER_SECOND
 
 
 @dataclass(frozen=True)
@@ -54,7 +65,14 @@ class Adapter(Protocol):
     """What the providers' own SDKs do (chat goes through `SemestraModel`)."""
 
     async def embed(
-        self, client: httpx.AsyncClient, ep: Endpoint, model: str, texts: list[str]
+        self,
+        client: httpx.AsyncClient,
+        ep: Endpoint,
+        model: str,
+        texts: list[str],
+        *,
+        query: bool = False,
+        retry: bool = True,
     ) -> tuple[list[list[float]], Usage]: ...
 
     async def list_models(self, client: httpx.AsyncClient, ep: Endpoint) -> list[ModelInfo]: ...
@@ -111,8 +129,20 @@ class _Bare:
     headers: dict[str, str] = field(default_factory=lambda: {})
 
 
-def _retry_after(response: HttpResponse) -> float | None:
+# Gemini puts the wait in the body (`RetryInfo.retryDelay`, e.g. "37s"), not in a header.
+_RETRY_DELAY = re.compile(r'retrydelay"?\s*[:=]\s*"?(\d+(?:\.\d+)?)s')
+# How many inputs an embeddings endpoint takes, when its refusal says so (Alibaba Cloud Model
+# Studio: "batch size is invalid, it should not be larger than 10").
+_BATCH_LIMIT = re.compile(
+    r"(?:batch|inputs?|texts?)\b[^.\n]{0,60}?(?:larger than|more than|at most|maximum(?: is| of)?"
+    r"|exceeds?(?: the)?(?: limit(?: of)?)?|limit(?: is| of)?|<=)\s*(\d+)"
+)
+
+
+def _retry_after(response: HttpResponse, body: str) -> float | None:
     value = response.headers.get("retry-after")
+    if not value and (found := _RETRY_DELAY.search(body)):
+        value = found.group(1)
     if not value:
         return None
     try:
@@ -133,7 +163,7 @@ def error_for(response: HttpResponse, model: str | None = None) -> AppError:
     if status == 402 or any(hint in body for hint in _CREDIT_HINTS):
         return AppError("ai.out_of_credit", 402)
     if status == 429:
-        retry_after = _retry_after(response)
+        retry_after = _retry_after(response, body)
         return AppError(
             "ai.rate_limited",
             429,
@@ -145,6 +175,10 @@ def error_for(response: HttpResponse, model: str | None = None) -> AppError:
         return AppError("ai.context_too_long", 400)
     if status == 404 and model:
         return AppError("ai.model_not_found", 400, model=model)
+    if (found := _BATCH_LIMIT.search(body)) and int(found.group(1)) > 0:
+        return AppError(
+            "ai.request_rejected", 400, http_status=status, batch_limit=int(found.group(1))
+        )
     return AppError("ai.request_rejected", 400, http_status=status)
 
 

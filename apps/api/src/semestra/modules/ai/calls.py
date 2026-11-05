@@ -6,7 +6,6 @@ logged (only lengths and token counts); `SEMESTRA_AI_DEBUG_LOG=true` writes them
 `DATA_DIR/ai-debug/` outside prod.
 """
 
-import asyncio
 import json
 import re
 import time
@@ -31,8 +30,12 @@ from semestra.core.errors import AppError
 from semestra.core.http import safe_client
 from semestra.modules.ai import catalog, local_embedding, local_embedding_runtime
 from semestra.modules.ai.adapters import SemestraModel, adapter_for, convert, semestra_model
-from semestra.modules.ai.adapters.base import CALL_TIMEOUT_SECONDS, STREAM_IDLE_TIMEOUT_SECONDS
-from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS
+from semestra.modules.ai.adapters.base import (
+    CALL_TIMEOUT_SECONDS,
+    STREAM_IDLE_TIMEOUT_SECONDS,
+    answer_timeout,
+)
+from semestra.modules.ai.adapters.sdk import ANTHROPIC_KINDS, REASONING_KINDS
 from semestra.modules.ai.llm import (
     Completion,
     Document,
@@ -208,8 +211,11 @@ def _debug_dump(call: _Call, output: str | None, error_code: str | None, model: 
     (folder / f"{new_id()}.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))
 
 
-def _client(ctx: Ctx, *, stream: bool) -> httpx.AsyncClient:
-    read = STREAM_IDLE_TIMEOUT_SECONDS if stream else CALL_TIMEOUT_SECONDS
+def _client(ctx: Ctx, *, stream: bool, read: float | None = None) -> httpx.AsyncClient:
+    """`read`: how long a request may wait for its answer (default: a stream's idle timeout, or
+    `CALL_TIMEOUT_SECONDS`). It applies to each request, retries and their waits not included."""
+    if read is None:
+        read = STREAM_IDLE_TIMEOUT_SECONDS if stream else CALL_TIMEOUT_SECONDS
     return safe_client(ctx.settings, timeout=httpx.Timeout(read, connect=10.0))
 
 
@@ -255,10 +261,12 @@ def _log_requests(call: _Call, requests: list[_Request], failure: AppError | Non
 async def _run[T](
     call: _Call, work: Callable[[SemestraModel], Awaitable[T]], *, whole_answer: bool = False
 ) -> T:
-    """Runs `work` on the call's model within `CALL_TIMEOUT_SECONDS`; every request it makes is
-    logged (`SemestraModel` retries and maps errors per request). With `whole_answer`, a reply
-    that hit the output limit raises `ai.output_truncated` at once: asking again (Pydantic AI's
-    output retries) would only be cut off at the same place."""
+    """Runs `work` on the call's model; every request it makes is logged. Each request has its
+    own timeout (`SemestraModel` retries and maps errors per request, so waiting out a rate limit
+    or a retry does not eat into the next request's time). With `whole_answer` (a structured
+    answer, which can take minutes), a request may take as long as the model's output limit
+    needs (`answer_timeout`), and a reply that hit the limit raises `ai.output_truncated` at
+    once: asking again (Pydantic AI's output retries) would only be cut off at the same place."""
     resolved = call.resolved
     requests: list[_Request] = []
     failure: AppError | None = None
@@ -269,13 +277,13 @@ async def _run[T](
             raise _CutOff
 
     try:
-        async with _client(call.ctx, stream=False) as client, asyncio.timeout(CALL_TIMEOUT_SECONDS):
+        read = answer_timeout(resolved.params.max_tokens) if whole_answer else None
+        async with _client(call.ctx, stream=False, read=read) as client:
             ep = resolved.endpoint
             return await work(semestra_model(client, ep, resolved.model, resolved.params, record))
-    except TimeoutError:
-        failure = AppError("ai.timeout", 504)
-        requests.append((call.started, None, failure))  # the request cut off never recorded
-        raise failure from None
+    except AppError as exc:
+        failure = exc
+        raise
     except _CutOff:
         failure = AppError("ai.output_truncated", 502)
         raise failure from None
@@ -376,13 +384,19 @@ def _output_spec[T: BaseModel](resolved: Resolved, model: Model, schema: type[T]
 
 
 def _structured_settings(resolved: Resolved, model: Model) -> ModelSettings:
-    """Reading a document into a schema needs no thinking. On the Messages API thinking is turned
-    off where the model allows it: some compatible models (DeepSeek) think by default, which
-    spends the output budget before the answer and does not go with a forced output tool call."""
-    if resolved.endpoint.kind not in ANTHROPIC_KINDS or model.profile.get(
-        "thinking_always_enabled"
-    ):
-        return ModelSettings()
+    """Reading a document into a schema needs no reasoning: it only makes the answer slower and
+    dearer, and spends the output budget before the answer. Turned off (or down to the least the
+    model allows) unless the user set an effort for the purpose. On the Messages API it is turned
+    off explicitly where the model allows it: compatible models (DeepSeek) think by default
+    without Pydantic AI knowing they can, and thinking does not go with a forced output tool
+    call. Elsewhere Pydantic AI's `thinking=False` does it for the models it knows reason
+    (OpenAI's `reasoning_effort`, Gemini's thinking budget)."""
+    if resolved.params.reasoning_effort is not None and resolved.endpoint.kind in REASONING_KINDS:
+        return ModelSettings()  # the effort the user picked (`convert.settings_for` sends it)
+    if resolved.endpoint.kind not in ANTHROPIC_KINDS:
+        return ModelSettings(thinking=False)
+    if model.profile.get("thinking_always_enabled"):
+        return ModelSettings(thinking=False)
     return cast(ModelSettings, {"anthropic_thinking": {"type": "disabled"}})
 
 
@@ -445,21 +459,33 @@ async def structured[T: BaseModel](
 
 
 async def embedding_model(ctx: Ctx) -> tuple[str, str]:
-    """`(provider kind, model)` that `embed` uses for this user now ("local" for a model this
-    server runs). Raises `ai.not_configured` when there is none."""
+    """`(provider kind, model)` naming the vector space `embed` writes for this user now
+    ("local" for a model this server runs). Raises `ai.not_configured` when there is none."""
     local = await local_embedding.choice(ctx)
     if local is not None:
         return "local", local_embedding.model_tag(ctx.settings, local)
     resolved = await resolve_provider(ctx, "embedding")
-    return resolved.endpoint.kind, resolved.model
+    return resolved.endpoint.kind, _space_model(resolved.model)
+
+
+def _space_model(model: str) -> str:
+    """The model's name in the vector space: with a mark when its texts get prefixes, so turning
+    those on rebuilds the vectors embedded without them."""
+    return model + catalog.embedding_profile(model).tag
 
 
 async def embed(
-    ctx: Ctx, texts: Sequence[str], *, source_module: str, query: bool = False
+    ctx: Ctx,
+    texts: Sequence[str],
+    *,
+    source_module: str,
+    query: bool = False,
+    retry: bool = True,
 ) -> EmbeddingResult:
     """Vectors for `texts` with the user's embedding model; `provider_kind`, `model` and `dim`
     identify the vector space (M07 rebuilds its index when they change). `query` marks search
-    queries, which some models embed with an instruction in front."""
+    queries, which most retrieval models embed differently from documents; `retry=False` makes
+    one attempt (a search query falls back to keywords rather than wait)."""
     local = await local_embedding.choice(ctx)
     if local is not None:
         if not local_embedding.downloaded(ctx.settings, local):
@@ -478,26 +504,54 @@ async def embed(
         )
     resolved = await resolve_provider(ctx, "embedding")
     ep = resolved.endpoint
+    rt = runtime(ctx.state)
+    key = (ep.base_url, ep.provider_id)
     vectors: list[list[float]] = []
-    for start in range(0, len(texts), EMBED_BATCH):
-        batch = list(texts[start : start + EMBED_BATCH])
+    pending = list(texts)
+    trying: int | None = None  # a smaller batch after a refusal
+    learnt: int | None = None  # the endpoint's own limit, kept once a batch that size goes through
+    while pending:
+        size = trying or rt.embed_batch.get(key, EMBED_BATCH)
+        batch = pending[:size]
         call = _Call(ctx, resolved, source_module, None, time.monotonic())
         try:
-            async with _client(ctx, stream=False) as client, asyncio.timeout(CALL_TIMEOUT_SECONDS):
+            async with _client(ctx, stream=False) as client:
                 batch_vectors, usage = await adapter_for(ep.kind).embed(
-                    client, ep, resolved.model, batch
+                    client, ep, resolved.model, batch, query=query, retry=retry
                 )
-        except TimeoutError:
-            error = AppError("ai.timeout", 504)
-            _finish(call, Usage(), error=error)
-            raise error from None
         except AppError as exc:
             _finish(call, Usage(), error=exc)
-            raise
+            smaller = _smaller_batch(exc, len(batch))
+            if smaller is None:
+                raise
+            trying, keep = smaller
+            learnt = trying if keep else None
+            continue
         _finish(call, usage)
+        if learnt is not None:  # the endpoint's limit, for its next requests too
+            rt.embed_batch[key] = learnt
+            learnt = None
         vectors.extend(batch_vectors)
+        pending = pending[len(batch) :]
     dim = len(vectors[0]) if vectors else 0
-    return EmbeddingResult(model=resolved.model, dim=dim, vectors=vectors, provider_kind=ep.kind)
+    return EmbeddingResult(
+        model=_space_model(resolved.model), dim=dim, vectors=vectors, provider_kind=ep.kind
+    )
+
+
+def _smaller_batch(error: AppError, size: int) -> tuple[int, bool] | None:
+    """After a refused batch: a smaller one, and whether the endpoint's later requests take that
+    size too. The size the endpoint says it takes is kept; half of a batch too long in tokens (or
+    413) is only for this call, as later batches may be shorter. None for any other refusal: a
+    wrong model name, an unsupported option or one refused text fails at every size."""
+    if size <= 1:
+        return None
+    limit = error.params.get("batch_limit")
+    if error.code == "ai.request_rejected" and isinstance(limit, int) and 0 < limit < size:
+        return limit, True
+    if error.code == "ai.context_too_long":
+        return size // 2, False
+    return None
 
 
 # --- for other modules ----------------------------------------------------------------------

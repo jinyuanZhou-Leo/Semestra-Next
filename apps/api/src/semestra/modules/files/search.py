@@ -10,13 +10,14 @@ from dataclasses import dataclass
 import structlog
 from sqlalchemy import ColumnElement, and_, bindparam, case, func, or_, select, text
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
+from semestra.core.jobs import enqueue
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.files import service
 from semestra.modules.files.embeddings import embed_query
-from semestra.modules.files.models import FilesChunk, FilesItem
+from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
 from semestra.modules.files.schemas import (
     Citation,
     PendingItem,
@@ -157,6 +158,40 @@ async def _substring(
     return list((await ctx.db.scalars(stmt)).all())
 
 
+async def _rebuild_if_stale(ctx: Ctx, space: str) -> None:
+    """The user's vectors are in another space than their model writes now (the way a provider's
+    model is called changed with an update, or a local model's file did): rebuild them, after
+    this request, as when the model is changed in the settings. Only documents with retries
+    left, as the periodic retry does: one that keeps failing is not sent again on every search."""
+    assert ctx.user_id is not None
+    user_id = ctx.user_id
+    # The job imports the pipeline, which imports this module.
+    from semestra.modules.files.jobs import ReindexPayload
+    from semestra.modules.files.pipeline import retries_left
+
+    stale = await ctx.db.scalar(
+        select(FilesIndexState.item_id)
+        .where(
+            FilesIndexState.user_id == user_id,
+            FilesIndexState.vector_fingerprint.is_not(None),
+            FilesIndexState.vector_fingerprint != space,
+            retries_left(),
+        )
+        .limit(1)
+    )
+    if stale is None:
+        return
+
+    async def rebuild(system: Ctx) -> None:
+        payload = ReindexPayload(retry=True)
+        await enqueue(system, "files.reindex_vectors", payload, dedupe_key="reindex")
+
+    async def later() -> None:
+        await run_as_system(ctx.state, user_id, rebuild)
+
+    ctx.after_commit.append(later)
+
+
 async def _semantic(
     ctx: Ctx, query: str, course_ids: Sequence[str], item_ids: Sequence[str] | None, top_k: int
 ) -> list[str] | None:
@@ -170,6 +205,7 @@ async def _semantic(
         log.info("files_semantic_unavailable", code=exc.code)
         return None
     if space not in await store.spaces(ctx.db):
+        await _rebuild_if_stale(ctx, space)
         return None
     k = min(MAX_K, max(top_k * 8, 40))
     if item_ids is not None:
@@ -194,6 +230,7 @@ async def _semantic(
         )
     ordered = [chunk_id for chunk_id, _ in hits]
     if not ordered:
+        await _rebuild_if_stale(ctx, space)
         return []
     stmt = (
         select(FilesChunk.id)

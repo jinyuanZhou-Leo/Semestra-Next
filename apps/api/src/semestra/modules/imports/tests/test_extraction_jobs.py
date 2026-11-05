@@ -106,7 +106,7 @@ async def test_a_passing_model_error_is_tried_again_for_that_file(
             files={"file": ("s.txt", b"APS105 Midterm 30%", "text/plain")},
         )
     )["id"]
-    model_calls.failures.append("ai.timeout")
+    model_calls.failures.append("ai.provider_unreachable")
     session = await api.create(
         program_id, source_kind="syllabus",
         target={"kind": "course", "course_id": course["id"], "term_id": term_id},

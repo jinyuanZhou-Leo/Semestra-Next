@@ -101,6 +101,27 @@ def default_model(kind: str, purpose: Purpose) -> str | None:
     return table.get(purpose)
 
 
+@dataclass(frozen=True)
+class EmbeddingProfile:
+    """How a provider's embedding model is called (`defaults.toml` `[embedding_profiles]`)."""
+
+    query_prefix: str = ""
+    document_prefix: str = ""
+    dimensions: int | None = None
+
+    @property
+    def tag(self) -> str:
+        """Part of the vector space's name: prefixes change what a vector means."""
+        return "+prefixed" if self.query_prefix or self.document_prefix else ""
+
+
+def embedding_profile(model: str) -> EmbeddingProfile:
+    table: dict[str, dict[str, Any]] = _load("defaults.toml").get("embedding_profiles", {})
+    name = model.lower().rpartition("/")[2].partition(":")[0]
+    found = _longest_prefix(table, name)
+    return EmbeddingProfile(**found) if found else EmbeddingProfile()
+
+
 def context_window(model: str, kind: str | None = None, base_url: str | None = None) -> int:
     """How many tokens the model takes: genai-prices' model data first (it knows gateways such
     as OpenRouter by their URL, and `vendor/model` names), then `defaults.toml`'s prefixes,
