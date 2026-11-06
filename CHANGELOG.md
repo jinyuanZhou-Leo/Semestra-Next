@@ -3,6 +3,12 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.14.1 (2026-11-06)
+
+### Fixed
+
+- **Self-hosting:** Fixed self-hosted Docker instances failing to save Canvas connections and AI provider keys.
+
 ## 1.14.0 (2026-11-05)
 
 ### New
