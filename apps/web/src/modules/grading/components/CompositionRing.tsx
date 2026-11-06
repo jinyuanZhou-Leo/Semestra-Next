@@ -128,6 +128,10 @@ export function CompositionRing<T extends RingSlice>({
           <ChartTooltip
             cursor={false}
             content={<SliceTooltip renderDetails={renderDetails} />}
+            // Below the ring rather than at the pointer: the ring is smaller than the tooltip,
+            // which would otherwise hide it (and the figure in its middle) while hovering.
+            position={{ x: 0, y: RING + 8 }}
+            allowEscapeViewBox={{ x: true, y: true }}
             wrapperStyle={{ zIndex: 10 }}
           />
           <Pie
