@@ -38,6 +38,7 @@ cp .env.example .env
 | 登录后又回到登录页                           | `SEMESTRA_PUBLIC_URL` 以 `https://` 开头，但你打开的是 `http://` 地址。请打开 https 地址 |
 | 收不到验证码                                 | 没有配置[邮件](./email.mdx)时，验证码在 `docker compose logs semestra` 里 |
 | “SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod” | compose 文件里的 `SEMESTRA_AUTO_SECRETS` 被删掉了，且没有设置密钥 |
+| “SEMESTRA_ENCRYPTION_KEY is not a Fernet key” | `.env` 里的 `SEMESTRA_ENCRYPTION_KEY` 不是 `Fernet.generate_key()` 生成的密钥（44 个字符，以 `=` 结尾）。删掉它改用自动生成的密钥，或换回你备份的那个 |
 | 绑定挂载的目录报权限错误                     | `sudo chown -R 10001:10001 <目录>`：容器以 uid 10001 运行                 |
 
 进程运行时 `/healthz` 就有响应，数据库和后台任务就绪后 `/readyz` 才返回成功（否则返回 `503`）。镜像自带 Docker `HEALTHCHECK`。

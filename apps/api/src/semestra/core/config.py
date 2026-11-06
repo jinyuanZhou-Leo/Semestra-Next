@@ -1,3 +1,5 @@
+import base64
+import binascii
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +22,11 @@ class Settings(BaseSettings):
         env_prefix="SEMESTRA_",
         env_file=(".env", Path(os.environ.get("SEMESTRA_DATA_DIR", "./data")) / "secrets.env"),
         extra="ignore",
+        # An empty variable (`SEMESTRA_ENCRYPTION_KEY=` from .env.example) means "not set", so it
+        # does not hide the generated key in secrets.env.
+        env_ignore_empty=True,
+        # Validation errors must not print SECRET_KEY / ENCRYPTION_KEY and other credentials.
+        hide_input_in_errors=True,
     )
 
     env: Literal["dev", "test", "prod"] = "dev"
@@ -150,6 +157,22 @@ class Settings(BaseSettings):
             not self.secret_key or self.secret_key.startswith("dev-only") or not self.encryption_key
         ):
             raise ValueError("SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod")
+        return self
+
+    @model_validator(mode="after")
+    def _check_encryption_key(self) -> Settings:
+        # Fail at startup, not on the first saved API key or Canvas connection. Never echo it.
+        if self.encryption_key:
+            try:
+                raw = base64.urlsafe_b64decode(self.encryption_key.encode())
+            except binascii.Error, ValueError:
+                raw = b""
+            if len(raw) != 32:
+                raise ValueError(
+                    "SEMESTRA_ENCRYPTION_KEY is not a Fernet key (32 url-safe base64-encoded "
+                    "bytes, 44 characters ending in '='). Generate one with `python -c \"from "
+                    'cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.'
+                )
         return self
 
     @model_validator(mode="after")
