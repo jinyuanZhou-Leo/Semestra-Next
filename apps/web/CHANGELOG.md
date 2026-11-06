@@ -1,5 +1,39 @@
 # @semestra/web
 
+## 1.14.0
+
+### Minor Changes
+
+- e53664d: <!-- area: ai -->
+  <!-- en -->
+  Background tasks wait out provider rate limits and show when they are waiting. Each provider can limit how many requests run at once.
+  <!-- zh -->
+  后台任务遇到服务商限流时会等待并显示“等待中”；可为每个服务商设置同时请求数上限。
+- e53664d: <!-- area: ai -->
+  <!-- en -->
+  Each AI task can set its own output limit under Advanced, also when its model is on Auto.
+  <!-- zh -->
+  可在“高级”中为每项 AI 任务单独设置输出上限，模型为“自动”时同样生效。
+- 71b16b3: <!-- area: ai -->
+  <!-- en -->
+  Changing the search model asks for confirmation when files already have search vectors that would be rebuilt.
+  <!-- zh -->
+  更换搜索模型时，如果已有文件需要重新计算搜索向量，会先请你确认。
+- f1d11f2: <!-- area: ai -->
+  <!-- en -->
+  The model picker shows each on-server model's size, speed and accuracy, and on-server OCR models download only when first needed.
+  <!-- zh -->
+  模型选择器会显示服务器本机模型的大小、速度和准确程度，本机 OCR 模型改为第一次用到时再下载。
+
+### Patch Changes
+
+- bd3a99e: <!-- area: general -->
+  <!-- en -->
+  Command palette submenu arrows now align to the right edge, and the ask row reads "Sem:".
+  <!-- zh -->
+  命令面板中子菜单箭头改为靠右对齐，提问一行改为显示「Sem：」。
+- @semestra/api-client@1.14.0
+
 ## 1.13.0
 
 ### Patch Changes

@@ -1,5 +1,58 @@
 # @semestra/api
 
+## 1.14.0
+
+### Minor Changes
+
+- e53664d: <!-- area: ai -->
+  <!-- en -->
+  Background tasks wait out provider rate limits and show when they are waiting. Each provider can limit how many requests run at once.
+  <!-- zh -->
+  后台任务遇到服务商限流时会等待并显示“等待中”；可为每个服务商设置同时请求数上限。
+- e53664d: <!-- area: ai -->
+  <!-- en -->
+  Each AI task can set its own output limit under Advanced, also when its model is on Auto.
+  <!-- zh -->
+  可在“高级”中为每项 AI 任务单独设置输出上限，模型为“自动”时同样生效。
+- 71b16b3: <!-- area: ai -->
+  <!-- en -->
+  Changing the search model asks for confirmation when files already have search vectors that would be rebuilt.
+  <!-- zh -->
+  更换搜索模型时，如果已有文件需要重新计算搜索向量，会先请你确认。
+- f1d11f2: <!-- area: ai -->
+  <!-- en -->
+  The model picker shows each on-server model's size, speed and accuracy, and on-server OCR models download only when first needed.
+  <!-- zh -->
+  模型选择器会显示服务器本机模型的大小、速度和准确程度，本机 OCR 模型改为第一次用到时再下载。
+
+### Patch Changes
+
+- 6e9ba1c: <!-- area: imports -->
+  <!-- en -->
+  Long syllabi and scanned documents import reliably, and reading them is faster and cheaper.
+  <!-- zh -->
+  较长的课程大纲和扫描件可以稳定导入，读取速度更快、费用更低。
+- 6e9ba1c: <!-- area: files -->
+  <!-- en -->
+  Improved search accuracy for common embedding models, smaller Gemini vectors, and support for services that accept only small batches.
+  <!-- zh -->
+  提升常用向量模型的搜索准确度，缩小 Gemini 向量占用的空间，并支持单次只接收少量文本的服务。
+- 6e9ba1c: <!-- area: files -->
+  <!-- en -->
+  Search falls back to keywords within seconds when the embedding model is slow.
+  <!-- zh -->
+  向量模型响应慢时，搜索会在几秒内改用关键词返回结果。
+- e53664d: <!-- area: self-hosting -->
+  <!-- en -->
+  Rebuilding search indexes and downloading models no longer hold up imports and new files.
+  <!-- zh -->
+  重建搜索索引和下载模型不再阻塞导入和新文件的处理。
+- 6e9ba1c: <!-- area: self-hosting -->
+  <!-- en -->
+  Faster local OCR and local search when users choose different models.
+  <!-- zh -->
+  本机 OCR 更快；用户选用不同本机搜索模型时不再反复加载模型。
+
 ## 1.13.0
 
 ### Minor Changes
