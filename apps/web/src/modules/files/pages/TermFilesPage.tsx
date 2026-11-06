@@ -1,52 +1,46 @@
 import type { Course, FilesItemList, ItemOut } from '@semestra/api-client'
 import { type UseQueryResult, useQueries } from '@tanstack/react-query'
 import {
-  ArrowRight,
-  BookOpen,
-  ChevronDown,
-  CircleAlert,
-  FolderOpen,
-  Search,
-  Upload,
-} from 'lucide-react'
-import { type DragEvent, useRef, useState } from 'react'
+  type CellContext,
+  FlexRender,
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from '@tanstack/react-table'
+import { BookOpen, Folder, Search, Upload } from 'lucide-react'
+import { type DragEvent, createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { HistoryLink } from '@/components/HistoryLink'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { coursePath } from '@/modules/academics/paths'
 import { coursesOfTerm, useCourses } from '@/modules/academics/queries'
-import { errorMessage } from '@/lib/errors'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { Alert, AlertDescription } from '@/ui/alert'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@/ui/breadcrumb'
 import { Button } from '@/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Skeleton } from '@/ui/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
-import { FileBrowser, SortMenu } from '../components/FileBrowser'
-import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
+import { ViewToggle } from '../components/FileBrowser'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
 import { useDebounced, useFileDrop } from '../hooks'
-import { courseFilesOptions } from '../queries'
+import { courseFilesOptions, useCourseFiles } from '../queries'
+import { CourseFiles } from './CourseFilesPage'
 
 const NOOP = () => {}
 
 /**
- * The `files` page of a term (M07 §6.2): each course's files in its own section, search across
- * them, and uploads into a course picked from the menu or by dropping on its section.
+ * The `files` page of a term (M07 §6.2): every course of the term is a folder. Opening one shows
+ * that course's files as on its own page; at the top level the search covers the whole term and
+ * files dropped on a course go into it.
  */
 export default function TermFilesPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
@@ -73,21 +67,9 @@ function TermFiles({
   termId: string
   courses: Course[]
 }) {
-  const fileInput = useRef<HTMLInputElement>(null)
-  const [search, setSearch] = useState('')
-  const [preview, setPreview] = useState<PreviewTarget | null>(null)
-  const [action, setAction] = useState<{ courseId: string; action: ItemAction } | null>(null)
-  // The course the file picker uploads to, and the section dragged files are over.
-  const [pickFor, setPickFor] = useState<string | null>(null)
-  const [dropCourseId, setDropCourseId] = useState<string | null>(null)
-  const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
-  const link = useExternalLink()
-  const uploads = useUploads()
-  // Files dropped outside every section have no course to go to.
-  const dragging = useFileDrop(NOOP)
-  const query = useDebounced(search, 300)
-  const contentSearch = useContentSearch(programId, query, { termId })
-  const lists = useQueries({ queries: courses.map((course) => courseFilesOptions(course.id)) })
+  const [openId, setOpenId] = useState<string | null>(null)
+  // The course may have left the term (here or in another tab).
+  const course = courses.find((c) => c.id === openId)
 
   if (courses.length === 0) {
     return (
@@ -102,28 +84,273 @@ function TermFiles({
       </Empty>
     )
   }
+  if (course) {
+    return (
+      <OpenCourse
+        key={course.id}
+        course={course}
+        programId={programId}
+        back={() => setOpenId(null)}
+      />
+    )
+  }
+  return (
+    <CourseFolders courses={courses} programId={programId} termId={termId} openCourse={setOpenId} />
+  )
+}
 
+function OpenCourse({
+  course,
+  programId,
+  back,
+}: {
+  course: Course
+  programId: string
+  back: () => void
+}) {
+  return (
+    <AsyncBoundary query={useCourseFiles(course.id)}>
+      {(list) => (
+        <CourseFiles
+          list={list}
+          courseId={course.id}
+          programId={programId}
+          name={courseLabel(course)}
+          up={{ label: m.files_all_courses(), onClick: back }}
+        />
+      )}
+    </AsyncBoundary>
+  )
+}
+
+type Folder = {
+  course: Course
+  list: UseQueryResult<FilesItemList> | undefined
+}
+
+type FolderHandlers = {
+  open: (courseId: string) => void
+  /** The course folder files are dragged over. */
+  over: string | null
+  setOver: (courseId: string | null) => void
+  drop: (courseId: string, files: File[]) => void
+}
+
+const HandlersContext = createContext<FolderHandlers | null>(null)
+
+function useFolderHandlers() {
+  const handlers = use(HandlersContext)
+  if (!handlers) throw new Error('Course folders must render inside CourseFolders')
+  return handlers
+}
+
+function hasFiles(event: DragEvent) {
+  return event.dataTransfer.types.includes('Files')
+}
+
+/** Makes a course folder a drop target; `preventDefault` tells the page's drop zone it is taken. */
+function dropProps(courseId: string, h: FolderHandlers) {
+  return {
+    'data-drop-target': h.over === courseId ? '' : undefined,
+    onDragOver: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      h.setOver(courseId)
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) h.setOver(null)
+    },
+    onDrop: (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      h.setOver(null)
+      h.drop(courseId, [...event.dataTransfer.files])
+    },
+  }
+}
+
+const DROP_TARGET = 'data-drop-target:bg-primary/10 data-drop-target:text-primary'
+
+function lastChange(items: readonly ItemOut[]) {
+  return items.reduce<string | null>(
+    (latest, item) => (latest === null || item.updated_at > latest ? item.updated_at : latest),
+    null,
+  )
+}
+
+const features = tableFeatures({})
+const column = createColumnHelper<typeof features, Folder>()
+type CellProps = CellContext<typeof features, Folder>
+
+function NameCell({ row }: CellProps) {
+  const { open } = useFolderHandlers()
+  const { course } = row.original
+  return (
+    <button
+      type="button"
+      onClick={() => open(course.id)}
+      className="flex max-w-full items-center gap-2.5 text-left font-medium hover:underline"
+    >
+      <Folder
+        aria-hidden
+        className="size-4 shrink-0"
+        style={{ color: courseColor(course) }}
+        fill="currentColor"
+        fillOpacity={0.2}
+      />
+      <span className="truncate">{courseLabel(course)}</span>
+    </button>
+  )
+}
+
+function CountCell({ row }: CellProps) {
+  const items = row.original.list?.data?.items
+  return items ? (
+    <span className="text-muted-foreground tabular-nums">{items.length}</span>
+  ) : (
+    <Skeleton className="h-4 w-12" />
+  )
+}
+
+function UpdatedCell({ row }: CellProps) {
+  const items = row.original.list?.data?.items
+  if (!items) return <Skeleton className="h-4 w-28" />
+  const latest = lastChange(items)
+  return latest ? (
+    <span className="text-muted-foreground">{formatDateTime(latest)}</span>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  )
+}
+
+const columns = column.columns([
+  column.display({ id: 'name', header: () => m.files_name(), cell: NameCell }),
+  column.display({ id: 'count', header: () => m.files_files(), cell: CountCell }),
+  column.display({ id: 'updated', header: () => m.files_modified(), cell: UpdatedCell }),
+])
+
+const WIDTHS: Record<string, string> = { count: 'w-24', updated: 'w-44' }
+
+function FolderTable({ folders }: { folders: Folder[] }) {
+  const handlers = useFolderHandlers()
+  const table = useTable({
+    features,
+    columns,
+    data: folders,
+    getRowId: (folder) => folder.course.id,
+  })
+  return (
+    <div className="overflow-hidden rounded-2xl border">
+      <Table className="min-w-2xl table-fixed">
+        <TableHeader className="bg-muted/50">
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id} className="hover:bg-transparent">
+              {group.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
+                >
+                  <FlexRender header={h} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id} {...dropProps(row.id, handlers)} className={DROP_TARGET}>
+              {row.getAllCells().map((cell) => (
+                <TableCell key={cell.id} className={cn('h-12 py-2', WIDTHS[cell.column.id])}>
+                  <FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function FolderTile({ folder }: { folder: Folder }) {
+  const handlers = useFolderHandlers()
+  const { course } = folder
+  return (
+    <div
+      {...dropProps(course.id, handlers)}
+      className={cn(
+        'relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
+        DROP_TARGET,
+        'data-drop-target:border-primary',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => handlers.open(course.id)}
+        className="flex min-w-0 flex-1 items-center gap-2.5 text-left text-sm after:absolute after:inset-0"
+      >
+        <Folder
+          aria-hidden
+          className="size-4 shrink-0"
+          style={{ color: courseColor(course) }}
+          fill="currentColor"
+          fillOpacity={0.2}
+        />
+        <span className="truncate font-medium">{courseLabel(course)}</span>
+      </button>
+    </div>
+  )
+}
+
+/** The term's top level: one folder per course. */
+function CourseFolders({
+  courses,
+  programId,
+  termId,
+  openCourse,
+}: {
+  courses: Course[]
+  programId: string
+  termId: string
+  openCourse: (courseId: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [preview, setPreview] = useState<PreviewTarget | null>(null)
+  const [over, setOver] = useState<string | null>(null)
+  const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
+  const link = useExternalLink()
+  const uploads = useUploads()
+  // Files dropped beside the folders have no course to go to.
+  const dragging = useFileDrop(NOOP)
+  const query = useDebounced(search, 300)
+  const contentSearch = useContentSearch(programId, query, { termId })
+  const lists = useQueries({ queries: courses.map((course) => courseFilesOptions(course.id)) })
+
+  const folders: Folder[] = courses.map((course, index) => ({ course, list: lists[index] }))
+  const byCourse = new Map(courses.map((c) => [c.id, c]))
+  const allItems = lists.flatMap((q) => q.data?.items ?? [])
+  const needle = search.trim().toLowerCase()
+  const searching = needle.length > 0
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
     else setPreview({ itemId: item.id })
   }
-  const byCourse = new Map(courses.map((c) => [c.id, c]))
-  const listOf = (courseId: string) => lists[courses.findIndex((c) => c.id === courseId)]?.data
-  const upload = (courseId: string, files: readonly File[]) =>
-    uploads.start(files, {
-      courseId,
-      folderId: null,
-      existing: listOf(courseId)?.items ?? [],
-    })
-  const allItems = lists.flatMap((q) => q.data?.items ?? [])
-  const needle = search.trim().toLowerCase()
-  const searching = needle.length > 0
-  const acting = action ? listOf(action.courseId) : undefined
+  const handlers: FolderHandlers = {
+    open: openCourse,
+    over,
+    setOver,
+    drop: (courseId, files) =>
+      uploads.start(files, {
+        courseId,
+        folderId: null,
+        existing: folders.find((f) => f.course.id === courseId)?.list?.data?.items ?? [],
+      }),
+  }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex min-h-9 items-center gap-2">
-        <InputGroup className="w-72">
+    <div className="relative flex flex-col gap-3">
+      <div className="flex min-h-9 flex-wrap items-center gap-2">
+        <InputGroup className="w-64">
           <InputGroupInput
             type="search"
             aria-label={m.files_search_term()}
@@ -136,208 +363,87 @@ function TermFiles({
           </InputGroupAddon>
         </InputGroup>
         <div className="ml-auto flex items-center gap-2">
-          {view === 'grid' && !searching ? <SortMenu /> : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button />}>
+          <ViewToggle />
+          {/* Files go into a course: open one first, or drop them on its folder. */}
+          <Tooltip>
+            {/* Focusable while disabled, so the reason can be read from the keyboard too. */}
+            <TooltipTrigger
+              render={
+                <Button disabled focusableWhenDisabled className="aria-disabled:opacity-50" />
+              }
+            >
               <Upload aria-hidden />
               {m.files_upload()}
-              <ChevronDown aria-hidden />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {courses.map((course) => (
-                <DropdownMenuItem
-                  key={course.id}
-                  onClick={() => {
-                    setPickFor(course.id)
-                    fileInput.current?.click()
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: courseColor(course) }}
-                  />
-                  {m.files_upload_to({ course: courseLabel(course) })}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            hidden
-            aria-hidden
-            tabIndex={-1}
-            onChange={(event) => {
-              if (pickFor) upload(pickFor, [...(event.target.files ?? [])])
-              event.target.value = ''
-            }}
-          />
+            </TooltipTrigger>
+            <TooltipContent>{m.files_upload_open_course()}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
-      {searching ? (
-        <SearchResults
-          nameMatches={allItems.filter((i) => i.display_name.toLowerCase().includes(needle))}
-          hits={contentSearch.data?.results ?? []}
-          loading={query.trim().length >= 2 && (contentSearch.isFetching || search !== query)}
-          pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
-          courseName={(id) => {
-            const course = byCourse.get(id)
-            return course ? courseLabel(course) : ''
-          }}
-          onOpenItem={open}
-          onOpenHit={(hit) =>
-            setPreview({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
-          }
-          onClear={() => setSearch('')}
-        />
-      ) : (
-        <div className="space-y-6">
-          {courses.map((course, index) => (
-            <CourseSection
-              key={course.id}
-              course={course}
-              list={lists[index]}
-              view={view}
-              programId={programId}
-              dragging={dragging}
-              over={dropCourseId === course.id}
-              onOver={setDropCourseId}
-              onDrop={(files) => upload(course.id, files)}
-              open={open}
-              act={(next) => setAction({ courseId: course.id, action: next })}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex h-8 items-center">
+        {searching ? (
+          <p className="truncate text-sm text-muted-foreground">
+            {m.files_search_results_for({ query: search.trim() })}
+          </p>
+        ) : (
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{m.files_all_courses()}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        )}
+      </div>
+
+      <HandlersContext value={handlers}>
+        {searching ? (
+          <SearchResults
+            nameMatches={allItems.filter((i) => i.display_name.toLowerCase().includes(needle))}
+            hits={contentSearch.data?.results ?? []}
+            loading={query.trim().length >= 2 && (contentSearch.isFetching || search !== query)}
+            pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
+            courseName={(id) => {
+              const course = byCourse.get(id)
+              return course ? courseLabel(course) : ''
+            }}
+            onOpenItem={open}
+            onOpenHit={(hit) =>
+              setPreview({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
+            }
+            onClear={() => setSearch('')}
+          />
+        ) : view === 'grid' ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
+            {folders.map((folder) => (
+              <FolderTile key={folder.course.id} folder={folder} />
+            ))}
+          </div>
+        ) : (
+          <FolderTable folders={folders} />
+        )}
+      </HandlersContext>
 
       <UsageBar />
+
+      {dragging ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-2 z-20 flex flex-col justify-end rounded-3xl border-2 border-dashed border-primary bg-primary/5"
+        >
+          <div className="sticky bottom-6 mx-auto mb-6 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
+            <Upload aria-hidden className="size-4" />
+            {over
+              ? m.files_drop_here({ folder: courseLabel(byCourse.get(over) as Course) })
+              : m.files_drop_on_a_course()}
+          </div>
+        </div>
+      ) : null}
 
       {uploads.panel}
       {uploads.dialog}
       {link.dialog}
-      {acting ? (
-        <ItemDialogs
-          courseId={action?.courseId ?? ''}
-          folders={acting.folders}
-          items={acting.items}
-          action={action?.action ?? null}
-          onClose={() => setAction(null)}
-        />
-      ) : null}
       <PreviewDialog target={preview} onClose={() => setPreview(null)} />
     </div>
-  )
-}
-
-function hasFiles(event: DragEvent) {
-  return event.dataTransfer.types.includes('Files')
-}
-
-/** One course's files; while files are dragged over the page, also where they can be dropped. */
-function CourseSection({
-  course,
-  list,
-  view,
-  programId,
-  dragging,
-  over,
-  onOver,
-  onDrop,
-  open,
-  act,
-}: {
-  course: Course
-  list: UseQueryResult<FilesItemList> | undefined
-  view: 'list' | 'grid'
-  programId: string
-  dragging: boolean
-  over: boolean
-  onOver: (courseId: string | null) => void
-  onDrop: (files: File[]) => void
-  open: (item: ItemOut) => void
-  act: (action: ItemAction) => void
-}) {
-  const items = list?.data?.items
-  const name = courseLabel(course)
-  return (
-    <section
-      className="relative space-y-2"
-      onDragOver={(event) => {
-        if (!hasFiles(event)) return
-        event.preventDefault()
-        onOver(course.id)
-      }}
-      onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onOver(null)
-      }}
-      onDrop={(event) => {
-        if (!hasFiles(event)) return
-        // Taken here: the page's drop zone leaves it alone (`useFileDrop`).
-        event.preventDefault()
-        onOver(null)
-        onDrop([...event.dataTransfer.files])
-      }}
-    >
-      <div className="flex h-8 items-center gap-2">
-        <span
-          aria-hidden
-          className="size-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: courseColor(course) }}
-        />
-        <h2 className="min-w-0 truncate text-sm font-medium">{name}</h2>
-        <Button
-          nativeButton={false}
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-muted-foreground"
-          render={<HistoryLink href={coursePath(programId, course.id, 'files')} />}
-        >
-          {m.files_open_course_files()}
-          <ArrowRight aria-hidden />
-        </Button>
-      </div>
-      {items?.length === 0 ? (
-        <Empty className="rounded-2xl border border-solid border-border p-6">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderOpen aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{m.files_term_course_empty_title()}</EmptyTitle>
-            <EmptyDescription>{m.files_term_course_empty_description()}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : items ? (
-        <FileBrowser
-          folders={[]}
-          items={items}
-          view={view}
-          handlers={{ open, openFolder: NOOP, act, programId }}
-        />
-      ) : list?.isError ? (
-        <Alert variant="destructive">
-          <CircleAlert aria-hidden />
-          <AlertDescription>{errorMessage(list.error)}</AlertDescription>
-        </Alert>
-      ) : (
-        <Skeleton className="h-24 w-full rounded-2xl" />
-      )}
-      {dragging ? (
-        <div
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute -inset-2 z-20 flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed text-sm font-medium backdrop-blur-sm',
-            over
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border bg-background/80 text-muted-foreground',
-          )}
-        >
-          <Upload aria-hidden className="size-4" />
-          {over ? m.files_drop_here({ folder: name }) : m.files_drop_on_course({ course: name })}
-        </div>
-      ) : null}
-    </section>
   )
 }
