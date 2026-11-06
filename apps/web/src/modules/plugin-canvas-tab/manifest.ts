@@ -43,5 +43,16 @@ export default defineModule({
         scope?.kind === 'course' ? openLinkedCourse(queryClient, scope.courseId) : undefined,
     },
   ],
+  // Generated from the backend namespace `plugin.canvas-tab`.
+  settingsSections: [
+    {
+      id: 'canvas-tab',
+      level: 'account',
+      pluginId: 'canvas-tab',
+      title: m.canvas_tab_settings_title,
+      order: 1000,
+      namespace: 'plugin.canvas-tab',
+    },
+  ],
   uiPrefPrefixes: ['canvas-tab.'],
 })

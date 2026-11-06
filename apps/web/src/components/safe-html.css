@@ -1,0 +1,102 @@
+/*
+ * `SafeHtml` with `original`: LMS content as it looks on the platform. The author's inline styles
+ * (already filtered) do most of the work; this restores the browser defaults Tailwind's preflight
+ * removes and gives the platform's base typography (Canvas: Lato, dark slate text, blue links).
+ * The sheet stays light in the dark theme, since authors pick colors for a light page.
+ */
+.lms-original {
+  --lms-paper: oklch(1 0 0);
+  --lms-ink: oklch(0.34 0.025 240);
+  --lms-link: oklch(0.53 0.14 245);
+  --lms-rule: oklch(0.85 0.01 240);
+  color-scheme: light;
+  background-color: var(--lms-paper);
+  color: var(--lms-ink);
+  font-family: 'Lato Extended', Lato, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.lms-original a {
+  color: var(--lms-link);
+  text-decoration: underline;
+}
+
+.lms-original :where(h1, h2, h3, h4, h5, h6) {
+  margin: 0.75em 0 0.5em;
+  line-height: 1.25;
+  font-weight: 400;
+}
+.lms-original :where(h1) {
+  font-size: 2em;
+}
+.lms-original :where(h2) {
+  font-size: 1.6em;
+}
+.lms-original :where(h3) {
+  font-size: 1.35em;
+}
+.lms-original :where(h4) {
+  font-size: 1.15em;
+  font-weight: 700;
+}
+.lms-original :where(h5, h6) {
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.lms-original :where(p, blockquote, pre, table, dl, figure) {
+  margin: 0.75em 0;
+}
+.lms-original :where(ul, ol) {
+  margin: 0.75em 0;
+  padding-left: 2.5em;
+}
+.lms-original :where(ul) {
+  list-style: disc;
+}
+.lms-original :where(ol) {
+  list-style: decimal;
+}
+.lms-original :where(ul ul) {
+  list-style: circle;
+}
+.lms-original :where(ul, ol) :where(ul, ol) {
+  margin: 0;
+}
+.lms-original :where(strong, b) {
+  font-weight: 700;
+}
+.lms-original :where(em, i) {
+  font-style: italic;
+}
+.lms-original :where(blockquote) {
+  padding-left: 1em;
+  border-left: 3px solid var(--lms-rule);
+}
+.lms-original :where(pre, code) {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.lms-original :where(hr) {
+  margin: 1em 0;
+  border-top: 1px solid var(--lms-rule);
+}
+.lms-original :where(img) {
+  display: inline;
+  max-width: 100%;
+  height: auto;
+}
+.lms-original :where(th, td) {
+  padding: 0.25em 0.5em;
+  vertical-align: top;
+}
+.lms-original :where(th) {
+  text-align: left;
+  font-weight: 700;
+}
+.lms-original > :first-child {
+  margin-top: 0;
+}
+.lms-original > :last-child {
+  margin-bottom: 0;
+}

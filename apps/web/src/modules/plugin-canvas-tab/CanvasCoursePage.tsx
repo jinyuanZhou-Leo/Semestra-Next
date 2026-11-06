@@ -1,5 +1,5 @@
 import { type CourseOverview, lmsCourseRefresh } from '@semestra/api-client'
-import { lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
+import { lmsCourseOverviewOptions, settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpRight,
@@ -37,7 +37,7 @@ import {
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary, ListSkeleton } from './CanvasBoundary'
-import { type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
+import { type CanvasDisplay, type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
 import { useCanvasLocation } from './location'
 import { openExternal } from './open-in-canvas'
 import {
@@ -80,6 +80,10 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
     placeholderData: keepPreviousData,
   })
   const fetching = useIsFetching({ predicate: isCourseContent(courseId) }) > 0
+  const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.canvas-tab' } }))
+  const [picked, setDisplay] = useState<CanvasDisplay | null>(null)
+  const display: CanvasDisplay =
+    picked ?? (config.data?.values.display === 'original' ? 'original' : 'simplified')
 
   // "Refresh" drops this course's cached reads once on the server, then refetches them; later
   // reads use the cache again (M16 implementation notes).
@@ -90,7 +94,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       .finally(() => setRefreshing(false))
   }
 
-  const page: CanvasPage = { programId, courseId, go, openFile: setFile }
+  const page: CanvasPage = { programId, courseId, go, openFile: setFile, display, setDisplay }
 
   return (
     <CanvasPageContext value={page}>
