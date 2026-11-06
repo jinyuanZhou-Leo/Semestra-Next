@@ -40,6 +40,7 @@ import { courseColor, courseLabel } from '../color'
 import { coursePath, newTermPath, termPath, termsAndCoursesPath } from '../paths'
 import { useCourses } from '../queries'
 import { useViewedTerm } from '../viewing-term'
+import { useCourseLinkTab } from './course-tab'
 import { TermWeekLine } from './ScopeView'
 import { isSidebarPageActive, SUMMARY_PAGE, useSidebarPages } from './sidebar-pages'
 
@@ -216,6 +217,7 @@ function TermCourses({
   pathname: string
 }) {
   const courses = useCourses(programId, term.id).data?.items
+  const tabOf = useCourseLinkTab(programId, courses?.map((c) => c.id) ?? [])
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className={GROUP_LABEL}>{m.academics_sidebar_courses()}</SidebarGroupLabel>
@@ -238,7 +240,7 @@ function TermCourses({
                   tooltip={course.title}
                   render={
                     <HistoryLink
-                      href={coursePath(programId, course.id, undefined, term.id)}
+                      href={coursePath(programId, course.id, tabOf(course.id), term.id)}
                       aria-current={active ? 'page' : undefined}
                     />
                   }

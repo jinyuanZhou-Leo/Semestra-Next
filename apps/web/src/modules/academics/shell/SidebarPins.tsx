@@ -51,6 +51,7 @@ import { coursePath, termPath } from '../paths'
 import { movePin, type Pin as PinRef, usePins } from '../pins'
 import { useCourses, useTerms } from '../queries'
 import { useViewedTerm } from '../viewing-term'
+import { useCourseLinkTab } from './course-tab'
 
 type Dragging = {
   ref: (node: HTMLElement | null) => void
@@ -92,6 +93,7 @@ function TermCourses({
   pathname: string
 }) {
   const courses = useCourses(programId, term.id).data?.items
+  const tabOf = useCourseLinkTab(programId, courses?.map((c) => c.id) ?? [])
   return (
     <SidebarMenuSub>
       {courses && courses.length === 0 ? (
@@ -111,7 +113,7 @@ function TermCourses({
               title={course.title}
               render={
                 <HistoryLink
-                  href={coursePath(programId, course.id, undefined, term.id)}
+                  href={coursePath(programId, course.id, tabOf(course.id), term.id)}
                   aria-current={courseActive ? 'page' : undefined}
                 />
               }
@@ -288,6 +290,7 @@ function CourseEntry({
   const [menuOpen, setMenuOpen] = useState(false)
   const href = coursePath(programId, course.id)
   const active = pathname === href || pathname.startsWith(`${href}/`)
+  const tab = useCourseLinkTab(programId, [course.id])(course.id)
   const label = courseLabel(course)
   return (
     <SidebarMenuItem
@@ -303,7 +306,12 @@ function CourseEntry({
         isActive={active}
         tooltip={course.title}
         className="group-has-data-[sidebar=menu-action]/menu-item:pr-8"
-        render={<HistoryLink href={href} aria-current={pathname === href ? 'page' : undefined} />}
+        render={
+          <HistoryLink
+            href={coursePath(programId, course.id, tab)}
+            aria-current={pathname === href ? 'page' : undefined}
+          />
+        }
       >
         <span
           aria-hidden

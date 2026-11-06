@@ -43,6 +43,7 @@ _DEFAULTS: dict[str, Any] = {
     "week_start": 0,
     "reduce_motion": "system",
     "start_page": "today",
+    "keep_course_tab": True,
     "active_program_id": None,
 }
 

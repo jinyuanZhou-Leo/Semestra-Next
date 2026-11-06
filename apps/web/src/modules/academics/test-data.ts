@@ -68,6 +68,8 @@ export type World = {
   activeProgramId: string | null
   /** M11 `start_page`. */
   startPage: string
+  /** M11 `keep_course_tab`. */
+  keepCourseTab: boolean
   /** Bodies of `POST /programs/{id}/terms`. */
   termCreates: unknown[]
   /** Saved UI state by full key (`academics.pinned.p1` …); written values stay in the page's cache. */
@@ -88,6 +90,7 @@ export function defaultWorld(): World {
     ],
     activeProgramId: null,
     startPage: 'today',
+    keepCourseTab: true,
     termCreates: [],
     uiState: {},
   }
@@ -102,6 +105,7 @@ const preferences = (world: World) => ({
   reduce_motion: 'system',
   active_program_id: world.activeProgramId,
   start_page: world.startPage,
+  keep_course_tab: world.keepCourseTab,
   updated_at: null,
 })
 

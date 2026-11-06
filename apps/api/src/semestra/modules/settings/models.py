@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from semestra.core.db import Base, OwnedMixin, TimestampMixin, UTCDateTime, new_id, utcnow
@@ -23,6 +24,8 @@ class SettingsPreferences(Base):
     reduce_motion: Mapped[str] = mapped_column(String, default="system")
     # The sidebar entry the app opens on (M11 §2); "last" reopens the page left last time.
     start_page: Mapped[str] = mapped_column(String, default="today", server_default="today")
+    # Switching to another course from a course page opens the same tab there (M11 §2).
+    keep_course_tab: Mapped[bool] = mapped_column(default=True, server_default=sa_true())
     # The Program the user is looking at; owned by M02, deliberately not a foreign key.
     active_program_id: Mapped[str | None] = mapped_column(String, default=None)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)

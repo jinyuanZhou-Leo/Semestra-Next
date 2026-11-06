@@ -34,6 +34,9 @@ class Preferences(BaseModel):
     week_start: WeekStart = Field(description="First day of the week; 0 follows the language")
     reduce_motion: ReduceMotion = Field(description="Reduce animations; system follows the OS")
     start_page: StartPage = Field(description="The page the app opens on")
+    keep_course_tab: bool = Field(
+        description="Switching courses from a course page opens the same tab of the other course"
+    )
     active_program_id: str | None = Field(description="The Program currently being viewed")
     updated_at: datetime | None = Field(description="Null until the first change")
 
@@ -48,6 +51,9 @@ class PreferencesUpdateInput(BaseModel):
     week_start: WeekStart | None = Field(default=None, description="First day of the week")
     reduce_motion: ReduceMotion | None = Field(default=None, description="Reduce animations")
     start_page: StartPage | None = Field(default=None, description="The page the app opens on")
+    keep_course_tab: bool | None = Field(
+        default=None, description="Switching courses keeps the open tab"
+    )
     active_program_id: Annotated[str, Field(min_length=1, max_length=64)] | None = Field(
         default=None, description="The Program currently being viewed, or null"
     )

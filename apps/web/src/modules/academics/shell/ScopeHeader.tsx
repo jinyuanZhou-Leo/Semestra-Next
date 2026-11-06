@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
 import { coursePath, termPath, termsAndCoursesPath } from '../paths'
 import { usePins } from '../pins'
+import { useCourseLinkTab } from './course-tab'
 import { modifierKey } from './hotkeys'
 
 type Sibling = { id: string; label: string; href: string; dot?: string; shortcut?: string }
@@ -150,10 +151,14 @@ export function ScopeHeader({
   const pinned = pin ? isPinned(pin) : false
   const index = course ? (termCourses ?? []).findIndex((c) => c.id === course.id) : -1
   const mod = modifierKey()
+  const tabOf = useCourseLinkTab(
+    program.id,
+    (termCourses ?? []).map((c) => c.id),
+  )
   const courseSiblings = (termCourses ?? []).map((c, i) => ({
     id: c.id,
     label: courseLabel(c),
-    href: coursePath(program.id, c.id, undefined, term?.id),
+    href: coursePath(program.id, c.id, tabOf(c.id), term?.id),
     dot: courseColor(c),
     shortcut: i === index - 1 ? `${mod} ↑` : i === index + 1 ? `${mod} ↓` : undefined,
   }))
