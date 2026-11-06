@@ -31,6 +31,8 @@ const PADDING = 16
 const GAP = 16
 // A4 portrait until the first page says otherwise.
 const DEFAULT_RATIO = 297 / 210
+// Stable, so a page's text renderer keeps its identity across scroll renders.
+const NO_TERMS: readonly string[] = []
 
 /**
  * The whole document as one vertical scroll, fitted to the width, with search terms highlighted
@@ -40,7 +42,7 @@ const DEFAULT_RATIO = 297 / 210
 export function PdfViewer({
   url,
   initialPage = 1,
-  terms = [],
+  terms = NO_TERMS,
 }: {
   url: string
   initialPage?: number
@@ -131,14 +133,18 @@ export function PdfViewer({
           externalLinkRel="noopener noreferrer"
           suspense={false}
           onLoadSuccess={(pdf) => {
-            setPageCount(pdf.numPages)
-            // Estimate every page from the first one's shape; rendered pages are measured.
+            // Estimate every page from the first one's shape before laying them out, so opening
+            // on a later page lands there; rendered pages are measured.
+            const show = (shape = DEFAULT_RATIO) => {
+              setRatio(shape)
+              setPageCount(pdf.numPages)
+            }
             pdf.getPage(1).then(
               (first) => {
                 const { width: w, height: h } = first.getViewport({ scale: 1 })
-                if (w > 0 && h > 0) setRatio(h / w)
+                show(w > 0 && h > 0 ? h / w : undefined)
               },
-              () => {},
+              () => show(),
             )
           }}
           loading={
@@ -161,24 +167,11 @@ export function PdfViewer({
                 className="absolute top-0 left-0 flex w-full justify-center"
                 style={{ transform: `translateY(${item.start}px)`, paddingBottom: GAP }}
               >
-                <Page
+                <PdfPage
                   pageNumber={item.index + 1}
                   width={pageWidth}
-                  customTextRenderer={({ str }) => highlightHtml(str, terms)}
-                  loading={
-                    <div
-                      className="flex items-center justify-center bg-background"
-                      style={{ width: pageWidth, height: pageHeight }}
-                    >
-                      <Spinner />
-                    </div>
-                  }
-                  error={
-                    <Alert variant="destructive" className="w-auto">
-                      <AlertDescription>{m.files_preview_failed()}</AlertDescription>
-                    </Alert>
-                  }
-                  className="shadow-sm"
+                  height={pageHeight}
+                  terms={terms}
                 />
               </div>
             ))}
@@ -186,5 +179,40 @@ export function PdfViewer({
         </Document>
       </div>
     </div>
+  )
+}
+
+/**
+ * One page. Its own (compiled) component so the text renderer keeps its identity while the
+ * viewer re-renders on every scroll: react-pdf rebuilds a page's text layer when it changes.
+ */
+function PdfPage({
+  pageNumber,
+  width,
+  height,
+  terms,
+}: {
+  pageNumber: number
+  width: number
+  height: number
+  terms: readonly string[]
+}) {
+  return (
+    <Page
+      pageNumber={pageNumber}
+      width={width}
+      customTextRenderer={({ str }) => highlightHtml(str, terms)}
+      loading={
+        <div className="flex items-center justify-center bg-background" style={{ width, height }}>
+          <Spinner />
+        </div>
+      }
+      error={
+        <Alert variant="destructive" className="w-auto">
+          <AlertDescription>{m.files_preview_failed()}</AlertDescription>
+        </Alert>
+      }
+      className="shadow-sm"
+    />
   )
 }
