@@ -12,13 +12,12 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { LockNote, OpenInCanvas, attemptsLabel, useFileImages, useInternalLinks } from './common'
+import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvas, attemptsLabel } from './common'
 
 /** Canvas `submission_types`, as a student reads them. */
 const SUBMISSION_TYPES: Record<string, () => string> = {
@@ -48,28 +47,29 @@ function Fact({ label, value }: { label: string; value: string }) {
  * description, then the user's grade with the teacher's comments and rubric (M16 §4).
  */
 export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut }) {
-  const onLink = useInternalLinks()
-  const images = useFileImages()
   const types = (a.submission_types ?? []).map((t) => SUBMISSION_TYPES[t]?.() ?? t)
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-        {a.unlock_at ? (
-          <Fact label={m.canvas_tab_available_from()} value={formatDateTime(a.unlock_at)} />
-        ) : null}
-        {a.lock_at ? (
-          <Fact label={m.canvas_tab_available_until()} value={formatDateTime(a.lock_at)} />
-        ) : null}
-        {types.length > 0 ? (
-          <Fact label={m.canvas_tab_submit_by()} value={types.join(', ')} />
-        ) : null}
-        <Fact label={m.canvas_tab_column_attempts()} value={attemptsLabel(a.allowed_attempts)} />
-      </dl>
+      <div className="flex items-start gap-3">
+        <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+          {a.unlock_at ? (
+            <Fact label={m.canvas_tab_available_from()} value={formatDateTime(a.unlock_at)} />
+          ) : null}
+          {a.lock_at ? (
+            <Fact label={m.canvas_tab_available_until()} value={formatDateTime(a.lock_at)} />
+          ) : null}
+          {types.length > 0 ? (
+            <Fact label={m.canvas_tab_submit_by()} value={types.join(', ')} />
+          ) : null}
+          <Fact label={m.canvas_tab_column_attempts()} value={attemptsLabel(a.allowed_attempts)} />
+        </dl>
+        {a.html ? <DisplayMenu /> : null}
+      </div>
       {a.locked ? (
         <LockNote title={m.canvas_tab_assignment_locked()} explanation={a.lock_explanation} />
       ) : null}
       {a.html ? (
-        <SafeHtml html={a.html} onInternalLink={onLink} imageSrc={images} />
+        <CanvasHtml html={a.html} />
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_no_description()}</p>
       )}

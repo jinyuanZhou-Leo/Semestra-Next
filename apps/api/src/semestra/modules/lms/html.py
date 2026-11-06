@@ -1,7 +1,10 @@
 """HTML from the LMS (pages, announcements, syllabi, descriptions), cleaned by the module so
 every provider gets the same treatment (M09 §2.1).
 
-Allowed: basic formatting, lists, tables, images and links. Links open in a new tab with
+Allowed: basic formatting, lists, tables, images and links, and inline styles limited to
+`STYLE_PROPERTIES` (colors, type, spacing, borders, sizes; nothing that positions, layers, hides or
+loads anything) so the Canvas tab can show content as it looks on the platform. Agents get the
+text as Markdown (`markdown.py`), which drops the styles. Links open in a new tab with
 `rel="noopener noreferrer"`; a platform link the provider recognizes also carries
 `data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An image of a
 course file is marked the same way: its own address needs a platform session, so the Canvas tab
@@ -32,6 +35,21 @@ ATTRIBUTES = {
     "colgroup": {"span"},
     "ol": {"start"},
 }
+# Every tag may keep `style`, filtered to these properties. `apps/web/src/components/SafeHtml.tsx`
+# filters with the same list again in the browser.
+GENERIC_ATTRIBUTES = {"style"}
+STYLE_PROPERTIES = {
+    "color", "background-color", "font-family", "font-size", "font-style", "font-weight",
+    "font-variant", "line-height", "letter-spacing", "text-align", "text-decoration",
+    "text-decoration-line", "text-decoration-color", "text-decoration-style", "text-indent",
+    "text-transform", "vertical-align", "white-space", "word-break", "overflow-wrap",
+    "margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+    "padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
+    "border", "border-top", "border-right", "border-bottom", "border-left", "border-color",
+    "border-style", "border-width", "border-radius", "border-collapse", "border-spacing",
+    "width", "min-width", "max-width", "height", "min-height", "max-height",
+    "float", "clear", "list-style-type", "list-style-position", "caption-side",
+}  # fmt: skip
 URL_SCHEMES = {"http", "https", "mailto"}
 
 Rewriter = Callable[[str], InternalRef | None]
@@ -61,7 +79,8 @@ def clean(raw: str | None, rewrite: Rewriter | None = None) -> str | None:
     cleaned = nh3.clean(
         raw,
         tags=TAGS,
-        attributes=ATTRIBUTES,
+        attributes={"*": GENERIC_ATTRIBUTES, **ATTRIBUTES},
+        filter_style_properties=STYLE_PROPERTIES,
         url_schemes=URL_SCHEMES,
         link_rel="noopener noreferrer",
         set_tag_attribute_values={"a": {"target": "_blank"}},

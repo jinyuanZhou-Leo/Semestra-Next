@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from semestra.modules.plugins import PluginInfo, register_plugin
 from semestra.modules.plugins_builtin import (  # noqa: F401  (registers on import)
+    canvas_tab,
     counter,
     habit_streak,
     pomodoro,
@@ -46,7 +47,7 @@ PLUGINS = (
         default_installed=False,
         summary="The time and date in up to three time zones.",
     ),
-    # M16: frontend only, it reads everything through the core `lms.*` capabilities (M09).
+    # M16: reads everything through the core `lms.*` capabilities (M09); only a setting here.
     PluginInfo(
         id="canvas-tab",
         default_installed=False,

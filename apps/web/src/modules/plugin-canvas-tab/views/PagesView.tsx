@@ -1,7 +1,6 @@
 import { lmsPageGetOptions, lmsPageListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { FileText, Lock } from 'lucide-react'
-import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -9,7 +8,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { DetailHeader, OpenInCanvasIcon, useFileImages, useInternalLinks } from './common'
+import { CanvasHtml, DetailHeader, DisplayMenu, OpenInCanvasIcon } from './common'
 
 /** The course's pages; `selected` (a page ref) opens one in place (M16 §4). */
 export function PagesView({ selected }: { selected?: string }) {
@@ -77,8 +76,6 @@ function PageList() {
 /** One page as cleaned HTML; also the home view of courses whose Canvas home is a page. */
 export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: boolean }) {
   const { courseId, go } = useCanvasPage()
-  const onLink = useInternalLinks()
-  const images = useFileImages()
   const page = useQuery({
     ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef } }),
     placeholderData: keepPreviousData,
@@ -96,12 +93,16 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
                   : null
               }
               webUrl={p.web_url}
+              withDisplay={!p.locked && Boolean(p.html)}
               onBack={() => go({ tab: 'pages' })}
             />
           ) : (
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-heading text-lg font-semibold">{p.title}</h2>
-              {p.web_url ? <OpenInCanvasIcon href={p.web_url} /> : null}
+              <div className="flex shrink-0 items-center gap-1">
+                {!p.locked && p.html ? <DisplayMenu /> : null}
+                {p.web_url ? <OpenInCanvasIcon href={p.web_url} /> : null}
+              </div>
             </div>
           )}
           {p.locked ? (
@@ -117,7 +118,7 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
               </EmptyHeader>
             </Empty>
           ) : p.html ? (
-            <SafeHtml html={p.html} onInternalLink={onLink} imageSrc={images} />
+            <CanvasHtml html={p.html} />
           ) : (
             <p className="text-sm text-muted-foreground">{m.canvas_tab_page_blank()}</p>
           )}

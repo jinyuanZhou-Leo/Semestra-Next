@@ -5,14 +5,13 @@ import { ScrollText } from 'lucide-react'
 import { useState } from 'react'
 import { AiAction } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
-import { SafeHtml } from '@/components/SafeHtml'
 import { errorMessage } from '@/lib/errors'
 import { openImport } from '@/modules/imports/launcher'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { OpenInCanvasIcon, useFileImages, useInternalLinks } from './common'
+import { CanvasHtml, DisplayMenu, OpenInCanvasIcon } from './common'
 
 /**
  * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): an AI extraction of the
@@ -54,8 +53,6 @@ export function SyllabusImportButton() {
 
 export function SyllabusView() {
   const { courseId } = useCanvasPage()
-  const onLink = useInternalLinks()
-  const images = useFileImages()
   const syllabus = useQuery({
     ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -68,11 +65,12 @@ export function SyllabusView() {
             <h2 className="font-heading text-lg font-semibold">{m.canvas_tab_syllabus()}</h2>
             <div className="flex items-center gap-2">
               {data.html ? <SyllabusImportButton /> : null}
+              {data.html ? <DisplayMenu /> : null}
               {data.web_url ? <OpenInCanvasIcon href={data.web_url} /> : null}
             </div>
           </div>
           {data.html ? (
-            <SafeHtml html={data.html} onInternalLink={onLink} imageSrc={images} />
+            <CanvasHtml html={data.html} />
           ) : (
             <Empty>
               <EmptyHeader>

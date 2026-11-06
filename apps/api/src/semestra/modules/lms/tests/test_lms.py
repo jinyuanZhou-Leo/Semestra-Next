@@ -179,7 +179,7 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert 'target="_blank"' in html
     page = await api.call("GET", f"/courses/{course}/lms/pages/intro")
     assert "<iframe" not in page["html"]
-    assert "style" not in page["html"]
+    assert '<h1 style="color:#123">' in page["html"]  # layout-changing properties dropped
 
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/announcements")

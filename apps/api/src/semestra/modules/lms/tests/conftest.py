@@ -202,7 +202,8 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
         return PageDetail(external_id="p1", ref=page_ref, title="Intro",
-                          html="<h1 style='x'>Intro</h1><iframe src='x'></iframe>")  # fmt: skip
+                          html="<h1 style='color:#123;position:fixed'>Intro</h1>"
+                               "<iframe src='x'></iframe>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
         return [Quiz(external_id="q1", title="Quiz 1")]

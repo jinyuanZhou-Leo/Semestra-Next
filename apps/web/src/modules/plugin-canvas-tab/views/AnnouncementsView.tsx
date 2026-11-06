@@ -7,7 +7,6 @@ import {
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
 import { useEffect } from 'react'
-import { SafeHtml } from '@/components/SafeHtml'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -15,7 +14,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { DetailHeader, useFileImages, useInternalLinks } from './common'
+import { CanvasHtml, DetailHeader } from './common'
 
 /** The first words of an announcement, as plain text, for its row in the list. */
 function excerpt(html: string): string {
@@ -65,8 +64,6 @@ function useMarkRead(courseId: string, id: string | undefined, unread: boolean) 
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
   const { courseId, go } = useCanvasPage()
-  const onLink = useInternalLinks()
-  const images = useFileImages()
   const list = useQuery({
     ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -100,11 +97,10 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                 title={open.title}
                 meta={meta}
                 webUrl={open.web_url}
+                withDisplay={Boolean(open.html)}
                 onBack={() => go({ tab: 'announcements' })}
               />
-              {open.html ? (
-                <SafeHtml html={open.html} onInternalLink={onLink} imageSrc={images} />
-              ) : null}
+              {open.html ? <CanvasHtml html={open.html} /> : null}
             </article>
           )
         }

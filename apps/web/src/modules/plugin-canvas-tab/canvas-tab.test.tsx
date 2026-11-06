@@ -112,6 +112,7 @@ const ANNOUNCEMENTS = {
 
 let saved: Record<string, unknown> = {}
 let allowWrites = false
+let display = 'simplified'
 
 function lmsSettings() {
   return {
@@ -128,6 +129,7 @@ const puts = vi.fn<(key: string, value: unknown) => void>()
 beforeEach(() => {
   saved = {}
   allowWrites = false
+  display = 'simplified'
   puts.mockClear()
   server.use(
     http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
@@ -153,6 +155,16 @@ beforeEach(() => {
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview())),
     http.get(`${API}/courses/c1/lms/announcements`, () => HttpResponse.json(ANNOUNCEMENTS)),
     http.get(`${API}/me/settings/lms`, () => HttpResponse.json(lmsSettings())),
+    http.get(`${API}/me/settings/plugin.canvas-tab`, () =>
+      HttpResponse.json({
+        namespace: 'plugin.canvas-tab',
+        scope_type: 'account',
+        scope_id: null,
+        values: { display },
+        sources: { display: 'account' },
+        inherited: {},
+      }),
+    ),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
         items: [
@@ -295,6 +307,30 @@ test('the home of a feed course lists announcements; HTML is cleaned and Canvas 
   await userEvent.click(screen.getByRole('link', { name: 'rooms page' }))
   expect(await screen.findByText('BA 1130')).toBeInTheDocument()
   expect(router.state.location.search).toMatchObject({ tab: 'pages', ref: 'rooms' })
+})
+
+test('the display setting picks the look of Canvas HTML; the menu switches it on the page', async () => {
+  display = 'original'
+  server.use(
+    http.get(`${API}/courses/c1/lms/announcements`, () =>
+      HttpResponse.json({
+        ...ANNOUNCEMENTS,
+        items: [
+          {
+            ...ANNOUNCEMENTS.items[0],
+            html: '<p style="color: rgb(0, 42, 92); position: fixed">Bring a pencil</p>',
+          },
+        ],
+      }),
+    ),
+  )
+  renderPage('/?tab=announcements&ref=a1')
+  const text = await screen.findByText('Bring a pencil')
+  expect(text).toHaveAttribute('style', 'color: rgb(0, 42, 92);')
+
+  await userEvent.click(screen.getByRole('button', { name: 'As in Canvas' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Simplified' }))
+  await waitFor(() => expect(screen.getByText('Bring a pencil')).not.toHaveAttribute('style'))
 })
 
 test('a wiki course opens on its front page', async () => {
