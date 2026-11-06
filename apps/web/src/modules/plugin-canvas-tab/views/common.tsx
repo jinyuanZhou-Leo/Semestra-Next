@@ -1,5 +1,13 @@
 import type { Submission } from '@semestra/api-client'
-import { ArrowLeft, ChevronDown, ExternalLink, Lock } from 'lucide-react'
+import {
+  ArrowLeft,
+  ChevronDown,
+  ExternalLink,
+  Lock,
+  type LucideIcon,
+  Palette,
+  Type,
+} from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { type InternalLink, SafeHtml } from '@/components/SafeHtml'
 import { formatDaysUntil } from '@/lib/format'
@@ -61,29 +69,37 @@ const DISPLAY_NAMES: Record<CanvasDisplay, () => string> = {
   original: m.settings_plugin_canvas_tab_display_option_original,
 }
 
+const DISPLAY_ICONS: Record<CanvasDisplay, LucideIcon> = { simplified: Type, original: Palette }
+
 /** Switches how Canvas HTML is shown while the page is open; the default is the plugin setting. */
 export function DisplayMenu() {
   const { display, setDisplay } = useCanvasPage()
+  const Icon = DISPLAY_ICONS[display]
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={<Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" />}
       >
+        <Icon aria-hidden />
         {DISPLAY_NAMES[display]()}
         <ChevronDown aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
+      <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuGroup>
           <DropdownMenuLabel>{m.canvas_tab_display()}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={display}
             onValueChange={(value) => setDisplay(value as CanvasDisplay)}
           >
-            {(['simplified', 'original'] as const).map((d) => (
-              <DropdownMenuRadioItem key={d} value={d}>
-                {DISPLAY_NAMES[d]()}
-              </DropdownMenuRadioItem>
-            ))}
+            {(['simplified', 'original'] as const).map((d) => {
+              const ItemIcon = DISPLAY_ICONS[d]
+              return (
+                <DropdownMenuRadioItem key={d} value={d}>
+                  <ItemIcon aria-hidden />
+                  {DISPLAY_NAMES[d]()}
+                </DropdownMenuRadioItem>
+              )
+            })}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
       </DropdownMenuContent>

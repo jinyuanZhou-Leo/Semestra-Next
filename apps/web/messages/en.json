@@ -2436,7 +2436,7 @@
   "settings_plugin_canvas_tab_display_description": "Applies to pages, announcements, assignment descriptions and the syllabus.",
   "settings_plugin_canvas_tab_display_option_simplified": "Simplified",
   "settings_plugin_canvas_tab_display_option_simplified_description": "Uses Semestra's typography",
-  "settings_plugin_canvas_tab_display_option_original": "As in Canvas",
+  "settings_plugin_canvas_tab_display_option_original": "Canvas style",
   "settings_plugin_canvas_tab_display_option_original_description": "Keeps the colors and layout from Canvas",
   "canvas_tab_settings_title": "Content display",
   "canvas_tab_display": "Display",

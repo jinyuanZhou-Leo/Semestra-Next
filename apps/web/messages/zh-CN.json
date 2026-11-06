@@ -2436,7 +2436,7 @@
   "settings_plugin_canvas_tab_display_description": "适用于页面、公告、作业说明和课程大纲。",
   "settings_plugin_canvas_tab_display_option_simplified": "简洁",
   "settings_plugin_canvas_tab_display_option_simplified_description": "使用 Semestra 的排版",
-  "settings_plugin_canvas_tab_display_option_original": "原样",
+  "settings_plugin_canvas_tab_display_option_original": "Canvas 样式",
   "settings_plugin_canvas_tab_display_option_original_description": "保留 Canvas 里的颜色和排版",
   "canvas_tab_settings_title": "内容显示",
   "canvas_tab_display": "显示方式",

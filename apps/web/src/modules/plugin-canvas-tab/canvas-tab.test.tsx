@@ -328,7 +328,7 @@ test('the display setting picks the look of Canvas HTML; the menu switches it on
   const text = await screen.findByText('Bring a pencil')
   expect(text).toHaveAttribute('style', 'color: rgb(0, 42, 92);')
 
-  await userEvent.click(screen.getByRole('button', { name: 'As in Canvas' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Canvas style' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Simplified' }))
   await waitFor(() => expect(screen.getByText('Bring a pencil')).not.toHaveAttribute('style'))
 })

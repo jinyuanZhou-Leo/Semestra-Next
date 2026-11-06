@@ -18,10 +18,11 @@ purify.addHook('afterSanitizeAttributes', (node) => {
 /**
  * Inline styles kept in the original look: the backend's list (`lms/html.py` `STYLE_PROPERTIES`)
  * again, here with the longhands the browser expands shorthands into. Nothing that positions,
- * layers, hides or loads anything.
+ * layers, hides or loads anything. (Chromium reports `white-space` as `white-space-collapse` and
+ * `text-wrap-mode`.)
  */
 const STYLE_PROPERTY =
-  /^(color|background-color|font(-.+)?|line-height|letter-spacing|text-(align|indent|transform)|text-decoration(-.+)?|vertical-align|white-space|word-break|overflow-wrap|(margin|padding)(-(top|right|bottom|left))?|border(-(top|right|bottom|left))?(-(left|right))?(-(color|style|width|radius))?|border-(collapse|spacing)|(min-|max-)?(width|height)|float|clear|list-style-(type|position)|caption-side)$/
+  /^(color|background-color|font(-.+)?|line-height|letter-spacing|text-(align|indent|transform)|text-decoration(-.+)?|vertical-align|white-space(-collapse)?|text-wrap(-mode)?|word-break|overflow-wrap|(margin|padding)(-(top|right|bottom|left))?|border(-(top|right|bottom|left))?(-(left|right))?(-(color|style|width|radius))?|border-(collapse|spacing)|(min-|max-)?(width|height)|float|clear|list-style-(type|position)|caption-side)$/
 
 purify.addHook('afterSanitizeAttributes', (node) => {
   if (!(node instanceof HTMLElement) || !node.hasAttribute('style')) return
