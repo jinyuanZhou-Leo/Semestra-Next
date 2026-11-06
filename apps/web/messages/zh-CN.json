@@ -1426,6 +1426,7 @@
   "hotkeys_switch_course": "上一门 / 下一门课程",
   "academics_command_term": "学期",
   "status_jobs_title": "后台任务",
+  "status_jobs_done": "{count} 个任务已完成",
   "status_jobs_failed": "{count} 个任务失败",
   "status_job_failed": "“{name}”失败",
   "status_job_waiting": "等待中 · {name}",

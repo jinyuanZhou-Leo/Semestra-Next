@@ -424,6 +424,41 @@ test('the status bar keeps running jobs, recent successes and unseen failures', 
   expect(mergeJobs(jobs.slice(1), [old, jobs[0]!]).map((j) => j.id)).toContain('0-old-running')
 })
 
+test('several jobs that just succeeded read as done, not failed', async () => {
+  const done = (id: string) => ({
+    id,
+    kind: 'files.parse',
+    status: 'succeeded',
+    progress: 100,
+    step: null,
+    step_current: null,
+    step_total: null,
+    result: null,
+    error_code: null,
+    error_params: {},
+    attempts: 1,
+    max_attempts: 1,
+    cancel_requested: false,
+    created_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+  })
+  server.use(
+    http.get(`${API}/jobs`, () =>
+      HttpResponse.json({ items: [done('j2'), done('j1')], next_cursor: null }),
+    ),
+    http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+  )
+  renderWithRouter(
+    <ModuleRegistry value={[]}>
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
+    </ModuleRegistry>,
+  )
+  expect(await screen.findByRole('button', { name: '2 tasks done' })).toBeInTheDocument()
+})
+
 test('a failed job stays listed while its list is open and goes once it closes', async () => {
   const failed = {
     id: 'j1',
