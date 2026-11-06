@@ -48,11 +48,13 @@ export type UploadTarget = {
  * question, then one file per request so each row shows its own state. Render `panel` and
  * `dialog` once; call `start(files, target)` from the button or a drop zone.
  */
-export function useUploads(): {
+export type Uploads = {
   start: (files: readonly File[], target: UploadTarget) => void
   panel: ReactNode
   dialog: ReactNode
-} {
+}
+
+export function useUploads(): Uploads {
   const queryClient = useQueryClient()
   const usage = useFilesUsage().data
   const [rows, setRows] = useState<Row[]>([])

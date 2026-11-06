@@ -2011,7 +2011,6 @@
   "files_term_no_courses": "本学期还没有课程",
   "files_term_no_courses_description": "先为学期添加课程，再上传课程文件。",
   "files_upload": "上传",
-  "files_upload_to": "上传到 {course}",
   "files_upload_done": "已上传",
   "files_upload_failed": "上传失败",
   "files_upload_no_room": "存储空间不足：剩余 {remaining}。",

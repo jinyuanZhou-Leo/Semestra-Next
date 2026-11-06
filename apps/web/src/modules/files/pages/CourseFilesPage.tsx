@@ -34,7 +34,7 @@ import { FileBrowser, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
-import { useUploads } from '../components/Uploads'
+import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
 import { useDebounced, useFileDrop } from '../hooks'
@@ -62,12 +62,15 @@ export function CourseFiles({
   programId,
   name,
   up,
+  uploads: shared,
 }: {
   list: FilesItemList
   courseId: string
   programId: string
   name?: string
   up?: { label: string; onClick: () => void }
+  /** Uploads owned by the term page, so they outlive leaving this course. */
+  uploads?: Uploads
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
@@ -80,7 +83,8 @@ export function CourseFiles({
   // The folder may have been deleted (here or in another tab).
   const folder = list.folders.find((f) => f.id === folderId) ?? null
   const currentId = folder?.id ?? null
-  const uploads = useUploads()
+  const own = useUploads()
+  const uploads = shared ?? own
   const upload = (files: readonly File[], into: string | null = currentId) =>
     uploads.start(files, { courseId, folderId: into, existing: list.items })
   const dragging = useFileDrop(upload)
@@ -300,8 +304,8 @@ export function CourseFiles({
         </div>
       ) : null}
 
-      {uploads.panel}
-      {uploads.dialog}
+      {shared ? null : uploads.panel}
+      {shared ? null : uploads.dialog}
       {link.dialog}
       <ItemDialogs
         courseId={courseId}

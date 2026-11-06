@@ -28,7 +28,7 @@ import { useExternalLink } from '../components/ExternalLink'
 import { ViewToggle } from '../components/FileBrowser'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
-import { useUploads } from '../components/Uploads'
+import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
 import { useDebounced, useFileDrop } from '../hooks'
@@ -68,6 +68,9 @@ function TermFiles({
   courses: Course[]
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  // One upload queue for the whole page: its panel and duplicate question stay up when the
+  // student opens a course or goes back to the courses mid-upload.
+  const uploads = useUploads()
   // The course may have left the term (here or in another tab).
   const course = courses.find((c) => c.id === openId)
 
@@ -84,28 +87,40 @@ function TermFiles({
       </Empty>
     )
   }
-  if (course) {
-    return (
-      <OpenCourse
-        key={course.id}
-        course={course}
-        programId={programId}
-        back={() => setOpenId(null)}
-      />
-    )
-  }
   return (
-    <CourseFolders courses={courses} programId={programId} termId={termId} openCourse={setOpenId} />
+    <>
+      {course ? (
+        <OpenCourse
+          key={course.id}
+          course={course}
+          programId={programId}
+          uploads={uploads}
+          back={() => setOpenId(null)}
+        />
+      ) : (
+        <CourseFolders
+          courses={courses}
+          programId={programId}
+          termId={termId}
+          uploads={uploads}
+          openCourse={setOpenId}
+        />
+      )}
+      {uploads.panel}
+      {uploads.dialog}
+    </>
   )
 }
 
 function OpenCourse({
   course,
   programId,
+  uploads,
   back,
 }: {
   course: Course
   programId: string
+  uploads: Uploads
   back: () => void
 }) {
   return (
@@ -117,6 +132,7 @@ function OpenCourse({
           programId={programId}
           name={courseLabel(course)}
           up={{ label: m.files_all_courses(), onClick: back }}
+          uploads={uploads}
         />
       )}
     </AsyncBoundary>
@@ -307,11 +323,13 @@ function CourseFolders({
   courses,
   programId,
   termId,
+  uploads,
   openCourse,
 }: {
   courses: Course[]
   programId: string
   termId: string
+  uploads: Uploads
   openCourse: (courseId: string) => void
 }) {
   const [search, setSearch] = useState('')
@@ -319,7 +337,6 @@ function CourseFolders({
   const [over, setOver] = useState<string | null>(null)
   const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
   const link = useExternalLink()
-  const uploads = useUploads()
   // Files dropped beside the folders have no course to go to.
   const dragging = useFileDrop(NOOP)
   const query = useDebounced(search, 300)
@@ -440,8 +457,6 @@ function CourseFolders({
         </div>
       ) : null}
 
-      {uploads.panel}
-      {uploads.dialog}
       {link.dialog}
       <PreviewDialog target={preview} onClose={() => setPreview(null)} />
     </div>

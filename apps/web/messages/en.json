@@ -2011,7 +2011,6 @@
   "files_term_no_courses": "No courses in this term",
   "files_term_no_courses_description": "Add courses to the term, then upload their files.",
   "files_upload": "Upload",
-  "files_upload_to": "Upload to {course}",
   "files_upload_done": "Uploaded",
   "files_upload_failed": "Upload failed",
   "files_upload_no_room": "Not enough storage left: {remaining} free.",
