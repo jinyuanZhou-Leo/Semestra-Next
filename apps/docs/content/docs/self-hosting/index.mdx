@@ -40,6 +40,7 @@ Then, for any setup:
 | After signing in you are back on the sign-in page        | `SEMESTRA_PUBLIC_URL` starts with `https://` but you opened an `http://` address. Open the https one |
 | No verification code arrives                             | Without [email](./email.mdx) it is in `docker compose logs semestra`      |
 | "SEMESTRA_SECRET_KEY and SEMESTRA_ENCRYPTION_KEY must be set in prod" | `SEMESTRA_AUTO_SECRETS` was removed from the compose file and no keys are set |
+| "SEMESTRA_ENCRYPTION_KEY is not a Fernet key"           | The `SEMESTRA_ENCRYPTION_KEY` in your `.env` is not a key made by `Fernet.generate_key()` (44 characters ending in `=`). Remove it to use the generated one, or restore the key you backed up |
 | Permission errors on a bind mount                        | `sudo chown -R 10001:10001 <dir>`: the container runs as uid 10001        |
 
 `/healthz` answers while the process is up, `/readyz` once the database and the background worker

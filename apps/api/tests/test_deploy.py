@@ -192,7 +192,7 @@ def test_sentry_scrub_drops_request_content_and_user() -> None:
 def test_settings_read_generated_secrets_file(tmp_path: Path) -> None:
     """Processes started with `docker exec` skip the entrypoint but must still find the keys."""
     (tmp_path / "secrets.env").write_text(
-        "SEMESTRA_SECRET_KEY=from-file\nSEMESTRA_ENCRYPTION_KEY=abc=\n"
+        f"SEMESTRA_SECRET_KEY=from-file\nSEMESTRA_ENCRYPTION_KEY={_FERNET_KEY}\n"
     )
     env = {"PATH": os.environ["PATH"], "SEMESTRA_ENV": "prod", "SEMESTRA_DATA_DIR": str(tmp_path)}
     code = (
@@ -207,4 +207,38 @@ def test_settings_read_generated_secrets_file(tmp_path: Path) -> None:
         text=True,
         check=True,
     )
-    assert out.stdout.split() == ["from-file", "abc="]
+    assert out.stdout.split() == ["from-file", _FERNET_KEY]
+
+
+_FERNET_KEY = "x" * 43 + "="  # 32 bytes, ends in "=" like every generated key
+_ENTRYPOINT = Path(__file__).resolve().parents[3] / "deploy" / "docker" / "entrypoint.sh"
+
+
+@pytest.mark.skipif(not _ENTRYPOINT.exists(), reason="needs the repository checkout")
+def test_entrypoint_generated_keys_reach_the_server(tmp_path: Path) -> None:
+    """The server process must get the generated Fernet key intact, trailing "=" included."""
+    env = {
+        "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
+        "SEMESTRA_ENV": "prod",
+        "SEMESTRA_DATA_DIR": str(tmp_path / "data"),
+        "SEMESTRA_AUTO_SECRETS": "true",
+        "SEMESTRA_SKIP_MIGRATIONS": "true",
+    }
+    code = (
+        "from cryptography.fernet import Fernet; from semestra.core.config import Settings;"
+        "s = Settings(); print(Fernet(s.encryption_key.encode()).decrypt("
+        "Fernet(s.encryption_key.encode()).encrypt(b'ok')).decode())"
+    )
+    run = [shutil.which("sh") or "/bin/sh", str(_ENTRYPOINT), sys.executable, "-c", code]
+    for _ in range(2):  # first start generates secrets.env, the second reuses it
+        out = subprocess.run(  # noqa: S603
+            run, env=env, cwd=tmp_path, capture_output=True, text=True, check=True
+        )
+        assert out.stdout.strip() == "ok"
+
+
+def test_invalid_encryption_key_fails_at_startup_without_echoing_it() -> None:
+    with pytest.raises(ValueError, match="not a Fernet key") as err:
+        Settings(encryption_key="not-a-key-abc=")  # pyright: ignore[reportCallIssue]
+    assert "not-a-key-abc" not in str(err.value)
+    Settings(encryption_key=_FERNET_KEY)  # pyright: ignore[reportCallIssue]
