@@ -68,6 +68,7 @@ const login = `${APP_URL}/login`
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{t.title}</title>
+    <link rel="icon" type="image/svg+xml" href={`${import.meta.env.BASE_URL.replace(/\/$/, "")}/icon.svg`} />
     <meta name="description" content={t.description} />
     <link rel="alternate" hreflang={other} href={new URL(home(other), Astro.site)} />
     <link rel="canonical" href={new URL(home(lang), Astro.site)} />
