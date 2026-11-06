@@ -215,6 +215,7 @@ function JobsLine() {
   const jobs = open ? all.filter((job) => shown.includes(job) || held.includes(job.id)) : shown
   const active = jobs.filter((job) => ACTIVE.has(job.status))
   const waiting = active.filter(jobIsWaiting).length
+  const failed = jobs.filter((job) => job.status === 'failed').length
   const [only] = jobs.length === 1 ? jobs : []
   const onlyWaits = only !== undefined && jobIsWaiting(only)
   const progress = useSmoothedProgress(
@@ -224,8 +225,8 @@ function JobsLine() {
 
   // Already-gone failures need not be remembered; keep the list short.
   const markSeen = () => {
-    const failed = jobs.filter((job) => job.status === 'failed').map((job) => job.id)
-    if (failed.length > 0) setSeen([...failed, ...seen].slice(0, 50))
+    const ids = jobs.filter((job) => job.status === 'failed').map((job) => job.id)
+    if (ids.length > 0) setSeen([...ids, ...seen].slice(0, 50))
   }
 
   // Failures count as seen once the list that showed them closes (not on open: they would
@@ -276,8 +277,11 @@ function JobsLine() {
           ? m.status_jobs_running_waiting({ running: active.length - waiting, waiting })
           : m.status_jobs_running({ count: active.length }),
     }
+  } else if (failed > 0) {
+    item = { icon: CircleAlert, tone: 'error', label: m.status_jobs_failed({ count: failed }) }
   } else {
-    item = { icon: CircleAlert, tone: 'error', label: m.status_jobs_failed({ count: jobs.length }) }
+    // Several jobs that all ended well (or were stopped while the list was open).
+    item = { icon: CircleCheck, tone: 'success', label: m.status_jobs_done({ count: jobs.length }) }
   }
 
   return (

@@ -1426,6 +1426,7 @@
   "hotkeys_switch_course": "Previous / next course",
   "academics_command_term": "Term",
   "status_jobs_title": "Background tasks",
+  "status_jobs_done": "{count} tasks done",
   "status_jobs_failed": "{count} tasks failed",
   "status_job_failed": "{name} failed",
   "status_job_waiting": "Waiting · {name}",
