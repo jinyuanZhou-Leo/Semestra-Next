@@ -22,6 +22,8 @@ import {
   FileSearch,
   Folder,
   FolderInput,
+  LayoutGrid,
+  List,
   MoreHorizontal,
   Pencil,
   RotateCw,
@@ -33,6 +35,7 @@ import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -47,6 +50,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { previewKind, typeLabel } from '../kinds'
@@ -441,6 +445,38 @@ export function SortMenu() {
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** List or grid, remembered for every files page (`files.view`). */
+export function ViewToggle() {
+  const [view, setView] = useUiPref<'list' | 'grid'>('files.view', 'list')
+  return (
+    <ToggleGroup
+      aria-label={m.files_view()}
+      size="sm"
+      className={SEGMENTED}
+      value={[view]}
+      onValueChange={(next) => {
+        if (next[0]) setView(next[0] as 'list' | 'grid')
+      }}
+    >
+      {(
+        [
+          ['list', List, m.files_view_list()],
+          ['grid', LayoutGrid, m.files_view_grid()],
+        ] as const
+      ).map(([value, Icon, label]) => (
+        <Tooltip key={value}>
+          <TooltipTrigger
+            render={<ToggleGroupItem value={value} aria-label={label} className={SEGMENT} />}
+          >
+            <Icon aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ))}
+    </ToggleGroup>
   )
 }
 

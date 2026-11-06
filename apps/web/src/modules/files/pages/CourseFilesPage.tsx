@@ -1,5 +1,5 @@
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
-import { FolderOpen, FolderPlus, LayoutGrid, Link2, List, Plus, Search, Upload } from 'lucide-react'
+import { FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -29,21 +29,16 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import { SEGMENT, SEGMENTED } from '@/lib/segmented'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
-import { FileBrowser, SortMenu } from '../components/FileBrowser'
+import { FileBrowser, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
-import { useUploads } from '../components/Uploads'
+import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
 import { useDebounced, useFileDrop } from '../hooks'
 import { useCourseFiles } from '../queries'
-
-type View = 'list' | 'grid'
 
 /** The `files` page of a course (M07 §6.1). */
 export default function CourseFilesPage({ scope }: PageProps) {
@@ -57,17 +52,28 @@ export default function CourseFilesPage({ scope }: PageProps) {
   )
 }
 
-function CourseFiles({
+/**
+ * A course's files with its folders, searching and uploads. On the term page it is one course
+ * folder: `name` is the course's crumb and `up` the crumb before it, back to the courses.
+ */
+export function CourseFiles({
   list,
   courseId,
   programId,
+  name,
+  up,
+  uploads: shared,
 }: {
   list: FilesItemList
   courseId: string
   programId: string
+  name?: string
+  up?: { label: string; onClick: () => void }
+  /** Uploads owned by the term page, so they outlive leaving this course. */
+  uploads?: Uploads
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
-  const [view, setView] = useUiPref<View>('files.view', 'list')
+  const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
   const [folderId, setFolderId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [action, setAction] = useState<ItemAction | null>(null)
@@ -77,7 +83,8 @@ function CourseFiles({
   // The folder may have been deleted (here or in another tab).
   const folder = list.folders.find((f) => f.id === folderId) ?? null
   const currentId = folder?.id ?? null
-  const uploads = useUploads()
+  const own = useUploads()
+  const uploads = shared ?? own
   const upload = (files: readonly File[], into: string | null = currentId) =>
     uploads.start(files, { courseId, folderId: into, existing: list.items })
   const dragging = useFileDrop(upload)
@@ -126,31 +133,7 @@ function CourseFiles({
         </InputGroup>
         <div className="ml-auto flex items-center gap-2">
           {view === 'grid' ? <SortMenu /> : null}
-          <ToggleGroup
-            aria-label={m.files_view()}
-            size="sm"
-            className={SEGMENTED}
-            value={[view]}
-            onValueChange={(next) => {
-              if (next[0]) setView(next[0] as View)
-            }}
-          >
-            {(
-              [
-                ['list', List, m.files_view_list()],
-                ['grid', LayoutGrid, m.files_view_grid()],
-              ] as const
-            ).map(([value, Icon, label]) => (
-              <Tooltip key={value}>
-                <TooltipTrigger
-                  render={<ToggleGroupItem value={value} aria-label={label} className={SEGMENT} />}
-                >
-                  <Icon aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>{label}</TooltipContent>
-              </Tooltip>
-            ))}
-          </ToggleGroup>
+          <ViewToggle />
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" />}>
               <Plus aria-hidden />
@@ -199,16 +182,26 @@ function CourseFiles({
         ) : (
           <Breadcrumb>
             <BreadcrumbList>
+              {up ? (
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    render={(props) => <button type="button" {...props} onClick={up.onClick} />}
+                  >
+                    {up.label}
+                  </BreadcrumbLink>
+                  <BreadcrumbSeparator />
+                </BreadcrumbItem>
+              ) : null}
               <BreadcrumbItem>
                 {trail.length === 0 ? (
-                  <BreadcrumbPage>{m.files_all_files()}</BreadcrumbPage>
+                  <BreadcrumbPage>{name ?? m.files_all_files()}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink
                     render={(props) => (
                       <button type="button" {...props} onClick={() => setFolderId(null)} />
                     )}
                   >
-                    {m.files_all_files()}
+                    {name ?? m.files_all_files()}
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
@@ -304,14 +297,15 @@ function CourseFiles({
               folder:
                 list.folders.find((f) => f.id === dropFolderId)?.name ??
                 trail.at(-1)?.name ??
+                name ??
                 m.files_all_files(),
             })}
           </div>
         </div>
       ) : null}
 
-      {uploads.panel}
-      {uploads.dialog}
+      {shared ? null : uploads.panel}
+      {shared ? null : uploads.dialog}
       {link.dialog}
       <ItemDialogs
         courseId={courseId}
