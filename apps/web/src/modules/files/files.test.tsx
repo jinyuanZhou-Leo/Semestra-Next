@@ -20,9 +20,14 @@ vi.mock('react-pdf', () => ({
     onLoadSuccess,
   }: {
     children: ReactNode
-    onLoadSuccess: (doc: { numPages: number }) => void
+    onLoadSuccess: (doc: unknown) => void
   }) => {
-    useEffect(() => onLoadSuccess({ numPages: 9 }), [onLoadSuccess])
+    useEffect(() => {
+      onLoadSuccess({
+        numPages: 9,
+        getPage: async () => ({ getViewport: () => ({ width: 210, height: 297 }) }),
+      })
+    }, [onLoadSuccess])
     return <div>{children}</div>
   },
   Page: ({ pageNumber }: { pageNumber: number }) => <p>PDF page {pageNumber}</p>,

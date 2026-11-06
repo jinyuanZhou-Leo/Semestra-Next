@@ -20,6 +20,7 @@ const allowed = [
   // TanStack Virtual's virtualizer is a mutable object; the compiler skips it on purpose.
   ['modules/tasks/components/VirtualTaskList.tsx', 'Use of incompatible library'],
   ['modules/files/components/VirtualBody.tsx', 'Use of incompatible library'],
+  ['modules/files/components/PdfViewer.tsx', 'Use of incompatible library'],
 ]
 
 function* files(dir) {
@@ -56,9 +57,9 @@ await Promise.all(
 )
 
 if (failures.length > 0) {
-  console.error(`React Compiler left code uncompiled (${failures.length} diagnostic(s)):\n${failures.join('\n')}`)
+  console.error(
+    `React Compiler left code uncompiled (${failures.length} diagnostic(s)):\n${failures.join('\n')}`,
+  )
   process.exit(1)
 }
-console.log(
-  `React Compiler: ${checked} files, ${memoized} functions memoized, none skipped.`,
-)
+console.log(`React Compiler: ${checked} files, ${memoized} functions memoized, none skipped.`)
