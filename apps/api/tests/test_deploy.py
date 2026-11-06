@@ -223,6 +223,9 @@ def test_entrypoint_generated_keys_reach_the_server(tmp_path: Path) -> None:
         "SEMESTRA_DATA_DIR": str(tmp_path / "data"),
         "SEMESTRA_AUTO_SECRETS": "true",
         "SEMESTRA_SKIP_MIGRATIONS": "true",
+        # Left empty as in deploy/.env.example: must not hide the generated keys.
+        "SEMESTRA_SECRET_KEY": "",
+        "SEMESTRA_ENCRYPTION_KEY": "",
     }
     code = (
         "from cryptography.fernet import Fernet; from semestra.core.config import Settings;"

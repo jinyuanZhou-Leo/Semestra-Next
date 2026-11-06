@@ -22,6 +22,9 @@ class Settings(BaseSettings):
         env_prefix="SEMESTRA_",
         env_file=(".env", Path(os.environ.get("SEMESTRA_DATA_DIR", "./data")) / "secrets.env"),
         extra="ignore",
+        # An empty variable (`SEMESTRA_ENCRYPTION_KEY=` from .env.example) means "not set", so it
+        # does not hide the generated key in secrets.env.
+        env_ignore_empty=True,
         # Validation errors must not print SECRET_KEY / ENCRYPTION_KEY and other credentials.
         hide_input_in_errors=True,
     )
