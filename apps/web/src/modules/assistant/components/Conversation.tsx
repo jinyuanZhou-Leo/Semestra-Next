@@ -90,6 +90,7 @@ import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
 import { ChipCourses, RefChip } from './RefChip'
 import { AskedBlock } from './Asked'
+import { Reveal, SmoothHeight, Swap } from './motion'
 import { PendingDock } from './PendingDock'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
@@ -509,6 +510,7 @@ export function Conversation({
   const showReasoning = useShowReasoning()
   // Counts the messages sent from here, so the transcript can follow each one.
   const [sent, setSent] = useState(0)
+  const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set())
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
@@ -689,9 +691,10 @@ export function Conversation({
   }
 
   const lastAssistant = items.findLast((item) => item.kind === 'assistant')
-  // What Sem waits on takes the input's place until it is answered.
+  // What Sem waits on takes the input's place until it is answered; a card leaves as soon as it
+  // is decided, and comes back if sending the decision fails.
   const waiting = (detail?.proposals ?? [])
-    .filter((p) => p.status === 'pending')
+    .filter((p) => p.status === 'pending' && !decided.has(p.id))
     .toSorted((a, b) => a.created_at.localeCompare(b.created_at))
   // What is being compacted now is dimmed, with a running divider below it.
   const compacted =
@@ -877,37 +880,45 @@ export function Conversation({
             </Tooltip>
           ) : null}
         </div>
-        {waiting.length > 0 ? (
-          <PendingDock
-            proposals={waiting}
-            disabled={chat.generating}
-            onDecide={(decisions) => {
-              setSent((n) => n + 1)
-              void chat.decide(decisions)
-            }}
-          />
-        ) : null}
-        {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
-        <div hidden={waiting.length > 0}>
-          <Composer
-            programId={programId}
-            generating={chat.generating}
-            disabled={!ai.available}
-            attachments={attachments}
-            onFiles={(files) => void addFiles(files)}
-            onRemoveAttachment={removeAttachment}
-            onSubmit={submit}
-            onStop={() => void chat.stop()}
-            onScope={(next) => void changeScope(next)}
-            focusInput={focusInput}
-            initialContent={initialContent}
-            onContentChange={onContentChange}
-            context={sessionId ? (detail?.context ?? null) : null}
-            canCompact={canCompact}
-            compacting={chat.compacting}
-            onCompact={compact}
-          />
-        </div>
+        {/* The input and the waiting panel share one spot; the area eases to the new height. */}
+        <SmoothHeight animateKey={waiting.length > 0 ? 'pending' : 'input'}>
+          <Swap itemKey={waiting.length > 0 ? 'pending' : null}>
+            <PendingDock
+              proposals={waiting}
+              disabled={chat.generating}
+              onDecide={(decisions) => {
+                const ids = decisions.map((d) => d.proposalId)
+                setDecided((current) => new Set([...current, ...ids]))
+                setSent((n) => n + 1)
+                void chat.decide(decisions).then((ok) => {
+                  if (ok) return
+                  setDecided((current) => new Set([...current].filter((id) => !ids.includes(id))))
+                })
+              }}
+            />
+          </Swap>
+          {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
+          <Reveal shown={waiting.length === 0}>
+            <Composer
+              programId={programId}
+              generating={chat.generating}
+              disabled={!ai.available}
+              attachments={attachments}
+              onFiles={(files) => void addFiles(files)}
+              onRemoveAttachment={removeAttachment}
+              onSubmit={submit}
+              onStop={() => void chat.stop()}
+              onScope={(next) => void changeScope(next)}
+              focusInput={focusInput}
+              initialContent={initialContent}
+              onContentChange={onContentChange}
+              context={sessionId ? (detail?.context ?? null) : null}
+              canCompact={canCompact}
+              compacting={chat.compacting}
+              onCompact={compact}
+            />
+          </Reveal>
+        </SmoothHeight>
       </div>
     </section>
   )

@@ -19,9 +19,11 @@ import { Item, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { Kbd } from '@/ui/kbd'
 import { Label } from '@/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { capabilityTitle } from '../labels'
 import { ASK_USER } from '../transcript'
 import type { Decision } from '../use-chat'
+import { INPUT_FRAME, SmoothHeight, Swap } from './motion'
 import { EditForm, ProposalChanges, editableFields } from './ProposalCard'
 
 type Option = { label: string; description?: string }
@@ -126,7 +128,7 @@ function Panel({
     // Same frame as the input it stands in for; its focus ring shows while typing a reply.
     <InputGroup
       aria-label={label}
-      className="h-auto flex-col items-stretch rounded-2xl border-border bg-background shadow-xs dark:bg-background"
+      className={cn('h-auto flex-col items-stretch', INPUT_FRAME)}
       onKeyDown={onKeyDown}
     >
       <div className="flex items-start gap-2 px-4 pt-3 pb-1">
@@ -388,6 +390,7 @@ export function PendingDock({
   onDecide: (decisions: Decision[]) => void
 }) {
   const [chosen, setChosen] = useState<string | null>(null)
+  const [direction, setDirection] = useState(0)
   const found = proposals.findIndex((p) => p.id === chosen)
   const index = found < 0 ? 0 : found
   const current = proposals[index]
@@ -396,32 +399,37 @@ export function PendingDock({
     <Pager
       index={index}
       count={proposals.length}
-      onMove={(to) => setChosen(proposals[to]?.id ?? null)}
+      onMove={(to) => {
+        setDirection(to > index ? 1 : -1)
+        setChosen(proposals[to]?.id ?? null)
+      }}
     />
   )
-  if (current.capability === ASK_USER) {
-    return (
-      <QuestionPanel
-        key={current.id}
-        proposal={current}
-        disabled={disabled}
-        pager={pager}
-        onDecide={(decision) => onDecide([decision])}
-      />
-    )
-  }
   const changes = proposals.filter((p) => p.capability !== ASK_USER)
   return (
-    <ConfirmPanel
-      key={current.id}
-      proposal={current}
-      disabled={disabled}
-      pager={pager}
-      others={changes.length - 1}
-      onDecide={(decision) => onDecide([decision])}
-      onDecideAll={() =>
-        onDecide(changes.map((p) => ({ proposalId: p.id, decision: 'approve' as const })))
-      }
-    />
+    // Paging slides sideways; the next card after a decision comes up from below.
+    <SmoothHeight>
+      <Swap itemKey={current.id} direction={found < 0 ? 0 : direction}>
+        {current.capability === ASK_USER ? (
+          <QuestionPanel
+            proposal={current}
+            disabled={disabled}
+            pager={pager}
+            onDecide={(decision) => onDecide([decision])}
+          />
+        ) : (
+          <ConfirmPanel
+            proposal={current}
+            disabled={disabled}
+            pager={pager}
+            others={changes.length - 1}
+            onDecide={(decision) => onDecide([decision])}
+            onDecideAll={() =>
+              onDecide(changes.map((p) => ({ proposalId: p.id, decision: 'approve' as const })))
+            }
+          />
+        )}
+      </Swap>
+    </SmoothHeight>
   )
 }

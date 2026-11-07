@@ -20,6 +20,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { EMPTY_PROMPT, type MessageReference, type PromptValue, readPrompt } from '../prompt'
 import { ContextMeter } from './ContextMeter'
+import { INPUT_FRAME } from './motion'
 import { PROMPT_CLASS, PromptEditor, type PromptEditorHandle } from './PromptEditor'
 
 export type PendingAttachment = {
@@ -149,7 +150,7 @@ export function Composer({
 
   return (
     <div className="relative">
-      <InputGroup className="rounded-2xl">
+      <InputGroup className={INPUT_FRAME}>
         {attachments.length > 0 ? (
           <InputGroupAddon align="block-start" className="flex-wrap justify-start gap-1.5">
             <AttachmentGroup className="w-full">
