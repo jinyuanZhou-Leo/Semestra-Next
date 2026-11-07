@@ -5,6 +5,6 @@
 <!-- area: tasks -->
 <!-- improved -->
 <!-- en -->
-New tasks are added in the list with date, priority, course and flag set right away, from the New task button on the page or on Today and list cards.
+New tasks are created in the list with due date, priority, course and flag set as you add them, from the New task button on the Tasks page, on Today and list cards, and on phones.
 <!-- zh -->
-新待办在列表中直接添加，可同时设置日期、优先级、课程和标记；页面和“今天”、列表卡片上都有“新待办”按钮。
+新待办改为在列表中直接添加，添加时即可设置截止日期、优先级、课程和标记；待办页、“今天”与列表卡片以及手机端都提供“新待办”按钮。

@@ -498,9 +498,14 @@ test('on a phone the tasks are grouped by due date, checked off in place and edi
   await act(() => flushCompletions())
   expect(log.completes).toEqual([{ id: 't2', body: { completed: true } }])
 
-  await userEvent.type(screen.getByLabelText('Add a task'), 'Write essay !!{Enter}')
+  await userEvent.click(screen.getByRole('button', { name: 'New task' }))
+  const adding = await screen.findByRole('dialog')
+  await userEvent.type(within(adding).getByRole('textbox', { name: 'New task' }), 'Write essay')
+  await userEvent.click(within(adding).getByRole('button', { name: 'Flag' }))
+  await userEvent.click(within(adding).getByRole('button', { name: 'Add' }))
   await waitFor(() => expect(log.creates).toHaveLength(1))
-  expect(log.creates[0]).toMatchObject({ title: 'Write essay', priority: 'medium' })
+  expect(log.creates[0]).toEqual({ title: 'Write essay', flagged: true })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
   await userEvent.click(screen.getByText('Midterm review'))
   const sheet = await screen.findByRole('dialog')
