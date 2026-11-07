@@ -21,32 +21,20 @@ async def on_program_deleting(ctx: Ctx, event: Event) -> None:
 
 
 async def _on_assessment(ctx: Ctx, event: Event) -> None:
-    kind = event.type.rsplit(".", 1)[1]
     data = event.data
-    program_id = data.get("program_id")
     # A batch create sends one event with every id.
     ids = data.get("assessment_ids") or [data.get("assessment_id")]
-    if not isinstance(program_id, str):
-        return
     for assessment_id in ids:
         if isinstance(assessment_id, str):
-            await auto.on_assessment_event(ctx, kind, program_id, assessment_id)
+            await auto.sync(ctx, assessment_id)
 
 
-for _kind in ("created", "updated", "deleted"):
+@events.subscribe("grading.assessment.deleting", in_transaction=True)
+async def on_assessment_deleting(ctx: Ctx, event: Event) -> None:
+    """The task goes in the same transaction, announced (the foreign key would take it too, but
+    silently: that is only the fallback for bulk deletes)."""
+    await auto.drop(ctx, event.data["assessment_id"])
+
+
+for _kind in ("created", "updated"):
     events.subscribe(f"grading.assessment.{_kind}")(_on_assessment)
-
-
-@events.subscribe("settings.values.updated")
-async def on_settings_updated(ctx: Ctx, event: Event) -> None:
-    """Turning the switch on creates the tasks of the assessments that already exist. Only that
-    change does: saving another tasks setting must not bring back auto tasks the user deleted."""
-    scope = event.data.get("scope")
-    if event.data.get("namespace") != "tasks" or not isinstance(scope, dict):
-        return
-    if "auto_tasks_from_assessments" not in event.data.get("changed", []):
-        return
-    program_id = scope.get("id")
-    is_program = scope.get("type") == "program" and isinstance(program_id, str)
-    if is_program and await auto.enabled(ctx, program_id):  # pyright: ignore[reportArgumentType]
-        await auto.backfill(ctx, program_id)  # pyright: ignore[reportArgumentType]

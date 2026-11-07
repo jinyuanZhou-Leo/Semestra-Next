@@ -104,6 +104,7 @@ def task_out(row: TasksItem, now_local: datetime) -> Task:
         position=row.position,
         source_kind=row.source_kind,  # pyright: ignore[reportArgumentType]
         source_ref=row.source_ref,
+        assessment_id=row.assessment_id,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -141,8 +142,7 @@ async def announce_item(
         "changed": list(changed),
     }
     await events.publish(ctx, f"tasks.item.{kind}", data)
-    # Tasks made from assessments are not in the `tasks.due` source (the assessment is).
-    if calendar and row.source_kind != "assessment":
+    if calendar:
         await events.publish(ctx, "calendar.changed", {"program_id": row.program_id})
 
 
@@ -227,14 +227,12 @@ async def update_list(ctx: Ctx, inp: TaskListUpdateInput) -> TaskList:
 async def delete_list(ctx: Ctx, list_id: str, *, delete_tasks: bool) -> TaskListDeleteResult:
     row = await get_list_row(ctx, list_id)
     items = list(await ctx.db.scalars(select(TasksItem).where(TasksItem.list_id == row.id)))
-    result = TaskListDeleteResult(
-        deleted_task_count=len(items) if delete_tasks else 0,
-        moved_task_count=0 if delete_tasks else len(items),
-    )
-    if delete_tasks:
-        await _delete_rows(ctx, row.program_id, items)
-    else:
-        await _to_inbox(ctx, items)
+    # An assessment's task goes only with its assessment, so it moves to the inbox instead.
+    doomed = [r for r in items if r.assessment_id is None] if delete_tasks else []
+    kept = [r for r in items if r not in doomed]
+    result = TaskListDeleteResult(deleted_task_count=len(doomed), moved_task_count=len(kept))
+    await _delete_rows(ctx, row.program_id, doomed)
+    await _to_inbox(ctx, kept)
     await ctx.db.delete(row)
     await ctx.db.flush()
     await events.publish(
@@ -253,7 +251,7 @@ async def _delete_rows(ctx: Ctx, program_id: str, rows: Sequence[TasksItem]) -> 
     await events.publish(
         ctx, "tasks.item.deleted", {"task_ids": ids, "program_id": program_id, "changed": []}
     )
-    if any(r.due_date and r.source_kind != "assessment" for r in rows):
+    if any(r.due_date for r in rows):
         await events.publish(ctx, "calendar.changed", {"program_id": program_id})
 
 
@@ -413,9 +411,9 @@ async def create_task_row(
     return row
 
 
-# Tasks of these kinds are kept in sync by the app (assessment sync, LMS imports); the
-# assistant or an MCP client creating one would hide it from the calendar or have it rewritten.
-_APP_SOURCES = {"assessment", "lms"}
+# LMS tasks are made by the import, which tracks them; the assistant or an MCP client must not
+# make one.
+_APP_SOURCES = {"lms"}
 
 
 def _caller_source(ctx: Ctx, fields: TaskFields, loc: list[str | int]) -> TaskFields:
@@ -568,7 +566,7 @@ def _guard_managed(row: TasksItem, inp: TaskUpdateInput) -> None:
     """A task made from an assessment takes its title, due date and course from it (auto.py);
     a change here would be overwritten by the next sync, so it is refused instead. Sending the
     values it already has is fine."""
-    if row.source_kind != "assessment":
+    if row.assessment_id is None:
         return
     sent = inp.model_fields_set - {"task_id"}
     due_date, due_time = _resolved_due(row, inp)
@@ -584,7 +582,7 @@ def _guard_managed(row: TasksItem, inp: TaskUpdateInput) -> None:
     ]
     if managed:
         raise AppError(
-            "tasks.managed_by_assessment", 409, assessment_id=row.source_ref, fields=managed
+            "tasks.managed_by_assessment", 409, assessment_id=row.assessment_id, fields=managed
         )
 
 
@@ -653,6 +651,11 @@ async def move_task(ctx: Ctx, inp: TaskMoveInput) -> Task:
 
 async def delete_task(ctx: Ctx, task_id: str) -> None:
     row = await get_item_row(ctx, task_id)
+    if row.assessment_id is not None:
+        # It goes with its assessment (or when the assessment loses its due date).
+        raise AppError(
+            "tasks.managed_by_assessment", 409, assessment_id=row.assessment_id, fields=["delete"]
+        )
     had_due = row.due_date is not None
     await ctx.db.delete(row)
     await ctx.db.flush()
@@ -669,7 +672,7 @@ async def _completed_rows(ctx: Ctx, inp: TaskClearInput) -> list[TasksItem]:
         term_id=term_id,
         course_id=inp.course_id,
         list_id=inp.list_id,
-    ).where(TasksItem.completed_at.is_not(None))
+    ).where(TasksItem.completed_at.is_not(None), TasksItem.assessment_id.is_(None))
     return list(await ctx.db.scalars(stmt.order_by(TasksItem.completed_at.desc())))
 
 
@@ -902,6 +905,7 @@ async def find_tasks(ctx: Ctx, inp: TaskFindInput) -> TaskCandidates:
                 due_date=r.due_date,
                 completed=r.completed_at is not None,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
+                assessment_id=r.assessment_id,
                 score=s,
             )
             for s, r in best
@@ -981,24 +985,20 @@ async def counts(
 
 
 async def detach_course(ctx: Ctx, course_id: str) -> None:
-    """The course's tasks stay, without it. Its assessments go with it (in one statement, without
-    `grading.assessment.deleted`), so their tasks are settled here the way `auto` would: an
-    unfinished one is deleted, a finished one becomes an ordinary task nothing keeps in sync."""
+    """The course's own tasks stay, without it. Its assessments go with it (in one statement,
+    without `grading.assessment.deleted`) and their tasks with them; they are deleted here so
+    the deletion is announced (the foreign key would take them silently)."""
     managed = list(
         await ctx.db.scalars(
             select(TasksItem).where(
                 TasksItem.user_id == ctx.user_id,
                 TasksItem.course_id == course_id,
-                TasksItem.source_kind == "assessment",
+                TasksItem.assessment_id.is_not(None),
             )
         )
     )
-    unfinished = [r for r in managed if r.completed_at is None]
-    if unfinished:
-        await _delete_rows(ctx, unfinished[0].program_id, unfinished)
-    for row in managed:
-        if row.completed_at is not None:
-            row.source_kind, row.source_ref = "manual", None
+    if managed:
+        await _delete_rows(ctx, managed[0].program_id, managed)
     await ctx.db.execute(
         update(TasksItem)
         .where(TasksItem.user_id == ctx.user_id, TasksItem.course_id == course_id)

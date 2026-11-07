@@ -103,26 +103,6 @@ async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAss
     return row if row is not None and row.user_id == ctx.user_id else None
 
 
-async def dated_unscored_assessment_rows(
-    ctx: Ctx, program_id: str
-) -> list[models.GradingAssessment]:
-    """A Program's assessments with a due date and no score yet, soonest first."""
-    return list(
-        await ctx.db.scalars(
-            select(models.GradingAssessment)
-            .where(
-                models.GradingAssessment.user_id == ctx.user_id,
-                models.GradingAssessment.course_id.in_(
-                    [c.id for c in await program_courses(ctx, program_id)]
-                ),
-                models.GradingAssessment.due_at.is_not(None),
-                models.GradingAssessment.score_percentage.is_(None),
-            )
-            .order_by(models.GradingAssessment.due_at)
-        )
-    )
-
-
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
     row = await ctx.db.get(models.GradingAssessment, assessment_id)
     if row is None or row.user_id != ctx.user_id:
@@ -219,7 +199,6 @@ async def _announce_assessment(
             "course_id": row.course_id,
             "program_id": program_id,
             "changed": list(changed),
-            "due_changed": bool({"due_at", "due_has_time"} & set(changed)),
         },
     )
 
@@ -279,7 +258,6 @@ async def create_assessments(
                 "course_id": course.id,
                 "program_id": program.id,
                 "changed": ["due_at"] if dated else [],
-                "due_changed": dated,
             },
         )
     return AssessmentCreateManyResult(
@@ -454,7 +432,7 @@ async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
     await events.publish(
         ctx,
         "grading.assessment.deleted",
-        {**data, "changed": [], "due_changed": row.due_at is not None},
+        {**data, "changed": []},
     )
 
 
@@ -601,36 +579,6 @@ async def _current_term_id(ctx: Ctx, program: AcademicsProgram) -> str | None:
         await academics.program_terms(ctx, program.id), academics.program_today(ctx, program)
     )
     return term.id if term else None
-
-
-async def assessment_deadlines(
-    ctx: Ctx,
-    program_id: str,
-    start: datetime,
-    end: datetime,
-    course_ids: Sequence[str] | None = None,
-) -> list[Assessment]:
-    """Unscored, undropped assessments due in [start, end): the calendar source M04 registers."""
-    program = await academics.get_program_row(ctx, program_id)
-    allowed = {c.id for c in await program_courses(ctx, program_id)}
-    wanted = [c for c in (course_ids or allowed) if c in allowed]
-    if not wanted:
-        return []
-    rows = (
-        await ctx.db.scalars(
-            select(models.GradingAssessment)
-            .where(
-                models.GradingAssessment.user_id == ctx.user_id,
-                models.GradingAssessment.course_id.in_(wanted),
-                models.GradingAssessment.dropped.is_(False),
-                models.GradingAssessment.score_percentage.is_(None),
-                models.GradingAssessment.due_at >= start,
-                models.GradingAssessment.due_at < end,
-            )
-            .order_by(models.GradingAssessment.due_at)
-        )
-    ).all()
-    return [assessment_out(r, program.timezone, ctx.now) for r in rows]
 
 
 async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessments:

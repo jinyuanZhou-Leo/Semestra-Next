@@ -10,10 +10,6 @@ DefaultPriority = Literal["none", "low", "medium", "high"]
 
 
 class TasksSettings(BaseModel):
-    auto_tasks_from_assessments: bool = Field(
-        default=False,
-        description="Create a task for every assessment with a due date and keep it in sync",
-    )
     default_priority: DefaultPriority = Field(
         default="none", description="Priority of tasks created without one"
     )

@@ -100,7 +100,7 @@ agent_hints(
 
 @capability(
     name="calendar.today.get",
-    summary="Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
+    summary="Today in a Program: classes and events, tasks due in the next 7 days.",
     description="""Prefer this for questions about today ("what do I have today?", "what's due this
 week?"). It also says which term week it is. For other days or longer ranges use
 calendar.occurrence.list. Times are local to the Program, with their UTC offset.""",
@@ -123,7 +123,7 @@ async def calendar_today(ctx: Ctx, inp: ProgramRef) -> Today:
 
 @capability(
     name="calendar.occurrence.list",
-    summary="Everything on the calendar in a date range: classes, events, deadlines, tasks.",
+    summary="Everything on the calendar in a date range: classes, events and tasks.",
     description="""Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
 overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
 and at most 400 days after `start`. A busy term is a large result: narrow it with

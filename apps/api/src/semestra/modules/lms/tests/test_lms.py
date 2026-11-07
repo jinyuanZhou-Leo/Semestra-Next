@@ -434,15 +434,13 @@ async def test_calendar_overlay(api: Api, fake: FakeProvider, app: FastAPI):
     program_id, term_id, _ = await setup_program(api)
     course_a = await api.course(program_id, term_id)
     course_b = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
-    link_a = (await api.link(course_a, "101"))["link"]
+    await api.link(course_a, "101")
     await api.link(course_b, "102")
     when = datetime(2026, 2, 6, 15, 0, tzinfo=UTC)
     fake.events = [
-        LmsCalendarEvent(external_id="e1", external_course_id="101", kind="event",
+        LmsCalendarEvent(external_id="e1", external_course_id="101",
                          title="Review session", start_at=when, html="<p>Room <b>5</b></p>"),
-        LmsCalendarEvent(external_id="as1", external_course_id="101", kind="assignment",
-                         title="Lab 1", start_at=when, assignment_id="a1"),
-        LmsCalendarEvent(external_id="e2", external_course_id="102", kind="event",
+        LmsCalendarEvent(external_id="e2", external_course_id="102",
                          title="Tutorial", start_at=when),
     ]  # fmt: skip
 
@@ -456,7 +454,6 @@ async def test_calendar_overlay(api: Api, fake: FakeProvider, app: FastAPI):
     fake.calls.clear()
     items = await overlay()
     assert sorted(i["title"] for i in items) == [
-        "APS105H1 · Lab 1",
         "APS105H1 · Review session",
         "MAT186H1 · Tutorial",
     ]
@@ -470,18 +467,6 @@ async def test_calendar_overlay(api: Api, fake: FakeProvider, app: FastAPI):
 
     # Sync off: the course leaves the overlay.
     await api.call("PATCH", f"/courses/{course_b}/lms-link", json={"sync_enabled": False})
-    assert all(not i["title"].startswith("MAT") for i in await overlay())
-
-    # An imported assignment shows as the assessment, not twice.
-    async with system_ctx(app.state) as ctx:
-        owner = await ctx.db.get(LmsConnection, link_a["connection_id"])
-        assert owner is not None
-        ctx.db.add(
-            LmsImportedRef(user_id=owner.user_id, link_id=link_a["id"], external_kind="assignment",
-                           external_id="a1", target_kind="assessment", target_id="x",
-                           snapshot={}, imported_at=when)
-        )  # fmt: skip
-        await ctx.db.commit()
     assert [i["title"] for i in await overlay()] == ["APS105H1 · Review session"]
 
 

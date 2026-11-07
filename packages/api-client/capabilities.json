@@ -173,7 +173,7 @@
       "capability": "calendar.occurrence.list",
       "module": "calendar",
       "effect": "read",
-      "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
+      "summary": "Everything on the calendar in a date range: classes, events and tasks.",
       "plugin_id": null
     },
     {
@@ -181,7 +181,7 @@
       "capability": "calendar.today.get",
       "module": "calendar",
       "effect": "read",
-      "summary": "Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
+      "summary": "Today in a Program: classes and events, tasks due in the next 7 days.",
       "plugin_id": null
     },
     {

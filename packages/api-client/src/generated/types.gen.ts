@@ -4055,7 +4055,7 @@ export type Feed = {
     /**
      * Sources
      */
-    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources: Array<'schedule' | 'tasks' | 'lms'>;
     /**
      * Created At
      */
@@ -4079,7 +4079,7 @@ export type FeedCreateInputBody = {
      *
      * What the feed contains
      */
-    sources?: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources?: Array<'schedule' | 'tasks' | 'lms'>;
 };
 
 /**
@@ -4101,7 +4101,7 @@ export type FeedUpdateInputBody = {
      *
      * What the feed contains
      */
-    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources: Array<'schedule' | 'tasks' | 'lms'>;
 };
 
 /**
@@ -6759,7 +6759,7 @@ export type Occurrence = {
     /**
      * Kind
      */
-    kind: 'class' | 'event' | 'deadline' | 'task';
+    kind: 'class' | 'event' | 'task';
     /**
      * Title
      */
@@ -9532,11 +9532,17 @@ export type Task = {
     /**
      * Source Kind
      */
-    source_kind: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual' | null;
+    source_kind: 'lms' | 'syllabus' | 'agent' | 'manual' | null;
     /**
      * Source Ref
      */
     source_ref: string | null;
+    /**
+     * Assessment Id
+     *
+     * The gradebook assessment this task stands for: its title, due date and course follow the assessment, and it is deleted with it
+     */
+    assessment_id: string | null;
     /**
      * Created At
      */
@@ -9706,9 +9712,9 @@ export type TaskCreateInputBody = {
     /**
      * Source Kind
      *
-     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; lms tasks are made by the app itself
      */
-    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    source_kind?: 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
      * Source Ref
      *
@@ -9814,9 +9820,9 @@ export type TaskFields = {
     /**
      * Source Kind
      *
-     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; lms tasks are made by the app itself
      */
-    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    source_kind?: 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
      * Source Ref
      *
@@ -10635,7 +10641,7 @@ export type Today = {
     /**
      * Upcoming
      *
-     * Deadlines and due tasks in the next 7 days
+     * Tasks due in the next 7 days
      */
     upcoming: Array<Occurrence>;
     /**
@@ -14208,7 +14214,7 @@ export type CalendarOccurrenceListData = {
         /**
          * Sources
          *
-         * Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; all by default
+         * Sources to include, e.g. ['schedule.meetings', 'tasks.due']; all by default
          */
         sources?: Array<string> | null;
         /**
@@ -14226,9 +14232,9 @@ export type CalendarOccurrenceListData = {
         /**
          * Kinds
          *
-         * Only these kinds: class, event, deadline, task; all by default
+         * Only these kinds: class, event, task; all by default
          */
-        kinds?: Array<'class' | 'event' | 'deadline' | 'task'> | null;
+        kinds?: Array<'class' | 'event' | 'task'> | null;
     };
     url: '/programs/{program_id}/calendar';
 };
@@ -19606,7 +19612,7 @@ export type TasksItemQueryData = {
          *
          * Agent/MCP only: return just these fields of each task (and its id)
          */
-        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'assessment_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *

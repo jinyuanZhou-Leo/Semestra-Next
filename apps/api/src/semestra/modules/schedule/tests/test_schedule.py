@@ -499,7 +499,7 @@ async def test_ics_export_and_feed(api: Api, client: AsyncClient):
 
     # What it contains changes in place; a reset moves it to a new address.
     updated = await api.call(
-        "PATCH", f"/calendar-feeds/{created['id']}", json={"sources": ["assessments"]}
+        "PATCH", f"/calendar-feeds/{created['id']}", json={"sources": ["tasks"]}
     )
     assert updated["url"] == url
     assert list(Calendar.from_ical((await anonymous.get(path)).content).walk("VEVENT")) == []
@@ -931,7 +931,7 @@ async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(
     only = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["class"])
     assert [o["meta"]["conflicts_with"] for o in only["items"]] == [[]]
 
-    # Asking only for deadlines does not expand the classes or events at all.
+    # Asking only for tasks does not expand the classes or events at all.
     async def must_not_run(*_: object) -> list[object]:
         raise AssertionError("source should be skipped")
 
@@ -939,7 +939,7 @@ async def test_kinds_skip_sources_and_conflicts_only_name_returned_items(
 
     monkeypatch.setitem(sources._items, "schedule.meetings", must_not_run)
     monkeypatch.setitem(sources._items, "schedule.events", must_not_run)
-    due = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["deadline"])
+    due = await api.calendar(program_id, "2026-01-12", "2026-01-13", kinds=["task"])
     assert due["items"] == []
 
 

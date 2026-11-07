@@ -360,13 +360,13 @@ class FolderListing(BaseModel):
 
 
 class LmsCalendarEvent(Dto):
+    """An event on the platform's calendar (a lecture, office hours, an exam sitting). Assignment
+    due dates are not events: they reach the calendar through what they are imported as."""
+
     external_course_id: str
-    kind: Literal["event", "assignment"]
     title: str
     html: Html = None
     location: str | None = None
     start_at: datetime
     end_at: datetime | None = None
     all_day: bool = False
-    # For `assignment`: the assignment's id (imports are keyed by it).
-    assignment_id: str | None = None

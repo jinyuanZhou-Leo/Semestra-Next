@@ -54,7 +54,7 @@ def build_calendar(name: str, timezone: str, items: Sequence[Occurrence], now: d
             ev.add("description", "\n".join(details))
         if o.status == "cancelled":
             ev.add("status", "CANCELLED")
-        if o.kind in ("deadline", "task"):
+        if o.kind == "task":
             ev.add("transp", "TRANSPARENT")
         cal.add_component(ev)
     return cal.to_ical()

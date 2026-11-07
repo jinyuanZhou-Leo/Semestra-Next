@@ -3,8 +3,8 @@
 ```python
 from semestra.modules.schedule.calendar import calendar_source, Occurrence, OccurrenceQuery
 
-@calendar_source("grading.assessments", kinds=("deadline",))
-async def assessments(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]: ...
+@calendar_source("tasks.due", kinds=("task",))
+async def due_tasks(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]: ...
 ```
 `kinds` lists what the source can return, so a query for other kinds skips it. A source returns
 the occurrences of its Program that start in `[range_start, range_end)` (and, with
@@ -23,7 +23,7 @@ from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
 from semestra.modules.schedule.rules import overlaps
 
-OccurrenceKind = Literal["class", "event", "deadline", "task"]
+OccurrenceKind = Literal["class", "event", "task"]
 OccurrenceStatus = Literal["cancelled", "moved", "done", "overdue"]
 
 
@@ -129,7 +129,7 @@ def calendar_source(
     return decorate
 
 
-_KIND_ORDER = {"class": 0, "event": 1, "deadline": 2, "task": 3}
+_KIND_ORDER = {"class": 0, "event": 1, "task": 2}
 
 
 def _sort_key(o: Occurrence) -> tuple[datetime, int, int, str]:

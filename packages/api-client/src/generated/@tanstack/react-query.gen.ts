@@ -1883,7 +1883,7 @@ export const aiUsageSummarizeInfiniteOptions = (options?: Options<AiUsageSummari
 export const calendarOccurrenceListQueryKey = (options: Options<CalendarOccurrenceListData>) => createQueryKey('calendarOccurrenceList', options);
 
 /**
- * Everything on the calendar in a date range: classes, events, deadlines, tasks.
+ * Everything on the calendar in a date range: classes, events and tasks.
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
@@ -1907,7 +1907,7 @@ export const calendarOccurrenceListOptions = (options: Options<CalendarOccurrenc
 export const calendarOccurrenceListInfiniteQueryKey = (options: Options<CalendarOccurrenceListData>): QueryKey<Options<CalendarOccurrenceListData>> => createQueryKey('calendarOccurrenceList', options, true);
 
 /**
- * Everything on the calendar in a date range: classes, events, deadlines, tasks.
+ * Everything on the calendar in a date range: classes, events and tasks.
  *
  * Use for "when is my class tomorrow?", "what's on next Wednesday?" or a week
  * overview. Interpret relative days in the Program's time zone and pass dates; `end` is exclusive
@@ -1943,7 +1943,7 @@ export const calendarOccurrenceListInfiniteOptions = (options: Options<CalendarO
 export const calendarTodayGetQueryKey = (options: Options<CalendarTodayGetData>) => createQueryKey('calendarTodayGet', options);
 
 /**
- * Today in a Program: classes and events, deadlines of the next 7 days, due tasks.
+ * Today in a Program: classes and events, tasks due in the next 7 days.
  *
  * Prefer this for questions about today ("what do I have today?", "what's due this
  * week?"). It also says which term week it is. For other days or longer ranges use
