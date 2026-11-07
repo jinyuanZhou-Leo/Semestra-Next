@@ -1,10 +1,11 @@
 import type { BreakIn } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { Plus, Trash2 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
-import { ActionRow, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { createContext, type ReactNode, use, useState } from 'react'
+import { SettingsBlock, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import { Input } from '@/ui/input'
 import { DateRangeField } from './DateRangeField'
 
@@ -110,12 +111,15 @@ export function BreaksTable({
   onChange,
   min,
   max,
+  children,
 }: {
   value: readonly BreakIn[]
   onChange: (value: BreakIn[]) => void
   /** The term's dates; days outside them cannot be picked. */
   min?: string
   max?: string
+  /** Under the table, e.g. a validation message. */
+  children?: ReactNode
 }) {
   const [keys, setKeys] = useState(() => value.map(newKey))
   // Breaks the table did not add itself (a reset draft) get keys by position.
@@ -129,27 +133,40 @@ export function BreaksTable({
       onChange(value.filter((_, i) => i !== index))
     },
   }
+  const add = () => {
+    setKeys([...value.map((_, i) => keyOf(i)), newKey()])
+    onChange([...value, { name: '', start_date: '', end_date: '' }])
+  }
   return (
-    <BreaksContext value={state}>
-      <SettingsTable
-        label={m.academics_term_breaks()}
-        data={value.map((b, index) => ({ index, key: keyOf(index), value: b }))}
-        columns={columns}
-        getRowId={(row) => row.key}
-        columnClassName={COLUMN_CLASS}
-        footer={
-          <ActionRow
-            icon={Plus}
-            onClick={() => {
-              setKeys([...value.map((_, i) => keyOf(i)), newKey()])
-              onChange([...value, { name: '', start_date: '', end_date: '' }])
-            }}
-          >
-            {m.academics_break_add()}
-          </ActionRow>
-        }
-      />
-    </BreaksContext>
+    <SettingsBlock
+      title={m.academics_term_breaks()}
+      action={
+        <Button type="button" size="sm" variant="outline" onClick={add}>
+          <Plus aria-hidden />
+          {m.academics_break_add()}
+        </Button>
+      }
+    >
+      {value.length > 0 ? (
+        <BreaksContext value={state}>
+          <SettingsTable
+            label={m.academics_term_breaks()}
+            data={value.map((b, index) => ({ index, key: keyOf(index), value: b }))}
+            columns={columns}
+            getRowId={(row) => row.key}
+            columnClassName={COLUMN_CLASS}
+            rowClassName={() => 'animate-in fade-in duration-200'}
+          />
+        </BreaksContext>
+      ) : (
+        <Empty className="rounded-2xl border border-solid border-border p-6">
+          <EmptyHeader>
+            <EmptyTitle>{m.academics_breaks_empty()}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      )}
+      {children}
+    </SettingsBlock>
   )
 }
 

@@ -105,10 +105,18 @@ export function CourseRowsEditor({
 
   return (
     <section className="space-y-4">
-      {heading || sources.length > 0 ? (
+      {heading || tableRows.length > 0 ? (
         <div className="flex min-h-8 items-center justify-between gap-2">
           {heading ?? <span />}
-          {tableRows.length > 0 ? importMenu('outline') : null}
+          {tableRows.length > 0 ? (
+            <div className="flex items-center gap-2">
+              {importMenu('outline')}
+              <Button variant="outline" size="sm" onClick={addRow}>
+                <Plus aria-hidden />
+                {m.academics_wizard_add_row()}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -149,12 +157,6 @@ export function CourseRowsEditor({
             onRemove={(key) => onRowsChange((current) => current.filter((r) => r.key !== key))}
             onContinue={(courseId, kept) => onContinue?.(courseId, kept)}
           />
-          <div className="border-t border-border p-2">
-            <Button variant="ghost" size="sm" onClick={addRow}>
-              <Plus aria-hidden />
-              {m.academics_wizard_add_row()}
-            </Button>
-          </div>
         </div>
       )}
       <FieldError>

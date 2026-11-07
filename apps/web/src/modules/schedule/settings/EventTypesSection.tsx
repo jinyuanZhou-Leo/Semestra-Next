@@ -8,11 +8,11 @@ import {
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ban, Plus, Shapes, Trash2 } from 'lucide-react'
-import { createContext, type FormEvent, use, useState } from 'react'
+import { createContext, type FormEvent, use, useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
-  ActionRow,
   MoveMenuItems,
+  SectionAction,
   RowMenu,
   SettingsTable,
   settingsTableFeatures,
@@ -20,7 +20,6 @@ import {
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
-import { focusOnMount } from '@/lib/focus'
 import { subjectColor } from '@/lib/subject-color'
 import { ColorDotPicker } from '@/modules/academics/components/ColorDotPicker'
 import type { ColorRef } from '@/modules/academics/components/ColorPicker'
@@ -35,6 +34,15 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { TYPE_ICON_LABELS, TYPE_ICONS } from '../icons'
 import { typeName } from '../labels'
@@ -222,34 +230,30 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
       await refresh()
     },
   })
-  const create = useMutation({
-    ...scheduleEventTypeCreateMutation(),
-    onError: toastError,
-    onSuccess: async () => {
-      setCode('')
-      setName('')
-      setAdding(false)
-      await refresh()
-    },
-  })
   const [deleting, setDeleting] = useState<EventType | null>(null)
   const [adding, setAdding] = useState(false)
-  const [code, setCode] = useState('')
-  const [name, setName] = useState('')
+  // A fresh dialog (empty fields) each time it opens.
+  const [addKey, setAddKey] = useState(0)
   const handlers: RowHandlers = {
     patch: (type, body) => update.mutate({ path: { event_type_id: type.id }, body }),
     onDelete: setDeleting,
   }
 
-  const codeValid = /^[A-Z0-9]{1,8}$/.test(code)
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!codeValid || !name.trim()) return
-    create.mutate({ path: { program_id: programId }, body: { code, name: name.trim() } })
-  }
-
   return (
     <>
+      <SectionAction>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAddKey((k) => k + 1)
+            setAdding(true)
+          }}
+        >
+          <Plus aria-hidden />
+          {m.schedule_type_add()}
+        </Button>
+      </SectionAction>
       <RowContext value={handlers}>
         <SettingsTable
           label={m.schedule_settings_event_types()}
@@ -264,51 +268,14 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
             })
           }
           rowName={(t) => t.code}
-          footer={
-            adding ? (
-              <form onSubmit={submit} className="flex flex-wrap items-center gap-2 px-4 py-3">
-                <Input
-                  aria-label={m.schedule_type_code()}
-                  placeholder="SEM"
-                  className="h-8 w-24"
-                  value={code}
-                  ref={focusOnMount}
-                  onChange={(e) =>
-                    setCode(
-                      e.target.value
-                        .toUpperCase()
-                        .replaceAll(/[^A-Z0-9]/g, '')
-                        .slice(0, 8),
-                    )
-                  }
-                />
-                <Input
-                  aria-label={m.schedule_type_name()}
-                  placeholder={m.schedule_type_name_placeholder()}
-                  className="h-8 min-w-40 flex-1"
-                  value={name}
-                  maxLength={60}
-                  onChange={(e) => setName(e.target.value)}
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!codeValid || !name.trim() || create.isPending}
-                >
-                  {m.schedule_type_add()}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                  {m.common_cancel()}
-                </Button>
-              </form>
-            ) : (
-              <ActionRow icon={Plus} onClick={() => setAdding(true)}>
-                {m.schedule_type_add()}
-              </ActionRow>
-            )
-          }
         />
       </RowContext>
+      <AddEventTypeDialog
+        key={addKey}
+        programId={programId}
+        open={adding}
+        onOpenChange={setAdding}
+      />
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -319,5 +286,95 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
         onConfirm={() => deleting && remove.mutate({ path: { event_type_id: deleting.id } })}
       />
     </>
+  )
+}
+
+/** A new event type: its code and name; color and icon are set in the table afterwards. */
+function AddEventTypeDialog({
+  programId,
+  open,
+  onOpenChange,
+}: {
+  programId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const fid = useId()
+  const queryClient = useQueryClient()
+  const [code, setCode] = useState('')
+  const [name, setName] = useState('')
+  const [touched, setTouched] = useState(false)
+  const create = useMutation({
+    ...scheduleEventTypeCreateMutation(),
+    onError: toastError,
+    onSuccess: async () => {
+      await invalidateSchedule(queryClient)
+      onOpenChange(false)
+    },
+  })
+  const codeValid = /^[A-Z0-9]{1,8}$/.test(code)
+  const nameValid = name.trim() !== ''
+  const change = (next: boolean) => {
+    if (!create.isPending) onOpenChange(next)
+  }
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setTouched(true)
+    if (!codeValid || !nameValid) return
+    create.mutate({ path: { program_id: programId }, body: { code, name: name.trim() } })
+  }
+  return (
+    <Dialog open={open} onOpenChange={change}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{m.schedule_type_add()}</DialogTitle>
+        </DialogHeader>
+        <form noValidate onSubmit={submit} className="flex flex-col gap-6">
+          <FieldGroup>
+            <Field data-invalid={(touched && !codeValid) || undefined}>
+              <FieldLabel htmlFor={`${fid}-code`}>{m.schedule_type_code()}</FieldLabel>
+              <Input
+                id={`${fid}-code`}
+                placeholder="SEM"
+                className="max-w-32"
+                value={code}
+                aria-invalid={(touched && !codeValid) || undefined}
+                onChange={(e) =>
+                  setCode(
+                    e.target.value
+                      .toUpperCase()
+                      .replaceAll(/[^A-Z0-9]/g, '')
+                      .slice(0, 8),
+                  )
+                }
+              />
+              {touched && !codeValid ? <FieldError>{m.common_required()}</FieldError> : null}
+            </Field>
+            <Field data-invalid={(touched && !nameValid) || undefined}>
+              <FieldLabel htmlFor={`${fid}-name`}>{m.schedule_type_name()}</FieldLabel>
+              <Input
+                id={`${fid}-name`}
+                placeholder={m.schedule_type_name_placeholder()}
+                value={name}
+                maxLength={60}
+                aria-invalid={(touched && !nameValid) || undefined}
+                onChange={(e) => setName(e.target.value)}
+              />
+              {touched && !nameValid ? <FieldError>{m.common_required()}</FieldError> : null}
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={create.isPending} />}
+            >
+              {m.common_cancel()}
+            </DialogClose>
+            <Button type="submit" disabled={create.isPending}>
+              {m.schedule_type_add()}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -10,7 +10,7 @@ import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { ChevronRight, Link2, Pencil, PlugZap, Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { BrandTile } from '@/components/BrandLogo'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -341,17 +341,18 @@ export function ConnectionsSection() {
       >
         {(data) => (
           <RowContext value={handlers}>
+            <SectionAction>
+              <Button size="sm" variant="outline" onClick={startAdding}>
+                <Plus aria-hidden />
+                {m.lms_connection_add()}
+              </Button>
+            </SectionAction>
             <SettingsTable
               label={m.lms_settings_connections()}
               data={data.items}
               columns={columns}
               getRowId={(connection) => connection.id}
               columnClassName={COLUMN_CLASS}
-              footer={
-                <ActionRow icon={Plus} onClick={startAdding}>
-                  {m.lms_connection_add()}
-                </ActionRow>
-              }
             />
           </RowContext>
         )}

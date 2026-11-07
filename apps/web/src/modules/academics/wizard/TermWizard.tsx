@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useRouter } from '@tanstack/react-router'
 import { Check } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -242,15 +242,14 @@ export function TermWizard({
               )}
             </Field>
           </div>
-          <SettingsBlock title={m.academics_term_breaks()}>
-            <BreaksTable
-              value={draft.breaks}
-              onChange={(value) => patch({ breaks: value })}
-              min={draft.start || undefined}
-              max={draft.end || undefined}
-            />
+          <BreaksTable
+            value={draft.breaks}
+            onChange={(value) => patch({ breaks: value })}
+            min={draft.start || undefined}
+            max={draft.end || undefined}
+          >
             {problems.breaks ? <FieldError>{problems.breaks}</FieldError> : null}
-          </SettingsBlock>
+          </BreaksTable>
           <SettingsGroup>
             <SettingRow
               label={m.academics_term_count_break_weeks()}

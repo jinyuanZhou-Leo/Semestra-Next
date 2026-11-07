@@ -1,4 +1,5 @@
-import { Suspense, useState } from 'react'
+import { Suspense, createContext, use, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   Scope,
   SettingsGroup,
@@ -10,6 +11,16 @@ import { useModules, useSettingsSections } from '../registry'
 import { groupOf, isNavigable } from './groups'
 import { NamespaceForm } from './NamespaceForm'
 import { SaveIndicator, type SectionStatus, SectionStatusContext } from './status'
+
+const SlotContext = createContext<HTMLElement | null>(null)
+/**
+ * Puts its children at the right end of the section's header, e.g. the "Add" button of the
+ * section's table (the entry point for new entries sits above the table, not in its last row).
+ */
+export function SectionAction({ children }: { children: ReactNode }) {
+  const slot = use(SlotContext)
+  return slot ? createPortal(children, slot) : null
+}
 
 /** One section: title, description, save status and its content (M11 §5.1). */
 export function SectionFrame({
@@ -25,6 +36,7 @@ export function SectionFrame({
   const [status, setStatus] = useState<SectionStatus>({ status: 'idle' })
   const headingId = `settings-${section.id}-title`
   const Custom = section.component
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
   return (
     <section
       id={section.id}
@@ -49,24 +61,29 @@ export function SectionFrame({
             <p className="text-sm text-muted-foreground">{section.description()}</p>
           ) : null}
         </div>
-        <SaveIndicator {...status} />
-      </header>
-      <SectionStatusContext value={setStatus}>
-        <div className="space-y-6">
-          {section.namespace !== undefined ? (
-            <NamespaceForm
-              namespace={section.namespace}
-              level={section.level}
-              scope={scope}
-              fields={section.fields}
-            />
-          ) : Custom ? (
-            <Suspense fallback={null}>
-              <Custom scope={scope} />
-            </Suspense>
-          ) : null}
+        <div className="flex items-center gap-3">
+          <SaveIndicator {...status} />
+          <div ref={setSlot} className="flex items-center gap-2 empty:hidden" />
         </div>
-      </SectionStatusContext>
+      </header>
+      <SlotContext value={slot}>
+        <SectionStatusContext value={setStatus}>
+          <div className="space-y-6">
+            {section.namespace !== undefined ? (
+              <NamespaceForm
+                namespace={section.namespace}
+                level={section.level}
+                scope={scope}
+                fields={section.fields}
+              />
+            ) : Custom ? (
+              <Suspense fallback={null}>
+                <Custom scope={scope} />
+              </Suspense>
+            ) : null}
+          </div>
+        </SectionStatusContext>
+      </SlotContext>
     </section>
   )
 }

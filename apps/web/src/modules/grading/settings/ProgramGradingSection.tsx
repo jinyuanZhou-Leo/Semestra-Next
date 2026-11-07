@@ -12,7 +12,6 @@ import { Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
-  ActionRow,
   ChoiceControl,
   MoveMenuItems,
   RowMenu,
@@ -23,11 +22,11 @@ import {
   settingsTableFeatures,
   useAutosave,
 } from '@/app/settings'
-import { focusOnMount } from '@/lib/focus'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { NewCategoryDialog } from './NewCategoryDialog'
 import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -512,15 +511,14 @@ function DefaultCategories({
 }) {
   const [items, setItems] = useState<CategoryTemplate[]>([...initial])
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState('')
+  // A fresh dialog (empty name) each time it opens.
+  const [addKey, setAddKey] = useState(0)
   const [removing, setRemoving] = useState<CategoryTemplate | null>(null)
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
     if (next.every((t) => t.name.trim() !== '')) onChange(next)
   }
-  const add = () => {
-    const name = draft.trim()
-    if (name === '') return
+  const add = (name: string) => {
     const taken = new Set(items.map((t) => t.key))
     const base =
       name
@@ -530,7 +528,6 @@ function DefaultCategories({
     let key = base.slice(0, 28)
     for (let n = 2; taken.has(key); n += 1) key = `${base.slice(0, 26)}-${n}`
     apply([...items, { key, name, color: 'slate' }])
-    setDraft('')
     setAdding(false)
   }
   const handlers: TemplateHandlers = {
@@ -541,6 +538,19 @@ function DefaultCategories({
     <SettingsBlock
       title={m.grading_default_categories()}
       description={m.grading_default_categories_hint()}
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAddKey((k) => k + 1)
+            setAdding(true)
+          }}
+        >
+          <Plus aria-hidden />
+          {m.grading_category_create()}
+        </Button>
+      }
     >
       <TemplateContext value={handlers}>
         <SettingsTable
@@ -553,39 +563,9 @@ function DefaultCategories({
             apply(keys.flatMap((key) => items.filter((t) => t.key === key)))
           }
           rowName={(t) => t.name}
-          footer={
-            adding ? (
-              <form
-                className="flex items-center gap-2 px-4 py-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  add()
-                }}
-              >
-                <Input
-                  aria-label={m.grading_category_new()}
-                  placeholder={m.grading_category_new()}
-                  value={draft}
-                  maxLength={60}
-                  ref={focusOnMount}
-                  onChange={(event) => setDraft(event.target.value)}
-                  className="h-8 flex-1"
-                />
-                <Button type="submit" size="sm" disabled={draft.trim() === ''}>
-                  {m.grading_category_add()}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                  {m.common_cancel()}
-                </Button>
-              </form>
-            ) : (
-              <ActionRow icon={Plus} onClick={() => setAdding(true)}>
-                {m.grading_category_add()}
-              </ActionRow>
-            )
-          }
         />
       </TemplateContext>
+      <NewCategoryDialog key={addKey} open={adding} onOpenChange={setAdding} onSubmit={add} />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

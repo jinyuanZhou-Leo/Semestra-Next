@@ -10,7 +10,7 @@ import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { Ban, KeyRound, Plus } from 'lucide-react'
 import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage, toastError } from '@/lib/errors'
 import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
@@ -361,17 +361,18 @@ export function TokensSection() {
         </Empty>
       ) : (
         <RevokeContext value={(t) => setRevoking({ id: t.id, name: t.name })}>
+          <SectionAction>
+            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+              <Plus aria-hidden />
+              {m.auth_account_tokens_create()}
+            </Button>
+          </SectionAction>
           <SettingsTable
             label={m.auth_account_tokens_title()}
             data={items}
             columns={columns}
             getRowId={(t) => t.id}
             columnClassName={COLUMN_CLASS}
-            footer={
-              <ActionRow icon={Plus} onClick={() => setCreating(true)}>
-                {m.auth_account_tokens_create()}
-              </ActionRow>
-            }
           />
         </RevokeContext>
       )}

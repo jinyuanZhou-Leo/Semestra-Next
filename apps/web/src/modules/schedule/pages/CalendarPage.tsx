@@ -677,10 +677,6 @@ function TermCalendar({
       {meetingEdit && editingCourse ? (
         <MeetingDialog
           key={meetingEdit.id}
-          programId={programId}
-          courseId={editingCourse.id}
-          termIds={editingCourse.term_ids}
-          termId={term.id}
           meeting={meetingEdit}
           open
           onOpenChange={(open) => !open && setMeetingEdit(null)}

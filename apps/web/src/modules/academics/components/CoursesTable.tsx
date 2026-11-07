@@ -22,7 +22,6 @@ import {
   ExternalLink,
   Pin,
   PinOff,
-  Plus,
   Search,
   SearchX,
   Settings,
@@ -32,7 +31,7 @@ import {
 import { createContext, use, useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
-import { ActionRow, RowMenu, useSettingsDialog } from '@/app/settings'
+import { RowMenu, useSettingsDialog } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { HistoryLink } from '@/components/HistoryLink'
@@ -708,15 +707,6 @@ export function CoursesTable({
                 </Button>
               </EmptyContent>
             </Empty>
-          ) : null}
-          {canAdd && termId ? (
-            <div className="border-t">
-              <AddCoursesMenu
-                programId={programId}
-                termId={termId}
-                trigger={<ActionRow icon={Plus}>{m.academics_course_add()}</ActionRow>}
-              />
-            </div>
           ) : null}
         </div>
 

@@ -365,6 +365,20 @@ function TermPane({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {courses.length > 0 ? (
+            <AddCoursesMenu
+              programId={programId}
+              termId={term.id}
+              align="end"
+              trigger={
+                <Button size="sm" variant="outline" className="mr-1">
+                  <Plus aria-hidden data-icon="inline-start" />
+                  {m.academics_course_add()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </Button>
+              }
+            />
+          ) : null}
           <Button
             nativeButton={false}
             size="sm"
