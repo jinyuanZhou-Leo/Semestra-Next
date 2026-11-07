@@ -125,6 +125,8 @@ export default function TasksPage({ scope }: PageProps) {
   const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
   // Set while the new row at the end of the list is open; a new value starts a fresh task.
   const [newKey, setNewKey] = useState<number | null>(null)
+  // Never reused: opening again while open (the click outside closes it first) remounts the row.
+  const newCount = useRef(0)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   // Set by the arrow keys only, so a list that changes under the selection does not scroll.
@@ -165,7 +167,8 @@ export default function TasksPage({ scope }: PageProps) {
   }
   const openNew = () => {
     setEditing(null)
-    setNewKey((current) => (current ?? 0) + 1)
+    newCount.current += 1
+    setNewKey(newCount.current)
   }
   const editDetails = (id: string) => {
     // The side panel takes over: the open row closes (saving what was typed) first.
