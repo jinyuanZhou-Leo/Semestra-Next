@@ -26,6 +26,7 @@ import {
 } from '@/ui/dropdown-menu'
 import type { TaskActions } from '../actions'
 import { useCompleting } from '../completion'
+import { focusAt, useEditorExit } from './editor-exit'
 import { dueLabel } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
@@ -34,10 +35,6 @@ import type { VirtualRow } from './VirtualTaskList'
 
 /** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
 export type EditFocus = { field: 'title' | 'notes'; caret?: number }
-
-/** Popups opened from a row (menus, the calendar); clicks in them stay "inside" the row. */
-const POPUPS =
-  '[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-slot="dropdown-menu-sub-content"],[data-slot="select-content"]'
 
 /** The text offset under a click, so the field opens with the caret where the user clicked. */
 function caretAt(event: React.MouseEvent): number | undefined {
@@ -49,14 +46,6 @@ function caretAt(event: React.MouseEvent): number | undefined {
     caretRangeFromPoint?: (x: number, y: number) => Range | null
   }
   return legacy.caretRangeFromPoint?.(event.clientX, event.clientY)?.startOffset
-}
-
-/** Focuses a field with the caret at `caret` (the end when unset). */
-function focusAt(el: HTMLInputElement | HTMLTextAreaElement | null, caret?: number) {
-  if (!el) return
-  el.focus()
-  const at = Math.min(caret ?? el.value.length, el.value.length)
-  el.setSelectionRange(at, at)
 }
 
 /**
@@ -127,55 +116,8 @@ function RowEditor({
     })
   })
   useEffect(() => () => saveOnUnmount(), [])
-  // Esc anywhere in the row (a chip included) throws the edits away; a popup takes its own Esc
-  // first, and the time field uses Esc to undo just the time.
-  const escape = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.isComposing || event.defaultPrevented) return
-    if (event.target instanceof HTMLInputElement && event.target.type === 'time') return
-    event.preventDefault()
-    finish(false, true)
-  })
-  const leave = useEffectEvent((target: EventTarget | null, row: HTMLElement) => {
-    if (target instanceof Node && row.contains(target)) return
-    if (target instanceof Element && target.closest(POPUPS)) return
-    finish(true)
-  })
-  useEffect(() => {
-    const row = rowRef.current
-    if (!row) return
-    // Closing on the click, not the press: closing on the press would shift the rows below
-    // under the pointer, and the click meant for another row's title would miss it.
-    let pressed = false
-    let popupWasOpen = false
-    const onPointerDown = () => {
-      pressed = true
-      popupWasOpen = row.querySelector('[aria-expanded="true"]') !== null
-    }
-    const onPointerUp = () => {
-      pressed = false
-    }
-    const onClick = (event: MouseEvent) => {
-      // The first click outside an open menu or calendar only closes that popup.
-      if (!popupWasOpen) leave(event.target, row)
-      popupWasOpen = false
-    }
-    // Tabbing away; focus moved by a press is left to the click.
-    const onFocusOut = (event: FocusEvent) => {
-      if (!pressed && event.relatedTarget) leave(event.relatedTarget, row)
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('pointerup', onPointerUp, true)
-    document.addEventListener('click', onClick, true)
-    row.addEventListener('focusout', onFocusOut)
-    row.addEventListener('keydown', escape)
-    return () => {
-      row.removeEventListener('keydown', escape)
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('pointerup', onPointerUp, true)
-      document.removeEventListener('click', onClick, true)
-      row.removeEventListener('focusout', onFocusOut)
-    }
-  }, [rowRef])
+  // Esc anywhere in the row (a chip included) throws the title and notes edits away.
+  useEditorExit(rowRef, { onLeave: () => finish(true), onEscape: () => finish(false, true) })
 
   const keys = (event: React.KeyboardEvent, enterSaves: boolean) => {
     if (event.nativeEvent.isComposing) return
@@ -213,6 +155,8 @@ function RowEditor({
           courses={courses}
           today={today}
           hideCourse={hideCourse}
+          overdue={task.overdue && task.completed_at === null}
+          managed={task.source_kind === 'assessment'}
           onChange={(body) => void actions.update(task.id, body)}
         />
       </div>
@@ -483,81 +427,6 @@ export const TaskRow = memo(function TaskRow({
     </li>
   )
 })
-
-/**
- * The empty circle at the end of a list (M05 §5.1), like Reminders: a click turns it into a title
- * field; Enter adds the task and leaves the field open for the next one, leaving it adds what was
- * typed, Esc drops it.
- */
-export function NewTaskRow({
-  open,
-  onOpenChange,
-  onAdd,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onAdd: (title: string) => Promise<unknown>
-}) {
-  const [title, setTitle] = useState('')
-  // Esc closes without adding, even if the browser reports a blur as the field goes away.
-  const dropped = useRef(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (open) focusAt(inputRef.current)
-  }, [open])
-  const add = () => {
-    const next = title.trim()
-    setTitle('')
-    if (next) void onAdd(next).catch(() => setTitle(next))
-  }
-  return (
-    <li className="flex items-center gap-3 rounded-2xl px-3 py-2.5">
-      <span
-        aria-hidden
-        className="size-5 shrink-0 rounded-full border border-dashed border-muted-foreground/50"
-      />
-      {open ? (
-        <input
-          ref={inputRef}
-          aria-label={m.tasks_new_row()}
-          placeholder={m.tasks_new_row()}
-          className="block w-full bg-transparent p-0 text-base font-medium outline-none placeholder:text-muted-foreground"
-          value={title}
-          maxLength={300}
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={() => {
-            if (!dropped.current) add()
-            onOpenChange(false)
-          }}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              add()
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              dropped.current = true
-              setTitle('')
-              onOpenChange(false)
-            }
-          }}
-        />
-      ) : (
-        <button
-          type="button"
-          className="flex-1 cursor-text text-left text-base font-medium text-transparent outline-none hover:text-muted-foreground focus-visible:text-muted-foreground"
-          onClick={() => {
-            dropped.current = false
-            onOpenChange(true)
-          }}
-        >
-          {m.tasks_new_row()}
-        </button>
-      )}
-    </li>
-  )
-}
 
 function RowMenu({
   task,

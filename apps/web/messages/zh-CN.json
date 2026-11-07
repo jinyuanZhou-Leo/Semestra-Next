@@ -2265,7 +2265,7 @@
   "tasks_sort_created": "创建时间",
   "tasks_sort_title": "标题",
   "tasks_empty_title": "这里没有待办",
-  "tasks_empty_description": "在上方输入框里添加。",
+  "tasks_empty_description": "添加的待办会出现在这里。",
   "tasks_completed_count": "已完成 {count} 项",
   "tasks_show_more": "显示更多",
   "tasks_lists_all_terms": "所有学期",

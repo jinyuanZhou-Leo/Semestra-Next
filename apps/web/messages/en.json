@@ -2265,7 +2265,7 @@
   "tasks_sort_created": "Created",
   "tasks_sort_title": "Title",
   "tasks_empty_title": "No tasks here",
-  "tasks_empty_description": "Type in the box above to add one.",
+  "tasks_empty_description": "Tasks you add appear here.",
   "tasks_completed_count": "{count} completed",
   "tasks_show_more": "Show more",
   "tasks_lists_all_terms": "All terms",

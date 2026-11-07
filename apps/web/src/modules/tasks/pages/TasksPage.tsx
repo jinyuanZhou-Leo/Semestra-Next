@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import type { Task } from '@semestra/api-client'
-import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks } from 'lucide-react'
+import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks, Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useElementWidth } from '@/app/board/media'
@@ -40,11 +40,12 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { useTaskActions } from '../actions'
 import { isCompleting } from '../completion'
-import { QuickAdd } from '../components/QuickAdd'
+import { NewTaskRow } from '../components/NewTaskRow'
 import { TaskDetail } from '../components/TaskDetail'
-import { type EditFocus, NewTaskRow, SortableTaskRow, TaskRow } from '../components/TaskRow'
+import { type EditFocus, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TaskListsColumn, TasksViewMenu, useTaskSelection } from '../components/TaskLists'
 import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
+import { newTaskPlace } from '../new-task'
 import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import {
   INBOX,
@@ -73,8 +74,8 @@ const DONE_PAGE = 200
 const LISTS_COLUMN_MIN_WIDTH = 720
 
 /**
- * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the add box and the tasks of
- * one list. The lists are in a column on the left, or, where the page has no room for it, in a
+ * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the tasks of one list, with
+ * a new task added from the button by the title or the empty row at the end. The lists are in a column on the left, or, where the page has no room for it, in a
  * menu on the title. Titles are edited in place; "Edit details" in a row's ⋯ menu
  * (or Enter on the selected row) opens the side panel. The course page is the same list fixed to
  * the course, with the smart lists as a segmented control.
@@ -120,14 +121,15 @@ export default function TasksPage({ scope }: PageProps) {
   const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
-  // The one row open for editing in place; `new` is the empty row at the end of the list.
+  // The one row open for editing in place.
   const [editing, setEditing] = useState<{ id: string; focus: EditFocus } | null>(null)
+  // Set while the new row at the end of the list is open; a new value starts a fresh task.
+  const [newKey, setNewKey] = useState<number | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   // Set by the arrow keys only, so a list that changes under the selection does not scroll.
   const [scrollTo, setScrollTo] = useState<ScrollRequest | null>(null)
   const [clearing, setClearing] = useState(false)
-  const quickAdd = useRef<HTMLInputElement>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -152,11 +154,19 @@ export default function TasksPage({ scope }: PageProps) {
     setSelectedId(null)
     setDetailId(null)
     setEditing(null)
+    setNewKey(null)
   }
   const stopEditing = (id: string) => setEditing((current) => (current?.id === id ? null : current))
   // The callbacks are shared by every row, so only the rows whose task, selection or editing
-  // changed render again.
-  const startEditing = (id: string, focus: EditFocus) => setEditing({ id, focus })
+  // changed render again. A row opening closes the new row (which adds what was typed) and back.
+  const startEditing = (id: string, focus: EditFocus) => {
+    setNewKey(null)
+    setEditing({ id, focus })
+  }
+  const openNew = () => {
+    setEditing(null)
+    setNewKey((current) => (current ?? 0) + 1)
+  }
   const editDetails = (id: string) => {
     // The side panel takes over: the open row closes (saving what was typed) first.
     stopEditing(id)
@@ -196,7 +206,7 @@ export default function TasksPage({ scope }: PageProps) {
   // Space and Enter belong to a focused control; they act on the selected task only when nothing
   // in particular has focus.
   const onControl = (event: KeyboardEvent) => event.target !== document.body
-  useHotkey('n', () => quickAdd.current?.focus(), { ignoreEventWhen: outsideList })
+  useHotkey('n', openNew, { enabled: !completedView, ignoreEventWhen: outsideList })
   useHotkey('down, up', (event) => step(event.key === 'ArrowUp' ? -1 : 1), {
     enabled: open.length > 0,
     ignoreEventWhen: (event) =>
@@ -229,36 +239,24 @@ export default function TasksPage({ scope }: PageProps) {
     { enabled: selected !== null, ignoreEventWhen: outsideList },
   )
 
-  // Like Reminders, a task added to Today or Scheduled is due today unless the text says when.
-  const defaultDue =
-    selection.kind === 'smart' && (selection.view === 'today' || selection.view === 'scheduled')
-      ? today
-      : undefined
-  const add = (task: {
-    title: string
-    due_date?: string
-    due_time?: string
-    priority?: Task['priority']
-  }) =>
-    actions.create(programId, {
-      ...task,
-      course_id: courseId ?? (selection.kind === 'course' ? selection.courseId : undefined),
-      term_id: courseId || selection.kind === 'course' ? undefined : termId,
-      list_id: selection.kind === 'list' ? selection.listId : undefined,
-      flagged: selection.kind === 'smart' && selection.view === 'flagged' ? true : undefined,
-    })
-
-  // Only under tasks: an empty list keeps its empty state and the add box above.
-  const newRow =
-    open.length > 0 ? (
-      <NewTaskRow
-        open={editing?.id === 'new'}
-        onOpenChange={(next) =>
-          next ? setEditing({ id: 'new', focus: { field: 'title' } }) : stopEditing('new')
-        }
-        onAdd={(title) => add({ title, ...(defaultDue ? { due_date: defaultDue } : {}) })}
-      />
-    ) : null
+  const place = newTaskPlace(selection, {
+    termId,
+    courseId,
+    today,
+    priority: settings.default_priority,
+  })
+  const newRow = completedView ? null : (
+    <NewTaskRow
+      openKey={newKey}
+      onOpen={openNew}
+      onClose={() => setNewKey(null)}
+      place={place}
+      courses={courses}
+      today={today}
+      hideCourse={hideCourse}
+      onAdd={(body) => actions.create(programId, body)}
+    />
+  )
 
   const onDragStart = ({ active }: DragStartEvent) => setDraggingId(String(active.id))
   const onDragEnd = ({ active, over }: DragEndEvent) => {
@@ -342,34 +340,39 @@ export default function TasksPage({ scope }: PageProps) {
               actions={actions}
             />
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant="ghost" size="sm" disabled={completedView} />}
-            >
-              <ArrowDownUp aria-hidden />
-              {SORT_NAMES[viewPref.sort]()}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuRadioGroup
-                value={viewPref.sort}
-                onValueChange={(value) => setViewPref({ ...viewPref, sort: value as SortKey })}
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="sm" disabled={completedView} />}
               >
-                {SORT_KEYS.map((sort) => (
-                  <DropdownMenuRadioItem key={sort} value={sort}>
-                    {SORT_NAMES[sort]()}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <ArrowDownUp aria-hidden />
+                {SORT_NAMES[viewPref.sort]()}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={viewPref.sort}
+                  onValueChange={(value) => setViewPref({ ...viewPref, sort: value as SortKey })}
+                >
+                  {SORT_KEYS.map((sort) => (
+                    <DropdownMenuRadioItem key={sort} value={sort}>
+                      {SORT_NAMES[sort]()}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {completedView ? null : (
+              <Button size="sm" onClick={openNew}>
+                <Plus aria-hidden />
+                {m.tasks_new_row()}
+              </Button>
+            )}
+          </div>
         </div>
-        {completedView ? null : (
-          <QuickAdd inputRef={quickAdd} programId={programId} defaultDue={defaultDue} onAdd={add} />
-        )}
         <AsyncBoundary query={tasks}>
           {() => (
             <>
-              {!completedView && open.length === 0 && doneTotal === 0 ? (
+              {!completedView && open.length === 0 && doneTotal === 0 && newKey === null ? (
                 <Empty>
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
@@ -380,10 +383,11 @@ export default function TasksPage({ scope }: PageProps) {
                   </EmptyHeader>
                 </Empty>
               ) : null}
-              {/* One block, so the section's spacing does not open a gap above the new row. */}
-              {open.length > 0 ? (
+              {/* One block, so the section's spacing does not open a gap above the new row. An
+                  empty list shows the new row only while it is open. */}
+              {open.length > 0 || (newRow && newKey !== null) ? (
                 <div>
-                  {sortableRows ? (
+                  {open.length === 0 ? null : sortableRows ? (
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -415,7 +419,7 @@ export default function TasksPage({ scope }: PageProps) {
                       )}
                     />
                   )}
-                  {completedView || !newRow ? null : <ul>{newRow}</ul>}
+                  {newRow ? <ul>{newRow}</ul> : null}
                   {tasks.data?.next_cursor ? (
                     <ShowMore onClick={() => setOpenLimit(openLimit + PAGE)} />
                   ) : null}

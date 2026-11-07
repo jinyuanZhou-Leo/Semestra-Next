@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Task } from '@semestra/api-client'
 import { CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,20 +11,22 @@ import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
 import { TaskPriority } from './priority'
 
-/** The tasks of a board card: check them off, nothing else. */
+/** The tasks of a board card: check them off; `newRow` (the card's new task) goes at the end. */
 export function CompactTasks({
   programId,
   tasks,
   actions,
   emptyTitle,
+  newRow,
 }: {
   programId: string
   tasks: readonly Task[]
   actions: TaskActions
   emptyTitle: string
+  newRow?: ReactNode
 }) {
   const today = useProgramToday(programId)
-  if (tasks.length === 0) {
+  if (tasks.length === 0 && !newRow) {
     return (
       <Empty className="border-0 p-0">
         <EmptyHeader>
@@ -40,6 +43,7 @@ export function CompactTasks({
       {tasks.map((task) => (
         <CompactTask key={task.id} task={task} today={today} actions={actions} />
       ))}
+      {newRow}
     </ul>
   )
 }

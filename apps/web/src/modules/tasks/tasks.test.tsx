@@ -7,6 +7,7 @@ import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
+import NewTaskButton from './cards/NewTaskButton'
 import TodayCard from './cards/TodayCard'
 import { flushCompletions } from './completion'
 import TasksMobilePage from './mobile/TasksMobilePage'
@@ -126,13 +127,18 @@ beforeEach(() => {
   )
 })
 
-test('the page lists the tasks and adds one from the quick-add box', async () => {
+test('the page lists the tasks and adds one from the header button with its chips', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   expect(await screen.findByText('Read chapter 3')).toBeTruthy()
   expect(screen.getByText('Lab report')).toBeTruthy()
-  await userEvent.type(await screen.findByLabelText('Add a task'), 'Write essay !!{Enter}')
+  // The header's button comes first; the empty row at the end of the list is the other one.
+  await userEvent.click(screen.getAllByRole('button', { name: 'New task' })[0]!)
+  const input = screen.getByRole('textbox', { name: 'New task' })
+  await userEvent.type(input, 'Write essay')
+  await userEvent.click(within(input.closest('li')!).getByRole('button', { name: 'Flag' }))
+  await userEvent.type(input, '{Enter}')
   await waitFor(() => expect(log.creates).toHaveLength(1))
-  expect(log.creates[0]).toMatchObject({ title: 'Write essay', priority: 'medium' })
+  expect(log.creates[0]).toEqual({ title: 'Write essay', flagged: true })
   expect(await screen.findByText('Write essay')).toBeTruthy()
 })
 
@@ -149,26 +155,32 @@ test('a checked-off task waits in place, can be unchecked, and is then completed
   await act(() => flushCompletions())
   expect(log.completes).toEqual([{ id: 't2', body: { completed: true } }])
 })
-test('an empty list says so, with the add box above the empty state', async () => {
+test('an empty list says so, and the header button opens a new task in its place', async () => {
   items = []
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  const empty = await screen.findByText('No tasks here')
-  const input = screen.getByLabelText('Add a task')
-  expect(input.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(await screen.findByText('No tasks here')).toBeTruthy()
+  await userEvent.click(screen.getByRole('button', { name: 'New task' }))
+  expect(screen.getByRole('textbox', { name: 'New task' })).toHaveFocus()
+  expect(screen.queryByText('No tasks here')).toBeNull()
 })
 
-test('the Today card shows what is due and quick add defaults to today', async () => {
+test('the Today card shows what is due and its add button adds a task due today', async () => {
   items = [task({ id: 't1', title: 'Pay fees', due_date: '2026-01-12' })]
+  const props = {
+    scope: { kind: 'program', programId: 'p1' },
+    instanceId: 'i1',
+    size: 'l',
+    settings: undefined,
+  } as const
   renderWithRouter(
-    <TodayCard
-      scope={{ kind: 'program', programId: 'p1' }}
-      instanceId="i1"
-      size="l"
-      settings={undefined}
-    />,
+    <>
+      <NewTaskButton {...props} />
+      <TodayCard {...props} />
+    </>,
   )
   expect(await screen.findByText('Pay fees')).toBeTruthy()
-  await userEvent.type(screen.getByLabelText('Add a task'), 'Call home{Enter}')
+  await userEvent.click(screen.getByRole('button', { name: 'New task' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'New task' }), 'Call home{Enter}')
   await waitFor(() => expect(log.creates).toHaveLength(1))
   expect(log.creates[0]?.due_date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 })
@@ -190,7 +202,7 @@ test('the completed view has one empty state and no add box', async () => {
   await pickList('All', /^Completed/)
   expect(await screen.findByText('Nothing completed yet')).toBeTruthy()
   expect(screen.queryByText('No tasks here')).toBeNull()
-  expect(screen.queryByLabelText('Add a task')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'New task' })).toBeNull()
 })
 
 test('clearing completed tasks is offered only where it deletes what is listed', async () => {
@@ -305,7 +317,9 @@ test('Esc on a chip closes the row, and focus goes back to its title', async () 
 
 test('the empty row at the end adds tasks one after another', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
-  await userEvent.click(await screen.findByRole('button', { name: 'New task' }))
+  // The header's button comes first; the empty row is the last one.
+  await screen.findByText('Lab report')
+  await userEvent.click(screen.getAllByRole('button', { name: 'New task' }).at(-1)!)
   const input = screen.getByRole('textbox', { name: 'New task' })
   await userEvent.type(input, 'Problem set 4{Enter}')
   await waitFor(() => expect(log.creates).toHaveLength(1))
