@@ -212,7 +212,7 @@ def delete(settings: Settings, model: str) -> None:
     from semestra.modules.ai import local_embedding_runtime
 
     local_embedding_runtime.close()
-    shutil.rmtree(model_dir(settings, model), ignore_errors=True)
+    local_download.remove(model_dir(settings, model))
 
 
 # --- Hugging Face -----------------------------------------------------------------------------

@@ -111,6 +111,16 @@ def dir_size(path: Path) -> int:
     return Download(path).received()
 
 
+def remove(path: Path) -> None:
+    """Deletes a downloaded model's folder (blocking): first renamed to a hidden name in one step,
+    so a model half deleted is never taken for one that is here. Raises if it cannot be moved."""
+    if not path.exists():
+        return
+    doomed = path.with_name(f".deleting-{path.name}-{os.getpid()}-{time.monotonic_ns()}")
+    path.rename(doomed)
+    shutil.rmtree(doomed, ignore_errors=True)
+
+
 def downloading(prefix: str) -> list[str]:
     """Keys starting with `prefix` that this process is downloading now, without the prefix."""
     with _LOCK:

@@ -148,7 +148,7 @@ def delete(model: str) -> None:
     """Removes the model's files (blocking); the next scan that needs it downloads it again.
     A page being read with it finishes with the copy its process has open."""
     for part in _parts(model):
-        shutil.rmtree(models_dir() / part, ignore_errors=True)
+        local_download.remove(models_dir() / part)
 
 
 # Seconds between progress reports while a model downloads.

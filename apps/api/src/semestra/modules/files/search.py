@@ -192,13 +192,28 @@ async def _rebuild_if_stale(ctx: Ctx, space: str) -> None:
     ctx.after_commit.append(later)
 
 
+def _restore_local_model(ctx: Ctx) -> None:
+    """After this request, downloads the user's local embedding model again if it was deleted:
+    files already have their vectors, so nothing else would bring it back until a new file."""
+    assert ctx.user_id is not None
+    user_id = ctx.user_id
+
+    async def later() -> None:
+        await run_as_system(ctx.state, user_id, ai.local_jobs.restore_embedding)
+
+    ctx.after_commit.append(later)
+
+
 async def _semantic(
     ctx: Ctx, query: str, course_ids: Sequence[str], item_ids: Sequence[str] | None, top_k: int
 ) -> list[str] | None:
     """Chunk ids by meaning, or None when semantic search is not available right now."""
     store = get_vector_store()
     try:
-        if not await ai.available(ctx, "embedding") or not await store.available(ctx.db):
+        if not await ai.available(ctx, "embedding"):
+            _restore_local_model(ctx)
+            return None
+        if not await store.available(ctx.db):
             return None
         space, vector = await embed_query(ctx, query)
     except AppError as exc:

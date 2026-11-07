@@ -109,6 +109,19 @@ async def prepare_embedding(ctx: Ctx) -> None:
         await start_download(ctx, "embedding", model)
 
 
+async def restore_embedding(ctx: Ctx) -> None:
+    """Downloads the user's local embedding model again when it went missing (deleted in the
+    settings), unless their last download of it failed: that one is retried from the settings,
+    not on every search."""
+    model = await local_embedding.choice(ctx)
+    if model is None or local_embedding.downloaded(ctx.settings, model):
+        return
+    job_id = await latest_download(ctx, "embedding", model)
+    job = await ctx.db.get(CoreJob, job_id) if job_id else None
+    if job is None or job.status != "failed":
+        await start_download(ctx, "embedding", model)
+
+
 async def latest_download(ctx: Ctx, purpose: LocalPurpose, model: str) -> str | None:
     """The ctx user's latest download of `model` while it runs, or after it failed (so the
     settings row can show why and offer a retry); None once the model is on disk."""
