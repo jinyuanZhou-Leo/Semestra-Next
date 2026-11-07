@@ -1979,8 +1979,6 @@
   "files_preview_page": "Page",
   "files_preview_page_of": "of {total}",
   "files_preview_page_label": "Page {page}",
-  "files_preview_previous_page": "Previous page",
-  "files_preview_next_page": "Next page",
   "files_preview_earlier_pages": "Show earlier pages",
   "files_preview_later_pages": "Show later pages",
   "files_preview_unavailable": "No preview for this file",
