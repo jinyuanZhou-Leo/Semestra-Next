@@ -120,6 +120,7 @@ defineModule({
 - **理顺界面（2026-11-07）**：
   - **作业与成绩合并**：Canvas 菜单里的作业、测验、成绩三项合成一项“作业与成绩”（`navigation.ts` 的 `MERGED`，放在三者中第一个的位置），`?tab=grades|quizzes` 跳到 `assignments`，测验 `ref` 变成 `quiz:<id>`。一张表：计分测验并到对应作业行（名称前有测验图标，展开后多次数、题目数、限时），练习测验单独成组放最后（不能勾选、不显示反馈）。去掉成绩页的总评卡片和引导 `Alert`，删掉 `GradesView`、`QuizzesView`。
   - 表格用 TanStack 的排序（名称、截止、得分；空值排最后，得分按得分率）和选择（`enableRowSelection` 排除已导入与练习测验）；表头有全选，分组行有本组勾选。勾选状态经 context 传给单元格（React Compiler 会缓存 `row` 不变的单元格，直接读 `row.getIsSelected()` 不会刷新）。展开详情里评分标准表加圆角边框与表头底色，老师评语用 shadcn `Item`。
+  - 表格上方一行工具栏（固定 2rem 高）：左边筛选（全部 / 待完成 / 已出分 / 缺交，`lib/segmented.ts` 分段样式，与成绩页一致）和按名称搜索，右边“导入 ▾”；筛选后没有结果时显示 `SearchX` 空状态与“清除筛选”。分组行：名称、数量 `Badge`、“权重 N%” outline `Badge`，得分列显示本组已评部分的得分率；没有匹配行的分组隐藏。每行名称前有类型图标（测验 `ListChecks`、讨论 `MessagesSquare`、其余作业 `FileText`，按 `submission_types` 判断）。数据行固定 `h-10`、分组行 `h-11`，不同状态徽章不会让行高变化。
   - 导入只有一个主按钮“导入 ▾”（导入到成绩簿 / 导入到待办），不再用 `AiAction`（这不是 AI 操作）；已导入的行在名称后标“已在成绩簿”或“已在待办”，不能再勾选（每个作业只导入一次）。导入到成绩簿时 Canvas 上已出的成绩一起带入（M09）。
   - **统一页面头**：各视图用 `views/common.tsx` 的 `ViewHeader`（标题取 Canvas 菜单里的名称；右侧依次是工具、显示方式图标菜单、在 Canvas 中打开图标，最后是唯一的主按钮）；详情页是返回按钮 + `ViewHeader`。
   - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`，文案前缀改为 `files_kind_*`。

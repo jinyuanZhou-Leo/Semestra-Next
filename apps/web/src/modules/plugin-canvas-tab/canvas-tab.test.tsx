@@ -476,7 +476,7 @@ test('ticked assignments go to the gradebook import review', async () => {
     }),
   )
   renderPage('/?tab=assignments')
-  expect(await screen.findByText('20% of grade', { exact: false })).toBeInTheDocument()
+  expect(await screen.findByText('Weight 20%')).toBeInTheDocument()
   // An imported row says where it went and cannot be ticked again.
   expect(screen.getByText('In gradebook')).toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: 'Select Lab 2' })).toHaveAttribute(

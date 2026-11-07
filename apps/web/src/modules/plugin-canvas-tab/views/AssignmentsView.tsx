@@ -20,12 +20,16 @@ import {
   ClipboardList,
   GraduationCap,
   Import,
+  FileText,
   ListChecks,
   Lock,
+  MessagesSquare,
+  Search,
+  SearchX,
 } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
 import { toastError } from '@/lib/errors'
-import { formatDateTime } from '@/lib/format'
+import { formatDateTime, formatPercent } from '@/lib/format'
 import {
   type AssignmentImportKind,
   reviewAssignmentImport,
@@ -41,7 +45,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { Spinner } from '@/ui/spinner'
 import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -171,17 +178,24 @@ function SelectCell({ row }: CellProps) {
   )
 }
 
+/** What kind of work a row is, by how it is handed in: a quiz, a discussion or an assignment. */
+function KindIcon({ row }: { row: Row }) {
+  const types = row.assignment.submission_types ?? []
+  const [Icon, label] =
+    row.quiz || types.includes('online_quiz')
+      ? [ListChecks, m.canvas_tab_quiz()]
+      : types.includes('discussion_topic')
+        ? [MessagesSquare, m.canvas_tab_kind_discussion()]
+        : [FileText, m.canvas_tab_kind_assignment()]
+  return <Icon aria-label={label} className="size-4 shrink-0 text-muted-foreground" />
+}
+
 function NameCell({ row }: CellProps) {
-  const { assignment: a, quiz } = row.original
+  const { assignment: a } = row.original
   const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
-    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-      {quiz ? (
-        <ListChecks
-          aria-label={m.canvas_tab_quiz()}
-          className="size-3.5 shrink-0 text-muted-foreground"
-        />
-      ) : null}
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <KindIcon row={row.original} />
       <span className="font-medium">{a.name}</span>
       {a.locked ? (
         <Tooltip>
@@ -339,6 +353,50 @@ function focusedRow(selected: string | undefined, quizzes: readonly Quiz[] | und
   return quiz?.assignment_id ?? selected
 }
 
+/** Which rows the table lists: all, the ones still to hand in, the graded ones, or the missing. */
+type Filter = 'all' | 'todo' | 'graded' | 'missing'
+const FILTERS: readonly Filter[] = ['all', 'todo', 'graded', 'missing']
+const FILTER_LABELS: Record<Filter, () => string> = {
+  all: m.canvas_tab_filter_all,
+  todo: m.canvas_tab_filter_todo,
+  graded: m.canvas_tab_filter_graded,
+  missing: m.canvas_tab_filter_missing,
+}
+
+function matches({ assignment: a }: Row, filter: Filter, query: string): boolean {
+  if (query && !a.name.toLocaleLowerCase().includes(query)) return false
+  const s = a.submission
+  switch (filter) {
+    case 'all':
+      return true
+    case 'graded':
+      return s?.state === 'graded' && s.score != null
+    case 'missing':
+      return !!s?.missing
+    case 'todo':
+      return (
+        !s?.missing &&
+        s?.state !== 'graded' &&
+        !s?.submitted_at &&
+        s?.state !== 'submitted' &&
+        s?.state !== 'pending_review'
+      )
+  }
+}
+
+/** The group's graded points as a share of their worth, or null before anything is graded. */
+function groupAverage(rows: readonly Row[]): number | null {
+  let earned = 0
+  let worth = 0
+  for (const { assignment: a } of rows) {
+    const score = a.submission?.score
+    if (score == null || !a.points) continue
+    earned += score
+    worth += a.points
+  }
+  return worth > 0 ? earned / worth : null
+}
+
 type Group = { key: string; name: string; weight: number | null; ids: string[] }
 
 /** Assignment groups in Canvas's order, each with its rows' ids. */
@@ -364,6 +422,8 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
+  const [filter, setFilter] = useState<Filter>('all')
+  const [search, setSearch] = useState('')
   const [now] = useState(Date.now)
   const focusedRef = useScrollIntoView<HTMLTableRowElement>(focused)
   const table = useTable({
@@ -380,13 +440,26 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   })
   // Rows in the table's order (sorted within each group); groups keep Canvas's order.
   const ordered = table.getRowModel().rows
-  const groups = groupsOf(data).map((group) => {
-    const ids = new Set(group.ids)
-    return { ...group, rows: ordered.filter((row) => ids.has(row.id)) }
-  })
-  const selectable = ordered.filter((row) => row.getCanSelect()).map((row) => row.id)
+  const query = search.trim().toLocaleLowerCase()
+  const groups = groupsOf(data)
+    .map((group) => {
+      const ids = new Set(group.ids)
+      const all = data.filter((r) => ids.has(r.id))
+      return {
+        ...group,
+        average: groupAverage(all),
+        rows: ordered.filter((row) => ids.has(row.id) && matches(row.original, filter, query)),
+      }
+    })
+    .filter((group) => group.rows.length > 0)
+  // Select all ticks what is listed; a filtered-out row keeps its tick.
+  const selectable = groups.flatMap((group) =>
+    group.rows.filter((row) => row.getCanSelect()).map((row) => row.id),
+  )
   // A row imported meanwhile (the list refetches after an import) stays ticked but is left out.
-  const picked = selectable.filter((id) => rowSelection[id])
+  const picked = ordered
+    .filter((row) => row.getCanSelect() && rowSelection[row.id])
+    .map((row) => row.id)
   const state: TableState = {
     now,
     selected: rowSelection,
@@ -431,30 +504,53 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   return (
     <TableContext value={state}>
       <div className="space-y-4">
-        <ViewHeader
-          title={title}
-          primary={
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button disabled={picked.length === 0 || starting !== null} />}
-              >
-                {starting ? <Spinner /> : <Import aria-hidden />}
-                {m.canvas_tab_import()}
-                <ChevronDown aria-hidden data-icon="inline-end" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => start('assessment')}>
-                  <GraduationCap aria-hidden />
-                  {m.canvas_tab_import_to_gradebook()}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => start('task')}>
-                  <ListChecks aria-hidden />
-                  {m.canvas_tab_import_to_tasks()}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
-        />
+        <ViewHeader title={title} />
+        {/* Always 2rem high: the selection and a running import never move the table. */}
+        <div className="flex h-8 items-center gap-2">
+          <ToggleGroup
+            aria-label={m.canvas_tab_filter()}
+            size="sm"
+            className={SEGMENTED}
+            value={[filter]}
+            onValueChange={([next]) => next && setFilter(next as Filter)}
+          >
+            {FILTERS.map((f) => (
+              <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+                {FILTER_LABELS[f]()}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <InputGroup className="mr-auto h-8 w-56">
+            <InputGroupInput
+              aria-label={m.canvas_tab_search_assignments()}
+              placeholder={m.canvas_tab_search_assignments()}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <InputGroupAddon>
+              <Search aria-hidden />
+            </InputGroupAddon>
+          </InputGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button size="sm" disabled={picked.length === 0 || starting !== null} />}
+            >
+              {starting ? <Spinner /> : <Import aria-hidden />}
+              {m.canvas_tab_import()}
+              <ChevronDown aria-hidden data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => start('assessment')}>
+                <GraduationCap aria-hidden />
+                {m.canvas_tab_import_to_gradebook()}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => start('task')}>
+                <ListChecks aria-hidden />
+                {m.canvas_tab_import_to_tasks()}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="overflow-hidden rounded-2xl border border-border">
           <Table className="min-w-xl table-fixed">
             <TableHeader className="bg-muted/50">
@@ -500,12 +596,38 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
               ))}
             </TableHeader>
             <TableBody>
+              {groups.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columns.length} className="whitespace-normal">
+                    <Empty className="border-0 p-0 py-6">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <SearchX aria-hidden />
+                        </EmptyMedia>
+                        <EmptyTitle>{m.canvas_tab_assignments_no_match()}</EmptyTitle>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => {
+                            setFilter('all')
+                            setSearch('')
+                          }}
+                        >
+                          {m.common_clear_filters()}
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  </TableCell>
+                </TableRow>
+              ) : null}
               {groups.map((group) => {
                 const open = !collapsed.has(group.key)
                 const ids = group.rows.filter((row) => row.getCanSelect()).map((row) => row.id)
                 return (
                   <Fragment key={group.key}>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableRow className="h-11 bg-muted/40 hover:bg-muted/40">
                       <TableCell className="py-1.5">
                         {ids.length > 0 ? (
                           <SelectMany
@@ -514,12 +636,12 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                           />
                         ) : null}
                       </TableCell>
-                      <TableCell colSpan={columns.length - 1} className="py-1.5">
+                      <TableCell colSpan={2} className="py-1.5">
                         <Button
                           variant="ghost"
                           size="sm"
                           aria-expanded={open}
-                          className="-ml-2 h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+                          className="-ml-2 h-8 max-w-full items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
                           onClick={() => toggleGroup(group.key)}
                         >
                           {open ? (
@@ -527,19 +649,26 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                           ) : (
                             <ChevronRight aria-hidden className="size-4" />
                           )}
-                          {group.name}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {[
-                              m.canvas_tab_group_count({ count: group.rows.length }),
-                              group.weight != null
-                                ? m.canvas_tab_group_weight({ weight: group.weight })
-                                : null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
+                          <span className="truncate">{group.name}</span>
+                          <Badge variant="secondary" className="tabular-nums">
+                            {group.rows.length}
+                          </Badge>
+                          {group.weight != null ? (
+                            <Badge variant="outline" className="font-normal tabular-nums">
+                              {m.canvas_tab_group_weight({ weight: group.weight })}
+                            </Badge>
+                          ) : null}
                         </Button>
                       </TableCell>
+                      <TableCell className="py-1.5">
+                        {group.average == null ? null : (
+                          <span className="font-medium tabular-nums">
+                            <span className="sr-only">{m.canvas_tab_group_average()}: </span>
+                            {formatPercent(group.average)}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-1.5" />
                     </TableRow>
                     {open
                       ? group.rows.map((row) => {
@@ -553,7 +682,8 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                                   rowSelection[row.id] || expanded ? 'selected' : undefined
                                 }
                                 aria-expanded={expanded}
-                                className="cursor-pointer"
+                                // One height for every row, whatever badge its status shows.
+                                className="h-10 cursor-pointer"
                                 onClick={() =>
                                   go(
                                     expanded
