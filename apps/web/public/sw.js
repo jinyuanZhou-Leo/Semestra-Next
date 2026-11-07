@@ -17,17 +17,27 @@ self.addEventListener('push', (event) => {
 })
 
 async function show(message) {
-  if (message.hidden_only) {
-    // A Semestra tab in front already shows this (status bar, banner, the Sem panel).
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    if (windows.some((client) => client.visibilityState === 'visible')) return
-  }
+  // Every push must show a notification: the subscription promises it (`userVisibleOnly`),
+  // Safari revokes subscriptions that receive silent pushes and Chrome shows its own "updated in
+  // the background" notice instead. So one that a Semestra tab in front already shows (status
+  // bar, banner, the Sem panel) is shown silently and closed straight away.
+  const seen = Boolean(message.hidden_only) && (await inFront())
   await self.registration.showNotification(message.title, {
     body: message.body || '',
     tag: message.tag,
     data: { url: message.url || '/' },
     icon: '/icons/icon-192.png',
+    silent: seen,
   })
+  if (seen) {
+    const shown = await self.registration.getNotifications({ tag: message.tag })
+    for (const notification of shown) notification.close()
+  }
+}
+
+async function inFront() {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  return windows.some((client) => client.visibilityState === 'visible')
 }
 
 self.addEventListener('notificationclick', (event) => {

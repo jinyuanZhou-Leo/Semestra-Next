@@ -1,6 +1,7 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import type { Message } from '@/app/extensions'
+import { useMotionPreference } from '@/app/theme'
 import { m } from '@/paraglide/messages'
 
 const SAMPLES: readonly { title: Message; body: Message }[] = [
@@ -17,38 +18,45 @@ const EVERY_MS = 3200
  * frame keeps its height, so the step below does not move as they change.
  */
 export function NotificationPreview() {
+  const preference = useMotionPreference()
+  const system = useReducedMotion()
+  // Reduced motion: the first example stays put instead of sliding through the others.
+  const still = preference === 'always' || (preference === 'user' && Boolean(system))
   const [index, setIndex] = useState(0)
   useEffect(() => {
+    if (still) return
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % SAMPLES.length), EVERY_MS)
     return () => window.clearInterval(timer)
-  }, [])
-  const sample = SAMPLES[index]!
+  }, [still])
+  const sample = SAMPLES[still ? 0 : index]!
   return (
     <div
       aria-hidden
       className="relative h-[4.75rem] overflow-hidden rounded-3xl bg-muted/60 px-3 py-2.5"
     >
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, y: -24, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 24, scale: 0.97 }}
-          transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-          className="flex items-start gap-3 rounded-2xl border bg-card px-3 py-2 shadow-sm"
-        >
-          <img src="/icons/icon-192.png" alt="" className="mt-0.5 size-8 shrink-0 rounded-lg" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="truncate text-sm font-medium">{sample.title()}</p>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {m.notifications_sample_now()}
-              </span>
+      <MotionConfig reducedMotion={preference}>
+        <AnimatePresence initial={false} mode="popLayout">
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, y: -24, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+            className="flex items-start gap-3 rounded-2xl border bg-card px-3 py-2 shadow-sm"
+          >
+            <img src="/icons/icon-192.png" alt="" className="mt-0.5 size-8 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="truncate text-sm font-medium">{sample.title()}</p>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {m.notifications_sample_now()}
+                </span>
+              </div>
+              <p className="truncate text-sm text-muted-foreground">{sample.body()}</p>
             </div>
-            <p className="truncate text-sm text-muted-foreground">{sample.body()}</p>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+          </motion.div>
+        </AnimatePresence>
+      </MotionConfig>
     </div>
   )
 }

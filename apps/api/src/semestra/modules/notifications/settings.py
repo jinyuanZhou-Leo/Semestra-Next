@@ -21,8 +21,9 @@ class NotificationsSettings(BaseModel):
     jobs: bool = Field(
         default=True, description="Imports ready to review, finished or failed background tasks"
     )
-    assistant: bool = Field(default=True, description="Sem waits for an approval")
-    sign_in: bool = Field(default=True, description="A new sign-in to this account")
-    quiet_hours: bool = Field(default=False, description="Hold back notifications at night")
+    assistant: bool = True  # Sem waits for an approval
+    sign_in: bool = True  # a new sign-in to this account
+    # Hold back notifications between the two times (local time of the active Program).
+    quiet_hours: bool = False
     quiet_start: str = Field(default="23:00", pattern=_TIME, json_schema_extra={"format": "time"})
     quiet_end: str = Field(default="07:00", pattern=_TIME, json_schema_extra={"format": "time"})

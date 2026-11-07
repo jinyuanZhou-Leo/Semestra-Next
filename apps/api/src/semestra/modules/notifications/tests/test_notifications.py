@@ -166,13 +166,24 @@ async def test_a_task_reminder_is_sent_once_at_its_lead_time(
         f"/programs/{pid}/tasks",
         json={"title": "Lab report", "due_date": "2026-01-15", "due_time": "10:00:00"},
     )
+    # Checked off (handed in) before its reminder: no reminder.
+    handed_in = await call(
+        client,
+        "POST",
+        f"/programs/{pid}/tasks",
+        json={"title": "Essay", "due_date": "2026-01-15", "due_time": "10:00:00"},
+    )
     browser = Browser()
     await call(client, "POST", "/me/notifications/devices", json=browser.subscription())
+    await call(client, "POST", f"/tasks/{handed_in['id']}:complete", json={"completed": True})
+    await drain(app.state)
 
     clock.advance(hours=1, minutes=59)  # 08:59
     await reminders.send_due(app.state)
     assert received(push, browser) == []
-    clock.advance(minutes=1)
+    clock.advance(seconds=90)  # 09:00:30
+    # A change to the calendar just after 09:00, before the tick, keeps the due reminder.
+    await reminders.replan_user(app.state, user.id)
     await reminders.send_due(app.state)
     clock.advance(minutes=1)
     await reminders.send_due(app.state)

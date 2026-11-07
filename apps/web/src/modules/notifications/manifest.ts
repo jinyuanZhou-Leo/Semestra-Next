@@ -25,6 +25,9 @@ const onboardingSteps: readonly OnboardingStep[] = [
 
 const form = (fields: readonly string[]) => ({ order: fields, hidden: hiddenExcept(fields) })
 
+/** The times only matter while quiet hours are on. */
+const QUIET_WHEN = { quiet_start: 'quiet_hours', quiet_end: 'quiet_hours' }
+
 /**
  * M18 通知: system notifications through Web Push. This device's subscription, what to be told
  * about (namespace `notifications`) and the onboarding step; the texts come from the server.
@@ -50,7 +53,6 @@ export default defineModule({
       level: 'account',
       group: 'notifications',
       title: m.notifications_section_reminders,
-      description: m.notifications_section_reminders_description,
       icon: BellRing,
       order: 20,
       namespace: NAMESPACE,
@@ -61,7 +63,6 @@ export default defineModule({
       level: 'account',
       group: 'notifications',
       title: m.notifications_section_activity,
-      description: m.notifications_section_activity_description,
       icon: Sparkles,
       order: 30,
       namespace: NAMESPACE,
@@ -72,11 +73,10 @@ export default defineModule({
       level: 'account',
       group: 'notifications',
       title: m.notifications_section_quiet,
-      description: m.notifications_section_quiet_description,
       icon: Moon,
       order: 40,
       namespace: NAMESPACE,
-      fields: form(QUIET_FIELDS),
+      fields: { ...form(QUIET_FIELDS), when: QUIET_WHEN },
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },

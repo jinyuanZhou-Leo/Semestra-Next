@@ -1,11 +1,13 @@
 """Reminders (M18 §4): classes, one-off events, to-dos with a due time, and the daily summary.
 
-Planning reads the calendar (M04 sources) for the next `HORIZON` and stores one row per reminder;
+Planning reads the calendar (M04 sources) for classes and events and the open to-dos (M05, which
+include the one of each dated assessment) for the next `HORIZON`, and stores one row per reminder;
 it runs when the calendar or the settings change and every few hours to move the horizon on. A
 minute tick sends the rows that are due. Only users with at least one device are planned."""
 
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import structlog
@@ -20,8 +22,9 @@ from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.notifications import service, texts
 from semestra.modules.notifications.models import NotificationsDevice, NotificationsReminder
 from semestra.modules.notifications.settings import NotificationsSettings
-from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, collect
+from semestra.modules.schedule.calendar import OccurrenceQuery, collect
 from semestra.modules.settings import service as settings_service
+from semestra.modules.tasks import service as tasks
 
 log = structlog.get_logger()
 
@@ -31,25 +34,66 @@ REPLAN_EVERY = timedelta(hours=6)
 # A reminder the tick missed by more than this (the server was down) is dropped, not sent late.
 STALE = timedelta(minutes=15)
 
-_SOURCES = ("schedule.meetings", "schedule.events", "tasks.due", "grading.assessments")
-# Occurrence kind → (reminder kind, setting holding its lead in minutes).
-_LEADS = {
-    "class": ("class", "class_reminder"),
-    "event": ("event", "event_reminder"),
-    "task": ("task", "task_reminder"),
-    "deadline": ("task", "task_reminder"),
-}
+# Deadlines are reminded through the to-dos, not the calendar: an assessment's deadline is its
+# to-do's, and checking that to-do off (handed in) must stop the reminder.
+_SOURCES = ("schedule.meetings", "schedule.events")
+# Kind → setting holding its lead in minutes.
+_LEADS = {"class": "class_reminder", "event": "event_reminder", "task": "task_reminder"}
+_DIGEST_GROUP = {"class": "classes", "event": "events"}
 
-_DIGEST_GROUP = {"class": "classes", "event": "events", "task": "tasks", "deadline": "tasks"}
+
+@dataclass(frozen=True)
+class _Item:
+    """Something to be reminded of: a class, an event or an open to-do with a due time."""
+
+    id: str
+    kind: str
+    title: str
+    start_at: datetime
+    location: str | None = None
+
+
+async def _calendar_items(
+    ctx: Ctx, program_id: str, start: datetime, end: datetime, kinds: list[str]
+) -> list[_Item]:
+    q = OccurrenceQuery(program_id, start, end)
+    return [
+        _Item(o.id, o.kind, o.title, o.start_at, o.location)
+        for o in await collect(ctx, q, _SOURCES, kinds)  # pyright: ignore[reportArgumentType]
+        if not o.all_day and o.status not in ("cancelled", "done")
+    ]
+
+
+async def _open_tasks(
+    ctx: Ctx, program: AcademicsProgram, start: datetime, end: datetime
+) -> tuple[list[_Item], int]:
+    """Open to-dos due in [start, end): those with a time as items, and how many have only a
+    date within it (they count in the daily summary but get no reminder of their own)."""
+    zone = ZoneInfo(program.timezone)
+    rows = await tasks.program_rows(
+        ctx,
+        program.id,
+        open_only=True,
+        due_from=start.astimezone(zone).date(),
+        due_to=end.astimezone(zone).date(),
+    )
+    items: list[_Item] = []
+    dated = 0
+    for r in rows:
+        assert r.due_date is not None
+        if r.due_time is None:
+            day = datetime.combine(r.due_date, time(), tzinfo=zone)
+            dated += start <= day < end
+            continue
+        at = datetime.combine(r.due_date, r.due_time, tzinfo=zone)
+        if start <= at < end:
+            items.append(_Item(f"tasks.item:{r.id}", "task", r.title, at.astimezone(UTC)))
+    return items, dated
 
 
 def _lead(cfg: NotificationsSettings, setting: str) -> int | None:
     value = getattr(cfg, setting)
     return None if value == "off" else int(value)
-
-
-def _wanted(o: Occurrence) -> bool:
-    return not o.all_day and o.status not in ("cancelled", "done")
 
 
 async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
@@ -70,35 +114,41 @@ async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
     if not await service.has_devices(ctx):
         return
     cfg = await service.settings_of(ctx)
-    leads = {kind: _lead(cfg, setting) for kind, (_, setting) in _LEADS.items()}
-    kinds = [kind for kind, lead in leads.items() if lead is not None]
+    leads = {
+        kind: lead for kind, setting in _LEADS.items() if (lead := _lead(cfg, setting)) is not None
+    }
+    # Sent rows keep their key, so a reminder a little late is still planned but never repeated.
+    since = ctx.now - STALE
+    end = ctx.now + HORIZON
     for program in await academics.program_rows(ctx):
         if program_ids is not None and program.id not in program_ids:
             continue
+        items: list[_Item] = []
+        calendar_kinds = [kind for kind in leads if kind in _DIGEST_GROUP]
+        if calendar_kinds:
+            items += await _calendar_items(ctx, program.id, since, end, calendar_kinds)
+        if "task" in leads:
+            items += (await _open_tasks(ctx, program, since, end))[0]
         rows: list[dict[str, object]] = []
-        if kinds:
-            q = OccurrenceQuery(program.id, ctx.now, ctx.now + HORIZON)
-            for o in await collect(ctx, q, _SOURCES, kinds):  # pyright: ignore[reportArgumentType]
-                lead = leads[o.kind]
-                if lead is None or not _wanted(o):
-                    continue
-                fire_at = o.start_at - timedelta(minutes=lead)
-                if fire_at < ctx.now:
-                    continue
-                rows.append(
-                    {
-                        "key": f"{o.id}:{lead}",
-                        "kind": _LEADS[o.kind][0],
-                        "fire_at": fire_at,
-                        "expires_at": o.start_at,
-                        "params": {
-                            "title": o.title,
-                            "start_at": o.start_at.isoformat(),
-                            "location": o.location,
-                            "lead": lead,
-                        },
-                    }
-                )
+        for item in items:
+            lead = leads[item.kind]
+            fire_at = item.start_at - timedelta(minutes=lead)
+            if fire_at < since:
+                continue
+            rows.append(
+                {
+                    "key": f"{item.id}:{lead}",
+                    "kind": item.kind,
+                    "fire_at": fire_at,
+                    "expires_at": item.start_at,
+                    "params": {
+                        "title": item.title,
+                        "start_at": item.start_at.isoformat(),
+                        "location": item.location,
+                        "lead": lead,
+                    },
+                }
+            )
         digest = _digest_row(ctx, program, cfg)
         if digest is not None:
             rows.append(digest)
@@ -169,15 +219,13 @@ async def _digest(
 ) -> service.Message | None:
     local = ctx.now.astimezone(zone)
     start = datetime.combine(local.date(), time(), tzinfo=zone)
-    q = OccurrenceQuery(program.id, start, start + timedelta(days=1))
-    items = [
-        o
-        for o in await collect(ctx, q, _SOURCES)
-        if o.status not in ("cancelled", "done") and (o.all_day or o.start_at >= ctx.now)
-    ]
+    end = start + timedelta(days=1)
     counts = defaultdict[str, int](int)
-    for o in items:
-        counts[_DIGEST_GROUP[o.kind]] += 1
+    for item in await _calendar_items(ctx, program.id, ctx.now, end, list(_DIGEST_GROUP)):
+        counts[_DIGEST_GROUP[item.kind]] += 1
+    timed, dated = await _open_tasks(ctx, program, start, end)
+    # To-dos already past due today are not "today's" any more; date-only ones still are.
+    counts["tasks"] = dated + sum(item.start_at >= ctx.now for item in timed)
     parts = [texts.count(locale, k, counts[k]) for k in ("classes", "events", "tasks") if counts[k]]
     if not parts:
         return None
@@ -225,23 +273,30 @@ async def send_due(state: State) -> None:
 
 async def _send_for(state: State, user_id: str, ids: list[str]) -> None:
     async with system_ctx(state, user_id) as ctx:
-        rows = (
-            await ctx.db.scalars(
-                select(NotificationsReminder).where(
-                    NotificationsReminder.id.in_(ids), NotificationsReminder.status == "pending"
-                )
-            )
-        ).all()
         if ctx.user is None:
             return
         cfg = await service.settings_of(ctx)
         quiet = service.in_quiet_hours(cfg, ctx.now.astimezone(await service.zone_of(ctx)))
-        for row in rows:
-            # Claimed before the push, so a slow push service cannot make the next tick repeat it.
-            row.status = "skipped" if quiet else "sent"
+        # Claimed in one statement before the push: another process running the same tick, or
+        # a slow push service holding this one past the next tick, cannot send them again.
+        claimed = (
+            await ctx.db.scalars(
+                update(NotificationsReminder)
+                .where(NotificationsReminder.id.in_(ids), NotificationsReminder.status == "pending")
+                .values(status="skipped" if quiet else "sent")
+                .returning(NotificationsReminder.id)
+            )
+        ).all()
         await ctx.db.commit()
-        if quiet:
+        if quiet or not claimed:
             return
+        rows = (
+            await ctx.db.scalars(
+                select(NotificationsReminder)
+                .where(NotificationsReminder.id.in_(claimed))
+                .order_by(NotificationsReminder.fire_at)
+            )
+        ).all()
         for row in rows:
             message = await _message(ctx, row)
             if message is not None:
@@ -266,7 +321,12 @@ async def replan_user(state: State, user_id: str, program_ids: list[str] | None 
 async def replan_all(ctx: Ctx) -> None:
     """Moves every horizon on. A reminder is planned at least `HORIZON - REPLAN_EVERY` (30 h)
     before its occurrence, which covers the longest lead (1 day)."""
-    users = (await ctx.db.scalars(select(NotificationsDevice.user_id).distinct())).all()
+    # Only users with a device that can still receive: the others would be planned for nothing.
+    users = (
+        await ctx.db.scalars(
+            service.live(ctx).with_only_columns(NotificationsDevice.user_id).distinct()
+        )
+    ).all()
     for user_id in users:
         try:
             await replan_user(ctx.state, user_id)

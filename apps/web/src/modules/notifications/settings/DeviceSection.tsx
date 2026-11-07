@@ -1,16 +1,16 @@
 import { notificationsTestSendMutation } from '@semestra/api-client/react-query'
 import { useMutation } from '@tanstack/react-query'
-import { BellOff, Send, Smartphone, TriangleAlert } from 'lucide-react'
+import { Send, Smartphone, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { RowMenu, SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
+import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
 import { deviceLabel } from '@/lib/device'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
-import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import { Spinner } from '@/ui/spinner'
+import { Switch } from '@/ui/switch'
 import { disableDevice, enableDevice, useDeviceState } from '../push'
 
 /** Settings → Notifications → This device (M18 §7): whether this browser gets anything. */
@@ -25,10 +25,11 @@ export default function DeviceSection() {
     onError: toastError,
   })
 
-  const run = async (action: () => Promise<unknown>) => {
+  // Called from the switch's change, so the permission prompt has its user gesture.
+  const toggle = async (checked: boolean) => {
     setBusy(true)
     try {
-      await action()
+      await (checked ? enableDevice() : disableDevice())
     } catch (err) {
       toastError(err)
     }
@@ -36,59 +37,45 @@ export default function DeviceSection() {
   }
 
   if (state === 'unsupported') return <SettingsNote>{m.notifications_unsupported()}</SettingsNote>
-  if (state === 'blocked') {
+  if (state === 'blocked' || state === 'install') {
+    const blocked = state === 'blocked'
     return (
       <Alert>
-        <TriangleAlert aria-hidden />
-        <AlertTitle>{m.notifications_blocked_title()}</AlertTitle>
-        <AlertDescription>{m.notifications_blocked_description()}</AlertDescription>
+        {blocked ? <TriangleAlert aria-hidden /> : <Smartphone aria-hidden />}
+        <AlertTitle>
+          {blocked ? m.notifications_blocked_title() : m.notifications_install_title()}
+        </AlertTitle>
+        <AlertDescription>
+          {blocked ? m.notifications_blocked_description() : m.notifications_install_description()}
+        </AlertDescription>
       </Alert>
-    )
-  }
-  if (state === 'install') {
-    return (
-      <SettingsGroup>
-        <SettingRow
-          label={m.notifications_install_title()}
-          description={m.notifications_install_description()}
-        >
-          <Smartphone aria-hidden className="size-5 text-muted-foreground" />
-        </SettingRow>
-      </SettingsGroup>
     )
   }
   const on = state === 'on'
   return (
     <SettingsGroup>
-      <SettingRow
-        label={deviceLabel(navigator.userAgent) ?? m.notifications_this_device()}
-        description={on ? m.notifications_device_on() : m.notifications_device_off()}
-      >
-        {state === 'checking' ? (
-          <Spinner />
-        ) : on ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={test.isPending}
-              onClick={() => test.mutate({})}
-            >
-              {test.isPending ? <Spinner /> : <Send aria-hidden />}
-              {m.notifications_test()}
-            </Button>
-            <RowMenu label={m.notifications_device_menu()}>
-              <DropdownMenuItem disabled={busy} onClick={() => void run(disableDevice)}>
-                <BellOff aria-hidden />
-                {m.notifications_turn_off()}
-              </DropdownMenuItem>
-            </RowMenu>
+      <SettingRow label={deviceLabel(navigator.userAgent) ?? m.notifications_this_device()}>
+        {(labelId) => (
+          <div className="flex items-center gap-3">
+            {on ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={test.isPending}
+                onClick={() => test.mutate({})}
+              >
+                {test.isPending ? <Spinner /> : <Send aria-hidden />}
+                {m.notifications_test()}
+              </Button>
+            ) : null}
+            {busy || state === 'checking' ? <Spinner /> : null}
+            <Switch
+              aria-labelledby={labelId}
+              checked={on}
+              disabled={busy || state === 'checking'}
+              onCheckedChange={(checked) => void toggle(checked)}
+            />
           </div>
-        ) : (
-          <Button size="sm" disabled={busy} onClick={() => void run(enableDevice)}>
-            {busy ? <Spinner /> : null}
-            {m.notifications_turn_on()}
-          </Button>
         )}
       </SettingRow>
     </SettingsGroup>

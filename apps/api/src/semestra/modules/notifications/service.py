@@ -11,7 +11,7 @@ from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import structlog
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from starlette.datastructures import State
 
@@ -57,11 +57,18 @@ def _session_id(ctx: Ctx) -> str:
     return session_id
 
 
-async def has_devices(ctx: Ctx) -> bool:
-    found = await ctx.db.scalar(
-        select(NotificationsDevice.id).where(NotificationsDevice.user_id == ctx.user_id).limit(1)
+def live(ctx: Ctx) -> Select[NotificationsDevice]:
+    """Devices whose sign-in session is still valid: the only ones that get anything."""
+    return (
+        select(NotificationsDevice)
+        .join(AuthSession, AuthSession.id == NotificationsDevice.session_id)
+        .where(AuthSession.revoked_at.is_(None), AuthSession.expires_at > ctx.now)
     )
-    return found is not None
+
+
+async def has_devices(ctx: Ctx) -> bool:
+    query = live(ctx).where(NotificationsDevice.user_id == ctx.user_id).limit(1)
+    return await ctx.db.scalar(query) is not None
 
 
 async def register_device(ctx: Ctx, inp: DeviceIn) -> bool:
@@ -102,15 +109,7 @@ async def unregister_device(ctx: Ctx, inp: DeviceRef) -> None:
 async def _live_devices(
     ctx: Ctx, user_id: str, exclude_session: str | None
 ) -> list[NotificationsDevice]:
-    query = (
-        select(NotificationsDevice)
-        .join(AuthSession, AuthSession.id == NotificationsDevice.session_id)
-        .where(
-            NotificationsDevice.user_id == user_id,
-            AuthSession.revoked_at.is_(None),
-            AuthSession.expires_at > ctx.now,
-        )
-    )
+    query = live(ctx).where(NotificationsDevice.user_id == user_id)
     if exclude_session is not None:
         query = query.where(NotificationsDevice.session_id != exclude_session)
     return list((await ctx.db.scalars(query)).all())
