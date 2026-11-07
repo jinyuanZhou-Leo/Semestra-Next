@@ -419,8 +419,9 @@ async def suggest_scores(ctx: Ctx, inp: SuggestInput) -> ScoreSuggestion:
 @capability(
     name="grading.summary.term",
     summary="A term's GPA, average, credits and every course's grade.",
-    description="""Use for "what is my GPA this term". Unfinished courses are left out unless
-`include_in_progress` counts their current average.""",
+    description="""Use for "what is my GPA this term". Unfinished courses count at their current
+average when `include_in_progress` is true; left out, it follows the Program's "count unfinished
+courses" setting.""",
     effect="read",
     http=Http("GET", "/terms/{term_id}/grade-summary"),
     tags=TAGS,

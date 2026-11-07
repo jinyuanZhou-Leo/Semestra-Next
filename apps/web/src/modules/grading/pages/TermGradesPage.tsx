@@ -29,7 +29,7 @@ import { TermComposition, courseStatusLabel } from '../components/TermCompositio
 import { TermTargetCard } from '../components/TermTargetCard'
 import { percentText } from '../display'
 import { parseScore } from '../score'
-import { useGradingSettings, useTermGrades } from '../queries'
+import { useTermGrades } from '../queries'
 import { useTermPlanSimulation } from '../use-plan'
 
 const features = tableFeatures({})
@@ -194,34 +194,15 @@ const DEFAULT_TERM_WHAT_IF: TermWhatIf = { plan: false, scores: {}, targetGpa: n
 /** A term's courses with their grades, the term GPA and plan mode for unfinished courses. */
 export default function TermGradesPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
-  const settings = useGradingSettings(scope.programId)
-  const includeInProgress = settings.data?.count_in_progress ?? false
-  // The summary's parameters include the setting: wait for it so the first answer is the right one
-  // (without it, unfinished courses are left out).
-  const grades = useTermGrades(termId, includeInProgress, !settings.isPending)
+  const grades = useTermGrades(termId)
   return (
     <AsyncBoundary query={grades}>
-      {(term) => (
-        <TermGradesView
-          key={termId}
-          term={term}
-          programId={scope.programId}
-          includeInProgress={includeInProgress}
-        />
-      )}
+      {(term) => <TermGradesView key={termId} term={term} programId={scope.programId} />}
     </AsyncBoundary>
   )
 }
 
-function TermGradesView({
-  term,
-  programId,
-  includeInProgress,
-}: {
-  term: TermGrades
-  programId: string
-  includeInProgress: boolean
-}) {
+function TermGradesView({ term, programId }: { term: TermGrades; programId: string }) {
   const termId = term.term_id
   const queryClient = useQueryClient()
   const [stored, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
@@ -240,7 +221,6 @@ function TermGradesView({
     term,
     planning ? scores : {},
     whatIf.targetGpa,
-    includeInProgress,
     planning || whatIf.targetGpa !== null,
   )
   const [filter, setFilter] = useState<TermFilter>('all')

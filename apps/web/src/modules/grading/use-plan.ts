@@ -87,16 +87,16 @@ export function useTermPlanSimulation(
   term: TermGrades,
   scores: Readonly<Record<string, number>>,
   targetGpa: number | null,
-  includeInProgress: boolean,
   planning: boolean,
 ): TermGradeSimulation | null {
   const termId = term.term_id
   return usePlanQuery(
     `term:${termId}`,
-    // A grade that changed under the plan (an edit elsewhere, a sync) refreshes it too.
-    JSON.stringify(term.courses),
+    // A grade (an edit elsewhere, a sync) or the Program's counting setting that changed under
+    // the plan refreshes it too.
+    JSON.stringify(term),
     planning,
-    { scores, target_gpa: targetGpa, include_in_progress: includeInProgress },
+    { scores, target_gpa: targetGpa },
     async (body) =>
       (await gradingSimulateTerm({ path: { term_id: termId }, body, throwOnError: true })).data,
   )

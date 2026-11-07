@@ -167,7 +167,11 @@ export default defineModule({
     [PROGRAM_SETUP_FIELDS]: [setupField],
   },
   uiPrefPrefixes: ['grading.'],
-  realtimeInvalidations: Object.fromEntries(
-    GRADING_EVENTS.map((event) => [event, GRADING_QUERIES]),
-  ),
+  realtimeInvalidations: {
+    ...Object.fromEntries(GRADING_EVENTS.map((event) => [event, GRADING_QUERIES])),
+    // Whether unfinished courses count in term grades is a Program setting.
+    'settings.values.updated': [
+      (data) => (data.namespace === 'grading' ? ['gradingSummaryTerm'] : []),
+    ],
+  },
 })

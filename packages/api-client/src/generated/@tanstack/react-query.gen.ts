@@ -2845,8 +2845,9 @@ export const gradingSummaryTermQueryKey = (options: Options<GradingSummaryTermDa
 /**
  * A term's GPA, average, credits and every course's grade.
  *
- * Use for "what is my GPA this term". Unfinished courses are left out unless
- * `include_in_progress` counts their current average.
+ * Use for "what is my GPA this term". Unfinished courses count at their current
+ * average when `include_in_progress` is true; left out, it follows the Program's "count unfinished
+ * courses" setting.
  */
 export const gradingSummaryTermOptions = (options: Options<GradingSummaryTermData>) => queryOptions<GradingSummaryTermResponse, GradingSummaryTermError, GradingSummaryTermResponse, ReturnType<typeof gradingSummaryTermQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

@@ -54,22 +54,10 @@ function termGrades(courses: CourseGrade[], hide: boolean): TermGrades {
 }
 
 let target: number | null = null
-let countInProgress = false
 
 beforeEach(() => {
   target = null
-  countInProgress = false
   server.use(
-    http.get(`${API}/me/settings/grading`, () =>
-      HttpResponse.json({
-        namespace: 'grading',
-        scope_type: 'program',
-        scope_id: 'p1',
-        values: { count_in_progress: countInProgress },
-        sources: {},
-        inherited: {},
-      }),
-    ),
     http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
       const { keys } = (await request.json()) as { keys: string[] }
       const items = Object.fromEntries(
@@ -132,20 +120,6 @@ test('plan mode needs an unfinished course', async () => {
   withGrades([courseGrade({ course_id: 'c1', status: 'completed', percentage: 90 })])
   mount()
   expect(await screen.findByRole('button', { name: 'Plan' })).toBeDisabled()
-})
-
-test('the Program setting decides whether unfinished courses count', async () => {
-  countInProgress = true
-  const asked: (string | null)[] = []
-  server.use(
-    http.get(`${API}/terms/t1/grade-summary`, ({ request }) => {
-      asked.push(new URL(request.url).searchParams.get('include_in_progress'))
-      return HttpResponse.json(termGrades([courseGrade({ course_id: 'c1' })], false))
-    }),
-  )
-  mount()
-  await screen.findByText('C1')
-  expect(asked).toEqual(['true'])
 })
 
 test('plan mode simulates the assumptions and keeps them after leaving it', async () => {

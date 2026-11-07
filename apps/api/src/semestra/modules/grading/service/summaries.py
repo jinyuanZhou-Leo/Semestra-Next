@@ -23,6 +23,7 @@ from semestra.modules.grading.service.assessments import assessment_rows
 from semestra.modules.grading.service.common import program_courses
 from semestra.modules.grading.service.gradebook import course_input, engine_items
 from semestra.modules.grading.service.scales import get_scale_row, scale_of
+from semestra.modules.settings import service as settings_service
 
 
 @dataclass
@@ -72,6 +73,14 @@ async def _load_program(ctx: Ctx, program_id: str) -> _ProgramState:
     )
 
 
+async def _counts_in_progress(ctx: Ctx, program_id: str, given: bool | None) -> bool:
+    """An explicit choice, or else the Program's "count unfinished courses" setting."""
+    if given is not None:
+        return given
+    resolved = await settings_service.get_values(ctx, "grading", "program", program_id)
+    return bool(resolved.values.get("count_in_progress", False))
+
+
 def _grade_all(state: _ProgramState, include_in_progress: bool) -> list[engine.GradedCourse]:
     graded: list[engine.GradedCourse] = []
     for course in state.courses:
@@ -114,10 +123,10 @@ def _course_grade_out(
     )
 
 
-async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool) -> TermGrades:
+async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool | None) -> TermGrades:
     term = await academics.get_term_row(ctx, term_id)
     state = await _load_program(ctx, term.program_id)
-    graded = _grade_all(state, include_in_progress)
+    graded = _grade_all(state, await _counts_in_progress(ctx, term.program_id, include_in_progress))
     rule = state.attribution
     aggregate = engine.term_aggregate(graded, term_id, rule)
     order = [c.id for c in await program_courses(ctx, term.program_id, term_id)]
@@ -144,7 +153,9 @@ async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool) -> Term
 async def simulate_term(ctx: Ctx, inp: TermSimulateInput) -> TermGradeSimulation:
     term = await academics.get_term_row(ctx, inp.term_id)
     state = await _load_program(ctx, term.program_id)
-    graded = _grade_all(state, inp.include_in_progress)
+    graded = _grade_all(
+        state, await _counts_in_progress(ctx, term.program_id, inp.include_in_progress)
+    )
     result = engine.simulate_term(
         graded, inp.term_id, state.attribution, state.scale, inp.scores, inp.target_gpa
     )

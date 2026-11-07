@@ -10541,9 +10541,9 @@ export type TermSimulateInputBody = {
     /**
      * Include In Progress
      *
-     * Count the current average of unfinished courses
+     * Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)
      */
-    include_in_progress?: boolean;
+    include_in_progress?: boolean | null;
 };
 
 /**
@@ -15613,9 +15613,9 @@ export type GradingSummaryTermData = {
         /**
          * Include In Progress
          *
-         * Count the current average of unfinished courses
+         * Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)
          */
-        include_in_progress?: boolean;
+        include_in_progress?: boolean | null;
     };
     url: '/terms/{term_id}/grade-summary';
 };

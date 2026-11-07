@@ -539,8 +539,10 @@ class CourseGrade(BaseModel):
 
 class TermSummaryInput(BaseModel):
     term_id: Id = Field(description="Term id")
-    include_in_progress: bool = Field(
-        default=False, description="Count the current average of unfinished courses"
+    include_in_progress: bool | None = Field(
+        default=None,
+        description="Count the current average of unfinished courses; "
+        "omitted follows the Program setting (grading.count_in_progress)",
     )
 
 
@@ -574,8 +576,10 @@ class TermSimulateInput(BaseModel):
         description="Assumed final percentage per unfinished course id; nothing is saved",
     )
     target_gpa: Points | None = Field(default=None, description="Term GPA to aim for")
-    include_in_progress: bool = Field(
-        default=False, description="Count the current average of unfinished courses"
+    include_in_progress: bool | None = Field(
+        default=None,
+        description="Count the current average of unfinished courses; "
+        "omitted follows the Program setting (grading.count_in_progress)",
     )
 
 

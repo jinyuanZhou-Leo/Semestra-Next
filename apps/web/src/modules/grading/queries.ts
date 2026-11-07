@@ -5,7 +5,6 @@ import {
   gradingScaleListPresetsOptions,
   gradingSummaryProgramOptions,
   gradingSummaryTermOptions,
-  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
@@ -16,38 +15,13 @@ export function useGradebook(courseId: string) {
   })
 }
 
-function termGradesOptions(termId: string, includeInProgress: boolean) {
-  return gradingSummaryTermOptions({
-    path: { term_id: termId },
-    query: { include_in_progress: includeInProgress },
-  })
+/** Unfinished courses count as the Program's setting says (the server reads it). */
+function termGradesOptions(termId: string) {
+  return gradingSummaryTermOptions({ path: { term_id: termId } })
 }
 
-export function useTermGrades(termId: string, includeInProgress = false, enabled = true) {
-  return useQuery({
-    ...termGradesOptions(termId, includeInProgress),
-    enabled,
-    placeholderData: keepPreviousData,
-  })
-}
-
-/** The `grading` namespace (M11), resolved for a Program. */
-export type GradingSettings = { count_in_progress: boolean }
-
-const gradingSettingsOptions = (programId: string) =>
-  settingsValueGetOptions({
-    path: { namespace: 'grading' },
-    query: { scope_type: 'program', scope_id: programId },
-  })
-
-export function useGradingSettings(programId: string) {
-  return useQuery({
-    ...gradingSettingsOptions(programId),
-    select: (data): GradingSettings => ({
-      count_in_progress: false,
-      ...(data.values as Partial<GradingSettings>),
-    }),
-  })
+export function useTermGrades(termId: string) {
+  return useQuery({ ...termGradesOptions(termId), placeholderData: keepPreviousData })
 }
 
 /** `PageContribution.prefetch` of the grades page: the gradebook, or the term's summary. */
@@ -57,17 +31,7 @@ export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
       gradingGradebookGetOptions({ path: { course_id: scope.courseId } }),
     )
   } else if (scope.kind === 'term') {
-    const { termId } = scope
-    // The summary's parameters include a setting, which loads alongside.
-    queryClient
-      .fetchQuery(gradingSettingsOptions(scope.programId))
-      .then((data) =>
-        queryClient.prefetchQuery(
-          termGradesOptions(termId, data.values?.count_in_progress === true),
-        ),
-      )
-      // The page reports its own errors.
-      .catch(() => undefined)
+    void queryClient.prefetchQuery(termGradesOptions(scope.termId))
   }
 }
 

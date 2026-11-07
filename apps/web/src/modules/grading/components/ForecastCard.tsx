@@ -72,7 +72,8 @@ export function ForecastCard({
   const { summary: real, scale } = gradebook
   const s = planning ? (planned ?? real) : real
   const categories = new Map(gradebook.categories.map((c) => [c.id, c]))
-  const fromAverage = new Set(real.missing_history_category_ids)
+  // In plan mode assumed scores count as a category's history, so the plan's own list applies.
+  const fromAverage = new Set(s.missing_history_category_ids)
   const data: Datum[] = gradebook.assessments
     .filter((a) => a.score_percentage === null && !a.dropped && a.weight > 0)
     .toSorted((a, b) => a.position - b.position)
