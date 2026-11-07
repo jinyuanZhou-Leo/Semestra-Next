@@ -2,12 +2,11 @@ import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
-import { TODAY_BANNERS } from '@/modules/schedule/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { CalendarMark, CalendarOpenLabel } from './components/CalendarMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
-import { LmsTermNewAssignmentsBanner } from './components/LmsNewAssignmentsBanner'
+import { NewAssignmentsToast } from './components/NewAssignmentsToast'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
@@ -39,6 +38,7 @@ export default defineModule({
   name: m.lms_name,
   description: m.lms_description,
   icon: School,
+  overlays: [NewAssignmentsToast],
   settingsSections: [
     {
       id: 'lms-connections',
@@ -114,11 +114,11 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
-    [TODAY_BANNERS]: [{ id: 'lms.newAssignments', component: LmsTermNewAssignmentsBanner }],
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: TaskSubmission },
     ] satisfies TaskDetailSection[],
   },
+  uiPrefPrefixes: ['lms.'],
   realtimeInvalidations: {
     ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),
     ...Object.fromEntries(STATE_EVENTS.map((event) => [event, LMS_STATE_QUERIES])),

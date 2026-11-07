@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatTime } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { isoDay } from '@/lib/day'
 import { localDay } from '@/modules/schedule/time'
@@ -114,6 +114,7 @@ export function TaskDetail({
   const source = task.source_kind && task.source_kind !== 'manual' ? task.source_kind : null
   // An assessment's task follows it: its title, due date and course change in the gradebook.
   const managed = task.assessment_id !== null
+  const taskCourse = courses.find((c) => c.id === task.course_id)
   const sections = useExtensions<TaskDetailSection>(TASK_DETAIL_SECTIONS)
   const listName = (list: TaskList) => list.name
   return (
@@ -124,15 +125,19 @@ export function TaskDetail({
           <SheetDescription className="sr-only">{task.title}</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 p-4 pt-0">
-          <Input
-            aria-label={m.tasks_title_label()}
-            className="h-9 text-base font-medium"
-            value={draft.title}
-            maxLength={300}
-            aria-invalid={!valid}
-            readOnly={managed}
-            onChange={(event) => set('title', event.target.value)}
-          />
+          {managed ? (
+            // Title, due date and course follow the assessment: shown, changed in the gradebook.
+            <p className="text-base font-medium">{task.title}</p>
+          ) : (
+            <Input
+              aria-label={m.tasks_title_label()}
+              className="h-9 text-base font-medium"
+              value={draft.title}
+              maxLength={300}
+              aria-invalid={!valid}
+              onChange={(event) => set('title', event.target.value)}
+            />
+          )}
           <Field>
             <FieldLabel htmlFor="task-notes">{m.tasks_notes_label()}</FieldLabel>
             <Textarea
@@ -144,62 +149,69 @@ export function TaskDetail({
               onChange={(event) => set('notes', event.target.value)}
             />
           </Field>
-          <Field>
-            <FieldLabel>{m.tasks_due_label()}</FieldLabel>
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger
-                  disabled={managed}
-                  render={<Button variant="outline" className="flex-1 justify-start font-normal" />}
-                >
-                  <CalendarDays aria-hidden />
-                  {draft.due_date ? formatDate(localDay(draft.due_date)) : m.tasks_due_none()}
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    {...calendarLocale()}
-                    mode="single"
-                    selected={draft.due_date ? localDay(draft.due_date) : undefined}
-                    defaultMonth={draft.due_date ? localDay(draft.due_date) : undefined}
-                    onSelect={(date) => set('due_date', date ? isoDay(date) : null)}
-                  />
-                </PopoverContent>
-              </Popover>
-              <InputGroup
-                className="w-32 shrink-0"
-                data-disabled={managed || !draft.due_date || undefined}
-              >
-                <InputGroupInput
-                  type="time"
-                  aria-label={m.tasks_due_time_label()}
-                  className={TIME_INPUT}
-                  disabled={managed || !draft.due_date}
-                  value={draft.due_time ?? ''}
-                  onChange={(event) => set('due_time', event.target.value || null)}
-                />
-                <InputGroupAddon>
-                  <Clock2 aria-hidden />
-                </InputGroupAddon>
-              </InputGroup>
-              {draft.due_date && !managed ? (
-                <Tooltip>
-                  <TooltipTrigger
+          {managed ? (
+            <Field>
+              <FieldLabel>{m.tasks_due_label()}</FieldLabel>
+              <p className="text-sm">{dueText(task)}</p>
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel>{m.tasks_due_label()}</FieldLabel>
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger
                     render={
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={m.tasks_due_clear()}
-                        onClick={() => setDraft((c) => ({ ...c, due_date: null, due_time: null }))}
-                      />
+                      <Button variant="outline" className="flex-1 justify-start font-normal" />
                     }
                   >
-                    <X aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent>{m.tasks_due_clear()}</TooltipContent>
-                </Tooltip>
-              ) : null}
-            </div>
-          </Field>
+                    <CalendarDays aria-hidden />
+                    {draft.due_date ? formatDate(localDay(draft.due_date)) : m.tasks_due_none()}
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      {...calendarLocale()}
+                      mode="single"
+                      selected={draft.due_date ? localDay(draft.due_date) : undefined}
+                      defaultMonth={draft.due_date ? localDay(draft.due_date) : undefined}
+                      onSelect={(date) => set('due_date', date ? isoDay(date) : null)}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <InputGroup className="w-32 shrink-0" data-disabled={!draft.due_date || undefined}>
+                  <InputGroupInput
+                    type="time"
+                    aria-label={m.tasks_due_time_label()}
+                    className={TIME_INPUT}
+                    disabled={!draft.due_date}
+                    value={draft.due_time ?? ''}
+                    onChange={(event) => set('due_time', event.target.value || null)}
+                  />
+                  <InputGroupAddon>
+                    <Clock2 aria-hidden />
+                  </InputGroupAddon>
+                </InputGroup>
+                {draft.due_date ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={m.tasks_due_clear()}
+                          onClick={() =>
+                            setDraft((c) => ({ ...c, due_date: null, due_time: null }))
+                          }
+                        />
+                      }
+                    >
+                      <X aria-hidden />
+                    </TooltipTrigger>
+                    <TooltipContent>{m.tasks_due_clear()}</TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </div>
+            </Field>
+          )}
           <Field>
             <FieldLabel>{m.tasks_priority_field()}</FieldLabel>
             <ToggleGroup
@@ -254,43 +266,49 @@ export function TaskDetail({
               </SelectContent>
             </Select>
           </Field>
-          <Field>
-            <FieldLabel htmlFor="task-course">{m.tasks_course_label()}</FieldLabel>
-            <Select
-              value={draft.course_id}
-              disabled={managed}
-              onValueChange={(value) => set('course_id', value)}
-              items={[
-                { value: null, label: m.tasks_course_none() },
-                ...courses.map((c) => ({ value: c.id, label: courseLabel(c) })),
-              ]}
-            >
-              <SelectTrigger id="task-course" className="w-full">
-                <SelectValue>
-                  {(value: string | null) => {
-                    const selected = courses.find((c) => c.id === value)
-                    return selected ? <CourseOption course={selected} /> : m.tasks_course_none()
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value={null}>{m.tasks_course_none()}</SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <CourseOption course={c} />
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
+          {managed ? (
+            <Field>
+              <FieldLabel>{m.tasks_course_label()}</FieldLabel>
+              <p className="flex items-center gap-2 text-sm">
+                {taskCourse ? <CourseOption course={taskCourse} /> : m.tasks_course_none()}
+              </p>
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="task-course">{m.tasks_course_label()}</FieldLabel>
+              <Select
+                value={draft.course_id}
+                onValueChange={(value) => set('course_id', value)}
+                items={[
+                  { value: null, label: m.tasks_course_none() },
+                  ...courses.map((c) => ({ value: c.id, label: courseLabel(c) })),
+                ]}
+              >
+                <SelectTrigger id="task-course" className="w-full">
+                  <SelectValue>
+                    {(value: string | null) => {
+                      const selected = courses.find((c) => c.id === value)
+                      return selected ? <CourseOption course={selected} /> : m.tasks_course_none()
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={null}>{m.tasks_course_none()}</SelectItem>
+                    {courses.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <CourseOption course={c} />
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           {sections.map(({ id, Component }) => (
             <Component key={id} task={task} onClose={onClose} />
           ))}
-          {managed ? (
-            <p className="text-xs text-muted-foreground">{m.tasks_managed_note()}</p>
-          ) : source ? (
+          {!managed && source ? (
             <p className="text-xs text-muted-foreground">
               {m.tasks_source({ source: SOURCE_NAMES[source]?.() ?? source })}
             </p>
@@ -325,6 +343,13 @@ export function TaskDetail({
       </SheetContent>
     </Sheet>
   )
+}
+
+/** An assessment's due date and time, as text. */
+function dueText({ due_date, due_time }: Pick<Task, 'due_date' | 'due_time'>): string {
+  if (!due_date) return m.tasks_due_none()
+  const day = formatDate(localDay(due_date))
+  return due_time ? `${day} ${formatTime(new Date(`${due_date}T${due_time}`))}` : day
 }
 
 /** A course with its color dot, centered on the text in the list and in the field. */

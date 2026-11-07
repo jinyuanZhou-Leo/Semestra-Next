@@ -379,10 +379,12 @@ test("an assessment's task keeps its title, date and course, and shows its grade
   )
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
   const sheet = await screen.findByRole('dialog', { name: 'Details' })
-  expect((within(sheet).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).readOnly).toBe(
-    true,
-  )
-  expect(within(sheet).getByRole('combobox', { name: 'Course' })).toHaveProperty('disabled', true)
+  // Title, due date and course follow the assessment: plain text, not fields.
+  expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(
+    within(sheet).getByText('APS105H1 · Final exam', { selector: '.font-medium' }),
+  ).toBeVisible()
+  expect(within(sheet).queryByRole('combobox', { name: 'Course' })).toBeNull()
   // The assessment it belongs to: category, weight, score, and its row in the gradebook.
   expect(await within(sheet).findByText('Exam · 60% of the grade · Not graded')).toBeTruthy()
   expect(within(sheet).getByText('Open').closest('a')?.getAttribute('href')).toBe(

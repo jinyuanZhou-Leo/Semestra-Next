@@ -5,6 +5,6 @@
 
 <!-- area: canvas -->
 <!-- en -->
-The Canvas tab and the Today page point out new Canvas assignments, ready to import.
+A notification points out new Canvas assignments, with one click to import or ignore them.
 <!-- zh -->
-Canvas 页签和今天页会提示 Canvas 上的新作业，可直接导入。
+Canvas 上有新作业时会弹出通知，可一键导入或忽略。

@@ -1,9 +1,5 @@
-import type { AssignmentOut, Quiz } from '@semestra/api-client'
-import {
-  lmsAssignmentListOptions,
-  lmsQuizListOptions,
-  tasksItemQueryOptions,
-} from '@semestra/api-client/react-query'
+import type { AssignmentOut, Quiz, Task } from '@semestra/api-client'
+import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -19,7 +15,6 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   ChevronDown,
   ChevronRight,
   ClipboardList,
@@ -30,6 +25,7 @@ import {
   ListChecks,
   Lock,
   MessagesSquare,
+  NotebookPen,
   Search,
   SearchX,
 } from 'lucide-react'
@@ -38,6 +34,7 @@ import { RowMenu } from '@/app/settings'
 import { toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
+import { courseTasksOptions, TaskCheck } from '@/modules/tasks/components/TaskCheck'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -120,14 +117,15 @@ type CellProps = CellContext<typeof features, Row>
  * would not update when only the selection changes.
  */
 type TableState = {
+  courseId: string
   /** Read once, so "due in 3 days" doesn't change between renders. */
   now: number
   selected: RowSelectionState
   /** Rows that can still be imported, in the table's order. */
   selectable: readonly string[]
   setSelected: (ids: readonly string[], on: boolean) => void
-  /** Whether the to-do of what an assignment was imported as is done; null without one. */
-  todoDone: (a: AssignmentOut) => boolean | null
+  /** The to-do of what an assignment was imported as; null without one. */
+  todoOf: (a: AssignmentOut) => Task | null
   /** "Add to gradebook" for an assignment imported as a to-do. */
   toGradebook: (a: AssignmentOut) => void
 }
@@ -215,22 +213,29 @@ function NameCell({ row }: CellProps) {
   )
 }
 
-/** Where an imported assignment is in Semestra: the gradebook, its to-do (ticked once done). */
+/**
+ * Where an imported assignment is in Semestra: its to-do, checked off in place as on the to-do
+ * list, and the gradebook mark when it is an assessment.
+ */
 function InSemestraCell({ row }: CellProps) {
-  const { todoDone } = useTableState()
+  const { todoOf, courseId } = useTableState()
   const a = row.original.assignment
   if (!a.imported_as) return <span className="text-muted-foreground">—</span>
-  const done = todoDone(a)
+  const task = todoOf(a)
   return (
-    <span className="flex flex-wrap items-center gap-1">
+    <span className="flex items-center gap-2">
+      {task ? <TaskCheck task={task} courseId={courseId} /> : null}
       {a.imported_as.kind === 'assessment' ? (
-        <Badge variant="secondary">{m.canvas_tab_in_gradebook()}</Badge>
-      ) : null}
-      {done != null ? (
-        <Badge variant="secondary">
-          {m.canvas_tab_in_tasks()}
-          {done ? <Check aria-label={m.canvas_tab_todo_done()} /> : null}
-        </Badge>
+        <Tooltip>
+          <TooltipTrigger
+            className="inline-flex rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-label={m.canvas_tab_in_gradebook()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <NotebookPen aria-hidden className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>{m.canvas_tab_in_gradebook()}</TooltipContent>
+        </Tooltip>
       ) : null}
     </span>
   )
@@ -473,18 +478,14 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   const { programId, courseId, go, title } = useCanvasPage()
   // The to-dos of the course's imported assignments, for the "In Semestra" column.
   const todos = useQuery({
-    ...tasksItemQueryOptions({
-      path: { program_id: programId },
-      query: { course_id: courseId, completed: 'include', limit: 500 },
-    }),
+    ...courseTasksOptions(programId, courseId),
     select: (page) => {
-      const done = new Map<string, boolean>()
+      const byTarget = new Map<string, Task>()
       for (const t of page.items) {
-        const finished = t.completed_at != null
-        done.set(t.id, finished)
-        if (t.assessment_id) done.set(t.assessment_id, finished)
+        byTarget.set(t.id, t)
+        if (t.assessment_id) byTarget.set(t.assessment_id, t)
       }
-      return done
+      return byTarget
     },
   }).data
   const [sorting, setSorting] = useState<SortingState>([])
@@ -530,6 +531,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   // button says how many.
   const picked = selectable.filter((id) => rowSelection[id])
   const state: TableState = {
+    courseId,
     now,
     selected: rowSelection,
     selectable,
@@ -542,7 +544,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
         }
         return next
       }),
-    todoDone: (a) => (a.imported_as ? (todos?.get(a.imported_as.id) ?? null) : null),
+    todoOf: (a) => (a.imported_as ? (todos?.get(a.imported_as.id) ?? null) : null),
     toGradebook: (a) => {
       addToGradebook(courseId, [a.external_id], m.lms_canvas()).catch(toastError)
     },

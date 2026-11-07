@@ -15,6 +15,10 @@ import { finishImport, openImport } from './launcher'
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   server.use(
+    // No unfinished import to resume (tests override it).
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
     // The upload size limit, and the reading job once a session starts (tests override both).
     http.get(`${API}/files-usage`, () =>
       HttpResponse.json({
@@ -166,7 +170,7 @@ test('unticking an item rejects it', async () => {
   )
 })
 
-test('discarding ends the import', async () => {
+test('discarding a reading by AI asks first, then ends the import', async () => {
   server.use(courses())
   const discard = vi.fn<() => void>()
   server.use(
@@ -178,6 +182,9 @@ test('discarding ends the import', async () => {
   const onDone = vi.fn<(session: ImportSessionDetail | null) => void>()
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={onDone} />)
   await userEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+  const confirm = await screen.findByRole('alertdialog')
+  expect(discard).not.toHaveBeenCalled()
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
   await waitFor(() => expect(onDone).toHaveBeenCalledWith(null))
   expect(discard).toHaveBeenCalled()
 })
@@ -735,4 +742,38 @@ test('reading course info from settings applies only the ticked fields', async (
   await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
   await waitFor(() => expect(onApplied).toHaveBeenCalled())
   expect(commit).toHaveBeenCalledWith({})
+})
+
+test('opening the same import again resumes the one left unfinished', async () => {
+  server.use(
+    courses(),
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({
+        items: [
+          // Another course's import, then this one's.
+          {
+            ...session({ id: 's2', target: { kind: 'course', course_id: 'c2' } }),
+            items: undefined,
+          },
+          { ...session(), items: undefined },
+        ],
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json(session())),
+  )
+  renderWithRouter(
+    <ImportDialog
+      request={{
+        programId: 'p1',
+        source: 'syllabus',
+        target: { kind: 'course', course_id: 'c1' },
+        mode: 'direct',
+      }}
+      onClose={() => {}}
+    />,
+  )
+  // Straight to its review, not the file picker.
+  expect(await screen.findByText('Final exam')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Read' })).toBeNull()
 })

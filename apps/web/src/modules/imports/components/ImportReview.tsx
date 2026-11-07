@@ -17,7 +17,7 @@ import { Badge } from '@/ui/badge'
 import { Checkbox } from '@/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { issueText, itemTitle, itemWhen, itemWeight, TYPE_LABELS } from '../labels'
+import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
 
@@ -47,6 +47,7 @@ const ISSUE_COLUMN: Record<string, Column> = {
   'import.term_unresolved': 'when',
   'import.outside_term': 'when',
   'import.no_teaching_weeks': 'when',
+  'import.weight_missing': 'weight',
   'import.duplicate_course': 'result',
   'import.duplicate_assessment': 'result',
 }
@@ -162,7 +163,6 @@ function NameCell({ row }: CellProps) {
       ) : (
         <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       )}
-      <span className="shrink-0 text-muted-foreground">{TYPE_LABELS[item.type]()}</span>
       <Marked issues={issuesIn(item, 'name')}>
         <span className="truncate font-medium">{itemTitle(item) || '—'}</span>
       </Marked>
@@ -183,6 +183,8 @@ function WeightCell({ row }: CellProps) {
   const { session } = useReview()
   const weight = itemWeight(row.original)
   const text = <span className="tabular-nums">{weight == null ? '—' : `${weight}%`}</span>
+  const issues = issuesIn(row.original, 'weight')
+  if (issues.length > 0) return <Marked issues={issues}>{text}</Marked>
   // A category whose assessments here add up to something else: often only part of it is
   // imported (M08 §6.2), so this is shown, not an issue.
   const short = session.summary.category_weights?.find(
@@ -207,7 +209,7 @@ function destinations(item: ImportItem): string[] {
     case 'course':
       return [m.imports_dest_course()]
     case 'category':
-      return [m.imports_dest_gradebook()]
+      return [m.imports_dest_category()]
     case 'assessment':
       return item.data.due_date
         ? [m.imports_dest_gradebook(), m.imports_dest_tasks()]
@@ -232,16 +234,19 @@ function ResultCell({ row }: CellProps) {
       <Marked issues={[{ code: failed, params: item.result?.error_params ?? {} }]}>{reason}</Marked>
     )
   }
+  const duplicate = item.issues.filter((i) => ISSUE_COLUMN[i.code] === 'result')
+  const exists = duplicate.some((i) => i.code === 'import.duplicate_course')
+    ? m.imports_dest_exists_course()
+    : m.imports_dest_exists_assessment()
   if (item.decision !== 'accept') {
-    return <span className="text-muted-foreground">{m.imports_dest_skipped()}</span>
+    // A duplicate starts unticked (M08 §5): why it is skipped, marked once it is ticked.
+    return (
+      <span className="text-muted-foreground">
+        {duplicate.length > 0 ? exists : m.imports_dest_skipped()}
+      </span>
+    )
   }
-  const issues = issuesIn(item, 'result')
-  if (issues.length > 0) {
-    const exists = issues.some((i) => i.code === 'import.duplicate_course')
-      ? m.imports_dest_exists_course()
-      : m.imports_dest_exists_assessment()
-    return <Marked issues={issues}>{exists}</Marked>
-  }
+  if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
     <span className="flex items-center gap-1">

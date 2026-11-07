@@ -19,7 +19,6 @@ import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/lib/now'
 import { cn } from '@/lib/utils'
-import { LmsNewAssignmentsBanner } from '@/modules/lms/components/LmsNewAssignmentsBanner'
 import { LmsUpdatesBanner } from '@/modules/lms/components/LmsUpdatesBanner'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
@@ -109,7 +108,6 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
           {(data) => (
             <>
               <LmsUpdatesBanner programId={programId} courseId={courseId} />
-              <LmsNewAssignmentsBanner courseId={courseId} />
               <Body
                 overview={data}
                 location={location}

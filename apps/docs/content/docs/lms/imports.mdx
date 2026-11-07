@@ -4,8 +4,10 @@ description: Bring Canvas courses, assignments and syllabi into Semestra.
 ---
 
 Course and syllabus imports open a review first and write nothing until you confirm. Assignment
-imports are saved right away when there is nothing for you to decide; only a conflict (such as an
-assessment of the same name already in the gradebook) opens the review.
+imports are saved right away when there is nothing for you to decide; an assessment of the same
+name already in the gradebook, or an assessment without a weight, opens the review. Assignments
+already in the gradebook start unticked there, marked as such, and are imported only if you tick
+them.
 
 ## Courses
 
@@ -22,11 +24,12 @@ Either from a course's **Grades** page (open **Add** and choose the Canvas assig
 **From existing material**), or from **Assignments & grades** in the Canvas tab: tick
 assignments and choose **Import**. Assignments worth points become gradebook assessments (with a
 to-do when they have a due date); assignments worth no points become to-dos. The **In Semestra**
-column shows where each assignment is, **Gradebook** and **To-do**, with a check once the to-do is
-done.
+column shows the assignment's to-do, which you can check off right there, and a gradebook icon for
+assignments in the gradebook.
 
-The Canvas tab and the **Today** page point out "N new assignments on Canvas" (not imported yet
-and not past due); choose **Import** to bring them in at once.
+When you open a program whose current-term courses have new assignments on Canvas (not imported
+yet and not past due), a notification says "N new assignments on Canvas": **Import** brings them
+in at once, and **Ignore** stops reminding you of these until new ones appear.
 
 An assignment that is only a to-do can be moved with **Add to gradebook** in its row menu: it
 becomes an assessment and keeps its to-do.
@@ -36,7 +39,7 @@ becomes an assessment and keeps its to-do.
   note.
 - Weights come from Canvas assignment groups: an assessment's weight is its group's weight times
   its share of the group's points. When the course does not weight groups, the weight is left
-  empty for you to fill in.
+  empty for you to fill in during the review.
 - A grade you already have on Canvas comes along as the assessment's score (points earned of
   points possible).
 - Each assignment is one thing in Semestra: an assessment (with its to-do) or a to-do.

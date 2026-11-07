@@ -817,7 +817,8 @@ function WeekDayHeader({ arg }: { arg: DayHeaderInfo }) {
 
 // A round check like a reminder's: a primary ring, filled with a dot once done.
 // The to-do list's round check (`task-check`), sized for a calendar line.
-const CHECK = 'task-check size-3.5 rounded-full [&_svg]:size-2.5!'
+// An opaque circle, so the course color under it doesn't tint the empty check.
+const CHECK = 'task-check size-3.5 rounded-full bg-background [&_svg]:size-2.5!'
 
 /** Checks an item off in place; clicks on it do not open the details (see `eventClick`). */
 function Check({ o, onToggle }: { o: Occurrence; onToggle: (completed: boolean) => void }) {
@@ -913,7 +914,10 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
         {arg.timeText && arg.view.type === 'dayGridMonth' ? (
           <span className="text-muted-foreground">{arg.timeText}</span>
         ) : null}
-        {dueTime ? <span className="text-muted-foreground tabular-nums">{dueTime}</span> : null}
+        {/* The week's all-day row lists the day's deadlines; their times are in the details. */}
+        {dueTime && arg.view.type !== 'timeGridWeek' ? (
+          <span className="text-muted-foreground tabular-nums">{dueTime}</span>
+        ) : null}
         <span className="truncate">{o.title}</span>
         {mark}
       </span>

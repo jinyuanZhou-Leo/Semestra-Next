@@ -179,7 +179,9 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ### 7.2 导入流程
 - 学期向导、学期页和 Program 页的"从 LMS 导入课程"：勾选外部课程（默认只显示当前学期，可切换显示全部），选择目标学期，进入 M08 审核，提交后课程与关联同时创建。
 - 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。
-- 新作业提示 `LmsNewAssignmentsBanner`（Canvas Tab）与 `LmsTermNewAssignmentsBanner`（今天页，M04 扩展点 `schedule.todayBanners`）："Canvas 上有 N 个新作业 · 导入"。
+- 新作业提醒 `NewAssignmentsToast`（manifest `overlays`，不占页面空间，owner 2026-11-07）：在学业项目里时读当前学期的 `lms.term.new_assignments`（只读缓存，没缓存的课程列在 `unread`，由前端并行读 `lms.assignment.list` 补上），有新作业时弹出一次 toast「Canvas 上有 N 个新作业」，按钮「导入」（逐门课 `importAssignments`，需要决定的先打开审核）与「忽略」（把当前所有新作业的 `课程id:作业id` 写进 `useUiPref('lms.newAssignmentsIgnored', scope=programId)`，之后只有新出现的作业会再提醒）。`lmsTermNewAssignments` 属于 `LMS_STATE_QUERIES`。Canvas 页签里不再有横幅。
+- 未设置作业组权重的课程：导入的考核没有权重，带 `import.weight_missing`，所以会打开审核让用户填写（不按分值占比推算：课程总分变化后占比就过时了）。
+- 提交检测的小时轮询只看截止在 14 天内（`submissions.LATE_WINDOW`）或之后的已导入作业，没有截止日期的不查；打开课程的作业列表时照常检测。
 - 更新提示条（成绩页与 Canvas Tab 共用组件 `<LmsUpdatesBanner courseId>`，由本模块导出）。
 
 ## 8. Agent 集成

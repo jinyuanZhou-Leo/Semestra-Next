@@ -111,6 +111,7 @@ const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
   'import.outside_term': m.imports_issue_weeks,
   'import.no_teaching_weeks': m.imports_issue_weeks,
   'import.course_ref_missing': m.imports_issue_refs,
+  'import.weight_missing': m.imports_issue_weights_missing,
 }
 
 /** "3 dates to check · weights don't add up" for the accepted items, or null without issues. */

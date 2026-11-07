@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import { AiAction } from '@/components/AiAction'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ import { issueSummary } from '../labels'
 import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
+import { useWorthKeeping } from './worth-keeping'
 
 /** How long the finished check shows before the review replaces the extraction. */
 export const SUCCESS_HOLD_MS = 1000
@@ -96,6 +98,8 @@ export function SessionView({
   const [submitting, setSubmitting] = useState(false)
   const commit = useMutation({ ...importsSessionCommitMutation(), onError: toastError })
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
+  const keep = useWorthKeeping(session)
+  const [confirming, setConfirming] = useState(false)
 
   if (session.status === 'extracting') {
     return (
@@ -234,10 +238,19 @@ export function SessionView({
               variant="destructive"
               className="mr-auto"
               disabled={discard.isPending}
-              onClick={runDiscard}
+              onClick={() => (keep ? setConfirming(true) : runDiscard())}
             >
               {m.imports_discard()}
             </Button>
+            <ConfirmDialog
+              open={confirming}
+              onOpenChange={setConfirming}
+              title={m.imports_discard_title()}
+              description={m.imports_discard_description()}
+              confirmLabel={m.imports_discard()}
+              pending={discard.isPending}
+              onConfirm={runDiscard}
+            />
             {issues ? <p className="text-sm text-destructive">{issues}</p> : null}
             {mode === 'wizard' ? (
               <Button disabled={courses === 0} onClick={() => void addToWizard()}>

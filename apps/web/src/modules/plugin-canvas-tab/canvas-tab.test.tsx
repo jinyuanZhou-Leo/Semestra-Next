@@ -487,8 +487,14 @@ function assignmentHandlers(body: (path: string, body: unknown) => void, committ
     http.get(`${API}/programs/p1/tasks`, () =>
       HttpResponse.json({
         items: [
-          { id: 't2', assessment_id: 'as1', completed_at: '2026-02-01T00:00:00Z' },
-          { id: 't3', assessment_id: null, completed_at: null },
+          {
+            id: 't2',
+            program_id: 'p1',
+            title: 'Lab 2',
+            assessment_id: 'as1',
+            completed_at: '2026-02-01T00:00:00Z',
+          },
+          { id: 't3', program_id: 'p1', title: 'Reading', assessment_id: null, completed_at: null },
         ],
         next_cursor: null,
       }),
@@ -513,9 +519,13 @@ test('ticked assignments are imported at once when nothing needs a decision', as
   expect(await screen.findByText('Weight 20%')).toBeInTheDocument()
   // An imported row says where it is in Semestra and cannot be ticked again.
   const lab2 = screen.getByText('Lab 2').closest('tr')!
-  expect(within(lab2).getByText('Gradebook')).toBeInTheDocument()
-  expect(await within(lab2).findByLabelText('Done')).toBeInTheDocument()
-  expect(within(lab2).getByRole('checkbox')).toHaveAttribute('aria-disabled', 'true')
+  expect(within(lab2).getByLabelText('In gradebook')).toBeInTheDocument()
+  // Its to-do, done, checked off as on the to-do list.
+  expect(await within(lab2).findByRole('checkbox', { name: 'Complete Lab 2' })).toBeChecked()
+  expect(within(lab2).getByRole('checkbox', { name: 'Select Lab 2' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
   const importButton = screen.getByRole('button', { name: 'Import' })
   expect(importButton).toBeDisabled()
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 1' }))
@@ -529,7 +539,10 @@ test('an import that needs a decision opens the review, and a to-do can join the
   server.use(...assignmentHandlers(body, false))
   renderPage('/?tab=assignments')
   const reading = (await screen.findByText('Reading')).closest('tr')!
-  expect(await within(reading).findByText('To-do')).toBeInTheDocument()
+  expect(
+    await within(reading).findByRole('checkbox', { name: 'Complete Reading' }),
+  ).not.toBeChecked()
+  expect(within(reading).queryByLabelText('In gradebook')).toBeNull()
   await userEvent.click(within(reading).getByRole('button', { name: 'More for Reading' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to gradebook' }))
   await waitFor(() => expect(body).toHaveBeenCalledWith('gradebook', { external_ids: ['x3'] }))

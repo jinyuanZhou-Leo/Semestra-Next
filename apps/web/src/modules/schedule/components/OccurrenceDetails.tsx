@@ -88,6 +88,38 @@ export function OccurrenceDetails({
   const busy = cancel.isPending || restore.isPending
   const conflicts = o.meta?.conflicts_with?.length ?? 0
 
+  const badges = [
+    o.type_code ? (
+      <Badge key="type" variant="outline">
+        {o.type_code}
+      </Badge>
+    ) : null,
+    o.meta?.section_code ? (
+      <Badge key="section" variant="outline">
+        {o.meta.section_code}
+      </Badge>
+    ) : null,
+    o.status === 'cancelled' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_cancelled()}
+      </Badge>
+    ) : null,
+    o.status === 'moved' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_moved()}
+      </Badge>
+    ) : null,
+    o.status === 'done' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_done()}
+      </Badge>
+    ) : null,
+    o.status === 'overdue' ? (
+      <Badge key="status" variant="destructive">
+        {m.schedule_status_overdue()}
+      </Badge>
+    ) : null,
+  ].filter((badge) => badge !== null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -106,28 +138,7 @@ export function OccurrenceDetails({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {source ? (
-              <Badge variant="outline">
-                {source.Mark ? <source.Mark programId={programId} /> : null}
-                {source.label()}
-              </Badge>
-            ) : null}
-            {o.type_code ? <Badge variant="outline">{o.type_code}</Badge> : null}
-            {o.meta?.section_code ? <Badge variant="outline">{o.meta.section_code}</Badge> : null}
-            {o.status === 'cancelled' ? (
-              <Badge variant="secondary">{m.schedule_status_cancelled()}</Badge>
-            ) : null}
-            {o.status === 'moved' ? (
-              <Badge variant="secondary">{m.schedule_status_moved()}</Badge>
-            ) : null}
-            {o.status === 'done' ? (
-              <Badge variant="secondary">{m.schedule_status_done()}</Badge>
-            ) : null}
-            {o.status === 'overdue' ? (
-              <Badge variant="destructive">{m.schedule_status_overdue()}</Badge>
-            ) : null}
-          </div>
+          {badges.length > 0 ? <div className="flex flex-wrap gap-1.5">{badges}</div> : null}
           {course ? (
             <p className="font-medium">
               {courseLabel(course)} · {course.title}

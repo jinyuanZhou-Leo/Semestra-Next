@@ -116,6 +116,7 @@ export const errorMessages = {
   error_import_target_unavailable: m.error_import_target_unavailable,
   error_import_term_unresolved: m.error_import_term_unresolved,
   error_import_upload_not_filed: m.error_import_upload_not_filed,
+  error_import_weight_missing: m.error_import_weight_missing,
   error_lms_assignment_already_imported: m.error_lms_assignment_already_imported,
   error_lms_blocked_address: m.error_lms_blocked_address,
   error_lms_connection_in_use: m.error_lms_connection_in_use,
