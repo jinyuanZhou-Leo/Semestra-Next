@@ -76,7 +76,7 @@ export default defineModule({
     {
       id: 'files',
       level: 'program',
-      group: 'data',
+      group: 'files',
       title: m.files_settings_title,
       icon: FileSearch,
       order: 10,
@@ -85,10 +85,10 @@ export default defineModule({
     {
       id: 'course-files',
       level: 'course',
-      group: 'general',
+      group: 'files',
       title: m.files_settings_title,
       icon: FileSearch,
-      order: 50,
+      order: 10,
       namespace: 'files',
     },
   ],

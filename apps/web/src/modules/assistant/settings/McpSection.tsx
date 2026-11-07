@@ -74,7 +74,7 @@ export function McpSection() {
         </SettingRow>
         <ActionRow
           icon={KeyRound}
-          onClick={() => settings.open({ level: 'account', group: 'security', section: 'tokens' })}
+          onClick={() => settings.open({ level: 'account', group: 'account', section: 'tokens' })}
         >
           {m.assistant_mcp_tokens()}
         </ActionRow>
@@ -149,9 +149,7 @@ export function McpPermissionsSection() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
-              settings.open({ level: 'account', group: 'security', section: 'tokens' })
-            }
+            onClick={() => settings.open({ level: 'account', group: 'account', section: 'tokens' })}
           >
             <KeyRound aria-hidden />
             {m.assistant_mcp_manage_tokens()}

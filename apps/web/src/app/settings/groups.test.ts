@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest'
 import type { SettingsSectionContribution } from '../extensions'
-import { buildNavigation, clusterNavigation, groupOf, isNavigable } from './groups'
+import {
+  buildNavigation,
+  clusterNavigation,
+  groupOf,
+  isNavigable,
+  resolveGroupAlias,
+} from './groups'
 
 function section(
   id: string,
@@ -26,8 +32,8 @@ test('groups follow the fixed navigation order and sections follow their order',
   expect(groups[1]!.sections.map((s) => s.id)).toEqual(['a', 'b'])
 })
 
-test('sections without a group go to Features (account) or General (scoped levels)', () => {
-  expect(groupOf(section('a'))).toBe('features')
+test('sections without a group go to General', () => {
+  expect(groupOf(section('a'))).toBe('general')
   expect(groupOf(section('a', { level: 'program' }))).toBe('general')
   expect(groupOf(section('a', { group: 'data' }))).toBe('data')
 })
@@ -49,7 +55,7 @@ test('account groups are clustered under headings; scoped levels stay one run', 
   const account = buildNavigation(
     [
       section('p', { group: 'account' }),
-      section('s', { group: 'security' }),
+      section('s', { group: 'preferences' }),
       section('m', { group: 'ai-models' }),
       section('u', { group: 'ai-usage' }),
       section('c', { group: 'calendar' }),
@@ -60,9 +66,8 @@ test('account groups are clustered under headings; scoped levels stay one run', 
   expect(
     clusterNavigation(account, 'account').map((r) => [r.cluster, r.groups.map((g) => g.id)]),
   ).toEqual([
-    ['personal', ['account', 'security']],
+    ['personal', ['account', 'preferences', 'calendar']],
     ['ai', ['ai-models', 'ai-usage']],
-    ['features', ['calendar']],
     ['system', ['about']],
   ])
   const program = buildNavigation(
@@ -71,4 +76,12 @@ test('account groups are clustered under headings; scoped levels stay one run', 
   )
   expect(clusterNavigation(program, 'program')).toEqual([{ groups: program }])
   expect(clusterNavigation([], 'program')).toEqual([])
+})
+
+test('old group ids open the group that replaced them; Data is Files below the account', () => {
+  expect(resolveGroupAlias('account', 'security')).toBe('account')
+  expect(resolveGroupAlias('account', 'ai-mcp')).toBe('integrations')
+  expect(resolveGroupAlias('account', 'data')).toBe('data')
+  expect(resolveGroupAlias('program', 'data')).toBe('files')
+  expect(resolveGroupAlias('program', 'features')).toBe('tasks')
 })

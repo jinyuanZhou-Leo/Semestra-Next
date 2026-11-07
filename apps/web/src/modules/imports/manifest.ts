@@ -42,7 +42,7 @@ export default defineModule({
     {
       id: 'import-history',
       level: 'program',
-      group: 'data',
+      group: 'files',
       title: m.imports_history,
       description: m.imports_history_description,
       icon: History,
