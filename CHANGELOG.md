@@ -3,6 +3,24 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.15.0 (2026-11-06)
+
+### New
+
+- **Terms & courses:** Switching to another course now keeps the open tab; turn this off in Settings → Preferences → Navigation.
+- **Canvas:** The Canvas tab can show pages, announcements, assignment descriptions and the syllabus in Canvas style, with a default display setting and a switch on the page.
+
+### Improved
+
+- **Files:** PDF previews scroll continuously through the whole document.
+- **Files:** A term's files page shows each course as a folder, with one upload button for the open course.
+
+### Fixed
+
+- **General:** The status bar no longer reports background tasks that finished together as failed.
+- **General:** The Semestra icon now appears on browser tabs.
+- **Grades:** Grade breakdown details now appear below the chart instead of covering it, and the weight total warning is gone.
+
 ## 1.14.1 (2026-11-06)
 
 ### Fixed
