@@ -19,7 +19,6 @@ import {
 import type { ReactNode } from 'react'
 import { useCalendarSources } from '@/app/registry'
 import { toastError } from '@/lib/errors'
-import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -139,11 +138,8 @@ export function OccurrenceDetails({
         </DialogHeader>
         <div className="space-y-2">
           {badges.length > 0 ? <div className="flex flex-wrap gap-1.5">{badges}</div> : null}
-          {course ? (
-            <p className="font-medium">
-              {courseLabel(course)} · {course.title}
-            </p>
-          ) : null}
+          {/* Titles start with the course code already: the line gives its name. */}
+          {course ? <p className="font-medium">{course.title}</p> : null}
           {o.location ? <Line icon={MapPin}>{o.location}</Line> : null}
           {o.meta?.instructor ? <Line icon={User}>{o.meta.instructor}</Line> : null}
           {conflicts > 0 ? (
@@ -231,9 +227,9 @@ export function OccurrenceDetails({
                 source.onOpen?.(o, (to) => router.history.push(to), { programId })
               }}
             >
-              <ExternalLink aria-hidden />
+              {source.openIcon ? <source.openIcon aria-hidden /> : <ExternalLink aria-hidden />}
               {source.OpenLabel ? (
-                <source.OpenLabel programId={programId} />
+                <source.OpenLabel programId={programId} occurrence={o} />
               ) : (
                 m.schedule_open_source()
               )}

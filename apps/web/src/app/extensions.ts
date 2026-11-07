@@ -315,7 +315,9 @@ export type CalendarSourceContribution = {
    */
   Mark?: ComponentType<{ programId: string }>
   /** The text of `onOpen` in the details, e.g. "Open in Canvas" (default "Open source"). */
-  OpenLabel?: ComponentType<{ programId: string }>
+  OpenLabel?: ComponentType<{ programId: string; occurrence: Occurrence }>
+  /** The icon of `onOpen`: the default (an external link) is for a source opened outside the app. */
+  openIcon?: LucideIcon
   /** "Open" in the occurrence's details; without it the details have no open action. */
   onOpen?: (
     occurrence: Occurrence,

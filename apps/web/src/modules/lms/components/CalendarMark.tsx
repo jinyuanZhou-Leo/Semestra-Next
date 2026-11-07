@@ -1,7 +1,9 @@
+import type { Occurrence } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { School } from 'lucide-react'
 import { m } from '@/paraglide/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useProviderName, useProviderUis } from '../providers'
 
 function useProvider(programId: string) {
@@ -18,14 +20,17 @@ export function CalendarMark({ programId }: { programId: string }) {
   const { name, ui } = useProvider(programId)
   const Logo = ui?.logo ?? School
   return (
-    <span title={name} className="inline-flex shrink-0">
-      <Logo aria-hidden className="size-3" />
-      <span className="sr-only">{name}</span>
-    </span>
+    <Tooltip>
+      <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
+        <Logo aria-hidden className="size-3" />
+        <span className="sr-only">{name}</span>
+      </TooltipTrigger>
+      <TooltipContent>{name}</TooltipContent>
+    </Tooltip>
   )
 }
 
 /** "Open in Canvas" in a platform event's details (`calendarSources` `OpenLabel`). */
-export function CalendarOpenLabel({ programId }: { programId: string }) {
+export function CalendarOpenLabel({ programId }: { programId: string; occurrence: Occurrence }) {
   return m.lms_open_in({ provider: useProvider(programId).name })
 }

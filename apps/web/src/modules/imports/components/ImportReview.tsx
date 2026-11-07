@@ -13,7 +13,6 @@ import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Checkbox } from '@/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -203,25 +202,23 @@ function WeightCell({ row }: CellProps) {
   )
 }
 
-/** Where an item goes once imported (an assessment brings its to-do along when it is dated). */
-function destinations(item: ImportItem): string[] {
+/** Where an item goes once imported; a dated assessment brings its to-do along unsaid. */
+function destination(item: ImportItem): string {
   switch (item.type) {
     case 'course':
-      return [m.imports_dest_course()]
+      return m.imports_dest_course()
     case 'category':
-      return [m.imports_dest_category()]
+      return m.imports_dest_category()
     case 'assessment':
-      return item.data.due_date
-        ? [m.imports_dest_gradebook(), m.imports_dest_tasks()]
-        : [m.imports_dest_gradebook()]
+      return m.imports_dest_gradebook()
     case 'meeting':
-      return [m.imports_dest_timetable()]
+      return m.imports_dest_timetable()
     case 'event':
-      return [m.imports_dest_calendar()]
+      return m.imports_dest_calendar()
     case 'task':
-      return [m.imports_dest_tasks()]
+      return m.imports_dest_tasks()
     default:
-      return [m.imports_dest_update()]
+      return m.imports_dest_update()
   }
 }
 
@@ -239,25 +236,18 @@ function ResultCell({ row }: CellProps) {
     ? m.imports_dest_exists_course()
     : m.imports_dest_exists_assessment()
   if (item.decision !== 'accept') {
-    // A duplicate starts unticked (M08 §5): why it is skipped, marked once it is ticked.
-    return (
-      <span className="text-muted-foreground">
-        {duplicate.length > 0 ? exists : m.imports_dest_skipped()}
-      </span>
-    )
+    // A duplicate starts unticked (M08 §5): why it is skipped, marked once it is ticked. Any
+    // other unticked row says nothing; its empty box does.
+    return duplicate.length > 0 ? <span className="text-muted-foreground">{exists}</span> : null
   }
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1 text-muted-foreground">
       {done ? (
         <CircleCheck aria-label={m.imports_row_done()} className="size-4 shrink-0 text-success" />
       ) : null}
-      {destinations(item).map((label) => (
-        <Badge key={label} variant="secondary">
-          {label}
-        </Badge>
-      ))}
+      {destination(item)}
     </span>
   )
 }
@@ -288,16 +278,22 @@ function WeightTotal({
 }) {
   const total = session.summary.weights?.find((w) => w.course_ref === key)
   if (!total) return null
+  const className = cn(
+    'shrink-0 text-xs font-normal tabular-nums',
+    total.ok ? 'text-muted-foreground' : 'text-warning',
+  )
+  const text = m.imports_weights_total({ total: total.total })
+  if (total.existing === 0) return <span className={className}>{text}</span>
+  // The gradebook's own assessments count too: said on hover.
+  const existing = m.imports_weights_existing({ count: total.existing })
   return (
-    <span
-      className={cn(
-        'shrink-0 text-xs font-normal tabular-nums',
-        total.ok ? 'text-muted-foreground' : 'text-warning',
-      )}
-    >
-      {m.imports_weights_total({ total: total.total })}
-      {total.existing > 0 ? m.imports_weights_existing({ count: total.existing }) : null}
-    </span>
+    <Tooltip>
+      <TooltipTrigger render={<span className={className} />}>
+        {text}
+        <span className="sr-only">{existing}</span>
+      </TooltipTrigger>
+      <TooltipContent>{existing}</TooltipContent>
+    </Tooltip>
   )
 }
 

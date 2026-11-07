@@ -120,8 +120,10 @@ test('the review groups items by course, marks problems on their cell and opens 
   )
   expect(await screen.findByText('1 dates to check')).toBeInTheDocument()
   expect(await screen.findByText('MAT137Y1 · Calculus')).toBeInTheDocument()
-  // The total counts what the gradebook already has.
-  expect(screen.getByText(/Weights total 105%/)).toHaveTextContent('(incl. 1 in the gradebook)')
+  // The total counts what the gradebook already has, said on hover.
+  expect(screen.getByText(/Weights total 105%/)).toHaveTextContent(
+    'Includes 1 already in the gradebook',
+  )
   // The undated midterm is marked on its date cell.
   const midterm = screen.getByText('Midterm').closest('tr')!
   expect(within(midterm).getByText("Couldn't work out the date “Week 7”")).toBeInTheDocument()

@@ -968,6 +968,31 @@ async def test_a_terms_new_assignments_come_from_the_cache(api: Api):
     ]
 
 
+async def test_importing_again_resumes_the_import_waiting_for_review(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    await api.call("POST", f"/courses/{course}/assessments", json={"title": "Lab 1", "weight": 5})
+    path = f"/courses/{course}/lms/imports:assignments"
+    first = await api.call("POST", path, json={"external_ids": ["a1"]})
+    assert not first["committed"]
+    # Closed and imported again: the same review, with only what is new added to it.
+    again = await api.call("POST", path, json={"external_ids": ["a1"]})
+    assert (again["session_id"], again["count"]) == (first["session_id"], 0)
+    more = await api.call("POST", path, json={"external_ids": ["a1", "a2"]})
+    assert more["session_id"] == first["session_id"]
+    session = await api.call("GET", f"/imports/{first['session_id']}")
+    assert [i["data"]["title"] for i in by_type(session, "assessment")] == ["Lab 1", "Lab 2"]
+    (labs,) = by_type(session, "category")
+    assert {i["data"]["category_ref"] for i in by_type(session, "assessment")} == {
+        f"item:{labs['id']}"
+    }
+    await api.commit(first["session_id"])
+    book = await api.call("GET", f"/courses/{course}/assessments")
+    # The duplicate was left out; Lab 2 joined the course's Labs category.
+    assert sorted(a["title"] for a in book["items"]) == ["Lab 1", "Lab 2"]
+
+
 async def held_for_review(
     api: Api, path: str, external_ids: list[str], *, switch_to_task: bool = False
 ) -> dict[str, Any]:

@@ -83,15 +83,41 @@ async def _fill(
     if not new:
         raise AppError("import.no_content", 422)
     items = await imports.add_items(ctx, row, new)
-    lms_items = {
-        item.id: by_key[n.key] for item, n in zip(items, new, strict=True) if n.key in by_key
-    }
+    ids = {n.key: item.id for item, n in zip(items, new, strict=True) if n.key}
     meta = dict(row.source_meta)
-    meta["lms"] = {**meta.get("lms", {}), "items": lms_items}
+    lms = dict(meta.get("lms", {}))
+    # Added to what a resumed session already holds.
+    lms["items"] = {**lms.get("items", {}), **{ids[k]: v for k, v in by_key.items() if k in ids}}
+    if "groups" in lms:  # Canvas group id -> its category item, for the next resume
+        lms["groups"] = {g: ids.get(ref, ref) for g, ref in lms["groups"].items()}
+    meta["lms"] = lms
     row.source_meta = meta
-    row.source_refs = refs
+    row.source_refs = [*row.source_refs, *refs][:50]
     await ctx.db.flush()
     return ImportStarted(session_id=row.id, program_id=row.program_id, count=len(items))
+
+
+async def _unfinished(ctx: Ctx, link_id: str, course_id: str) -> ImportsSession | None:
+    """The course's assignment import still waiting for review: importing again resumes it
+    (M08 §6.2), so an import the user closed is never left behind next to a new one."""
+    rows = await ctx.db.scalars(
+        select(ImportsSession)
+        .where(
+            ImportsSession.user_id == ctx.user_id,
+            ImportsSession.source_kind == "lms",
+            ImportsSession.status == "ready",
+        )
+        .order_by(ImportsSession.created_at.desc())
+    )
+    for row in rows:
+        lms = row.source_meta.get("lms") or {}
+        if (
+            lms.get("kind") == "assignments"
+            and lms.get("link_id") == link_id
+            and row.target.get("course_id") == course_id
+        ):
+            return row
+    return None
 
 
 # --- courses --------------------------------------------------------------------------------
@@ -241,25 +267,38 @@ async def _import(
     )
     if not picked:
         raise AppError("import.no_content", 422)
+    row = await _unfinished(ctx, link.id, course_id)
+    if row is not None:
+        lms = row.source_meta.get("lms") or {}
+        have = {str(v["external_id"]) for v in (lms.get("items") or {}).values()}
+        picked = [(a, kind) for a, kind in picked if str(a["external_id"]) not in have]
+        if not picked:  # nothing new: back to its review
+            return ImportStarted(session_id=row.id, program_id=row.program_id, count=0)
+    else:
+        row = await _session(
+            ctx,
+            link.program_id,
+            SessionTarget(kind="course", course_id=course_id),
+            {
+                "provider": b.row.provider,
+                "connection_id": b.row.id,
+                "lms": {"kind": "assignments", "link_id": link.id, "groups": {}},
+            },
+        )
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
     weights = _weights(data)
-    row = await _session(
-        ctx,
-        link.program_id,
-        SessionTarget(kind="course", course_id=course_id),
-        {
-            "provider": b.row.provider,
-            "connection_id": b.row.id,
-            "lms": {"kind": "assignments", "link_id": link.id},
-        },
-    )
     course_ref = f"course:{course_id}"
     new: list[NewItem] = []
     refs: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
-    groups: dict[str, str] = {}  # Canvas group id -> category item key
-    slugs: set[str] = set()
+    # Canvas group id -> its category: an item key here, or the id of one a resumed session has.
+    groups: dict[str, str] = dict((row.source_meta.get("lms") or {}).get("groups") or {})
+    slugs = {
+        str(i.data.get("key"))
+        for i in await imports.session_items(ctx, row.id)
+        if i.type == "category"
+    }
     for a, kind in picked:
         external_id = str(a["external_id"])
         due_date, due_time = _local(a.get("due_at"), tz)
@@ -273,7 +312,7 @@ async def _import(
                 # Canvas groups are told apart by id: two groups may share a name or a slug.
                 group_key = str(a.get("group_id") or group)
                 if group_key not in groups:
-                    groups[group_key] = f"g{len(groups)}"
+                    groups[group_key] = f"g{len(new)}"
                     slug = _slug(group)
                     if slug in slugs:
                         slug = f"{slug[:20].strip('-')}-{_slug(group_key)}"[:32].strip("-")
@@ -322,6 +361,8 @@ async def _import(
         refs.append(
             {"lms_course_id": link.external_course_id, "filename": a["name"], "status": "done"}
         )
+    lms = dict(row.source_meta.get("lms") or {})
+    row.source_meta = {**row.source_meta, "lms": {**lms, "groups": groups}}
     started = await _fill(ctx, row, new, refs[:50], by_key)
     counts = await imports.commit_if_clean(ctx, row)
     if counts is None:

@@ -12,7 +12,7 @@ import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Calendar } from '@/ui/calendar'
-import { Field, FieldLabel } from '@/ui/field'
+import { Field, FieldLabel, FieldTitle } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { TIME_INPUT } from '@/lib/time-input'
@@ -151,7 +151,7 @@ export function TaskDetail({
           </Field>
           {managed ? (
             <Field>
-              <FieldLabel>{m.tasks_due_label()}</FieldLabel>
+              <FieldTitle>{m.tasks_due_label()}</FieldTitle>
               <p className="text-sm">{dueText(task)}</p>
             </Field>
           ) : (
@@ -268,7 +268,7 @@ export function TaskDetail({
           </Field>
           {managed ? (
             <Field>
-              <FieldLabel>{m.tasks_course_label()}</FieldLabel>
+              <FieldTitle>{m.tasks_course_label()}</FieldTitle>
               <p className="flex items-center gap-2 text-sm">
                 {taskCourse ? <CourseOption course={taskCourse} /> : m.tasks_course_none()}
               </p>
