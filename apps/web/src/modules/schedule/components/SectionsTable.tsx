@@ -19,6 +19,8 @@ export type Section = { key: string; code: string; typeCode: string; meetings: M
 
 /** The weeks a meeting runs, e.g. "Biweekly (week 2) · Weeks 1–12". */
 export function weeksText(mt: Meeting): string {
+  if (mt.recurrence === 'weekly' && mt.start_week === 1 && !mt.end_week)
+    return m.schedule_weeks_whole_term()
   const range = mt.end_week
     ? m.schedule_weeks_range({ start: mt.start_week, end: mt.end_week })
     : m.schedule_weeks_from({ start: mt.start_week })
