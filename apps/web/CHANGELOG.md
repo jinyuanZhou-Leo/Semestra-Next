@@ -1,5 +1,51 @@
 # @semestra/web
 
+## 1.15.0
+
+### Minor Changes
+
+- 5d89783: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab can show pages, announcements, assignment descriptions and the syllabus in Canvas style, with a default display setting and a switch on the page.
+  <!-- zh -->
+  Canvas 页签可按 Canvas 样式显示页面、公告、作业说明和课程大纲，可设置默认显示方式，也可在页面上切换。
+- 35a237c: <!-- area: courses -->
+  <!-- en -->
+  Switching to another course now keeps the open tab; turn this off in Settings → Preferences → Navigation.
+  <!-- zh -->
+  切换课程时会保留当前标签页，可在“设置 → 偏好 → 导航”中关闭。
+- 6eef61e: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  PDF previews scroll continuously through the whole document.
+  <!-- zh -->
+  PDF 预览可连续纵向滚动浏览整份文档。
+- 9917b73: <!-- area: files -->
+  <!-- improved -->
+  <!-- en -->
+  A term's files page shows each course as a folder, with one upload button for the open course.
+  <!-- zh -->
+  学期文件页改为按课程显示文件夹，进入课程后用同一个上传按钮上传。
+
+### Patch Changes
+
+- c057d39: <!-- area: grades -->
+  <!-- en -->
+  Grade breakdown details now appear below the chart instead of covering it, and the weight total warning is gone.
+  <!-- zh -->
+  成绩构成的明细提示改为显示在图表下方，不再遮挡图表；去掉了权重合计提示条。
+- b4f8c84: <!-- area: general -->
+  <!-- en -->
+  The status bar no longer reports background tasks that finished together as failed.
+  <!-- zh -->
+  多个后台任务先后完成时，状态栏不再误报为失败。
+- 0b6d03f: <!-- area: general -->
+  <!-- en -->
+  The Semestra icon now appears on browser tabs.
+  <!-- zh -->
+  浏览器标签页现在会显示 Semestra 图标。
+- @semestra/api-client@1.15.0
+
 ## 1.14.1
 
 ### Patch Changes
