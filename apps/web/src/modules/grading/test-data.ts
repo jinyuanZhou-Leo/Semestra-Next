@@ -4,6 +4,7 @@ import type {
   CategorySummary,
   Gradebook,
   GradebookSummary,
+  GradingScale,
 } from '@semestra/api-client'
 
 /** Fixtures for the grading tests. */
@@ -100,6 +101,28 @@ export function categoryFigures(assessments: readonly Assessment[]): CategorySum
       contribution: points / 100,
     }
   })
+}
+
+/** Program p1's scale: a simple 4-point table. */
+export function gradingScale(overrides: Partial<GradingScale> = {}): GradingScale {
+  return {
+    program_id: 'p1',
+    bands: [
+      { min: 85, max: 100, points: 4, letter: 'A' },
+      { min: 80, max: 84, points: 3.7, letter: 'A-' },
+      { min: 77, max: 79, points: 3.3, letter: 'B+' },
+      { min: 70, max: 76, points: 3, letter: 'B' },
+      { min: 0, max: 69, points: 0, letter: 'F' },
+    ],
+    max_points: 4,
+    year_course_attribution: 'end_term',
+    default_forecast_model: 'auto',
+    default_categories: [],
+    hide_gpa: false,
+    round_before_lookup: true,
+    updated_at: stamp,
+    ...overrides,
+  }
 }
 
 /** A gradebook; its summary's category figures follow its assessments unless given. */

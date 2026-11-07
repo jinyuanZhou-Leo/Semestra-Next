@@ -127,14 +127,24 @@
       }
     },
     {
-      "name": "no history for a category: no forecast",
+      "name": "no history for a category: the course average stands in",
       "items": [
         {"id": "q", "category": "quiz", "weight": 50, "score": 80},
         {"id": "f", "category": "exam", "weight": 50, "score": null}
       ],
       "expect": {
-        "forecast_percentage": null, "predictions": {}, "missing_history": ["exam"],
+        "forecast_percentage": 80, "predictions": {"f": 80}, "missing_history": ["exam"],
         "current_percentage": 80, "locked_contribution": 40
+      }
+    },
+    {
+      "name": "nothing graded yet: no forecast",
+      "items": [
+        {"id": "q", "category": "quiz", "weight": 50, "score": null},
+        {"id": "f", "category": "exam", "weight": 50, "score": null}
+      ],
+      "expect": {
+        "forecast_percentage": null, "predictions": {}, "missing_history": ["quiz", "exam"]
       }
     },
     {

@@ -5,10 +5,10 @@ import {
   gradingScaleListPresetsOptions,
   gradingSummaryProgramOptions,
   gradingSummaryTermOptions,
+  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
-import { readUiPref } from '@/app/ui-pref'
 
 export function useGradebook(courseId: string) {
   return useQuery({
@@ -23,15 +23,32 @@ function termGradesOptions(termId: string, includeInProgress: boolean) {
   })
 }
 
-export function useTermGrades(termId: string, includeInProgress = false) {
+export function useTermGrades(termId: string, includeInProgress = false, enabled = true) {
   return useQuery({
     ...termGradesOptions(termId, includeInProgress),
+    enabled,
     placeholderData: keepPreviousData,
   })
 }
 
-/** Whether the term's grades count courses still in progress (a UI state, M03). */
-export const IN_PROGRESS_PREF = 'grading.term.in_progress'
+/** The `grading` namespace (M11), resolved for a Program. */
+export type GradingSettings = { count_in_progress: boolean }
+
+const gradingSettingsOptions = (programId: string) =>
+  settingsValueGetOptions({
+    path: { namespace: 'grading' },
+    query: { scope_type: 'program', scope_id: programId },
+  })
+
+export function useGradingSettings(programId: string) {
+  return useQuery({
+    ...gradingSettingsOptions(programId),
+    select: (data): GradingSettings => ({
+      count_in_progress: false,
+      ...(data.values as Partial<GradingSettings>),
+    }),
+  })
+}
 
 /** `PageContribution.prefetch` of the grades page: the gradebook, or the term's summary. */
 export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
@@ -41,10 +58,13 @@ export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
     )
   } else if (scope.kind === 'term') {
     const { termId } = scope
-    // The summary's parameters include a UI state, which loads alongside.
-    readUiPref<boolean>(queryClient, IN_PROGRESS_PREF)
-      .then((includeInProgress) =>
-        queryClient.prefetchQuery(termGradesOptions(termId, includeInProgress ?? false)),
+    // The summary's parameters include a setting, which loads alongside.
+    queryClient
+      .fetchQuery(gradingSettingsOptions(scope.programId))
+      .then((data) =>
+        queryClient.prefetchQuery(
+          termGradesOptions(termId, data.values?.count_in_progress === true),
+        ),
       )
       // The page reports its own errors.
       .catch(() => undefined)

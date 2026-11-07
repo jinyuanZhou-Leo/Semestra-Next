@@ -72,7 +72,7 @@ export function usePlanSimulation(gradebook: Gradebook, whatIf: WhatIf): Gradebo
     `course:${courseId}`,
     version,
     whatIf.plan,
-    { scores, target: whatIf.target },
+    { scores, target: null },
     async (body) =>
       (await gradingSimulateCourse({ path: { course_id: courseId }, body, throwOnError: true }))
         .data,

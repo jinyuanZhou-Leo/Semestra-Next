@@ -6,7 +6,7 @@ import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { Toaster } from '@/ui/sonner'
 import CourseGradesPage from './pages/CourseGradesPage'
-import { assessment, gradebook, summary } from './test-data'
+import { assessment, gradebook, gradingScale, summary } from './test-data'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -26,6 +26,7 @@ beforeEach(() => {
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)),
+    http.get(`${API}/programs/p1/grading-scale`, () => HttpResponse.json(gradingScale())),
     // No LMS: the gradebook does not offer an import from it.
     http.get(`${API}/courses/c1/lms-link`, () =>
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
@@ -152,7 +153,7 @@ test('plan mode simulates the assumed scores and shows the result without saving
   const assumed = await screen.findByRole('textbox', { name: 'Assumed score: Final exam' })
   await userEvent.type(assumed, '90')
   await userEvent.tab()
-  const result = await screen.findByTestId('plan-result')
+  const result = await screen.findByRole('region', { name: 'Planned grade' })
   await waitFor(() => expect(within(result).getByText('88%')).toBeInTheDocument())
   // Entering plan mode simulates at once; the typed assumption follows after the debounce.
   await waitFor(() => expect(simulations.at(-1)).toMatchObject({ scores: { a2: 90 } }))
@@ -250,7 +251,8 @@ test('grouped view heads each category with its weight and average', async () =>
     ],
   })
   mount()
-  await userEvent.click(await screen.findByRole('switch', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Group by category' }))
   const heading = await screen.findByRole('button', { name: /2 items · 40% graded/ })
   const row = heading.closest('tr')
   expect(row).toHaveTextContent('100')
@@ -278,10 +280,9 @@ test('plan mode shows no planned grade while some items have no assumption', asy
   )
   mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Plan' }))
-  const result = await screen.findByTestId('plan-result')
-  expect(await within(result).findByText(/Not yet assumed: 1/)).toBeInTheDocument()
+  const result = await screen.findByRole('region', { name: 'Planned grade' })
   // The average of the graded part (80%) is not a planned grade.
-  expect(result.querySelector('.text-xl')).toHaveTextContent('—')
+  await waitFor(() => expect(result.querySelector('.text-2xl')).toHaveTextContent('—'))
 })
 
 test('a link to an assessment marks its row', async () => {
@@ -294,7 +295,8 @@ test('a link to an assessment marks its row', async () => {
 
 test('a link to an assessment in a collapsed group shows its row', async () => {
   const { router } = mount()
-  await userEvent.click(await screen.findByRole('switch', { name: 'Group by category' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Group by category' }))
   await userEvent.click(await screen.findByRole('button', { name: /Exam/ }))
   await waitFor(() =>
     expect(screen.queryByRole('textbox', { name: 'Weight (%): Final exam' })).toBeNull(),
@@ -346,4 +348,31 @@ test('deadlines show the Program-local date, not the browser-zone conversion', a
   })
   mount()
   expect(await screen.findByText('Oct 18, 2026')).toBeInTheDocument()
+})
+
+test('the status filter and the search narrow the table, and clearing them brings rows back', async () => {
+  mount()
+  await screen.findByRole('textbox', { name: 'Score: Final exam' })
+  await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
+  expect(screen.queryByRole('textbox', { name: 'Score: Final exam' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: 'Score: Quiz 1' })).toBeInTheDocument()
+  await userEvent.type(screen.getByRole('textbox', { name: 'Search assessments' }), 'final')
+  expect(await screen.findByText('No matching assessments')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+  expect(await screen.findByRole('textbox', { name: 'Score: Final exam' })).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Search assessments' })).toHaveValue('')
+})
+
+test('picking a target from the scale saves it as the course target', async () => {
+  const results: unknown[] = []
+  server.use(
+    http.patch(`${API}/courses/c1/grade`, async ({ request }) => {
+      results.push(await request.json())
+      return HttpResponse.json(book.result)
+    }),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('combobox', { name: 'Target GPA' }))
+  await userEvent.click(await screen.findByRole('option', { name: /3\.7 · A-/ }))
+  await waitFor(() => expect(results).toEqual([{ target_points: 3.7 }]))
 })

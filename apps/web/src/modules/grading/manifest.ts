@@ -131,6 +131,15 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.ProgramGradingSection }))),
     },
     {
+      id: 'grading',
+      level: 'program',
+      group: 'grades',
+      title: m.grading_settings_term,
+      icon: Sigma,
+      order: 35,
+      namespace: 'grading',
+    },
+    {
       id: 'course-grading',
       level: 'course',
       group: 'grades',

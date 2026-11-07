@@ -437,7 +437,7 @@ class GradebookSummary(BaseModel):
     forecast_letter: str | None
     predictions: dict[str, float] = Field(description="Predicted score per ungraded assessment id")
     missing_history_category_ids: list[str | None] = Field(
-        description="Categories of ungraded items without any graded item to predict from"
+        description="Categories of ungraded items predicted from the course average"
     )
     target_points: float
     target_percentage: float | None = Field(description="Lowest percentage reaching the target")

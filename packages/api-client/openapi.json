@@ -24224,7 +24224,7 @@
             },
             "type": "array",
             "title": "Missing History Category Ids",
-            "description": "Categories of ungraded items without any graded item to predict from"
+            "description": "Categories of ungraded items predicted from the course average"
           },
           "target_points": {
             "type": "number",
@@ -32089,7 +32089,7 @@
             },
             "type": "array",
             "title": "Missing History Category Ids",
-            "description": "Categories of ungraded items without any graded item to predict from"
+            "description": "Categories of ungraded items predicted from the course average"
           },
           "target_points": {
             "type": "number",

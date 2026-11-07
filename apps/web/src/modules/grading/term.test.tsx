@@ -54,10 +54,22 @@ function termGrades(courses: CourseGrade[], hide: boolean): TermGrades {
 }
 
 let target: number | null = null
+let countInProgress = false
 
 beforeEach(() => {
   target = null
+  countInProgress = false
   server.use(
+    http.get(`${API}/me/settings/grading`, () =>
+      HttpResponse.json({
+        namespace: 'grading',
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: { count_in_progress: countInProgress },
+        sources: {},
+        inherited: {},
+      }),
+    ),
     http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
       const { keys } = (await request.json()) as { keys: string[] }
       const items = Object.fromEntries(
@@ -122,7 +134,8 @@ test('plan mode needs an unfinished course', async () => {
   expect(await screen.findByRole('button', { name: 'Plan' })).toBeDisabled()
 })
 
-test('the Count unfinished switch asks for the summary with unfinished courses', async () => {
+test('the Program setting decides whether unfinished courses count', async () => {
+  countInProgress = true
   const asked: (string | null)[] = []
   server.use(
     http.get(`${API}/terms/t1/grade-summary`, ({ request }) => {
@@ -131,11 +144,8 @@ test('the Count unfinished switch asks for the summary with unfinished courses',
     }),
   )
   mount()
-  const toggle = await screen.findByRole('switch', { name: 'Count unfinished' })
-  expect(toggle).not.toBeChecked()
-  await userEvent.click(toggle)
-  expect(toggle).toBeChecked()
-  await waitFor(() => expect(asked.at(-1)).toBe('true'))
+  await screen.findByText('C1')
+  expect(asked).toEqual(['true'])
 })
 
 test('plan mode simulates the assumptions and keeps them after leaving it', async () => {
@@ -222,7 +232,8 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
         gap: 0.5,
         max_possible_gpa: 4,
         reachable: true,
-        required_percentage: 95,
+        // every unfinished course is assumed, so only the gap is left to show
+        required_percentage: null,
       }),
     ),
   )
