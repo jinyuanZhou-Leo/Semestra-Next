@@ -724,6 +724,11 @@ async def test_point_changes_of_an_unweighted_course_are_not_updates(api: Api, f
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
+    # Without group weights there is no weight to take: the import waits for one.
+    assert not started["committed"]
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    (item,) = by_type(session, "assessment")
+    assert [i["code"] for i in item["issues"]] == ["import.weight_missing"]
     await api.commit(started["session_id"])
     items[0] = items[0].model_copy(update={"points": 99})
     assert (await api.call("GET", f"/courses/{course}/lms/updates?refresh=true"))["count"] == 0
@@ -926,6 +931,43 @@ async def test_handed_in_assignments_finish_their_to_dos_once(
     assert await open_titles() == ["APS105H1 · Lab 1"]
 
 
+async def test_an_assignment_handed_in_before_its_import_has_its_to_do_finished(
+    api: Api, fake: FakeProvider
+):
+    from semestra.modules.lms.schemas.dto import Submission
+
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    lab1 = fake.course_assignments["101"][0]
+    when = datetime(2026, 2, 1, tzinfo=UTC)
+    fake.course_assignments["101"][0] = lab1.model_copy(
+        update={"submission": Submission(state="submitted", submitted_at=when)}
+    )
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    assert started["committed"]
+    # The assessment's to-do exists by the commit, so the read's hand-in check finds it.
+    page = await api.call("GET", f"/programs/{program_id}/tasks", params={"completed": "only"})
+    assert [t["title"] for t in page["items"]] == ["APS105H1 · Lab 1"]
+
+
+async def test_a_terms_new_assignments_come_from_the_cache(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    path = f"/terms/{term_id}/lms/new-assignments"
+    # Not read yet: the page reads that course itself instead of waiting here.
+    assert await api.call("GET", path) == {"items": [], "total": 0, "unread": [course]}
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    found = await api.call("GET", path)
+    assert found["unread"] == []
+    assert [(i["course_id"], i["external_ids"]) for i in found["items"]] == [
+        (course, listed["new_ids"])
+    ]
+
+
 async def held_for_review(
     api: Api, path: str, external_ids: list[str], *, switch_to_task: bool = False
 ) -> dict[str, Any]:
@@ -994,7 +1036,14 @@ async def test_one_import_puts_each_assignment_in_one_place(api: Api, fake: Fake
     added = await api.call(
         "POST", f"/courses/{course}/lms/imports:gradebook", json={"external_ids": ["a4"]}
     )
-    assert added["committed"]
+    # Worth no points, so no weight to take: the review asks for one.
+    assert not added["committed"]
+    session = await api.call("GET", f"/imports/{added['session_id']}")
+    (item,) = by_type(session, "assessment")
+    await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"data": {"weight": 5}}
+    )
+    await api.commit(added["session_id"])
     imported, book, tasks = await state()
     reading_assessment = next(a for a in book if a["title"] == "Reading 9")
     # The same to-do, now the assessment's; the record points at the assessment.
@@ -1002,6 +1051,31 @@ async def test_one_import_puts_each_assignment_in_one_place(api: Api, fake: Fake
     kept = next(t for t in tasks if t["id"] == reading["id"])
     assert kept["assessment_id"] == reading_assessment["id"]
     assert len(tasks) == 2
+
+
+async def test_an_undated_to_do_added_to_the_gradebook_goes(api: Api, fake: FakeProvider):
+    """An assessment without a due date has no to-do, so the one it takes over is removed and
+    nothing is left that the import record no longer points at."""
+    from semestra.modules.lms.schemas.dto import Assignment
+
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    fake.course_assignments["101"].append(Assignment(external_id="a5", name="Reading", points=0))
+    path = f"/courses/{course}/lms/imports"
+    assert (await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]}))[
+        "committed"
+    ]
+    added = await api.call("POST", f"{path}:gradebook", json={"external_ids": ["a5"]})
+    session = await api.call("GET", f"/imports/{added['session_id']}")
+    (item,) = by_type(session, "assessment")
+    await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"data": {"weight": 5}}
+    )
+    await api.commit(added["session_id"])
+    assert (await api.call("GET", f"/programs/{program_id}/tasks"))["items"] == []
+    book = await api.call("GET", f"/courses/{course}/assessments")
+    assert [a["title"] for a in book["items"]] == ["Reading"]
 
 
 async def test_part_of_a_group_is_saved_with_its_category_total_shown(api: Api):
@@ -1038,8 +1112,14 @@ async def test_an_import_that_needs_a_decision_waits_for_review(api: Api):
     assert session["status"] == "ready"
     (item,) = by_type(session, "assessment")
     assert [i["code"] for i in item["issues"]] == ["import.duplicate_assessment"]
-    # The course's weight total counts what the gradebook has: 30 + 80.
-    assert session["summary"]["weights"] == [
+    # Left out by default, so it adds nothing to the course's weight total.
+    assert item["decision"] == "reject"
+    assert session["summary"]["weights"] == []
+    ticked = await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"decision": "accept"}
+    )
+    # Ticked, the total counts what the gradebook has: 30 + 80.
+    assert ticked["summary"]["weights"] == [
         {"course_ref": f"course:{course}", "total": 110.0, "existing": 1, "ok": False}
     ]
     switched = await api.call(

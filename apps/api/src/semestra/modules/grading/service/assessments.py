@@ -193,7 +193,7 @@ def _new_assessment(
 async def _announce_assessment(
     ctx: Ctx, kind: str, row: models.GradingAssessment, program_id: str, changed: Sequence[str]
 ) -> None:
-    await events.publish(
+    await _publish(
         ctx,
         f"grading.assessment.{kind}",
         {
@@ -203,6 +203,13 @@ async def _announce_assessment(
             "changed": list(changed),
         },
     )
+
+
+async def _publish(ctx: Ctx, event_type: str, data: dict[str, Any]) -> None:
+    """In the transaction first (M05 keeps "a dated assessment has exactly one task" there, so
+    it holds at commit), then after it."""
+    await events.publish_in_transaction(ctx, event_type, data)
+    await events.publish(ctx, event_type, data)
 
 
 async def create_assessments(
@@ -251,7 +258,7 @@ async def create_assessments(
     if created:
         # One event for the whole batch: an import of 30 assessments is one change to react to.
         dated = any(r.due_at is not None for r in created)
-        await events.publish(
+        await _publish(
             ctx,
             "grading.assessment.created",
             {

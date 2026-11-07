@@ -28034,6 +28034,14 @@
           "total": {
             "type": "integer",
             "title": "Total"
+          },
+          "unread": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unread",
+            "description": "Synced linked courses whose assignments are not cached: read them with lms.assignment.list (its `new_ids`)"
           }
         },
         "type": "object",

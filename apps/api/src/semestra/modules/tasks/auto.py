@@ -83,14 +83,20 @@ async def sync(ctx: Ctx, assessment_id: str) -> None:
     existing = await task_of(ctx, assessment_id)
     row = await grading.find_assessment_row(ctx, assessment_id)
     info = None if row is None else await _info(ctx, row)
+    changed: list[str] = []
+    # A to-do of the same item (an LMS assignment first imported as a to-do) becomes the
+    # assessment's; without a due date it goes, like any assessment to-do.
+    if (
+        existing is None
+        and info is not None
+        and (existing := await _same_source(ctx, info)) is not None
+    ):
+        existing.assessment_id = info.id
+        changed.append("assessment_id")
     if info is None or info.due_at is None:
         if existing is not None:
             await _drop(ctx, existing)
         return
-    changed: list[str] = []
-    if existing is None and (existing := await _same_source(ctx, info)) is not None:
-        existing.assessment_id = info.id
-        changed.append("assessment_id")
     program = await academics.get_program_row(ctx, info.program_id)
     local = info.due_at.astimezone(ZoneInfo(program.timezone))
     due_date = local.date()

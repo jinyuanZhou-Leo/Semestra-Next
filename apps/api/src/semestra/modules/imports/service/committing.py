@@ -190,7 +190,7 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     assessment = {
         "title": data["title"],
         "category_id": category_id,
-        "weight": data.get("weight", 0),
+        "weight": data.get("weight") or 0,
         "due_date": data.get("due_date"),
         "due_time": data.get("due_time") if data.get("due_date") else None,
         "note": data.get("note"),
@@ -415,12 +415,13 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
 
 
 async def commit_if_clean(ctx: Ctx, row: ImportsSession) -> dict[str, int] | None:
-    """Commits a ready session at once when none of its accepted items has an issue (M08 §5): an
-    import of structured data the user picked (assignments on Canvas) was confirmed by starting
-    it, so it is only reviewed when something needs a decision. Returns the commit's counts, or
-    None when the session is left for review."""
+    """Commits a ready session at once when none of its items has an issue (M08 §5): an import
+    of structured data the user picked (assignments on Canvas) was confirmed by starting it, so
+    it is only reviewed when something needs a decision. A duplicate left out by default still
+    opens the review, so the user sees why it was skipped. Returns the commit's counts, or None
+    when the session is left for review."""
     items = await session_items(ctx, row.id)
-    if row.status != "ready" or any(i.issues for i in items if i.decision == "accept"):
+    if row.status != "ready" or any(i.issues for i in items):
         return None
     _, counts = await commit(ctx, CommitInput(session_id=row.id))
     return counts

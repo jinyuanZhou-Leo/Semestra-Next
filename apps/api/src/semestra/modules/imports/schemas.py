@@ -198,8 +198,8 @@ class AssessmentData(BaseModel):
     category_ref: CategoryRef | None = Field(
         default=None, description="`item:<key>` for a category item, or `key:<key>`"
     )
-    weight: Annotated[float, Field(ge=0, le=100)] = Field(
-        default=0, description="Weight in percent of the course grade"
+    weight: Annotated[float, Field(ge=0, le=100)] | None = Field(
+        default=None, description="Weight in percent of the course grade; empty when unknown"
     )
     due_date: date | None = Field(default=None, description="Local due date")
     due_time: time | None = Field(default=None, description="Local due time")

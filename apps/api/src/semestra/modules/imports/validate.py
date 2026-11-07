@@ -118,6 +118,9 @@ def _item_issues(
     ):
         found.append(_issue("import.course_ref_missing"))
     if item.type == "assessment":
+        # Without a weight the assessment counts for nothing in the course grade.
+        if data.get("weight") is None:
+            found.append(_issue("import.weight_missing"))
         if data.get("due_text") and not data.get("due_date"):
             found.append(_issue("import.date_unresolved", text=data["due_text"]))
         ref = str(data.get("course_ref", ""))

@@ -36,5 +36,7 @@ async def on_assessment_deleting(ctx: Ctx, event: Event) -> None:
     await auto.drop(ctx, event.data["assessment_id"])
 
 
+# In the transaction: the task exists once the assessment does, so a reader right after the
+# commit (M09 finishing the to-dos of handed-in assignments) finds it.
 for _kind in ("created", "updated"):
-    events.subscribe(f"grading.assessment.{_kind}")(_on_assessment)
+    events.subscribe(f"grading.assessment.{_kind}", in_transaction=True)(_on_assessment)

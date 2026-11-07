@@ -7,6 +7,7 @@ were imported as. Each assignment counts once (`LmsImportedRef.submitted_at`), s
 user opens again stays open. The account setting `lms.complete_submitted` turns this off; while
 it is off nothing is recorded, so turning it on catches up with what was handed in meanwhile."""
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -68,26 +69,35 @@ def after_read(ctx: Ctx, link_id: str, assignments: list[dict[str, Any]]) -> Non
     ctx.after_commit.append(run)
 
 
+# How long after its due date an assignment is still worth asking about: a late hand-in comes
+# within days; one never handed in must not have its course read every hour for good.
+LATE_WINDOW = timedelta(days=14)
+
+
 async def courses_to_check(ctx: Ctx) -> dict[str, list[str]]:
-    """Per user, the synced courses with imported assignments not handed in yet."""
+    """Per user, the synced courses with imported assignments not handed in yet that are due
+    later or were due recently (one without a due date is left to the reads)."""
     rows = (
         await ctx.db.execute(
-            select(LmsCourseLink.user_id, LmsCourseLink.course_id)
+            select(LmsCourseLink.user_id, LmsCourseLink.course_id, LmsImportedRef.snapshot)
             .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+            .join(LmsImportedRef, LmsImportedRef.link_id == LmsCourseLink.id)
             .where(
                 LmsCourseLink.sync_enabled,
                 LmsConnection.credentials_encrypted.is_not(None),
-                LmsCourseLink.id.in_(
-                    select(LmsImportedRef.link_id).where(
-                        LmsImportedRef.external_kind == "assignment",
-                        LmsImportedRef.submitted_at.is_(None),
-                    )
-                ),
+                LmsImportedRef.external_kind == "assignment",
+                LmsImportedRef.submitted_at.is_(None),
             )
             .order_by(LmsCourseLink.user_id)
         )
     ).all()
+    since = ctx.now - LATE_WINDOW
     courses: dict[str, list[str]] = {}
-    for user_id, course_id in rows:
-        courses.setdefault(user_id, []).append(course_id)
+    for user_id, course_id, snapshot in rows:
+        due = (snapshot or {}).get("due_at")
+        if not due or datetime.fromisoformat(due) < since:
+            continue
+        listed = courses.setdefault(user_id, [])
+        if course_id not in listed:
+            listed.append(course_id)
     return courses

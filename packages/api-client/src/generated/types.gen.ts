@@ -6772,6 +6772,12 @@ export type NewAssignmentList = {
      * Total
      */
     total: number;
+    /**
+     * Unread
+     *
+     * Synced linked courses whose assignments are not cached: read them with lms.assignment.list (its `new_ids`)
+     */
+    unread?: Array<string>;
 };
 
 /**

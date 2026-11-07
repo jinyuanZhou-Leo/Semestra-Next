@@ -267,20 +267,26 @@ async def assignments(ctx: Ctx, course_id: str, refresh: bool) -> AssignmentList
 
 async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
     """New assignments of every synced, linked course of a term (the "today" page's prompt),
-    from the cached lists. A course that can't be read is left out."""
+    from the cached lists only: asking the platform course after course would hold the page
+    up. Courses not in the cache are listed in `unread` for the page to read side by side."""
     term = await academics.get_term_row(ctx, term_id)
     links = await service.program_links(ctx, term.program_id)
     program = await academics.get_program_row(ctx, term.program_id)
     rows = await academics.courses_by_id(ctx, [li.course_id for li in links if li.sync_enabled])
     courses = await academics.courses_out(ctx, program, rows)
     items: list[NewAssignments] = []
+    unread: list[str] = []
     for course in sorted(courses, key=lambda c: (c.code or c.title).lower()):
         if term_id not in course.term_ids:
             continue
         try:
             linked = await service.require_link(ctx, course.id)
             service.require_feature(linked[1], "assignments")
-            data, _ = await raw_assignments(ctx, course.id, False, linked=linked)
+            with service.cache_only():
+                data, _ = await raw_assignments(ctx, course.id, False, linked=linked)
+        except service.NotCached:
+            unread.append(course.id)
+            continue
         except AppError:
             continue
         found = new_ids(ctx, data, await imported_targets(ctx, linked[0].id))
@@ -291,7 +297,9 @@ async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
                     course_id=course.id, external_ids=found, names=[names[i] for i in found]
                 )
             )
-    return NewAssignmentList(items=items, total=sum(len(i.external_ids) for i in items))
+    return NewAssignmentList(
+        items=items, total=sum(len(i.external_ids) for i in items), unread=unread
+    )
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

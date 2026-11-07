@@ -348,6 +348,11 @@ class NewAssignments(BaseModel):
 class NewAssignmentList(BaseModel):
     items: list[NewAssignments] = Field(description="Per linked course with new assignments")
     total: int
+    unread: list[str] = Field(
+        default_factory=list,
+        description="Synced linked courses whose assignments are not cached: read them with "
+        "lms.assignment.list (its `new_ids`)",
+    )
 
 
 class TermNewAssignmentsInput(BaseModel):
