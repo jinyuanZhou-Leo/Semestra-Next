@@ -1,14 +1,25 @@
-import type { EventType, Meeting } from '@semestra/api-client'
+import type { EventType, Meeting, SectionTime } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { ChevronRight, ListFilter, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, Clock2, ListFilter, Pencil, Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
+import { TIME_INPUT } from '@/lib/time-input'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
+import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/ui/select'
 import { Switch } from '@/ui/switch'
 import { typeName } from '../labels'
 import { weekdayName } from '../time'
@@ -17,11 +28,11 @@ import { ActionsHeader } from './ActionsHeader'
 /** A section (e.g. LEC0101) with its meetings, in weekday order. */
 export type Section = { key: string; code: string; typeCode: string; meetings: Meeting[] }
 
-/** The weeks a meeting runs, e.g. "Biweekly (week 2) · Weeks 1–12". */
 /** Whether a time runs every week of the term, skipping breaks: the section dialog's default. */
 export const wholeTerm = (mt: Meeting) =>
   mt.recurrence === 'weekly' && mt.start_week === 1 && mt.end_week == null && mt.skip_breaks
 
+/** The weeks a meeting runs, e.g. "Biweekly (week 2) · Weeks 1–12". */
 export function weeksText(mt: Meeting): string {
   if (wholeTerm(mt)) return m.schedule_weeks_whole_term()
   const range = mt.end_week
@@ -83,10 +94,28 @@ export function sectionsOf(meetings: readonly Meeting[], types: readonly EventTy
   return sections
 }
 
-/** A table row: a section, or one of its meetings while the section is expanded. */
+/** A table row: a section, one of its meetings while it is expanded, or a time being added. */
 type Row =
   | { kind: 'section'; id: string; section: Section }
   | { kind: 'meeting'; id: string; section: Section; meeting: Meeting }
+  | { kind: 'draft'; id: string; section: Section }
+
+/** The time being added to a section, edited in place under the section's times. */
+type Draft = { weekday: string; start: string; end: string; location: string }
+
+/** The day after the section's last time, at the same hours (or 09:00–10:00). */
+function draftFor(section: Section): Draft {
+  const last = section.meetings.at(-1)
+  if (!last) return { weekday: '1', start: '09:00', end: '10:00', location: '' }
+  return {
+    weekday: String((last.weekday % 7) + 1),
+    start: last.start_time.slice(0, 5),
+    end: last.end_time.slice(0, 5),
+    location: last.location ?? '',
+  }
+}
+
+const draftInvalid = (d: Draft) => !d.start || !d.end || d.start >= d.end
 
 const features = settingsTableFeatures
 const column = createColumnHelper<typeof features, Row>()
@@ -101,8 +130,17 @@ type TableState = {
   onToggle: (ids: string[], enabled: boolean) => void
   onKeepOnly: (keep: string[], others: string[]) => void
   onEdit: (meeting: Meeting) => void
-  onEditSection: (section: Section, withNewTime: boolean) => void
+  onEditSection: (section: Section) => void
   onDeleteSection: (section: Section) => void
+  /** Saves a new time for the section; it keeps the section's weeks. */
+  onAddTime: (section: Section, time: SectionTime) => Promise<unknown>
+  draft: Draft | null
+  draftTouched: boolean
+  draftSaving: boolean
+  onStartDraft: (section: Section) => void
+  onDraftChange: (patch: Partial<Draft>) => void
+  onDraftCancel: () => void
+  onDraftSave: () => void
 }
 
 /** What the cells need; the columns live outside the component. */
@@ -149,6 +187,7 @@ function ExpandCell({ row }: CellProps) {
 function SwitchCell({ row }: CellProps) {
   const { busy, onToggle } = useSections()
   const r = row.original
+  if (r.kind === 'draft') return null
   if (r.kind === 'section') {
     const own = r.section.meetings
     return (
@@ -165,9 +204,10 @@ function SwitchCell({ row }: CellProps) {
       />
     )
   }
+  // A meeting's switch sits a little right of its section's, same size.
   return (
     <Switch
-      size="sm"
+      className="ml-3"
       aria-label={m.schedule_enable_meeting({
         day: weekdayName(r.meeting.weekday),
         time: formatTime(r.meeting.start_time),
@@ -179,9 +219,111 @@ function SwitchCell({ row }: CellProps) {
   )
 }
 
+/** Enter saves the new time, Escape drops it. */
+function useDraftKeys() {
+  const { onDraftSave, onDraftCancel } = useSections()
+  return (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      onDraftSave()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      onDraftCancel()
+    }
+  }
+}
+
+function DraftWeekday() {
+  const { draft, onDraftChange } = useSections()
+  const weekdays = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: weekdayName(d) }))
+  if (!draft) return null
+  return (
+    <Select
+      value={draft.weekday}
+      items={weekdays}
+      onValueChange={(next) => next && onDraftChange({ weekday: next })}
+    >
+      <SelectTrigger size="sm" aria-label={m.schedule_weekday()} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {weekdays.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function DraftTimes() {
+  const { draft, draftTouched, onDraftChange } = useSections()
+  const keys = useDraftKeys()
+  if (!draft) return null
+  const invalid = (draftTouched && draftInvalid(draft)) || undefined
+  const input = (field: 'start' | 'end', label: string) => (
+    <InputGroup className="h-8 min-w-0 flex-1">
+      <InputGroupInput
+        type="time"
+        aria-label={label}
+        aria-invalid={field === 'end' ? invalid : undefined}
+        className={TIME_INPUT}
+        value={draft[field]}
+        onChange={(e) => onDraftChange({ [field]: e.target.value })}
+        onKeyDown={keys}
+      />
+      <InputGroupAddon>
+        <Clock2 aria-hidden />
+      </InputGroupAddon>
+    </InputGroup>
+  )
+  return (
+    <div className="flex items-center gap-1.5">
+      {input('start', m.schedule_start_time())}
+      <span aria-hidden className="text-muted-foreground">
+        –
+      </span>
+      {input('end', m.schedule_end_time())}
+    </div>
+  )
+}
+
+function DraftLocation() {
+  const { draft, onDraftChange } = useSections()
+  const keys = useDraftKeys()
+  if (!draft) return null
+  return (
+    <Input
+      aria-label={m.schedule_location()}
+      className="h-8 w-full"
+      value={draft.location}
+      onChange={(e) => onDraftChange({ location: e.target.value })}
+      onKeyDown={keys}
+    />
+  )
+}
+
+function DraftActions() {
+  const { draftSaving, onDraftCancel, onDraftSave } = useSections()
+  return (
+    <div className="flex justify-end gap-2">
+      <Button size="sm" variant="ghost" disabled={draftSaving} onClick={onDraftCancel}>
+        {m.common_cancel()}
+      </Button>
+      <Button size="sm" disabled={draftSaving} onClick={onDraftSave}>
+        {draftSaving ? m.common_saving() : m.common_save()}
+      </Button>
+    </div>
+  )
+}
+
 function SectionCell({ row }: CellProps) {
   const { types, conflicting } = useSections()
   const r = row.original
+  if (r.kind === 'draft') return <DraftWeekday />
   if (r.kind !== 'section') return null
   const { section } = r
   const type = types.find((t) => t.code === section.typeCode)
@@ -202,6 +344,7 @@ function SectionCell({ row }: CellProps) {
 
 function TimeCell({ row }: CellProps) {
   const r = row.original
+  if (r.kind === 'draft') return <DraftTimes />
   if (r.kind === 'section') {
     return (
       <span className={cn('block truncate tabular-nums', dim(sectionOn(r.section)))}>
@@ -218,6 +361,7 @@ function TimeCell({ row }: CellProps) {
 
 function LocationCell({ row }: CellProps) {
   const r = row.original
+  if (r.kind === 'draft') return <DraftLocation />
   if (r.kind === 'section') {
     const places = [...new Set(r.section.meetings.map((mt) => mt.location).filter(Boolean))]
     return (
@@ -236,6 +380,7 @@ function LocationCell({ row }: CellProps) {
 /** A section's weeks; when its meetings differ, each meeting shows its own. */
 function WeeksCell({ row }: CellProps) {
   const r = row.original
+  if (r.kind === 'draft') return <DraftActions />
   const differ = weeksDiffer(r.section.meetings)
   if (r.kind === 'section') {
     const first = r.section.meetings[0]
@@ -251,8 +396,10 @@ function WeeksCell({ row }: CellProps) {
 }
 
 function ActionsCell({ row }: CellProps) {
-  const { sections, onEdit, onEditSection, onDeleteSection, onKeepOnly } = useSections()
+  const { sections, onEdit, onEditSection, onDeleteSection, onKeepOnly, onStartDraft } =
+    useSections()
   const r = row.original
+  if (r.kind === 'draft') return null
   if (r.kind === 'meeting') {
     return (
       <RowMenu
@@ -276,11 +423,11 @@ function ActionsCell({ row }: CellProps) {
     .flatMap((s) => s.meetings)
   return (
     <RowMenu label={m.schedule_section_actions({ section: sectionName(section) })}>
-      <DropdownMenuItem onClick={() => onEditSection(section, false)}>
+      <DropdownMenuItem onClick={() => onEditSection(section)}>
         <Pencil aria-hidden />
         {m.schedule_section_edit()}
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => onEditSection(section, true)}>
+      <DropdownMenuItem onClick={() => onStartDraft(section)}>
         <Plus aria-hidden />
         {m.schedule_section_add_time()}
       </DropdownMenuItem>
@@ -336,21 +483,64 @@ const COLUMN_CLASS: Record<string, string> = {
 
 /**
  * The course's sections in one table (M04 §5.3): a row per section with its times summed up;
- * expanding a section lists its meetings, each with its own switch and menu.
+ * expanding a section lists its meetings, each with its own switch and menu. "Add a time" opens
+ * an editable row under the section's times, so adding one needs no dialog.
  */
 export function SectionsTable({
   types,
   meetings,
+  onAddTime,
   ...state
-}: Omit<TableState, 'sections' | 'expanded' | 'onExpand'> & { meetings: readonly Meeting[] }) {
+}: Omit<
+  TableState,
+  | 'sections'
+  | 'expanded'
+  | 'onExpand'
+  | 'draft'
+  | 'draftTouched'
+  | 'draftSaving'
+  | 'onStartDraft'
+  | 'onDraftChange'
+  | 'onDraftCancel'
+  | 'onDraftSave'
+> & { meetings: readonly Meeting[] }) {
   const sections = sectionsOf(meetings, types)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const onExpand = (key: string) =>
+  const [adding, setAdding] = useState<{ key: string; draft: Draft; touched: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const onExpand = (key: string) => {
+    if (adding?.key === key) setAdding(null)
     setExpanded((prev) => {
       const next = new Set(prev)
       if (!next.delete(key)) next.add(key)
       return next
     })
+  }
+  const addingTo = adding ? sections.find((s) => s.key === adding.key) : undefined
+  const onStartDraft = (section: Section) => {
+    setExpanded((prev) => new Set(prev).add(section.key))
+    setAdding({ key: section.key, draft: draftFor(section), touched: false })
+  }
+  const onDraftSave = async () => {
+    if (!adding || !addingTo || saving) return
+    if (draftInvalid(adding.draft)) {
+      setAdding({ ...adding, touched: true })
+      return
+    }
+    setSaving(true)
+    const ok = await onAddTime(addingTo, {
+      meeting_id: null,
+      weekday: Number(adding.draft.weekday),
+      start_time: adding.draft.start,
+      end_time: adding.draft.end,
+      location: adding.draft.location.trim() || null,
+    }).then(
+      () => true,
+      () => false,
+    )
+    setSaving(false)
+    if (ok) setAdding(null)
+  }
   const rows: Row[] = sections.flatMap((section) => [
     { kind: 'section' as const, id: `s:${section.key}`, section },
     ...(expanded.has(section.key)
@@ -361,9 +551,27 @@ export function SectionsTable({
           meeting,
         }))
       : []),
+    ...(addingTo === section ? [{ kind: 'draft' as const, id: `d:${section.key}`, section }] : []),
   ])
   return (
-    <SectionsContext value={{ ...state, types, sections, expanded, onExpand }}>
+    <SectionsContext
+      value={{
+        ...state,
+        types,
+        sections,
+        expanded,
+        onExpand,
+        onAddTime,
+        draft: addingTo ? (adding?.draft ?? null) : null,
+        draftTouched: adding?.touched ?? false,
+        draftSaving: saving,
+        onStartDraft,
+        onDraftChange: (patch) =>
+          setAdding((prev) => (prev ? { ...prev, draft: { ...prev.draft, ...patch } } : prev)),
+        onDraftCancel: () => setAdding(null),
+        onDraftSave: () => void onDraftSave(),
+      }}
+    >
       <SettingsTable
         label={m.schedule_meetings()}
         data={rows}
@@ -371,9 +579,9 @@ export function SectionsTable({
         getRowId={(r) => r.id}
         columnClassName={COLUMN_CLASS}
         rowClassName={(r) =>
-          r.kind === 'meeting'
-            ? 'bg-muted/40 animate-in fade-in slide-in-from-top-1 duration-200'
-            : undefined
+          r.kind === 'section'
+            ? undefined
+            : 'bg-muted/40 animate-in fade-in slide-in-from-top-1 duration-200'
         }
       />
     </SectionsContext>

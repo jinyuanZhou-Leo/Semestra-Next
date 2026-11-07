@@ -2,7 +2,7 @@ import type { Meeting } from '@semestra/api-client'
 import { scheduleSectionSaveMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper, useTable } from '@tanstack/react-table'
-import { Clock2, Plus, X } from 'lucide-react'
+import { Clock2, Plus, Trash2 } from 'lucide-react'
 import { createContext, type FormEvent, use, useId, useState } from 'react'
 import { ChoiceControl, SettingRow, SettingsGroup, settingsTableFeatures } from '@/app/settings'
 import { toastError } from '@/lib/errors'
@@ -153,13 +153,12 @@ function RemoveCell({ row }: TimeCellProps) {
     <Button
       type="button"
       size="icon-sm"
-      variant="ghost"
-      className="text-destructive hover:text-destructive"
+      variant="destructive"
       aria-label={m.schedule_section_time_remove()}
       disabled={single}
       onClick={() => remove(row.original.key)}
     >
-      <X aria-hidden />
+      <Trash2 aria-hidden />
     </Button>
   )
 }
@@ -251,7 +250,6 @@ export function SectionDialog({
   termId,
   typeCode,
   meetings = [],
-  withNewTime = false,
   open,
   onOpenChange,
 }: {
@@ -261,8 +259,6 @@ export function SectionDialog({
   typeCode: string
   /** The section's meetings when editing it. */
   meetings?: readonly Meeting[]
-  /** Opens with a new time after the section's own ("Add a time" of a section). */
-  withNewTime?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -279,7 +275,7 @@ export function SectionDialog({
   )
   const [times, setTimes] = useState<Time[]>(() => {
     if (!editing) return [nextTime([])]
-    const own = meetings.map((mt, key) => ({
+    return meetings.map((mt, key) => ({
       key,
       id: mt.id,
       weekday: String(mt.weekday),
@@ -287,7 +283,6 @@ export function SectionDialog({
       end: mt.end_time.slice(0, 5),
       location: mt.location ?? '',
     }))
-    return withNewTime ? [...own, nextTime(own)] : own
   })
   const [mode, setMode] = useState<WeeksMode>(
     differ ? 'vary' : first && !wholeTerm(first) ? 'custom' : 'term',
