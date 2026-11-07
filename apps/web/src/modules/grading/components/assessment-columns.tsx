@@ -40,6 +40,8 @@ const column = createColumnHelper<typeof features, AssessmentRow>()
 export type TableActions = {
   categories: ReadonlyMap<string, AssessmentCategory>
   whatIf: WhatIf
+  /** The forecast's score per ungraded assessment: the hint in an empty assumption. */
+  predictions: Record<string, number>
   saveScore: (a: Assessment, text: string) => boolean
   saveWeight: (a: Assessment, text: string) => boolean
   assume: (a: Assessment, text: string) => boolean
@@ -81,7 +83,8 @@ function WeightCell({ a }: { a: Assessment }) {
 }
 
 function ScoreCell({ a }: { a: Assessment }) {
-  const { whatIf, saveScore, assume } = useActions()
+  const { whatIf, predictions, saveScore, assume } = useActions()
+  const predicted = predictions[a.id]
   const assumed = whatIf.plan && a.score_percentage === null && !a.dropped
   const assumedValue = whatIf.scores[a.id]
   return (
@@ -90,7 +93,7 @@ function ScoreCell({ a }: { a: Assessment }) {
         <InlineInput
           key={`a-${a.id}-${assumedValue ?? ''}`}
           label={`${m.grading_assumed_score()}: ${a.title}`}
-          placeholder="—"
+          placeholder={predicted === undefined ? '—' : String(Math.round(predicted * 10) / 10)}
           tone="assumed"
           value={assumedValue === undefined ? '' : String(Math.round(assumedValue * 100) / 100)}
           onCommit={(text) => assume(a, text)}
@@ -172,7 +175,7 @@ export const assessmentColumns = column.columns([
   }),
   column.accessor((a) => a.weight, {
     id: 'weight',
-    header: () => <span className="block text-right">{m.grading_assessment_weight()}</span>,
+    header: () => m.grading_assessment_weight(),
     sortFn: by((a) => a.weight),
     cell: ({ row }) => <WeightCell a={row.original} />,
   }),

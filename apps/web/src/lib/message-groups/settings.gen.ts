@@ -64,6 +64,8 @@ export const settingsMessages = {
   settings_files_auto_index_label: m.settings_files_auto_index_label,
   settings_follow: m.settings_follow,
   settings_follow_option: m.settings_follow_option,
+  settings_grading_count_in_progress_description: m.settings_grading_count_in_progress_description,
+  settings_grading_count_in_progress_label: m.settings_grading_count_in_progress_label,
   settings_group_about: m.settings_group_about,
   settings_group_account: m.settings_group_account,
   settings_group_ai_mcp: m.settings_group_ai_mcp,

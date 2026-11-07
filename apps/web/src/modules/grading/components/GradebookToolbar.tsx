@@ -1,22 +1,26 @@
 import type { CourseResult } from '@semestra/api-client'
 import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calculator, Flag, MoreHorizontal, X } from 'lucide-react'
-import { useId, useState } from 'react'
+import { Calculator, Flag, MoreHorizontal, Search, X } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Label } from '@/ui/label'
-import { Switch } from '@/ui/switch'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { type AssessmentFilter, FILTERS, filterLabel } from '../filter'
 import { invalidateGrading } from '../queries'
 import { AddMenu } from './AddMenu'
 import { PlanBar } from './GradeTableCard'
@@ -26,7 +30,10 @@ import { OfficialGradeDialog } from './OfficialGradeDialog'
 export function GradebookToolbar({
   programId,
   result,
-  count,
+  filter,
+  onFilterChange,
+  search,
+  onSearchChange,
   planning,
   canPlan,
   hasAssumptions,
@@ -38,8 +45,10 @@ export function GradebookToolbar({
 }: {
   programId: string
   result: CourseResult
-  /** How many assessments the table lists. */
-  count: number
+  filter: AssessmentFilter
+  onFilterChange: (filter: AssessmentFilter) => void
+  search: string
+  onSearchChange: (search: string) => void
   planning: boolean
   /** Plan mode needs weights that add up to 100%. */
   canPlan: boolean
@@ -50,7 +59,6 @@ export function GradebookToolbar({
   onGroupedChange: (grouped: boolean) => void
   onAdd: () => void
 }) {
-  const groupedId = useId()
   if (planning) {
     return (
       <PlanBar
@@ -62,17 +70,42 @@ export function GradebookToolbar({
     )
   }
   const plan = (
-    <Button variant="outline" size="sm" disabled={!canPlan} onClick={() => onPlanningChange(true)}>
+    <Button
+      variant="secondary"
+      size="sm"
+      disabled={!canPlan}
+      onClick={() => onPlanningChange(true)}
+    >
       <Calculator aria-hidden />
       {m.grading_plan()}
     </Button>
   )
   return (
     <div className="flex h-8 items-center gap-2">
-      <h2 className="flex-1 truncate text-sm font-medium">
-        {m.grading_assessments_heading()}{' '}
-        <span className="font-normal text-muted-foreground tabular-nums">{count}</span>
-      </h2>
+      <ToggleGroup
+        aria-label={m.grading_filter()}
+        size="sm"
+        className={SEGMENTED}
+        value={[filter]}
+        onValueChange={([next]) => next && onFilterChange(next as AssessmentFilter)}
+      >
+        {FILTERS.map((f) => (
+          <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+            {filterLabel(f)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <InputGroup className="mr-auto h-8 w-56">
+        <InputGroupInput
+          aria-label={m.grading_search_assessments()}
+          placeholder={m.grading_search_assessments()}
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+        <InputGroupAddon>
+          <Search aria-hidden />
+        </InputGroupAddon>
+      </InputGroup>
       {canPlan ? (
         plan
       ) : (
@@ -82,20 +115,22 @@ export function GradebookToolbar({
           <TooltipContent>{m.grading_plan_needs_weights()}</TooltipContent>
         </Tooltip>
       )}
-      <div className="flex items-center gap-2 px-1">
-        <Switch id={groupedId} size="sm" checked={grouped} onCheckedChange={onGroupedChange} />
-        <Label htmlFor={groupedId} className="font-normal">
-          {m.grading_group_by_category()}
-        </Label>
-      </div>
       <AddMenu programId={programId} courseId={result.course_id} onAdd={onAdd} />
-      <MoreMenu result={result} />
+      <MoreMenu result={result} grouped={grouped} onGroupedChange={onGroupedChange} />
     </div>
   )
 }
 
-/** Less frequent course actions: the official grade. */
-function MoreMenu({ result }: { result: CourseResult }) {
+/** The table's view option and less frequent course actions: the official grade. */
+function MoreMenu({
+  result,
+  grouped,
+  onGroupedChange,
+}: {
+  result: CourseResult
+  grouped: boolean
+  onGroupedChange: (grouped: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const [official, setOfficial] = useState(false)
   const update = useMutation({
@@ -127,7 +162,7 @@ function MoreMenu({ result }: { result: CourseResult }) {
             render={
               <DropdownMenuTrigger
                 render={
-                  <Button variant="outline" size="icon-sm" aria-label={m.common_more_actions()} />
+                  <Button variant="ghost" size="icon-sm" aria-label={m.common_more_actions()} />
                 }
               />
             }
@@ -137,6 +172,12 @@ function MoreMenu({ result }: { result: CourseResult }) {
           <TooltipContent>{m.common_more_actions()}</TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuGroup>
+            <DropdownMenuCheckboxItem checked={grouped} onCheckedChange={onGroupedChange}>
+              {m.grading_group_by_category()}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setOfficial(true)}>
             <Flag aria-hidden />
             {hasOfficial ? m.grading_official_edit() : m.grading_official_set()}

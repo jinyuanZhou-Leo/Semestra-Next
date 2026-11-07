@@ -7,26 +7,23 @@ const INNER = 48
 const OUTER = 62
 
 /**
- * One part of a grade (a course's category, a term's course): its share of the whole, how much
- * of it has a real grade and how much plan mode assumed one for.
+ * One part of a grade (a course's category, a term's course): its share of the whole and how
+ * much of it has a real grade.
  */
 export type RingSlice = {
   key: string
   color: string
   weight: number
   graded: number
-  assumed: number
 }
 
 /**
- * One slice of the ring: its whole weight lightly tinted, the assumed part darker, the graded
- * part solid. Recharts clones this element with each sector's geometry.
+ * One slice of the ring: its whole weight lightly tinted, the graded part solid. Recharts clones this element with each sector's geometry.
  */
 function SliceShape({
-  planning,
   hovered,
   ...props
-}: Partial<PieSectorShapeProps> & { planning: boolean; hovered: string | null }) {
+}: Partial<PieSectorShapeProps> & { hovered: string | null }) {
   const datum = props.payload as RingSlice | undefined
   const startAngle = props.startAngle ?? 0
   const endAngle = props.endAngle ?? 0
@@ -47,7 +44,6 @@ function SliceShape({
     ...base,
     outerRadius: (props.outerRadius ?? 0) + (datum.key === hovered ? 3 : 0),
   }
-  const assumedEnd = startAngle + span * share(datum.graded + (planning ? datum.assumed : 0))
   return (
     <g>
       <Sector
@@ -57,15 +53,6 @@ function SliceShape({
         fill={datum.color}
         fillOpacity={0.2}
       />
-      {planning && datum.assumed > 0 ? (
-        <Sector
-          {...common}
-          startAngle={startAngle}
-          endAngle={assumedEnd}
-          fill={datum.color}
-          fillOpacity={0.55}
-        />
-      ) : null}
       {datum.graded > 0 ? (
         <Sector
           {...common}
@@ -102,14 +89,12 @@ function SliceTooltip<T extends RingSlice>({
  */
 export function CompositionRing<T extends RingSlice>({
   data,
-  planning,
   hovered,
   onHoveredChange,
   renderDetails,
   children,
 }: {
   data: readonly T[]
-  planning: boolean
   hovered: string | null
   onHoveredChange: (key: string | null) => void
   /** A slice's figures for its tooltip. */
@@ -147,7 +132,7 @@ export function CompositionRing<T extends RingSlice>({
             isAnimationActive={false}
             onMouseEnter={(_, index) => onHoveredChange(data[index]?.key ?? null)}
             onMouseLeave={() => onHoveredChange(null)}
-            shape={<SliceShape planning={planning} hovered={hovered} />}
+            shape={<SliceShape hovered={hovered} />}
           />
         </PieChart>
       </ChartContainer>

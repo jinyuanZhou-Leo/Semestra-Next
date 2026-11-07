@@ -122,22 +122,6 @@ test('plan mode needs an unfinished course', async () => {
   expect(await screen.findByRole('button', { name: 'Plan' })).toBeDisabled()
 })
 
-test('the Count unfinished switch asks for the summary with unfinished courses', async () => {
-  const asked: (string | null)[] = []
-  server.use(
-    http.get(`${API}/terms/t1/grade-summary`, ({ request }) => {
-      asked.push(new URL(request.url).searchParams.get('include_in_progress'))
-      return HttpResponse.json(termGrades([courseGrade({ course_id: 'c1' })], false))
-    }),
-  )
-  mount()
-  const toggle = await screen.findByRole('switch', { name: 'Count unfinished' })
-  expect(toggle).not.toBeChecked()
-  await userEvent.click(toggle)
-  expect(toggle).toBeChecked()
-  await waitFor(() => expect(asked.at(-1)).toBe('true'))
-})
-
 test('plan mode simulates the assumptions and keeps them after leaving it', async () => {
   withGrades([courseGrade({ course_id: 'c1' })])
   mount()
@@ -222,7 +206,8 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
         gap: 0.5,
         max_possible_gpa: 4,
         reachable: true,
-        required_percentage: 95,
+        // every unfinished course is assumed, so only the gap is left to show
+        required_percentage: null,
       }),
     ),
   )

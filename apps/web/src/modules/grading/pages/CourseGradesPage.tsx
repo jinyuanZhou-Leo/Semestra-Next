@@ -11,9 +11,11 @@ import { m } from '@/paraglide/messages'
 import { AssessmentDialog } from '../components/AssessmentDialog'
 import { AssessmentTable } from '../components/AssessmentTable'
 import { GradebookToolbar } from '../components/GradebookToolbar'
+import { ForecastCard } from '../components/ForecastCard'
 import { GradeComposition } from '../components/GradeComposition'
 import { ManualGrade } from '../components/ManualGrade'
-import { TargetCard } from '../components/TargetCard'
+import { CourseTarget } from '../components/CourseTarget'
+import type { AssessmentFilter } from '../filter'
 import { useGradebook } from '../queries'
 import { COURSE_GRADES_BANNERS, type CourseGradesBanner } from '../types'
 import { usePlanSimulation } from '../use-plan'
@@ -38,12 +40,14 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   })
   const [grouped, setGrouped] = useUiPref('grading.group', false)
   const [adding, setAdding] = useState(false)
+  const [filter, setFilter] = useState<AssessmentFilter>('all')
+  const [search, setSearch] = useState('')
   const queryClient = useQueryClient()
   const banners = useExtensions<CourseGradesBanner>(COURSE_GRADES_BANNERS)
   const { result, summary } = gradebook
   const canPlan = summary.weights_ok
   const planning = whatIf.plan && canPlan
-  const state = { ...whatIf, plan: planning }
+  const state = { scores: whatIf.scores, plan: planning }
   const planned = usePlanSimulation(gradebook, state)
 
   const notices = banners.map((banner) => (
@@ -88,13 +92,23 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           categories={gradebook.categories}
           figures={gradebook.summary.categories}
           whatIf={state}
+          predictions={(planning ? planned : null)?.predictions ?? gradebook.summary.predictions}
           onAssume={assume}
           grouped={grouped}
+          filter={filter}
+          search={search}
+          onClearFilter={() => {
+            setFilter('all')
+            setSearch('')
+          }}
           toolbar={
             <GradebookToolbar
               programId={programId}
               result={result}
-              count={gradebook.assessments.length}
+              filter={filter}
+              onFilterChange={setFilter}
+              search={search}
+              onSearchChange={setSearch}
               planning={planning}
               canPlan={canPlan}
               hasAssumptions={Object.keys(assumed).length > 0}
@@ -108,13 +122,21 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
         />
         {/* On narrow screens the summary comes first. */}
         <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:grid-cols-1">
-          <GradeComposition gradebook={gradebook} planned={planned} planning={planning} />
-          <TargetCard
+          <GradeComposition gradebook={gradebook} />
+          <ForecastCard
             gradebook={gradebook}
             planning={planning}
             planned={planned}
             whatIf={state}
-            onChange={setWhatIf}
+            footer={
+              <CourseTarget
+                gradebook={gradebook}
+                planning={planning}
+                planned={planned}
+                whatIf={state}
+                onChange={setWhatIf}
+              />
+            }
           />
         </aside>
       </div>

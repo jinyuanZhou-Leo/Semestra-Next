@@ -437,7 +437,7 @@ class GradebookSummary(BaseModel):
     forecast_letter: str | None
     predictions: dict[str, float] = Field(description="Predicted score per ungraded assessment id")
     missing_history_category_ids: list[str | None] = Field(
-        description="Categories of ungraded items without any graded item to predict from"
+        description="Categories of ungraded items predicted from the course average"
     )
     target_points: float
     target_percentage: float | None = Field(description="Lowest percentage reaching the target")
@@ -539,8 +539,10 @@ class CourseGrade(BaseModel):
 
 class TermSummaryInput(BaseModel):
     term_id: Id = Field(description="Term id")
-    include_in_progress: bool = Field(
-        default=False, description="Count the current average of unfinished courses"
+    include_in_progress: bool | None = Field(
+        default=None,
+        description="Count the current average of unfinished courses; "
+        "omitted follows the Program setting (grading.count_in_progress)",
     )
 
 
@@ -574,8 +576,10 @@ class TermSimulateInput(BaseModel):
         description="Assumed final percentage per unfinished course id; nothing is saved",
     )
     target_gpa: Points | None = Field(default=None, description="Term GPA to aim for")
-    include_in_progress: bool = Field(
-        default=False, description="Count the current average of unfinished courses"
+    include_in_progress: bool | None = Field(
+        default=None,
+        description="Count the current average of unfinished courses; "
+        "omitted follows the Program setting (grading.count_in_progress)",
     )
 
 

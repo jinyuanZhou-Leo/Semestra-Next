@@ -3060,8 +3060,9 @@ export const gradingSummaryProgram = <ThrowOnError extends boolean = false>(opti
 /**
  * A term's GPA, average, credits and every course's grade.
  *
- * Use for "what is my GPA this term". Unfinished courses are left out unless
- * `include_in_progress` counts their current average.
+ * Use for "what is my GPA this term". Unfinished courses count at their current
+ * average when `include_in_progress` is true; left out, it follows the Program's "count unfinished
+ * courses" setting.
  */
 export const gradingSummaryTerm = <ThrowOnError extends boolean = false>(options: Options<GradingSummaryTermData, ThrowOnError>): RequestResult<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError> => (options.client ?? client).get<GradingSummaryTermResponses, GradingSummaryTermErrors, ThrowOnError>({
     security: [

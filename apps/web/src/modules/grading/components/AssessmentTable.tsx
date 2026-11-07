@@ -5,7 +5,15 @@ import {
 } from '@semestra/api-client/react-query'
 import { type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  SearchX,
+} from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -14,12 +22,13 @@ import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
+import { type AssessmentFilter, matchesFilter } from '../filter'
 import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
@@ -33,6 +42,9 @@ import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
 import { useHighlightedAssessment } from './use-highlight'
 
+/** Columns of figures: their headings line up with the figures on the right. */
+const NUMERIC = new Set(['weight'])
+
 const toSorting = (pref: SortPref): SortingState =>
   pref.key === 'manual' ? [] : [{ id: pref.key, desc: pref.dir === 'desc' }]
 
@@ -44,8 +56,8 @@ function fromSorting(sorting: SortingState): SortPref {
 /**
  * The gradebook table (M03 §5.1): scores and weights are typed in the cells (`18/20` is read as
  * points), columns sort, and categories can be shown as collapsible groups. In plan mode the
- * score of an ungraded item takes an assumed value that is never saved as a grade. The last row
- * adds an assessment by its title.
+ * score of an ungraded item takes an assumed value that is never saved as a grade, with the
+ * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
  */
 export function AssessmentTable({
   courseId,
@@ -53,8 +65,12 @@ export function AssessmentTable({
   categories,
   figures,
   whatIf,
+  predictions,
   onAssume,
   grouped,
+  filter,
+  search,
+  onClearFilter,
   toolbar,
 }: {
   courseId: string
@@ -63,11 +79,15 @@ export function AssessmentTable({
   /** The engine's per-category figures from the real (not simulated) summary. */
   figures: readonly CategorySummary[]
   whatIf: WhatIf
+  predictions: Record<string, number>
   /** Set (percent) or clear (null) the assumed score of one assessment. */
   onAssume: (assessmentId: string, percent: number | null) => void
   /** Show the categories as collapsible groups. */
   grouped: boolean
-  /** The table's header bar (title and actions), inside its border. */
+  filter: AssessmentFilter
+  search: string
+  onClearFilter: () => void
+  /** The row above the table: filters and actions. */
   toolbar: ReactNode
 }) {
   const queryClient = useQueryClient()
@@ -116,11 +136,13 @@ export function AssessmentTable({
 
   const rank = new Map(categories.map((c) => [c.id, c.position]))
   const data: AssessmentRow[] = assessments
+    .filter((a) => matchesFilter(a, filter, search))
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
   const actionsValue: TableActions = {
     categories: byId,
     whatIf,
+    predictions,
     saveScore,
     saveWeight,
     assume,
@@ -180,7 +202,13 @@ export function AssessmentTable({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="-ml-2 h-8 px-2 font-normal text-muted-foreground"
+                            className={cn(
+                              'h-8 px-2 font-normal text-muted-foreground',
+                              // A number column's heading ends where its figures end.
+                              NUMERIC.has(h.column.id)
+                                ? 'float-right -mr-0.5 flex-row-reverse'
+                                : '-ml-2',
+                            )}
                             onClick={h.column.getToggleSortingHandler()}
                           >
                             <table.FlexRender header={h} />
@@ -188,7 +216,9 @@ export function AssessmentTable({
                               <ArrowUp aria-hidden className="size-3" />
                             ) : sorted === 'desc' ? (
                               <ArrowDown aria-hidden className="size-3" />
-                            ) : null}
+                            ) : (
+                              <ArrowUpDown aria-hidden className="size-3 opacity-50" />
+                            )}
                           </Button>
                         ) : (
                           <table.FlexRender header={h} />
@@ -210,6 +240,24 @@ export function AssessmentTable({
                         </EmptyMedia>
                         <EmptyTitle>{m.grading_assessments_empty()}</EmptyTitle>
                       </EmptyHeader>
+                    </Empty>
+                  </TableCell>
+                </TableRow>
+              ) : data.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columnCount} className="whitespace-normal">
+                    <Empty className="border-0 p-0">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <SearchX aria-hidden />
+                        </EmptyMedia>
+                        <EmptyTitle>{m.grading_assessments_filtered_empty()}</EmptyTitle>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button variant="link" size="sm" onClick={onClearFilter}>
+                          {m.common_clear_filters()}
+                        </Button>
+                      </EmptyContent>
                     </Empty>
                   </TableCell>
                 </TableRow>

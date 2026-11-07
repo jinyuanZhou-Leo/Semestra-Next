@@ -8,7 +8,6 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
-import { readUiPref } from '@/app/ui-pref'
 
 export function useGradebook(courseId: string) {
   return useQuery({
@@ -16,22 +15,14 @@ export function useGradebook(courseId: string) {
   })
 }
 
-function termGradesOptions(termId: string, includeInProgress: boolean) {
-  return gradingSummaryTermOptions({
-    path: { term_id: termId },
-    query: { include_in_progress: includeInProgress },
-  })
+/** Unfinished courses count as the Program's setting says (the server reads it). */
+function termGradesOptions(termId: string) {
+  return gradingSummaryTermOptions({ path: { term_id: termId } })
 }
 
-export function useTermGrades(termId: string, includeInProgress = false) {
-  return useQuery({
-    ...termGradesOptions(termId, includeInProgress),
-    placeholderData: keepPreviousData,
-  })
+export function useTermGrades(termId: string) {
+  return useQuery({ ...termGradesOptions(termId), placeholderData: keepPreviousData })
 }
-
-/** Whether the term's grades count courses still in progress (a UI state, M03). */
-export const IN_PROGRESS_PREF = 'grading.term.in_progress'
 
 /** `PageContribution.prefetch` of the grades page: the gradebook, or the term's summary. */
 export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
@@ -40,14 +31,7 @@ export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
       gradingGradebookGetOptions({ path: { course_id: scope.courseId } }),
     )
   } else if (scope.kind === 'term') {
-    const { termId } = scope
-    // The summary's parameters include a UI state, which loads alongside.
-    readUiPref<boolean>(queryClient, IN_PROGRESS_PREF)
-      .then((includeInProgress) =>
-        queryClient.prefetchQuery(termGradesOptions(termId, includeInProgress ?? false)),
-      )
-      // The page reports its own errors.
-      .catch(() => undefined)
+    void queryClient.prefetchQuery(termGradesOptions(scope.termId))
   }
 }
 

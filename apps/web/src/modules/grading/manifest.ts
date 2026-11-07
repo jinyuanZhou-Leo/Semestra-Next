@@ -131,6 +131,15 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.ProgramGradingSection }))),
     },
     {
+      id: 'grading',
+      level: 'program',
+      group: 'grades',
+      title: m.grading_settings_term,
+      icon: Sigma,
+      order: 35,
+      namespace: 'grading',
+    },
+    {
       id: 'course-grading',
       level: 'course',
       group: 'grades',
@@ -158,7 +167,11 @@ export default defineModule({
     [PROGRAM_SETUP_FIELDS]: [setupField],
   },
   uiPrefPrefixes: ['grading.'],
-  realtimeInvalidations: Object.fromEntries(
-    GRADING_EVENTS.map((event) => [event, GRADING_QUERIES]),
-  ),
+  realtimeInvalidations: {
+    ...Object.fromEntries(GRADING_EVENTS.map((event) => [event, GRADING_QUERIES])),
+    // Whether unfinished courses count in term grades is a Program setting.
+    'settings.values.updated': [
+      (data) => (data.namespace === 'grading' ? ['gradingSummaryTerm'] : []),
+    ],
+  },
 })
