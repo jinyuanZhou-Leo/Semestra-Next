@@ -7648,7 +7648,7 @@
           "grading"
         ],
         "summary": "A term's GPA, average, credits and every course's grade.",
-        "description": "Use for \"what is my GPA this term\". Unfinished courses are left out unless\n`include_in_progress` counts their current average.",
+        "description": "Use for \"what is my GPA this term\". Unfinished courses count at their current\naverage when `include_in_progress` is true; left out, it follows the Program's \"count unfinished\ncourses\" setting.",
         "operationId": "gradingSummaryTerm",
         "security": [
           {
@@ -7678,12 +7678,18 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "Count the current average of unfinished courses",
-              "default": false,
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)",
               "title": "Include In Progress"
             },
-            "description": "Count the current average of unfinished courses"
+            "description": "Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)"
           }
         ],
         "responses": {
@@ -24224,7 +24230,7 @@
             },
             "type": "array",
             "title": "Missing History Category Ids",
-            "description": "Categories of ungraded items without any graded item to predict from"
+            "description": "Categories of ungraded items predicted from the course average"
           },
           "target_points": {
             "type": "number",
@@ -32089,7 +32095,7 @@
             },
             "type": "array",
             "title": "Missing History Category Ids",
-            "description": "Categories of ungraded items without any graded item to predict from"
+            "description": "Categories of ungraded items predicted from the course average"
           },
           "target_points": {
             "type": "number",
@@ -34569,10 +34575,16 @@
             "description": "Term GPA to aim for"
           },
           "include_in_progress": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Include In Progress",
-            "description": "Count the current average of unfinished courses",
-            "default": false
+            "description": "Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)"
           }
         },
         "type": "object",

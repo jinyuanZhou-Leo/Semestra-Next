@@ -51,7 +51,7 @@ export function InlineInput({
       className={cn(
         'h-8 w-24 border-transparent bg-transparent text-right shadow-none tabular-nums hover:border-input',
         tone === 'assumed' &&
-          'border-dashed border-primary/40 bg-primary/10 text-primary placeholder:text-primary/50 hover:border-primary/60',
+          'border-dashed border-primary/40 bg-primary/10 placeholder:text-muted-foreground placeholder-shown:bg-transparent hover:border-primary/60',
         className,
       )}
     />

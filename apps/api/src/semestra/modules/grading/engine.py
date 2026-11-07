@@ -275,14 +275,17 @@ def compute_course(
         by_category: dict[str | None, list[Item]] = {}
         for item in graded:
             by_category.setdefault(item.category, []).append(item)
+        # A category without a score yet is predicted from the course's average so far.
+        overall = _weighted_mean(graded)
         for item in remaining:
             history = _weighted_mean(by_category.get(item.category, []))
             if history is None:
                 if item.category not in missing:
                     missing.append(item.category)
-            else:
+                history = overall
+            if history is not None:
                 predictions[item.id] = history
-        if not missing:
+        if overall is not None:
             forecast = contribution + sum(i.weight * predictions[i.id] for i in remaining) / 100
 
     required: float | None = None

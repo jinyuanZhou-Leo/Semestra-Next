@@ -4671,7 +4671,7 @@ export type GradebookSummary = {
     /**
      * Missing History Category Ids
      *
-     * Categories of ungraded items without any graded item to predict from
+     * Categories of ungraded items predicted from the course average
      */
     missing_history_category_ids: Array<string | null>;
     /**
@@ -9121,7 +9121,7 @@ export type SimulatedGradebook = {
     /**
      * Missing History Category Ids
      *
-     * Categories of ungraded items without any graded item to predict from
+     * Categories of ungraded items predicted from the course average
      */
     missing_history_category_ids: Array<string | null>;
     /**
@@ -10541,9 +10541,9 @@ export type TermSimulateInputBody = {
     /**
      * Include In Progress
      *
-     * Count the current average of unfinished courses
+     * Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)
      */
-    include_in_progress?: boolean;
+    include_in_progress?: boolean | null;
 };
 
 /**
@@ -15613,9 +15613,9 @@ export type GradingSummaryTermData = {
         /**
          * Include In Progress
          *
-         * Count the current average of unfinished courses
+         * Count the current average of unfinished courses; omitted follows the Program setting (grading.count_in_progress)
          */
-        include_in_progress?: boolean;
+        include_in_progress?: boolean | null;
     };
     url: '/terms/{term_id}/grade-summary';
 };

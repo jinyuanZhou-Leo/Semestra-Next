@@ -9,8 +9,12 @@ from semestra.modules.grading import (  # noqa: F401  (registers on import)
     labels,
     models,
     portability,
+    settings,
     subscribers,
 )
+from semestra.modules.settings import register_settings
+
+register_settings(namespace="grading", schema=settings.GradingSettings, levels=("program",))
 
 
 def register(app: FastAPI) -> None:

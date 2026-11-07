@@ -651,8 +651,8 @@ async def test_term_and_program_summaries(api: Api):
     assert by_code["C6"]["status"] == "in_progress"
 
 
-async def test_in_progress_courses_count_only_when_asked(api: Api):
-    _, course = await one_course(api, credits=1)
+async def test_in_progress_courses_count_when_asked_or_set_for_the_program(api: Api):
+    program, course = await one_course(api, credits=1)
     cid = course["id"]
     await api.assessment(cid, "Done", 50, score_percentage=90)
     await api.assessment(cid, "Later", 50)
@@ -664,6 +664,23 @@ async def test_in_progress_courses_count_only_when_asked(api: Api):
     )
     assert included["gpa"] == 4.0
     assert included["courses"][0]["status"] == "in_progress"
+    # Without the parameter the Program's setting decides, for the summary and the what-if.
+    await api.call(
+        "PATCH",
+        "/me/settings/grading",
+        json={
+            "scope_type": "program",
+            "scope_id": program["id"],
+            "values": {"count_in_progress": True},
+        },
+    )
+    assert (await api.call("GET", f"/terms/{term_id}/grade-summary"))["gpa"] == 4.0
+    what_if = await api.call("POST", f"/terms/{term_id}/grade-summary:simulate", json={})
+    assert what_if["gpa"] == 4.0
+    explicit = await api.call(
+        "GET", f"/terms/{term_id}/grade-summary", params={"include_in_progress": False}
+    )
+    assert explicit["gpa"] is None
 
 
 async def test_term_what_if_over_http(api: Api):

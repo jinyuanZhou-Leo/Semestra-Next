@@ -1,8 +1,8 @@
 import type { CourseGrade, TermGrades } from '@semestra/api-client'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Calculator } from 'lucide-react'
-import { createContext, useContext, useId } from 'react'
+import { BookOpen, Calculator, Search, SearchX } from 'lucide-react'
+import { createContext, useContext, useState } from 'react'
 import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
@@ -10,13 +10,14 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatCredits } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Label } from '@/ui/label'
-import { Switch } from '@/ui/switch'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
@@ -24,11 +25,11 @@ import { useCourses } from '@/modules/academics/queries'
 import { GpaValue } from '../components/GpaValue'
 import { GradeTableCard, PlanBar } from '../components/GradeTableCard'
 import { InlineInput } from '../components/InlineInput'
-import { TermPlanTarget } from '../components/TargetCard'
 import { TermComposition, courseStatusLabel } from '../components/TermComposition'
+import { TermTargetCard } from '../components/TermTargetCard'
 import { percentText } from '../display'
 import { parseScore } from '../score'
-import { IN_PROGRESS_PREF, useTermGrades } from '../queries'
+import { useTermGrades } from '../queries'
 import { useTermPlanSimulation } from '../use-plan'
 
 const features = tableFeatures({})
@@ -101,7 +102,9 @@ function PercentageCell({ c }: { c: CourseGrade }) {
         <InlineInput
           key={`${c.course_id}-${assumed ?? ''}`}
           label={`${m.grading_assumed_score()}: ${c.title}`}
-          placeholder="—"
+          placeholder={
+            c.current_percentage === null ? '—' : String(Math.round(c.current_percentage * 10) / 10)
+          }
           tone="assumed"
           value={assumed === undefined ? '' : String(Math.round(assumed * 100) / 100)}
           onCommit={(text) => assume(c.course_id, text)}
@@ -110,7 +113,10 @@ function PercentageCell({ c }: { c: CourseGrade }) {
         <span className="w-24 px-3 text-right tabular-nums">{percentText(c.percentage)}</span>
       )}
       <span className="w-12 text-left text-xs text-muted-foreground tabular-nums">
-        {c.status === 'in_progress' && c.current_percentage !== null ? (
+        {/* In plan mode the assumption's hint already shows the average so far. */}
+        {c.status === 'in_progress' &&
+        c.current_percentage !== null &&
+        !(planning && canAssume(c)) ? (
           <>
             <span className="sr-only">{m.grading_current()}: </span>
             {percentText(c.current_percentage)}
@@ -188,33 +194,15 @@ const DEFAULT_TERM_WHAT_IF: TermWhatIf = { plan: false, scores: {}, targetGpa: n
 /** A term's courses with their grades, the term GPA and plan mode for unfinished courses. */
 export default function TermGradesPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
-  const [includeInProgress, setIncludeInProgress] = useUiPref(IN_PROGRESS_PREF, false)
+  const grades = useTermGrades(termId)
   return (
-    <AsyncBoundary query={useTermGrades(termId, includeInProgress)}>
-      {(term) => (
-        <TermGradesView
-          key={termId}
-          term={term}
-          programId={scope.programId}
-          includeInProgress={includeInProgress}
-          onIncludeInProgress={setIncludeInProgress}
-        />
-      )}
+    <AsyncBoundary query={grades}>
+      {(term) => <TermGradesView key={termId} term={term} programId={scope.programId} />}
     </AsyncBoundary>
   )
 }
 
-function TermGradesView({
-  term,
-  programId,
-  includeInProgress,
-  onIncludeInProgress,
-}: {
-  term: TermGrades
-  programId: string
-  includeInProgress: boolean
-  onIncludeInProgress: (value: boolean) => void
-}) {
+function TermGradesView({ term, programId }: { term: TermGrades; programId: string }) {
   const termId = term.term_id
   const queryClient = useQueryClient()
   const [stored, setWhatIf] = useUiPref<TermWhatIf>('grading.term.whatif', DEFAULT_TERM_WHAT_IF, {
@@ -229,7 +217,20 @@ function TermGradesView({
   const scores = Object.fromEntries(Object.entries(whatIf.scores).filter(([id]) => open.has(id)))
   const canPlan = open.size > 0
   const planning = whatIf.plan && canPlan
-  const planned = useTermPlanSimulation(term, scores, whatIf.targetGpa, includeInProgress, planning)
+  const planned = useTermPlanSimulation(
+    term,
+    planning ? scores : {},
+    whatIf.targetGpa,
+    planning || whatIf.targetGpa !== null,
+  )
+  const [filter, setFilter] = useState<TermFilter>('all')
+  const [search, setSearch] = useState('')
+  const query = search.trim().toLocaleLowerCase()
+  const shown = term.courses.filter(
+    (c) =>
+      (filter === 'all' || (filter === 'in_progress') === (c.status === 'in_progress')) &&
+      (!query || `${c.code ?? ''} ${c.title} ${c.alias ?? ''}`.toLocaleLowerCase().includes(query)),
+  )
 
   const assume = (courseId: string, text: string): boolean => {
     const parsed = parseScore(text)
@@ -267,7 +268,7 @@ function TermGradesView({
   const table = useTable({
     features,
     columns: courseColumns,
-    data: term.courses,
+    data: shown,
     getRowId: (c) => c.course_id,
   })
 
@@ -286,11 +287,12 @@ function TermGradesView({
               />
             ) : (
               <TermToolbar
-                count={term.courses.length}
+                filter={filter}
+                onFilterChange={setFilter}
+                search={search}
+                onSearchChange={setSearch}
                 canPlan={canPlan}
                 onPlan={() => setWhatIf({ ...whatIf, plan: true })}
-                includeInProgress={includeInProgress}
-                onIncludeInProgress={onIncludeInProgress}
               />
             )
           }
@@ -325,6 +327,31 @@ function TermGradesView({
                     </Empty>
                   </TableCell>
                 </TableRow>
+              ) : shown.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={courseColumns.length} className="whitespace-normal">
+                    <Empty className="border-0 p-0">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <SearchX aria-hidden />
+                        </EmptyMedia>
+                        <EmptyTitle>{m.grading_courses_filtered_empty()}</EmptyTitle>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => {
+                            setFilter('all')
+                            setSearch('')
+                          }}
+                        >
+                          {m.common_clear_filters()}
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  </TableCell>
+                </TableRow>
               ) : null}
               {table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
@@ -340,57 +367,82 @@ function TermGradesView({
         </GradeTableCard>
         {/* On narrow screens the summary comes first. */}
         <aside className="-order-1 grid gap-4 sm:grid-cols-2 lg:sticky lg:top-4 lg:order-none lg:grid-cols-1">
-          <TermComposition
+          <TermComposition term={term} colors={colors} label={courseLabel} />
+          <TermTargetCard
             term={term}
-            planned={planned}
             planning={planning}
+            planned={planned}
             scores={scores}
+            targetGpa={whatIf.targetGpa}
             colors={colors}
             label={courseLabel}
+            canAssume={canAssume}
+            onTargetChange={(targetGpa) => setWhatIf({ ...whatIf, targetGpa })}
           />
-          {planning ? (
-            <TermPlanTarget
-              targetGpa={whatIf.targetGpa}
-              maxPoints={term.max_points}
-              hideGpa={term.hide_gpa}
-              planned={planned}
-              onChange={(targetGpa) => setWhatIf({ ...whatIf, targetGpa })}
-            />
-          ) : null}
         </aside>
       </div>
     </TermCellsContext>
   )
 }
 
-/** The header bar of the term's course table. */
+type TermFilter = 'all' | 'in_progress' | 'finished'
+const TERM_FILTERS: readonly TermFilter[] = ['all', 'in_progress', 'finished']
+const termFilterLabel = (f: TermFilter) =>
+  f === 'all'
+    ? m.grading_term_filter_all()
+    : f === 'in_progress'
+      ? m.grading_term_filter_in_progress()
+      : m.grading_term_filter_finished()
+
+/** The row above the term's course table: filters on the left, actions on the right. */
 function TermToolbar({
-  count,
+  filter,
+  onFilterChange,
+  search,
+  onSearchChange,
   canPlan,
   onPlan,
-  includeInProgress,
-  onIncludeInProgress,
 }: {
-  count: number
+  filter: TermFilter
+  onFilterChange: (filter: TermFilter) => void
+  search: string
+  onSearchChange: (search: string) => void
   /** Plan mode needs an unfinished course to assume a grade for. */
   canPlan: boolean
   onPlan: () => void
-  includeInProgress: boolean
-  onIncludeInProgress: (value: boolean) => void
 }) {
-  const includeId = useId()
   const plan = (
-    <Button variant="outline" size="sm" disabled={!canPlan} onClick={onPlan}>
+    <Button variant="secondary" size="sm" disabled={!canPlan} onClick={onPlan}>
       <Calculator aria-hidden />
       {m.grading_plan()}
     </Button>
   )
   return (
     <div className="flex h-8 items-center gap-2">
-      <h2 className="flex-1 truncate text-sm font-medium">
-        {m.grading_term_courses_heading()}{' '}
-        <span className="font-normal text-muted-foreground tabular-nums">{count}</span>
-      </h2>
+      <ToggleGroup
+        aria-label={m.grading_filter()}
+        size="sm"
+        className={SEGMENTED}
+        value={[filter]}
+        onValueChange={([next]) => next && onFilterChange(next as TermFilter)}
+      >
+        {TERM_FILTERS.map((f) => (
+          <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+            {termFilterLabel(f)}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <InputGroup className="mr-auto h-8 w-56">
+        <InputGroupInput
+          aria-label={m.grading_search_courses()}
+          placeholder={m.grading_search_courses()}
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+        <InputGroupAddon>
+          <Search aria-hidden />
+        </InputGroupAddon>
+      </InputGroup>
       {canPlan ? (
         plan
       ) : (
@@ -400,21 +452,6 @@ function TermToolbar({
           <TooltipContent>{m.grading_term_plan_unavailable()}</TooltipContent>
         </Tooltip>
       )}
-      <Tooltip>
-        {/* The whole switch and its label explain what "unfinished" counts. */}
-        <TooltipTrigger render={<div className="flex items-center gap-2 px-1" />}>
-          <Switch
-            id={includeId}
-            size="sm"
-            checked={includeInProgress}
-            onCheckedChange={onIncludeInProgress}
-          />
-          <Label htmlFor={includeId} className="font-normal">
-            {m.grading_count_in_progress()}
-          </Label>
-        </TooltipTrigger>
-        <TooltipContent>{m.grading_include_in_progress()}</TooltipContent>
-      </Tooltip>
     </div>
   )
 }

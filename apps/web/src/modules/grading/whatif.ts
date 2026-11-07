@@ -1,15 +1,14 @@
-import type { Assessment, GradeTarget } from '@semestra/api-client'
+import type { Assessment } from '@semestra/api-client'
 
 /** Plan mode of one course (M03 §5.1), kept per course with `useUiPref('grading.whatif', …)`. */
 export type WhatIf = {
   plan: boolean
   /** Assumed score in percent per ungraded assessment id. */
   scores: Record<string, number>
-  /** A goal for this exploration only; null uses the course's own target. */
-  target: GradeTarget | null
 }
 
-export const DEFAULT_WHATIF: WhatIf = { plan: false, scores: {}, target: null }
+/** Plan mode uses the course's own (saved) target; a stored `target` from before is ignored. */
+export const DEFAULT_WHATIF: WhatIf = { plan: false, scores: {} }
 
 /** Assumptions that still apply: the assessment exists, has no real score and counts. */
 export function activeScores(

@@ -1,40 +1,26 @@
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 
 /**
- * The bordered card around a grades table (a course's assessments, a term's courses): its header
- * bar holds the title and actions, and the card turns to the plan color in plan mode.
+ * A grades table (a course's assessments, a term's courses) with its toolbar above it: filters
+ * on the left and actions on the right, or the plan bar in plan mode. The card holds only the
+ * table, so its column headings are its only header.
  */
 export function GradeTableCard({
-  planning,
   toolbar,
   children,
 }: {
-  planning: boolean
-  /** The header bar (title and actions), inside the border. */
+  planning?: boolean
+  /** The row above the table; always 2rem high so plan mode never moves the table. */
   toolbar: ReactNode
   children: ReactNode
 }) {
   return (
-    <div
-      className={cn(
-        'min-w-0 rounded-2xl border border-border transition-colors',
-        planning && 'border-primary/30',
-      )}
-    >
-      <div
-        className={cn(
-          'border-b border-border px-3 py-2 transition-colors',
-          planning && 'border-primary/30',
-        )}
-      >
-        {toolbar}
-      </div>
-      {children}
+    <div className="min-w-0 space-y-3">
+      {toolbar}
+      <div className="rounded-2xl border border-border">{children}</div>
     </div>
   )
 }
@@ -56,7 +42,7 @@ export function PlanBar({
 }) {
   return (
     <div className="flex h-8 items-center gap-2">
-      <Badge>{m.grading_planning()}</Badge>
+      <h2 className="text-sm font-medium">{m.grading_planning()}</h2>
       <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{hint}</p>
       <Button
         variant="destructive"
