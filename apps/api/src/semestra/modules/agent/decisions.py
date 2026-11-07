@@ -91,7 +91,7 @@ class Claimed:
 
     decisions: Sequence[Any]
     rows: list[AgentProposal]
-    caps: dict[str, Capability]
+    caps: dict[str, Capability | None]  # None: a question (`ask_user`)
     previews: dict[str, dict[str, Any]]
     scope: Any
     message_ids: set[str]
@@ -122,12 +122,14 @@ async def claim(state: State, user_id: str, session_id: str, decisions: Sequence
             if row.status == "expired":
                 await ctx.db.commit()
             service.check_pending(row)
-        cap_by_id = {r.id: registry.get(r.capability) for r in rows}
+        cap_by_id = {r.id: _capability(r) for r in rows}
+        for d, row in zip(decisions, rows, strict=True):
+            _check_kind(d, row)
         # Edited arguments get a fresh preview, so the card shows what actually ran.
         edited_preview: dict[str, dict[str, Any]] = {}
         for d, row in zip(decisions, rows, strict=True):
             cap = cap_by_id[row.id]
-            if d.decision == "edit":
+            if d.decision == "edit" and cap is not None:
                 if d.args is None:
                     raise AppError(
                         "common.validation", 422, errors=[{"loc": ["args"], "code": "missing"}]
@@ -137,6 +139,20 @@ async def claim(state: State, user_id: str, session_id: str, decisions: Sequence
             await service.claim_proposal(ctx, row, reject=d.decision == "reject")
         await ctx.db.commit()
     return Claimed(decisions, rows, cap_by_id, edited_preview, scope, {r.message_id for r in rows})
+
+
+def _capability(row: AgentProposal) -> Capability | None:
+    return None if row.capability == tools.ASK_USER else registry.get(row.capability)
+
+
+def _check_kind(d: Any, row: AgentProposal) -> None:
+    """A question takes an answer or a skip; a confirmation card anything but an answer."""
+    question = row.capability == tools.ASK_USER
+    if question and d.decision in ("approve", "edit"):
+        raise AppError("common.validation", 422, errors=[{"loc": ["decision"], "code": "invalid"}])
+    if d.decision == "answer" and (not question or not (d.answer or "").strip()):
+        loc = "answer" if question else "decision"
+        raise AppError("common.validation", 422, errors=[{"loc": [loc], "code": "invalid"}])
 
 
 async def run(
@@ -152,8 +168,13 @@ async def run(
     results: list[tuple[AgentProposal, Outcome]] = []
     for d, row in zip(decisions, rows, strict=True):
         cap = cap_by_id[row.id]
+        if d.decision == "answer":
+            result = Outcome(True, {"answer": d.answer})
+            results.append((row, result))
+            await asyncio.shield(_record(state, user_id, session_id, row, result, "executed", None))
+            continue
         if d.decision == "reject":
-            text = outcome.REJECTED
+            text = outcome.SKIPPED if cap is None else outcome.REJECTED
             if d.reason:
                 text += f" Their reason: {d.reason}"
             result = Outcome(True, {"rejected": True, "message": text}, ran=False)
@@ -170,7 +191,7 @@ async def run(
         await asyncio.shield(
             _record(state, user_id, session_id, row, result, status, edited_preview.get(row.id))
         )
-        if d.remember and cap.effect == "write" and result.ok:
+        if d.remember and cap is not None and cap.effect == "write" and result.ok:
             async with agent_ctx(state, user_id, scope=None) as ctx:
                 await service.remember_auto_approve(ctx, cap.name)
                 await ctx.db.commit()
