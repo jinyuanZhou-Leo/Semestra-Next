@@ -3,13 +3,11 @@ import { lmsCourseOverviewOptions, settingsValueGetOptions } from '@semestra/api
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpRight,
-  ClipboardList,
   FileText,
   Folder,
   GraduationCap,
   House,
   Layers,
-  ListChecks,
   type LucideIcon,
   Megaphone,
   RefreshCw,
@@ -53,12 +51,10 @@ import { AssignmentsView } from './views/AssignmentsView'
 import { IconAction, OpenInCanvasIcon } from './views/common'
 import { FilePreviewDialog } from './views/FilePreview'
 import { FilesView } from './views/FilesView'
-import { GradesView } from './views/GradesView'
 import { HomeView } from './views/HomeView'
 import { ModulesView } from './views/ModulesView'
 import { OtherTabView } from './views/OtherTabView'
 import { PagesView } from './views/PagesView'
-import { QuizzesView } from './views/QuizzesView'
 import { SyllabusView } from './views/SyllabusView'
 
 /**
@@ -188,14 +184,10 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
       return <AssignmentsView selected={resolved.ref} />
     case 'files':
       return <FilesView selected={resolved.ref} />
-    case 'grades':
-      return <GradesView />
     case 'modules':
       return <ModulesView selected={resolved.ref} />
     case 'pages':
       return <PagesView selected={resolved.ref} />
-    case 'quizzes':
-      return <QuizzesView selected={resolved.ref} />
     case 'syllabus':
       return <SyllabusView />
   }
@@ -206,9 +198,7 @@ const NAV_ICONS: Record<NativeView, LucideIcon> = {
   announcements: Megaphone,
   syllabus: ScrollText,
   modules: Layers,
-  assignments: ClipboardList,
-  quizzes: ListChecks,
-  grades: GraduationCap,
+  assignments: GraduationCap,
   pages: FileText,
   files: Folder,
 }

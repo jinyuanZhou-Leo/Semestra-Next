@@ -2947,5 +2947,8 @@
   "error_lms_sign_in_failed": "That sign-in address couldn't be used. Sign in again and paste the new address.",
   "canvas_tab_import": "Import",
   "canvas_tab_in_gradebook": "In gradebook",
-  "canvas_tab_in_tasks": "In tasks"
+  "canvas_tab_in_tasks": "In tasks",
+  "canvas_tab_work": "Assignments & grades",
+  "canvas_tab_group_practice": "Practice quizzes",
+  "canvas_tab_quiz": "Quiz"
 }

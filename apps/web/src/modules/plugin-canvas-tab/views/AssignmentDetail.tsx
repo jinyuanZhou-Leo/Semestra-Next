@@ -1,5 +1,6 @@
 import type {
   AssignmentOut,
+  Quiz,
   RubricCriterion,
   RubricScore,
   SubmissionDetail,
@@ -44,9 +45,18 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 /**
  * An assignment opened in the list: when it can be submitted and how, why it is locked, its
- * description, then the user's grade with the teacher's comments and rubric (M16 §4).
+ * description, then the user's grade with the teacher's comments and rubric (M16 §4). A quiz adds
+ * its questions and time limit; a practice quiz (no assignment, no grade) has no feedback.
  */
-export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut }) {
+export function AssignmentDetail({
+  assignment: a,
+  quiz,
+  practice = false,
+}: {
+  assignment: AssignmentOut
+  quiz?: Quiz | null
+  practice?: boolean
+}) {
   const types = (a.submission_types ?? []).map((t) => SUBMISSION_TYPES[t]?.() ?? t)
   return (
     <div className="space-y-4">
@@ -61,7 +71,23 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
           {types.length > 0 ? (
             <Fact label={m.canvas_tab_submit_by()} value={types.join(', ')} />
           ) : null}
-          <Fact label={m.canvas_tab_column_attempts()} value={attemptsLabel(a.allowed_attempts)} />
+          <Fact
+            label={m.canvas_tab_column_attempts()}
+            value={attemptsLabel(quiz ? quiz.allowed_attempts : a.allowed_attempts)}
+          />
+          {quiz?.question_count != null ? (
+            <Fact label={m.canvas_tab_column_questions()} value={String(quiz.question_count)} />
+          ) : null}
+          {quiz ? (
+            <Fact
+              label={m.canvas_tab_column_time_limit()}
+              value={
+                quiz.time_limit
+                  ? m.canvas_tab_minutes({ count: quiz.time_limit })
+                  : m.canvas_tab_no_time_limit()
+              }
+            />
+          ) : null}
         </dl>
         <div className="flex shrink-0 items-center gap-1">
           {a.html ? <DisplayMenu /> : null}
@@ -76,7 +102,7 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_no_description()}</p>
       )}
-      <Feedback assignment={a} />
+      {practice ? null : <Feedback assignment={a} />}
     </div>
   )
 }

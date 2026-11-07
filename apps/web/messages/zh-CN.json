@@ -2947,5 +2947,8 @@
   "error_lms_sign_in_failed": "无法使用这个登录地址。请重新登录并粘贴新的地址。",
   "canvas_tab_import": "导入",
   "canvas_tab_in_gradebook": "已在成绩簿",
-  "canvas_tab_in_tasks": "已在待办"
+  "canvas_tab_in_tasks": "已在待办",
+  "canvas_tab_work": "作业与成绩",
+  "canvas_tab_group_practice": "练习测验",
+  "canvas_tab_quiz": "测验"
 }

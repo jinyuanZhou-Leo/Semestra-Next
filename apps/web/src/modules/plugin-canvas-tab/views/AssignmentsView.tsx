@@ -1,5 +1,5 @@
-import type { AssignmentOut } from '@semestra/api-client'
-import { lmsAssignmentListOptions } from '@semestra/api-client/react-query'
+import type { AssignmentOut, Quiz } from '@semestra/api-client'
+import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -14,7 +14,6 @@ import {
   GraduationCap,
   Import,
   ListChecks,
-  ListPlus,
   Lock,
 } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
@@ -28,15 +27,15 @@ import {
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
-import { Spinner } from '@/ui/spinner'
-import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Spinner } from '@/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
@@ -45,23 +44,58 @@ import { AssignmentDetail } from './AssignmentDetail'
 import { ScoreText, SubmissionStatus, ViewHeader } from './common'
 import { useScrollIntoView } from './scroll'
 
-/** Sample switch (甲/乙), removed once one is picked. */
-export const SAMPLE: 'a' | 'b' = (() => {
-  try {
-    return localStorage.getItem('canvas-sample') === 'b' ? 'b' : 'a'
-  } catch {
-    return 'a'
-  }
-})()
+/**
+ * A row: a Canvas assignment (a graded quiz is one too, with its quiz alongside), or a practice
+ * quiz, which has no assignment, no grade and can't be imported. Its id is the assignment's, or
+ * `quiz:<id>` for a practice quiz.
+ */
+type Row = { id: string; assignment: AssignmentOut; quiz: Quiz | null; practice: boolean }
 
-/** In 甲 this view imports to the tasks only; in 乙 to either. */
-export function importedHere(a: AssignmentOut): boolean {
-  return SAMPLE === 'a' ? a.imported_as.some((t) => t.kind === 'task') : a.imported_as.length > 0
+/** The id of a quiz's practice row, which is also its `ref` in the location (M16 §3). */
+export const quizRef = (quizId: string) => `quiz:${quizId}`
+
+const PRACTICE_GROUP = 'quiz:practice'
+
+/** Assignments with their quizzes, then the practice quizzes as assignment-shaped rows. */
+function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[]): Row[] {
+  const quizOf = new Map(quizzes.flatMap((q) => (q.assignment_id ? [[q.assignment_id, q]] : [])))
+  const rows: Row[] = assignments.map((a) => ({
+    id: a.external_id,
+    assignment: a,
+    quiz: quizOf.get(a.external_id) ?? null,
+    practice: false,
+  }))
+  const graded = new Set(assignments.map((a) => a.external_id))
+  for (const q of quizzes) {
+    if (q.assignment_id && graded.has(q.assignment_id)) continue
+    rows.push({
+      id: quizRef(q.external_id),
+      quiz: q,
+      practice: true,
+      assignment: {
+        external_id: quizRef(q.external_id),
+        web_url: q.web_url,
+        name: q.title,
+        html: q.html,
+        due_at: q.due_at,
+        unlock_at: q.unlock_at,
+        lock_at: q.lock_at,
+        points: q.points,
+        group_id: PRACTICE_GROUP,
+        group_name: m.canvas_tab_group_practice(),
+        locked: q.locked,
+        lock_explanation: q.lock_explanation,
+        allowed_attempts: q.allowed_attempts,
+        imported_as: [],
+      },
+    })
+  }
+  return rows
 }
 
 const features = tableFeatures({})
-const column = createColumnHelper<typeof features, AssignmentOut>()
-type CellProps = CellContext<typeof features, AssignmentOut>
+const column = createColumnHelper<typeof features, Row>()
+type CellProps = CellContext<typeof features, Row>
 
 type TableState = {
   selected: ReadonlySet<string>
@@ -77,27 +111,38 @@ function useTableState() {
   return state
 }
 
+/** Imported somewhere already: both places, so nothing is left to import. */
+const importedBoth = (a: AssignmentOut) =>
+  a.imported_as.some((t) => t.kind === 'assessment') && a.imported_as.some((t) => t.kind === 'task')
+
 function SelectCell({ row }: CellProps) {
   const { selected, toggle } = useTableState()
-  const a = row.original
+  const { assignment: a, practice } = row.original
+  if (practice) return null
   return (
     <Checkbox
       aria-label={m.canvas_tab_select_assignment({ name: a.name })}
-      disabled={importedHere(a)}
+      disabled={importedBoth(a)}
       // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
       className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
-      checked={selected.has(a.external_id)}
-      onCheckedChange={(on) => toggle(a.external_id, on)}
+      checked={selected.has(row.original.id)}
+      onCheckedChange={(on) => toggle(row.original.id, on)}
       onClick={(event) => event.stopPropagation()}
     />
   )
 }
 
 function NameCell({ row }: CellProps) {
-  const a = row.original
+  const { assignment: a, quiz } = row.original
   const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      {quiz ? (
+        <ListChecks
+          aria-label={m.canvas_tab_quiz()}
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
+      ) : null}
       <span className="font-medium">{a.name}</span>
       {a.locked ? (
         <Tooltip>
@@ -111,7 +156,7 @@ function NameCell({ row }: CellProps) {
           <TooltipContent className="max-w-xs">{why}</TooltipContent>
         </Tooltip>
       ) : null}
-      {a.imported_as.some((t) => t.kind === 'assessment') && SAMPLE === 'b' ? (
+      {a.imported_as.some((t) => t.kind === 'assessment') ? (
         <Badge variant="secondary">{m.canvas_tab_in_gradebook()}</Badge>
       ) : null}
       {a.imported_as.some((t) => t.kind === 'task') ? (
@@ -123,19 +168,23 @@ function NameCell({ row }: CellProps) {
 
 const DueCell = ({ row }: CellProps) => (
   <span className="whitespace-nowrap">
-    {row.original.due_at ? formatDateTime(row.original.due_at) : m.lms_no_due_date()}
+    {row.original.assignment.due_at
+      ? formatDateTime(row.original.assignment.due_at)
+      : m.lms_no_due_date()}
   </span>
 )
 
 const ScoreCell = ({ row }: CellProps) => (
-  <ScoreText score={row.original.submission?.score} points={row.original.points} />
+  <ScoreText
+    score={row.original.assignment.submission?.score}
+    points={row.original.assignment.points}
+  />
 )
 
 function StatusCell({ row }: CellProps) {
   const { now } = useTableState()
-  return (
-    <SubmissionStatus submission={row.original.submission} dueAt={row.original.due_at} now={now} />
-  )
+  const a = row.original.assignment
+  return <SubmissionStatus submission={a.submission} dueAt={a.due_at} now={now} />
 }
 
 const columns = column.columns([
@@ -162,8 +211,9 @@ const WIDTHS: Record<string, string> = {
 type Kind = AssignmentImportKind
 
 /**
- * Assignments by group (M16 §4): tick several and import them into the gradebook or the tasks
- * through the M08 review (`lms.assignment.import`); a row opens its description.
+ * Canvas's assignments, quizzes and grades as one table (M16 §4): by assignment group with the
+ * user's score and where each submission stands. Ticked rows are imported into the gradebook
+ * (with the score Canvas has) or the tasks through the M08 review; a row opens its details.
  */
 export function AssignmentsView({ selected }: { selected?: string }) {
   const { courseId } = useCanvasPage()
@@ -171,10 +221,15 @@ export function AssignmentsView({ selected }: { selected?: string }) {
     ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
+  // Without it the table still shows; quizzes then look like plain assignments.
+  const quizzes = useQuery({
+    ...lmsQuizListOptions({ path: { course_id: courseId } }),
+    placeholderData: keepPreviousData,
+  }).data?.items
   return (
     <CanvasBoundary
       query={list}
-      isEmpty={(data) => data.items.length === 0}
+      isEmpty={(data) => data.items.length === 0 && !quizzes?.length}
       empty={
         <Empty>
           <EmptyHeader>
@@ -186,16 +241,28 @@ export function AssignmentsView({ selected }: { selected?: string }) {
         </Empty>
       }
     >
-      {(data) => <AssignmentTable items={data.items} focused={selected} />}
+      {(data) => (
+        <AssignmentTable
+          rows={rowsOf(data.items, quizzes ?? [])}
+          focused={focusedRow(selected, quizzes)}
+        />
+      )}
     </CanvasBoundary>
   )
 }
 
+/** A quiz link (`quiz:<id>`) opens its assignment's row when it has one. */
+function focusedRow(selected: string | undefined, quizzes: readonly Quiz[] | undefined) {
+  if (!selected?.startsWith('quiz:')) return selected
+  const quiz = quizzes?.find((q) => quizRef(q.external_id) === selected)
+  return quiz?.assignment_id ?? selected
+}
+
 type Group = { key: string; name: string; weight: number | null; rows: string[] }
 
-function groupsOf(items: readonly AssignmentOut[]): Group[] {
+function groupsOf(rows: readonly Row[]): Group[] {
   const groups = new Map<string, Group>()
-  for (const a of items) {
+  for (const { id, assignment: a } of rows) {
     const key = a.group_id ?? a.group_name ?? ''
     const group: Group = groups.get(key) ?? {
       key,
@@ -203,24 +270,28 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
       weight: a.group_weight ?? null,
       rows: [],
     }
-    group.rows.push(a.external_id)
+    group.rows.push(id)
     groups.set(key, group)
   }
   return [...groups.values()]
 }
 
-function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?: string }) {
+function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: string }) {
   const { programId, courseId, go, title } = useCanvasPage()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
   const [now] = useState(Date.now)
   const focusedRef = useScrollIntoView<HTMLTableRowElement>(focused)
-  const table = useTable({ features, columns, data: items, getRowId: (a) => a.external_id })
+  const table = useTable({ features, columns, data, getRowId: (r) => r.id })
   const rows = new Map(table.getRowModel().rows.map((row) => [row.id, row]))
-  const groups = groupsOf(items)
-  const importable = new Set(items.filter((a) => !importedHere(a)).map((a) => a.external_id))
-  const picked = [...selected].filter((id) => importable.has(id))
+  const groups = groupsOf(data)
+  const byId = new Map(data.map((r) => [r.id, r]))
+  // Each import skips what is already there (`lms.assignment.import`), so a pick can mix both.
+  const picked = [...selected].filter((id) => {
+    const row = byId.get(id)
+    return row && !row.practice && !importedBoth(row.assignment)
+  })
 
   const state: TableState = {
     now,
@@ -266,35 +337,25 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
         <ViewHeader
           title={title}
           primary={
-            SAMPLE === 'a' ? (
-              <Button
-                disabled={picked.length === 0 || starting !== null}
-                onClick={() => start('task')}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button disabled={picked.length === 0 || starting !== null} />}
               >
-                {starting ? <Spinner /> : <ListPlus aria-hidden />}
-                {m.canvas_tab_import_to_tasks()}
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button disabled={picked.length === 0 || starting !== null} />}
-                >
-                  {starting ? <Spinner /> : <Import aria-hidden />}
-                  {m.canvas_tab_import()}
-                  <ChevronDown aria-hidden data-icon="inline-end" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={() => start('assessment')}>
-                    <GraduationCap aria-hidden />
-                    {m.canvas_tab_import_to_gradebook()}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => start('task')}>
-                    <ListChecks aria-hidden />
-                    {m.canvas_tab_import_to_tasks()}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )
+                {starting ? <Spinner /> : <Import aria-hidden />}
+                {m.canvas_tab_import()}
+                <ChevronDown aria-hidden data-icon="inline-end" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={() => start('assessment')}>
+                  <GraduationCap aria-hidden />
+                  {m.canvas_tab_import_to_gradebook()}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => start('task')}>
+                  <ListChecks aria-hidden />
+                  {m.canvas_tab_import_to_tasks()}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           }
         />
         <Table className="min-w-xl table-fixed">
@@ -346,7 +407,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
                         const row = rows.get(id)
                         if (!row) return null
                         const expanded = focused === id
-                        const a = row.original
+                        const r = row.original
                         return (
                           <Fragment key={id}>
                             <TableRow
@@ -377,7 +438,11 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
                               <TableRow className="hover:bg-transparent">
                                 <TableCell colSpan={columns.length} className="whitespace-normal">
                                   <div className="py-2 pl-8">
-                                    <AssignmentDetail assignment={a} />
+                                    <AssignmentDetail
+                                      assignment={r.assignment}
+                                      quiz={r.quiz}
+                                      practice={r.practice}
+                                    />
                                   </div>
                                 </TableCell>
                               </TableRow>
