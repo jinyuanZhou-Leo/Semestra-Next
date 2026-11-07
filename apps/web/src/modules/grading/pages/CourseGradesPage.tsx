@@ -1,16 +1,13 @@
 import type { Gradebook } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
-import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
-import { formatCredits } from '@/lib/format'
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
-import { Alert, AlertDescription } from '@/ui/alert'
 import { AssessmentDialog } from '../components/AssessmentDialog'
 import { AssessmentTable } from '../components/AssessmentTable'
 import { GradebookToolbar } from '../components/GradebookToolbar'
@@ -84,17 +81,6 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   return (
     <div className="space-y-4">
       {notices}
-      {summary.weights_ok ? null : (
-        <Alert>
-          <TriangleAlert aria-hidden />
-          <AlertDescription>
-            {m.grading_weights_warning({
-              total: formatCredits(summary.weight_total),
-              gap: formatCredits(Math.abs(summary.weight_gap)),
-            })}
-          </AlertDescription>
-        </Alert>
-      )}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <AssessmentTable
           courseId={courseId}

@@ -111,7 +111,7 @@ test('a breakdown row is reachable by keyboard and describes its category', asyn
   expect(row).toHaveAccessibleDescription(/Adds to grade: 30%/)
 })
 
-test('weights that do not add up to 100 warn and hold back the figures', async () => {
+test('weights that do not add up to 100 hold back planning without a warning', async () => {
   book = gradebook({
     summary: summary({
       weights_ok: false,
@@ -121,9 +121,8 @@ test('weights that do not add up to 100 warn and hold back the figures', async (
     }),
   })
   mount()
-  const alert = await screen.findByRole('alert')
-  expect(alert).toHaveTextContent('The weights add up to 80%')
-  expect(screen.getByRole('button', { name: 'Plan' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: 'Plan' })).toBeDisabled()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('typing 18/20 in a score cell saves points, not a percentage', async () => {

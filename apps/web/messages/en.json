@@ -723,7 +723,6 @@
   "grading_current": "Current",
   "grading_final": "Final",
   "grading_overridden": "Official",
-  "grading_weights_warning": "The weights add up to {total}%, {gap}% away from 100%. Grades appear once they add up to 100%.",
   "grading_target_points": "Grade points",
   "grading_target_percentage": "Percent",
   "grading_target_kind": "Target unit",
