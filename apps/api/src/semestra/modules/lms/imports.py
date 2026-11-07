@@ -258,6 +258,8 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
             else:
                 confidence = {"weight": "low"}  # left for the user to fill in
             item.update(due_date=due_date, due_time=due_time, note=note, source_ref=ref)
+            # A grade already on the platform comes along, so it needs no second review.
+            item.update(platform_score(a) or {})
             new.append(NewItem(key=key, type="assessment", data=item, confidence=confidence))
         else:
             item = {
@@ -272,9 +274,12 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
         by_key[key] = {
             "external_id": external_id,
             "link_id": link.id,
-            # The import copies no score: a grade already on the platform is offered as an
-            # update right after it.
-            "snapshot": {**snapshot(a, weights.get(external_id)), "score": None},
+            # An assessment carries the platform's grade. An assignment imported as a task
+            # (and switched in the review) carries none, so its grade is offered as an update.
+            "snapshot": {
+                **snapshot(a, weights.get(external_id)),
+                **({} if inp.as_kind == "assessment" else {"score": None}),
+            },
         }
         refs.append(
             {"lms_course_id": link.external_course_id, "filename": a["name"], "status": "done"}

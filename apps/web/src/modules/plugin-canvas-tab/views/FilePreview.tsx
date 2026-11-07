@@ -2,21 +2,16 @@ import { type FileMeta, lmsFileContent, lmsFileSaveToCourse } from '@semestra/ap
 import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { toast } from 'sonner'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { Markdown } from '@/modules/files/components/Markdown'
 import { m } from '@/paraglide/messages'
+import { PreviewShell } from '@/modules/files/components/PreviewShell'
 import { Button } from '@/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
+import { fileKindName } from '@/modules/files/kinds'
+import { Spinner } from '@/ui/spinner'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary } from '../CanvasBoundary'
@@ -26,7 +21,7 @@ import { IconAction, LockNote } from './common'
 
 /** What the browser shows inline; the backend streams anything else as a download (M09). */
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
-const FRAME = new Set(['application/pdf', 'text/plain'])
+const FRAME = new Set(['text/plain'])
 /** Read on the server (M07's parser) and shown as text: Office files, CSV, Markdown. */
 const AS_TEXT = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -37,28 +32,9 @@ const AS_TEXT = new Set([
 ])
 const AS_TEXT_NAME = /\.(docx|pptx|xlsx|csv|md)$/i
 
-/** The kind of a file as people name it ("Word document"), from its type or extension. */
-export function fileKindLabel(file: { name: string; mime_type?: string | null }): string | null {
-  const mime = file.mime_type ?? ''
-  const ext = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase() ?? ''
-  if (mime === 'application/pdf' || ext === 'pdf') return m.canvas_tab_file_kind_pdf()
-  if (/wordprocessingml|msword/.test(mime) || ext === 'docx' || ext === 'doc')
-    return m.canvas_tab_file_kind_word()
-  if (/presentationml|powerpoint/.test(mime) || ext === 'pptx' || ext === 'ppt')
-    return m.canvas_tab_file_kind_slides()
-  if (/spreadsheetml|ms-excel/.test(mime) || ext === 'xlsx' || ext === 'xls')
-    return m.canvas_tab_file_kind_sheet()
-  if (mime.startsWith('image/')) return m.canvas_tab_file_kind_image()
-  if (mime.startsWith('video/')) return m.canvas_tab_file_kind_video()
-  if (mime.startsWith('audio/')) return m.canvas_tab_file_kind_audio()
-  if (/zip|compressed|x-tar|gzip/.test(mime) || ['zip', 'gz', 'tar', '7z', 'rar'].includes(ext))
-    return m.canvas_tab_file_kind_archive()
-  if (mime === 'text/plain' || ext === 'txt') return m.canvas_tab_file_kind_text()
-  return ext ? m.canvas_tab_file_kind_other({ ext: ext.toUpperCase() }) : null
-}
-
 function previewKind(file: { name: string; mime_type?: string | null }) {
   const mime = file.mime_type ?? ''
+  if (mime === 'application/pdf') return 'pdf'
   if (IMAGE.test(mime)) return 'image'
   if (FRAME.has(mime)) return 'frame'
   if (AS_TEXT.has(mime) || AS_TEXT_NAME.test(file.name)) return 'text'
@@ -131,7 +107,7 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   })
   if (file.locked) return <LockNote title={m.canvas_tab_item_locked()} />
   return (
-    <CanvasBoundary query={check} skeleton={<Skeleton className="h-[65vh] w-full rounded-lg" />}>
+    <CanvasBoundary query={check} skeleton={<Skeleton className="size-full min-h-64 rounded-lg" />}>
       {() => children}
     </CanvasBoundary>
   )
@@ -198,7 +174,13 @@ export function FileActions({ fileId, name }: { fileId: string; name: string }) 
   )
 }
 
-/** The preview of a Canvas file opened from a module or a link in a page. */
+// pdf.js is large; load it only when a PDF is opened (the course files preview does the same).
+const PdfViewer = lazy(() =>
+  import('@/modules/files/components/PdfViewer').then((mod) => ({ default: mod.PdfViewer })),
+)
+
+/** The preview of a Canvas file opened from a module or a link in a page; the same frame as the
+ * course files preview (M07 §6.1), with "Save to course files" among the actions. */
 export function FilePreviewDialog({
   fileId,
   onClose,
@@ -206,91 +188,104 @@ export function FilePreviewDialog({
   fileId: string | null
   onClose: () => void
 }) {
-  return (
-    <Dialog open={fileId !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-4xl">
-        {fileId ? <PreviewBody fileId={fileId} /> : null}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function PreviewBody({ fileId }: { fileId: string }) {
+  // Keep showing the last file while the dialog animates closed, so it does not go blank.
+  const [last, setLast] = useState(fileId)
+  if (fileId !== null && fileId !== last) setLast(fileId)
+  const shown = fileId ?? last
   const { courseId } = useCanvasPage()
-  const meta = useQuery(lmsFileGetOptions({ path: { course_id: courseId, file_id: fileId } }))
+  const meta = useQuery({
+    ...lmsFileGetOptions({ path: { course_id: courseId, file_id: shown ?? '' } }),
+    enabled: shown !== null,
+  })
   const name = meta.data?.name ?? ''
-  const { saving, save } = useSaveToCourse(fileId, name)
-  const src = fileContentUrl(courseId, fileId)
+  const { saving, save } = useSaveToCourse(shown ?? '', name)
   const size = meta.data?.size_bytes
   const details = [
-    meta.data ? fileKindLabel(meta.data) : null,
+    meta.data ? fileKindName(meta.data) : null,
     size == null ? null : formatBytes(size),
   ]
     .filter(Boolean)
     .join(' · ')
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle className="truncate pr-8">{name || m.common_loading()}</DialogTitle>
-        <DialogDescription>{details || ' '}</DialogDescription>
-      </DialogHeader>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <CanvasBoundary query={meta}>
-          {(file) => {
-            const kind = previewKind(file)
-            if (kind === 'image') {
-              return (
-                <ContentCheck file={file}>
-                  <img
-                    src={src}
-                    alt={file.name}
-                    className="mx-auto max-h-[65vh] max-w-full object-contain"
-                  />
-                </ContentCheck>
-              )
-            }
-            if (kind === 'frame') {
-              return (
-                <ContentCheck file={file}>
-                  {/* The API serves it with `Content-Security-Policy: default-src 'none'`; a
-                      sandbox would stop the browser's PDF viewer. */}
-                  {/* oxlint-disable-next-line react/iframe-missing-sandbox */}
-                  <iframe
-                    src={src}
-                    title={file.name}
-                    className="h-[65vh] w-full rounded-lg border"
-                  />
-                </ContentCheck>
-              )
-            }
-            if (kind === 'text') return <TextPreview fileId={fileId} />
-            return (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <FileQuestion aria-hidden />
-                  </EmptyMedia>
-                  <EmptyTitle>{m.canvas_tab_file_no_preview()}</EmptyTitle>
-                </EmptyHeader>
-              </Empty>
-            )
-          }}
-        </CanvasBoundary>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" disabled={!meta.data || saving} onClick={save}>
-          <FolderInput aria-hidden />
-          {m.canvas_tab_file_save_short()}
-        </Button>
-        <Button
-          nativeButton={false}
-          // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Button's children label it
-          render={<a href={fileContentUrl(courseId, fileId, true)} download={name || undefined} />}
+    <PreviewShell
+      open={fileId !== null}
+      onClose={onClose}
+      title={name || m.common_loading()}
+      meta={details}
+      footer={
+        shown ? (
+          <>
+            <Button variant="outline" disabled={!meta.data || saving} onClick={save}>
+              <FolderInput aria-hidden />
+              {m.canvas_tab_file_save_short()}
+            </Button>
+            <Button
+              nativeButton={false}
+              render={
+                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+                <a href={fileContentUrl(courseId, shown, true)} download={name || undefined} />
+              }
+            >
+              <Download aria-hidden />
+              {m.canvas_tab_file_download_short()}
+            </Button>
+          </>
+        ) : null
+      }
+    >
+      {shown ? (
+        <CanvasBoundary query={meta}>{(file) => <PreviewBody file={file} />}</CanvasBoundary>
+      ) : null}
+    </PreviewShell>
+  )
+}
+
+function PreviewBody({ file }: { file: FileMeta }) {
+  const { courseId } = useCanvasPage()
+  const src = fileContentUrl(courseId, file.external_id)
+  const kind = previewKind(file)
+  if (kind === 'pdf') {
+    return (
+      <ContentCheck file={file}>
+        <Suspense
+          fallback={
+            <div className="flex h-64 items-center justify-center">
+              <Spinner />
+            </div>
+          }
         >
-          <Download aria-hidden />
-          {m.canvas_tab_file_download_short()}
-        </Button>
-      </DialogFooter>
-    </>
+          <PdfViewer url={src} />
+        </Suspense>
+      </ContentCheck>
+    )
+  }
+  if (kind === 'image') {
+    return (
+      <ContentCheck file={file}>
+        <div className="flex justify-center">
+          <img src={src} alt={file.name} className="max-h-full max-w-full" />
+        </div>
+      </ContentCheck>
+    )
+  }
+  if (kind === 'frame') {
+    return (
+      <ContentCheck file={file}>
+        {/* The API serves it with `Content-Security-Policy: default-src 'none'`. */}
+        {/* oxlint-disable-next-line react/iframe-missing-sandbox */}
+        <iframe src={src} title={file.name} className="size-full rounded-lg border" />
+      </ContentCheck>
+    )
+  }
+  if (kind === 'text') return <TextPreview fileId={file.external_id} />
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileQuestion aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle>{m.canvas_tab_file_no_preview()}</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
   )
 }

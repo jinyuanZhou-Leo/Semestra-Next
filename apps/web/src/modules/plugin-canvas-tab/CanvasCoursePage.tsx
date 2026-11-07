@@ -3,13 +3,11 @@ import { lmsCourseOverviewOptions, settingsValueGetOptions } from '@semestra/api
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpRight,
-  ClipboardList,
   FileText,
   Folder,
   GraduationCap,
   House,
   Layers,
-  ListChecks,
   type LucideIcon,
   Megaphone,
   RefreshCw,
@@ -53,12 +51,10 @@ import { AssignmentsView } from './views/AssignmentsView'
 import { IconAction, OpenInCanvasIcon } from './views/common'
 import { FilePreviewDialog } from './views/FilePreview'
 import { FilesView } from './views/FilesView'
-import { GradesView } from './views/GradesView'
 import { HomeView } from './views/HomeView'
 import { ModulesView } from './views/ModulesView'
 import { OtherTabView } from './views/OtherTabView'
 import { PagesView } from './views/PagesView'
-import { QuizzesView } from './views/QuizzesView'
 import { SyllabusView } from './views/SyllabusView'
 
 /**
@@ -94,7 +90,16 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       .finally(() => setRefreshing(false))
   }
 
-  const page: CanvasPage = { programId, courseId, go, openFile: setFile, display, setDisplay }
+  const title = viewTitle(overview.data, location)
+  const page: CanvasPage = {
+    programId,
+    courseId,
+    go,
+    openFile: setFile,
+    display,
+    setDisplay,
+    title,
+  }
 
   return (
     <CanvasPageContext value={page}>
@@ -116,6 +121,13 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       <FilePreviewDialog fileId={file} onClose={() => setFile(null)} />
     </CanvasPageContext>
   )
+}
+
+/** The open view's label in Canvas's menu, for the view's header. */
+function viewTitle(overview: CourseOverview | undefined, location: CanvasLocation): string {
+  if (!overview) return ''
+  const entries = navEntries(overview.navigation)
+  return resolveLocation(location, entries).entry?.label ?? m.canvas_tab_page_title()
 }
 
 function PageSkeleton() {
@@ -172,14 +184,10 @@ function View({ overview, resolved }: { overview: CourseOverview; resolved: Reso
       return <AssignmentsView selected={resolved.ref} />
     case 'files':
       return <FilesView selected={resolved.ref} />
-    case 'grades':
-      return <GradesView />
     case 'modules':
       return <ModulesView selected={resolved.ref} />
     case 'pages':
       return <PagesView selected={resolved.ref} />
-    case 'quizzes':
-      return <QuizzesView selected={resolved.ref} />
     case 'syllabus':
       return <SyllabusView />
   }
@@ -190,9 +198,7 @@ const NAV_ICONS: Record<NativeView, LucideIcon> = {
   announcements: Megaphone,
   syllabus: ScrollText,
   modules: Layers,
-  assignments: ClipboardList,
-  quizzes: ListChecks,
-  grades: GraduationCap,
+  assignments: GraduationCap,
   pages: FileText,
   files: Folder,
 }

@@ -1,4 +1,5 @@
 import type { NavTab } from '@semestra/api-client'
+import { m } from '@/paraglide/messages'
 
 /** Canvas tabs the plugin shows with its own views (M16 §3). */
 export const NATIVE_VIEWS = [
@@ -6,16 +7,25 @@ export const NATIVE_VIEWS = [
   'announcements',
   'assignments',
   'files',
-  'grades',
   'modules',
   'pages',
-  'quizzes',
   'syllabus',
 ] as const
 export type NativeView = (typeof NATIVE_VIEWS)[number]
 
 /** Discussions are read and written in Canvas. */
 const HIDDEN_KINDS: ReadonlySet<string> = new Set(['discussions'])
+
+/**
+ * Canvas's assignments, quizzes and grades hold the same items, so they are one view here
+ * ("Assignments & grades"), in the menu where the first of the three is (M16 §3). Old locations
+ * (`grades`, `quizzes` with a quiz id) still open it.
+ */
+const MERGED: Readonly<Record<string, 'assignments'>> = {
+  assignments: 'assignments',
+  quizzes: 'assignments',
+  grades: 'assignments',
+}
 
 function isNative(kind: string): kind is NativeView {
   return (NATIVE_VIEWS as readonly string[]).includes(kind)
@@ -37,14 +47,17 @@ export function navEntries(tabs: readonly NavTab[]): NavEntry[] {
   const entries: NavEntry[] = []
   for (const tab of tabs.toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))) {
     if (tab.hidden || HIDDEN_KINDS.has(tab.kind)) continue
-    const entry: NavEntry = isNative(tab.kind)
-      ? { key: tab.kind, kind: 'native', label: tab.label, tab }
-      : {
-          key: `tab:${tab.external_id}`,
-          kind: tab.kind === 'external' ? 'external' : 'unknown',
-          label: tab.label,
-          tab,
-        }
+    const merged = MERGED[tab.kind]
+    const entry: NavEntry = merged
+      ? { key: merged, kind: 'native', label: m.canvas_tab_work(), tab }
+      : isNative(tab.kind)
+        ? { key: tab.kind, kind: 'native', label: tab.label, tab }
+        : {
+            key: `tab:${tab.external_id}`,
+            kind: tab.kind === 'external' ? 'external' : 'unknown',
+            label: tab.label,
+            tab,
+          }
     if (seen.has(entry.key)) continue
     seen.add(entry.key)
     entries.push(entry)
@@ -61,6 +74,10 @@ export type Resolved =
  * point to a quiz); a tab that is gone falls back to the home view.
  */
 export function resolveLocation(location: CanvasLocation, entries: readonly NavEntry[]): Resolved {
+  if (MERGED[location.tab] && location.tab !== 'assignments') {
+    const ref = location.ref && location.tab === 'quizzes' ? `quiz:${location.ref}` : undefined
+    return resolveLocation({ tab: 'assignments', ref }, entries)
+  }
   const entry = entries.find((e) => e.key === location.tab)
   if (isNative(location.tab))
     return { kind: 'native', view: location.tab, ref: location.ref, entry }
@@ -97,7 +114,7 @@ export function refLocation(ref: { kind: string; ref: string }): CanvasLocation 
     case 'assignment':
       return { tab: 'assignments', ref: ref.ref }
     case 'quiz':
-      return { tab: 'quizzes', ref: ref.ref }
+      return { tab: 'assignments', ref: `quiz:${ref.ref}` }
     case 'module':
       return { tab: 'modules', ref: ref.ref }
     case 'announcement':

@@ -155,6 +155,9 @@ beforeEach(() => {
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview())),
     http.get(`${API}/courses/c1/lms/announcements`, () => HttpResponse.json(ANNOUNCEMENTS)),
     http.get(`${API}/me/settings/lms`, () => HttpResponse.json(lmsSettings())),
+    http.get(`${API}/courses/c1/lms/quizzes`, () =>
+      HttpResponse.json({ items: [], truncated: false }),
+    ),
     http.get(`${API}/me/settings/plugin.canvas-tab`, () =>
       HttpResponse.json({
         namespace: 'plugin.canvas-tab',
@@ -209,7 +212,7 @@ test('the menu mirrors Canvas: native views, external tools, unknown tabs; discu
   expect(entries.map((e) => e.label)).toEqual([
     'Home',
     'Announcements',
-    'Assignments',
+    'Assignments & grades',
     'Files',
     'Modules',
     'Pages',
@@ -222,10 +225,14 @@ test('the menu mirrors Canvas: native views, external tools, unknown tabs; discu
     key: 'tab:context_external_tool_7',
   })
   expect(entries.find((e) => e.label === 'Collaborations')?.kind).toBe('unknown')
-  // A native view still opens when its tab is hidden (a module item can point to it).
+  // Grades and quizzes open the one assignments view; a quiz opens its row there.
   expect(resolveLocation({ tab: 'grades' }, entries)).toMatchObject({
     kind: 'native',
-    view: 'grades',
+    view: 'assignments',
+  })
+  expect(resolveLocation({ tab: 'quizzes', ref: '8' }, entries)).toMatchObject({
+    view: 'assignments',
+    ref: 'quiz:8',
   })
   expect(resolveLocation({ tab: 'tab:gone' }, entries)).toMatchObject({
     kind: 'native',
@@ -328,7 +335,7 @@ test('the display setting picks the look of Canvas HTML; the menu switches it on
   const text = await screen.findByText('Bring a pencil')
   expect(text).toHaveAttribute('style', 'color: rgb(0, 42, 92);')
 
-  await userEvent.click(screen.getByRole('button', { name: 'Canvas style' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Display: Canvas style' }))
   await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Simplified' }))
   await waitFor(() => expect(screen.getByText('Bring a pencil')).not.toHaveAttribute('style'))
 })
@@ -469,15 +476,18 @@ test('ticked assignments go to the gradebook import review', async () => {
     }),
   )
   renderPage('/?tab=assignments')
-  expect(await screen.findByText('20% of grade', { exact: false })).toBeInTheDocument()
+  expect(await screen.findByText('Weight 20%')).toBeInTheDocument()
+  // An imported row says where it went and cannot be ticked again.
+  expect(screen.getByText('In gradebook')).toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: 'Select Lab 2' })).toHaveAttribute(
     'aria-disabled',
     'true',
   )
-  const toGradebook = screen.getByRole('button', { name: 'Import to gradebook' })
-  expect(toGradebook).toBeDisabled()
+  const importMenu = screen.getByRole('button', { name: 'Import' })
+  expect(importMenu).toBeDisabled()
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 1' }))
-  await userEvent.click(toGradebook)
+  await userEvent.click(importMenu)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Import to gradebook' }))
   await waitFor(() => expect(openImport).toHaveBeenCalled())
   expect(body).toHaveBeenCalledWith({ external_ids: ['x1'], as_kind: 'assessment' })
   expect(openImport).toHaveBeenCalledWith(
