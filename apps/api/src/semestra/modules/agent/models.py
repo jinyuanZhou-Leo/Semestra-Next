@@ -162,3 +162,22 @@ class AgentMemory(Base, OwnedMixin):
     )
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
+
+
+class AgentSuggestions(Base, OwnedMixin):
+    """The small model's wording of the starting points above the input box for one Program
+    (M12 §6.1): rewritten at most twice a day, shown while the facts they speak of still hold."""
+
+    __tablename__ = "agent_suggestions"
+    __table_args__ = (
+        Index("ux_agent_suggestions_user_program", "user_id", "program_id", unique=True),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    program_id: Mapped[str] = mapped_column(
+        String, ForeignKey("academics_programs.id", ondelete="CASCADE")
+    )
+    locale: Mapped[str] = mapped_column(String)
+    # [{key, course_id, text}]: `key` names the fact a question is about (null: from history).
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    generated_at: Mapped[datetime] = mapped_column()

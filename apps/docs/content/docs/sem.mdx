@@ -1,11 +1,23 @@
 ---
 title: Sem
-description: How Sem asks before changing your data, what it remembers, and how it handles long conversations.
+description: Sem's suggested questions, how it asks before changing your data, what it remembers, and how it handles long conversations.
 icon: MessageCircle
 ---
 
 Sem is the assistant in Semestra. It needs an [AI provider](/docs/ai) with a model for the **Sem**
 purpose.
+
+## Suggested questions
+
+Above the input of a new conversation, Sem lists a few questions you can click, drawn from your
+data: assessments and tasks that are due soon or overdue, classes still to come today, courses
+with no assessments yet, and courses with some grades in. A course a question names is sent to
+Sem as a reference.
+
+With a [Light tasks](/docs/ai) model set up, Semestra has it reword these questions, also taking
+your recent conversation titles into account, at most twice a day per program. Turn off
+**Personalized suggestions** in account settings → **AI → Models → Conversations** to keep the fixed
+wording and make no model calls.
 
 ## Approving changes
 

@@ -20,6 +20,7 @@ from semestra.modules.agent.models import (
     AgentPreferences,
     AgentProposal,
     AgentSession,
+    AgentSuggestions,
 )
 from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEvent
 from semestra.modules.files.models import (
@@ -295,6 +296,13 @@ async def populate(
                 capability="tasks.item.create",
                 args={"title": "Read chapter 3"},
                 created_at=NOW,
+            ),
+            AgentSuggestions(
+                **u,
+                program_id=program.id,
+                locale="en",
+                items=[{"key": None, "course_id": None, "text": "Plan my week"}],
+                generated_at=NOW,
             ),
             AgentMemory(
                 **u,

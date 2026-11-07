@@ -3,7 +3,8 @@
 Messages, tool calls and proposals embed ids of other modules' rows in free-form JSON that an
 import cannot remap, so conversations are neither exported nor replaced; they are only purged with
 the account (attachments live under `users/<id>/agent/`, removed with the account's storage).
-The approval preferences are consent given on this account, so they do not travel either.
+The approval preferences are consent given on this account, so they do not travel either, and
+the wording of suggested questions is rewritten on the next visit.
 Memories travel (they are the user's own words); the conversation they came from does not. A
 memory overwrites the one with the same name; the import keeps to the 60-memory limit and the
 rules a conversation keeps to. Archives from before memories had names (schema version 1:
@@ -25,6 +26,7 @@ from semestra.modules.agent.models import (
     AgentPreferences,
     AgentProposal,
     AgentSession,
+    AgentSuggestions,
 )
 from semestra.modules.portability import ImportOptions, Table, table_adapter
 
@@ -77,6 +79,8 @@ ADAPTER = table_adapter(
         Table(AgentAttachment, "attachments", exported=False),
         Table(AgentAttachmentPage, "attachment_pages", id_column=None, exported=False),
         Table(AgentPreferences, "preferences", id_column=None, exported=False),
+        # The small model's wording of suggested questions: rewritten on the next visit.
+        Table(AgentSuggestions, "suggestions", exported=False),
         Table(
             AgentMemory,
             "memories",

@@ -256,3 +256,48 @@ class DecideBody(BaseModel):
 
 class DecideManyBody(BaseModel):
     decisions: list[Decision] = Field(min_length=1, max_length=20)
+
+
+SuggestionCode = Literal[
+    "overdue",
+    "due_today",
+    "due_tomorrow",
+    "due_soon",
+    "classes_today",
+    "import_syllabus",
+    "grade_target",
+    "week_deadlines",
+    "term_gpa",
+    "gpa",
+    "history",
+]
+
+
+class Suggestion(BaseModel):
+    """A starting point above the input box (M12 §6.1). The client words it from `code` and
+    `params` unless the small model already did (`text`)."""
+
+    key: str = Field(description="The fact it is about, stable while the fact holds.")
+    code: SuggestionCode
+    params: dict[str, str] = Field(default_factory=dict)
+    course_id: str | None = None
+    text: str | None = Field(default=None, description="The small model's wording, if any.")
+
+
+class SuggestionList(BaseModel):
+    items: list[Suggestion]
+
+
+class WordedQuestion(BaseModel):
+    fact: int | None = Field(
+        description="Number of the fact the question is about; null for one from the recent "
+        "conversations."
+    )
+    course: str | None = Field(
+        default=None, description="Code of the course it is about, exactly as listed, if any."
+    )
+    text: str = Field(description="The question, as the student would type it.")
+
+
+class SuggestionWording(BaseModel):
+    questions: list[WordedQuestion]

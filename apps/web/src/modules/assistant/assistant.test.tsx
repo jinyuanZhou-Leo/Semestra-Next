@@ -142,6 +142,14 @@ beforeEach(() => {
         ],
       }),
     ),
+    http.get(`${API}/agent/suggestions`, () =>
+      HttpResponse.json({
+        items: [
+          { key: 'generic:week_deadlines', code: 'week_deadlines', params: {}, text: null },
+          { key: 'history:0', code: 'history', params: {}, text: 'Explain recursion again' },
+        ],
+      }),
+    ),
     http.get(`${API}/agent/skills`, () =>
       HttpResponse.json({
         items: [
@@ -1057,10 +1065,40 @@ test('a suggestion in an empty existing conversation keeps its scope', async () 
     />,
   )
   await userEvent.click(
-    await screen.findByRole('button', { name: 'What do I need on the final to get an A?' }),
+    await screen.findByRole('button', { name: 'Explain recursion again' }),
   )
   await waitFor(() => expect(srv.sent).toHaveLength(1))
   expect(srv.sent[0]?.body.scope ?? null).toBeNull()
+})
+
+test('a suggestion about a course sends the course as a reference', async () => {
+  server.use(
+    http.get(`${API}/agent/suggestions`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            key: 'grade_target:c2',
+            code: 'grade_target',
+            params: { course: 'MAT188H1' },
+            course_id: 'c2',
+            text: null,
+          },
+        ],
+      }),
+    ),
+  )
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: 'What do I need on the rest of MAT188H1 to reach my target?',
+    }),
+  )
+  await waitFor(() => expect(srv.sent).toHaveLength(1))
+  expect(srv.sent[0]?.body).toMatchObject({
+    text: 'What do I need on the rest of @MAT188H1 to reach my target?',
+    references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
+  })
 })
 
 test('stop asks the server to end the answer', async () => {
