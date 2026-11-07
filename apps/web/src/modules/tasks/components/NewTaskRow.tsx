@@ -51,7 +51,8 @@ export function NewTaskRow({ openKey, onOpen, onClose, compact, ...editor }: Pro
   }
   if (!onOpen) return null
   return (
-    <li className="flex items-center gap-3 rounded-2xl px-3 py-2.5">
+    // The same gap above as the open row, so opening it moves nothing.
+    <li className="mt-1 flex items-center gap-3 rounded-2xl px-3 py-2.5">
       {circle}
       <button
         type="button"
@@ -112,7 +113,8 @@ function NewTaskEditor({
     <li
       ref={rowRef}
       className={cn(
-        'flex items-start bg-muted/70',
+        // A gap above, so its background does not run into a selected or hovered row's.
+        'mt-1 flex items-start bg-muted/70',
         compact ? 'gap-2 rounded-lg px-2 py-1.5' : 'gap-3 rounded-2xl px-3 py-2.5',
       )}
     >
