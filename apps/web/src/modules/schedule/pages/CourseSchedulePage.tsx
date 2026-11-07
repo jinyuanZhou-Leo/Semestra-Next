@@ -1,4 +1,4 @@
-import type { Course, Meeting, OneOffEvent, SectionTime } from '@semestra/api-client'
+import type { Course, Meeting, OneOffEvent } from '@semestra/api-client'
 import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
@@ -127,7 +127,10 @@ function TermSchedule({
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
   const [sectionAdd, setSectionAdd] = useState(false)
-  const [sectionEdit, setSectionEdit] = useState<Section | null>(null)
+  const [sectionEdit, setSectionEdit] = useState<{
+    section: Section
+    withNewTime: boolean
+  } | null>(null)
   const [sectionDelete, setSectionDelete] = useState<Section | null>(null)
   // One request (`schedule.section.save` with no times): ids already gone are skipped, so a
   // retry after a failure finishes the job.
@@ -137,38 +140,6 @@ function TermSchedule({
     onSuccess: () => setSectionDelete(null),
     onSettled: () => invalidateSchedule(queryClient),
   })
-
-  // A time added in the sections table: the section saved with its times plus the new one, so the
-  // new time takes the section's weeks and instructor (server side).
-  const saveSection = useMutation({
-    ...scheduleSectionSaveMutation(),
-    onError: toastError,
-    onSettled: () => invalidateSchedule(queryClient),
-  })
-  const addTime = (section: Section, time: SectionTime) => {
-    const first = section.meetings[0]
-    return saveSection.mutateAsync({
-      path: { course_id: course.id },
-      body: {
-        term_id: first?.term_id ?? termId,
-        meeting_ids: section.meetings.map((mt) => mt.id),
-        type_code: section.typeCode,
-        section_code: section.code,
-        instructor: section.meetings.find((mt) => mt.instructor)?.instructor ?? null,
-        weeks: null,
-        times: [
-          ...section.meetings.map((mt) => ({
-            meeting_id: mt.id,
-            weekday: mt.weekday,
-            start_time: mt.start_time.slice(0, 5),
-            end_time: mt.end_time.slice(0, 5),
-            location: mt.location,
-          })),
-          time,
-        ],
-      },
-    })
-  }
 
   const setEnabled = useMutation({
     ...scheduleMeetingSetEnabledMutation(),
@@ -302,8 +273,7 @@ function TermSchedule({
               onToggle={toggle}
               onKeepOnly={keepOnly}
               onEdit={setEditing}
-              onEditSection={setSectionEdit}
-              onAddTime={addTime}
+              onEditSection={(section, withNewTime) => setSectionEdit({ section, withNewTime })}
               onDeleteSection={setSectionDelete}
             />
           </>
@@ -406,12 +376,13 @@ function TermSchedule({
       ) : null}
       {sectionEdit ? (
         <SectionDialog
-          key={sectionEdit.key}
+          key={sectionEdit.section.key}
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.typeCode}
-          meetings={sectionEdit.meetings}
+          typeCode={sectionEdit.section.typeCode}
+          meetings={sectionEdit.section.meetings}
+          withNewTime={sectionEdit.withNewTime}
           open
           onOpenChange={(open) => !open && setSectionEdit(null)}
         />

@@ -4,7 +4,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper, useTable } from '@tanstack/react-table'
 import { Clock2, Plus, Trash2 } from 'lucide-react'
 import { createContext, type FormEvent, use, useId, useState } from 'react'
-import { ChoiceControl, SettingRow, SettingsGroup, settingsTableFeatures } from '@/app/settings'
+import {
+  ActionRow,
+  ChoiceControl,
+  SettingRow,
+  SettingsGroup,
+  settingsTableFeatures,
+} from '@/app/settings'
 import { toastError } from '@/lib/errors'
 import { TIME_INPUT } from '@/lib/time-input'
 import { m } from '@/paraglide/messages'
@@ -191,7 +197,16 @@ const TIME_COLUMN_CLASS: Record<string, string> = {
   remove: 'w-10',
 }
 
-function TimesTable({ times, state }: { times: Time[]; state: TimesState }) {
+/** The section's times; "Add a time" is the table's last row, so adding opens nothing new. */
+function TimesTable({
+  times,
+  state,
+  onAdd,
+}: {
+  times: Time[]
+  state: TimesState
+  onAdd: () => void
+}) {
   const table = useTable({
     features: timeFeatures,
     columns: timeColumns,
@@ -232,6 +247,13 @@ function TimesTable({ times, state }: { times: Time[]; state: TimesState }) {
                 ))}
               </TableRow>
             ))}
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={table.getAllLeafColumns().length} className="p-1">
+                <ActionRow icon={Plus} onClick={onAdd}>
+                  {m.schedule_section_add_time()}
+                </ActionRow>
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </div>
@@ -250,6 +272,7 @@ export function SectionDialog({
   termId,
   typeCode,
   meetings = [],
+  withNewTime = false,
   open,
   onOpenChange,
 }: {
@@ -259,6 +282,8 @@ export function SectionDialog({
   typeCode: string
   /** The section's meetings when editing it. */
   meetings?: readonly Meeting[]
+  /** Opens with a new time after the section's own ("Add a time" of a section). */
+  withNewTime?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -275,7 +300,7 @@ export function SectionDialog({
   )
   const [times, setTimes] = useState<Time[]>(() => {
     if (!editing) return [nextTime([])]
-    return meetings.map((mt, key) => ({
+    const own = meetings.map((mt, key) => ({
       key,
       id: mt.id,
       weekday: String(mt.weekday),
@@ -283,6 +308,7 @@ export function SectionDialog({
       end: mt.end_time.slice(0, 5),
       location: mt.location ?? '',
     }))
+    return withNewTime ? [...own, nextTime(own)] : own
   })
   const [mode, setMode] = useState<WeeksMode>(
     differ ? 'vary' : first && !wholeTerm(first) ? 'custom' : 'term',
@@ -424,21 +450,14 @@ export function SectionDialog({
             </div>
 
             <section aria-labelledby={`${fid}-times`} className="space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <h3 id={`${fid}-times`} className="text-sm font-medium">
-                  {m.schedule_section_times()}
-                </h3>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setTimes((all) => [...all, nextTime(all)])}
-                >
-                  <Plus aria-hidden />
-                  {m.schedule_section_add_time()}
-                </Button>
-              </div>
-              <TimesTable times={times} state={timesState} />
+              <h3 id={`${fid}-times`} className="text-sm font-medium">
+                {m.schedule_section_times()}
+              </h3>
+              <TimesTable
+                times={times}
+                state={timesState}
+                onAdd={() => setTimes((all) => [...all, nextTime(all)])}
+              />
               {touched && badTimes.size > 0 ? (
                 <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
               ) : null}
