@@ -9,6 +9,7 @@ from sqlalchemy import update
 
 from semestra.core.context import Ctx
 from semestra.modules.agent.schemas import SuggestionWording, WordedQuestion
+from semestra.modules.agent.suggestions import Fact, _Scope, pick
 from semestra.modules.ai import Message
 from semestra.modules.auth.models import AuthUser
 from semestra.testing import Clock
@@ -142,3 +143,26 @@ async def test_wording_follows_the_browser_language(
     assert len(small_model) == 1
     assert "Simplified Chinese" in str(small_model[0][0].content)
     assert items[0]["text"] == "Help me finish Lab 3 by tomorrow"
+
+
+def test_history_only_fills_slots_the_facts_leave() -> None:
+    scope = _Scope("p", "t", frozenset({"c"}), {"c": "APS105H1"}, "program")
+    found = [
+        Fact("a", "due_today", {"title": "Lab 3"}, "c"),
+        Fact("b", "due_tomorrow", {"title": "Quiz 1"}, "c"),
+        Fact("d", "import_syllabus", {"course": "APS105H1"}, "c"),
+    ]
+    history: list[dict[str, str | None]] = [
+        {"key": None, "course_id": "c", "text": "Explain pointers again"}
+    ]
+
+    assert [s.code for s in pick(found, history, scope)] == [
+        "due_today",
+        "due_tomorrow",
+        "import_syllabus",
+    ]
+    assert [s.code for s in pick(found[:1], history, scope)] == [
+        "due_today",
+        "history",
+        "week_deadlines",
+    ]

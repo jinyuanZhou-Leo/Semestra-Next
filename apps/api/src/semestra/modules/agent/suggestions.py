@@ -10,7 +10,7 @@ its fact still holds; a new fact shows in the client's words until the next rewr
 """
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -182,8 +182,8 @@ async def facts(ctx: Ctx, scope: _Scope) -> list[Fact]:
 
 def pick(found: list[Fact], worded: list[dict[str, str | None]], scope: _Scope) -> list[Suggestion]:
     """Up to three: the most pressing facts of different kinds (in the small model's words when
-    it wrote about them), one question from recent conversations when there is one, then the
-    general questions."""
+    it wrote about them), then questions from recent conversations, then the general
+    questions."""
     texts = {w["key"]: w["text"] for w in worded if w.get("key")}
     history = [w for w in worded if not w.get("key") and scope.covers(w.get("course_id"))]
     out: list[Suggestion] = []
@@ -201,9 +201,7 @@ def pick(found: list[Fact], worded: list[dict[str, str | None]], scope: _Scope) 
                 text=texts.get(f.key),
             )
         )
-    if history and len(out) >= LIMIT:
-        out = out[: LIMIT - 1]
-    for i, w in enumerate(history[: LIMIT - len(out)]):
+    for i, w in enumerate(history[: max(0, LIMIT - len(out))]):
         out.append(
             Suggestion(
                 key=f"history:{i}", code="history", course_id=w.get("course_id"), text=w["text"]
@@ -253,16 +251,30 @@ def _prompt(
     lines = []
     for i, f in enumerate(found, 1):
         course = f" (course {labels[f.course_id]})" if f.course_id in labels else ""
-        lines.append(f"[{i}] {_DESCRIBE[f.code].format(**f.params)}{course}")
+        text = _DESCRIBE[f.code].format(**f.params)
+        if f.code == "due_soon":  # a weekday reads better in a question than a date
+            text = f"due {date.fromisoformat(f.params['date']):%A}: {f.params['title']}"
+        lines.append(f"[{i}] {text}{course}")
     system = (
-        "You suggest questions a university student could ask Sem, their study assistant, to "
-        f"start a conversation. Write in {language}, in the student's voice, each at most 40 "
-        "characters (Chinese) or 60 characters (English), with no quotes around the question.\n"
-        "- For each numbered fact, write one question or request about it. Name the course "
-        "or item as given; do not invent dates, numbers or details.\n"
-        "- Then add up to 3 questions on topics the student is likely to come back to, judging "
-        "from the titles of their recent conversations (fact null; course only if one is clearly "
-        "meant). Skip this when the titles show nothing worth repeating.\n"
+        "You suggest questions a university student could tap to start a conversation with Sem, "
+        "their study assistant. Sem can explain course material, plan study time, work out "
+        "grades and import a syllabus for them.\n"
+        f"Write in {language}, in the student's voice, as a direct request or question to Sem. "
+        "Keep it short: at most 30 characters (Chinese) or 50 characters (English), no quotes. "
+        "Keep course codes as given, even inside Chinese text, and shorten a long item name to "
+        'its core ("PHY101H1 · Lab 2 Projectile motion" -> "PHY101H1 Lab 2").\n'
+        "- For each numbered fact, write one request that helps the student act on it: prepare "
+        "for or get help with a deadline, import a syllabus, work out a target score. Ask Sem to "
+        'do it ("Help me import the PHY101H1 syllabus"), not how to do it, and do not restate '
+        'the fact back ("X has no assessments yet"). Name the course in every question, and for '
+        "a deadline say when it is due as given (today, tomorrow, a weekday), never as a date. "
+        "In Chinese, write the time as 今天, 明天 or 周一 etc. Do not invent numbers or details.\n"
+        "- Then add at most 2 questions that continue a study topic from the recent conversation "
+        "titles: course material, concepts, exam or assignment preparation. Make it the natural "
+        "next step, not the same question again. Ignore titles about greetings, the app itself, "
+        "settings, preferences or imports and other one-off setup. When no title is about "
+        "studying, add none; never fill with generic questions (fact null; course only if one "
+        "is clearly meant).\n"
         f"{ai.UNTRUSTED_NOTICE}"
     )
     user = "\n\n".join(
