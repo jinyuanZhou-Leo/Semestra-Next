@@ -104,6 +104,9 @@ beforeEach(() => {
       }),
     ),
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
+    // The Account group of the settings, which opens first.
+    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     // Pages these tests open on the way (a term's calendar, Sem's conversations), empty.
     http.get(`${API}/programs/:id/calendar`, () =>
       HttpResponse.json({

@@ -6,13 +6,13 @@ description: 在 Claude Desktop、Claude Code、Cursor 或任何 MCP 客户端�
 Semestra 提供一个 [MCP](https://modelcontextprotocol.io) 服务器，让应用之外的 AI 客户端可以读取你的课表、成绩和待办，并在你允许时修改它们。
 它提供的操作和应用内助手 Sem 相同。
 
-- **地址**：`<你的 Semestra 地址>/mcp`，例如 `https://semestra.example.com/mcp`。账户设置 → **AI → MCP** 显示准确地址
+- **地址**：`<你的 Semestra 地址>/mcp`，例如 `https://semestra.example.com/mcp`。全局设置 → **集成 → MCP 服务** 显示准确地址
 - **传输方式**：Streamable HTTP（无状态，返回 JSON）
 - **认证**：`Authorization: Bearer spat_…`，使用 API 令牌。不接受会话 cookie
 
 ## 1. 创建 API 令牌
 
-账户设置 → **安全 → API 令牌** → 创建令牌。选择：
+全局设置 → **账户 → API 令牌** → 创建令牌。选择：
 
 - **权限**：_只读_ 或 _读写_。
 - **有效期**：永不过期、30 天、90 天或 365 天。
@@ -78,7 +78,7 @@ Claude Desktop 通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) �
 | 读写，并打开**删除数据**                     | 可以       | 可以       | 可以       |
 
 - **修改类工具会直接执行。** Sem 会显示确认卡片，而 MCP 调用依赖客户端自己的批准提示。
-- **删除数据**默认关闭，在账户设置 → **AI → 权限** 的 **MCP 客户端** 一节里打开。
+- **删除数据**默认关闭，在全局设置 → **集成** 的 **MCP 客户端** 一节里打开。
 - 插件的工具只有在你的账户安装了该插件时才会出现。
 - 通过 MCP 做的修改会立即显示在已打开的浏览器标签页里。
 

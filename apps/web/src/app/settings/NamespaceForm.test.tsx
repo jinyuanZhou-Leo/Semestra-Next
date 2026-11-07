@@ -204,7 +204,7 @@ test('scoped fields start with "follow" and following removes the value set here
   expect(followCompact).toHaveAttribute('aria-pressed', 'false')
   expect(followGreeting).toHaveAttribute('aria-pressed', 'true')
   // A typed field names the level it follows; a default comes from the nearest level above.
-  expect(screen.getByText('Follow your account (3)')).toBeInTheDocument()
+  expect(screen.getByText('Follow global settings (3)')).toBeInTheDocument()
   expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(store.scopes).toEqual(['program'])
 

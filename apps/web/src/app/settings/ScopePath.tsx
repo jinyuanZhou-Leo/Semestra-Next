@@ -1,5 +1,4 @@
 import { type ReactNode, useState } from 'react'
-import { useAuth } from '@/modules/auth/useAuth'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -47,7 +46,6 @@ type Props = {
  * leaves the course empty until one is picked.
  */
 export function ScopePath({ path, onSelect }: Props) {
-  const { user } = useAuth()
   const { program, term, course } = path
   const ids: PathIds = {
     programId: program ? program.id : undefined,
@@ -69,7 +67,7 @@ export function ScopePath({ path, onSelect }: Props) {
           <PathNode
             level="account"
             active={!path.pending && path.level === 'account'}
-            name={user ? user.display_name : ''}
+            name={m.settings_path_account_name()}
             onClick={() => onSelect('account', ids)}
           />
           {program ? (

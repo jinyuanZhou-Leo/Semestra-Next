@@ -448,7 +448,7 @@ async def _notify_new_sign_in(ctx: Ctx, user: AuthUser, meta: RequestMeta) -> No
             "time": ctx.now.strftime("%Y-%m-%d %H:%M"),
             "device": meta.user_agent or "-",
             "ip": meta.ip or "-",
-            "settings_url": f"{ctx.settings.public_web_origin}/?settings=account/security",
+            "settings_url": f"{ctx.settings.public_web_origin}/?settings=account/account#sessions",
         },
     )
 
