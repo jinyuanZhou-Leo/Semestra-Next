@@ -1064,9 +1064,7 @@ test('a suggestion in an empty existing conversation keeps its scope', async () 
       onCreated={() => {}}
     />,
   )
-  await userEvent.click(
-    await screen.findByRole('button', { name: 'Explain recursion again' }),
-  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Explain recursion again' }))
   await waitFor(() => expect(srv.sent).toHaveLength(1))
   expect(srv.sent[0]?.body.scope ?? null).toBeNull()
 })

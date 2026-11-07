@@ -320,12 +320,17 @@ async def _rewrite(state: State, user_id: str, program_id: str, locale: str) -> 
                 .limit(MAX_HISTORY)
             )
         )
-        messages = _prompt(locale, found, scope.labels, [t for t in titles if t])
+        titles = [t for t in titles if t]
         await ctx.db.commit()  # no transaction open during the call
-        try:
-            items = _worded(await state.agent.suggestion_model(ctx, messages), found, scope.labels)
-        except AppError as exc:
-            log.info("agent_suggestions_failed", code=exc.code)
+        if not found and not titles:
+            items = []  # nothing to word
+        else:
+            messages = _prompt(locale, found, scope.labels, titles)
+            try:
+                worded = await state.agent.suggestion_model(ctx, messages)
+                items = _worded(worded, found, scope.labels)
+            except AppError as exc:
+                log.info("agent_suggestions_failed", code=exc.code)
     async with agent_ctx(state, user_id, scope=None) as ctx:
         row = await _row(ctx, program_id)
         if row is None:
