@@ -5,8 +5,8 @@ away (a reload, a lost connection, another page) does not stop it. Its events ar
 sequential ids, so any client can follow it from the start or pick up after the last event it
 saw (`Generation.follow`); only Stop ends it early.
 
-Tests replace `chat_model`, `chat_available`, `small_complete`, `summarize` and `memory_model`
-with scripted fakes.
+Tests replace `chat_model`, `chat_available`, `small_complete`, `summarize`, `memory_model` and
+`suggestion_model` with scripted fakes.
 """
 
 import asyncio
@@ -25,6 +25,7 @@ from semestra.core.context import Ctx, ScopeRef, pick_locale
 from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.agent.memory import MemoryUpdates
+from semestra.modules.agent.schemas import SuggestionWording
 from semestra.modules.ai import Message
 
 MAX_GENERATIONS_PER_USER = 2
@@ -84,6 +85,10 @@ async def _summarize(ctx: Ctx, messages: list[Message]) -> str:
 
 async def _memory_model(ctx: Ctx, messages: list[Message]) -> MemoryUpdates:
     return await ai.structured(ctx, "title", messages, MemoryUpdates, source_module="agent")
+
+
+async def _suggestion_model(ctx: Ctx, messages: list[Message]) -> SuggestionWording:
+    return await ai.structured(ctx, "title", messages, SuggestionWording, source_module="agent")
 
 
 class Claim:
@@ -150,6 +155,9 @@ class AgentRuntime:
         self.small_complete: Callable[[Ctx, list[Message]], Awaitable[str]] = _small_complete
         self.summarize: Callable[[Ctx, list[Message]], Awaitable[str]] = _summarize
         self.memory_model: Callable[[Ctx, list[Message]], Awaitable[MemoryUpdates]] = _memory_model
+        self.suggestion_model: Callable[[Ctx, list[Message]], Awaitable[SuggestionWording]] = (
+            _suggestion_model
+        )
         self._per_user: defaultdict[str, int] = defaultdict(int)
         self._running: dict[str, asyncio.Event] = {}
         self._generations: dict[str, Generation] = {}

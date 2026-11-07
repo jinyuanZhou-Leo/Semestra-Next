@@ -74,7 +74,7 @@ import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { skillTitle } from '../labels'
 import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
-import { scopeKind, useProgramEntities } from '../scope'
+import { useProgramEntities } from '../scope'
 import {
   buildItems,
   citationsOf,
@@ -92,34 +92,11 @@ import { ChipCourses, RefChip } from './RefChip'
 import { ProposalCard } from './ProposalCard'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
+import { SuggestionChips } from './SuggestionChips'
 import { Thinking } from './Steps'
 
 const MAX_ATTACHMENTS = 10
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-
-/** Static starting points for the page's scope (M12 §6.1). */
-function suggestions(scope: AgentScope | null): (() => string)[] {
-  const kind = scope ? scopeKind(scope) : null
-  if (kind === 'course') {
-    return [
-      m.assistant_suggest_course_final,
-      m.assistant_suggest_course_deadlines,
-      m.assistant_suggest_course_syllabus,
-    ]
-  }
-  if (kind === 'term') {
-    return [
-      m.assistant_suggest_week_deadlines,
-      m.assistant_suggest_today_classes,
-      m.assistant_suggest_term_gpa,
-    ]
-  }
-  return [
-    m.assistant_suggest_today_classes,
-    m.assistant_suggest_week_deadlines,
-    m.assistant_suggest_gpa,
-  ]
-}
 
 function IconAction({
   label,
@@ -881,24 +858,16 @@ export function Conversation({
             </AlertAction>
           </Alert>
         ) : null}
-        {!chat.loading && items.length === 0 ? (
-          <div className="flex scroll-fade-x scrollbar-none gap-2 overflow-x-auto overscroll-x-contain">
-            {suggestions(scope).map((suggest) => (
-              <Button
-                key={suggest()}
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                disabled={chat.generating || !ai.available}
-                onClick={() => {
-                  setSent((n) => n + 1)
-                  void chat.send({ text: suggest(), scope: sessionId ? null : newScope, temporary })
-                }}
-              >
-                {suggest()}
-              </Button>
-            ))}
-          </div>
+        {!chat.loading && items.length === 0 && scope ? (
+          <SuggestionChips
+            scope={scope}
+            courses={courses}
+            disabled={chat.generating || !ai.available}
+            onPick={(prompt) => {
+              setSent((n) => n + 1)
+              void chat.send({ ...prompt, scope: sessionId ? null : newScope, temporary })
+            }}
+          />
         ) : null}
         <div className="flex items-center justify-between gap-2">
           <ScopeChip

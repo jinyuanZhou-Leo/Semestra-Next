@@ -117,6 +117,9 @@ export default defineModule({
           ? ['agentSessionList']
           : ['agentSessionList', { _id: 'agentSessionGet', path: { id: data.session_id } }],
     ],
+    // The light-task model's new wording; deadlines and classes move on the calendar.
+    'agent.suggestions.updated': ['agentSuggestionList'],
+    'calendar.changed': ['agentSuggestionList'],
     'plugins.installed': ['agentToolList', 'agentSkillList'],
     'plugins.uninstalled': ['agentToolList', 'agentSkillList'],
   },

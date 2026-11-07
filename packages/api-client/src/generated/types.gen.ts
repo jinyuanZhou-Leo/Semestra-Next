@@ -9419,6 +9419,51 @@ export type SuggestedScore = {
 };
 
 /**
+ * Suggestion
+ *
+ * A starting point above the input box (M12 §6.1). The client words it from `code` and
+ * `params` unless the small model already did (`text`).
+ */
+export type Suggestion = {
+    /**
+     * Key
+     *
+     * The fact it is about, stable while the fact holds.
+     */
+    key: string;
+    /**
+     * Code
+     */
+    code: 'overdue' | 'due_today' | 'due_tomorrow' | 'due_soon' | 'classes_today' | 'import_syllabus' | 'grade_target' | 'week_deadlines' | 'term_gpa' | 'gpa' | 'history';
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: string;
+    };
+    /**
+     * Course Id
+     */
+    course_id?: string | null;
+    /**
+     * Text
+     *
+     * The small model's wording, if any.
+     */
+    text?: string | null;
+};
+
+/**
+ * SuggestionList
+ */
+export type SuggestionList = {
+    /**
+     * Items
+     */
+    items: Array<Suggestion>;
+};
+
+/**
  * Task
  */
 export type Task = {
@@ -13689,6 +13734,50 @@ export type AgentSkillListResponses = {
 };
 
 export type AgentSkillListResponse = AgentSkillListResponses[keyof AgentSkillListResponses];
+
+export type AgentSuggestionListData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Program Id
+         *
+         * Program the assistant works in.
+         */
+        program_id: string;
+        /**
+         * Term Id
+         *
+         * Term it works in, if any.
+         */
+        term_id?: string | null;
+        /**
+         * Course Id
+         *
+         * Course of older conversations; new ones work in a Program or a term.
+         */
+        course_id?: string | null;
+    };
+    url: '/agent/suggestions';
+};
+
+export type AgentSuggestionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentSuggestionListError = AgentSuggestionListErrors[keyof AgentSuggestionListErrors];
+
+export type AgentSuggestionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SuggestionList;
+};
+
+export type AgentSuggestionListResponse = AgentSuggestionListResponses[keyof AgentSuggestionListResponses];
 
 export type AgentToolListData = {
     body?: never;
