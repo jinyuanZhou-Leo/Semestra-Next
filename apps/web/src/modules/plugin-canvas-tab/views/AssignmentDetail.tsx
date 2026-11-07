@@ -15,6 +15,8 @@ import {
 } from '@tanstack/react-table'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
@@ -146,18 +148,22 @@ function FeedbackBody({
       <p className="text-sm">{facts}</p>
       {(a.rubric ?? []).length > 0 ? <Rubric criteria={a.rubric ?? []} submission={s} /> : null}
       {comments.length > 0 ? (
-        <ul className="space-y-2">
+        <ItemGroup className="gap-2">
           {comments.map((c, i) => (
-            <li key={`${c.created_at ?? ''}-${i}`} className="rounded-lg bg-muted/50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">
-                {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              <p className="text-sm break-words whitespace-pre-wrap">{c.comment}</p>
-            </li>
+            <Item key={`${c.created_at ?? ''}-${i}`} variant="muted" size="sm">
+              <ItemContent>
+                <ItemDescription>
+                  {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </ItemDescription>
+                <ItemTitle className="font-normal break-words whitespace-pre-wrap">
+                  {c.comment}
+                </ItemTitle>
+              </ItemContent>
+            </Item>
           ))}
-        </ul>
+        </ItemGroup>
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_feedback_no_comments()}</p>
       )}
@@ -237,32 +243,41 @@ function Rubric({
     getRowId: (r) => r.criterion.id,
   })
   return (
-    <Table>
-      <TableHeader>
-        {table.getHeaderGroups().map((group) => (
-          <TableRow key={group.id} className="hover:bg-transparent">
-            {group.headers.map((h) => (
-              <TableHead key={h.id} className={h.column.id === 'points' ? 'text-right' : undefined}>
-                <table.FlexRender header={h} />
-              </TableHead>
-            ))}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id} className="align-top">
-            {row.getAllCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className={cell.column.id === 'points' ? 'text-right' : 'whitespace-normal'}
-              >
-                <table.FlexRender cell={cell} />
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="overflow-hidden rounded-2xl border border-border bg-background">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id} className="hover:bg-transparent">
+              {group.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  scope="col"
+                  className={cn(
+                    'h-auto py-2 text-muted-foreground',
+                    h.column.id === 'points' && 'text-right',
+                  )}
+                >
+                  <table.FlexRender header={h} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id} className="align-top">
+              {row.getAllCells().map((cell) => (
+                <TableCell
+                  key={cell.id}
+                  className={cell.column.id === 'points' ? 'text-right' : 'whitespace-normal'}
+                >
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

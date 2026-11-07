@@ -4,10 +4,17 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
   createColumnHelper,
+  createSortedRowModel,
+  type RowSelectionState,
+  rowSelectionFeature,
+  rowSortingFeature,
+  type SortingState,
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   ClipboardList,
@@ -94,15 +101,26 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
   return rows
 }
 
-const features = tableFeatures({})
+const features = tableFeatures({
+  rowSortingFeature,
+  rowSelectionFeature,
+  sortedRowModel: createSortedRowModel(),
+})
 const column = createColumnHelper<typeof features, Row>()
 type CellProps = CellContext<typeof features, Row>
 
+/**
+ * What the module-level cells read. The selection lives here, not only in the table: the React
+ * Compiler keeps a cell whose `row` is the same object, so a cell reading `row.getIsSelected()`
+ * would not update when only the selection changes.
+ */
 type TableState = {
-  selected: ReadonlySet<string>
-  toggle: (id: string, on: boolean) => void
   /** Read once, so "due in 3 days" doesn't change between renders. */
   now: number
+  selected: RowSelectionState
+  /** Rows that can still be imported, in the table's order. */
+  selectable: readonly string[]
+  setSelected: (ids: readonly string[], on: boolean) => void
 }
 const TableContext = createContext<TableState | null>(null)
 
@@ -115,18 +133,39 @@ function useTableState() {
 /** An assignment is imported once, as an assessment or as a task (M09 §11). */
 const imported = (a: AssignmentOut) => a.imported_as.length > 0
 
+/** A box that ticks several rows: all of them, or an assignment group's. */
+function SelectMany({ ids, label }: { ids: readonly string[]; label: string }) {
+  const { selected, setSelected } = useTableState()
+  const ticked = ids.filter((id) => selected[id]).length
+  return (
+    <Checkbox
+      aria-label={label}
+      checked={ids.length > 0 && ticked === ids.length}
+      indeterminate={ticked > 0 && ticked < ids.length}
+      disabled={ids.length === 0}
+      // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
+      className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
+      onCheckedChange={(on) => setSelected(ids, on)}
+    />
+  )
+}
+
+function SelectAllHeader() {
+  const { selectable } = useTableState()
+  return <SelectMany ids={selectable} label={m.canvas_tab_select_all()} />
+}
+
 function SelectCell({ row }: CellProps) {
-  const { selected, toggle } = useTableState()
+  const { selected, setSelected } = useTableState()
   const { assignment: a, practice } = row.original
   if (practice) return null
   return (
     <Checkbox
       aria-label={m.canvas_tab_select_assignment({ name: a.name })}
       disabled={imported(a)}
-      // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
       className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
-      checked={selected.has(row.original.id)}
-      onCheckedChange={(on) => toggle(row.original.id, on)}
+      checked={!!selected[row.id]}
+      onCheckedChange={(on) => setSelected([row.id], on)}
       onClick={(event) => event.stopPropagation()}
     />
   )
@@ -187,15 +226,57 @@ function StatusCell({ row }: CellProps) {
   return <SubmissionStatus submission={a.submission} dueAt={a.due_at} now={now} />
 }
 
+type SortValue = string | number | null
+
+/** Empty values (no due date, not graded) go last either way. */
+function sortBy(value: (row: Row) => SortValue) {
+  return (a: { original: Row }, b: { original: Row }) => {
+    const x = value(a.original)
+    const y = value(b.original)
+    if (x === y) return 0
+    if (x === null) return 1
+    if (y === null) return -1
+    if (typeof x === 'number' && typeof y === 'number') return x - y
+    return String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: 'base' })
+  }
+}
+
+/** The score as a share of the points, so 9 / 10 sorts above 15 / 20. */
+function scoreRatio({ assignment: a }: Row): number | null {
+  const score = a.submission?.score
+  return score == null || !a.points ? null : score / a.points
+}
+
 const columns = column.columns([
-  column.display({ id: 'select', header: () => null, cell: SelectCell }),
-  column.display({ id: 'name', header: () => m.canvas_tab_column_name(), cell: NameCell }),
-  column.display({ id: 'due', header: () => m.canvas_tab_column_due(), cell: DueCell }),
-  column.display({ id: 'score', header: () => m.canvas_tab_column_score(), cell: ScoreCell }),
+  column.display({
+    id: 'select',
+    header: SelectAllHeader,
+    cell: SelectCell,
+    enableSorting: false,
+  }),
+  column.accessor((r) => r.assignment.name, {
+    id: 'name',
+    header: () => m.canvas_tab_column_name(),
+    cell: NameCell,
+    sortFn: sortBy((r) => r.assignment.name),
+  }),
+  column.accessor((r) => r.assignment.due_at ?? null, {
+    id: 'due',
+    header: () => m.canvas_tab_column_due(),
+    cell: DueCell,
+    sortFn: sortBy((r) => r.assignment.due_at ?? null),
+  }),
+  column.accessor(scoreRatio, {
+    id: 'score',
+    header: () => m.canvas_tab_column_score(),
+    cell: ScoreCell,
+    sortFn: sortBy(scoreRatio),
+  }),
   column.display({
     id: 'submission',
     header: () => m.canvas_tab_column_submission(),
     cell: StatusCell,
+    enableSorting: false,
   }),
 ])
 
@@ -203,8 +284,8 @@ const columns = column.columns([
  * columns; the name takes the rest. */
 const WIDTHS: Record<string, string> = {
   select: 'w-10',
-  due: 'w-44',
-  score: 'w-24',
+  due: 'w-48',
+  score: 'w-28',
   submission: 'w-40',
 }
 
@@ -258,8 +339,9 @@ function focusedRow(selected: string | undefined, quizzes: readonly Quiz[] | und
   return quiz?.assignment_id ?? selected
 }
 
-type Group = { key: string; name: string; weight: number | null; rows: string[] }
+type Group = { key: string; name: string; weight: number | null; ids: string[] }
 
+/** Assignment groups in Canvas's order, each with its rows' ids. */
 function groupsOf(rows: readonly Row[]): Group[] {
   const groups = new Map<string, Group>()
   for (const { id, assignment: a } of rows) {
@@ -268,9 +350,9 @@ function groupsOf(rows: readonly Row[]): Group[] {
       key,
       name: a.group_name || m.canvas_tab_group_none(),
       weight: a.group_weight ?? null,
-      rows: [],
+      ids: [],
     }
-    group.rows.push(id)
+    group.ids.push(id)
     groups.set(key, group)
   }
   return [...groups.values()]
@@ -278,29 +360,44 @@ function groupsOf(rows: readonly Row[]): Group[] {
 
 function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: string }) {
   const { programId, courseId, go, title } = useCanvasPage()
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
   const [now] = useState(Date.now)
   const focusedRef = useScrollIntoView<HTMLTableRowElement>(focused)
-  const table = useTable({ features, columns, data, getRowId: (r) => r.id })
-  const rows = new Map(table.getRowModel().rows.map((row) => [row.id, row]))
-  const groups = groupsOf(data)
-  const byId = new Map(data.map((r) => [r.id, r]))
-  // Each import skips what is already there (`lms.assignment.import`), so a pick can mix both.
-  const picked = [...selected].filter((id) => {
-    const row = byId.get(id)
-    return row && !row.practice && !imported(row.assignment)
+  const table = useTable({
+    features,
+    columns,
+    data,
+    getRowId: (r) => r.id,
+    enableRowSelection: (row) => !row.original.practice && !imported(row.original.assignment),
+    state: { sorting, rowSelection },
+    onSortingChange: (updater) =>
+      setSorting(typeof updater === 'function' ? updater(sorting) : updater),
+    onRowSelectionChange: (updater) =>
+      setRowSelection(typeof updater === 'function' ? updater(rowSelection) : updater),
   })
-
+  // Rows in the table's order (sorted within each group); groups keep Canvas's order.
+  const ordered = table.getRowModel().rows
+  const groups = groupsOf(data).map((group) => {
+    const ids = new Set(group.ids)
+    return { ...group, rows: ordered.filter((row) => ids.has(row.id)) }
+  })
+  const selectable = ordered.filter((row) => row.getCanSelect()).map((row) => row.id)
+  // A row imported meanwhile (the list refetches after an import) stays ticked but is left out.
+  const picked = selectable.filter((id) => rowSelection[id])
   const state: TableState = {
     now,
-    selected,
-    toggle: (id, on) =>
-      setSelected((current) => {
-        const next = new Set(current)
-        if (on) next.add(id)
-        else next.delete(id)
+    selected: rowSelection,
+    selectable,
+    setSelected: (ids, on) =>
+      setRowSelection((current) => {
+        const next = { ...current }
+        for (const id of ids) {
+          if (on) next[id] = true
+          else delete next[id]
+        }
         return next
       }),
   }
@@ -310,7 +407,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
     startAssignmentImport(courseId, picked, kind)
       .then((sessionId) => {
         setStarting(null)
-        setSelected(new Set())
+        setRowSelection({})
         return reviewAssignmentImport({
           programId,
           sessionId,
@@ -363,30 +460,66 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
             <TableHeader className="bg-muted/50">
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id} className="hover:bg-transparent">
-                  {group.headers.map((h) => (
-                    <TableHead
-                      key={h.id}
-                      scope="col"
-                      className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
-                    >
-                      <table.FlexRender header={h} />
-                    </TableHead>
-                  ))}
+                  {group.headers.map((h) => {
+                    const sorted = h.column.getIsSorted()
+                    return (
+                      <TableHead
+                        key={h.id}
+                        scope="col"
+                        aria-sort={
+                          sorted === 'asc'
+                            ? 'ascending'
+                            : sorted === 'desc'
+                              ? 'descending'
+                              : undefined
+                        }
+                        className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
+                      >
+                        {h.column.getCanSort() ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={h.column.getToggleSortingHandler()}
+                            className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                          >
+                            <table.FlexRender header={h} />
+                            {sorted === 'asc' ? (
+                              <ArrowUp aria-hidden className="size-3" />
+                            ) : sorted === 'desc' ? (
+                              <ArrowDown aria-hidden className="size-3" />
+                            ) : null}
+                          </Button>
+                        ) : (
+                          <table.FlexRender header={h} />
+                        )}
+                      </TableHead>
+                    )
+                  })}
                 </TableRow>
               ))}
             </TableHeader>
             <TableBody>
               {groups.map((group) => {
                 const open = !collapsed.has(group.key)
+                const ids = group.rows.filter((row) => row.getCanSelect()).map((row) => row.id)
                 return (
                   <Fragment key={group.key}>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableCell colSpan={columns.length} className="py-1.5">
+                      <TableCell className="py-1.5">
+                        {ids.length > 0 ? (
+                          <SelectMany
+                            ids={ids}
+                            label={m.canvas_tab_select_group({ name: group.name })}
+                          />
+                        ) : null}
+                      </TableCell>
+                      <TableCell colSpan={columns.length - 1} className="py-1.5">
                         <Button
                           variant="ghost"
                           size="sm"
                           aria-expanded={open}
-                          className="h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+                          className="-ml-2 h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
                           onClick={() => toggleGroup(group.key)}
                         >
                           {open ? (
@@ -409,23 +542,23 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                       </TableCell>
                     </TableRow>
                     {open
-                      ? group.rows.map((id) => {
-                          const row = rows.get(id)
-                          if (!row) return null
-                          const expanded = focused === id
+                      ? group.rows.map((row) => {
+                          const expanded = focused === row.id
                           const r = row.original
                           return (
-                            <Fragment key={id}>
+                            <Fragment key={row.id}>
                               <TableRow
                                 ref={expanded ? focusedRef : undefined}
-                                data-state={expanded ? 'selected' : undefined}
+                                data-state={
+                                  rowSelection[row.id] || expanded ? 'selected' : undefined
+                                }
                                 aria-expanded={expanded}
                                 className="cursor-pointer"
                                 onClick={() =>
                                   go(
                                     expanded
                                       ? { tab: 'assignments' }
-                                      : { tab: 'assignments', ref: id },
+                                      : { tab: 'assignments', ref: row.id },
                                   )
                                 }
                               >
@@ -443,8 +576,11 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                               </TableRow>
                               {expanded ? (
                                 <TableRow className="hover:bg-transparent">
-                                  <TableCell colSpan={columns.length} className="whitespace-normal">
-                                    <div className="py-2 pl-8">
+                                  <TableCell
+                                    colSpan={columns.length}
+                                    className="bg-muted/20 whitespace-normal"
+                                  >
+                                    <div className="py-2 pr-2 pl-10">
                                       <AssignmentDetail
                                         assignment={r.assignment}
                                         quiz={r.quiz}
