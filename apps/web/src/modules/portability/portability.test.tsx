@@ -202,7 +202,9 @@ test('previews an uploaded backup and asks for the sentence before replacing', a
   )
   mount()
 
-  const input = await screen.findByLabelText('Drop a backup file here, or choose one', { selector: 'input' })
+  const input = await screen.findByLabelText('Drop a backup file here, or choose one', {
+    selector: 'input',
+  })
   await userEvent.upload(input, new File(['zip'], 'backup.zip', { type: 'application/zip' }))
 
   expect(await screen.findByText('Engineering')).toBeInTheDocument()
@@ -240,7 +242,9 @@ test('shows why a backup was refused', async () => {
     }),
   )
   mount()
-  const input = await screen.findByLabelText('Drop a backup file here, or choose one', { selector: 'input' })
+  const input = await screen.findByLabelText('Drop a backup file here, or choose one', {
+    selector: 'input',
+  })
   await userEvent.upload(input, new File(['{}'], 'old.json', { type: 'application/json' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('backup from the old Semestra')
 })
