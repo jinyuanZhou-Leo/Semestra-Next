@@ -4048,6 +4048,95 @@
         ]
       }
     },
+    "/agent/suggestions": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Suggested questions for a new conversation.",
+        "description": "Up to three, from what is due, today's classes and the gradebook of the scope; in\nthe small model's words when the account allows it (rewritten at most twice a day).",
+        "operationId": "agentSuggestionList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program the assistant works in.",
+              "title": "Program Id"
+            },
+            "description": "Program the assistant works in."
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Term it works in, if any.",
+              "title": "Term Id"
+            },
+            "description": "Term it works in, if any."
+          },
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Course of older conversations; new ones work in a Program or a term.",
+              "title": "Course Id"
+            },
+            "description": "Course of older conversations; new ones work in a Program or a term."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -32562,6 +32651,85 @@
           "score"
         ],
         "title": "SuggestedScore"
+      },
+      "Suggestion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "The fact it is about, stable while the fact holds."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "overdue",
+              "due_today",
+              "due_tomorrow",
+              "due_soon",
+              "classes_today",
+              "import_syllabus",
+              "grade_target",
+              "week_deadlines",
+              "term_gpa",
+              "gpa",
+              "history"
+            ],
+            "title": "Code"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Params"
+          },
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "The small model's wording, if any."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "code"
+        ],
+        "title": "Suggestion",
+        "description": "A starting point above the input box (M12 §6.1). The client words it from `code` and\n`params` unless the small model already did (`text`)."
+      },
+      "SuggestionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SuggestionList"
       },
       "Task": {
         "properties": {

@@ -86,6 +86,17 @@ async def assessment_rows(
     return out
 
 
+async def scored_counts(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, tuple[int, int]]:
+    """Per course, its undropped assessments with and without a score (other modules: Sem's
+    suggested questions)."""
+    out: dict[str, tuple[int, int]] = {}
+    for course_id, rows in (await assessment_rows(ctx, course_ids)).items():
+        kept = [r for r in rows if not r.dropped]
+        scored = sum(1 for r in kept if r.score_percentage is not None)
+        out[course_id] = (scored, len(kept) - scored)
+    return out
+
+
 async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAssessment | None:
     """The ctx user's assessment, or None (for other modules: M05 keeps its tasks in sync)."""
     row = await ctx.db.get(models.GradingAssessment, assessment_id)

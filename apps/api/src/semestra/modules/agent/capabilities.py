@@ -5,10 +5,11 @@ from pydantic import BaseModel
 
 from semestra.core.capability import Http, NoInput, capability, registry
 from semestra.core.context import Ctx
-from semestra.modules.agent import memory, service, skills
+from semestra.modules.agent import memory, service, skills, suggestions
 from semestra.modules.agent.schemas import (
     AgentPreferencesOut,
     AgentPreferenceUpdateInput,
+    AgentScope,
     AgentSessionCreateInput,
     AgentSessionDetail,
     AgentSessionList,
@@ -22,6 +23,7 @@ from semestra.modules.agent.schemas import (
     AgentToolInfo,
     AttachmentIdInput,
     SessionIdInput,
+    SuggestionList,
 )
 
 HTTP_ONLY = ("http",)
@@ -208,3 +210,17 @@ async def skills_list(ctx: Ctx, inp: NoInput) -> AgentSkillList:
             for s in visible
         ]
     )
+
+
+@capability(
+    name="agent.suggestion.list",
+    summary="Suggested questions for a new conversation.",
+    description="""Up to three, from what is due, today's classes and the gradebook of the scope; in
+the small model's words when the account allows it (rewritten at most twice a day).""",
+    effect="read",
+    http=Http("GET", "/agent/suggestions"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def suggestion_list(ctx: Ctx, inp: AgentScope) -> SuggestionList:
+    return await suggestions.list_suggestions(ctx, inp)

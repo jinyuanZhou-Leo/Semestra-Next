@@ -28,6 +28,8 @@ export const settingsMessages = {
   settings_accent_violet: m.settings_accent_violet,
   settings_appearance_description: m.settings_appearance_description,
   settings_appearance_title: m.settings_appearance_title,
+  settings_assistant_ai_suggestions_description: m.settings_assistant_ai_suggestions_description,
+  settings_assistant_ai_suggestions_label: m.settings_assistant_ai_suggestions_label,
   settings_assistant_show_reasoning_description: m.settings_assistant_show_reasoning_description,
   settings_assistant_show_reasoning_label: m.settings_assistant_show_reasoning_label,
   settings_calendar_cancelled_display_description: m.settings_calendar_cancelled_display_description,
