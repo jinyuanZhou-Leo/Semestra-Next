@@ -6,6 +6,7 @@ import {
   MessageCircleQuestion,
   PencilLine,
   Trash2,
+  X,
 } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { isEditable } from '@/app/hotkeys'
@@ -13,7 +14,7 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/ui/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { Kbd } from '@/ui/kbd'
 import { Label } from '@/ui/label'
@@ -33,10 +34,6 @@ export function answerOf(proposal: AgentProposalOut): string | null {
   const result = proposal.result as { answer?: unknown } | null
   return proposal.status === 'executed' && typeof result?.answer === 'string' ? result.answer : null
 }
-
-/** A block addon that holds content, not a hint: it neither focuses the input nor dims. */
-const BODY = 'cursor-default flex-col items-stretch gap-3 text-sm font-normal text-foreground'
-const keepFocus = () => {}
 
 function SendButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
@@ -72,7 +69,7 @@ function Pager({
 }) {
   if (count < 2) return null
   return (
-    <div className="flex shrink-0 items-center text-xs text-muted-foreground tabular-nums">
+    <div className="-my-1 flex shrink-0 items-center text-xs text-muted-foreground tabular-nums">
       <Button
         variant="ghost"
         size="icon-xs"
@@ -96,51 +93,69 @@ function Pager({
   )
 }
 
-function Header({
+/**
+ * The card in the input's place: a header (icon, title, pager, `end`), its body and, unless
+ * `reply` is null, a one-line box at the bottom where typing answers it (Enter sends).
+ */
+function Panel({
+  label,
   icon,
-  children,
+  title,
   pager,
+  end,
+  children,
+  reply,
+  onKeyDown,
 }: {
+  label: string
   icon: ReactNode
-  children: ReactNode
+  title: ReactNode
   pager: ReactNode
+  end?: ReactNode
+  children: ReactNode
+  reply: {
+    value: string
+    onChange: (v: string) => void
+    placeholder: string
+    onSend: () => void
+    disabled: boolean
+  } | null
+  onKeyDown?: (event: KeyboardEvent) => void
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <span className="mt-0.5 shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-      {pager}
-    </div>
-  )
-}
-
-/** Typing answers the card: a question takes the words as its answer, a change as what to do
- * instead. Enter sends, Shift+Enter starts a new line. */
-function TypedReply({
-  value,
-  onChange,
-  placeholder,
-  onSend,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-  onSend: () => void
-}) {
-  return (
-    <InputGroupTextarea
-      rows={1}
-      className="max-h-40 min-h-0 px-4"
-      aria-label={placeholder}
-      placeholder={placeholder}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-        event.preventDefault()
-        if (value.trim()) onSend()
-      }}
-    />
+    // Same frame as the input it stands in for; its focus ring shows while typing a reply.
+    <InputGroup
+      aria-label={label}
+      className="h-auto flex-col items-stretch rounded-2xl border-border bg-background shadow-xs dark:bg-background"
+      onKeyDown={onKeyDown}
+    >
+      <div className="flex items-start gap-2 px-4 pt-3 pb-1">
+        <span className="mt-0.5 shrink-0 text-muted-foreground [&>svg]:size-4">{icon}</span>
+        <div className="min-w-0 flex-1">{title}</div>
+        {pager}
+        {end}
+      </div>
+      {children}
+      {reply ? (
+        <div className="flex h-11 items-center border-t">
+          <InputGroupInput
+            className="px-4"
+            aria-label={reply.placeholder}
+            placeholder={reply.placeholder}
+            value={reply.value}
+            onChange={(event) => reply.onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              if (reply.value.trim() && !reply.disabled) reply.onSend()
+            }}
+          />
+          <InputGroupAddon align="inline-end">
+            <SendButton disabled={reply.disabled || !reply.value.trim()} onClick={reply.onSend} />
+          </InputGroupAddon>
+        </div>
+      ) : null}
+    </InputGroup>
   )
 }
 
@@ -172,62 +187,70 @@ function QuestionPanel({
   }
 
   return (
-    <InputGroup className="rounded-2xl" aria-label={question} onKeyDown={pick}>
-      <InputGroupAddon align="block-start" className={BODY} onClick={keepFocus}>
-        <Header icon={<MessageCircleQuestion />} pager={pager}>
-          <p className="font-medium">{question}</p>
-        </Header>
-        <div className="-mx-1.5 flex flex-col">
-          {options.map((option, index) => (
-            <Item
-              key={option.label}
-              size="xs"
-              className="items-start rounded-xl text-left hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-              render={
-                <button
-                  type="button"
-                  disabled={disabled}
-                  aria-label={[option.label, option.description].filter(Boolean).join(', ')}
-                />
-              }
-              onClick={() => answer(option.label)}
-            >
-              <Kbd className="mt-0.5">{index + 1}</Kbd>
-              <ItemContent className="gap-0.5">
-                <ItemTitle>
-                  {option.label}
-                  {index === recommended ? (
-                    <span className="text-xs font-normal text-primary">
-                      {m.assistant_question_recommended()}
-                    </span>
-                  ) : null}
-                </ItemTitle>
-                {option.description ? (
-                  <ItemDescription>{option.description}</ItemDescription>
+    <Panel
+      label={question}
+      icon={<MessageCircleQuestion />}
+      title={<p className="font-medium">{question}</p>}
+      pager={pager}
+      end={
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="-my-1"
+                aria-label={m.assistant_question_skip()}
+                disabled={disabled}
+                onClick={() => onDecide({ proposalId: proposal.id, decision: 'reject' })}
+              />
+            }
+          >
+            <X />
+          </TooltipTrigger>
+          <TooltipContent>{m.assistant_question_skip()}</TooltipContent>
+        </Tooltip>
+      }
+      reply={{
+        value: text,
+        onChange: setText,
+        placeholder: m.assistant_question_placeholder(),
+        onSend: () => answer(text.trim()),
+        disabled,
+      }}
+      onKeyDown={pick}
+    >
+      <div className="flex flex-col px-1.5 pb-1.5">
+        {options.map((option, index) => (
+          <Item
+            key={option.label}
+            size="xs"
+            className="items-start rounded-xl text-left hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            render={
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={[option.label, option.description].filter(Boolean).join(', ')}
+              />
+            }
+            onClick={() => answer(option.label)}
+          >
+            <Kbd className="mt-0.5">{index + 1}</Kbd>
+            <ItemContent className="gap-0.5">
+              <ItemTitle>
+                {option.label}
+                {index === recommended ? (
+                  <span className="text-xs font-normal text-primary">
+                    {m.assistant_question_recommended()}
+                  </span>
                 ) : null}
-              </ItemContent>
-            </Item>
-          ))}
-        </div>
-      </InputGroupAddon>
-      <TypedReply
-        value={text}
-        onChange={setText}
-        placeholder={m.assistant_question_placeholder()}
-        onSend={() => !disabled && answer(text.trim())}
-      />
-      <InputGroupAddon align="block-end" className="justify-between">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          onClick={() => onDecide({ proposalId: proposal.id, decision: 'reject' })}
-        >
-          {m.assistant_question_skip()}
-        </Button>
-        <SendButton disabled={disabled || !text.trim()} onClick={() => answer(text.trim())} />
-      </InputGroupAddon>
-    </InputGroup>
+              </ItemTitle>
+              {option.description ? <ItemDescription>{option.description}</ItemDescription> : null}
+            </ItemContent>
+          </Item>
+        ))}
+      </div>
+    </Panel>
   )
 }
 
@@ -253,22 +276,38 @@ function ConfirmPanel({
   const destructive = proposal.effect === 'destructive'
   const title = capabilityTitle(proposal.capability)
   const target = (proposal.preview as { target?: string } | null)?.target
-  const instruct = () =>
-    onDecide({ proposalId: proposal.id, decision: 'reject', reason: text.trim() })
 
   return (
-    <InputGroup className="rounded-2xl" aria-label={title}>
-      <InputGroupAddon align="block-start" className={BODY} onClick={keepFocus}>
-        <Header icon={destructive ? <Trash2 /> : <PencilLine />} pager={pager}>
+    <Panel
+      label={title}
+      icon={destructive ? <Trash2 /> : <PencilLine />}
+      title={
+        <>
           <p className="flex flex-wrap items-center gap-2 font-medium">
             {title}
             {destructive ? (
               <Badge variant="destructive">{m.assistant_proposal_destructive()}</Badge>
             ) : null}
           </p>
-          {target ? <p className="text-muted-foreground">{target}</p> : null}
-        </Header>
-        {editing ? (
+          {target ? <p className="text-sm text-muted-foreground">{target}</p> : null}
+        </>
+      }
+      pager={pager}
+      reply={
+        editing
+          ? null
+          : {
+              value: text,
+              onChange: setText,
+              placeholder: m.assistant_proposal_instruct_placeholder(),
+              onSend: () =>
+                onDecide({ proposalId: proposal.id, decision: 'reject', reason: text.trim() }),
+              disabled,
+            }
+      }
+    >
+      {editing ? (
+        <div className="px-4 pt-2 pb-3">
           <EditForm
             proposal={proposal}
             disabled={disabled}
@@ -277,21 +316,13 @@ function ConfirmPanel({
               onDecide({ proposalId: proposal.id, decision: 'edit', args, remember })
             }
           />
-        ) : (
-          <div className="pl-6">
+        </div>
+      ) : (
+        <>
+          <div className="px-4 pt-1 pb-3 pl-10">
             <ProposalChanges proposal={proposal} />
           </div>
-        )}
-      </InputGroupAddon>
-      {editing ? null : (
-        <>
-          <TypedReply
-            value={text}
-            onChange={setText}
-            placeholder={m.assistant_proposal_instruct_placeholder()}
-            onSend={() => !disabled && instruct()}
-          />
-          <InputGroupAddon align="block-end" className="flex-wrap justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
             {proposal.effect === 'write' ? (
               <Label className="text-xs font-normal text-muted-foreground">
                 <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked)} />
@@ -300,49 +331,43 @@ function ConfirmPanel({
             ) : (
               <span />
             )}
-            {text.trim() ? (
-              <SendButton disabled={disabled} onClick={instruct} />
-            ) : (
-              <div className="flex items-center gap-2">
-                {others > 0 ? (
-                  <Button variant="ghost" size="sm" disabled={disabled} onClick={onDecideAll}>
-                    {m.assistant_proposal_approve_all({ count: others + 1 })}
-                  </Button>
-                ) : null}
+            <div className="flex items-center gap-2">
+              {others > 0 ? (
+                <Button variant="ghost" size="sm" disabled={disabled} onClick={onDecideAll}>
+                  {m.assistant_proposal_approve_all({ count: others + 1 })}
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={disabled}
+                onClick={() => onDecide({ proposalId: proposal.id, decision: 'reject' })}
+              >
+                {m.assistant_proposal_reject()}
+              </Button>
+              {editableFields(proposal).length > 0 ? (
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={disabled}
-                  onClick={() => onDecide({ proposalId: proposal.id, decision: 'reject' })}
+                  onClick={() => setEditing(true)}
                 >
-                  {m.assistant_proposal_reject()}
+                  {m.assistant_proposal_edit()}
                 </Button>
-                {editableFields(proposal).length > 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => setEditing(true)}
-                  >
-                    {m.assistant_proposal_edit()}
-                  </Button>
-                ) : null}
-                <Button
-                  size="sm"
-                  variant={destructive ? 'destructive' : 'default'}
-                  disabled={disabled}
-                  onClick={() =>
-                    onDecide({ proposalId: proposal.id, decision: 'approve', remember })
-                  }
-                >
-                  {m.assistant_proposal_approve()}
-                </Button>
-              </div>
-            )}
-          </InputGroupAddon>
+              ) : null}
+              <Button
+                size="sm"
+                variant={destructive ? 'destructive' : 'default'}
+                disabled={disabled}
+                onClick={() => onDecide({ proposalId: proposal.id, decision: 'approve', remember })}
+              >
+                {m.assistant_proposal_approve()}
+              </Button>
+            </div>
+          </div>
         </>
       )}
-    </InputGroup>
+    </Panel>
   )
 }
 
