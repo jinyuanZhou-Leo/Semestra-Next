@@ -15,7 +15,7 @@ const EVERY_MS = 3200
 
 /**
  * Examples of what arrives, one after another, drawn like a system notification banner. The
- * frame keeps its height, so the step below does not move as they change.
+ * background keeps its height, so the step below does not move as they change.
  */
 export function NotificationPreview() {
   const preference = useMotionPreference()
@@ -32,7 +32,7 @@ export function NotificationPreview() {
   return (
     <div
       aria-hidden
-      className="relative h-[4.75rem] overflow-hidden rounded-3xl bg-muted/60 px-3 py-2.5"
+      className="relative flex h-44 items-center justify-center overflow-hidden rounded-3xl bg-muted/60 px-6"
     >
       <MotionConfig reducedMotion={preference}>
         <AnimatePresence initial={false} mode="popLayout">
@@ -42,7 +42,7 @@ export function NotificationPreview() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.97 }}
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-            className="flex items-start gap-3 rounded-2xl border bg-card px-3 py-2 shadow-sm"
+            className="flex w-full max-w-lg items-start gap-3 rounded-2xl border bg-card px-3 py-2 shadow-sm"
           >
             <img src="/icons/icon-192.png" alt="" className="mt-0.5 size-8 shrink-0 rounded-lg" />
             <div className="min-w-0 flex-1">
