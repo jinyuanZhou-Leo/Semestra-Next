@@ -4226,6 +4226,56 @@
         ]
       }
     },
+    "/ai/local-models/delete": {
+      "post": {
+        "tags": [
+          "ai"
+        ],
+        "summary": "Remove a downloaded local model (OCR or embedding) from this self-hosted server.",
+        "description": "Frees its disk space for every user of the server; whoever uses it gets it\ndownloaded again when it is next needed. Refused while it downloads. Not for agents.",
+        "operationId": "aiLocalModelDelete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalModelDeleteInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalModelDeleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/ai/local-models/download": {
       "post": {
         "tags": [
@@ -25900,6 +25950,53 @@
         ],
         "title": "LmsCourse"
       },
+      "LocalModelDeleteInputBody": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "ocr",
+              "embedding"
+            ],
+            "title": "Purpose",
+            "description": "What the model is for."
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Model",
+            "description": "The local model to remove from this server."
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "model"
+        ],
+        "title": "LocalModelDeleteInputBody"
+      },
+      "LocalModelDeleted": {
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "ocr",
+              "embedding"
+            ],
+            "title": "Purpose"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "purpose",
+          "model"
+        ],
+        "title": "LocalModelDeleted"
+      },
       "LocalModelDownload": {
         "properties": {
           "job_id": {
@@ -25978,6 +26075,13 @@
             },
             "type": "array",
             "title": "Downloaded"
+          },
+          "sizes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Sizes"
           },
           "downloading": {
             "items": {

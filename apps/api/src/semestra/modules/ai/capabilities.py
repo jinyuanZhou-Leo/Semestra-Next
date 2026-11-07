@@ -8,6 +8,8 @@ from semestra.modules.ai.schemas import (
     AssignmentList,
     AssignmentParamsInput,
     AssignmentUpdateInput,
+    LocalModelDeleted,
+    LocalModelDeleteInput,
     LocalModelDownload,
     LocalModelDownloadInput,
     ModelList,
@@ -169,6 +171,20 @@ or null when the model is already here. Not for agents.""",
 )
 async def local_model_download(ctx: Ctx, inp: LocalModelDownloadInput) -> LocalModelDownload:
     return await service.download_local_model(ctx, inp)
+
+
+@capability(
+    name="ai.local_model.delete",
+    summary="Remove a downloaded local model (OCR or embedding) from this self-hosted server.",
+    description="""Frees its disk space for every user of the server; whoever uses it gets it
+downloaded again when it is next needed. Refused while it downloads. Not for agents.""",
+    effect="destructive",
+    http=Http("POST", "/ai/local-models/delete"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def local_model_delete(ctx: Ctx, inp: LocalModelDeleteInput) -> LocalModelDeleted:
+    return await service.delete_local_model(ctx, inp)
 
 
 @capability(

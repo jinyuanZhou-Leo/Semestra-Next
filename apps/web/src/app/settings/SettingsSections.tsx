@@ -31,7 +31,8 @@ export function SectionFrame({
       data-settings-section
       hidden={hidden}
       aria-labelledby={headingId}
-      className="scroll-mt-6 space-y-4"
+      // A custom section that renders nothing (nothing to set on this server) is left out.
+      className="scroll-mt-6 space-y-4 has-[>div:empty]:hidden"
     >
       <header className="flex items-start justify-between gap-4">
         <div>

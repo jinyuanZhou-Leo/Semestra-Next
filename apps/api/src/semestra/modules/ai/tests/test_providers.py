@@ -302,6 +302,7 @@ async def test_capabilities_are_http_only():
         "ai.provider.update",
         "ai.provider.delete",
         "ai.local_model.download",
+        "ai.local_model.delete",
         "ai.provider.test",
         "ai.provider.list_models",
         "ai.assignment.get",

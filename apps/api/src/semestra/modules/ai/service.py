@@ -5,6 +5,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import anyio
+import anyio.to_thread
 import httpx
 from sqlalchemy import ColumnElement, and_, case, func, or_, select
 
@@ -32,6 +34,8 @@ from semestra.modules.ai.schemas import (
     AssignmentList,
     AssignmentParamsInput,
     AssignmentUpdateInput,
+    LocalModelDeleted,
+    LocalModelDeleteInput,
     LocalModelDownload,
     LocalModelDownloadInput,
     LocalModels,
@@ -461,7 +465,10 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 purpose="ocr",
                 models=list(ocr_local.MODELS),
                 default=ocr_local.default_model(ctx.settings),
-                downloaded=[m for m in ocr_local.MODELS if ocr_local.downloaded(m)],
+                downloaded=(ocr_done := [m for m in ocr_local.MODELS if ocr_local.downloaded(m)]),
+                sizes=await anyio.to_thread.run_sync(
+                    lambda: {m: ocr_local.size(m) for m in ocr_done}
+                ),
                 downloading=ocr_local.downloading(),
                 download_job=(
                     await local_jobs.latest_download(ctx, "ocr", chosen) if chosen else None
@@ -479,7 +486,10 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 purpose="embedding",
                 models=models,
                 default=local_embedding.default_model(settings),
-                downloaded=[m for m in models if local_embedding.downloaded(settings, m)],
+                downloaded=(done := [m for m in models if local_embedding.downloaded(settings, m)]),
+                sizes=await anyio.to_thread.run_sync(
+                    lambda: {m: local_embedding.size(settings, m) for m in done}
+                ),
                 downloading=local_embedding.downloading(),
                 download_job=(
                     await local_jobs.latest_download(ctx, "embedding", chosen) if chosen else None
@@ -505,6 +515,33 @@ async def download_local_model(ctx: Ctx, inp: LocalModelDownloadInput) -> LocalM
         raise _invalid("model", "unknown")
     job = await local_jobs.start_download(ctx, inp.purpose, model)
     return LocalModelDownload(job_id=job.id if job is not None else None)
+
+
+async def delete_local_model(ctx: Ctx, inp: LocalModelDeleteInput) -> LocalModelDeleted:
+    """Removes a downloaded local model from this server, for every user of it. Whoever uses it
+    gets it downloaded again the next time it is needed (OCR at once; embedding with the next
+    file, while search matches keywords only meanwhile)."""
+    settings = ctx.settings
+    if inp.purpose == "ocr":
+        ok = ocr_local.available(settings) and inp.model in ocr_local.MODELS
+        here = ok and ocr_local.downloaded(inp.model)
+        busy = inp.model in ocr_local.downloading()
+    else:
+        ok = local_embedding.available(settings) and local_embedding.valid(settings, inp.model)
+        here = ok and local_embedding.downloaded(settings, inp.model)
+        busy = inp.model in local_embedding.downloading()
+    if not here:
+        raise not_found("local_model", inp.model)
+    if busy:
+        raise AppError("ai.local_model_busy", 409, model=inp.model)
+    if inp.purpose == "ocr":
+        await anyio.to_thread.run_sync(ocr_local.delete, inp.model)
+    else:
+        await anyio.to_thread.run_sync(local_embedding.delete, settings, inp.model)
+    await events.publish(
+        ctx, "ai.local_model.deleted", {"purpose": inp.purpose, "model": inp.model}
+    )
+    return LocalModelDeleted(purpose=inp.purpose, model=inp.model)
 
 
 # --- usage ----------------------------------------------------------------------------------

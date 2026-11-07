@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, KeyRound, Sparkles } from 'lucide-react'
+import { BarChart3, Boxes, HardDriveDownload, KeyRound, Sparkles } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { ONBOARDING_STEPS, type OnboardingStep } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
@@ -11,6 +11,7 @@ const EVENTS = [
   'ai.assignment.updated',
   'ai.local_ocr.downloaded',
   'ai.local_embedding.downloaded',
+  'ai.local_model.deleted',
 ] as const
 
 const settings = () => import('./settings/sections')
@@ -35,6 +36,16 @@ export default defineModule({
   description: m.ai_description,
   icon: Sparkles,
   settingsSections: [
+    {
+      id: 'local-models',
+      level: 'account',
+      group: 'data',
+      title: m.ai_local_models_title,
+      icon: HardDriveDownload,
+      // After storage: both say what takes space.
+      order: 7,
+      component: preloadable(() => settings().then((s) => ({ default: s.LocalModelsSection }))),
+    },
     {
       id: 'ai-providers',
       level: 'account',

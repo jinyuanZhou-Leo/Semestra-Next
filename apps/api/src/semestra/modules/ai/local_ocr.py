@@ -139,6 +139,18 @@ def downloaded(model: str) -> bool:
     return all((models_dir() / part).is_dir() for part in _parts(model))
 
 
+def size(model: str) -> int:
+    """Bytes the model takes on disk (blocking)."""
+    return sum(local_download.dir_size(models_dir() / part) for part in _parts(model))
+
+
+def delete(model: str) -> None:
+    """Removes the model's files (blocking); the next scan that needs it downloads it again.
+    A page being read with it finishes with the copy its process has open."""
+    for part in _parts(model):
+        shutil.rmtree(models_dir() / part, ignore_errors=True)
+
+
 # Seconds between progress reports while a model downloads.
 DOWNLOAD_POLL_SECONDS = 0.5
 _KEY = "ocr:"

@@ -106,6 +106,11 @@ async def ensure(
         await progress(state.total, state.total)
 
 
+def dir_size(path: Path) -> int:
+    """Bytes of the files under `path` (0 when it is missing); blocking."""
+    return Download(path).received()
+
+
 def downloading(prefix: str) -> list[str]:
     """Keys starting with `prefix` that this process is downloading now, without the prefix."""
     with _LOCK:

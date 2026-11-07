@@ -201,6 +201,20 @@ def downloading() -> list[str]:
     return local_download.downloading(_KEY)
 
 
+def size(settings: Settings, model: str) -> int:
+    """Bytes the model takes on disk (blocking)."""
+    return local_download.dir_size(model_dir(settings, model))
+
+
+def delete(settings: Settings, model: str) -> None:
+    """Removes the model's files (blocking). The embedding process is stopped first, as it may
+    hold the model; it starts again on the next text to embed."""
+    from semestra.modules.ai import local_embedding_runtime
+
+    local_embedding_runtime.close()
+    shutil.rmtree(model_dir(settings, model), ignore_errors=True)
+
+
 # --- Hugging Face -----------------------------------------------------------------------------
 
 

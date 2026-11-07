@@ -210,7 +210,19 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
 
     await fx.upload_ready("photo2.png", make_png("second"))
     assert pages[-1][0] == "PP-OCRv5_mobile"
-    assert len(fetched) == 4
+
+    # Deleting a model frees its space; the next scan that needs it downloads it again.
+    assert _local(await fx.call("GET", "/ai/status"))["sizes"] == {
+        "PP-OCRv6_medium": 4_000_000,
+        "PP-OCRv5_mobile": 4_000_000,
+    }
+    body = {"purpose": "ocr", "model": "PP-OCRv5_mobile"}
+    await fx.call("POST", "/ai/local-models/delete", json=body)
+    assert _local(await fx.call("GET", "/ai/status"))["downloaded"] == ["PP-OCRv6_medium"]
+    await fx.call("POST", "/ai/local-models/delete", json=body, status=404)
+    await fx.upload_ready("photo2b.png", make_png("second again"))
+    assert fetched[-2:] == ["PP-OCRv5_mobile_det_onnx", "PP-OCRv5_mobile_rec_onnx"]
+    assert len(fetched) == 6
 
     # With no model source reachable, the scanned pages are skipped and the job says why.
     def unreachable(*args: Any) -> None:

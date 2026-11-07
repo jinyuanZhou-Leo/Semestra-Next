@@ -5693,6 +5693,38 @@ export type LmsCourse = {
 };
 
 /**
+ * LocalModelDeleteInputBody
+ */
+export type LocalModelDeleteInputBody = {
+    /**
+     * Purpose
+     *
+     * What the model is for.
+     */
+    purpose: 'ocr' | 'embedding';
+    /**
+     * Model
+     *
+     * The local model to remove from this server.
+     */
+    model: string;
+};
+
+/**
+ * LocalModelDeleted
+ */
+export type LocalModelDeleted = {
+    /**
+     * Purpose
+     */
+    purpose: 'ocr' | 'embedding';
+    /**
+     * Model
+     */
+    model: string;
+};
+
+/**
  * LocalModelDownload
  */
 export type LocalModelDownload = {
@@ -5742,6 +5774,12 @@ export type LocalModels = {
      * Downloaded
      */
     downloaded: Array<string>;
+    /**
+     * Sizes
+     */
+    sizes?: {
+        [key: string]: number;
+    };
     /**
      * Downloading
      */
@@ -13751,6 +13789,31 @@ export type AiAssignmentUpdateParamsResponses = {
 };
 
 export type AiAssignmentUpdateParamsResponse = AiAssignmentUpdateParamsResponses[keyof AiAssignmentUpdateParamsResponses];
+
+export type AiLocalModelDeleteData = {
+    body: LocalModelDeleteInputBody;
+    path?: never;
+    query?: never;
+    url: '/ai/local-models/delete';
+};
+
+export type AiLocalModelDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AiLocalModelDeleteError = AiLocalModelDeleteErrors[keyof AiLocalModelDeleteErrors];
+
+export type AiLocalModelDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: LocalModelDeleted;
+};
+
+export type AiLocalModelDeleteResponse = AiLocalModelDeleteResponses[keyof AiLocalModelDeleteResponses];
 
 export type AiLocalModelDownloadData = {
     body: LocalModelDownloadInputBody;

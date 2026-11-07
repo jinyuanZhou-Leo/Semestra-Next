@@ -32,6 +32,7 @@ export const errorMessages = {
   error_ai_context_too_long: m.error_ai_context_too_long,
   error_ai_invalid_key: m.error_ai_invalid_key,
   error_ai_local_embedding_download_failed: m.error_ai_local_embedding_download_failed,
+  error_ai_local_model_busy: m.error_ai_local_model_busy,
   error_ai_local_model_failed: m.error_ai_local_model_failed,
   error_ai_local_model_missing: m.error_ai_local_model_missing,
   error_ai_local_model_no_onnx: m.error_ai_local_model_no_onnx,
