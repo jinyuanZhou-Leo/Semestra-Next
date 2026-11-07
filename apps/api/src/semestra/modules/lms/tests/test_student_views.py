@@ -84,28 +84,17 @@ async def test_preview_refuses_large_files(api: Api, settings: Settings):
 async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
     course = await linked_course(api)
     lab1 = fake.course_assignments["101"][0]
-    # Graded before the import: the import copies no score, so it is offered right after.
+    # Graded before the import: the grade comes along with it.
     fake.course_assignments["101"][0] = lab1.model_copy(
         update={"submission": Submission(state="graded", score=8)}
     )
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1", "a2"]}
     )
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    first = by_type(session, "assessment")[0]["data"]
+    assert (first["points_earned"], first["points_possible"]) == (8, 10)
     assert (await api.commit(started["session_id"]))["failed"] == 0
-
-    updates = await api.call("GET", f"/courses/{course}/lms/updates")
-    assert updates["count"] == 1
-    assert updates["items"][0]["changes"] == {
-        "score": {"old": None, "new": {"points_earned": 8.0, "points_possible": 10.0}}
-    }
-    review = await api.call("POST", f"/courses/{course}/lms/updates:review")
-    session = await api.call("GET", f"/imports/{review['session_id']}")
-    [item] = by_type(session, "assessment_patch")
-    assert item["data"]["changes"]["score"]["new"] == {
-        "points_earned": 8.0,
-        "points_possible": 10.0,
-    }
-    assert (await api.commit(review["session_id"]))["failed"] == 0
     assessments = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
     lab = next(a for a in assessments if a["title"] == "Lab 1")
     assert (lab["points_earned"], lab["points_possible"]) == (8, 10)

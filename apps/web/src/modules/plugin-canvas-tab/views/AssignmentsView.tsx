@@ -111,9 +111,8 @@ function useTableState() {
   return state
 }
 
-/** Imported somewhere already: both places, so nothing is left to import. */
-const importedBoth = (a: AssignmentOut) =>
-  a.imported_as.some((t) => t.kind === 'assessment') && a.imported_as.some((t) => t.kind === 'task')
+/** An assignment is imported once, as an assessment or as a task (M09 §11). */
+const imported = (a: AssignmentOut) => a.imported_as.length > 0
 
 function SelectCell({ row }: CellProps) {
   const { selected, toggle } = useTableState()
@@ -122,7 +121,7 @@ function SelectCell({ row }: CellProps) {
   return (
     <Checkbox
       aria-label={m.canvas_tab_select_assignment({ name: a.name })}
-      disabled={importedBoth(a)}
+      disabled={imported(a)}
       // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
       className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
       checked={selected.has(row.original.id)}
@@ -290,7 +289,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   // Each import skips what is already there (`lms.assignment.import`), so a pick can mix both.
   const picked = [...selected].filter((id) => {
     const row = byId.get(id)
-    return row && !row.practice && !importedBoth(row.assignment)
+    return row && !row.practice && !imported(row.assignment)
   })
 
   const state: TableState = {

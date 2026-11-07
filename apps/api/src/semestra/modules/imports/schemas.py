@@ -210,6 +210,12 @@ class AssessmentData(BaseModel):
     source_ref: Annotated[str, Field(max_length=200)] | None = Field(
         default=None, description=SOURCE_REF
     )
+    points_earned: Annotated[float, Field(ge=0, le=100000)] | None = Field(
+        default=None, description="Points earned, when the source already has a grade"
+    )
+    points_possible: Annotated[float, Field(gt=0, le=100000)] | None = Field(
+        default=None, description="Points possible, with points_earned"
+    )
     # Fields of the other kind (M09).
     held: dict[str, Any] | None = Field(default=None, description=HELD)
 
