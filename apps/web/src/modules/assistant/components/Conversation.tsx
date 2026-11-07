@@ -886,7 +886,9 @@ export function Conversation({
               void chat.decide(decisions)
             }}
           />
-        ) : (
+        ) : null}
+        {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
+        <div hidden={waiting.length > 0}>
           <Composer
             programId={programId}
             generating={chat.generating}
@@ -905,7 +907,7 @@ export function Conversation({
             compacting={chat.compacting}
             onCompact={compact}
           />
-        )}
+        </div>
       </div>
     </section>
   )

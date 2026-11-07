@@ -293,6 +293,8 @@ async def test_ask_user_waits_for_the_answer(agent: Agent, model: FakeModel):
     results = [str(r.content) for r in model.results(1)]
     assert '"answer":"Mon and Tue"' in results[0]
     assert "skipped this question" in results[1]
+    # Answering changed no data: the answer can still be regenerated.
+    assert (await agent.detail(session["id"]))["regenerable"] is not None
 
 
 async def test_ask_user_with_bad_options_goes_back_to_the_model(agent: Agent, model: FakeModel):

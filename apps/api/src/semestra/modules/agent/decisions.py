@@ -169,7 +169,8 @@ async def run(
     for d, row in zip(decisions, rows, strict=True):
         cap = cap_by_id[row.id]
         if d.decision == "answer":
-            result = Outcome(True, {"answer": d.answer})
+            # `ran=False`: an answer changed no data (a late note must not say it did).
+            result = Outcome(True, {"answer": d.answer}, ran=False)
             results.append((row, result))
             await asyncio.shield(_record(state, user_id, session_id, row, result, "executed", None))
             continue
