@@ -3,6 +3,16 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 1.16.0 (2026-11-07)
+
+### New
+
+- **Data:** Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+
+### Fixed
+
+- **General:** Unified the look of file drop areas across imports, backup restore, files and Sem; backup restore now says why a file was refused.
+
 ## 1.15.0 (2026-11-06)
 
 ### New

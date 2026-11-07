@@ -1,5 +1,24 @@
 # @semestra/web
 
+## 1.16.0
+
+### Minor Changes
+
+- d65890a: <!-- area: data -->
+  <!-- en -->
+  Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+  <!-- zh -->
+  自部署服务器可在设置 → 数据中查看、下载和删除本地 OCR 与搜索模型。
+
+### Patch Changes
+
+- 3cefff2: <!-- area: general -->
+  <!-- en -->
+  Unified the look of file drop areas across imports, backup restore, files and Sem; backup restore now says why a file was refused.
+  <!-- zh -->
+  统一了导入、备份恢复、文件和 Sem 中拖放文件区域的外观；备份恢复会说明文件被拒收的原因。
+- @semestra/api-client@1.16.0
+
 ## 1.15.0
 
 ### Minor Changes
