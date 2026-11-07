@@ -1,18 +1,15 @@
 import type { ImportSessionDetail, Upload } from '@semestra/api-client'
 import { importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
-import { FileUp } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
-import { toast } from 'sonner'
 import { AiAction, type AiActionState } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
+import { FileDropzone } from '@/components/FileDropzone'
 import { useJob } from '@/hooks/use-job'
 import { invalidateOperations, postWithProgress } from '@/app/api'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
-import { cn } from '@/lib/utils'
 import { useFilesUsage } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
@@ -242,25 +239,6 @@ export function SourcePicker({
 
   const addFiles = (added: File[]) =>
     setFiles((current) => (spec.multiple ? [...current, ...added] : added.slice(0, 1)))
-  const dropzone = useDropzone({
-    accept: spec.accept,
-    multiple: spec.multiple ?? false,
-    disabled: locked || !spec.accept,
-    onDropAccepted: addFiles,
-    maxSize: maxBytes,
-    onDropRejected: (rejected) => {
-      for (const { file, errors } of rejected) {
-        const code = errors[0]?.code
-        // A single-file source keeps the first file and drops the rest without a word.
-        if (code === 'too-many-files') continue
-        toast.error(
-          code === 'file-too-large' && maxBytes
-            ? m.files_upload_too_large({ name: file.name, max: formatBytes(maxBytes) })
-            : m.imports_file_type_unsupported({ name: file.name }),
-        )
-      }
-    },
-  })
 
   const action = (
     <AiAction
@@ -356,28 +334,15 @@ export function SourcePicker({
         ) : (
           <>
             {fromCourse ? null : (
-              <div
-                {...dropzone.getRootProps({
-                  className: cn(
-                    'flex h-40 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 text-center text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-                    dropzone.isDragActive && 'border-primary bg-primary/5',
-                    locked && 'pointer-events-none opacity-50',
-                  ),
-                })}
-              >
-                <input {...dropzone.getInputProps()} />
-                <span className="flex size-10 items-center justify-center rounded-full bg-muted text-foreground">
-                  <FileUp aria-hidden className="size-5" />
-                </span>
-                <span className="text-foreground">
-                  {spec.multiple ? m.imports_pick_files() : m.imports_pick_file()}
-                </span>
-                {maxBytes ? (
-                  <span className="text-xs">
-                    {m.imports_pick_limit({ max: formatBytes(maxBytes) })}
-                  </span>
-                ) : null}
-              </div>
+              <FileDropzone
+                title={spec.multiple ? m.imports_pick_files() : m.imports_pick_file()}
+                hint={maxBytes ? m.imports_pick_limit({ max: formatBytes(maxBytes) }) : undefined}
+                accept={spec.accept}
+                multiple={spec.multiple ?? false}
+                maxSize={maxBytes}
+                disabled={locked}
+                onFiles={addFiles}
+              />
             )}
             <div className="min-h-0 flex-1 overflow-y-auto">
               <FileStatusList rows={rows} />

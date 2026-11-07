@@ -9,6 +9,7 @@ import {
 import { agentSessionGetQueryKey, settingsValueGetOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { JSONContent } from '@tiptap/core'
+import { useDropzone } from 'react-dropzone'
 import { toast } from 'sonner'
 import {
   Brain,
@@ -16,7 +17,6 @@ import {
   ChevronDown,
   Copy,
   FileText,
-  FileUp,
   ImageIcon,
   MessageCircle,
   MessageCircleDashed,
@@ -26,9 +26,10 @@ import {
   Play,
   RotateCcw,
 } from 'lucide-react'
-import { type DragEvent, Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
+import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useAiStatus } from '@/hooks/use-ai-status'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -559,7 +560,6 @@ export function Conversation({
   const newScope = chosenScope ?? pageScope
   const [temporaryChoice, setTemporaryChoice] = useState(initialTemporary)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
-  const [dragging, setDragging] = useState(false)
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
   const removed = useRef(new Set<string>())
   const detail = chat.detail
@@ -709,23 +709,14 @@ export function Conversation({
     return ok
   }
 
-  const dropProps = {
-    onDragOver: (event: DragEvent) => {
-      if (!event.dataTransfer.types.includes('Files')) return
-      event.preventDefault()
-      setDragging(true)
+  // Files dropped anywhere on the conversation become attachments.
+  const dropzone = useDropzone({
+    noClick: true,
+    noKeyboard: true,
+    onDrop: (files) => {
+      if (files.length > 0) void addFiles(files)
     },
-    onDragLeave: (event: DragEvent) => {
-      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-      setDragging(false)
-    },
-    onDrop: (event: DragEvent) => {
-      if (event.dataTransfer.files.length === 0) return
-      event.preventDefault()
-      setDragging(false)
-      void addFiles([...event.dataTransfer.files])
-    },
-  }
+  })
 
   // Until it is known whether AI is set up (and, without it, whether this conversation has
   // messages to show), show neither the chat nor the setup prompt, so one never flashes before
@@ -752,14 +743,13 @@ export function Conversation({
   return (
     <section
       aria-label={m.assistant_conversation_label()}
-      className={cn('relative flex min-h-0 flex-1 flex-col', className)}
-      {...dropProps}
+      {...dropzone.getRootProps({
+        role: 'region',
+        className: cn('relative flex min-h-0 flex-1 flex-col outline-none', className),
+      })}
     >
-      {dragging ? (
-        <div className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/50 bg-background/80 text-sm font-medium">
-          <FileUp aria-hidden className="size-6 text-muted-foreground" />
-          {m.assistant_drop_files()}
-        </div>
+      {dropzone.isDragActive ? (
+        <FileDropOverlay label={m.assistant_drop_files()} className="inset-2 z-30 rounded-2xl" />
       ) : null}
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <ScrollToEndOnSend sent={sent} />

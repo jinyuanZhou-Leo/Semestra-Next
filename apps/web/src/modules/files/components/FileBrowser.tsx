@@ -30,7 +30,7 @@ import {
   Pin,
   Trash2,
 } from 'lucide-react'
-import { type DragEvent, createContext, use, useRef, useState } from 'react'
+import { createContext, use, useRef, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
@@ -53,6 +53,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { DROP_TARGET, type DropTargets, dropTargetProps } from '../hooks'
 import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '../types'
@@ -72,47 +73,9 @@ export type BrowserHandlers = {
   act: (action: ItemAction) => void
   /** The course's Program, for the menu entries other modules add (`files.itemActions`). */
   programId?: string
-  /** Files dragged onto a folder go into it; `folderId` is the folder they are over. */
-  drop?: FolderDrop
+  /** Files dragged onto a folder go into it. */
+  drop?: DropTargets
 }
-
-export type FolderDrop = {
-  folderId: string | null
-  over: (folderId: string | null) => void
-  into: (folderId: string, files: File[]) => void
-}
-
-function hasFiles(event: DragEvent) {
-  return event.dataTransfer.types.includes('Files')
-}
-
-/**
- * Makes a folder's row or tile a drop target. `preventDefault` on the drop tells the page's own
- * drop zone (`useFileDrop`) that the files are taken.
- */
-function folderDropProps(folderId: string, drop: FolderDrop | undefined) {
-  if (!drop) return {}
-  return {
-    'data-drop-target': drop.folderId === folderId ? '' : undefined,
-    onDragOver: (event: DragEvent) => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      drop.over(folderId)
-    },
-    onDragLeave: (event: DragEvent) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drop.over(null)
-    },
-    onDrop: (event: DragEvent) => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      drop.over(null)
-      drop.into(folderId, [...event.dataTransfer.files])
-    },
-  }
-}
-
-// A folder with files dragged over it.
-const DROP_TARGET = 'data-drop-target:bg-primary/10 data-drop-target:text-primary'
 
 const BrowserContext = createContext<BrowserHandlers | null>(null)
 
@@ -484,7 +447,7 @@ function FolderTile({ folder }: { folder: FolderOut }) {
   const { openFolder, drop } = useHandlers()
   return (
     <div
-      {...folderDropProps(folder.id, drop)}
+      {...dropTargetProps(folder.id, drop)}
       className={cn(
         'group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
         DROP_TARGET,
@@ -679,7 +642,7 @@ export function FileBrowser({
             {sortedFolders.map((folder) => (
               <TableRow
                 key={folder.id}
-                {...folderDropProps(folder.id, handlers.drop)}
+                {...dropTargetProps(folder.id, handlers.drop)}
                 className={DROP_TARGET}
               >
                 <TableCell className="py-2" colSpan={columnCount - 1}>

@@ -8,10 +8,11 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { BookOpen, Folder, Search, Upload } from 'lucide-react'
-import { type DragEvent, createContext, use, useState } from 'react'
+import { createContext, use, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursesOfTerm, useCourses } from '@/modules/academics/queries'
 import { formatDateTime } from '@/lib/format'
@@ -31,7 +32,7 @@ import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { searchTerms } from '../highlight'
-import { useDebounced, useFileDrop } from '../hooks'
+import { DROP_TARGET, type DropTargets, dropTargetProps, useDebounced, useFileDrop } from '../hooks'
 import { courseFilesOptions, useCourseFiles } from '../queries'
 import { CourseFiles } from './CourseFilesPage'
 
@@ -144,13 +145,8 @@ type Folder = {
   list: UseQueryResult<FilesItemList> | undefined
 }
 
-type FolderHandlers = {
-  open: (courseId: string) => void
-  /** The course folder files are dragged over. */
-  over: string | null
-  setOver: (courseId: string | null) => void
-  drop: (courseId: string, files: File[]) => void
-}
+/** Course folders open on click and take files dragged onto them (keyed by course id). */
+type FolderHandlers = DropTargets & { open: (courseId: string) => void }
 
 const HandlersContext = createContext<FolderHandlers | null>(null)
 
@@ -159,33 +155,6 @@ function useFolderHandlers() {
   if (!handlers) throw new Error('Course folders must render inside CourseFolders')
   return handlers
 }
-
-function hasFiles(event: DragEvent) {
-  return event.dataTransfer.types.includes('Files')
-}
-
-/** Makes a course folder a drop target; `preventDefault` tells the page's drop zone it is taken. */
-function dropProps(courseId: string, h: FolderHandlers) {
-  return {
-    'data-drop-target': h.over === courseId ? '' : undefined,
-    onDragOver: (event: DragEvent) => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      h.setOver(courseId)
-    },
-    onDragLeave: (event: DragEvent) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) h.setOver(null)
-    },
-    onDrop: (event: DragEvent) => {
-      if (!hasFiles(event)) return
-      event.preventDefault()
-      h.setOver(null)
-      h.drop(courseId, [...event.dataTransfer.files])
-    },
-  }
-}
-
-const DROP_TARGET = 'data-drop-target:bg-primary/10 data-drop-target:text-primary'
 
 function lastChange(items: readonly ItemOut[]) {
   return items.reduce<string | null>(
@@ -274,7 +243,7 @@ function FolderTable({ folders }: { folders: Folder[] }) {
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id} {...dropProps(row.id, handlers)} className={DROP_TARGET}>
+            <TableRow key={row.id} {...dropTargetProps(row.id, handlers)} className={DROP_TARGET}>
               {row.getAllCells().map((cell) => (
                 <TableCell key={cell.id} className={cn('h-12 py-2', WIDTHS[cell.column.id])}>
                   <FlexRender cell={cell} />
@@ -293,7 +262,7 @@ function FolderTile({ folder }: { folder: Folder }) {
   const { course } = folder
   return (
     <div
-      {...dropProps(course.id, handlers)}
+      {...dropTargetProps(course.id, handlers)}
       className={cn(
         'relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
         DROP_TARGET,
@@ -444,17 +413,13 @@ function CourseFolders({
       <UsageBar />
 
       {dragging ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -inset-2 z-20 flex flex-col justify-end rounded-3xl border-2 border-dashed border-primary bg-primary/5"
-        >
-          <div className="sticky bottom-6 mx-auto mb-6 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
-            <Upload aria-hidden className="size-4" />
-            {over
+        <FileDropOverlay
+          label={
+            over
               ? m.files_drop_here({ folder: courseLabel(byCourse.get(over) as Course) })
-              : m.files_drop_on_a_course()}
-          </div>
-        </div>
+              : m.files_drop_on_a_course()
+          }
+        />
       ) : null}
 
       {link.dialog}
