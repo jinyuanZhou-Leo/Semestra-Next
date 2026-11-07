@@ -1,4 +1,4 @@
-import { Link2, Megaphone, PencilLine, School } from 'lucide-react'
+import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
@@ -46,12 +46,12 @@ export default defineModule({
       component: preloadable(() => sections().then((s) => ({ default: s.ConnectionsSection }))),
     },
     {
-      id: 'lms-writes',
+      id: 'lms-sync',
       level: 'account',
       group: 'integrations',
-      title: m.lms_settings_writes,
-      description: m.lms_settings_writes_description,
-      icon: PencilLine,
+      title: m.lms_settings_sync,
+      description: m.lms_settings_sync_description,
+      icon: RefreshCw,
       order: 20,
       namespace: 'lms',
     },

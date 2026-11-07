@@ -887,3 +887,63 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
     cleared = await card("lms.program.binding.clear", {"program_id": program_id})
     assert cleared["changes"][0]["before"] == connection["connection"]["display_name"]
     assert conn not in str(cleared)
+
+
+async def test_handed_in_assignments_finish_their_to_dos_once(
+    api: Api, fake: FakeProvider, app: FastAPI
+):
+    from semestra.core.jobs import run_periodic
+    from semestra.modules.lms.schemas.dto import Submission
+
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments",
+        json={"external_ids": ["a1", "a2", "a3"]},
+    )  # fmt: skip
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    midterm = by_type(session, "assessment")[2]["id"]
+    await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{midterm}", json={"type": "task"}
+    )  # fmt: skip
+    assert (await api.commit(started["session_id"]))["failed"] == 0
+
+    async def open_titles() -> list[str]:
+        page = await api.call("GET", f"/programs/{program_id}/tasks")
+        return sorted(t["title"] for t in page["items"])
+
+    assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2", "Midterm"]
+
+    def hand_in(*ids: str) -> None:
+        for i, a in enumerate(fake.course_assignments["101"]):
+            if a.external_id in ids:
+                when = datetime(2026, 2, 1, tzinfo=UTC)
+                fake.course_assignments["101"][i] = a.model_copy(
+                    update={"submission": Submission(state="submitted", submitted_at=when)}
+                )
+
+    # Handed in: the assessment's to-do and the imported task are finished on the next read.
+    hand_in("a1", "a3")
+    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
+    assert await open_titles() == ["APS105H1 · Lab 2"]
+
+    # Opened again by hand, a to-do stays open: each assignment counts once.
+    done = await api.call(
+        "GET", f"/programs/{program_id}/tasks", params={"completed": "only"}
+    )  # fmt: skip
+    lab1 = next(t for t in done["items"] if t["title"] == "APS105H1 · Lab 1")
+    await api.call("POST", f"/tasks/{lab1['id']}:complete", json={"completed": False})
+    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
+    assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2"]
+
+    # Turned off, nothing happens (and nothing is recorded) ...
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"complete_submitted": False}})
+    hand_in("a2")
+    await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
+    await run_periodic(app.state, "lms.complete_submitted")
+    assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2"]
+    # ... and turned on again, the hourly round catches up without anyone opening the course.
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"complete_submitted": True}})
+    await run_periodic(app.state, "lms.complete_submitted")
+    assert await open_titles() == ["APS105H1 · Lab 1"]

@@ -602,6 +602,28 @@ async def set_completed(ctx: Ctx, task_id: str, completed: bool) -> Task:
     return await item_out(ctx, row)
 
 
+async def complete_open(
+    ctx: Ctx, *, task_ids: Sequence[str] = (), assessment_ids: Sequence[str] = ()
+) -> None:
+    """Finishes the open ones among these tasks and the tasks of these assessments (for M09,
+    when the platform shows the assignments handed in)."""
+    if not task_ids and not assessment_ids:
+        return
+    rows = await ctx.db.scalars(
+        select(TasksItem).where(
+            TasksItem.user_id == ctx.user_id,
+            TasksItem.completed_at.is_(None),
+            or_(TasksItem.id.in_(task_ids), TasksItem.assessment_id.in_(assessment_ids)),
+        )
+    )
+    for row in list(rows):
+        row.completed_at = row.updated_at = ctx.now
+        await ctx.db.flush()
+        await announce_item(
+            ctx, "completed", row, calendar=row.due_date is not None, changed=["completed_at"]
+        )
+
+
 async def move_task(ctx: Ctx, inp: TaskMoveInput) -> Task:
     row = await get_item_row(ctx, inp.task_id)
     program = await academics.get_program_row(ctx, row.program_id)

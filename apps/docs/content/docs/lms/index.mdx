@@ -5,7 +5,7 @@ description: Link Semestra to your Canvas account, a program and its courses.
 
 Semestra connects to learning platforms through providers. Canvas is the only provider today.
 A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
-unless you turn on account settings → **Integrations → Changes on the platform**; for now that
+unless you turn on account settings → **Integrations → Sync**; for now that
 only marks an announcement read on Canvas when you open it in Semestra.
 
 There are three levels, each set up once:
@@ -112,6 +112,10 @@ Sem can still read the course.
   **Settings → Plugins → Canvas tab**.
 - **Calendar**: Canvas calendar events of courses with **Calendar and assignment changes** on
   appear in the term calendar. Assignments appear once you import them, as assessments or to-dos.
+- **To-dos that follow submissions**: when an imported assignment shows as submitted in Canvas,
+  its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
+  assignment is checked off once, so a to-do you uncheck stays open. Turn it off under
+  account settings → **Integrations → Sync**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
 

@@ -115,7 +115,8 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - **课程同步**（`lms.course.link.sync`，旧 `sync_course_link`）只刷新关联本身的外部元数据（代码、名称、学期、web_url），不修改课程本身。
   - 作业导入是一次性的。之后 `lms.course.check_updates` 对比 `lms_imported_refs.snapshot`，如果截止时间、分值、权重、名称或成绩变化，在成绩页和 Canvas Tab 显示"有 N 项更新"。用户确认后生成一个 M08 session，其 items 为更新类 item，审核后才写入。
   - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
-- `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测；读取接口和 Canvas Tab 仍然可用。
+  - 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、更新检测、导入，以及每小时的 `lms.complete_submitted` 定时任务，它只读还有未提交导入作业的同步课程，走 5 分钟缓存）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
+- `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
 - 定时任务 `lms.refresh_status`（每 6 小时）：验证所有连接是否仍然有效，失效时标记为 error 并通过 SSE 发出 `lms.connection.status_changed`。
 
 ## 5. Capabilities
@@ -169,6 +170,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ## 7. 前端
 ### 7.1 设置
 - **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 凭证失效 / 缺少凭证 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；Canvas 表单：自托管开启学校登录时先选「学校账号 / API 令牌」（编辑时直接进入连接所用的方式，返回可重选）。令牌路径是一个表单：实例地址、访问令牌 + 获取令牌的 3 步说明（第 1 步链接到 `https://<地址>/profile/settings`）。学校账号路径先显示风险提示（是否使用由用户自行决定，本应用不承担后果；已有学校登录的连接重新登录时不再显示），确认后分 3 步，每步只做一件事：① 填地址，继续时取登录链接（错误显示在这一步）；② 点真实链接打开登录页（请求之后再 `window.open` 会被浏览器拦截），在学校页面完成 SSO/MFA，最后停在 `sso.canvaslms.com/canvas/login?code=…`（手机 App 才拦截这个地址，浏览器里是 404 页面，属正常，文案要说明）；③ 粘贴回调地址、填名称、保存。编辑已有的学校登录时先显示地址和名称，可直接保存，也可“重新登录”进入这 3 步。分步由 `ConfigForm` 通过 `frame(fields, step)` 声明，表单外框仍在 `ConnectionForm`。最后验证并保存。手机上使用抽屉。
+- **账户设置 → 集成 → 同步**：命名空间 `lms` 自动生成的表单：“作业提交后完成待办”（`complete_submitted`）与“允许在平台上做修改”（`allow_writes`）。
 - **Program 设置 → LMS**：选择绑定的连接；已有关联时禁用更换，并说明原因和关联数量。
 - **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：已关联时显示一行（provider 图标块、外部代码与名称、学期与连接名、状态 Badge + 相对时间、"在平台中打开"图标按钮、⋯ 菜单："刷新课程信息"（即 `lms.course.link.sync`，只刷新外部课程元数据）/ 更换课程… / 解除关联…），下方是"日历与作业变化"开关（即 `sync_enabled`）；关联出错时显示 Alert，令牌/权限类错误给"打开 LMS 连接"，其余给"重试"。未关联时是一个可搜索的 Combobox，选中即关联（只认点击/回车选中，触发器上的键入联想不算），课程代码匹配的排在"建议"组，其余按学期分组，已被其它课程关联的项禁用并注明是哪门课程，底部 Checkbox"包括往期课程"；更换时当前课程禁用，选中后先确认。Program 未绑定连接时显示引导；账户里一个连接都没有时直接引导去添加连接。
 

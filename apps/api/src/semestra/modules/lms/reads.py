@@ -11,7 +11,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import cache, html, service
+from semestra.modules.lms import cache, html, service, submissions
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
     FileMeta,
@@ -234,9 +234,10 @@ async def raw_assignments(
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return _cleaned(b, await b.provider.assignments(i, b.cfg, b.creds, ext))
 
-    data, truncated, *_ = await _read(
+    data, truncated, link, _ = await _read(
         ctx, course_id, "assignments", "assignments", {}, fetch, refresh=refresh, linked=linked
     )
+    submissions.after_read(ctx, link.id, data)
     return data, truncated
 
 

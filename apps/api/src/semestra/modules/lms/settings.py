@@ -7,6 +7,10 @@ from semestra.modules.settings import service as settings_service
 
 
 class LmsSettings(BaseModel):
+    complete_submitted: bool = Field(
+        default=True,
+        description="Finish an imported assignment's to-do when the platform shows it handed in",
+    )
     allow_writes: bool = Field(
         default=False,
         description="Let Semestra change things on the platform (marking announcements read)",
@@ -16,3 +20,8 @@ class LmsSettings(BaseModel):
 async def writes_allowed(ctx: Ctx) -> bool:
     resolved = await settings_service.get_values(ctx, "lms", "account", None)
     return LmsSettings.model_validate(resolved.values).allow_writes
+
+
+async def completes_submitted(ctx: Ctx) -> bool:
+    resolved = await settings_service.get_values(ctx, "lms", "account", None)
+    return LmsSettings.model_validate(resolved.values).complete_submitted

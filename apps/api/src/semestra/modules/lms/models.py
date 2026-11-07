@@ -98,6 +98,9 @@ class LmsImportedRef(Base, OwnedMixin):
     # What the item looked like when imported: {title, due_at, points} (update detection).
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     imported_at: Mapped[datetime] = mapped_column()
+    # When the platform first showed the assignment handed in (its to-do was finished then, if
+    # the account allows it): once per assignment, so a to-do opened again by hand stays open.
+    submitted_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsCache(Base, OwnedMixin):
