@@ -87,6 +87,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
       {notices}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <AssessmentTable
+          programId={programId}
           courseId={courseId}
           assessments={gradebook.assessments}
           categories={gradebook.categories}

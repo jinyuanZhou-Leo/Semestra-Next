@@ -2,11 +2,10 @@ import type { Course, Task, TaskList } from '@semestra/api-client'
 import { CalendarDays, Clock2, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
+import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { coursePath } from '@/modules/academics/paths'
 import { isoDay } from '@/lib/day'
 import { localDay } from '@/modules/schedule/time'
 import { calendarLocale } from '@/lib/calendar'
@@ -33,7 +32,14 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { TaskActions } from '../actions'
-import { PRIORITIES, type Priority, type ShownPriority, shownPriority } from '../types'
+import {
+  PRIORITIES,
+  type Priority,
+  type ShownPriority,
+  shownPriority,
+  TASK_DETAIL_SECTIONS,
+  type TaskDetailSection,
+} from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
 type Draft = {
@@ -108,6 +114,7 @@ export function TaskDetail({
   const source = task.source_kind && task.source_kind !== 'manual' ? task.source_kind : null
   // An assessment's task follows it: its title, due date and course change in the gradebook.
   const managed = task.assessment_id !== null
+  const sections = useExtensions<TaskDetailSection>(TASK_DETAIL_SECTIONS)
   const listName = (list: TaskList) => list.name
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -278,19 +285,11 @@ export function TaskDetail({
               </SelectContent>
             </Select>
           </Field>
+          {sections.map(({ id, Component }) => (
+            <Component key={id} task={task} onClose={onClose} />
+          ))}
           {managed ? (
-            <p className="text-xs text-muted-foreground">
-              {m.tasks_managed_note()}{' '}
-              {task.course_id ? (
-                <HistoryLink
-                  href={coursePath(task.program_id, task.course_id, 'grades')}
-                  onClick={onClose}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  {m.tasks_managed_open()}
-                </HistoryLink>
-              ) : null}
-            </p>
+            <p className="text-xs text-muted-foreground">{m.tasks_managed_note()}</p>
           ) : source ? (
             <p className="text-xs text-muted-foreground">
               {m.tasks_source({ source: SOURCE_NAMES[source]?.() ?? source })}

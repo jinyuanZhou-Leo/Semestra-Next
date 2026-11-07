@@ -124,6 +124,7 @@ grading_assessments
 
 ## 5. 前端
 ### 5.1 课程 Page `grades`（课程作用域）
+- 考核表在得分列后、行菜单前显示扩展点 `grading.assessmentColumns`（`AssessmentColumn`：`id`、`header`、`Cell({assessment, programId})`，单元格自己加载数据，同一查询各行共用一个请求）贡献的列。M05 贡献“待办”列：考核的待办用与待办页相同的圆形勾选直接完成，没有截止日期（没有待办）时显示“—”。
 - 摘要：最终/当前百分比与 GPA（字母）、权重合计（不为 100 时计算指标显示"—"、规划不可用，不再单独显示警告条）、目标绩点与所需平均分、预测值（auto 模式）、"录入官方成绩"（覆盖值，显示"已覆盖"标记，可清除）。布局见实现说明（成绩构成卡 + 预测卡）。
 - 考核表格（TanStack Table）：分类徽章、标题、截止（相对时间 + 逾期高亮）、权重、得分（单元格内联编辑；输入 `18/20` 自动识别为分数制）、操作菜单。支持按截止/分类/权重/标题排序（偏好存 `useUiPref('grading.sort')`），按分类分组折叠。
 - 添加考核：对话框；"添加"菜单下方的"从已有资料添加"分组（`components/ImportSourceItems.tsx`，每项带一行说明）列出扩展点 **`grading.assessmentImportSources`**（M09 贡献 LMS 作业，M08 贡献 syllabus 成绩构成）。

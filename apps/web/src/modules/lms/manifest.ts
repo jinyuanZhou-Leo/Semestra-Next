@@ -2,9 +2,11 @@ import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
+import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { CourseInfoLms } from './components/CourseInfoLms'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
+import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
@@ -107,6 +109,9 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
+    [TASK_DETAIL_SECTIONS]: [
+      { id: 'lms.assignment', Component: TaskSubmission },
+    ] satisfies TaskDetailSection[],
   },
   realtimeInvalidations: {
     ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),

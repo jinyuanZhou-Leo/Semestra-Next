@@ -6,7 +6,9 @@ import {
   type ProgramSetupField,
 } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
+import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { courseColumns } from './extensions/columns'
+import TaskGradebook from './extensions/TaskGradebook'
 import { prefetchGradesPage } from './queries'
 import { ScalePresetField } from './extensions/SetupField'
 
@@ -151,6 +153,9 @@ export default defineModule({
   extensions: {
     [COURSE_COLUMNS]: courseColumns,
     [PROGRAM_SETUP_FIELDS]: [setupField],
+    [TASK_DETAIL_SECTIONS]: [
+      { id: 'grading.assessment', Component: TaskGradebook },
+    ] satisfies TaskDetailSection[],
   },
   uiPrefPrefixes: ['grading.'],
   realtimeInvalidations: {

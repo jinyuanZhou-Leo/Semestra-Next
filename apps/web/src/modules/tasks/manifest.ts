@@ -1,10 +1,12 @@
 import { ListChecks, ListTodo, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
+import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
 import { listCardSettingsSchema } from './cards/schema'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
+import AssessmentTaskCell from './components/AssessmentTaskCell'
 import { prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
@@ -115,6 +117,11 @@ export default defineModule({
       },
     },
   ],
+  extensions: {
+    [ASSESSMENT_COLUMNS]: [
+      { id: 'tasks.todo', header: m.tasks_assessment_column, Cell: AssessmentTaskCell },
+    ] satisfies AssessmentColumn[],
+  },
   uiPrefPrefixes: ['tasks.'],
   realtimeInvalidations: Object.fromEntries([
     ...[
