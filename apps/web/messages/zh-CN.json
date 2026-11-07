@@ -2945,6 +2945,7 @@
   "canvas_tab_search_assignments": "搜索作业",
   "canvas_tab_group_average": "本组平均",
   "canvas_tab_assignments_no_match": "没有匹配的作业",
+  "canvas_tab_import_count": "导入 {count} 项",
   "canvas_tab_in_gradebook": "已在成绩簿",
   "canvas_tab_in_tasks": "已在待办",
   "canvas_tab_work": "作业与成绩",

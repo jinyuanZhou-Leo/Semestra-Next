@@ -2945,6 +2945,7 @@
   "canvas_tab_search_assignments": "Search assignments",
   "canvas_tab_group_average": "Group average",
   "canvas_tab_assignments_no_match": "No matching assignments",
+  "canvas_tab_import_count": "Import {count}",
   "canvas_tab_in_gradebook": "In gradebook",
   "canvas_tab_in_tasks": "In tasks",
   "canvas_tab_work": "Assignments & grades",

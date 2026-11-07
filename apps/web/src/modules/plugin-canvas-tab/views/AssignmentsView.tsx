@@ -457,9 +457,9 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
     group.rows.filter((row) => row.getCanSelect()).map((row) => row.id),
   )
   // A row imported meanwhile (the list refetches after an import) stays ticked but is left out.
-  const picked = ordered
-    .filter((row) => row.getCanSelect() && rowSelection[row.id])
-    .map((row) => row.id)
+  // Only what the filter and search list is imported (a folded group still shows its tick); the
+  // button says how many.
+  const picked = selectable.filter((id) => rowSelection[id])
   const state: TableState = {
     now,
     selected: rowSelection,
@@ -536,7 +536,9 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
               render={<Button size="sm" disabled={picked.length === 0 || starting !== null} />}
             >
               {starting ? <Spinner /> : <Import aria-hidden />}
-              {m.canvas_tab_import()}
+              {picked.length > 0
+                ? m.canvas_tab_import_count({ count: picked.length })
+                : m.canvas_tab_import()}
               <ChevronDown aria-hidden data-icon="inline-end" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
