@@ -20,7 +20,7 @@ import { fileKindName, previewKind } from '../kinds'
 import { contentUrl, useFileItem } from '../queries'
 import { Markdown } from './Markdown'
 import { FileIcon } from './FileIcon'
-import { PreviewAction, PreviewShell } from './PreviewShell'
+import { PreviewShell } from './PreviewShell'
 
 // pdf.js is large; load it only when a PDF is opened.
 const PdfViewer = lazy(() => import('./PdfViewer').then((mod) => ({ default: mod.PdfViewer })))
@@ -191,25 +191,26 @@ export function PreviewDialog({
               .join(' · ')
           : null
       }
-      actions={
+      footer={
         data && data.kind === 'file' ? (
           <>
-            <PreviewAction
-              label={m.files_open_new_tab()}
+            <Button
+              variant="outline"
               nativeButton={false}
-              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
               render={<a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />}
             >
               <SquareArrowOutUpRight aria-hidden />
-            </PreviewAction>
-            <PreviewAction
-              label={m.files_download()}
+              {m.files_open_new_tab()}
+            </Button>
+            <Button
               nativeButton={false}
-              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
               render={<a href={contentUrl(data.id, 'attachment')} download />}
             >
               <Download aria-hidden />
-            </PreviewAction>
+              {m.files_download()}
+            </Button>
           </>
         ) : null
       }

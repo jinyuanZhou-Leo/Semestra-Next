@@ -8,7 +8,8 @@ import { errorCode, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { Markdown } from '@/modules/files/components/Markdown'
 import { m } from '@/paraglide/messages'
-import { PreviewAction, PreviewShell } from '@/modules/files/components/PreviewShell'
+import { PreviewShell } from '@/modules/files/components/PreviewShell'
+import { Button } from '@/ui/button'
 import { fileKindName } from '@/modules/files/kinds'
 import { Spinner } from '@/ui/spinner'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -211,26 +212,23 @@ export function FilePreviewDialog({
       onClose={onClose}
       title={name || m.common_loading()}
       meta={details}
-      actions={
+      footer={
         shown ? (
           <>
-            <PreviewAction
-              label={m.canvas_tab_file_save_short()}
-              disabled={!meta.data || saving}
-              onClick={save}
-            >
+            <Button variant="outline" disabled={!meta.data || saving} onClick={save}>
               <FolderInput aria-hidden />
-            </PreviewAction>
-            <PreviewAction
-              label={m.canvas_tab_file_download_short()}
+              {m.canvas_tab_file_save_short()}
+            </Button>
+            <Button
               nativeButton={false}
               render={
-                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
                 <a href={fileContentUrl(courseId, shown, true)} download={name || undefined} />
               }
             >
               <Download aria-hidden />
-            </PreviewAction>
+              {m.canvas_tab_file_download_short()}
+            </Button>
           </>
         ) : null
       }
