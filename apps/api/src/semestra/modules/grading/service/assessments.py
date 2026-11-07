@@ -45,14 +45,9 @@ def _local(due_at: datetime, tz: str) -> datetime:
     return due_at.astimezone(ZoneInfo(tz))
 
 
-def assessment_out(row: models.GradingAssessment, tz: str, now: datetime) -> Assessment:
+def assessment_out(row: models.GradingAssessment, tz: str) -> Assessment:
     local = _local(row.due_at, tz) if row.due_at is not None else None
-    if row.score_percentage is not None:
-        status = "graded"
-    elif row.due_at is not None and row.due_at < now:
-        status = "overdue"
-    else:
-        status = "pending"
+    status = "graded" if row.score_percentage is not None else "pending"
     return Assessment.model_validate(
         {
             **{c.key: getattr(row, c.key) for c in row.__table__.columns},
@@ -261,7 +256,7 @@ async def create_assessments(
             },
         )
     return AssessmentCreateManyResult(
-        created=[assessment_out(r, program.timezone, ctx.now) for r in created], skipped=skipped
+        created=[assessment_out(r, program.timezone) for r in created], skipped=skipped
     )
 
 
@@ -275,7 +270,7 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     row = await _get_assessment(ctx, inp.assessment_id)
     course, program = await course_and_program(ctx, row.course_id)
     # Before-values as the user sees them: the deadline as a local date and time.
-    current = assessment_out(row, program.timezone, ctx.now)
+    current = assessment_out(row, program.timezone)
     changes: list[dict[str, Any]] = []
     for field in sorted(inp.model_fields_set - {"assessment_id"}):
         after = getattr(inp, field)
@@ -376,7 +371,7 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     changed = [k for k, v in before.items() if getattr(row, k) != v]
     if changed:
         await _announce_assessment(ctx, "updated", row, program.id, changed)
-    return assessment_out(row, tz, ctx.now)
+    return assessment_out(row, tz)
 
 
 def _updated_score(
@@ -456,7 +451,7 @@ async def reorder_assessments(
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
     _, program = await course_and_program(ctx, inp.course_id)
     rows = (await assessment_rows(ctx, [inp.course_id]))[inp.course_id]
-    outs = [assessment_out(r, program.timezone, ctx.now) for r in rows]
+    outs = [assessment_out(r, program.timezone) for r in rows]
     if inp.status is not None:
         outs = [a for a in outs if a.status == inp.status]
     offset = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
@@ -582,8 +577,9 @@ async def _current_term_id(ctx: Ctx, program: AcademicsProgram) -> str | None:
 
 
 async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessments:
-    """Ungraded, undropped assessments with a deadline, soonest first (overdue ones first of
-    all), for a Program, one of its terms or one course: the "upcoming" card in one request."""
+    """Ungraded, undropped assessments still to come, soonest first, for a Program, one of its
+    terms or one course: the "upcoming" card in one request. A past one waits for its grade; it
+    is not upcoming (and whether it was handed in is its to-do's business)."""
     program = await academics.get_program_row(ctx, inp.program_id)
     allowed = {c.id for c in await program_courses(ctx, program.id, inp.term_id)}
     wanted = [inp.course_id] if inp.course_id is not None else sorted(allowed)
@@ -598,13 +594,13 @@ async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessme
                 models.GradingAssessment.course_id.in_(wanted),
                 models.GradingAssessment.dropped.is_(False),
                 models.GradingAssessment.score_percentage.is_(None),
-                models.GradingAssessment.due_at.is_not(None),
+                models.GradingAssessment.due_at >= ctx.now,
             )
             .order_by(models.GradingAssessment.due_at, models.GradingAssessment.title)
             .limit(inp.limit)
         )
     ).all()
-    return UpcomingAssessments(items=[assessment_out(r, program.timezone, ctx.now) for r in rows])
+    return UpcomingAssessments(items=[assessment_out(r, program.timezone) for r in rows])
 
 
 @dataclass(frozen=True)

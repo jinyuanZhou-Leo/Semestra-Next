@@ -2374,7 +2374,7 @@ export const gradingAssessmentListQueryKey = (options: Options<GradingAssessment
 /**
  * List a course's assessments with deadline, weight and score.
  *
- * Use to see what is graded, still pending or overdue in a course. To locate one
+ * Use to see what is graded or still pending in a course. To locate one
  * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
  */
 export const gradingAssessmentListOptions = (options: Options<GradingAssessmentListData>) => queryOptions<GradingAssessmentListResponse, GradingAssessmentListError, GradingAssessmentListResponse, ReturnType<typeof gradingAssessmentListQueryKey>>({
@@ -2395,7 +2395,7 @@ export const gradingAssessmentListInfiniteQueryKey = (options: Options<GradingAs
 /**
  * List a course's assessments with deadline, weight and score.
  *
- * Use to see what is graded, still pending or overdue in a course. To locate one
+ * Use to see what is graded or still pending in a course. To locate one
  * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
  */
 export const gradingAssessmentListInfiniteOptions = (options: Options<GradingAssessmentListData>) => {

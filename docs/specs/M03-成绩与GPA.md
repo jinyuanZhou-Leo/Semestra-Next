@@ -104,7 +104,7 @@ grading_assessments
 | `grading.gradebook.get` | read | GET /courses/{course_id}/gradebook | 分类、考核、course_result、**计算摘要**（第 3 节全部指标） |
 | `grading.course_result.update` | write | PATCH /courses/{course_id}/grade | basis、manual、override、pass_fail、target、forecast_model、gradebook_enabled |
 | `grading.category.create/update/delete/reorder` | write | /courses/{course_id}/grading-categories... | 删除分类时其考核变为未分类 |
-| `grading.assessment.list` | read | GET /courses/{course_id}/assessments | 支持 `fields`、`status=graded|pending|overdue` |
+| `grading.assessment.list` | read | GET /courses/{course_id}/assessments | 支持 `fields`、`status=graded|pending` |
 | `grading.assessment.create` | write | POST /courses/{course_id}/assessments | |
 | `grading.assessment.create_many` | write | POST /courses/{course_id}/assessments:batch | 导入用，按 `source_kind+source_ref` 去重（已存在则跳过并在结果中列出） |
 | `grading.assessment.update` | write | PATCH /assessments/{assessment_id} | 记录分数主要用这个 |
@@ -126,7 +126,7 @@ grading_assessments
 ### 5.1 课程 Page `grades`（课程作用域）
 - 考核表在得分列后、行菜单前显示扩展点 `grading.assessmentColumns`（`AssessmentColumn`：`id`、`header`、`Cell({assessment, programId})`，单元格自己加载数据，同一查询各行共用一个请求）贡献的列。M05 贡献“待办”列：考核的待办用与待办页相同的圆形勾选直接完成，没有截止日期（没有待办）时显示“—”。
 - 摘要：最终/当前百分比与 GPA（字母）、权重合计（不为 100 时计算指标显示"—"、规划不可用，不再单独显示警告条）、目标绩点与所需平均分、预测值（auto 模式）、"录入官方成绩"（覆盖值，显示"已覆盖"标记，可清除）。布局见实现说明（成绩构成卡 + 预测卡）。
-- 考核表格（TanStack Table）：分类徽章、标题、截止（相对时间 + 逾期高亮）、权重、得分（单元格内联编辑；输入 `18/20` 自动识别为分数制）、操作菜单。支持按截止/分类/权重/标题排序（偏好存 `useUiPref('grading.sort')`），按分类分组折叠。
+- 考核表格（TanStack Table）：分类徽章、标题、截止、权重、得分（单元格内联编辑；输入 `18/20` 自动识别为分数制）、操作菜单。支持按截止/分类/权重/标题排序（偏好存 `useUiPref('grading.sort')`），按分类分组折叠。
 - 添加考核：对话框；"添加"菜单下方的"从已有资料添加"分组（`components/ImportSourceItems.tsx`，每项带一行说明）列出扩展点 **`grading.assessmentImportSources`**（M09 贡献 LMS 作业，M08 贡献 syllabus 成绩构成）。
 - **计划模式**开关：未出分的考核得分列变为假设输入（虚线框，占位显示预测分），预测卡变成"规划成绩"；"自动填充至目标"调用 `grading.score.suggest`；假设分数存 `useUiPref('grading.whatif.<courseId>')`。
 - 课程设置分区（course 级）："成绩"：计分方式（百分比/Pass-Fail）、是否使用成绩簿（关闭则只填最终成绩）、预测模型、分类管理（增删改名、颜色、归档、排序）。
@@ -180,7 +180,7 @@ grading_assessments
 - 表 `grading_scales`（每个 Program 一行）、`grading_course_results`（主键 `course_id`）、`grading_categories`、`grading_assessments`；跨模块的 id 都是普通字符串，不建外键，清理靠订阅 `academics.course.deleting` / `academics.program.deleting`（同事务）。分类删除时考核的 `category_id` 置空。
 - 预设 `uoft_4_0`、`us_4_0`、`us_4_33`、`standard_4_0`、`cn_100`、`au_7`、`kr_4_5`、`custom`，每个预设有自己的满分（`max_points`，如 4.33、7、4.5，其余 4.0）；预设只在创建时把区间复制进 `grading_scales.bands`，不记预设 id；`custom` 起点只有一个 0–100 的单区间，由用户自己拆分。预设与默认分类模板的文本都在 `presets.py`，分类颜色是名称（blue、amber、emerald、violet、cyan、rose、slate）或 `#rrggbb`，前端把名称映射到主题的科目色令牌。
 - 考核的截止时间输入除 `due_at` 外还接受 `due_date` + `due_time`（按 Program 时区解释，没有时间则只显示日期、截止点是当天结束）；输出同时给 `due_at` 和本地的 `due_date`/`due_time`，前端表单直接用后者。
-- 分数输入：`points_earned` + `points_possible` 优先并换算出百分比；只给 `score_percentage` 会清除分数制；`points_earned: null` 清除分数。`score_percentage` 与 `points_*` 同时给，或给纯百分比分数只改 `points_possible`，返回 `grading.points_invalid`（reason `conflicting_score`）。`status` 由服务端算出（`graded` / `pending` / `overdue`）。
+- 分数输入：`points_earned` + `points_possible` 优先并换算出百分比；只给 `score_percentage` 会清除分数制；`points_earned: null` 清除分数。`score_percentage` 与 `points_*` 同时给，或给纯百分比分数只改 `points_possible`，返回 `grading.points_invalid`（reason `conflicting_score`）。`status` 由服务端算出（`graded` / `pending`）。过了截止还没出分仍是 `pending`（等待出分，不是逾期；owner 2026-11-07），错过截止由考核的待办表示（M05）；“即将截止”卡片（`grading.assessment.upcoming`）只列截止还没到的。
 - 事件：除第 4 节列出的三类外，删除考核前在事务内发 `grading.assessment.deleting`；`created|updated` 的 payload 带 `changed`（变化的字段名），`deleted` 带 `due_changed`。批量创建（`create_many`）只发一个 `grading.assessment.created`，payload 带 `assessment_ids`（只有一个时另带 `assessment_id`），订阅方按列表处理。分类的增删改发 `grading.course_result.updated`。`calendar.changed` 只在显示在日历上的字段（标题、截止、分数、dropped、备注）变化时发。
 - `grading.assessment.upcoming`（GET `/programs/{program_id}/upcoming-assessments`，可选 `term_id` / `course_id`，`limit` ≤ 50）：未出分、未 dropped、有截止的考核，按截止排序，给 upcoming 卡片与 agent。
 - 别的模块读考核的分数与权重走 `grading.service.assessment_snapshots(ids)`（M09 的更新审阅用），不直接查 `grading_assessments`。
@@ -194,7 +194,7 @@ grading_assessments
 - 考核表与学期课程表都用 TanStack Table v9。**列定义必须放在组件外**（单元格里是会输入的 `InlineInput`，列在渲染时重新创建会让单元格每次渲染都被重新挂载、丢掉正在输入的内容），单元格需要的回调通过 context 传入。
 - 分数单元格输入 `82` / `82%` 为百分比，`18/20` 为分数制（`score.ts` 的 `parseScore`），空为清除，无法识别时标红不发送。
 - 计划模式：假设分数存 `useUiPref('grading.whatif', …, { scope: courseId })`，只保留仍未出分的考核；200ms 防抖调用 `grading.simulate.course`，结果只显示不保存；目标就是课程保存的目标绩点（`target: null`）；"自动填充"调用 `grading.score.suggest` 并把结果写进假设分数。权重不足 100 时计划模式不可用（服务端也会拒绝）。学期 What If 同理（`grading.term.whatif`，按学期保存）。
-- 课程成绩页布局（2026-11-07 第六轮重新设计）：表格上方一行工具栏，左边是状态筛选（全部/已出分/未出分/已逾期，分段控件）和按标题搜索，右边是「规划」（secondary）、「添加」（主按钮）和 ⋯ 菜单（「按分类分组」勾选项、录入/清除官方成绩）；表格本身只有表头（TanStack 默认样式，可排序列显示排序图标），筛选无结果时显示 `SearchX` 空状态与「清除筛选」。不再有行内快速添加。右边一列是"成绩构成"卡（环形图按分类权重分段，只显示真实成绩）和"预测"卡（`ForecastCard`：预测/最终百分比与 GPA，下面是每个剩余考核预测分的横向条形图，颜色为分类色，提示里说明来源（分类均值或课程均值），虚线是目标所需平均分；卡片底部是目标：shadcn `Select` 选换算表中的某一档（同绩点只保留一档，显示"3.7 · A- (≥ 80%)"），保存为课程目标，下面一行是所需平均分）。
+- 课程成绩页布局（2026-11-07 第六轮重新设计）：表格上方一行工具栏，左边是状态筛选（全部/已出分/未出分，分段控件）和按标题搜索，右边是「规划」（secondary）、「添加」（主按钮）和 ⋯ 菜单（「按分类分组」勾选项、录入/清除官方成绩）；表格本身只有表头（TanStack 默认样式，可排序列显示排序图标），筛选无结果时显示 `SearchX` 空状态与「清除筛选」。不再有行内快速添加。右边一列是"成绩构成"卡（环形图按分类权重分段，只显示真实成绩）和"预测"卡（`ForecastCard`：预测/最终百分比与 GPA，下面是每个剩余考核预测分的横向条形图，颜色为分类色，提示里说明来源（分类均值或课程均值），虚线是目标所需平均分；卡片底部是目标：shadcn `Select` 选换算表中的某一档（同绩点只保留一档，显示"3.7 · A- (≥ 80%)"），保存为课程目标，下面一行是所需平均分）。
 - 计划模式原地切换：工具栏整行换成"规划中"+ 说明 +「清空假设」（可撤销的 toast）+「退出规划」（都是 destructive）；撤销清空只恢复假设分数；规划时预测卡变成"规划成绩"（假设的条实心、预测的条半透明），目标下面多一个「自动填充至目标」；成绩构成卡不变。
 - 学期成绩页与课程成绩页同一套布局：工具栏是筛选（全部/进行中/已结课）+ 搜索（代码、名称、别名）+「规划」；右边是"成绩构成"卡和学期目标卡（`TermTargetCard`：目标学期 GPA 输入框（不保存），未结课课程当前平均分或假设分的条形图，以及已达标 / 差多少 / 不可达和其余课程所需平均分；规划时标题变成"规划 GPA"）。未结课课程是否按当前平均分计入学期 GPA 是 Program 级设置（命名空间 `grading`，字段 `count_in_progress`，默认关，设置分区"成绩 → 学期成绩"），不再是页面上的开关；后端在学期汇总与学期 What If 不传 `include_in_progress` 时读取它，所以看板卡片和 Sem/MCP 得到同样的结果，设置变化时（`settings.values.updated`，namespace `grading`）前端刷新学期汇总。表格行高固定，进出规划不跳动。两页的模拟都是按防抖后的参数做 key 的查询（`use-plan.ts`），下一次结果回来前保留上一次的结果，规划数字不会在每次输入后闪成"—"；进入规划时立即模拟一次。
 - `hide_gpa`：所有 GPA 数字通过 `GpaValue` 显示，开启时显示"•••"，点击后临时显示；字母等级作为 `GpaValue` 的 `letter` 一起遮住，只显示字母的地方（课程列、手填成绩提示、预测）在开启时不显示字母。

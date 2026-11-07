@@ -6271,7 +6271,7 @@
           "grading"
         ],
         "summary": "List a course's assessments with deadline, weight and score.",
-        "description": "Use to see what is graded, still pending or overdue in a course. To locate one\nassessment the user named in words (\"Lab 3\", \"the midterm\"), prefer grading.assessment.find.",
+        "description": "Use to see what is graded or still pending in a course. To locate one\nassessment the user named in words (\"Lab 3\", \"the midterm\"), prefer grading.assessment.find.",
         "operationId": "gradingAssessmentList",
         "security": [
           {
@@ -6305,8 +6305,7 @@
                 {
                   "enum": [
                     "graded",
-                    "pending",
-                    "overdue"
+                    "pending"
                   ],
                   "type": "string"
                 },
@@ -6314,10 +6313,10 @@
                   "type": "null"
                 }
               ],
-              "description": "graded, pending (no score yet) or overdue (pending, past due)",
+              "description": "graded, or pending (no score yet)",
               "title": "Status"
             },
-            "description": "graded, pending (no score yet) or overdue (pending, past due)"
+            "description": "graded, or pending (no score yet)"
           },
           {
             "name": "fields",
@@ -17262,8 +17261,7 @@
             "type": "string",
             "enum": [
               "graded",
-              "pending",
-              "overdue"
+              "pending"
             ],
             "title": "Status"
           },

@@ -385,7 +385,7 @@ async def test_due_dates_use_the_programs_time_zone(api: Api):
     assert (cleared["due_at"], cleared["due_date"]) == (None, None)
 
 
-async def test_overdue_status_and_filters(api: Api):
+async def test_status_filters(api: Api):
     _, course = await one_course(api)
     cid = course["id"]
     await api.assessment(cid, "Old", 10, due_date="2020-01-01")
@@ -397,9 +397,10 @@ async def test_overdue_status_and_filters(api: Api):
         return [i["title"] for i in page["items"]]
 
     base = f"/courses/{cid}/assessments"
-    assert titles(await api.call("GET", base, params={"status": "overdue"})) == ["Old"]
     assert titles(await api.call("GET", base, params={"status": "graded"})) == ["Done"]
+    # Past due and ungraded is waiting for its grade, not overdue (that is the to-do's word).
     assert titles(await api.call("GET", base, params={"status": "pending"})) == [
+        "Old",
         "Future",
         "Undated",
     ]

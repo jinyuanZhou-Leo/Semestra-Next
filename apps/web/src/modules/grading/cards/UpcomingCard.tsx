@@ -4,7 +4,6 @@ import { CalendarClock } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
-import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { useCourse, useCourses } from '@/modules/academics/queries'
@@ -15,7 +14,7 @@ import { useProgramToday } from '@/modules/tasks/queries'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
-/** Ungraded assessments with a deadline, soonest first, overdue ones highlighted (M03 §5.3). */
+/** Ungraded assessments still to come, soonest first (M03 §5.3). */
 export default function UpcomingCard({ scope, size }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const courseId = scope.kind === 'course' ? scope.courseId : undefined
@@ -69,14 +68,7 @@ export default function UpcomingCard({ scope, size }: CardProps) {
                 <span className="ml-1.5 text-xs text-muted-foreground">{courseLabel(course)}</span>
               )}
             </span>
-            <span
-              className={cn(
-                'shrink-0 text-xs text-muted-foreground',
-                a.status === 'overdue' && 'text-destructive',
-              )}
-            >
-              {dueLabel(a, today)}
-            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">{dueLabel(a, today)}</span>
           </HistoryLink>
         </li>
       ))}

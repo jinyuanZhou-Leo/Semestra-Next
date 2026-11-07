@@ -2437,7 +2437,7 @@ export const filesUsageGet = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * List a course's assessments with deadline, weight and score.
  *
- * Use to see what is graded, still pending or overdue in a course. To locate one
+ * Use to see what is graded or still pending in a course. To locate one
  * assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.
  */
 export const gradingAssessmentList = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentListData, ThrowOnError>): RequestResult<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError> => (options.client ?? client).get<GradingAssessmentListResponses, GradingAssessmentListErrors, ThrowOnError>({

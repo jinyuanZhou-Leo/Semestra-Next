@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 import { createContext, useContext } from 'react'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -198,14 +197,7 @@ export const assessmentColumns = column.columns([
     id: 'due',
     header: () => m.grading_assessment_due(),
     sortFn: by((a) => (a.due_at === null ? null : Date.parse(a.due_at))),
-    cell: ({ row }) => (
-      <span className={cn(row.original.status === 'overdue' && 'text-destructive')}>
-        {dueText(row.original)}
-        {row.original.status === 'overdue' ? (
-          <span className="ml-1.5 text-xs">{m.grading_overdue()}</span>
-        ) : null}
-      </span>
-    ),
+    cell: ({ row }) => dueText(row.original),
   }),
   column.accessor((a) => a.weight, {
     id: 'weight',

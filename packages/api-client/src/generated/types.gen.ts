@@ -669,7 +669,7 @@ export type Assessment = {
     /**
      * Status
      */
-    status: 'graded' | 'pending' | 'overdue';
+    status: 'graded' | 'pending';
     /**
      * Created At
      */
@@ -14902,9 +14902,9 @@ export type GradingAssessmentListData = {
         /**
          * Status
          *
-         * graded, pending (no score yet) or overdue (pending, past due)
+         * graded, or pending (no score yet)
          */
-        status?: 'graded' | 'pending' | 'overdue' | null;
+        status?: 'graded' | 'pending' | null;
         /**
          * Fields
          *
