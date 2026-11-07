@@ -3,8 +3,8 @@
 Assessment tasks were optional (a Program setting) and linked by `source_kind='assessment'` +
 `source_ref`. Now the link is a foreign key and the task always exists: existing links move to
 the new column, linked tasks of assessments without a due date go, and the missing tasks are
-created (finished, as of the due date, when the assessment is graded, dropped or already past due,
-as the app does for a task made for a past assessment). The calendar shows assessment due
+created (finished, as of the due date, when the assessment is graded, dropped or already past due:
+these are old coursework, not a flood of new "overdue" to-dos after the upgrade). The calendar shows assessment due
 dates only through these tasks, so calendar feeds that listed "assessments" now list "tasks".
 
 Revision ID: 0033

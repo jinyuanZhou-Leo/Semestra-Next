@@ -814,17 +814,26 @@ function WeekDayHeader({ arg }: { arg: DayHeaderInfo }) {
 }
 
 // A round check like a reminder's: a primary ring, filled with a dot once done.
-const CHECK =
-  'size-3.5 rounded-full border-[1.5px] border-primary bg-background data-checked:bg-background dark:data-checked:bg-background [&_svg]:hidden before:absolute before:inset-[1.5px] before:scale-0 before:rounded-full before:bg-primary before:transition-transform data-checked:before:scale-100'
+// The to-do list's round check (`task-check`), sized for a calendar line.
+const CHECK = 'task-check size-3.5 rounded-full [&_svg]:size-2.5!'
 
 /** Checks an item off in place; clicks on it do not open the details (see `eventClick`). */
 function Check({ o, onToggle }: { o: Occurrence; onToggle: (completed: boolean) => void }) {
+  // Checking it off pops the circle as on the to-do list (`data-completing` in theme.css).
+  const [popped, setPopped] = useState(false)
   return (
-    <span data-calendar-check className="flex shrink-0">
+    <span
+      data-calendar-check
+      data-completing={popped ? 'checking' : undefined}
+      className="flex shrink-0"
+    >
       <Checkbox
         aria-label={m.schedule_check_item({ title: o.title })}
         checked={o.status === 'done'}
-        onCheckedChange={(checked) => onToggle(checked)}
+        onCheckedChange={(checked) => {
+          setPopped(checked)
+          onToggle(checked)
+        }}
         className={CHECK}
       />
     </span>
