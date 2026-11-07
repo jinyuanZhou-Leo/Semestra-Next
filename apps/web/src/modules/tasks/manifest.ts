@@ -83,7 +83,7 @@ export default defineModule({
     {
       id: 'tasks',
       level: 'program',
-      group: 'features',
+      group: 'tasks',
       title: m.tasks_name,
       icon: ListChecks,
       order: 50,

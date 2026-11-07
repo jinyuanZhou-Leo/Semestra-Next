@@ -37,7 +37,7 @@ export default defineModule({
     {
       id: 'sessions',
       level: 'account',
-      group: 'security',
+      group: 'account',
       title: m.auth_account_sessions_title,
       description: m.auth_account_sessions_desc,
       icon: MonitorSmartphone,
@@ -49,7 +49,7 @@ export default defineModule({
     {
       id: 'tokens',
       level: 'account',
-      group: 'security',
+      group: 'account',
       title: m.auth_account_tokens_title,
       description: m.auth_account_tokens_desc,
       icon: KeyRound,

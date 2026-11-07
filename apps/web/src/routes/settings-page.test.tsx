@@ -125,8 +125,8 @@ test('the settings dialog groups sections in a navigation and shows the chosen g
     'page',
   )
   expect(within(nav).getByRole('button', { name: 'About' })).toBeInTheDocument()
-  // Sessions and API tokens moved out of Account into Security; groups sit under headings.
-  expect(within(nav).getByRole('button', { name: 'Security' })).toBeInTheDocument()
+  // Sessions and API tokens are part of Account; groups sit under headings.
+  expect(within(nav).queryByRole('button', { name: 'Security' })).not.toBeInTheDocument()
   expect(within(nav).getByText('Personal')).toBeInTheDocument()
   expect(within(nav).getByText('System')).toBeInTheDocument()
   // The sections of the open group are rendered on the right.
@@ -238,11 +238,16 @@ test('the 24-hour clock preference reaches the formatters', async () => {
   await waitFor(() => expect(formatTime('2026-01-01T15:30:00')).toBe('15:30'))
 })
 
-test('a link to a section that moved to another group still opens that section', async () => {
-  // Sessions used to live in Account; AI providers in Features.
-  mount('/?settings=account/account#sessions')
+test('an old link to a merged group opens the group that took it in', async () => {
+  // Sessions and API tokens used to have their own Security group.
+  mount('/?settings=account/security#sessions')
+  const nav = await screen.findByRole('navigation', { name: 'Settings' })
+  expect(within(nav).getByRole('button', { name: 'Account' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(await screen.findByRole('heading', { name: 'Devices' })).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Profile' })).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument()
 })
 
 test('old links to the single AI page open the AI page that now holds the section', async () => {
@@ -252,7 +257,7 @@ test('old links to the single AI page open the AI page that now holds the sectio
     'aria-current',
     'page',
   )
-  expect(within(nav).getByRole('button', { name: 'Permissions' })).toBeInTheDocument()
+  expect(within(nav).getByRole('button', { name: 'Sem' })).toBeInTheDocument()
   // The section loads its own module and data, which takes longer than the default 1s on a
   // busy CI runner.
   expect(
@@ -263,7 +268,10 @@ test('old links to the single AI page open the AI page that now holds the sectio
 test('an old AI link with a section lands on the page holding it', async () => {
   mount('/?settings=account/ai#assistant-mcp')
   const nav = await screen.findByRole('navigation', { name: 'Settings' })
-  expect(within(nav).getByRole('button', { name: 'MCP' })).toHaveAttribute('aria-current', 'page')
+  expect(within(nav).getByRole('button', { name: 'Integrations' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
   expect(
     await screen.findByRole('heading', { name: 'MCP server' }, { timeout: 5000 }),
   ).toBeInTheDocument()
@@ -273,13 +281,11 @@ test('an old AI link with a section lands on the page holding it', async () => {
 test('a link inside the dialog to other settings does not make Close step back to it', async () => {
   const router = mount('/')
   await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
-  router.history.push('/onboarding?settings=account/ai-mcp', { settingsOpened: true })
+  router.history.push('/onboarding?settings=account/integrations', { settingsOpened: true })
   const dialog = await screen.findByRole('dialog')
 
   await userEvent.click(await within(dialog).findByRole('button', { name: 'Create an API token' }))
-  await waitFor(() =>
-    expect(router.state.location.search).toEqual({ settings: 'account/security' }),
-  )
+  await waitFor(() => expect(router.state.location.search).toEqual({ settings: 'account/account' }))
   await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
 
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

@@ -42,7 +42,6 @@ function mount(signOut: () => Promise<void> = async () => {}) {
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <ModuleRegistry value={[manifest]}>
         <SettingsSections level="account" group="account" />
-        <SettingsSections level="account" group="security" />
       </ModuleRegistry>
     </AuthContext.Provider>,
   )

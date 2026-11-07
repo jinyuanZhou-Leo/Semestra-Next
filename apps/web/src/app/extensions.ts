@@ -166,22 +166,21 @@ export type SettingsSectionProps = { scope?: Scope }
 
 /**
  * Where a section sits in the settings navigation (M11 §5.1). A section without a group goes to
- * 'features' at account level and 'general' on Program, term and course pages.
+ * 'general'. Program, term and course share one set of groups (general, grades, calendar, tasks,
+ * files, integrations) so a name means the same thing at every level.
  */
 export type SettingsGroup =
   | 'general'
   | 'grades'
   | 'account'
-  | 'security'
   | 'preferences'
+  | 'calendar'
   | 'ai-providers'
   | 'ai-models'
   | 'ai-usage'
-  | 'ai-permissions'
-  | 'ai-memory'
-  | 'ai-mcp'
-  | 'calendar'
-  | 'features'
+  | 'ai-sem'
+  | 'tasks'
+  | 'files'
   | 'integrations'
   | 'plugins'
   | 'data'

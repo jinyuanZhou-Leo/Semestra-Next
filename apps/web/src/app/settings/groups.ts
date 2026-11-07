@@ -11,16 +11,14 @@ export const GROUP_ORDER: readonly SettingsGroup[] = [
   'general',
   'grades',
   'account',
-  'security',
   'preferences',
+  'calendar',
   'ai-providers',
   'ai-models',
   'ai-usage',
-  'ai-permissions',
-  'ai-memory',
-  'ai-mcp',
-  'calendar',
-  'features',
+  'ai-sem',
+  'tasks',
+  'files',
   'integrations',
   'plugins',
   'data',
@@ -31,16 +29,14 @@ export const GROUP_TITLES: Record<SettingsGroup, Message> = {
   general: m.settings_group_general,
   grades: m.settings_group_grades,
   account: m.settings_group_account,
-  security: m.settings_group_security,
   preferences: m.settings_group_preferences,
+  calendar: m.settings_group_calendar,
   'ai-providers': m.settings_group_ai_providers,
   'ai-models': m.settings_group_ai_models,
   'ai-usage': m.settings_group_ai_usage,
-  'ai-permissions': m.settings_group_ai_permissions,
-  'ai-memory': m.settings_group_ai_memory,
-  'ai-mcp': m.settings_group_ai_mcp,
-  calendar: m.settings_group_calendar,
-  features: m.settings_group_features,
+  'ai-sem': m.settings_group_ai_sem,
+  tasks: m.settings_group_tasks,
+  files: m.settings_group_files,
   integrations: m.settings_group_integrations,
   plugins: m.settings_group_plugins,
   data: m.settings_group_data,
@@ -48,15 +44,17 @@ export const GROUP_TITLES: Record<SettingsGroup, Message> = {
 }
 
 /**
- * Groups that were split or renamed, so old `?settings=account/<group>` links still open the page
- * that took their place (a `#section` in the link wins over this: see `SettingsDialog`).
+ * Old group ids that links outside the app still carry: `ai` (the single AI page that was split)
+ * and `security` (merged into Account; new-sign-in emails already sent link to it). A `#section`
+ * in a link wins over this: see `SettingsBody`.
  */
 export const GROUP_ALIASES: Readonly<Record<string, SettingsGroup>> = {
   ai: 'ai-providers',
+  security: 'account',
 }
 
 export function groupOf(section: SettingsSectionContribution): SettingsGroup {
-  return section.group ?? (section.level === 'account' ? 'features' : 'general')
+  return section.group ?? 'general'
 }
 
 export type NavGroup = {
@@ -98,16 +96,12 @@ export const CLUSTER_TITLES: Record<NavCluster, Message> = {
 
 const ACCOUNT_CLUSTERS: Partial<Record<SettingsGroup, NavCluster>> = {
   account: 'personal',
-  security: 'personal',
   preferences: 'personal',
+  calendar: 'personal',
   'ai-providers': 'ai',
   'ai-models': 'ai',
   'ai-usage': 'ai',
-  'ai-permissions': 'ai',
-  'ai-memory': 'ai',
-  'ai-mcp': 'ai',
-  calendar: 'features',
-  features: 'features',
+  'ai-sem': 'ai',
   integrations: 'features',
   plugins: 'features',
   data: 'system',

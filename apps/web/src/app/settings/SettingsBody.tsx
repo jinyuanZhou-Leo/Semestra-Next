@@ -1,11 +1,10 @@
 import { useLocation } from '@tanstack/react-router'
 import {
   BarChart3,
-  Bookmark,
   Boxes,
-  Cable,
   CalendarDays,
   Database,
+  FolderOpen,
   GraduationCap,
   Info,
   KeyRound,
@@ -15,10 +14,9 @@ import {
   Puzzle,
   Search,
   SearchX,
-  ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   UserRound,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -82,16 +80,14 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   general: SlidersHorizontal,
   grades: GraduationCap,
   account: UserRound,
-  security: ShieldCheck,
   preferences: Palette,
+  calendar: CalendarDays,
   'ai-providers': KeyRound,
   'ai-models': Boxes,
   'ai-usage': BarChart3,
-  'ai-permissions': ListChecks,
-  'ai-memory': Bookmark,
-  'ai-mcp': Cable,
-  calendar: CalendarDays,
-  features: Wrench,
+  'ai-sem': Sparkles,
+  tasks: ListChecks,
+  files: FolderOpen,
   integrations: Plug,
   plugins: Puzzle,
   data: Database,
@@ -262,7 +258,9 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
             <Breadcrumb className="min-w-0">
               <BreadcrumbList className="flex-nowrap">
                 <BreadcrumbItem className="min-w-0 max-md:hidden">
-                  <span className="truncate">{title}</span>
+                  <span className="truncate">
+                    {level === 'account' && !path.pending ? m.settings_path_account() : title}
+                  </span>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="max-md:hidden" />
                 <BreadcrumbItem>
