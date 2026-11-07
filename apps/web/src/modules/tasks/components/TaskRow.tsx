@@ -27,6 +27,7 @@ import {
 import type { TaskActions } from '../actions'
 import { useCompleting } from '../completion'
 import { focusAt, useEditorExit } from './editor-exit'
+import { MotionLi, useRowPresence } from './presence'
 import { dueLabel } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
@@ -289,9 +290,12 @@ export const TaskRow = memo(function TaskRow({
   // Bound once per row: a new ref callback each render would have the list measure it again.
   const setNodeRef = sortable?.setNodeRef
   const measure = virtual?.measure
+  // Opens in place when just added, closes up as it leaves (checked off, deleted, moved away).
+  const presence = useRowPresence(task.id, { enter: virtual?.enter, padY: 10 })
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- the row selects; every control in it is a real button
-    <li
+    <MotionLi
+      {...presence}
       ref={(node) => {
         rowRef.current = node
         setNodeRef?.(node)
@@ -424,7 +428,7 @@ export const TaskRow = memo(function TaskRow({
         />
         {sortable?.handle}
       </div>
-    </li>
+    </MotionLi>
   )
 })
 

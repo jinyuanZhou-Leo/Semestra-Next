@@ -9,6 +9,7 @@ import type { TaskActions } from '../actions'
 import { useCompleting } from '../completion'
 import { dueLabel } from '../due'
 import { useProgramToday } from '../queries'
+import { MotionLi, TaskListPresence, useRowPresence } from './presence'
 import { TaskPriority } from './priority'
 
 /** The tasks of a board card: check them off; `newRow` (the card's new task) goes at the end. */
@@ -40,9 +41,11 @@ export function CompactTasks({
   }
   return (
     <ul>
-      {tasks.map((task) => (
-        <CompactTask key={task.id} task={task} today={today} actions={actions} />
-      ))}
+      <TaskListPresence>
+        {tasks.map((task) => (
+          <CompactTask key={task.id} task={task} today={today} actions={actions} />
+        ))}
+      </TaskListPresence>
       {newRow}
     </ul>
   )
@@ -60,8 +63,10 @@ function CompactTask({
   // Just checked off: shown done, still in its place until it is saved (`completion.ts`).
   const completing = useCompleting(task.id)
   const done = task.completed_at !== null || completing !== null
+  const presence = useRowPresence(task.id, { padY: 6 })
   return (
-    <li
+    <MotionLi
+      {...presence}
       data-completing={completing ?? undefined}
       className="flex items-center gap-2 rounded-lg px-2 py-1.5"
     >
@@ -85,6 +90,6 @@ function CompactTask({
           {dueLabel(task, today)}
         </span>
       ) : null}
-    </li>
+    </MotionLi>
   )
 }
