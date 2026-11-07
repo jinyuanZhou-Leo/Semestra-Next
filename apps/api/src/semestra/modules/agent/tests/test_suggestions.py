@@ -5,10 +5,12 @@ from typing import Any
 
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import update
 
 from semestra.core.context import Ctx
 from semestra.modules.agent.schemas import SuggestionWording, WordedQuestion
 from semestra.modules.ai import Message
+from semestra.modules.auth.models import AuthUser
 from semestra.testing import Clock
 
 from .conftest import Agent
@@ -122,3 +124,21 @@ async def test_wording_off_in_settings(agent: Agent, small_model: list[list[Mess
 
     assert small_model == []
     assert all(i["text"] is None for i in items)
+
+
+async def test_wording_follows_the_browser_language(
+    agent: Agent, small_model: list[list[Message]]
+) -> None:
+    """A user with no language of their own gets the wording in the browser's, once."""
+    program, _ = await _term_with_courses(agent)
+    async with agent.app.state.session_factory() as db:
+        await db.execute(update(AuthUser).values(locale=None))
+        await db.commit()
+    agent.client.headers["Accept-Language"] = "zh-CN"
+
+    await _suggestions(agent, program["id"])
+    items = await _suggestions(agent, program["id"])
+
+    assert len(small_model) == 1
+    assert "Simplified Chinese" in str(small_model[0][0].content)
+    assert items[0]["text"] == "Help me finish Lab 3 by tomorrow"

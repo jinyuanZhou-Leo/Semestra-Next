@@ -240,16 +240,16 @@ async def list_suggestions(ctx: Ctx, inp: AgentScope) -> SuggestionList:
             worded = row.items
         if row is None or row.locale != ctx.locale or ctx.now - row.generated_at >= REFRESH:
             ctx.state.agent.background(
-                _rewrite(ctx.state, ctx.user_id, scope.program_id),
+                _rewrite(ctx.state, ctx.user_id, scope.program_id, ctx.locale),
                 key=f"suggestions:{ctx.user_id}:{scope.program_id}",
             )
     return SuggestionList(items=pick(found, worded, scope))
 
 
 def _prompt(
-    ctx: Ctx, found: list[Fact], labels: dict[str, str], titles: list[str]
+    locale: str, found: list[Fact], labels: dict[str, str], titles: list[str]
 ) -> list[Message]:
-    language = "Simplified Chinese" if ctx.locale == "zh-CN" else "English"
+    language = "Simplified Chinese" if locale == "zh-CN" else "English"
     lines = []
     for i, f in enumerate(found, 1):
         course = f" (course {labels[f.course_id]})" if f.course_id in labels else ""
@@ -299,9 +299,10 @@ def _worded(
     return items
 
 
-async def _rewrite(state: State, user_id: str, program_id: str) -> None:
-    """Has the small model word the current term's facts and stores the result. A failure keeps
-    the previous wording until the next attempt, 12 hours later."""
+async def _rewrite(state: State, user_id: str, program_id: str, locale: str) -> None:
+    """Has the small model word the current term's facts in the language the client asked in (a
+    user following the browser has no stored one) and stores the result. A failure keeps the
+    previous wording, if in that language, until the next attempt 12 hours later."""
     items: list[dict[str, str | None]] | None = None
     async with agent_ctx(state, user_id, scope=None) as ctx:
         scope = await _scope(ctx, program_id, None, None)
@@ -319,7 +320,7 @@ async def _rewrite(state: State, user_id: str, program_id: str) -> None:
                 .limit(MAX_HISTORY)
             )
         )
-        messages = _prompt(ctx, found, scope.labels, [t for t in titles if t])
+        messages = _prompt(locale, found, scope.labels, [t for t in titles if t])
         await ctx.db.commit()  # no transaction open during the call
         try:
             items = _worded(await state.agent.suggestion_model(ctx, messages), found, scope.labels)
@@ -330,13 +331,13 @@ async def _rewrite(state: State, user_id: str, program_id: str) -> None:
         if row is None:
             if await ctx.db.get(AcademicsProgram, program_id) is None:
                 return  # deleted meanwhile
-            row = AgentSuggestions(
-                user_id=user_id, program_id=program_id, locale=ctx.locale, items=[]
-            )
+            row = AgentSuggestions(user_id=user_id, program_id=program_id, locale=locale, items=[])
             ctx.db.add(row)
+        if items is None and row.locale != locale:
+            items = []
         row.generated_at = ctx.now
+        row.locale = locale
         if items is not None:
-            row.locale = ctx.locale
             row.items = items
         await events.publish(ctx, "agent.suggestions.updated", {"program_id": program_id})
         await ctx.db.commit()
