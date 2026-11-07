@@ -101,6 +101,54 @@ async def test_auto_uses_the_default_model_once_it_is_here(
     ]
 
 
+async def test_a_deleted_model_is_gone_until_it_is_needed_again(
+    ai: Ai, local: dict[str, Any], run_jobs: RunJobs, monkeypatch: pytest.MonkeyPatch
+):
+    closed: list[bool] = []
+    monkeypatch.setattr(local_embedding_runtime, "close", lambda: closed.append(True))
+    async with ai.ctx() as ctx:
+        await ai_module.local_jobs.prepare_embedding(ctx)
+        await ctx.db.commit()
+    await run_jobs()
+    model = "multilingual-e5-small"
+    assert _entry(await ai.call("GET", "/ai/status"))["sizes"][model] > 0
+
+    monkeypatch.setattr(local_embedding, "downloading", lambda: [model])
+    body = {"purpose": "embedding", "model": model}
+    busy = await ai.call("POST", "/ai/local-models/delete", json=body, status=409)
+    assert busy["error"]["code"] == "ai.local_model_busy"
+    monkeypatch.setattr(local_embedding, "downloading", lambda: [])
+
+    await ai.call("POST", "/ai/local-models/delete", json=body)
+    # The embedding process let go of the model before its files went.
+    assert closed == [True]
+    assert not local_embedding.model_dir(ai.app.state.settings, model).exists()
+    entry = _entry(await ai.call("GET", "/ai/status"))
+    assert (entry["downloaded"], entry["sizes"]) == ([], {})
+    async with ai.ctx() as ctx:
+        assert not await ai_module.available(ctx, "embedding")
+    await ai.call("POST", "/ai/local-models/delete", json=body, status=404)
+
+    # Search brings it back (files keep their vectors, so nothing else would), unless the last
+    # download failed: that one is retried from the settings.
+    async with ai.ctx() as ctx:
+        await ai_module.local_jobs.restore_embedding(ctx)
+        await ctx.db.commit()
+    await run_jobs()
+    assert local["fetched"] == [model, model]
+    await ai.call("POST", "/ai/local-models/delete", json=body)
+    monkeypatch.setattr(local_embedding, "_fetch", lambda *args: (_ for _ in ()).throw(OSError()))
+    async with ai.ctx() as ctx:
+        await ai_module.local_jobs.restore_embedding(ctx)
+        await ctx.db.commit()
+    await run_jobs()
+    async with ai.ctx() as ctx:
+        failed = await ai_module.local_jobs.latest_download(ctx, "embedding", model)
+        await ai_module.local_jobs.restore_embedding(ctx)
+        await ctx.db.commit()
+        assert await ai_module.local_jobs.latest_download(ctx, "embedding", model) == failed
+
+
 async def test_custom_models_are_checked_before_they_are_saved(
     ai: Ai, local: dict[str, Any], run_jobs: RunJobs
 ):

@@ -52,6 +52,10 @@ docker compose exec semestra semestra embedding-models --all
 模型常驻在单独的进程里，空闲十分钟后退出。Docker 用不了 Mac 的 GPU，所以这里只用 CPU；想用 GPU，可以在宿主机上跑
 [Ollama](/docs/ai/ollama)，再选它的 embedding 模型。相关设置见[全部设置](./configuration.mdx#本机-embedding)。
 
+## 释放磁盘空间
+
+设置 → 数据 → **本地模型**显示每个已下载模型占用的空间，可以删掉不需要的模型。任何账户都能删除；仍有人在用的模型下次用到时会重新下载。
+
 ## 固定版本
 
 `latest` 会跟随每次发布。想自己决定何时升级，在 `.env` 里写上版本：

@@ -174,6 +174,8 @@ class LocalModels(BaseModel):
     # The one used when the user picks nothing.
     default: str
     downloaded: list[str]
+    # Bytes each downloaded model takes on disk.
+    sizes: dict[str, int] = Field(default_factory=dict)
     # Downloading now for anyone (a file being processed, another user's pick).
     downloading: list[str]
     # The user's download of the model this purpose uses (a `core.job`, while it runs or after
@@ -196,6 +198,16 @@ class LocalModelDownloadInput(BaseModel):
         max_length=200,
         description="A local model; defaults to the one this user's purpose uses.",
     )
+
+
+class LocalModelDeleteInput(BaseModel):
+    purpose: Literal["ocr", "embedding"] = Field(description="What the model is for.")
+    model: str = Field(max_length=200, description="The local model to remove from this server.")
+
+
+class LocalModelDeleted(BaseModel):
+    purpose: Literal["ocr", "embedding"]
+    model: str
 
 
 class LocalModelDownload(BaseModel):
