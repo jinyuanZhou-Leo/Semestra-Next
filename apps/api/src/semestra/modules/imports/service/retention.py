@@ -16,7 +16,7 @@ UPLOAD_RETENTION = timedelta(days=1)
 
 async def cleanup(ctx: Ctx) -> None:
     """Sessions are kept 30 days after their last change (import history), whatever their state:
-    one left for later and never finished must not hold its uploads (and quota) forever. Uploads
+    one that was never finished must not hold its uploads (and quota) forever. Uploads
     that never joined a session go after one day."""
     old = (
         await ctx.db.scalars(

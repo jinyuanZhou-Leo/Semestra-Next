@@ -1,5 +1,9 @@
 import type { AssignmentOut, Quiz } from '@semestra/api-client'
-import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
+import {
+  lmsAssignmentListOptions,
+  lmsQuizListOptions,
+  tasksItemQueryOptions,
+} from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   type CellContext,
@@ -15,9 +19,11 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  ExternalLink,
   GraduationCap,
   Import,
   FileText,
@@ -28,23 +34,15 @@ import {
   SearchX,
 } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
+import { RowMenu } from '@/app/settings'
 import { toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
-import {
-  type AssignmentImportKind,
-  reviewAssignmentImport,
-  startAssignmentImport,
-} from '@/modules/lms/import/assignments'
+import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/ui/dropdown-menu'
+import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
@@ -101,7 +99,7 @@ function rowsOf(assignments: readonly AssignmentOut[], quizzes: readonly Quiz[])
         locked: q.locked,
         lock_explanation: q.lock_explanation,
         allowed_attempts: q.allowed_attempts,
-        imported_as: [],
+        imported_as: null,
       },
     })
   }
@@ -128,6 +126,10 @@ type TableState = {
   /** Rows that can still be imported, in the table's order. */
   selectable: readonly string[]
   setSelected: (ids: readonly string[], on: boolean) => void
+  /** Whether the to-do of what an assignment was imported as is done; null without one. */
+  todoDone: (a: AssignmentOut) => boolean | null
+  /** "Add to gradebook" for an assignment imported as a to-do. */
+  toGradebook: (a: AssignmentOut) => void
 }
 const TableContext = createContext<TableState | null>(null)
 
@@ -137,8 +139,8 @@ function useTableState() {
   return state
 }
 
-/** An assignment is imported once, as an assessment or as a task (M09 §11). */
-const imported = (a: AssignmentOut) => a.imported_as.length > 0
+/** An assignment is imported once: an assessment (with its to-do) or a to-do (M09 §4). */
+const imported = (a: AssignmentOut) => a.imported_as != null
 
 /** A box that ticks several rows: all of them, or an assignment group's. */
 function SelectMany({ ids, label }: { ids: readonly string[]; label: string }) {
@@ -209,13 +211,56 @@ function NameCell({ row }: CellProps) {
           <TooltipContent className="max-w-xs">{why}</TooltipContent>
         </Tooltip>
       ) : null}
-      {a.imported_as.some((t) => t.kind === 'assessment') ? (
+    </span>
+  )
+}
+
+/** Where an imported assignment is in Semestra: the gradebook, its to-do (ticked once done). */
+function InSemestraCell({ row }: CellProps) {
+  const { todoDone } = useTableState()
+  const a = row.original.assignment
+  if (!a.imported_as) return <span className="text-muted-foreground">—</span>
+  const done = todoDone(a)
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {a.imported_as.kind === 'assessment' ? (
         <Badge variant="secondary">{m.canvas_tab_in_gradebook()}</Badge>
       ) : null}
-      {a.imported_as.some((t) => t.kind === 'task') ? (
-        <Badge variant="secondary">{m.canvas_tab_in_tasks()}</Badge>
+      {done != null ? (
+        <Badge variant="secondary">
+          {m.canvas_tab_in_tasks()}
+          {done ? <Check aria-label={m.canvas_tab_todo_done()} /> : null}
+        </Badge>
       ) : null}
     </span>
+  )
+}
+
+function MenuCell({ row }: CellProps) {
+  const { toGradebook } = useTableState()
+  const a = row.original.assignment
+  const url = a.web_url && /^https?:\/\//i.test(a.web_url) ? a.web_url : null
+  const movable = a.imported_as?.kind === 'task'
+  if (!url && !movable) return null
+  return (
+    // The menu's clicks don't open the row.
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- only stops the row's click
+    <div onClick={(event) => event.stopPropagation()}>
+      <RowMenu label={m.canvas_tab_row_menu({ name: a.name })}>
+        {movable ? (
+          <DropdownMenuItem onClick={() => toGradebook(a)}>
+            <GraduationCap aria-hidden />
+            {m.canvas_tab_add_to_gradebook()}
+          </DropdownMenuItem>
+        ) : null}
+        {url ? (
+          <DropdownMenuItem onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>
+            <ExternalLink aria-hidden />
+            {m.lms_open_in({ provider: m.lms_canvas() })}
+          </DropdownMenuItem>
+        ) : null}
+      </RowMenu>
+    </div>
   )
 }
 
@@ -292,23 +337,31 @@ const columns = column.columns([
     cell: StatusCell,
     enableSorting: false,
   }),
+  column.display({
+    id: 'semestra',
+    header: () => m.canvas_tab_column_in_semestra(),
+    cell: InSemestraCell,
+    enableSorting: false,
+  }),
+  column.display({ id: 'menu', header: () => null, cell: MenuCell, enableSorting: false }),
 ])
 
 /** Fixed widths (with `table-fixed`): opening a description or folding a group doesn't move the
  * columns; the name takes the rest. */
 const WIDTHS: Record<string, string> = {
   select: 'w-10',
-  due: 'w-48',
-  score: 'w-28',
-  submission: 'w-40',
+  due: 'w-44',
+  score: 'w-24',
+  submission: 'w-36',
+  semestra: 'w-36',
+  menu: 'w-12',
 }
-
-type Kind = AssignmentImportKind
 
 /**
  * Canvas's assignments, quizzes and grades as one table (M16 §4): by assignment group with the
- * user's score and where each submission stands. Ticked rows are imported into the gradebook
- * (with the score Canvas has) or the tasks through the M08 review; a row opens its details.
+ * user's score, where each submission stands and where it is in Semestra. Ticked rows are
+ * imported in one go: worth points into the gradebook (with the score Canvas has and a to-do),
+ * the others as to-dos; a row opens its details.
  */
 export function AssignmentsView({ selected }: { selected?: string }) {
   const { courseId } = useCanvasPage()
@@ -418,10 +471,26 @@ function groupsOf(rows: readonly Row[]): Group[] {
 
 function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: string }) {
   const { programId, courseId, go, title } = useCanvasPage()
+  // The to-dos of the course's imported assignments, for the "In Semestra" column.
+  const todos = useQuery({
+    ...tasksItemQueryOptions({
+      path: { program_id: programId },
+      query: { course_id: courseId, completed: 'include', limit: 500 },
+    }),
+    select: (page) => {
+      const done = new Map<string, boolean>()
+      for (const t of page.items) {
+        const finished = t.completed_at != null
+        done.set(t.id, finished)
+        if (t.assessment_id) done.set(t.assessment_id, finished)
+      }
+      return done
+    },
+  }).data
   const [sorting, setSorting] = useState<SortingState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  const [starting, setStarting] = useState<Kind | null>(null)
+  const [starting, setStarting] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [now] = useState(Date.now)
@@ -473,24 +542,18 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
         }
         return next
       }),
+    todoDone: (a) => (a.imported_as ? (todos?.get(a.imported_as.id) ?? null) : null),
+    toGradebook: (a) => {
+      addToGradebook(courseId, [a.external_id], m.lms_canvas()).catch(toastError)
+    },
   }
 
-  const start = (kind: Kind) => {
-    setStarting(kind)
-    startAssignmentImport(courseId, picked, kind)
-      .then((sessionId) => {
-        setStarting(null)
-        setRowSelection({})
-        return reviewAssignmentImport({
-          programId,
-          sessionId,
-          title: () => m.lms_import_assignments_from({ provider: m.lms_canvas() }),
-        })
-      })
-      .catch((error: unknown) => {
-        setStarting(null)
-        toastError(error)
-      })
+  const start = () => {
+    setStarting(true)
+    importAssignments(courseId, picked, m.lms_canvas())
+      .then(() => setRowSelection({}))
+      .catch(toastError)
+      .finally(() => setStarting(false))
   }
 
   const toggleGroup = (key: string) =>
@@ -531,30 +594,15 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
               <Search aria-hidden />
             </InputGroupAddon>
           </InputGroup>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button size="sm" disabled={picked.length === 0 || starting !== null} />}
-            >
-              {starting ? <Spinner /> : <Import aria-hidden />}
-              {picked.length > 0
-                ? m.canvas_tab_import_count({ count: picked.length })
-                : m.canvas_tab_import()}
-              <ChevronDown aria-hidden data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => start('assessment')}>
-                <GraduationCap aria-hidden />
-                {m.canvas_tab_import_to_gradebook()}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => start('task')}>
-                <ListChecks aria-hidden />
-                {m.canvas_tab_import_to_tasks()}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" disabled={picked.length === 0 || starting} onClick={start}>
+            {starting ? <Spinner /> : <Import aria-hidden />}
+            {picked.length > 0
+              ? m.canvas_tab_import_count({ count: picked.length })
+              : m.canvas_tab_import()}
+          </Button>
         </div>
         <div className="overflow-hidden rounded-2xl border border-border">
-          <Table className="min-w-xl table-fixed">
+          <Table className="min-w-3xl table-fixed">
             <TableHeader className="bg-muted/50">
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id} className="hover:bg-transparent">
@@ -670,7 +718,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="py-1.5" />
+                      <TableCell colSpan={3} className="py-1.5" />
                     </TableRow>
                     {open
                       ? group.rows.map((row) => {

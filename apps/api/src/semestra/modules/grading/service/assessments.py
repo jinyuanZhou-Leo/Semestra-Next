@@ -92,6 +92,13 @@ async def scored_counts(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, tuple[
     return out
 
 
+async def counted_weights(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, list[float]]:
+    """Per course, the weights of its counted (not dropped) assessments: what an import adds to
+    is checked against them (M08 shows the total on the course)."""
+    rows = await assessment_rows(ctx, course_ids)
+    return {cid: [r.weight for r in found if not r.dropped] for cid, found in rows.items()}
+
+
 async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAssessment | None:
     """The ctx user's assessment, or None (for other modules: M05 keeps its tasks in sync)."""
     row = await ctx.db.get(models.GradingAssessment, assessment_id)

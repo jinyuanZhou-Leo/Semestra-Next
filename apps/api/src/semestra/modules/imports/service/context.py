@@ -7,6 +7,7 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.schemas import CourseListInput
+from semestra.modules.grading import service as grading
 from semestra.modules.imports import build, dates, deps
 from semestra.modules.imports.models import ImportsItem, ImportsSession
 from semestra.modules.imports.schemas import (
@@ -134,6 +135,7 @@ async def _validation_context(
         target_kind=target.kind,
         target_term_id=target.term_id,
         existing_assessments=await _existing_assessments(ctx, course_ids),
+        existing_weights=await grading.counted_weights(ctx, course_ids),
         course_term_counts={c: len(t) for c, t in course_terms.items()},
         target_weeks=term.weeks if term else None,
         course_terms=course_terms,
@@ -142,7 +144,7 @@ async def _validation_context(
 
 
 async def revalidate(ctx: Ctx, row: ImportsSession, items: Sequence[ImportsItem]) -> None:
-    validate(items, await _validation_context(ctx, row, items))
-    row.summary = summarize(items)
+    totals = validate(items, await _validation_context(ctx, row, items))
+    row.summary = {**summarize(items), **totals}
     row.updated_at = ctx.now
     await ctx.db.flush()

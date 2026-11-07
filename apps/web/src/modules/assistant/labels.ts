@@ -54,7 +54,6 @@ const VALUE_TEXT: Record<string, Record<string, () => string>> = {
     pending: m.assistant_value_pending,
   },
   exception: { cancelled: m.assistant_value_cancelled, moved: m.assistant_value_moved },
-  as_kind: TYPE_LABELS,
   type: TYPE_LABELS,
 }
 

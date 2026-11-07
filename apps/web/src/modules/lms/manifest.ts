@@ -2,9 +2,12 @@ import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
+import { TODAY_BANNERS } from '@/modules/schedule/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
+import { CalendarMark, CalendarOpenLabel } from './components/CalendarMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
+import { LmsTermNewAssignmentsBanner } from './components/LmsNewAssignmentsBanner'
 import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
@@ -96,6 +99,8 @@ export default defineModule({
       label: m.lms_calendar_source,
       icon: School,
       defaultVisible: true,
+      Mark: CalendarMark,
+      OpenLabel: CalendarOpenLabel,
       onOpen: (occurrence) => {
         const url = occurrence.meta?.url
         // Platform data: only web links are opened (the API drops the rest too).
@@ -109,6 +114,7 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
+    [TODAY_BANNERS]: [{ id: 'lms.newAssignments', component: LmsTermNewAssignmentsBanner }],
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: TaskSubmission },
     ] satisfies TaskDetailSection[],

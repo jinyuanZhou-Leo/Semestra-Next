@@ -309,6 +309,13 @@ export type CalendarSourceContribution = {
   icon: LucideIcon
   /** Shown before the user changes the calendar's filters. */
   defaultVisible: boolean
+  /**
+   * Items from another service (M09: the Program's learning platform): its mark on each item and
+   * in the details. Small: it sits next to the item's title.
+   */
+  Mark?: ComponentType<{ programId: string }>
+  /** The text of `onOpen` in the details, e.g. "Open in Canvas" (default "Open source"). */
+  OpenLabel?: ComponentType<{ programId: string }>
   /** "Open" in the occurrence's details; without it the details have no open action. */
   onOpen?: (
     occurrence: Occurrence,

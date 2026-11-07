@@ -8,7 +8,7 @@ import pytest
 from semestra.core.config import Settings
 from semestra.modules.lms.schemas.dto import Submission
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
-from semestra.modules.lms.tests.test_lms import by_type, setup_program
+from semestra.modules.lms.tests.test_lms import by_type, held_for_review, setup_program
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -88,9 +88,7 @@ async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
     fake.course_assignments["101"][0] = lab1.model_copy(
         update={"submission": Submission(state="graded", score=8)}
     )
-    started = await api.call(
-        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1", "a2"]}
-    )
+    started = await held_for_review(api, f"/courses/{course}/lms/imports:assignments", ["a1", "a2"])
     session = await api.call("GET", f"/imports/{started['session_id']}")
     first = by_type(session, "assessment")[0]
     assert (first["data"]["points_earned"], first["data"]["points_possible"]) == (8, 10)

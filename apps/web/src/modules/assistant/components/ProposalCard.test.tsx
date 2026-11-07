@@ -59,7 +59,7 @@ test('a shortened list says how many more there are; a card kind reads as its ti
         changes: [
           { field: 'lms_assignments', after: ['Lab 1', 'Lab 2'], count: 12 },
           { field: 'card', after: 'sticky.note' },
-          { field: 'as_kind', after: 'task' },
+          { field: 'type', after: 'task' },
         ],
       })}
     />,

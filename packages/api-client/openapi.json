@@ -9416,13 +9416,79 @@
         }
       }
     },
+    "/courses/{course_id}/lms/imports:gradebook": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Move imported LMS assignments that have no gradebook entry into the gradebook.",
+        "description": "For assignments whose `imported_as.kind` is task in lms.assignment.list: each\nbecomes an assessment and keeps its to-do. Saved at once when nothing needs a decision\n(`committed`); otherwise commit it after the review (imports.session.commit).",
+        "operationId": "lmsAssignmentAddToGradebook",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (must be linked)",
+              "title": "Course Id"
+            },
+            "description": "Course id (must be linked)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentsImportInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStarted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/imports:assignments": {
       "post": {
         "tags": [
           "lms"
         ],
-        "summary": "Start importing assignments of a linked course as assessments or tasks.",
-        "description": "Creates an import the user reviews; each item can be switched between an\nassessment and a task there. Assignments imported before are left out. Then commit it like\nany import (imports.session.commit).",
+        "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
+        "description": "Assignments worth points become assessments (each gets its task), the others\ntasks; ones imported before are left out. Saved at once when nothing needs a decision\n(`committed`); otherwise the user reviews it, then commit it like any import\n(imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "security": [
           {
@@ -9488,7 +9554,7 @@
           "lms"
         ],
         "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
-        "description": "To add them to the gradebook or tasks use lms.assignment.import (reviewed by\nthe user), never the gradebook or task capabilities directly.",
+        "description": "To add them to the gradebook or tasks use lms.assignment.import (and\nlms.assignment.add_to_gradebook for ones imported as tasks), never the gradebook or task\ncapabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -11928,6 +11994,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TermAnnouncementList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/lms/new-assignments": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Assignments of a term's LMS-linked courses that are due later and not imported.",
+        "description": "From the cached lists, per course (the \"today\" page's prompt). Not for agents:\nthey read one course with lms.assignment.list (`new_ids`).",
+        "operationId": "lmsTermNewAssignments",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAssignmentList"
                 }
               }
             }
@@ -18204,12 +18323,15 @@
             "title": "Rubric"
           },
           "imported_as": {
-            "items": {
-              "$ref": "#/components/schemas/ImportTarget"
-            },
-            "type": "array",
-            "title": "Imported As",
-            "description": "Where it was imported to, if anywhere"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportTarget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported"
           }
         },
         "type": "object",
@@ -18350,17 +18472,7 @@
             "maxItems": 200,
             "minItems": 1,
             "title": "External Ids",
-            "description": "Assignments to import (`external_id` of lms.assignment.list)"
-          },
-          "as_kind": {
-            "type": "string",
-            "enum": [
-              "assessment",
-              "task"
-            ],
-            "title": "As Kind",
-            "description": "Default type; switchable per item in the review",
-            "default": "assessment"
+            "description": "Assignments (`external_id` of lms.assignment.list)"
           }
         },
         "type": "object",
@@ -19398,6 +19510,38 @@
         },
         "type": "object",
         "title": "CategoryUpdateInputBody"
+      },
+      "CategoryWeights": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id",
+            "description": "The category item"
+          },
+          "expected": {
+            "type": "number",
+            "title": "Expected",
+            "description": "The total the category states, in %"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "What its accepted assessments add up to, in %"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "The two agree"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "expected",
+          "total",
+          "ok"
+        ],
+        "title": "CategoryWeights"
       },
       "CheckinList": {
         "properties": {
@@ -21730,6 +21874,38 @@
           "bytes"
         ],
         "title": "CourseUsage"
+      },
+      "CourseWeights": {
+        "properties": {
+          "course_ref": {
+            "type": "string",
+            "title": "Course Ref",
+            "description": "`course:<id>` or `item:<course item id>`"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "description": "Weights of the course's assessments once imported, in %"
+          },
+          "existing": {
+            "type": "integer",
+            "title": "Existing",
+            "description": "How many of them are in the gradebook already"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "The total is 100"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_ref",
+          "total",
+          "existing",
+          "ok"
+        ],
+        "title": "CourseWeights"
       },
       "CoursesImportInputBody": {
         "properties": {
@@ -25224,7 +25400,19 @@
           "count": {
             "type": "integer",
             "title": "Count",
-            "description": "Items put up for review"
+            "description": "Items in the import"
+          },
+          "committed": {
+            "type": "boolean",
+            "title": "Committed",
+            "description": "Saved at once (nothing needed a decision); otherwise it waits for review",
+            "default": false
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "description": "Items that could not be saved, when committed (see the import)",
+            "default": 0
           }
         },
         "type": "object",
@@ -25241,8 +25429,7 @@
             "type": "string",
             "enum": [
               "assessment",
-              "task",
-              "event"
+              "task"
             ],
             "title": "Kind"
           },
@@ -27833,6 +28020,59 @@
           "hidden"
         ],
         "title": "NavUpdateInputBody"
+      },
+      "NewAssignmentList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NewAssignments"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Per linked course with new assignments"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "NewAssignmentList"
+      },
+      "NewAssignments": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "external_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "External Ids",
+            "description": "Not imported and due later, soonest first"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Names",
+            "description": "Their names, in the same order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "external_ids",
+          "names"
+        ],
+        "title": "NewAssignments"
       },
       "Note": {
         "properties": {
@@ -31679,6 +31919,22 @@
             "type": "object",
             "title": "Issues",
             "description": "Open issues per code"
+          },
+          "weights": {
+            "items": {
+              "$ref": "#/components/schemas/CourseWeights"
+            },
+            "type": "array",
+            "title": "Weights",
+            "description": "Per course with assessments here: what its weights add up to with them"
+          },
+          "category_weights": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryWeights"
+            },
+            "type": "array",
+            "title": "Category Weights",
+            "description": "Per new category: what its assessments here add up to"
           },
           "created": {
             "type": "integer",
@@ -35882,6 +36138,14 @@
             "type": "array",
             "title": "Items"
           },
+          "new_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "New Ids",
+            "description": "`external_id` of the new assignments: not imported and due later"
+          },
           "truncated": {
             "type": "boolean",
             "title": "Truncated"
@@ -35890,6 +36154,7 @@
         "type": "object",
         "required": [
           "items",
+          "new_ids",
           "truncated"
         ],
         "title": "AssignmentList"

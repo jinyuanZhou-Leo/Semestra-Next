@@ -36,7 +36,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
-import { type PageProps, preload } from '@/app/extensions'
+import { type CalendarSourceContribution, type PageProps, preload } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
@@ -353,6 +353,8 @@ function TermCalendar({
           dueAt: o.kind === 'task' ? o.start_at : undefined,
           dueTime: dueRow && !o.all_day ? timeFormat.format(new Date(start)) : undefined,
           onToggle: source?.complete ? (completed: boolean) => toggle(o, completed) : undefined,
+          Mark: source?.Mark,
+          programId,
         },
       }
     }),
@@ -847,6 +849,8 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
   const onToggle = arg.event.extendedProps.onToggle as ((completed: boolean) => void) | undefined
   const check = onToggle ? <Check o={o} onToggle={onToggle} /> : null
   const dueTime = arg.event.extendedProps.dueTime as string | undefined
+  const Mark = arg.event.extendedProps.Mark as CalendarSourceContribution['Mark']
+  const mark = Mark ? <Mark programId={arg.event.extendedProps.programId as string} /> : null
   if (arg.view.type === 'timeGridWeek' && !arg.event.allDay) {
     // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place. The
     // content takes the block's corners and clips the bar to them (a 4px bar cannot round a
@@ -868,6 +872,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
               />
             ) : null}
             <span className="truncate">{o.title}</span>
+            {mark}
           </span>
           {o.location ? (
             <span className="block truncate text-muted-foreground">{o.location}</span>
@@ -891,6 +896,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
           />
         ) : null}
         <span className="truncate font-medium">{o.title}</span>
+        {mark}
       </span>
     )
   }
@@ -909,6 +915,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
         ) : null}
         {dueTime ? <span className="text-muted-foreground tabular-nums">{dueTime}</span> : null}
         <span className="truncate">{o.title}</span>
+        {mark}
       </span>
       {arg.view.type === 'timeGridWeek' && o.location ? (
         <span className="truncate text-muted-foreground">{o.location}</span>

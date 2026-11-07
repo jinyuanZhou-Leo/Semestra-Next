@@ -2,7 +2,7 @@
 agent use. Every read needs a linked course and the provider's feature; HTML is cleaned before
 it is cached, so cache hits are clean too."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection
 from datetime import datetime
 from typing import Any
 
@@ -29,6 +29,8 @@ from semestra.modules.lms.schemas.io import (
     GradeList,
     ModuleItemList,
     ModuleList,
+    NewAssignmentList,
+    NewAssignments,
     PageList,
     QuizList,
     TermAnnouncement,
@@ -212,16 +214,14 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
     )
 
 
-async def imported_targets(ctx: Ctx, link_id: str) -> dict[str, list[dict[str, str]]]:
+async def imported_targets(ctx: Ctx, link_id: str) -> dict[str, dict[str, str]]:
+    """What each imported assignment of the course became: `{kind, id}` by external id."""
     refs = await ctx.db.scalars(
         select(LmsImportedRef).where(
             LmsImportedRef.link_id == link_id, LmsImportedRef.external_kind == "assignment"
         )
     )
-    out: dict[str, list[dict[str, str]]] = {}
-    for ref in refs:
-        out.setdefault(ref.external_id, []).append({"kind": ref.target_kind, "id": ref.target_id})
-    return out
+    return {ref.external_id: {"kind": ref.target_kind, "id": ref.target_id} for ref in refs}
 
 
 async def raw_assignments(
@@ -241,12 +241,57 @@ async def raw_assignments(
     return data, truncated
 
 
+def new_ids(ctx: Ctx, data: list[dict[str, Any]], imported: Collection[str]) -> list[str]:
+    """The assignments "N new assignments" counts: not imported, due later; soonest first. One
+    with no due date or already past is not offered again: the user can still import it."""
+    later = [
+        a
+        for a in data
+        if a["external_id"] not in imported
+        and a.get("due_at")
+        and datetime.fromisoformat(a["due_at"]) > ctx.now
+    ]
+    later.sort(key=lambda a: datetime.fromisoformat(a["due_at"]))
+    return [a["external_id"] for a in later]
+
+
 async def assignments(ctx: Ctx, course_id: str, refresh: bool) -> AssignmentList:
     linked = await service.require_link(ctx, course_id)
     data, truncated = await raw_assignments(ctx, course_id, refresh, linked=linked)
     targets = await imported_targets(ctx, linked[0].id)
-    items = [{**a, "imported_as": targets.get(a["external_id"], [])} for a in data]
-    return AssignmentList.model_validate({"items": items, "truncated": truncated})
+    items = [{**a, "imported_as": targets.get(a["external_id"])} for a in data]
+    return AssignmentList.model_validate(
+        {"items": items, "new_ids": new_ids(ctx, data, targets), "truncated": truncated}
+    )
+
+
+async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
+    """New assignments of every synced, linked course of a term (the "today" page's prompt),
+    from the cached lists. A course that can't be read is left out."""
+    term = await academics.get_term_row(ctx, term_id)
+    links = await service.program_links(ctx, term.program_id)
+    program = await academics.get_program_row(ctx, term.program_id)
+    rows = await academics.courses_by_id(ctx, [li.course_id for li in links if li.sync_enabled])
+    courses = await academics.courses_out(ctx, program, rows)
+    items: list[NewAssignments] = []
+    for course in sorted(courses, key=lambda c: (c.code or c.title).lower()):
+        if term_id not in course.term_ids:
+            continue
+        try:
+            linked = await service.require_link(ctx, course.id)
+            service.require_feature(linked[1], "assignments")
+            data, _ = await raw_assignments(ctx, course.id, False, linked=linked)
+        except AppError:
+            continue
+        found = new_ids(ctx, data, await imported_targets(ctx, linked[0].id))
+        if found:
+            names = {a["external_id"]: str(a["name"]) for a in data}
+            items.append(
+                NewAssignments(
+                    course_id=course.id, external_ids=found, names=[names[i] for i in found]
+                )
+            )
+    return NewAssignmentList(items=items, total=sum(len(i.external_ids) for i in items))
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

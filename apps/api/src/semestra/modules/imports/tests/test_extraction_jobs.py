@@ -179,15 +179,15 @@ async def test_an_edit_can_return_only_the_items_it_touched(
     await run_jobs()
     session = await api.call("GET", f"/imports/{session['id']}")
     assessments = {a["data"]["title"]: a for a in by_type(session, "assessment")}
-    flagged = next(a for a in assessments.values() if a["issues"])
     final = assessments["Final exam"]
-    # 85 + 15 = 100: the weight issue on the first assessment goes away too.
     patched = await api.call(
         "PATCH", f"/imports/{session['id']}/items/{final['id']}",
         json={"data": {"weight": 50}, "only_touched": True},
     )  # fmt: skip
-    assert {i["id"] for i in patched["items"]} == {final["id"], flagged["id"]}
+    assert {i["id"] for i in patched["items"]} == {final["id"]}
+    # The course's weight total moves with it (the summary, not an item's issue).
     assert patched["summary"] == (await api.call("GET", f"/imports/{session['id']}"))["summary"]
+    assert patched["summary"]["weights"] != session["summary"]["weights"]
 
 
 async def test_no_class_dates_cancel_meetings_and_deadlines_keep_their_source(

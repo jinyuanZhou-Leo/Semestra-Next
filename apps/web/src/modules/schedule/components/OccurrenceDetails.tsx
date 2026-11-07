@@ -107,7 +107,12 @@ export function OccurrenceDetails({
         </DialogHeader>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
-            {source ? <Badge variant="outline">{source.label()}</Badge> : null}
+            {source ? (
+              <Badge variant="outline">
+                {source.Mark ? <source.Mark programId={programId} /> : null}
+                {source.label()}
+              </Badge>
+            ) : null}
             {o.type_code ? <Badge variant="outline">{o.type_code}</Badge> : null}
             {o.meta?.section_code ? <Badge variant="outline">{o.meta.section_code}</Badge> : null}
             {o.status === 'cancelled' ? (
@@ -216,7 +221,11 @@ export function OccurrenceDetails({
               }}
             >
               <ExternalLink aria-hidden />
-              {m.schedule_open_source()}
+              {source.OpenLabel ? (
+                <source.OpenLabel programId={programId} />
+              ) : (
+                m.schedule_open_source()
+              )}
             </Button>
           ) : null}
         </div>

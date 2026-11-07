@@ -74,16 +74,14 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
 
 
 class LmsImportedRef(Base, OwnedMixin):
-    """An assignment or event that was imported, to skip it next time and detect updates."""
+    """A platform item that was imported, to skip it next time and detect updates. One item is
+    one Semestra object: an assignment worth points is an assessment (with its to-do), else a
+    to-do, which may later move into the gradebook (the ref then points at the assessment)."""
 
     __tablename__ = "lms_imported_refs"
     __table_args__ = (
         UniqueConstraint(
-            "link_id",
-            "external_kind",
-            "external_id",
-            "target_kind",
-            name="uq_lms_imported_refs_target",
+            "link_id", "external_kind", "external_id", name="uq_lms_imported_refs_item"
         ),
     )
 

@@ -25,12 +25,10 @@ export default function TaskSubmission({ task }: { task: Task }) {
   }).data
   const ui = useProviderUis().get(link?.provider ?? '')
   const provider = useProviderName(link?.provider) ?? ''
-  const assignment = assignments?.items.find((a) =>
-    a.imported_as.some(
-      (t) =>
-        (t.kind === 'task' && t.id === task.id) ||
-        (t.kind === 'assessment' && t.id === task.assessment_id),
-    ),
+  const assignment = assignments?.items.find(
+    ({ imported_as: t }) =>
+      (t?.kind === 'task' && t.id === task.id) ||
+      (t?.kind === 'assessment' && t.id === task.assessment_id),
   )
   if (!link || !assignment) return null
   const Logo = ui?.logo ?? School

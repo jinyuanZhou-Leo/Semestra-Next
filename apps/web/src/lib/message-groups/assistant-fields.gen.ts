@@ -8,7 +8,6 @@ export const assistantFieldMessages = {
   assistant_field_alias: m.assistant_field_alias,
   assistant_field_all_day: m.assistant_field_all_day,
   assistant_field_archived: m.assistant_field_archived,
-  assistant_field_as_kind: m.assistant_field_as_kind,
   assistant_field_basis: m.assistant_field_basis,
   assistant_field_breaks: m.assistant_field_breaks,
   assistant_field_card: m.assistant_field_card,
