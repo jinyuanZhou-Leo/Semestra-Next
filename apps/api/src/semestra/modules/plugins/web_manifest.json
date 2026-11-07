@@ -185,6 +185,13 @@
       "default_board": {}
     },
     {
+      "id": "notifications",
+      "kind": "core",
+      "pages": [],
+      "cards": [],
+      "default_board": {}
+    },
+    {
       "id": "plugins",
       "kind": "core",
       "pages": [],

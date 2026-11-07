@@ -74,6 +74,21 @@ async def only_program_row(ctx: Ctx) -> AcademicsProgram | None:
     return rows[0] if len(rows) == 1 else None
 
 
+async def program_rows(ctx: Ctx) -> list[AcademicsProgram]:
+    """The user's Programs in sidebar order."""
+    return list(
+        (
+            await ctx.db.scalars(
+                select(AcademicsProgram)
+                .where(AcademicsProgram.user_id == ctx.user_id)
+                .order_by(
+                    AcademicsProgram.sort_order, AcademicsProgram.created_at, AcademicsProgram.id
+                )
+            )
+        ).all()
+    )
+
+
 # --- read-only memo -------------------------------------------------------------------------
 
 _memo: ContextVar[dict[Any, Any] | None] = ContextVar("academics_memo", default=None)
@@ -374,14 +389,7 @@ async def course_out(ctx: Ctx, row: AcademicsCourse) -> Course:
 
 
 async def list_programs(ctx: Ctx) -> list[Program]:
-    rows = (
-        await ctx.db.scalars(
-            select(AcademicsProgram)
-            .where(AcademicsProgram.user_id == ctx.user_id)
-            .order_by(AcademicsProgram.sort_order, AcademicsProgram.created_at, AcademicsProgram.id)
-        )
-    ).all()
-    return await _program_out(ctx, rows)
+    return await _program_out(ctx, await program_rows(ctx))
 
 
 async def create_program(ctx: Ctx, inp: ProgramCreateInput) -> Program:

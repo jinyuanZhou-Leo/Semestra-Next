@@ -52,6 +52,8 @@ type Props = {
   level: SettingsLevel
   scope?: Scope
   fields?: FieldOverrides
+  /** Replaces the group's rounded border, for a form shown inside another list. */
+  className?: string
 }
 
 /**
@@ -59,7 +61,7 @@ type Props = {
  * per field, saved automatically. On a level below another that can set the namespace, each
  * control starts with "follow …" (M11 §5.2).
  */
-export function NamespaceForm({ namespace, level, scope, fields }: Props) {
+export function NamespaceForm({ namespace, level, scope, fields, className }: Props) {
   const params = scopeParamsFor(level, scope)
   const schemas = useQuery({ ...settingsSchemaListOptions(), staleTime: Infinity })
   const values = useQuery({
@@ -88,6 +90,7 @@ export function NamespaceForm({ namespace, level, scope, fields }: Props) {
                 params={params}
                 data={data}
                 fields={describeFields(definition.json_schema as JsonSchema, fields)}
+                className={className}
               />
             )}
           </AsyncBoundary>
@@ -107,6 +110,7 @@ function Form({
   params,
   data,
   fields,
+  className,
 }: {
   namespace: string
   level: SettingsLevel
@@ -115,6 +119,7 @@ function Form({
   params: ScopeParams
   data: ResolvedSettings
   fields: FieldDescriptor[]
+  className?: string
 }) {
   const queryClient = useQueryClient()
   const idBase = useId()
@@ -183,7 +188,7 @@ function Form({
   }
 
   return (
-    <SettingsGroup>
+    <SettingsGroup className={className}>
       {fields.map((field) => {
         const id = `${idBase}-${field.key}`
         const labelId = `${id}-label`

@@ -339,8 +339,12 @@ async def test_finished_at_is_when_the_job_ends(app: FastAPI, make_user: MakeUse
         job_id = await start(app, user.id, "test.slow")
         await app.state.jobs.run_until_idle()
     assert (await get(app, job_id)).finished_at == clock.now
+    progress = [m for m in messages if m["type"] == "core.job.progress"]
+    assert progress[-1]["data"]["status"] == "succeeded"
+    assert progress[-1]["data"]["finished_at"] == clock.now.isoformat()
+    # Followed by the outcome, once, for subscribers such as notifications (M18).
+    assert messages[-1]["type"] == "core.job.finished"
     assert messages[-1]["data"]["status"] == "succeeded"
-    assert messages[-1]["data"]["finished_at"] == clock.now.isoformat()
 
 
 async def test_bulk_jobs_leave_a_worker_for_the_others(app: FastAPI, make_user: MakeUser):

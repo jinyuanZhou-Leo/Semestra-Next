@@ -11947,6 +11947,186 @@
         }
       }
     },
+    "/me/notifications/config": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "The server's Web Push key.",
+        "description": "The VAPID public key a browser subscribes with. Not for agents.",
+        "operationId": "notificationsConfigGet",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/me/notifications/devices": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Turn on notifications for this browser.",
+        "description": "Saves this browser's push subscription for the current sign-in session (sent\nagain on every visit to keep it current). Not for agents.",
+        "operationId": "notificationsDeviceRegister",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceInBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRegistered"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/me/notifications/devices/remove": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Turn off notifications for this browser.",
+        "description": "Not for agents.",
+        "operationId": "notificationsDeviceUnregister",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRefBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceRegistered"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/me/notifications/test": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a test notification to the account's devices.",
+        "description": "Ignores quiet hours. Not for agents.",
+        "operationId": "notificationsTestSend",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/plugins/catalog": {
       "get": {
         "tags": [
@@ -21850,6 +22030,61 @@
         ],
         "title": "DayFocus"
       },
+      "DeviceInBody": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Endpoint",
+            "description": "Push service URL"
+          },
+          "p256dh": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "P256Dh",
+            "description": "Browser's public key, base64url"
+          },
+          "auth": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Auth",
+            "description": "Authentication secret, base64url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint",
+          "p256dh",
+          "auth"
+        ],
+        "title": "DeviceInBody"
+      },
+      "DeviceRefBody": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Endpoint",
+            "description": "Push service URL of the device"
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint"
+        ],
+        "title": "DeviceRefBody"
+      },
+      "DeviceRegistered": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "DeviceRegistered"
+      },
       "Discarded": {
         "properties": {
           "id": {
@@ -30220,6 +30455,20 @@
         ],
         "title": "PurposeStatus"
       },
+      "PushConfig": {
+        "properties": {
+          "public_key": {
+            "type": "string",
+            "title": "Public Key",
+            "description": "VAPID public key for PushManager.subscribe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key"
+        ],
+        "title": "PushConfig"
+      },
       "Quiz": {
         "properties": {
           "external_id": {
@@ -34709,6 +34958,20 @@
           "break_info"
         ],
         "title": "TermWeek"
+      },
+      "TestSent": {
+        "properties": {
+          "delivered": {
+            "type": "integer",
+            "title": "Delivered",
+            "description": "How many devices accepted the test notification"
+          }
+        },
+        "type": "object",
+        "required": [
+          "delivered"
+        ],
+        "title": "TestSent"
       },
       "Today": {
         "properties": {

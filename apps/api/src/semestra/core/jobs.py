@@ -71,6 +71,7 @@ LEASE_SECONDS = 60
 POLL_SECONDS = 2.0
 RETENTION = timedelta(days=7)
 JOB_PROGRESS = "core.job.progress"
+JOB_FINISHED = "core.job.finished"
 PROGRESS_THROTTLE_SECONDS = 0.25
 _monotonic = time.monotonic  # patched in tests
 
@@ -334,6 +335,13 @@ def _event(job: CoreJob) -> Event:
         "waiting": waiting.model_dump(mode="json") if waiting else None,
     }
     return Event(JOB_PROGRESS, data, job.user_id)
+
+
+def _finished(job: CoreJob) -> Event:
+    """`core.job.finished`: once per job a worker ran to an end, for subscribers that care about
+    outcomes (notifications) rather than progress."""
+    data = {"job_id": job.id, "kind": job.kind, "status": job.status, "error_code": job.error_code}
+    return Event(JOB_FINISHED, data, job.user_id)
 
 
 async def enqueue(
@@ -623,6 +631,8 @@ class JobRunner:
                 await heartbeat
         if row is not None:
             await events.dispatch(self.state, _event(row))
+            if row.status in TERMINAL:
+                await events.dispatch(self.state, _finished(row))
 
     async def _run_handler(self, job: CoreJob) -> CoreJob | None:
         handler = _handlers.get(job.kind)

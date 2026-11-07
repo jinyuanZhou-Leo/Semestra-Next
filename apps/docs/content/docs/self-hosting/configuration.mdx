@@ -117,4 +117,6 @@ Only in the default image; see [Images](./images.mdx#local-embedding).
 | `SEMESTRA_SENTRY_DSN`      | (empty)                  | Error reporting to Sentry; empty turns it off                           |
 
 The container only generates keys while `SEMESTRA_AUTO_SECRETS=true`, which the compose file
-sets. `SEMESTRA_SKIP_MIGRATIONS=true` skips the migration on start.
+sets. The key that signs [notifications](/docs/notifications) is derived from `SEMESTRA_SECRET_KEY`;
+after changing it, each browser subscribes again the next time Semestra opens there. Notifications
+need HTTPS (or `localhost`) and outbound HTTPS to the browsers' push services. `SEMESTRA_SKIP_MIGRATIONS=true` skips the migration on start.

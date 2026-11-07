@@ -6,6 +6,7 @@
   "grades": { "en": "Grades", "zh": "成绩" },
   "calendar": { "en": "Calendar", "zh": "日历与课表" },
   "tasks": { "en": "Tasks", "zh": "待办" },
+  "notifications": { "en": "Notifications", "zh": "通知" },
   "files": { "en": "Files", "zh": "文件" },
   "imports": { "en": "Import", "zh": "导入" },
   "canvas": { "en": "Canvas", "zh": "Canvas" },

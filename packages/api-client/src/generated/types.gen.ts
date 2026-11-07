@@ -3268,6 +3268,52 @@ export type DayFocus = {
 };
 
 /**
+ * DeviceInBody
+ */
+export type DeviceInBody = {
+    /**
+     * Endpoint
+     *
+     * Push service URL
+     */
+    endpoint: string;
+    /**
+     * P256Dh
+     *
+     * Browser's public key, base64url
+     */
+    p256dh: string;
+    /**
+     * Auth
+     *
+     * Authentication secret, base64url
+     */
+    auth: string;
+};
+
+/**
+ * DeviceRefBody
+ */
+export type DeviceRefBody = {
+    /**
+     * Endpoint
+     *
+     * Push service URL of the device
+     */
+    endpoint: string;
+};
+
+/**
+ * DeviceRegistered
+ */
+export type DeviceRegistered = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
  * Discarded
  */
 export type Discarded = {
@@ -7997,6 +8043,18 @@ export type PurposeStatus = {
 };
 
 /**
+ * PushConfig
+ */
+export type PushConfig = {
+    /**
+     * Public Key
+     *
+     * VAPID public key for PushManager.subscribe
+     */
+    public_key: string;
+};
+
+/**
  * Quiz
  */
 export type Quiz = {
@@ -10606,6 +10664,18 @@ export type TermWeek = {
      * The break, for a break week
      */
     break_info: BreakRef | null;
+};
+
+/**
+ * TestSent
+ */
+export type TestSent = {
+    /**
+     * Delivered
+     *
+     * How many devices accepted the test notification
+     */
+    delivered: number;
 };
 
 /**
@@ -17858,6 +17928,106 @@ export type LmsTermAnnouncementListResponses = {
 };
 
 export type LmsTermAnnouncementListResponse = LmsTermAnnouncementListResponses[keyof LmsTermAnnouncementListResponses];
+
+export type NotificationsConfigGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/notifications/config';
+};
+
+export type NotificationsConfigGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type NotificationsConfigGetError = NotificationsConfigGetErrors[keyof NotificationsConfigGetErrors];
+
+export type NotificationsConfigGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PushConfig;
+};
+
+export type NotificationsConfigGetResponse = NotificationsConfigGetResponses[keyof NotificationsConfigGetResponses];
+
+export type NotificationsDeviceRegisterData = {
+    body: DeviceInBody;
+    path?: never;
+    query?: never;
+    url: '/me/notifications/devices';
+};
+
+export type NotificationsDeviceRegisterErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type NotificationsDeviceRegisterError = NotificationsDeviceRegisterErrors[keyof NotificationsDeviceRegisterErrors];
+
+export type NotificationsDeviceRegisterResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceRegistered;
+};
+
+export type NotificationsDeviceRegisterResponse = NotificationsDeviceRegisterResponses[keyof NotificationsDeviceRegisterResponses];
+
+export type NotificationsDeviceUnregisterData = {
+    body: DeviceRefBody;
+    path?: never;
+    query?: never;
+    url: '/me/notifications/devices/remove';
+};
+
+export type NotificationsDeviceUnregisterErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type NotificationsDeviceUnregisterError = NotificationsDeviceUnregisterErrors[keyof NotificationsDeviceUnregisterErrors];
+
+export type NotificationsDeviceUnregisterResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceRegistered;
+};
+
+export type NotificationsDeviceUnregisterResponse = NotificationsDeviceUnregisterResponses[keyof NotificationsDeviceUnregisterResponses];
+
+export type NotificationsTestSendData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/notifications/test';
+};
+
+export type NotificationsTestSendErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type NotificationsTestSendError = NotificationsTestSendErrors[keyof NotificationsTestSendErrors];
+
+export type NotificationsTestSendResponses = {
+    /**
+     * Successful Response
+     */
+    200: TestSent;
+};
+
+export type NotificationsTestSendResponse = NotificationsTestSendResponses[keyof NotificationsTestSendResponses];
 
 export type PluginsCatalogListData = {
     body?: never;

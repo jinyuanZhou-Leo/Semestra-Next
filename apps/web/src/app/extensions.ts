@@ -174,6 +174,7 @@ export type SettingsGroup =
   | 'grades'
   | 'account'
   | 'preferences'
+  | 'notifications'
   | 'calendar'
   | 'ai-providers'
   | 'ai-models'

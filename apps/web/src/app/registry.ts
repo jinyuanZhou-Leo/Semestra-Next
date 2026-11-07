@@ -18,6 +18,7 @@ import files from '@/modules/files/manifest'
 import grading from '@/modules/grading/manifest'
 import imports from '@/modules/imports/manifest'
 import lms from '@/modules/lms/manifest'
+import notifications from '@/modules/notifications/manifest'
 import canvasTab from '@/modules/plugin-canvas-tab/manifest'
 import counter from '@/modules/plugin-counter/manifest'
 import habitStreak from '@/modules/plugin-habit-streak/manifest'
@@ -55,6 +56,7 @@ export const builtInModules: readonly ModuleManifest[] = [
   grading,
   ai,
   assistant,
+  notifications,
   plugins,
   schedule,
   files,
