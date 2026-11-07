@@ -1,12 +1,6 @@
 import { expect, test } from 'vitest'
 import type { SettingsSectionContribution } from '../extensions'
-import {
-  buildNavigation,
-  clusterNavigation,
-  groupOf,
-  isNavigable,
-  resolveGroupAlias,
-} from './groups'
+import { buildNavigation, clusterNavigation, groupOf, isNavigable } from './groups'
 
 function section(
   id: string,
@@ -76,12 +70,4 @@ test('account groups are clustered under headings; scoped levels stay one run', 
   )
   expect(clusterNavigation(program, 'program')).toEqual([{ groups: program }])
   expect(clusterNavigation([], 'program')).toEqual([])
-})
-
-test('old group ids open the group that replaced them; Data is Files below the account', () => {
-  expect(resolveGroupAlias('account', 'security')).toBe('account')
-  expect(resolveGroupAlias('account', 'ai-mcp')).toBe('integrations')
-  expect(resolveGroupAlias('account', 'data')).toBe('data')
-  expect(resolveGroupAlias('program', 'data')).toBe('files')
-  expect(resolveGroupAlias('program', 'features')).toBe('tasks')
 })

@@ -2346,7 +2346,7 @@
   "lms_binding_description": "Courses of this program link to courses on this connection's LMS provider.",
   "lms_binding_none": "None",
   "lms_binding_locked": "{count} courses are linked through this connection. Unlink them in their course settings to change it.",
-  "lms_binding_needs_connection": "Add a connection in account settings first, then choose it here.",
+  "lms_binding_needs_connection": "Add a connection in global settings first, then choose it here.",
   "lms_course_program_unbound": "No LMS connection for this program",
   "lms_course_program_unbound_hint": "Choose a connection in the program's settings first.",
   "lms_course_open_program_settings": "Open program settings",

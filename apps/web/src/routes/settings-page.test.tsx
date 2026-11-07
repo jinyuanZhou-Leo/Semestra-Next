@@ -281,7 +281,7 @@ test('an old AI link with a section lands on the page holding it', async () => {
 test('a link inside the dialog to other settings does not make Close step back to it', async () => {
   const router = mount('/')
   await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
-  router.history.push('/onboarding?settings=account/ai-mcp', { settingsOpened: true })
+  router.history.push('/onboarding?settings=account/integrations', { settingsOpened: true })
   const dialog = await screen.findByRole('dialog')
 
   await userEvent.click(await within(dialog).findByRole('button', { name: 'Create an API token' }))

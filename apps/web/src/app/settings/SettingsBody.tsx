@@ -65,10 +65,10 @@ import { type SettingsGroup, type SettingsLevel, preload } from '../extensions'
 import { useSettingsSections } from '../registry'
 import {
   CLUSTER_TITLES,
+  GROUP_ALIASES,
   GROUP_TITLES,
   buildNavigation,
   clusterNavigation,
-  resolveGroupAlias,
 } from './groups'
 import { type PathIds, type SettingsPath, scopeIdAt, useSettingsPath } from './scope-path'
 import { PATH_LEVEL_NAMES, ScopePath } from './ScopePath'
@@ -118,7 +118,7 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
   const runs = clusterNavigation(groups, level)
   const hash = useLocation({ select: (location) => location.hash })
   // Old links name a group that was split (`account/ai`): they open the page that replaced it.
-  const wanted = groupId ? resolveGroupAlias(level, groupId) : undefined
+  const wanted = groupId ? (GROUP_ALIASES[groupId] ?? groupId) : undefined
   // A link to a section that has since moved to another group still lands on that section.
   const current =
     groups.find((g) => g.id === wanted && g.sections.some((s) => s.id === hash)) ??

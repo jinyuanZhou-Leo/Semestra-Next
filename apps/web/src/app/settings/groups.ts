@@ -44,22 +44,13 @@ export const GROUP_TITLES: Record<SettingsGroup, Message> = {
 }
 
 /**
- * Groups that were split, merged or renamed, so old `?settings=<level>/<group>` links still open
- * the page that took their place (a `#section` in the link wins over this: see `SettingsDialog`).
- * Program and course "Data" became "Files"; the account keeps its "Data".
+ * Old group ids that links outside the app still carry: `ai` (the single AI page that was split)
+ * and `security` (merged into Account; new-sign-in emails already sent link to it). A `#section`
+ * in a link wins over this: see `SettingsBody`.
  */
-const GROUP_ALIASES: Readonly<Record<string, SettingsGroup>> = {
+export const GROUP_ALIASES: Readonly<Record<string, SettingsGroup>> = {
   ai: 'ai-providers',
   security: 'account',
-  'ai-permissions': 'ai-sem',
-  'ai-memory': 'ai-sem',
-  'ai-mcp': 'integrations',
-  features: 'tasks',
-}
-
-export function resolveGroupAlias(level: SettingsLevel, id: string): string {
-  if (id === 'data' && level !== 'account') return 'files'
-  return GROUP_ALIASES[id] ?? id
 }
 
 export function groupOf(section: SettingsSectionContribution): SettingsGroup {

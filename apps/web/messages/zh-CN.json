@@ -2346,7 +2346,7 @@
   "lms_binding_description": "本学业项目的课程关联到这个连接所在 LMS 服务商上的课程。",
   "lms_binding_none": "无",
   "lms_binding_locked": "已有 {count} 门课程通过这个连接关联。先在课程设置中解除关联才能更换。",
-  "lms_binding_needs_connection": "先在账户设置中添加连接，再回到这里选择。",
+  "lms_binding_needs_connection": "先在全局设置中添加连接，再回到这里选择。",
   "lms_course_program_unbound": "本学业项目还没有 LMS 连接",
   "lms_course_program_unbound_hint": "先在学业项目设置中选择连接。",
   "lms_course_open_program_settings": "打开学业项目设置",
