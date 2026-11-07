@@ -28811,6 +28811,11 @@
             "title": "Start Page",
             "description": "The page the app opens on"
           },
+          "keep_course_tab": {
+            "type": "boolean",
+            "title": "Keep Course Tab",
+            "description": "Switching courses from a course page opens the same tab of the other course"
+          },
           "active_program_id": {
             "anyOf": [
               {
@@ -28846,6 +28851,7 @@
           "week_start",
           "reduce_motion",
           "start_page",
+          "keep_course_tab",
           "active_program_id",
           "updated_at"
         ],
@@ -28981,6 +28987,18 @@
             ],
             "title": "Start Page",
             "description": "The page the app opens on"
+          },
+          "keep_course_tab": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Course Tab",
+            "description": "Switching courses keeps the open tab"
           },
           "active_program_id": {
             "anyOf": [

@@ -7362,6 +7362,12 @@ export type Preferences = {
      */
     start_page: 'last' | 'today' | 'overview' | 'calendar' | 'tasks' | 'grades' | 'files' | 'assistant' | 'summary';
     /**
+     * Keep Course Tab
+     *
+     * Switching courses from a course page opens the same tab of the other course
+     */
+    keep_course_tab: boolean;
+    /**
      * Active Program Id
      *
      * The Program currently being viewed
@@ -7421,6 +7427,12 @@ export type PreferencesUpdateInputBody = {
      * The page the app opens on
      */
     start_page?: 'last' | 'today' | 'overview' | 'calendar' | 'tasks' | 'grades' | 'files' | 'assistant' | 'summary' | null;
+    /**
+     * Keep Course Tab
+     *
+     * Switching courses keeps the open tab
+     */
+    keep_course_tab?: boolean | null;
     /**
      * Active Program Id
      *

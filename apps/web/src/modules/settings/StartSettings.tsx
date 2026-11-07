@@ -15,6 +15,7 @@ import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { type ChoiceOption, ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
+import { Switch } from '@/ui/switch'
 
 type StartPage = Preferences['start_page']
 
@@ -34,12 +35,12 @@ const START_PAGES: readonly { value: StartPage; label: () => string; icon: Lucid
 export default function StartSettings() {
   return (
     <AsyncBoundary query={usePreferences()}>
-      {(prefs) => <StartForm value={prefs.start_page} />}
+      {(prefs) => <StartForm value={prefs.start_page} keepCourseTab={prefs.keep_course_tab} />}
     </AsyncBoundary>
   )
 }
 
-function StartForm({ value }: { value: StartPage }) {
+function StartForm({ value, keepCourseTab }: { value: StartPage; keepCourseTab: boolean }) {
   const update = useUpdatePreferences()
   const options: ChoiceOption<StartPage>[] = START_PAGES.map((o) => ({
     value: o.value,
@@ -58,6 +59,15 @@ function StartForm({ value }: { value: StartPage }) {
             options={options}
             value={value}
             onChange={(start_page) => update({ start_page })}
+          />
+        )}
+      </SettingRow>
+      <SettingRow label={m.settings_keep_course_tab_label()}>
+        {(labelId) => (
+          <Switch
+            aria-labelledby={labelId}
+            checked={keepCourseTab}
+            onCheckedChange={(keep_course_tab) => update({ keep_course_tab })}
           />
         )}
       </SettingRow>

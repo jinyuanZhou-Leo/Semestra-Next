@@ -79,6 +79,7 @@ export const settingsMessages = {
   settings_group_plugins: m.settings_group_plugins,
   settings_group_preferences: m.settings_group_preferences,
   settings_group_security: m.settings_group_security,
+  settings_keep_course_tab_label: m.settings_keep_course_tab_label,
   settings_language_browser: m.settings_language_browser,
   settings_language_label: m.settings_language_label,
   settings_language_time_description: m.settings_language_time_description,

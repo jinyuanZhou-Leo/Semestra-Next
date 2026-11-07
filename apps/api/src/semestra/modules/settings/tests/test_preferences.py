@@ -23,6 +23,7 @@ async def test_defaults_before_any_change(
         "week_start": 0,
         "reduce_motion": "system",
         "start_page": "today",
+        "keep_course_tab": True,
         "active_program_id": None,
         "updated_at": None,
     }

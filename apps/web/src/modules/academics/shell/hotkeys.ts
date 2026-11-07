@@ -5,9 +5,11 @@ import { useRouter } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import type { PageContribution, Scope } from '@/app/extensions'
 import { useListedHotkey } from '@/app/hotkeys'
+import { usePreferences } from '@/app/preferences'
 import { useModules } from '@/app/registry'
 import { m } from '@/paraglide/messages'
 import { coursePath } from '../paths'
+import { coursePage } from './course-tab'
 
 const THROTTLE_MS = 150
 
@@ -32,8 +34,9 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * `Cmd/Ctrl + ↑/↓` on a course page opens the previous/next course of the same term and keeps
- * the current page, or the overview when the target course has no such page (M02 §5.1). A held
+ * `Cmd/Ctrl + ↑/↓` on a course page opens the previous/next course of the same term, on the
+ * current tab while the "keep the course tab" preference is on and the target course has that
+ * tab, otherwise on its overview (M02 §5.1). A held
  * key switches at most every 150 ms; the target's data is fetched before navigating.
  */
 export function useCourseSwitchHotkey({
@@ -54,9 +57,10 @@ export function useCourseSwitchHotkey({
   const modules = useModules()
   const last = useRef(0)
   useListedHotkey('mod+up, mod+down', m.hotkeys_switch_course, { order: 50 })
-  const latest = useRef({ programId, courseId, termId, pageId, courses, modules })
+  const keep = usePreferences().data?.keep_course_tab ?? true
+  const latest = useRef({ programId, courseId, termId, pageId, courses, modules, keep })
   useEffect(() => {
-    latest.current = { programId, courseId, termId, pageId, courses, modules }
+    latest.current = { programId, courseId, termId, pageId, courses, modules, keep }
   })
 
   // Fetch the neighbours ahead of time so the switch shows data at once.
@@ -84,15 +88,19 @@ export function useCourseSwitchHotkey({
       const target = s.courses[position + (event.key === 'ArrowDown' ? 1 : -1)]
       if (!target) return
       const scope: Scope = { kind: 'course', programId: s.programId, courseId: target.id }
-      const hasPage = s.modules
-        .flatMap((module) => module.pages ?? [])
-        .some(
-          (page) =>
-            page.id === s.pageId &&
-            page.scopes.includes('course') &&
-            (page.isAvailable?.(scope, availabilityData(queryClient, page, scope)) ?? true),
-        )
-      const page = hasPage && s.pageId !== 'overview' ? s.pageId : undefined
+      const tab = s.keep && s.pageId !== 'overview' ? s.pageId : undefined
+      const contribution = tab
+        ? coursePage(
+            s.modules.flatMap((module) => module.pages ?? []),
+            tab,
+          )
+        : undefined
+      const page =
+        contribution &&
+        (contribution.isAvailable?.(scope, availabilityData(queryClient, contribution, scope)) ??
+          true)
+          ? tab
+          : undefined
       void queryClient.prefetchQuery(academicsCourseGetOptions({ path: { course_id: target.id } }))
       router.history.push(coursePath(s.programId, target.id, page, s.termId))
     }

@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { FileText, NotebookPen } from 'lucide-react'
@@ -392,6 +392,27 @@ test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async 
   await new Promise((resolve) => setTimeout(resolve, 160))
   fireEvent.keyDown(window, { key: 'ArrowDown', metaKey: true })
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
+})
+
+test('course links in the sidebar keep the open tab unless the preference is off', async () => {
+  mount('/p/p1/c/c3/notes?fromTerm=t2')
+  const aps = await screen.findByRole('link', { name: /APS105H1/ })
+  expect(aps).toHaveAttribute('href', '/p/p1/c/c1/notes?fromTerm=t2')
+  // c2 has no notes page.
+  expect(screen.getByRole('link', { name: /MAT188H1/ })).toHaveAttribute(
+    'href',
+    '/p/p1/c/c2?fromTerm=t2',
+  )
+  cleanup()
+
+  world.keepCourseTab = false
+  mount('/p/p1/c/c3/notes?fromTerm=t2')
+  await waitFor(() =>
+    expect(screen.getByRole('link', { name: /APS105H1/ })).toHaveAttribute(
+      'href',
+      '/p/p1/c/c1?fromTerm=t2',
+    ),
+  )
 })
 
 const MONTHS = [
