@@ -709,10 +709,12 @@ export function Conversation({
     return ok
   }
 
-  // Files dropped anywhere on the conversation become attachments.
+  // Files dropped anywhere on the conversation become attachments. Drops elsewhere are left
+  // alone, so the page beside the panel (e.g. course files) still takes its own.
   const dropzone = useDropzone({
     noClick: true,
     noKeyboard: true,
+    preventDropOnDocument: false,
     onDrop: (files) => {
       if (files.length > 0) void addFiles(files)
     },
