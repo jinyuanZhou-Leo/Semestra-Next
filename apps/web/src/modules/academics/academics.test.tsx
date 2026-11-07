@@ -65,7 +65,7 @@ const lists = defineModule({
 
 const openAssistant = vi.fn<() => void>()
 
-/** An assistant whose page lists conversations under its sidebar entry. */
+/** An assistant with a full page and a side panel. */
 const assistant = defineModule({
   id: 'assistant',
   kind: 'core',
@@ -76,11 +76,6 @@ const assistant = defineModule({
     open: openAssistant,
     panel: { subscribe: () => () => {}, isOpen: () => false },
     Dock: ({ children }) => <>{children}</>,
-    SidebarNav: () => (
-      <ul aria-label="Recent chats">
-        <li>Chat one</li>
-      </ul>
-    ),
     mobile: ({ sessionId }) => <p>Sem on a phone: {sessionId ?? 'new'}</p>,
   },
 })
@@ -252,24 +247,6 @@ test('another term stays in the sidebar on other pages until the user goes back'
   expect(
     within(nav).queryByRole('button', { name: /Back to the current term/ }),
   ).not.toBeInTheDocument()
-})
-
-test("Sem's recent chats fold under its entry, and stay as they were on other pages", async () => {
-  const { router } = mount('/p/p1/summary')
-  const nav = await screen.findByRole('navigation', { name: 'Main navigation' })
-  await userEvent.click(await within(nav).findByRole('button', { name: 'Show recent chats' }))
-  expect(await within(nav).findByRole('list', { name: 'Recent chats' })).toBeInTheDocument()
-  await act(() => router.navigate({ href: '/p/p1/t/t2' }))
-  await screen.findByRole('heading', { level: 1, name: 'Overview' })
-  expect(within(nav).getByRole('list', { name: 'Recent chats' })).toBeInTheDocument()
-})
-
-test("the side panel button shows on hovering Sem's own row, not its conversations", async () => {
-  mount('/p/p1/summary')
-  const button = await screen.findByRole('button', { name: 'Open in side panel' })
-  // `showOnHover` would follow the whole entry, conversations included.
-  expect(button.className).not.toMatch(/group-hover\/menu-item/)
-  expect(button).toHaveClass('peer-hover/menu-button:opacity-100')
 })
 
 test('on the icon rail a hidden group label lets clicks through to the entry above it', async () => {

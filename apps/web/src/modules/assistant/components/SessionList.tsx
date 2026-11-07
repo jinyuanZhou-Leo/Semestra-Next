@@ -141,11 +141,6 @@ function RenameDialog({
   )
 }
 
-/** Pinned first, then most recently used: the conversations listed in the sidebar. */
-export function recentSessions(items: readonly AgentSessionOut[]): AgentSessionOut[] {
-  return [...items.filter((s) => s.pinned), ...items.filter((s) => !s.pinned)]
-}
-
 /** The rename, pin and delete actions on conversations, with their dialogs. */
 export function useSessionEditing(onDeleted?: (id: string) => void) {
   const queryClient = useQueryClient()
@@ -226,7 +221,7 @@ export function SessionMenuItems({
 
 /**
  * Past conversations: search, pinned first, then grouped by day; each can be renamed, pinned
- * or deleted. Used by the panel's history menu and the page's "All conversations" dialog.
+ * or deleted. Used by the panel's history menu and, on a narrow page, the page's History button.
  */
 export function SessionList({
   activeId,
