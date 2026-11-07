@@ -194,6 +194,8 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "due_date": data.get("due_date"),
         "due_time": data.get("due_time") if data.get("due_date") else None,
         "note": data.get("note"),
+        "points_earned": data.get("points_earned"),
+        "points_possible": data.get("points_possible"),
         "source_kind": "lms" if c.row.source_kind == "lms" else "syllabus",
         "source_ref": data.get("source_ref") or f"import:{item.id}",
     }

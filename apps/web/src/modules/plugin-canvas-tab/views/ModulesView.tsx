@@ -39,6 +39,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
+import { ViewHeader } from './common'
 import { refLocation } from '../navigation'
 import { openExternal } from '../open-in-canvas'
 import { FileActions } from './FilePreview'
@@ -49,67 +50,73 @@ import { useScrollIntoView } from './scroll'
  * module's items load when it is opened (M16 §4).
  */
 export function ModulesView({ selected }: { selected?: string }) {
-  const { courseId } = useCanvasPage()
+  const { title, courseId } = useCanvasPage()
   const [confirmUrl, setConfirmUrl] = useState<string | null>(null)
   const list = useQuery({
     ...lmsModuleListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (
-    <>
-      <CanvasBoundary
-        query={list}
-        isEmpty={(data) => data.items.length === 0}
-        empty={
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Layers aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>{m.canvas_tab_modules_empty()}</EmptyTitle>
-            </EmptyHeader>
-          </Empty>
-        }
-      >
-        {(data) => {
-          const names = new Map(data.items.map((mod) => [mod.external_id, mod.name]))
-          return (
-            <div className="space-y-2">
-              {data.items
-                .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
-                .map((module) => (
-                  <ModuleSection
-                    key={module.external_id}
-                    module={module}
-                    names={names}
-                    focused={selected === module.external_id}
-                    onExternal={setConfirmUrl}
-                  />
-                ))}
-            </div>
-          )
-        }}
-      </CanvasBoundary>
-      <AlertDialog open={confirmUrl !== null} onOpenChange={(open) => !open && setConfirmUrl(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
-            <AlertDialogDescription className="break-all">{confirmUrl}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirmUrl) openExternal(confirmUrl)
-                setConfirmUrl(null)
-              }}
-            >
-              {m.canvas_tab_external_confirm_open()}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    <div className="flex flex-1 flex-col gap-4">
+      <ViewHeader title={title} />
+      <>
+        <CanvasBoundary
+          query={list}
+          isEmpty={(data) => data.items.length === 0}
+          empty={
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Layers aria-hidden />
+                </EmptyMedia>
+                <EmptyTitle>{m.canvas_tab_modules_empty()}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          }
+        >
+          {(data) => {
+            const names = new Map(data.items.map((mod) => [mod.external_id, mod.name]))
+            return (
+              <div className="space-y-2">
+                {data.items
+                  .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                  .map((module) => (
+                    <ModuleSection
+                      key={module.external_id}
+                      module={module}
+                      names={names}
+                      focused={selected === module.external_id}
+                      onExternal={setConfirmUrl}
+                    />
+                  ))}
+              </div>
+            )
+          }}
+        </CanvasBoundary>
+        <AlertDialog
+          open={confirmUrl !== null}
+          onOpenChange={(open) => !open && setConfirmUrl(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
+              <AlertDialogDescription className="break-all">{confirmUrl}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (confirmUrl) openExternal(confirmUrl)
+                  setConfirmUrl(null)
+                }}
+              >
+                {m.canvas_tab_external_confirm_open()}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    </div>
   )
 }
 

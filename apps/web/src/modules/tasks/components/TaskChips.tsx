@@ -30,30 +30,36 @@ function chipClass(set: boolean) {
   return cn('rounded-full font-normal', !set && 'text-muted-foreground')
 }
 
+/** What the chips show and change: a saved task, or a new one being typed. */
+export type ChipValues = Pick<Task, 'due_date' | 'due_time' | 'priority' | 'course_id' | 'flagged'>
+
 /**
- * The property chips under a task being edited in place (M05 §5.1), like Reminders: due date,
- * time, priority, course and flag. Each change is saved right away.
+ * The property chips under a task being edited in place or added (M05 §5.1), like Reminders: due
+ * date, time, priority, course and flag. Each change is reported right away.
  */
 export function TaskChips({
   task,
   courses,
   today,
   hideCourse,
+  overdue = false,
+  managed = false,
   onChange,
 }: {
-  task: Task
+  task: ChipValues
   courses: readonly Course[]
   /** The Program's today, for "Today"/"Tomorrow" labels. */
   today: string
   hideCourse?: boolean
+  /** The date chip turns red. */
+  overdue?: boolean
+  /** An assessment's task follows it: date, time and course change in the gradebook. */
+  managed?: boolean
   onChange: (body: TaskUpdateInputBody) => void
 }) {
   const [dateOpen, setDateOpen] = useState(false)
-  const done = task.completed_at !== null
   const shown = shownPriority(task.priority)
   const course = courses.find((c) => c.id === task.course_id)
-  // An assessment's task follows it: date, time and course change in the gradebook.
-  const managed = task.source_kind === 'assessment'
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Popover open={dateOpen} onOpenChange={setDateOpen}>
@@ -64,10 +70,7 @@ export function TaskChips({
               type="button"
               variant={task.due_date ? 'secondary' : 'outline'}
               size="xs"
-              className={cn(
-                chipClass(task.due_date !== null),
-                task.overdue && !done && 'text-destructive',
-              )}
+              className={cn(chipClass(task.due_date !== null), overdue && 'text-destructive')}
             />
           }
         >
@@ -224,7 +227,7 @@ function TimeChip({
   disabled,
   onChange,
 }: {
-  task: Task
+  task: ChipValues
   disabled: boolean
   onChange: (body: TaskUpdateInputBody) => void
 }) {

@@ -65,6 +65,9 @@ export type AssessmentData = {
   due_time?: string
   due_text?: string
   note?: string
+  /** A grade the source already has (M09). */
+  points_earned?: number
+  points_possible?: number
 }
 
 export type TaskData = {
