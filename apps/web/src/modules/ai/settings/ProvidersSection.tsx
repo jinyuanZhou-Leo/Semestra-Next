@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TimeAgo } from '@/components/TimeAgo'
@@ -442,17 +442,18 @@ export function ProvidersSection() {
       >
         {(data) => (
           <RowContext value={handlers}>
+            <SectionAction>
+              <Button size="sm" variant="outline" onClick={startAdding}>
+                <Plus aria-hidden />
+                {m.ai_provider_add()}
+              </Button>
+            </SectionAction>
             <SettingsTable
               label={m.ai_settings_providers()}
               data={data.items}
               columns={columns}
               getRowId={(provider) => provider.id}
               columnClassName={COLUMN_CLASS}
-              footer={
-                <ActionRow icon={Plus} onClick={startAdding}>
-                  {m.ai_provider_add()}
-                </ActionRow>
-              }
             />
           </RowContext>
         )}

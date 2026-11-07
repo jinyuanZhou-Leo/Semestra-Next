@@ -6,14 +6,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import {
-  DangerZone,
-  SettingRow,
-  SettingsBlock,
-  SettingsGroup,
-  TextRow,
-  useAutosave,
-} from '@/app/settings'
+import { DangerZone, SettingRow, SettingsGroup, TextRow, useAutosave } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -94,18 +87,16 @@ function TermBasics({ term }: { term: Term }) {
           )}
         </SettingRow>
       </SettingsGroup>
-      <SettingsBlock title={m.academics_term_breaks()}>
-        <BreaksTable
-          value={breaks}
-          min={start}
-          max={end}
-          onChange={(next) => {
-            setBreaks(next)
-            // Half-filled rows wait until they are complete.
-            if (completeBreaks(next).length === next.length) queue({ breaks: next })
-          }}
-        />
-      </SettingsBlock>
+      <BreaksTable
+        value={breaks}
+        min={start}
+        max={end}
+        onChange={(next) => {
+          setBreaks(next)
+          // Half-filled rows wait until they are complete.
+          if (completeBreaks(next).length === next.length) queue({ breaks: next })
+        }}
+      />
     </>
   )
 }

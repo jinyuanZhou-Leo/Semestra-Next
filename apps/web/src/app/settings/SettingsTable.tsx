@@ -42,7 +42,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 // The list tables of the settings dialog (providers, connections, tokens, sessions, event types,
 // subject colors, grade categories) share one look: a rounded, full-width table like a
 // `SettingsGroup`, an optional drag handle in front of each row, the row's rare actions in a
-// trailing "⋯" menu, and an `ActionRow`-style footer that adds an entry.
+// trailing "⋯" menu. New entries are added with a button in the heading above the table
+// (`SectionAction` or `SettingsBlock`'s `action`), not from a row of the table.
 
 /** The features every settings table uses; build columns with `createColumnHelper<typeof …, T>()`. */
 export const settingsTableFeatures = tableFeatures({})
@@ -73,13 +74,15 @@ type Props<T extends RowData> = {
   onReorder?: (ids: string[]) => Promise<unknown>
   /** The row's name for the drag handle and the drag announcements, e.g. "Quiz". */
   rowName?: (row: T) => string
-  /** Under the last row, e.g. an `ActionRow` that adds an entry or a short form. */
+  /** Under the last row: an action on the whole list, e.g. "Sign out other devices". */
   footer?: ReactNode
   /**
    * Merges cells: the span of a column's cell in a row, or `null` to leave the cell out because
    * a cell above or to its left spans over it. Unset or `undefined` is a plain cell; `className`
    * is added to that one cell.
    */
+  /** Classes of a row, e.g. the meetings shown under an expanded section. */
+  rowClassName?: (row: T) => string | undefined
   cellSpan?: (
     columnId: string,
     row: T,
@@ -96,6 +99,7 @@ export function SettingsTable<T extends RowData>({
   onReorder,
   rowName,
   footer,
+  rowClassName,
   cellSpan,
 }: Props<T>) {
   const [pending, setPending] = useState<string[] | null>(null)
@@ -153,7 +157,10 @@ export function SettingsTable<T extends RowData>({
             table={table}
           />
         ) : (
-          <TableRow key={row.id} className="hover:bg-transparent">
+          <TableRow
+            key={row.id}
+            className={cn('hover:bg-transparent', rowClassName?.(row.original))}
+          >
             <Cells row={row} columnClassName={columnClassName} table={table} cellSpan={cellSpan} />
           </TableRow>
         ),

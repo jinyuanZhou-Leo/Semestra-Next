@@ -12,7 +12,6 @@ import { Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
-  ActionRow,
   ChoiceControl,
   MoveMenuItems,
   RowMenu,
@@ -23,11 +22,11 @@ import {
   settingsTableFeatures,
   useAutosave,
 } from '@/app/settings'
-import { focusOnMount } from '@/lib/focus'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
+import { NewCategoryDialog } from './NewCategoryDialog'
 import { Button } from '@/ui/button'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
@@ -234,7 +233,20 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const switchingName = presetOptions(switching ? [switching.id] : [])[0]?.label ?? ''
 
   return (
-    <SettingsBlock title={m.grading_scale()} description={m.grading_scale_hint()}>
+    <SettingsBlock
+      title={m.grading_scale()}
+      description={m.grading_scale_hint()}
+      action={
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setRows([...rows, { min: '', max: '', points: '', letter: '' }])}
+        >
+          <Plus aria-hidden />
+          {m.grading_band_add()}
+        </Button>
+      }
+    >
       <div className="flex h-8 overflow-hidden rounded-xl border border-border" aria-hidden>
         {valid
           ? bands
@@ -306,14 +318,6 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         </Table>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setRows([...rows, { min: '', max: '', points: '', letter: '' }])}
-        >
-          <Plus aria-hidden />
-          {m.grading_band_add()}
-        </Button>
         <Field orientation="horizontal" className="w-auto">
           <FieldLabel htmlFor={maxPointsId} className="font-normal text-muted-foreground">
             {m.grading_max_points()}
@@ -512,15 +516,12 @@ function DefaultCategories({
 }) {
   const [items, setItems] = useState<CategoryTemplate[]>([...initial])
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState('')
   const [removing, setRemoving] = useState<CategoryTemplate | null>(null)
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
     if (next.every((t) => t.name.trim() !== '')) onChange(next)
   }
-  const add = () => {
-    const name = draft.trim()
-    if (name === '') return
+  const add = (name: string) => {
     const taken = new Set(items.map((t) => t.key))
     const base =
       name
@@ -530,7 +531,6 @@ function DefaultCategories({
     let key = base.slice(0, 28)
     for (let n = 2; taken.has(key); n += 1) key = `${base.slice(0, 26)}-${n}`
     apply([...items, { key, name, color: 'slate' }])
-    setDraft('')
     setAdding(false)
   }
   const handlers: TemplateHandlers = {
@@ -541,6 +541,12 @@ function DefaultCategories({
     <SettingsBlock
       title={m.grading_default_categories()}
       description={m.grading_default_categories_hint()}
+      action={
+        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+          <Plus aria-hidden />
+          {m.grading_category_create()}
+        </Button>
+      }
     >
       <TemplateContext value={handlers}>
         <SettingsTable
@@ -553,39 +559,9 @@ function DefaultCategories({
             apply(keys.flatMap((key) => items.filter((t) => t.key === key)))
           }
           rowName={(t) => t.name}
-          footer={
-            adding ? (
-              <form
-                className="flex items-center gap-2 px-4 py-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  add()
-                }}
-              >
-                <Input
-                  aria-label={m.grading_category_new()}
-                  placeholder={m.grading_category_new()}
-                  value={draft}
-                  maxLength={60}
-                  ref={focusOnMount}
-                  onChange={(event) => setDraft(event.target.value)}
-                  className="h-8 flex-1"
-                />
-                <Button type="submit" size="sm" disabled={draft.trim() === ''}>
-                  {m.grading_category_add()}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                  {m.common_cancel()}
-                </Button>
-              </form>
-            ) : (
-              <ActionRow icon={Plus} onClick={() => setAdding(true)}>
-                {m.grading_category_add()}
-              </ActionRow>
-            )
-          }
         />
       </TemplateContext>
+      <NewCategoryDialog open={adding} onOpenChange={setAdding} onSubmit={add} />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

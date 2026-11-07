@@ -183,7 +183,17 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
         />
         <Item>
           <ItemContent className="gap-2">
-            <ItemTitle>{m.academics_course_instructors()}</ItemTitle>
+            <div className="flex items-center justify-between gap-4">
+              <ItemTitle>{m.academics_course_instructors()}</ItemTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInstructors([...instructors, { name: '' }])}
+              >
+                <Plus aria-hidden />
+                {m.academics_instructor_add()}
+              </Button>
+            </div>
             {instructors.map((person, index) => (
               // Instructors have no ids; their position identifies them while editing.
               // oxlint-disable-next-line react/no-array-index-key
@@ -227,14 +237,6 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
                 </Button>
               </div>
             ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setInstructors([...instructors, { name: '' }])}
-            >
-              <Plus aria-hidden />
-              {m.academics_instructor_add()}
-            </Button>
           </ItemContent>
         </Item>
       </SettingsGroup>

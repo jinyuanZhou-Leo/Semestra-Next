@@ -1,8 +1,8 @@
 import type { Meeting, MeetingException } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { Plus, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { createContext, use } from 'react'
-import { ActionRow, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -96,12 +96,10 @@ export function ExceptionsTable({
   exceptions,
   busy,
   onRestore,
-  onAdd,
 }: {
   exceptions: ExceptionRow[]
   busy: boolean
   /** Opens the cancel-or-move dialog; without it the table has no add row. */
-  onAdd?: () => void
   onRestore: (meeting: Meeting, exc: MeetingException) => void
 }) {
   return (
@@ -112,13 +110,6 @@ export function ExceptionsTable({
         columns={exceptionColumns}
         getRowId={(r) => r.exc.id}
         columnClassName={EXCEPTION_COLUMN_CLASS}
-        footer={
-          onAdd ? (
-            <ActionRow icon={Plus} onClick={onAdd}>
-              {m.schedule_exception_add()}
-            </ActionRow>
-          ) : undefined
-        }
       />
     </ExceptionsContext>
   )

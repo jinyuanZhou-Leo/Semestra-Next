@@ -12,7 +12,6 @@ import { Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
-  ActionRow,
   ChoiceControl,
   MoveMenuItems,
   RowMenu,
@@ -26,9 +25,9 @@ import {
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
-import { focusOnMount } from '@/lib/focus'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { NewCategoryDialog } from './NewCategoryDialog'
 import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Input } from '@/ui/input'
@@ -234,16 +233,14 @@ const CATEGORY_COLUMN_CLASS: Record<string, string> = {
 function Categories({ gradebook }: { gradebook: Gradebook }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState('')
   const [removing, setRemoving] = useState<AssessmentCategory | null>(null)
   const refresh = () => invalidateGrading(queryClient)
   const create = useMutation({
     ...gradingCategoryCreateMutation(),
     onError: toastError,
     onSuccess: async () => {
-      setDraft('')
-      setAdding(false)
       await refresh()
+      setAdding(false)
     },
   })
   const update = useMutation({
@@ -270,7 +267,16 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
     onRemove: setRemoving,
   }
   return (
-    <SettingsBlock title={m.grading_categories()} description={m.grading_categories_hint()}>
+    <SettingsBlock
+      title={m.grading_categories()}
+      description={m.grading_categories_hint()}
+      action={
+        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+          <Plus aria-hidden />
+          {m.grading_category_create()}
+        </Button>
+      }
+    >
       <CategoryContext value={handlers}>
         <SettingsTable
           label={m.grading_categories()}
@@ -285,43 +291,17 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
             })
           }
           rowName={categoryName}
-          footer={
-            adding ? (
-              <form
-                className="flex items-center gap-2 px-4 py-3"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const name = draft.trim()
-                  if (name !== '') {
-                    create.mutate({ path: { course_id: gradebook.course_id }, body: { name } })
-                  }
-                }}
-              >
-                <Input
-                  aria-label={m.grading_category_new()}
-                  placeholder={m.grading_category_new()}
-                  value={draft}
-                  maxLength={60}
-                  ref={focusOnMount}
-                  onChange={(event) => setDraft(event.target.value)}
-                  className="h-8 flex-1"
-                />
-                <Button type="submit" size="sm" disabled={draft.trim() === '' || create.isPending}>
-                  {m.grading_category_add()}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>
-                  {m.common_cancel()}
-                </Button>
-              </form>
-            ) : (
-              <ActionRow icon={Plus} onClick={() => setAdding(true)}>
-                {m.grading_category_add()}
-              </ActionRow>
-            )
-          }
         />
       </CategoryContext>
       <SettingsNote>{m.grading_category_active_hint()}</SettingsNote>
+      <NewCategoryDialog
+        open={adding}
+        onOpenChange={setAdding}
+        pending={create.isPending}
+        onSubmit={(name) =>
+          create.mutate({ path: { course_id: gradebook.course_id }, body: { name } })
+        }
+      />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

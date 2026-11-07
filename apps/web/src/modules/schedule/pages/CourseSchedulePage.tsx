@@ -38,7 +38,7 @@ import { EventsTable } from '../components/EventsTable'
 import { ExceptionDialog } from '../components/ExceptionDialog'
 import { ExceptionsTable } from '../components/ExceptionsTable'
 import { MeetingDialog } from '../components/MeetingDialog'
-import { MeetingGroup, type MeetingSection } from '../components/MeetingGroup'
+import { type Section, SectionsTable } from '../components/SectionsTable'
 import { SectionDialog } from '../components/SectionDialog'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
@@ -124,16 +124,14 @@ function TermSchedule({
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
   const [editing, setEditing] = useState<Meeting | null>(null)
-  // Prefills a new meeting, e.g. the type of the table whose add row was clicked.
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
-  // The type of the section being added.
-  const [sectionAdd, setSectionAdd] = useState<string | null>(null)
+  const [sectionAdd, setSectionAdd] = useState(false)
   const [sectionEdit, setSectionEdit] = useState<{
-    section: MeetingSection
+    section: Section
     withNewTime: boolean
   } | null>(null)
-  const [sectionDelete, setSectionDelete] = useState<MeetingSection | null>(null)
+  const [sectionDelete, setSectionDelete] = useState<Section | null>(null)
   // One request (`schedule.section.save` with no times): ids already gone are skipped, so a
   // retry after a failure finishes the job.
   const removeSection = useMutation({
@@ -213,6 +211,12 @@ function TermSchedule({
           description={m.schedule_meetings_hint()}
         >
           {importMenu}
+          {meetings.length > 0 ? (
+            <Button size="sm" variant="outline" onClick={() => setSectionAdd(true)}>
+              <Plus aria-hidden />
+              {m.schedule_section_new_title()}
+            </Button>
+          ) : null}
         </SectionHeader>
         {meetings.length === 0 ? (
           <Empty className="rounded-2xl border border-solid border-border p-6">
@@ -224,7 +228,7 @@ function TermSchedule({
               <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" onClick={() => setSectionAdd(types[0]?.code ?? 'LEC')}>
+              <Button size="sm" onClick={() => setSectionAdd(true)}>
                 <Plus aria-hidden />
                 {m.schedule_section_new_title()}
               </Button>
@@ -261,23 +265,17 @@ function TermSchedule({
                 )}
               </section>
             )}
-            {typeCodes.map((code) => (
-              <MeetingGroup
-                key={code}
-                type={types.find((t) => t.code === code)}
-                code={code}
-                meetings={meetings.filter((mt) => mt.type_code === code)}
-                conflicting={conflicting}
-                busy={setEnabled.isPending}
-                onToggle={toggle}
-                onKeepOnly={keepOnly}
-                onEdit={setEditing}
-                onAdd={() => setSectionAdd(code)}
-                onEditSection={(section) => setSectionEdit({ section, withNewTime: false })}
-                onDeleteSection={setSectionDelete}
-                onAddTime={(section) => setSectionEdit({ section, withNewTime: true })}
-              />
-            ))}
+            <SectionsTable
+              types={types}
+              meetings={meetings}
+              conflicting={conflicting}
+              busy={setEnabled.isPending}
+              onToggle={toggle}
+              onKeepOnly={keepOnly}
+              onEdit={setEditing}
+              onEditSection={(section, withNewTime) => setSectionEdit({ section, withNewTime })}
+              onDeleteSection={setSectionDelete}
+            />
           </>
         )}
       </section>
@@ -287,7 +285,14 @@ function TermSchedule({
           id={`${termId}-events`}
           title={m.schedule_events()}
           description={m.schedule_events_hint()}
-        />
+        >
+          {events.length > 0 ? (
+            <Button size="sm" variant="outline" onClick={() => setEventEdit('new')}>
+              <Plus aria-hidden />
+              {m.schedule_event_add()}
+            </Button>
+          ) : null}
+        </SectionHeader>
         {events.length === 0 ? (
           <Empty className="rounded-2xl border border-solid border-border p-6">
             <EmptyHeader>
@@ -303,13 +308,7 @@ function TermSchedule({
             </EmptyContent>
           </Empty>
         ) : (
-          <EventsTable
-            events={events}
-            types={types}
-            timezone={timezone}
-            onEdit={setEventEdit}
-            onAdd={() => setEventEdit('new')}
-          />
+          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
         )}
       </section>
 
@@ -319,7 +318,14 @@ function TermSchedule({
             id={`${termId}-exceptions`}
             title={m.schedule_exceptions()}
             description={m.schedule_exceptions_hint()}
-          />
+          >
+            {exceptions.length > 0 && cancellable.length > 0 ? (
+              <Button size="sm" variant="outline" onClick={() => setExceptionAdd(true)}>
+                <Plus aria-hidden />
+                {m.schedule_exception_add()}
+              </Button>
+            ) : null}
+          </SectionHeader>
           {exceptions.length === 0 ? (
             <Empty className="rounded-2xl border border-solid border-border p-6">
               <EmptyHeader>
@@ -340,7 +346,6 @@ function TermSchedule({
             <ExceptionsTable
               exceptions={exceptions}
               busy={restore.isPending}
-              onAdd={cancellable.length > 0 ? () => setExceptionAdd(true) : undefined}
               onRestore={(meeting, exc) =>
                 restore.mutate({
                   path: { meeting_id: meeting.id, original_date: exc.original_date },
@@ -354,10 +359,6 @@ function TermSchedule({
       {editing ? (
         <MeetingDialog
           key={editing.id}
-          programId={programId}
-          courseId={course.id}
-          termIds={course.term_ids}
-          termId={termId}
           meeting={editing}
           open
           onOpenChange={(open) => !open && setEditing(null)}
@@ -368,9 +369,9 @@ function TermSchedule({
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionAdd}
+          typeCode={types[0]?.code ?? 'LEC'}
           open
-          onOpenChange={(open) => !open && setSectionAdd(null)}
+          onOpenChange={setSectionAdd}
         />
       ) : null}
       {sectionEdit ? (
@@ -379,7 +380,7 @@ function TermSchedule({
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.section.meetings[0]?.type_code ?? ''}
+          typeCode={sectionEdit.section.typeCode}
           meetings={sectionEdit.section.meetings}
           withNewTime={sectionEdit.withNewTime}
           open

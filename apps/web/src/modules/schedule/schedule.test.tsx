@@ -501,7 +501,7 @@ test('saving a multi-day all-day event keeps its last day', async () => {
   )
 })
 
-test('the course schedule shows a full-width week of class hours and an add row per table', async () => {
+test('the course schedule shows a full-width week, one row per section, and add buttons above', async () => {
   mount('/p/p1/c/c1/schedule')
   const week = await screen.findByRole('region', { name: 'Week' }, { timeout: 10_000 })
   // The Program's whole week and day (08:00–22:00, with the closing hour line), not only the
@@ -511,8 +511,13 @@ test('the course schedule shows a full-width week of class hours and an add row 
   expect(within(week).getAllByText('10:00 PM', { exact: false }).length).toBeGreaterThan(1)
   expect(within(week).getByText('Sat')).toBeInTheDocument()
 
+  // A section is one row; expanding it lists its times.
+  expect(screen.queryByRole('button', { name: 'Actions for LEC0101, Monday' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Show the times of LEC0101' }))
+  expect(screen.getByRole('button', { name: 'Actions for LEC0101, Monday' })).toBeInTheDocument()
+
   expect(screen.getByText('No one-off events yet')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Add LEC section' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add section' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add one-off event' }))
   expect(await screen.findByRole('dialog', { name: 'Add one-off event' })).toBeInTheDocument()
 })
@@ -561,13 +566,12 @@ test('a new section is saved with all its times in one request', async () => {
     }),
   )
   mount('/p/p1/c/c1/schedule')
-  await userEvent.click(
-    await screen.findByRole('button', { name: 'Add LEC section' }, { timeout: 10_000 }),
-  )
+  await screen.findByRole('button', { name: 'Actions for LEC0101' }, { timeout: 10_000 })
+  await userEvent.click(screen.getByRole('button', { name: 'Add section' }))
   const dialog = await screen.findByRole('dialog', { name: 'Add section' })
   await userEvent.type(within(dialog).getByLabelText('Section'), 'LEC0201')
   // The second time starts from the first: the next day, same hours.
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Add another time' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Add a time' }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
   const saves = () => log.requests.filter((r) => r.path === '/courses/c1/sections')
   await waitFor(() => expect(saves()).toHaveLength(1))
@@ -575,9 +579,18 @@ test('a new section is saved with all its times in one request', async () => {
     section_code: string
     type_code: string
     meeting_ids: string[]
+    weeks: unknown
     times: Array<{ meeting_id: string | null; weekday: number }>
   }
   expect([body.section_code, body.type_code, body.meeting_ids]).toEqual(['LEC0201', 'LEC', []])
+  // Weeks stay hidden on "Whole term": every week, breaks skipped.
+  expect(body.weeks).toEqual({
+    recurrence: 'weekly',
+    anchor_week: null,
+    start_week: 1,
+    end_week: null,
+    skip_breaks: true,
+  })
   expect(body.times.map((t) => [t.meeting_id, t.weekday])).toEqual([
     [null, 1],
     [null, 2],

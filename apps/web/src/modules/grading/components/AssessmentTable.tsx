@@ -1,12 +1,11 @@
 import type { Assessment, AssessmentCategory, CategorySummary } from '@semestra/api-client'
 import {
-  gradingAssessmentCreateMutation,
   gradingAssessmentDeleteMutation,
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -16,7 +15,6 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Input } from '@/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { percentText } from '../display'
 import { invalidateGrading } from '../queries'
@@ -77,21 +75,12 @@ export function AssessmentTable({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [editing, setEditing] = useState<Assessment | null>(null)
   const [deleting, setDeleting] = useState<Assessment | null>(null)
-  const [quickTitle, setQuickTitle] = useState('')
   const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
     ...gradingAssessmentUpdateMutation(),
     onError: toastError,
     onSuccess: () => invalidateGrading(queryClient),
-  })
-  const create = useMutation({
-    ...gradingAssessmentCreateMutation(),
-    onError: toastError,
-    onSuccess: async () => {
-      setQuickTitle('')
-      await invalidateGrading(queryClient)
-    },
   })
   const remove = useMutation({
     ...gradingAssessmentDeleteMutation(),
@@ -157,11 +146,6 @@ export function AssessmentTable({
     : [{ category: null as AssessmentCategory | null, items: rows }]
   const columnCount = assessmentColumns.length
 
-  const addQuick = () => {
-    const title = quickTitle.trim()
-    if (title === '' || create.isPending) return
-    create.mutate({ path: { course_id: courseId }, body: { title } })
-  }
   const toggleGroup = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -274,26 +258,6 @@ export function AssessmentTable({
                   </Fragment>
                 )
               })}
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columnCount} className="py-1.5">
-                  <form
-                    className="flex items-center gap-1 text-muted-foreground"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      addQuick()
-                    }}
-                  >
-                    <Plus aria-hidden className="size-4 shrink-0" />
-                    <Input
-                      aria-label={m.grading_quick_add()}
-                      placeholder={m.grading_quick_add()}
-                      value={quickTitle}
-                      onChange={(event) => setQuickTitle(event.target.value)}
-                      className="h-8 border-transparent bg-transparent px-2 shadow-none focus-visible:bg-input/50"
-                    />
-                  </form>
-                </TableCell>
-              </TableRow>
             </TableBody>
           </Table>
         </GradeTableCard>

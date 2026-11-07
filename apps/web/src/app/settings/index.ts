@@ -3,7 +3,12 @@ export { type ChoiceOption, ChoiceControl } from './choice'
 export { DangerZone } from './DangerZone'
 export { NamespaceForm } from './NamespaceForm'
 export { SettingsDialog } from './SettingsDialog'
-export { PluginSettingsSections, SectionFrame, SettingsSections } from './SettingsSections'
+export {
+  PluginSettingsSections,
+  SectionAction,
+  SectionFrame,
+  SettingsSections,
+} from './SettingsSections'
 export {
   ActionRow,
   NumberRow,

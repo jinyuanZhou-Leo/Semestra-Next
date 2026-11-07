@@ -134,20 +134,18 @@ export function SettingRow({
 }
 
 /**
- * A row that is just an action: adds an entry (a provider, a token) or runs something
- * (sign out). Its text is the whole row; `destructive` turns it red.
+ * A row that is just an action: opens something (the MCP tokens) or runs something (sign out).
+ * Its text is the whole row; `destructive` turns it red. New entries of a list are added with a
+ * button in the list's heading instead.
  */
 export function ActionRow({
   icon: Icon,
   destructive,
-  muted,
   children,
   ...props
 }: ComponentProps<'button'> & {
   icon?: LucideIcon
   destructive?: boolean
-  /** A secondary add row inside a list (e.g. "Add a time" under a section). */
-  muted?: boolean
 }) {
   return (
     <Item
@@ -155,11 +153,7 @@ export function ActionRow({
       // The hover tint is inset from the group's border, with its own corners.
       className={cn(
         'isolate cursor-pointer font-medium before:absolute before:inset-1 before:-z-10 before:rounded-xl before:transition-colors hover:before:bg-muted relative',
-        destructive
-          ? 'text-destructive'
-          : muted
-            ? 'text-muted-foreground hover:text-foreground'
-            : 'text-primary',
+        destructive ? 'text-destructive' : 'text-primary',
       )}
     >
       {Icon ? <Icon aria-hidden className="size-4" /> : null}
