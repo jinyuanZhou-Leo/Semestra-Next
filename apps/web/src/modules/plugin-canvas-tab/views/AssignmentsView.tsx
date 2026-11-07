@@ -36,6 +36,7 @@ import {
 } from '@/ui/dropdown-menu'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Spinner } from '@/ui/spinner'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
@@ -357,104 +358,112 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
             </DropdownMenu>
           }
         />
-        <Table className="min-w-xl table-fixed">
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id} className="hover:bg-transparent">
-                {group.headers.map((h) => (
-                  <TableHead key={h.id} className={WIDTHS[h.column.id]}>
-                    <table.FlexRender header={h} />
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {groups.map((group) => {
-              const open = !collapsed.has(group.key)
-              return (
-                <Fragment key={group.key}>
-                  <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={columns.length} className="py-1.5">
-                      <button
-                        type="button"
-                        aria-expanded={open}
-                        className="flex w-full items-center gap-1.5 text-left font-medium"
-                        onClick={() => toggleGroup(group.key)}
-                      >
-                        {open ? (
-                          <ChevronDown aria-hidden className="size-4" />
-                        ) : (
-                          <ChevronRight aria-hidden className="size-4" />
-                        )}
-                        {group.name}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {[
-                            m.canvas_tab_group_count({ count: group.rows.length }),
-                            group.weight != null
-                              ? m.canvas_tab_group_weight({ weight: group.weight })
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                  {open
-                    ? group.rows.map((id) => {
-                        const row = rows.get(id)
-                        if (!row) return null
-                        const expanded = focused === id
-                        const r = row.original
-                        return (
-                          <Fragment key={id}>
-                            <TableRow
-                              ref={expanded ? focusedRef : undefined}
-                              data-state={expanded ? 'selected' : undefined}
-                              aria-expanded={expanded}
-                              className="cursor-pointer"
-                              onClick={() =>
-                                go(
-                                  expanded
-                                    ? { tab: 'assignments' }
-                                    : { tab: 'assignments', ref: id },
-                                )
-                              }
-                            >
-                              {row.getAllCells().map((cell) => (
-                                <TableCell
-                                  key={cell.id}
-                                  className={
-                                    cell.column.id === 'name' ? 'whitespace-normal' : undefined
-                                  }
-                                >
-                                  <table.FlexRender cell={cell} />
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                            {expanded ? (
-                              <TableRow className="hover:bg-transparent">
-                                <TableCell colSpan={columns.length} className="whitespace-normal">
-                                  <div className="py-2 pl-8">
-                                    <AssignmentDetail
-                                      assignment={r.assignment}
-                                      quiz={r.quiz}
-                                      practice={r.practice}
-                                    />
-                                  </div>
-                                </TableCell>
+        <div className="overflow-hidden rounded-2xl border border-border">
+          <Table className="min-w-xl table-fixed">
+            <TableHeader className="bg-muted/50">
+              {table.getHeaderGroups().map((group) => (
+                <TableRow key={group.id} className="hover:bg-transparent">
+                  {group.headers.map((h) => (
+                    <TableHead
+                      key={h.id}
+                      scope="col"
+                      className={cn('h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
+                    >
+                      <table.FlexRender header={h} />
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {groups.map((group) => {
+                const open = !collapsed.has(group.key)
+                return (
+                  <Fragment key={group.key}>
+                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableCell colSpan={columns.length} className="py-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-expanded={open}
+                          className="h-8 items-center px-1 font-medium aria-expanded:bg-transparent hover:bg-muted"
+                          onClick={() => toggleGroup(group.key)}
+                        >
+                          {open ? (
+                            <ChevronDown aria-hidden className="size-4" />
+                          ) : (
+                            <ChevronRight aria-hidden className="size-4" />
+                          )}
+                          {group.name}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {[
+                              m.canvas_tab_group_count({ count: group.rows.length }),
+                              group.weight != null
+                                ? m.canvas_tab_group_weight({ weight: group.weight })
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {open
+                      ? group.rows.map((id) => {
+                          const row = rows.get(id)
+                          if (!row) return null
+                          const expanded = focused === id
+                          const r = row.original
+                          return (
+                            <Fragment key={id}>
+                              <TableRow
+                                ref={expanded ? focusedRef : undefined}
+                                data-state={expanded ? 'selected' : undefined}
+                                aria-expanded={expanded}
+                                className="cursor-pointer"
+                                onClick={() =>
+                                  go(
+                                    expanded
+                                      ? { tab: 'assignments' }
+                                      : { tab: 'assignments', ref: id },
+                                  )
+                                }
+                              >
+                                {row.getAllCells().map((cell) => (
+                                  <TableCell
+                                    key={cell.id}
+                                    className={cn(
+                                      'py-2',
+                                      cell.column.id === 'name' && 'whitespace-normal',
+                                    )}
+                                  >
+                                    <table.FlexRender cell={cell} />
+                                  </TableCell>
+                                ))}
                               </TableRow>
-                            ) : null}
-                          </Fragment>
-                        )
-                      })
-                    : null}
-                </Fragment>
-              )
-            })}
-          </TableBody>
-        </Table>
+                              {expanded ? (
+                                <TableRow className="hover:bg-transparent">
+                                  <TableCell colSpan={columns.length} className="whitespace-normal">
+                                    <div className="py-2 pl-8">
+                                      <AssignmentDetail
+                                        assignment={r.assignment}
+                                        quiz={r.quiz}
+                                        practice={r.practice}
+                                      />
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ) : null}
+                            </Fragment>
+                          )
+                        })
+                      : null}
+                  </Fragment>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </TableContext>
   )

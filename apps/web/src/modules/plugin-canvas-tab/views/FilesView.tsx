@@ -285,9 +285,9 @@ function FileTable({
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
   })
   return (
-    <div className="overflow-hidden rounded-2xl border">
+    <div className="overflow-hidden rounded-2xl border border-border">
       <Table className="min-w-xl table-fixed">
-        <TableHeader>
+        <TableHeader className="bg-muted/50">
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="hover:bg-transparent">
               {group.headers.map((h) => {
@@ -299,7 +299,7 @@ function FileTable({
                     aria-sort={
                       sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined
                     }
-                    className={cn(EDGE, WIDTHS[h.column.id])}
+                    className={cn(EDGE, 'h-auto py-2 text-muted-foreground', WIDTHS[h.column.id])}
                   >
                     {h.column.getCanSort() ? (
                       <Button
