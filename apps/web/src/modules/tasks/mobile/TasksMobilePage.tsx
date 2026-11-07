@@ -1,15 +1,19 @@
-import { ListChecks } from 'lucide-react'
+import { ListChecks, Plus } from 'lucide-react'
+import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { MobilePage } from '@/app/mobile/MobilePage'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
+import { useCourses } from '@/modules/academics/queries'
+import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@/ui/native-select'
 import { Skeleton } from '@/ui/skeleton'
 import { useTaskActions } from '../actions'
-import { useProgramToday, useTaskLists, useTasks } from '../queries'
+import { newTaskPlace } from '../new-task'
+import { useProgramToday, useTaskLists, useTaskSettings, useTasks } from '../queries'
 import { INBOX, SMART_VIEWS, parseSelection, selectionKey } from '../types'
-import { QuickAddBar } from './QuickAddBar'
+import { NewTaskSheet } from './NewTaskSheet'
 import { TaskSections, groupByDue } from './TaskSections'
 
 // The finished tasks stay on the desktop; a phone lists what is still to do.
@@ -17,7 +21,7 @@ const VIEWS = SMART_VIEWS.filter((view) => view.view !== 'completed')
 
 /**
  * The Tasks page on a phone (M17): a smart list, Unsorted or one list, grouped by when the tasks
- * are due, with the add line at the bottom. Sorting, dragging and managing lists stay on the
+ * are due. The button by the list picker adds a task in a drawer. Sorting, dragging and managing lists stay on the
  * desktop.
  */
 export default function TasksMobilePage({ scope }: PageProps) {
@@ -36,6 +40,9 @@ export default function TasksMobilePage({ scope }: PageProps) {
   const today = useProgramToday(programId)
   const { actions } = useTaskActions()
   const items = tasks.data?.items
+  const settings = useTaskSettings(programId)
+  const [adding, setAdding] = useState(false)
+  const courses = useCourses(programId, undefined, { enabled: adding }).data?.items ?? []
   const title =
     selection.kind === 'smart'
       ? (VIEWS.find((view) => view.view === selection.view)?.title() ?? '')
@@ -50,42 +57,33 @@ export default function TasksMobilePage({ scope }: PageProps) {
         tasks.data ? `${title} · ${m.mobile_tasks_open({ count: tasks.data.total })}` : null
       }
       action={
-        <NativeSelect
-          size="sm"
-          aria-label={m.mobile_tasks_view()}
-          value={selectionKey(selection)}
-          onChange={(event) => setKey(event.target.value)}
-        >
-          {VIEWS.map((view) => (
-            <NativeSelectOption key={view.view} value={view.view}>
-              {view.title()}
-            </NativeSelectOption>
-          ))}
-          <NativeSelectOption value="inbox">{INBOX.title()}</NativeSelectOption>
-          {lists.length > 0 ? (
-            <NativeSelectOptGroup label={m.mobile_tasks_lists()}>
-              {lists.map((list) => (
-                <NativeSelectOption key={list.id} value={`list:${list.id}`}>
-                  {list.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelectOptGroup>
-          ) : null}
-        </NativeSelect>
-      }
-      footer={
-        <QuickAddBar
-          programId={programId}
-          defaultDue={selection.kind === 'smart' && selection.view === 'today' ? today : undefined}
-          onAdd={(task) =>
-            actions.create(programId, {
-              ...task,
-              list_id: selection.kind === 'list' ? selection.listId : undefined,
-              flagged:
-                selection.kind === 'smart' && selection.view === 'flagged' ? true : undefined,
-            })
-          }
-        />
+        <div className="flex items-center gap-2">
+          <NativeSelect
+            size="sm"
+            aria-label={m.mobile_tasks_view()}
+            value={selectionKey(selection)}
+            onChange={(event) => setKey(event.target.value)}
+          >
+            {VIEWS.map((view) => (
+              <NativeSelectOption key={view.view} value={view.view}>
+                {view.title()}
+              </NativeSelectOption>
+            ))}
+            <NativeSelectOption value="inbox">{INBOX.title()}</NativeSelectOption>
+            {lists.length > 0 ? (
+              <NativeSelectOptGroup label={m.mobile_tasks_lists()}>
+                {lists.map((list) => (
+                  <NativeSelectOption key={list.id} value={`list:${list.id}`}>
+                    {list.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelectOptGroup>
+            ) : null}
+          </NativeSelect>
+          <Button size="icon-sm" aria-label={m.tasks_new_row()} onClick={() => setAdding(true)}>
+            <Plus aria-hidden />
+          </Button>
+        </div>
       }
     >
       {!items ? (
@@ -100,12 +98,22 @@ export default function TasksMobilePage({ scope }: PageProps) {
               <ListChecks aria-hidden />
             </EmptyMedia>
             <EmptyTitle>{m.tasks_empty_title()}</EmptyTitle>
-            <EmptyDescription>{m.mobile_tasks_empty_description()}</EmptyDescription>
+            <EmptyDescription>{m.tasks_empty_description()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <TaskSections programId={programId} groups={groupByDue(items, today)} />
       )}
+      <NewTaskSheet
+        // A new list starts the drawer from its own defaults.
+        key={selectionKey(selection)}
+        open={adding}
+        onClose={() => setAdding(false)}
+        place={newTaskPlace(selection, { today, priority: settings.default_priority })}
+        courses={courses}
+        today={today}
+        onAdd={(body) => actions.create(programId, body)}
+      />
     </MobilePage>
   )
 }
