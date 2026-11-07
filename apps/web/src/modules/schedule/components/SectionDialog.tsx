@@ -33,7 +33,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { weekdayName } from '../time'
-import { weeksDiffer } from './SectionsTable'
+import { weeksDiffer, wholeTerm } from './SectionsTable'
 
 /** A time row; `id` is the meeting it edits, absent for a new one. */
 type Time = {
@@ -64,9 +64,6 @@ const int = (value: string) => (value.trim() === '' ? null : Number.parseInt(val
  * whose times already differ, left as each time has them.
  */
 type WeeksMode = 'term' | 'custom' | 'vary'
-
-const wholeTerm = (mt: Meeting) =>
-  mt.recurrence === 'weekly' && mt.start_week === 1 && mt.end_week == null && mt.skip_breaks
 
 // ---- The times table: TanStack Table, columns outside the component, rows edited via context.
 

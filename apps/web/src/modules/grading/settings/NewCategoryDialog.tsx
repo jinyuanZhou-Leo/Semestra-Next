@@ -32,12 +32,7 @@ export function NewCategoryDialog({
   const [touched, setTouched] = useState(false)
   const invalid = touched && name.trim() === ''
   const change = (next: boolean) => {
-    if (pending) return
-    if (next) {
-      setName('')
-      setTouched(false)
-    }
-    onOpenChange(next)
+    if (!pending) onOpenChange(next)
   }
   const submit = (event: FormEvent) => {
     event.preventDefault()

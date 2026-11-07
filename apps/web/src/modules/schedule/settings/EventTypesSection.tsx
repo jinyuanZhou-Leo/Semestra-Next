@@ -232,6 +232,8 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
   })
   const [deleting, setDeleting] = useState<EventType | null>(null)
   const [adding, setAdding] = useState(false)
+  // A fresh dialog (empty fields) each time it opens.
+  const [addKey, setAddKey] = useState(0)
   const handlers: RowHandlers = {
     patch: (type, body) => update.mutate({ path: { event_type_id: type.id }, body }),
     onDelete: setDeleting,
@@ -240,7 +242,14 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
   return (
     <>
       <SectionAction>
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAddKey((k) => k + 1)
+            setAdding(true)
+          }}
+        >
           <Plus aria-hidden />
           {m.schedule_type_add()}
         </Button>
@@ -261,7 +270,12 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
           rowName={(t) => t.code}
         />
       </RowContext>
-      <AddEventTypeDialog programId={programId} open={adding} onOpenChange={setAdding} />
+      <AddEventTypeDialog
+        key={addKey}
+        programId={programId}
+        open={adding}
+        onOpenChange={setAdding}
+      />
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
@@ -300,14 +314,8 @@ function AddEventTypeDialog({
   })
   const codeValid = /^[A-Z0-9]{1,8}$/.test(code)
   const nameValid = name.trim() !== ''
-  const reset = (next: boolean) => {
-    if (create.isPending) return
-    if (next) {
-      setCode('')
-      setName('')
-      setTouched(false)
-    }
-    onOpenChange(next)
+  const change = (next: boolean) => {
+    if (!create.isPending) onOpenChange(next)
   }
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -316,7 +324,7 @@ function AddEventTypeDialog({
     create.mutate({ path: { program_id: programId }, body: { code, name: name.trim() } })
   }
   return (
-    <Dialog open={open} onOpenChange={reset}>
+    <Dialog open={open} onOpenChange={change}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{m.schedule_type_add()}</DialogTitle>

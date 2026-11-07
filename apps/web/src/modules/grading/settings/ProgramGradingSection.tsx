@@ -516,6 +516,8 @@ function DefaultCategories({
 }) {
   const [items, setItems] = useState<CategoryTemplate[]>([...initial])
   const [adding, setAdding] = useState(false)
+  // A fresh dialog (empty name) each time it opens.
+  const [addKey, setAddKey] = useState(0)
   const [removing, setRemoving] = useState<CategoryTemplate | null>(null)
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
@@ -542,7 +544,14 @@ function DefaultCategories({
       title={m.grading_default_categories()}
       description={m.grading_default_categories_hint()}
       action={
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAddKey((k) => k + 1)
+            setAdding(true)
+          }}
+        >
           <Plus aria-hidden />
           {m.grading_category_create()}
         </Button>
@@ -561,7 +570,7 @@ function DefaultCategories({
           rowName={(t) => t.name}
         />
       </TemplateContext>
-      <NewCategoryDialog open={adding} onOpenChange={setAdding} onSubmit={add} />
+      <NewCategoryDialog key={addKey} open={adding} onOpenChange={setAdding} onSubmit={add} />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemoving(null)}

@@ -18,9 +18,12 @@ import { ActionsHeader } from './ActionsHeader'
 export type Section = { key: string; code: string; typeCode: string; meetings: Meeting[] }
 
 /** The weeks a meeting runs, e.g. "Biweekly (week 2) · Weeks 1–12". */
+/** Whether a time runs every week of the term, skipping breaks: the section dialog's default. */
+export const wholeTerm = (mt: Meeting) =>
+  mt.recurrence === 'weekly' && mt.start_week === 1 && mt.end_week == null && mt.skip_breaks
+
 export function weeksText(mt: Meeting): string {
-  if (mt.recurrence === 'weekly' && mt.start_week === 1 && !mt.end_week)
-    return m.schedule_weeks_whole_term()
+  if (wholeTerm(mt)) return m.schedule_weeks_whole_term()
   const range = mt.end_week
     ? m.schedule_weeks_range({ start: mt.start_week, end: mt.end_week })
     : m.schedule_weeks_from({ start: mt.start_week })
@@ -349,11 +352,11 @@ export function SectionsTable({
       return next
     })
   const rows: Row[] = sections.flatMap((section) => [
-    { kind: 'section' as const, id: section.key, section },
+    { kind: 'section' as const, id: `s:${section.key}`, section },
     ...(expanded.has(section.key)
       ? section.meetings.map((meeting) => ({
           kind: 'meeting' as const,
-          id: meeting.id,
+          id: `m:${meeting.id}`,
           section,
           meeting,
         }))

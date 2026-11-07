@@ -233,6 +233,8 @@ const CATEGORY_COLUMN_CLASS: Record<string, string> = {
 function Categories({ gradebook }: { gradebook: Gradebook }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
+  // A fresh dialog (empty name) each time it opens.
+  const [addKey, setAddKey] = useState(0)
   const [removing, setRemoving] = useState<AssessmentCategory | null>(null)
   const refresh = () => invalidateGrading(queryClient)
   const create = useMutation({
@@ -271,7 +273,14 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
       title={m.grading_categories()}
       description={m.grading_categories_hint()}
       action={
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAddKey((k) => k + 1)
+            setAdding(true)
+          }}
+        >
           <Plus aria-hidden />
           {m.grading_category_create()}
         </Button>
@@ -295,6 +304,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
       </CategoryContext>
       <SettingsNote>{m.grading_category_active_hint()}</SettingsNote>
       <NewCategoryDialog
+        key={addKey}
         open={adding}
         onOpenChange={setAdding}
         pending={create.isPending}
