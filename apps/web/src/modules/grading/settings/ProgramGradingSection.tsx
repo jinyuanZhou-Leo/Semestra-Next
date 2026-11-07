@@ -233,20 +233,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const switchingName = presetOptions(switching ? [switching.id] : [])[0]?.label ?? ''
 
   return (
-    <SettingsBlock
-      title={m.grading_scale()}
-      description={m.grading_scale_hint()}
-      action={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setRows([...rows, { min: '', max: '', points: '', letter: '' }])}
-        >
-          <Plus aria-hidden />
-          {m.grading_band_add()}
-        </Button>
-      }
-    >
+    <SettingsBlock title={m.grading_scale()} description={m.grading_scale_hint()}>
       <div className="flex h-8 overflow-hidden rounded-xl border border-border" aria-hidden>
         {valid
           ? bands
@@ -318,6 +305,14 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         </Table>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setRows([...rows, { min: '', max: '', points: '', letter: '' }])}
+        >
+          <Plus aria-hidden />
+          {m.grading_band_add()}
+        </Button>
         <Field orientation="horizontal" className="w-auto">
           <FieldLabel htmlFor={maxPointsId} className="font-normal text-muted-foreground">
             {m.grading_max_points()}
