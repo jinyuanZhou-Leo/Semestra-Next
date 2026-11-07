@@ -699,10 +699,16 @@ async def test_every_dated_assessment_has_one_task(api: Api):
     await assessment(api, aps, "Midterm", due_date="2026-02-10", due_time="10:00")
     await assessment(api, aps, "Scored", due_date="2026-02-11", score_percentage=90)
     await assessment(api, aps, "Dropped", due_date="2026-02-12", dropped=True)
+    await assessment(api, aps, "Past", due_date="2026-01-12", due_time="09:00")
     undated = await assessment(api, aps, "Undated")
     page = await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "include"})
     rows = {t["title"]: t for t in page["items"]}
-    assert sorted(rows) == ["APS105H1 · Dropped", "APS105H1 · Midterm", "APS105H1 · Scored"]
+    assert sorted(rows) == [
+        "APS105H1 · Dropped",
+        "APS105H1 · Midterm",
+        "APS105H1 · Past",
+        "APS105H1 · Scored",
+    ]
     task = rows["APS105H1 · Midterm"]
     assert (task["due_date"], task["due_time"]) == ("2026-02-10", "10:00:00")
     assert (task["priority"], task["completed_at"]) == ("medium", None)
@@ -711,6 +717,9 @@ async def test_every_dated_assessment_has_one_task(api: Api):
     # Graded or dropped: nothing left to hand in.
     assert rows["APS105H1 · Scored"]["completed_at"] is not None
     assert rows["APS105H1 · Dropped"]["completed_at"] is not None
+    # Already past due when it is added (a syllabus imported mid-term): finished as of its due
+    # date, so it does not fill "overdue".
+    assert rows["APS105H1 · Past"]["completed_at"].startswith("2026-01-12T14:00:00")
 
     await api.call("PATCH", f"/assessments/{undated['id']}", json={"title": "Undated 1"})
     assert len(await api.titles(pid)) == 1  # an update does not create one without a date

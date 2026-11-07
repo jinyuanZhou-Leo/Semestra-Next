@@ -3,7 +3,8 @@
 Assessment tasks were optional (a Program setting) and linked by `source_kind='assessment'` +
 `source_ref`. Now the link is a foreign key and the task always exists: existing links move to
 the new column, linked tasks of assessments without a due date go, and the missing tasks are
-created (finished when the assessment is graded or dropped). The calendar shows assessment due
+created (finished, as of the due date, when the assessment is graded, dropped or already past due,
+as the app does for a task made for a past assessment). The calendar shows assessment due
 dates only through these tasks, so calendar feeds that listed "assessments" now list "tasks".
 
 Revision ID: 0033
@@ -214,7 +215,7 @@ def _create_missing(conn: sa.Connection, now: datetime) -> None:
         tops[key] += 1.0
         local = a.due_at.astimezone(ZoneInfo(a.timezone))
         code = a.code or a.alias or a.course_title
-        done = a.score_percentage is not None or bool(a.dropped)
+        done = a.score_percentage is not None or bool(a.dropped) or a.due_at <= now
         conn.execute(
             tasks.insert().values(
                 id=str(uuid.uuid7()),
@@ -229,7 +230,7 @@ def _create_missing(conn: sa.Connection, now: datetime) -> None:
                 due_time=local.time().replace(tzinfo=None) if a.due_has_time else None,
                 priority="medium",
                 flagged=False,
-                completed_at=now if done else None,
+                completed_at=min(a.due_at, now) if done else None,
                 position=tops[key],
                 source_kind="manual",
                 source_ref=None,

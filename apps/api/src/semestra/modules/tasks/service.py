@@ -366,7 +366,7 @@ async def create_task_row(
     fields: TaskFields,
     *,
     default_priority: str,
-    completed: bool = False,
+    completed_at: datetime | None = None,
     terms: dict[tuple[str, date | None], str | None] | None = None,
 ) -> TasksItem:
     """Validates and inserts one task (no events). Shared by the capabilities and auto tasks.
@@ -399,7 +399,7 @@ async def create_task_row(
         due_time=_clean_time(fields.due_time),
         priority=fields.priority or default_priority,
         flagged=fields.flagged,
-        completed_at=ctx.now if completed else None,
+        completed_at=completed_at,
         position=await _next_position(ctx, program.id, fields.list_id),
         source_kind=fields.source_kind,
         source_ref=fields.source_ref,

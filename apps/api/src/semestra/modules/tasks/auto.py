@@ -1,7 +1,9 @@
 """Assessment tasks (M05 §3): every assessment with a due date has exactly one task, linked by
 `assessment_id`. It follows the assessment's title, due date and course, is finished once the
 assessment has a score, and goes when the assessment is deleted (the foreign key) or loses its
-due date. This module is the only writer of that link."""
+due date. A task made for an assessment that is already past due starts finished (it was handed
+in, or is past caring about; a syllabus imported mid-term must not fill "overdue"). This module
+is the only writer of that link."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -80,15 +82,22 @@ async def sync(ctx: Ctx, assessment_id: str) -> None:
             course_id=info.course_id,
             source_kind="manual",
         )
+        # Finished as of its due date when it is already past or graded (never in the future).
+        finished = info.scored or info.due_at <= ctx.now
         try:
             row = await service.create_task_row(
-                ctx, program, fields, default_priority="medium", completed=info.scored
+                ctx,
+                program,
+                fields,
+                default_priority="medium",
+                completed_at=min(info.due_at, ctx.now) if finished else None,
             )
         except AppError:
             return  # the course vanished meanwhile; its deletion cleans up on its own
         row.assessment_id = info.id
         await ctx.db.flush()
-        await service.announce_item(ctx, "created", row, calendar=not info.scored)
+        # Finished ones stay on the calendar too (marked done), so it always changes.
+        await service.announce_item(ctx, "created", row, calendar=True)
         return
     changed: list[str] = []
     if existing.title != title:
@@ -120,4 +129,4 @@ async def drop(ctx: Ctx, assessment_id: str) -> None:
 async def _drop(ctx: Ctx, row: TasksItem) -> None:
     await ctx.db.delete(row)
     await ctx.db.flush()
-    await service.announce_item(ctx, "deleted", row, calendar=row.completed_at is None)
+    await service.announce_item(ctx, "deleted", row, calendar=row.due_date is not None)

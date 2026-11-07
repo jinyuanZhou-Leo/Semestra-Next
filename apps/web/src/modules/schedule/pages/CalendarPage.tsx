@@ -339,8 +339,13 @@ function TermCalendar({
         allDay: dueRow || (o.all_day ?? false),
         editable,
         durationEditable: resizable,
+        // A finished to-do fades but stays readable; a cancelled class is struck through.
         className:
-          o.status === 'cancelled' || o.status === 'done' ? 'line-through opacity-60' : undefined,
+          o.status === 'cancelled'
+            ? 'line-through opacity-60'
+            : o.status === 'done'
+              ? 'opacity-55'
+              : undefined,
         color: occurrenceColor(o),
         contrastColor: 'var(--foreground)',
         extendedProps: {
@@ -808,6 +813,10 @@ function WeekDayHeader({ arg }: { arg: DayHeaderInfo }) {
   )
 }
 
+// A round check like a reminder's: a primary ring, filled with a dot once done.
+const CHECK =
+  'size-3.5 rounded-full border-[1.5px] border-primary bg-background data-checked:bg-background dark:data-checked:bg-background [&_svg]:hidden before:absolute before:inset-[1.5px] before:scale-0 before:rounded-full before:bg-primary before:transition-transform data-checked:before:scale-100'
+
 /** Checks an item off in place; clicks on it do not open the details (see `eventClick`). */
 function Check({ o, onToggle }: { o: Occurrence; onToggle: (completed: boolean) => void }) {
   return (
@@ -816,7 +825,7 @@ function Check({ o, onToggle }: { o: Occurrence; onToggle: (completed: boolean) 
         aria-label={m.schedule_check_item({ title: o.title })}
         checked={o.status === 'done'}
         onCheckedChange={(checked) => onToggle(checked)}
-        className="size-3.5 border-muted-foreground/50 bg-background"
+        className={CHECK}
       />
     </span>
   )
@@ -830,12 +839,14 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
   const check = onToggle ? <Check o={o} onToggle={onToggle} /> : null
   const dueTime = arg.event.extendedProps.dueTime as string | undefined
   if (arg.view.type === 'timeGridWeek' && !arg.event.allDay) {
-    // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place.
+    // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place. The
+    // content takes the block's corners and clips the bar to them (a 4px bar cannot round a
+    // larger corner itself); FullCalendar's resize handles sit outside it, so they stay whole.
     return (
-      <div className="flex h-full min-w-0 overflow-hidden leading-tight">
+      <div className="flex h-full min-w-0 overflow-hidden rounded-[calc(var(--radius)-2px)] leading-tight">
         <span
           aria-hidden
-          className="w-1 shrink-0 rounded-l-[calc(var(--radius)-2px)]"
+          className="w-1 shrink-0"
           style={{ backgroundColor: occurrenceColor(o) }}
         />
         <span className="min-w-0 flex-1 px-1 py-0.5">

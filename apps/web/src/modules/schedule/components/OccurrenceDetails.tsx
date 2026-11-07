@@ -98,13 +98,7 @@ export function OccurrenceDetails({
               className="size-3 shrink-0 rounded-full"
               style={{ backgroundColor: occurrenceColor(o) }}
             />
-            <span
-              className={
-                o.status === 'cancelled' || o.status === 'done' ? 'line-through' : undefined
-              }
-            >
-              {o.title}
-            </span>
+            <span className={o.status === 'cancelled' ? 'line-through' : undefined}>{o.title}</span>
           </DialogTitle>
           <DialogDescription>
             {dayLabel(wallDate(o.start_at, timezone))} · {timeRange(o, timezone)}
