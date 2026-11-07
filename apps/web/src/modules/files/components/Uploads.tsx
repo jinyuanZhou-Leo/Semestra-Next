@@ -104,7 +104,7 @@ export function useUploads(): Uploads {
     const plan = planUpload(files, usage)
     for (const file of plan.tooLarge) {
       toast.error(
-        m.files_upload_too_large({
+        m.common_file_too_large({
           name: file.name,
           max: formatBytes(usage?.max_upload_bytes ?? 0),
         }),

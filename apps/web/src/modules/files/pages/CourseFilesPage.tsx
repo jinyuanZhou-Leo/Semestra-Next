@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -275,9 +276,9 @@ export function CourseFiles({
             act: setAction,
             programId,
             drop: {
-              folderId: dropFolderId,
-              over: setDropFolderId,
-              into: (id, files) => upload(files, id),
+              over: dropFolderId,
+              setOver: setDropFolderId,
+              drop: (id, files) => upload(files, id),
             },
           }}
         />
@@ -287,21 +288,15 @@ export function CourseFiles({
 
       {dragging ? (
         // The list stays visible, so a file can be dropped on one of its folders.
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -inset-2 z-20 flex flex-col justify-end rounded-3xl border-2 border-dashed border-primary bg-primary/5"
-        >
-          <div className="sticky bottom-6 mx-auto mb-6 flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
-            <Upload aria-hidden className="size-4" />
-            {m.files_drop_here({
-              folder:
-                list.folders.find((f) => f.id === dropFolderId)?.name ??
-                trail.at(-1)?.name ??
-                name ??
-                m.files_all_files(),
-            })}
-          </div>
-        </div>
+        <FileDropOverlay
+          label={m.files_drop_here({
+            folder:
+              list.folders.find((f) => f.id === dropFolderId)?.name ??
+              trail.at(-1)?.name ??
+              name ??
+              m.files_all_files(),
+          })}
+        />
       ) : null}
 
       {shared ? null : uploads.panel}

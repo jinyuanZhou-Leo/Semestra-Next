@@ -7,12 +7,12 @@ import {
   portabilityImportUploadMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, TriangleAlert, Upload } from 'lucide-react'
+import { CircleCheck, TriangleAlert } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
 import { SettingRow, SettingsBlock, SettingsGroup, SettingsNote } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FileDropzone } from '@/components/FileDropzone'
 import { JobProgress } from '@/components/JobProgress'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -22,14 +22,6 @@ import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/ui/empty'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Label } from '@/ui/label'
@@ -76,35 +68,17 @@ function BackupDropzone({ onUploaded }: { onUploaded: (id: string) => void }) {
     ...portabilityImportUploadMutation(),
     onSuccess: (data) => onUploaded(data.id),
   })
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    multiple: false,
-    noClick: true,
-    disabled: upload.isPending,
-    accept: { 'application/zip': ['.zip'], 'application/json': ['.json'] },
-    onDropAccepted: ([file]) => {
-      if (file) upload.mutate({ body: { file } })
-    },
-  })
   return (
     <div className="space-y-2">
-      <Empty
-        {...getRootProps()}
-        className={isDragActive ? 'border-primary bg-primary/5' : 'border'}
-      >
-        <input {...getInputProps()} aria-label={m.portability_restore_pick()} />
-        <EmptyHeader>
-          <EmptyMedia variant="icon">{upload.isPending ? <Spinner /> : <Upload />}</EmptyMedia>
-          <EmptyTitle>
-            {upload.isPending ? m.portability_restore_uploading() : m.portability_restore_drop()}
-          </EmptyTitle>
-          <EmptyDescription>{m.portability_restore_drop_desc()}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button variant="outline" disabled={upload.isPending} onClick={open}>
-            {m.portability_restore_pick()}
-          </Button>
-        </EmptyContent>
-      </Empty>
+      <FileDropzone
+        title={m.portability_restore_drop()}
+        hint={m.portability_restore_drop_desc()}
+        accept={{ 'application/zip': ['.zip'], 'application/json': ['.json'] }}
+        pending={upload.isPending ? m.portability_restore_uploading() : undefined}
+        onFiles={([file]) => {
+          if (file) upload.mutate({ body: { file } })
+        }}
+      />
       {upload.error ? (
         <p role="alert" className="text-sm text-destructive">
           {errorMessage(upload.error)}
