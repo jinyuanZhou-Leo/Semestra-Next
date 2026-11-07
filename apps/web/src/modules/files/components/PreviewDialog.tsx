@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Download, FileX, SquareArrowOutUpRight } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { formatBytes } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import {
   Empty,
   EmptyContent,
@@ -16,11 +16,11 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Spinner } from '@/ui/spinner'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { previewKind } from '../kinds'
+import { fileKindName, previewKind } from '../kinds'
 import { contentUrl, useFileItem } from '../queries'
 import { Markdown } from './Markdown'
 import { FileIcon } from './FileIcon'
+import { PreviewAction, PreviewShell } from './PreviewShell'
 
 // pdf.js is large; load it only when a PDF is opened.
 const PdfViewer = lazy(() => import('./PdfViewer').then((mod) => ({ default: mod.PdfViewer })))
@@ -174,73 +174,53 @@ export function PreviewDialog({
   const item = useFileItem(shown?.itemId)
   const data = item.data
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex h-[85vh] flex-col gap-3 sm:max-w-5xl">
-        <DialogHeader className="flex-row items-center gap-2 pr-8">
-          <div className="min-w-0 flex-1">
-            <DialogTitle className="truncate">
-              {data?.display_name ?? m.common_loading()}
-            </DialogTitle>
-            <DialogDescription className="sr-only">{m.files_preview_title()}</DialogDescription>
-          </div>
-          {data && data.kind === 'file' ? (
-            <>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      nativeButton={false}
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={m.files_open_new_tab()}
-                      render={(props) => (
-                        // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content via `props`
-                        <a
-                          {...props}
-                          href={contentUrl(data.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        />
-                      )}
-                    />
-                  }
-                >
-                  <SquareArrowOutUpRight aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      nativeButton={false}
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={m.files_download()}
-                      render={(props) => (
-                        // oxlint-disable-next-line jsx-a11y/anchor-has-content -- content via `props`
-                        <a {...props} href={contentUrl(data.id, 'attachment')} download />
-                      )}
-                    />
-                  }
-                >
-                  <Download aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>{m.files_download()}</TooltipContent>
-              </Tooltip>
-            </>
-          ) : null}
-        </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-auto">
-          {shown ? (
-            <AsyncBoundary query={item}>
-              {(loaded) => (
-                <PreviewBody key={`${loaded.id}:${shown.page ?? 1}`} item={loaded} target={shown} />
-              )}
-            </AsyncBoundary>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <PreviewShell
+      open={target !== null}
+      onClose={onClose}
+      title={data?.display_name ?? m.common_loading()}
+      meta={
+        data && data.kind === 'file'
+          ? [
+              fileKindName({
+                name: data.original_name ?? data.display_name,
+                mime_type: data.mime_type,
+              }),
+              formatBytes(data.size_bytes),
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : null
+      }
+      actions={
+        data && data.kind === 'file' ? (
+          <>
+            <PreviewAction
+              label={m.files_open_new_tab()}
+              nativeButton={false}
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+              render={<a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />}
+            >
+              <SquareArrowOutUpRight aria-hidden />
+            </PreviewAction>
+            <PreviewAction
+              label={m.files_download()}
+              nativeButton={false}
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by `label`
+              render={<a href={contentUrl(data.id, 'attachment')} download />}
+            >
+              <Download aria-hidden />
+            </PreviewAction>
+          </>
+        ) : null
+      }
+    >
+      {shown ? (
+        <AsyncBoundary query={item}>
+          {(loaded) => (
+            <PreviewBody key={`${loaded.id}:${shown.page ?? 1}`} item={loaded} target={shown} />
+          )}
+        </AsyncBoundary>
+      ) : null}
+    </PreviewShell>
   )
 }

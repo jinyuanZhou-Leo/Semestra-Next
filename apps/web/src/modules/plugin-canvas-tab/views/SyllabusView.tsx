@@ -11,7 +11,7 @@ import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DisplayMenu, OpenInCanvasIcon } from './common'
+import { CanvasHtml, ViewHeader } from './common'
 
 /**
  * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): an AI extraction of the
@@ -52,7 +52,7 @@ export function SyllabusImportButton() {
 }
 
 export function SyllabusView() {
-  const { courseId } = useCanvasPage()
+  const { courseId, title } = useCanvasPage()
   const syllabus = useQuery({
     ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -61,14 +61,12 @@ export function SyllabusView() {
     <CanvasBoundary query={syllabus}>
       {(data) => (
         <article className="flex flex-1 flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-heading text-lg font-semibold">{m.canvas_tab_syllabus()}</h2>
-            <div className="flex items-center gap-2">
-              {data.html ? <SyllabusImportButton /> : null}
-              {data.html ? <DisplayMenu /> : null}
-              {data.web_url ? <OpenInCanvasIcon href={data.web_url} /> : null}
-            </div>
-          </div>
+          <ViewHeader
+            title={title}
+            withDisplay={Boolean(data.html)}
+            webUrl={data.web_url}
+            primary={data.html ? <SyllabusImportButton /> : null}
+          />
           {data.html ? (
             <CanvasHtml html={data.html} />
           ) : (

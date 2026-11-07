@@ -13,6 +13,8 @@ export type CanvasPage = {
   /** The account setting until the user picks another here; the pick lasts while the page is open. */
   display: CanvasDisplay
   setDisplay: (display: CanvasDisplay) => void
+  /** The open view's name as Canvas's course menu has it ("Assignments"), for its header. */
+  title: string
 }
 
 export const CanvasPageContext = createContext<CanvasPage | null>(null)

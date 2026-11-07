@@ -7,9 +7,17 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, ClipboardList, Lock } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  GraduationCap,
+  Import,
+  ListChecks,
+  ListPlus,
+  Lock,
+} from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
-import { AiAction } from '@/components/AiAction'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import {
@@ -19,6 +27,14 @@ import {
 } from '@/modules/lms/import/assignments'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
+import { Button } from '@/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
+import { Spinner } from '@/ui/spinner'
 import { Checkbox } from '@/ui/checkbox'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
@@ -26,8 +42,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { AssignmentDetail } from './AssignmentDetail'
-import { ScoreText, SubmissionStatus } from './common'
+import { ScoreText, SubmissionStatus, ViewHeader } from './common'
 import { useScrollIntoView } from './scroll'
+
+/** Sample switch (甲/乙), removed once one is picked. */
+export const SAMPLE: 'a' | 'b' = (() => {
+  try {
+    return localStorage.getItem('canvas-sample') === 'b' ? 'b' : 'a'
+  } catch {
+    return 'a'
+  }
+})()
+
+/** In 甲 this view imports to the tasks only; in 乙 to either. */
+export function importedHere(a: AssignmentOut): boolean {
+  return SAMPLE === 'a' ? a.imported_as.some((t) => t.kind === 'task') : a.imported_as.length > 0
+}
 
 const features = tableFeatures({})
 const column = createColumnHelper<typeof features, AssignmentOut>()
@@ -53,7 +83,7 @@ function SelectCell({ row }: CellProps) {
   return (
     <Checkbox
       aria-label={m.canvas_tab_select_assignment({ name: a.name })}
-      disabled={a.imported_as.length > 0}
+      disabled={importedHere(a)}
       // Base UI's checkbox is a span, which the generated `disabled:` styles never match.
       className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
       checked={selected.has(a.external_id)}
@@ -81,7 +111,12 @@ function NameCell({ row }: CellProps) {
           <TooltipContent className="max-w-xs">{why}</TooltipContent>
         </Tooltip>
       ) : null}
-      {a.imported_as.length > 0 ? <Badge variant="secondary">{m.lms_imported()}</Badge> : null}
+      {a.imported_as.some((t) => t.kind === 'assessment') && SAMPLE === 'b' ? (
+        <Badge variant="secondary">{m.canvas_tab_in_gradebook()}</Badge>
+      ) : null}
+      {a.imported_as.some((t) => t.kind === 'task') ? (
+        <Badge variant="secondary">{m.canvas_tab_in_tasks()}</Badge>
+      ) : null}
     </span>
   )
 }
@@ -175,7 +210,7 @@ function groupsOf(items: readonly AssignmentOut[]): Group[] {
 }
 
 function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?: string }) {
-  const { programId, courseId, go } = useCanvasPage()
+  const { programId, courseId, go, title } = useCanvasPage()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState<Kind | null>(null)
@@ -184,9 +219,7 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
   const table = useTable({ features, columns, data: items, getRowId: (a) => a.external_id })
   const rows = new Map(table.getRowModel().rows.map((row) => [row.id, row]))
   const groups = groupsOf(items)
-  const importable = new Set(
-    items.filter((a) => a.imported_as.length === 0).map((a) => a.external_id),
-  )
+  const importable = new Set(items.filter((a) => !importedHere(a)).map((a) => a.external_id))
   const picked = [...selected].filter((id) => importable.has(id))
 
   const state: TableState = {
@@ -229,31 +262,41 @@ function AssignmentTable({ items, focused }: { items: AssignmentOut[]; focused?:
 
   return (
     <TableContext value={state}>
-      <div className="space-y-3">
-        {/* Always shown, so ticking a row never moves the table. */}
-        <div className="flex min-h-9 flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {picked.length > 0
-              ? m.canvas_tab_selected_count({ count: picked.length })
-              : m.canvas_tab_select_hint()}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <AiAction
-              state={starting === 'assessment' ? 'running' : 'idle'}
-              label={m.canvas_tab_import_to_gradebook()}
-              disabled={picked.length === 0 || starting !== null}
-              className="h-8 w-48 text-sm"
-              onClick={() => start('assessment')}
-            />
-            <AiAction
-              state={starting === 'task' ? 'running' : 'idle'}
-              label={m.canvas_tab_import_to_tasks()}
-              disabled={picked.length === 0 || starting !== null}
-              className="h-8 w-40 text-sm"
-              onClick={() => start('task')}
-            />
-          </div>
-        </div>
+      <div className="space-y-4">
+        <ViewHeader
+          title={title}
+          primary={
+            SAMPLE === 'a' ? (
+              <Button
+                disabled={picked.length === 0 || starting !== null}
+                onClick={() => start('task')}
+              >
+                {starting ? <Spinner /> : <ListPlus aria-hidden />}
+                {m.canvas_tab_import_to_tasks()}
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button disabled={picked.length === 0 || starting !== null} />}
+                >
+                  {starting ? <Spinner /> : <Import aria-hidden />}
+                  {m.canvas_tab_import()}
+                  <ChevronDown aria-hidden data-icon="inline-end" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => start('assessment')}>
+                    <GraduationCap aria-hidden />
+                    {m.canvas_tab_import_to_gradebook()}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => start('task')}>
+                    <ListChecks aria-hidden />
+                    {m.canvas_tab_import_to_tasks()}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          }
+        />
         <Table className="min-w-xl table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((group) => (

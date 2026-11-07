@@ -7,28 +7,71 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { Calculator, GraduationCap } from 'lucide-react'
+import { Calculator, GraduationCap, Import } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate, formatPercent } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
+import { toastError } from '@/lib/errors'
+import { reviewAssignmentImport, startAssignmentImport } from '@/modules/lms/import/assignments'
+import { Badge } from '@/ui/badge'
+import { Checkbox } from '@/ui/checkbox'
+import { Spinner } from '@/ui/spinner'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { ScoreText, SubmissionStatus } from './common'
+import { SAMPLE } from './AssignmentsView'
+import { IconAction, ScoreText, SubmissionStatus, ViewHeader } from './common'
 
 const features = tableFeatures({})
 const column = createColumnHelper<typeof features, GradeItem>()
 type CellProps = CellContext<typeof features, GradeItem>
 
-type GradesState = { assignments: ReadonlyMap<string, AssignmentOut>; now: number }
-const GradesContext = createContext<GradesState>({ assignments: new Map(), now: 0 })
+type GradesState = {
+  assignments: ReadonlyMap<string, AssignmentOut>
+  now: number
+  selected: ReadonlySet<string>
+  toggle: (id: string, on: boolean) => void
+}
+const GradesContext = createContext<GradesState>({
+  assignments: new Map(),
+  now: 0,
+  selected: new Set(),
+  toggle: () => {},
+})
 
-const NameCell = ({ row }: CellProps) => <span className="font-medium">{row.original.name}</span>
+const inGradebook = (a: AssignmentOut | undefined) =>
+  Boolean(a?.imported_as.some((t) => t.kind === 'assessment'))
+
+function SelectCell({ row }: CellProps) {
+  const { assignments, selected, toggle } = use(GradesContext)
+  const g = row.original
+  const a = assignments.get(g.external_id)
+  return (
+    <Checkbox
+      aria-label={m.canvas_tab_select_assignment({ name: g.name })}
+      disabled={!a || inGradebook(a)}
+      className="data-disabled:cursor-not-allowed data-disabled:opacity-50"
+      checked={selected.has(g.external_id)}
+      onCheckedChange={(on) => toggle(g.external_id, on)}
+    />
+  )
+}
+
+function NameCell({ row }: CellProps) {
+  const { assignments } = use(GradesContext)
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <span className="font-medium">{row.original.name}</span>
+      {inGradebook(assignments.get(row.original.external_id)) ? (
+        <Badge variant="secondary">{m.canvas_tab_in_gradebook()}</Badge>
+      ) : null}
+    </span>
+  )
+}
 
 function ScoreCell({ row }: CellProps) {
   const g = row.original
@@ -54,6 +97,9 @@ const GradedCell = ({ row }: CellProps) => (
 )
 
 const columns = column.columns([
+  ...(SAMPLE === 'a'
+    ? [column.display({ id: 'select', header: () => null, cell: SelectCell })]
+    : []),
   column.display({ id: 'name', header: () => m.canvas_tab_column_name(), cell: NameCell }),
   column.display({ id: 'score', header: () => m.canvas_tab_column_score(), cell: ScoreCell }),
   column.display({
@@ -69,7 +115,7 @@ const columns = column.columns([
  * gradebook, where GPA, targets and "what do I need" are worked out.
  */
 export function GradesView() {
-  const { programId, courseId } = useCanvasPage()
+  const { programId, courseId, title } = useCanvasPage()
   const list = useQuery({
     ...lmsGradeListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -80,27 +126,61 @@ export function GradesView() {
     placeholderData: keepPreviousData,
   }).data?.items
   const [now] = useState(Date.now)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
+  const [starting, setStarting] = useState(false)
+  const byId = new Map(assignments?.map((a) => [a.external_id, a]))
+  const picked = [...selected].filter((id) => byId.has(id) && !inGradebook(byId.get(id)))
   const state: GradesState = {
-    assignments: new Map(assignments?.map((a) => [a.external_id, a])),
+    assignments: byId,
     now,
+    selected,
+    toggle: (id, on) =>
+      setSelected((current) => {
+        const next = new Set(current)
+        if (on) next.add(id)
+        else next.delete(id)
+        return next
+      }),
+  }
+  const start = () => {
+    setStarting(true)
+    startAssignmentImport(courseId, picked, 'assessment')
+      .then((sessionId) => {
+        setStarting(false)
+        setSelected(new Set())
+        return reviewAssignmentImport({
+          programId,
+          sessionId,
+          title: () => m.lms_import_assignments_from({ provider: m.lms_canvas() }),
+        })
+      })
+      .catch((error: unknown) => {
+        setStarting(false)
+        toastError(error)
+      })
   }
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <Alert>
-        <Calculator aria-hidden />
-        <AlertTitle>{m.canvas_tab_grades_cta_title()}</AlertTitle>
-        <AlertDescription>{m.canvas_tab_grades_cta_description()}</AlertDescription>
-        <AlertAction>
-          <Button
-            size="sm"
-            variant="outline"
+      <ViewHeader
+        title={title}
+        tools={
+          <IconAction
+            label={m.canvas_tab_grades_cta_open()}
             nativeButton={false}
             render={<HistoryLink href={coursePath(programId, courseId, 'grades')} />}
           >
-            {m.canvas_tab_grades_cta_open()}
-          </Button>
-        </AlertAction>
-      </Alert>
+            <Calculator aria-hidden />
+          </IconAction>
+        }
+        primary={
+          SAMPLE === 'a' ? (
+            <Button disabled={picked.length === 0 || starting} onClick={start}>
+              {starting ? <Spinner /> : <Import aria-hidden />}
+              {m.canvas_tab_import_to_gradebook()}
+            </Button>
+          ) : null
+        }
+      />
       <CanvasBoundary
         query={list}
         isEmpty={(data) => data.items.length === 0}
@@ -181,7 +261,7 @@ function GradeTable({ items }: { items: GradeItem[] }) {
         {table.getHeaderGroups().map((group) => (
           <TableRow key={group.id} className="hover:bg-transparent">
             {group.headers.map((h) => (
-              <TableHead key={h.id}>
+              <TableHead key={h.id} className={h.column.id === 'select' ? 'w-10' : undefined}>
                 <table.FlexRender header={h} />
               </TableHead>
             ))}

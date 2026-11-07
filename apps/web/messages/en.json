@@ -2177,7 +2177,7 @@
   "error_import_category_weight_mismatch": "Assessments add up to {total}%, the category says {expected}%",
   "error_import_course_ref_missing": "Its course isn't being imported",
   "error_import_ics_invalid": "This isn't a calendar file that can be read",
-  "error_import_no_content": "Nothing usable was found in the file",
+  "error_import_no_content": "No course details, assessments or dates were found",
   "error_import_session_not_ready": "This import is still being read",
   "error_import_session_closed": "This import is already finished",
   "error_import_session_changed": "This import was just edited. Try again.",
@@ -2944,5 +2944,8 @@
   "error_lms_sign_in_disabled": "School sign-in isn't enabled on this server",
   "error_lms_sign_in_unavailable": "This Canvas site doesn't support school sign-in",
   "error_lms_sign_in_https_required": "School sign-in needs an https:// address",
-  "error_lms_sign_in_failed": "That sign-in address couldn't be used. Sign in again and paste the new address."
+  "error_lms_sign_in_failed": "That sign-in address couldn't be used. Sign in again and paste the new address.",
+  "canvas_tab_import": "Import",
+  "canvas_tab_in_gradebook": "In gradebook",
+  "canvas_tab_in_tasks": "In tasks"
 }

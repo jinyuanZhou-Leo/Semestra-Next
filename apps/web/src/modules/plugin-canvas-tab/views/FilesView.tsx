@@ -46,6 +46,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { FileActions } from './FilePreview'
+import { ViewHeader } from './common'
 
 /** Canvas needs two characters to search (`search_term`). */
 const MIN_TERM = 2
@@ -152,25 +153,31 @@ const DEFAULT_SORT: SortingState = [{ id: 'name', desc: false }]
  * the root when left out) and a search over every file of the course.
  */
 export function FilesView({ selected }: { selected?: string }) {
+  const { title } = useCanvasPage()
   const [term, setTerm] = useState('')
   // Each search is a request to Canvas: wait until the user stops typing.
   const deferred = useDebounced(term.trim(), 300)
   const searching = deferred.length >= MIN_TERM
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <InputGroup className="sm:max-w-sm">
-        <InputGroupAddon>
-          <Search aria-hidden />
-        </InputGroupAddon>
-        <InputGroupInput
-          type="search"
-          value={term}
-          maxLength={100}
-          placeholder={m.canvas_tab_files_search()}
-          aria-label={m.canvas_tab_files_search()}
-          onChange={(event) => setTerm(event.target.value)}
-        />
-      </InputGroup>
+      <ViewHeader
+        title={title}
+        tools={
+          <InputGroup className="w-56">
+            <InputGroupAddon>
+              <Search aria-hidden />
+            </InputGroupAddon>
+            <InputGroupInput
+              type="search"
+              value={term}
+              maxLength={100}
+              placeholder={m.canvas_tab_files_search()}
+              aria-label={m.canvas_tab_files_search()}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </InputGroup>
+        }
+      />
       {searching ? <SearchResults term={deferred} /> : <FolderView folderId={selected} />}
     </div>
   )

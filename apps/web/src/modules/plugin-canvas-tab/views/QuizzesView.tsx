@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { IconAction, ScoreText, attemptsLabel } from './common'
+import { IconAction, ScoreText, attemptsLabel, ViewHeader } from './common'
 import { useScrollIntoView } from './scroll'
 
 /** A quiz with the user's submission of its assignment (graded quizzes have one). */
@@ -114,7 +114,7 @@ const columns = column.columns([
  * Canvas (M16 §4). The score comes from the quiz's assignment, read with the assignments.
  */
 export function QuizzesView({ selected }: { selected?: string }) {
-  const { courseId } = useCanvasPage()
+  const { title, courseId } = useCanvasPage()
   const list = useQuery({
     ...lmsQuizListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -126,30 +126,33 @@ export function QuizzesView({ selected }: { selected?: string }) {
   }).data
   const mine = new Map(assignments?.items.map((a) => [a.external_id, a.submission]))
   return (
-    <CanvasBoundary
-      query={list}
-      isEmpty={(data) => data.items.length === 0}
-      empty={
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <ListChecks aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{m.canvas_tab_quizzes_empty()}</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
-      }
-    >
-      {(data) => (
-        <QuizTable
-          items={data.items.map((q) => ({
-            ...q,
-            mine: q.assignment_id ? mine.get(q.assignment_id) : null,
-          }))}
-          selected={selected}
-        />
-      )}
-    </CanvasBoundary>
+    <div className="flex flex-1 flex-col gap-4">
+      <ViewHeader title={title} />
+      <CanvasBoundary
+        query={list}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ListChecks aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.canvas_tab_quizzes_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        }
+      >
+        {(data) => (
+          <QuizTable
+            items={data.items.map((q) => ({
+              ...q,
+              mine: q.assignment_id ? mine.get(q.assignment_id) : null,
+            }))}
+            selected={selected}
+          />
+        )}
+      </CanvasBoundary>
+    </div>
   )
 }
 

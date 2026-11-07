@@ -94,7 +94,16 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       .finally(() => setRefreshing(false))
   }
 
-  const page: CanvasPage = { programId, courseId, go, openFile: setFile, display, setDisplay }
+  const title = viewTitle(overview.data, location)
+  const page: CanvasPage = {
+    programId,
+    courseId,
+    go,
+    openFile: setFile,
+    display,
+    setDisplay,
+    title,
+  }
 
   return (
     <CanvasPageContext value={page}>
@@ -116,6 +125,13 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       <FilePreviewDialog fileId={file} onClose={() => setFile(null)} />
     </CanvasPageContext>
   )
+}
+
+/** The open view's label in Canvas's menu, for the view's header. */
+function viewTitle(overview: CourseOverview | undefined, location: CanvasLocation): string {
+  if (!overview) return ''
+  const entries = navEntries(overview.navigation)
+  return resolveLocation(location, entries).entry?.label ?? m.canvas_tab_page_title()
 }
 
 function PageSkeleton() {

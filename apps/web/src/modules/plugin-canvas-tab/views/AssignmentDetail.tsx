@@ -17,7 +17,7 @@ import { m } from '@/paraglide/messages'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvas, attemptsLabel } from './common'
+import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvasIcon, attemptsLabel } from './common'
 
 /** Canvas `submission_types`, as a student reads them. */
 const SUBMISSION_TYPES: Record<string, () => string> = {
@@ -63,7 +63,10 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
           ) : null}
           <Fact label={m.canvas_tab_column_attempts()} value={attemptsLabel(a.allowed_attempts)} />
         </dl>
-        {a.html ? <DisplayMenu /> : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {a.html ? <DisplayMenu /> : null}
+          {a.web_url ? <OpenInCanvasIcon href={a.web_url} /> : null}
+        </div>
       </div>
       {a.locked ? (
         <LockNote title={m.canvas_tab_assignment_locked()} explanation={a.lock_explanation} />
@@ -74,7 +77,6 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
         <p className="text-sm text-muted-foreground">{m.canvas_tab_no_description()}</p>
       )}
       <Feedback assignment={a} />
-      {a.web_url ? <OpenInCanvas href={a.web_url} /> : null}
     </div>
   )
 }

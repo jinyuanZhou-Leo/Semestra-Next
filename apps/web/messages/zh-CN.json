@@ -2177,7 +2177,7 @@
   "error_import_category_weight_mismatch": "考核合计 {total}%，分类写的是 {expected}%",
   "error_import_course_ref_missing": "所属课程没有导入",
   "error_import_ics_invalid": "无法读取这个日历文件",
-  "error_import_no_content": "文件中没有找到可用的信息",
+  "error_import_no_content": "没有读到课程信息、考核或日期",
   "error_import_session_not_ready": "这次导入还在读取中",
   "error_import_session_closed": "这次导入已经结束",
   "error_import_session_changed": "这次导入刚刚有改动，请再试一次",
@@ -2944,5 +2944,8 @@
   "error_lms_sign_in_disabled": "此服务器未开启学校账号登录",
   "error_lms_sign_in_unavailable": "这个 Canvas 站点不支持学校账号登录",
   "error_lms_sign_in_https_required": "学校账号登录需要 https:// 地址",
-  "error_lms_sign_in_failed": "无法使用这个登录地址。请重新登录并粘贴新的地址。"
+  "error_lms_sign_in_failed": "无法使用这个登录地址。请重新登录并粘贴新的地址。",
+  "canvas_tab_import": "导入",
+  "canvas_tab_in_gradebook": "已在成绩簿",
+  "canvas_tab_in_tasks": "已在待办"
 }

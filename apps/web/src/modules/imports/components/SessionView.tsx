@@ -5,7 +5,7 @@ import {
   importsSessionGetQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CircleAlert } from 'lucide-react'
+import { SearchX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
@@ -16,7 +16,14 @@ import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/ui/empty'
 import { issueSummary } from '../labels'
 import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
@@ -114,12 +121,20 @@ export function SessionView({
     const reason = errorMessage({
       error: { code: session.error_code ?? 'import.no_content', params: {} },
     })
+    // Nothing to review: the dialog's body says why, centered, with one way out.
     return (
-      <Alert variant="destructive" className={className}>
-        <CircleAlert aria-hidden />
-        <AlertTitle>{m.imports_failed_title()}</AlertTitle>
-        <AlertDescription>{reason}</AlertDescription>
-      </Alert>
+      <Empty className={className}>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <SearchX aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.imports_failed_title()}</EmptyTitle>
+          <EmptyDescription>{reason}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={() => onDone(null)}>{m.common_close()}</Button>
+        </EmptyContent>
+      </Empty>
     )
   }
 
