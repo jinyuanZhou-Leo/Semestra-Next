@@ -35,8 +35,10 @@ export type SendInput = {
 
 export type Decision = {
   proposalId: string
-  decision: 'approve' | 'reject' | 'edit'
+  decision: 'approve' | 'reject' | 'edit' | 'answer'
   args?: Record<string, unknown>
+  /** The reply to a question (`answer`). */
+  answer?: string
   remember?: boolean
   reason?: string
 }
@@ -394,6 +396,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       args: d.args ?? null,
       remember: d.remember ?? false,
       reason: d.reason ?? null,
+      answer: d.answer ?? null,
     })
     const [first] = decisions
     if (decisions.length === 1 && first) {

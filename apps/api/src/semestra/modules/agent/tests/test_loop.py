@@ -264,6 +264,47 @@ async def test_rejection_reason_goes_back_to_the_model(agent: Agent, model: Fake
     ] is None
 
 
+ASK = {
+    "question": "Which evenings?",
+    "options": [{"label": "Mon and Tue", "description": "No classes"}, {"label": "Sunday"}],
+    "recommended": 0,
+}
+
+
+async def test_ask_user_waits_for_the_answer(agent: Agent, model: FakeModel):
+    session = await agent.session()
+    model.then(calls([("ask_user", ASK), ("ask_user", {**ASK, "question": "How long?"})]))
+    first, second = events_named(await agent.send(session["id"], "plan my study"), "proposal")
+    assert first["capability"] == "ask_user"
+    assert first["args"]["options"][0] == {"label": "Mon and Tue", "description": "No classes"}
+    assert len(model.requests) == 1
+
+    # A question is answered or skipped, never approved.
+    url = f"/agent/sessions/{session['id']}/proposals/{first['id']}:decide"
+    err = await agent.stream(url, {"decision": "approve"}, status=422)
+    assert err[0][1]["error"]["code"] == "common.validation"
+
+    await agent.decide(session["id"], first["id"], "answer", answer="Mon and Tue")
+    assert len(model.requests) == 1  # the other question still waits
+    model.then(say("Booked."))
+    events = await agent.decide(session["id"], second["id"], "reject")
+
+    assert events_named(events, "proposal")[0]["status"] == "rejected"
+    results = [str(r.content) for r in model.results(1)]
+    assert '"answer":"Mon and Tue"' in results[0]
+    assert "skipped this question" in results[1]
+    # Answering changed no data: the answer can still be regenerated.
+    assert (await agent.detail(session["id"]))["regenerable"] is not None
+
+
+async def test_ask_user_with_bad_options_goes_back_to_the_model(agent: Agent, model: FakeModel):
+    session = await agent.session()
+    model.then(call("ask_user", {**ASK, "recommended": 5}), say("Sorry."))
+    events = await agent.send(session["id"], "plan my study")
+    assert events_named(events, "proposal") == []
+    assert "common.validation" in str(model.results(1)[-1].content)
+
+
 async def test_concurrent_decisions_execute_once(agent: Agent, model: FakeModel):
     """Two tabs, or "approve all" racing a card: only one decision runs the write."""
     _, _, lab = await agent.course_with_lab()

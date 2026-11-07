@@ -8,7 +8,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DetailHeader, DisplayMenu, OpenInCanvasIcon } from './common'
+import { CanvasHtml, DetailHeader, ViewHeader } from './common'
 
 /** The course's pages; `selected` (a page ref) opens one in place (M16 §4). */
 export function PagesView({ selected }: { selected?: string }) {
@@ -17,59 +17,62 @@ export function PagesView({ selected }: { selected?: string }) {
 }
 
 function PageList() {
-  const { courseId, go } = useCanvasPage()
+  const { title, courseId, go } = useCanvasPage()
   const list = useQuery({
     ...lmsPageListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
   return (
-    <CanvasBoundary
-      query={list}
-      isEmpty={(data) => data.items.length === 0}
-      empty={
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FileText aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{m.canvas_tab_pages_empty()}</EmptyTitle>
-          </EmptyHeader>
-        </Empty>
-      }
-    >
-      {(data) => (
-        <ItemGroup className="gap-1">
-          {data.items.map((p) => (
-            <Item
-              key={p.ref}
-              size="sm"
-              render={
-                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Item's children label it
-                <button
-                  type="button"
-                  className="w-full text-left hover:bg-muted/50"
-                  onClick={() => go({ tab: 'pages', ref: p.ref })}
-                />
-              }
-            >
-              <ItemContent>
-                <ItemTitle className="line-clamp-1">{p.title}</ItemTitle>
-                {p.updated_at ? (
-                  <ItemDescription>
-                    {m.canvas_tab_updated_at({ time: formatDateTime(p.updated_at) })}
-                  </ItemDescription>
+    <div className="flex flex-1 flex-col gap-4">
+      <ViewHeader title={title} />
+      <CanvasBoundary
+        query={list}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FileText aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.canvas_tab_pages_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        }
+      >
+        {(data) => (
+          <ItemGroup className="gap-1">
+            {data.items.map((p) => (
+              <Item
+                key={p.ref}
+                size="sm"
+                render={
+                  // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the Item's children label it
+                  <button
+                    type="button"
+                    className="w-full text-left hover:bg-muted/50"
+                    onClick={() => go({ tab: 'pages', ref: p.ref })}
+                  />
+                }
+              >
+                <ItemContent>
+                  <ItemTitle className="line-clamp-1">{p.title}</ItemTitle>
+                  {p.updated_at ? (
+                    <ItemDescription>
+                      {m.canvas_tab_updated_at({ time: formatDateTime(p.updated_at) })}
+                    </ItemDescription>
+                  ) : null}
+                </ItemContent>
+                {p.front_page ? (
+                  <ItemActions>
+                    <Badge variant="secondary">{m.canvas_tab_front_page()}</Badge>
+                  </ItemActions>
                 ) : null}
-              </ItemContent>
-              {p.front_page ? (
-                <ItemActions>
-                  <Badge variant="secondary">{m.canvas_tab_front_page()}</Badge>
-                </ItemActions>
-              ) : null}
-            </Item>
-          ))}
-        </ItemGroup>
-      )}
-    </CanvasBoundary>
+              </Item>
+            ))}
+          </ItemGroup>
+        )}
+      </CanvasBoundary>
+    </div>
   )
 }
 
@@ -97,13 +100,11 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
               onBack={() => go({ tab: 'pages' })}
             />
           ) : (
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="font-heading text-lg font-semibold">{p.title}</h2>
-              <div className="flex shrink-0 items-center gap-1">
-                {!p.locked && p.html ? <DisplayMenu /> : null}
-                {p.web_url ? <OpenInCanvasIcon href={p.web_url} /> : null}
-              </div>
-            </div>
+            <ViewHeader
+              title={p.title}
+              webUrl={p.web_url}
+              withDisplay={!p.locked && Boolean(p.html)}
+            />
           )}
           {p.locked ? (
             <Empty>

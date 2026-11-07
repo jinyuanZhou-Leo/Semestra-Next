@@ -9,16 +9,21 @@ import {
 } from '@tanstack/react-virtual'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { listOffset, scrollParent } from '@/lib/scroll'
+import { TaskListPresence } from './presence'
 
 /** Row heights before they are measured: a title alone, or a title over a line of details. */
 const ROW_HEIGHT = 44
 const ROW_HEIGHT_WITH_META = 66
 const OVERSCAN = 10
+/** More tasks than this coming or going at once is a new list, not a task added or removed. */
+const BULK = 3
 
 export type VirtualRow = {
   index: number
   /** How many tasks the list has, for `aria-setsize`. */
   count: number
+  /** The task was just added to the list: its row opens in place (`useRowPresence`). */
+  enter: boolean
   measure: (node: Element | null) => void
 }
 
@@ -139,6 +144,18 @@ export function VirtualTaskList({
     }
   }, [])
 
+  // Which tasks are new since the list last showed, so only a task added (not one scrolled to,
+  // nor a whole other list) opens in place, and only a task that left the list closes up.
+  const shown = useRef<ReadonlySet<string> | null>(null)
+  const ids = new Set(tasks.map((task) => task.id))
+  const before = shown.current
+  const added = before ? tasks.filter((task) => !before.has(task.id)).length : 0
+  const removed = before ? [...before].filter((id) => !ids.has(id)).length : 0
+  const bulk = before === null || added > BULK || removed > BULK
+  useEffect(() => {
+    shown.current = ids
+  })
+
   // Scrolling re-renders this list but nothing its rows show, so each row's element is kept and
   // React skips it. A new `renderRow` (the page re-rendered) or a new list starts over.
   const cache = useRef<RowCache | null>(null)
@@ -156,7 +173,12 @@ export function VirtualTaskList({
     if (node === undefined) {
       let place = places.current.get(task.id)
       if (place?.index !== index || place.count !== tasks.length) {
-        place = { index, count: tasks.length, measure: virtualizer.measureElement }
+        place = {
+          index,
+          count: tasks.length,
+          measure: virtualizer.measureElement,
+          enter: place === undefined && !bulk && before !== null && !before.has(task.id),
+        }
         places.current.set(task.id, place)
       }
       node = renderRow(task, place)
@@ -175,15 +197,17 @@ export function VirtualTaskList({
         paddingBottom: last ? virtualizer.getTotalSize() - last.end : 0,
       }}
     >
-      {items.map((item, i) => {
-        // A kept row far from the others gets a spacer before it, not the rows in between.
-        const previous = items[i - 1]
-        const gap = previous ? item.start - previous.end : 0
-        return [
-          gap > 0 ? <li key={`gap-${item.key}`} aria-hidden style={{ height: gap }} /> : null,
-          row(item.index),
-        ]
-      })}
+      <TaskListPresence exit={{ listed: ids, instant: bulk }}>
+        {/* One flat list of keyed rows: the presence tracks each row by its own key. */}
+        {items.flatMap((item, i) => {
+          // A kept row far from the others gets a spacer before it, not the rows in between.
+          const previous = items[i - 1]
+          const gap = previous ? item.start - previous.end : 0
+          const node = row(item.index)
+          const spacer = <li key={`gap-${item.key}`} aria-hidden style={{ height: gap }} />
+          return gap > 0 ? [spacer, node] : [node]
+        })}
+      </TaskListPresence>
     </ul>
   )
 }

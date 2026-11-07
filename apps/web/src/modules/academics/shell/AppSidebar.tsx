@@ -1,7 +1,6 @@
 import type { Program } from '@semestra/api-client'
 import { useLocation } from '@tanstack/react-router'
 import {
-  ChevronRight,
   ChevronsUpDown,
   GraduationCap,
   Library,
@@ -17,7 +16,6 @@ import { openCommandPalette } from '@/app/commands'
 import { useCommandContext } from '@/app/commands/context'
 import type { AssistantContribution } from '@/app/extensions'
 import { formatHotkey } from '@/app/hotkeys'
-import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ENTRY_ACTION_ON_HOVER, GROUP_LABEL } from '@/app/host/sidebar-classes'
 import { StatusBar } from '@/app/host/StatusBar'
 import { useSetTheme } from '@/app/preferences'
@@ -25,14 +23,12 @@ import { useModules } from '@/app/registry'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { type Theme, useTheme } from '@/app/theme'
 import { THEME_OPTIONS } from '@/app/theme-options'
-import { useUiPref } from '@/app/ui-pref'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { SignOutDialog } from '@/modules/auth/components/SignOutDialog'
 import { useAuth } from '@/modules/auth/useAuth'
 import { UserAvatar } from '@/modules/auth/settings/UserAvatar'
 import { m } from '@/paraglide/messages'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -196,9 +192,8 @@ function AccountMenu() {
 
 /**
  * The assistant (M12): the row opens its full page; the small button on its right, shown on hover
- * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). The chevron
- * folds the recent conversations under it; the fold is remembered and does not follow navigation,
- * so the entries below stay put. The interface tour points at the row.
+ * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). Past
+ * conversations are listed on the page itself. The interface tour points at the row.
  */
 function AssistantNavItem({
   assistant,
@@ -210,7 +205,6 @@ function AssistantNavItem({
   active: boolean
 }) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
-  const [recentOpen, setRecentOpen] = useUiPref('academics.sidebar_recent_chats', false)
   const ctx = useCommandContext()
   const label = m.academics_nav_assistant()
   const panelLabel = active
@@ -218,19 +212,12 @@ function AssistantNavItem({
     : open
       ? m.assistant_close_panel()
       : m.assistant_open_in_panel()
-  const SubNav = assistant.SidebarNav
   return (
-    <Collapsible
-      open={recentOpen}
-      onOpenChange={setRecentOpen}
-      className="group/collapsible"
-      render={<SidebarMenuItem />}
-    >
+    <SidebarMenuItem>
       <SidebarMenuButton
         data-tour="assistant"
         tooltip={label}
         isActive={active}
-        className={SubNav ? 'group-has-data-[sidebar=menu-action]/menu-item:pr-14' : undefined}
         render={
           <HistoryLink
             href={`${programPath(programId)}/assistant`}
@@ -249,7 +236,6 @@ function AssistantNavItem({
               aria-pressed={active ? undefined : open}
               className={cn(
                 ENTRY_ACTION_ON_HOVER,
-                SubNav && 'right-7',
                 'aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-accent-foreground',
               )}
               onClick={() => assistant.open(ctx)}
@@ -262,30 +248,7 @@ function AssistantNavItem({
           {panelLabel} <Kbd>{formatHotkey('mod+j')}</Kbd>
         </TooltipContent>
       </Tooltip>
-      {SubNav ? (
-        <>
-          <CollapsibleTrigger
-            render={
-              <SidebarMenuAction
-                aria-label={
-                  recentOpen ? m.academics_hide_recent_chats() : m.academics_show_recent_chats()
-                }
-              />
-            }
-          >
-            <ChevronRight
-              aria-hidden
-              className="transition-transform duration-200 group-data-open/collapsible:rotate-90 motion-reduce:transition-none"
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <PluginBoundary silent>
-              <SubNav programId={programId} />
-            </PluginBoundary>
-          </CollapsibleContent>
-        </>
-      ) : null}
-    </Collapsible>
+    </SidebarMenuItem>
   )
 }
 

@@ -21,6 +21,9 @@ from semestra.modules.agent.runtime import agent_ctx
 log = structlog.get_logger()
 
 REJECTED = "The user rejected this action; it was not executed."
+SKIPPED = "The user skipped this question without answering."
+ASK_PENDING = "Waiting for the user's answer."
+ASK_EXPIRED = "The question expired without an answer."
 
 
 @dataclass
@@ -139,5 +142,8 @@ def proposal_outcome(row: AgentProposal) -> Outcome:
         return Outcome(False, payload, code, display=shown)
     if row.status == "rejected":
         message = (row.result or {}).get("message") if isinstance(row.result, dict) else None
-        return Outcome(True, {"rejected": True, "message": message or REJECTED}, ran=False)
+        default = SKIPPED if row.capability == tools.ASK_USER else REJECTED
+        return Outcome(True, {"rejected": True, "message": message or default}, ran=False)
+    if row.capability == tools.ASK_USER:
+        return Outcome(True, ASK_EXPIRED if row.status == "expired" else ASK_PENDING, ran=False)
     return Outcome(True, history.EXPIRED if row.status == "expired" else history.PENDING, ran=False)

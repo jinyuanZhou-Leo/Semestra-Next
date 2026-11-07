@@ -5,6 +5,7 @@ import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
 import type { TaskActions } from '../actions'
 import { useCompleting } from '../completion'
+import { MotionLi, useRowPresence } from '../components/presence'
 import { PRIORITY_NAMES, PriorityMarks } from '../components/priority'
 import { dueLabel } from '../due'
 import { shownPriority } from '../types'
@@ -30,8 +31,13 @@ export function TaskItem({
   const done = task.completed_at !== null || completing !== null
   const due = dueLabel(task, today)
   const priority = shownPriority(task.priority)
+  const presence = useRowPresence(task.id, { minHeight: 56 })
   return (
-    <li data-completing={completing ?? undefined} className="flex min-h-14 items-center gap-3 pl-4">
+    <MotionLi
+      {...presence}
+      data-completing={completing ?? undefined}
+      className="flex min-h-14 items-center gap-3 pl-4"
+    >
       <Checkbox
         checked={done}
         aria-label={m.tasks_complete({ title: task.title })}
@@ -83,6 +89,6 @@ export function TaskItem({
           </>
         )}
       </button>
-    </li>
+    </MotionLi>
   )
 }

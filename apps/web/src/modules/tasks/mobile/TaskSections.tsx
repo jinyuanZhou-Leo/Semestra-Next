@@ -6,6 +6,7 @@ import { plusDays } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 import { useTaskActions } from '../actions'
 import { useProgramToday, useTaskLists } from '../queries'
+import { MotionDiv, TaskListPresence, useRowPresence } from '../components/presence'
 import { TaskItem } from './TaskItem'
 import { TaskSheet } from './TaskSheet'
 
@@ -54,22 +55,28 @@ export function TaskSections({ programId, groups }: { programId: string; groups:
   const [sheet, setSheet] = useState<{ task: Task; open: boolean } | null>(null)
   return (
     <>
-      {groups.map((group) => (
-        <MobileSection key={group.id} title={group.title} tone={group.tone}>
-          <MobileList label={group.title}>
-            {group.tasks.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                course={courses.find((course) => course.id === task.course_id)}
-                today={today}
-                actions={actions}
-                onOpen={(opened) => setSheet({ task: opened, open: true })}
-              />
-            ))}
-          </MobileList>
-        </MobileSection>
-      ))}
+      <TaskListPresence>
+        {groups.map((group) => (
+          <Group key={group.id}>
+            <MobileSection title={group.title} tone={group.tone}>
+              <MobileList label={group.title}>
+                <TaskListPresence>
+                  {group.tasks.map((task) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      course={courses.find((course) => course.id === task.course_id)}
+                      today={today}
+                      actions={actions}
+                      onOpen={(opened) => setSheet({ task: opened, open: true })}
+                    />
+                  ))}
+                </TaskListPresence>
+              </MobileList>
+            </MobileSection>
+          </Group>
+        ))}
+      </TaskListPresence>
       {sheet ? (
         <TaskSheet
           key={sheet.task.id}
@@ -83,4 +90,10 @@ export function TaskSections({ programId, groups }: { programId: string; groups:
       ) : null}
     </>
   )
+}
+
+/** A due-date section, which opens and closes up as its first task comes or its last one goes. */
+function Group({ children }: { children: React.ReactNode }) {
+  const presence = useRowPresence(null, {})
+  return <MotionDiv {...presence}>{children}</MotionDiv>
 }

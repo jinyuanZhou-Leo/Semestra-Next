@@ -318,7 +318,8 @@
   animation: task-strike 0.36s 0.1s ease-out backwards;
 }
 [data-completing='leaving'] {
-  opacity: 0;
+  /* Over the row's own opacity, which it sets as it opens in place (`presence.tsx`). */
+  opacity: 0 !important;
   transition: opacity 0.25s ease-in;
 }
 @keyframes task-check-pop {

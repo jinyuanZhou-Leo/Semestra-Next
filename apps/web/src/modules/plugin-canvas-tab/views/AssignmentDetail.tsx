@@ -1,5 +1,6 @@
 import type {
   AssignmentOut,
+  Quiz,
   RubricCriterion,
   RubricScore,
   SubmissionDetail,
@@ -14,10 +15,12 @@ import {
 } from '@tanstack/react-table'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { cn } from '@/lib/utils'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvas, attemptsLabel } from './common'
+import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvasIcon, attemptsLabel } from './common'
 
 /** Canvas `submission_types`, as a student reads them. */
 const SUBMISSION_TYPES: Record<string, () => string> = {
@@ -44,9 +47,18 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 /**
  * An assignment opened in the list: when it can be submitted and how, why it is locked, its
- * description, then the user's grade with the teacher's comments and rubric (M16 §4).
+ * description, then the user's grade with the teacher's comments and rubric (M16 §4). A quiz adds
+ * its questions and time limit; a practice quiz (no assignment, no grade) has no feedback.
  */
-export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut }) {
+export function AssignmentDetail({
+  assignment: a,
+  quiz,
+  practice = false,
+}: {
+  assignment: AssignmentOut
+  quiz?: Quiz | null
+  practice?: boolean
+}) {
   const types = (a.submission_types ?? []).map((t) => SUBMISSION_TYPES[t]?.() ?? t)
   return (
     <div className="space-y-4">
@@ -61,9 +73,28 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
           {types.length > 0 ? (
             <Fact label={m.canvas_tab_submit_by()} value={types.join(', ')} />
           ) : null}
-          <Fact label={m.canvas_tab_column_attempts()} value={attemptsLabel(a.allowed_attempts)} />
+          <Fact
+            label={m.canvas_tab_column_attempts()}
+            value={attemptsLabel(quiz ? quiz.allowed_attempts : a.allowed_attempts)}
+          />
+          {quiz?.question_count != null ? (
+            <Fact label={m.canvas_tab_column_questions()} value={String(quiz.question_count)} />
+          ) : null}
+          {quiz ? (
+            <Fact
+              label={m.canvas_tab_column_time_limit()}
+              value={
+                quiz.time_limit
+                  ? m.canvas_tab_minutes({ count: quiz.time_limit })
+                  : m.canvas_tab_no_time_limit()
+              }
+            />
+          ) : null}
         </dl>
-        {a.html ? <DisplayMenu /> : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {a.html ? <DisplayMenu /> : null}
+          {a.web_url ? <OpenInCanvasIcon href={a.web_url} /> : null}
+        </div>
       </div>
       {a.locked ? (
         <LockNote title={m.canvas_tab_assignment_locked()} explanation={a.lock_explanation} />
@@ -73,8 +104,7 @@ export function AssignmentDetail({ assignment: a }: { assignment: AssignmentOut 
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_no_description()}</p>
       )}
-      <Feedback assignment={a} />
-      {a.web_url ? <OpenInCanvas href={a.web_url} /> : null}
+      {practice ? null : <Feedback assignment={a} />}
     </div>
   )
 }
@@ -118,18 +148,22 @@ function FeedbackBody({
       <p className="text-sm">{facts}</p>
       {(a.rubric ?? []).length > 0 ? <Rubric criteria={a.rubric ?? []} submission={s} /> : null}
       {comments.length > 0 ? (
-        <ul className="space-y-2">
+        <ItemGroup className="gap-2">
           {comments.map((c, i) => (
-            <li key={`${c.created_at ?? ''}-${i}`} className="rounded-lg bg-muted/50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">
-                {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-              <p className="text-sm break-words whitespace-pre-wrap">{c.comment}</p>
-            </li>
+            <Item key={`${c.created_at ?? ''}-${i}`} variant="muted" size="sm">
+              <ItemContent>
+                <ItemDescription>
+                  {[c.author, c.created_at ? formatDateTime(c.created_at) : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </ItemDescription>
+                <ItemTitle className="font-normal break-words whitespace-pre-wrap">
+                  {c.comment}
+                </ItemTitle>
+              </ItemContent>
+            </Item>
           ))}
-        </ul>
+        </ItemGroup>
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_feedback_no_comments()}</p>
       )}
@@ -209,32 +243,41 @@ function Rubric({
     getRowId: (r) => r.criterion.id,
   })
   return (
-    <Table>
-      <TableHeader>
-        {table.getHeaderGroups().map((group) => (
-          <TableRow key={group.id} className="hover:bg-transparent">
-            {group.headers.map((h) => (
-              <TableHead key={h.id} className={h.column.id === 'points' ? 'text-right' : undefined}>
-                <table.FlexRender header={h} />
-              </TableHead>
-            ))}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id} className="align-top">
-            {row.getAllCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className={cell.column.id === 'points' ? 'text-right' : 'whitespace-normal'}
-              >
-                <table.FlexRender cell={cell} />
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="overflow-hidden rounded-2xl border border-border bg-background">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          {table.getHeaderGroups().map((group) => (
+            <TableRow key={group.id} className="hover:bg-transparent">
+              {group.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  scope="col"
+                  className={cn(
+                    'h-auto py-2 text-muted-foreground',
+                    h.column.id === 'points' && 'text-right',
+                  )}
+                >
+                  <table.FlexRender header={h} />
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id} className="align-top">
+              {row.getAllCells().map((cell) => (
+                <TableCell
+                  key={cell.id}
+                  className={cell.column.id === 'points' ? 'text-right' : 'whitespace-normal'}
+                >
+                  <table.FlexRender cell={cell} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

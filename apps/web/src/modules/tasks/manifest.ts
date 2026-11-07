@@ -2,6 +2,7 @@ import { ListChecks, ListTodo, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
+import NewTaskButton from './cards/NewTaskButton'
 import { listCardSettingsSchema } from './cards/schema'
 import { prefetchTodayTasks } from './queries'
 
@@ -43,6 +44,7 @@ export default defineModule({
       component: preloadable(() => import('./cards/TodayCard')),
       prefetch: prefetchTodayTasks,
       multiple: false,
+      headerActions: NewTaskButton,
     },
     {
       id: 'tasks.list',
@@ -57,6 +59,7 @@ export default defineModule({
         component: preloadable(() => import('./cards/ListCardSettings')),
       },
       multiple: true,
+      headerActions: NewTaskButton,
     },
     {
       id: 'tasks.counter',

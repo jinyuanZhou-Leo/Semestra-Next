@@ -75,7 +75,11 @@ export function itemDetail(item: ImportItem): string {
     case 'assessment': {
       const a = data as AssessmentData
       const when = a.due_date ? formatDate(a.due_date) : a.due_text
-      return [a.weight != null ? `${a.weight}%` : null, when].filter(Boolean).join(' · ')
+      const score =
+        a.points_earned != null && a.points_possible != null
+          ? `${String(a.points_earned)} / ${String(a.points_possible)}`
+          : null
+      return [a.weight != null ? `${a.weight}%` : null, when, score].filter(Boolean).join(' · ')
     }
     case 'category': {
       const c = data as CategoryData

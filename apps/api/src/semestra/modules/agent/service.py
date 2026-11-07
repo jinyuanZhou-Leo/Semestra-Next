@@ -356,7 +356,10 @@ def applied_writes(rows: Sequence[AgentMessage], props: Sequence[AgentProposal])
     from semestra.modules.agent import tools
 
     results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
-    executed = {p.call_id: p for p in props if p.status == "executed"}
+    # An answered question (`ask_user`) is stored as executed too, but changed nothing.
+    executed = {
+        p.call_id: p for p in props if p.status == "executed" and p.capability != tools.ASK_USER
+    }
     out: list[str] = []
     for r in rows:
         for b in r.content:
@@ -389,7 +392,7 @@ def changed_data(rows: Sequence[AgentMessage], props: Sequence[AgentProposal]) -
     with neither a proposal nor a result may have run before the stream was cut: count it too."""
     from semestra.modules.agent import tools
 
-    if any(p.status in ("executed", "failed") for p in props):
+    if any(p.status in ("executed", "failed") and p.capability != tools.ASK_USER for p in props):
         return True
     results = {b["call_id"]: b for r in rows for b in r.content if b.get("type") == "tool_result"}
     proposed = {p.call_id for p in props}

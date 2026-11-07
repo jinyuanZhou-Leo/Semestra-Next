@@ -2,18 +2,23 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import { History, MoreHorizontal, SquarePen } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
+import { useElementWidth } from '@/app/board/media'
 import { ShellToolbar } from '@/app/host/ShellToolbar'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { useSidebar } from '@/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { programScope } from '../scope'
 import { panel } from '../store'
 import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
+import { SessionColumn } from './SessionColumn'
 import { SessionList, SessionMenuItems, sessionTitle, useSessionEditing } from './SessionList'
+
+/** The page width (px) from which the conversations sit in a column beside the open one. */
+const SESSIONS_COLUMN_MIN_WIDTH = 720
 
 function ToolbarButton({
   label,
@@ -33,10 +38,10 @@ function ToolbarButton({
 }
 
 /**
- * The assistant as a page (M12 §6.1): one conversation as wide as the content allows. Its title,
- * "New conversation" and the ⋯ menu sit in the app's top row; past conversations are listed in
- * the app sidebar (or, while the sidebar is an icon rail, under the History button).
- * `sessionId` comes from the URL; a new conversation gets its URL once created.
+ * The assistant as a page (M12 §6.1), laid out like the tasks page: the conversations in a column
+ * on the left (or, where the page has no room for it, under the History button) and the open one
+ * beside it. Its title and ⋯ menu sit in the app's top row. `sessionId` comes from the URL; a new
+ * conversation gets its URL once created.
  */
 export function AssistantPage({
   programId,
@@ -47,7 +52,8 @@ export function AssistantPage({
   sessionId: string | null
   onNavigate: (sessionId: string | null, options?: { replace?: boolean }) => void
 }) {
-  const { state: sidebar } = useSidebar()
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const sessionsColumn = useElementWidth(root) >= SESSIONS_COLUMN_MIN_WIDTH
   // Which conversation the URL shows, read with the history entry in one snapshot: the location
   // changes before the route's params do, and reading the entry alone gave a new key for one
   // render while a new conversation got its URL, which remounted it and dropped the typed text.
@@ -77,7 +83,7 @@ export function AssistantPage({
   useEffect(() => () => panel.setPage(null), [])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div ref={setRoot} className="flex h-full min-h-0 flex-col">
       <ShellToolbar>
         <h1 className="flex min-w-0 font-heading text-sm font-semibold">
           {session ? (
@@ -94,8 +100,7 @@ export function AssistantPage({
           )}
         </h1>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          {/* The list in the sidebar is hidden on the icon rail. */}
-          {sidebar === 'collapsed' ? (
+          {sessionsColumn ? null : (
             <Popover open={historyOpen} onOpenChange={setHistoryOpen}>
               <Tooltip>
                 <TooltipTrigger
@@ -122,10 +127,12 @@ export function AssistantPage({
                 />
               </PopoverContent>
             </Popover>
-          ) : null}
-          <ToolbarButton label={m.assistant_new()} onClick={() => onNavigate(null)}>
-            <SquarePen />
-          </ToolbarButton>
+          )}
+          {sessionsColumn ? null : (
+            <ToolbarButton label={m.assistant_new()} onClick={() => onNavigate(null)}>
+              <SquarePen />
+            </ToolbarButton>
+          )}
           {session ? (
             <DropdownMenu>
               <Tooltip>
@@ -153,7 +160,15 @@ export function AssistantPage({
           ) : null}
         </div>
       </ShellToolbar>
-      <div className="flex min-h-0 flex-1">
+      <div className={cn('flex min-h-0 flex-1', sessionsColumn && 'gap-6 pt-2 pl-4')}>
+        {sessionsColumn ? (
+          <SessionColumn
+            activeId={currentId}
+            onSelect={(id) => onNavigate(id)}
+            onNew={() => onNavigate(null)}
+            editing={editing}
+          />
+        ) : null}
         <Conversation
           key={key}
           contentClassName="mx-auto w-full max-w-3xl"

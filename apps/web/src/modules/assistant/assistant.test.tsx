@@ -659,7 +659,7 @@ test('a write waits on a card: approving sends the decision and shows the result
   expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
 })
 
-test('rejecting asks for an optional reason and sends it', async () => {
+test('the card takes the place of the input; typing tells Sem what to do instead', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [{ type: 'text', text: 'Delete Lab 3' }]),
     msg('a1', 'assistant', [
@@ -672,14 +672,60 @@ test('rejecting asks for an optional reason and sends it', async () => {
   srv.reply = () => sse([])
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   const card = await screen.findByLabelText('Delete an assessment')
+  expect(screen.queryByRole('textbox', { name: 'Message' })).not.toBeInTheDocument()
   // Deleting can never be approved for good.
   expect(within(card).queryByRole('checkbox')).not.toBeInTheDocument()
-  await userEvent.click(within(card).getByRole('button', { name: 'Reject' }))
-  await userEvent.type(within(card).getByLabelText('Reason (optional)'), 'Wrong lab')
-  await userEvent.click(within(card).getByRole('button', { name: 'Reject' }))
+  await userEvent.type(
+    within(card).getByRole('textbox', { name: 'Or tell Sem what to do instead…' }),
+    'Wrong lab{Enter}',
+  )
   await waitFor(() =>
     expect(srv.sent[0]).toMatchObject({ body: { decision: 'reject', reason: 'Wrong lab' } }),
   )
+})
+
+test('a question is answered by picking an option, then shows with its answer', async () => {
+  const asked = (status: string, result: unknown = null) =>
+    proposal({
+      capability: 'ask_user',
+      args: {
+        question: 'Which evenings?',
+        options: [{ label: 'Mon and Tue', description: 'No classes' }, { label: 'Sunday' }],
+        recommended: 0,
+      },
+      input_schema: null,
+      preview: null,
+      status: status as AgentProposalOut['status'],
+      result,
+    })
+  srv.detail.messages = [
+    msg('u1', 'user', [{ type: 'text', text: 'Plan my study' }]),
+    msg('a1', 'assistant', [
+      { type: 'text', text: 'A few ways work.' },
+      { type: 'tool_call', id: 'call1', name: 'ask_user', args: {} },
+    ]),
+  ]
+  srv.detail.proposals = [asked('pending')]
+  srv.reply = () => {
+    srv.detail.proposals = [asked('executed', { answer: 'Mon and Tue' })]
+    return sse([['proposal', asked('executed', { answer: 'Mon and Tue' })]])
+  }
+  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
+  const card = await screen.findByRole('group', { name: 'Which evenings?' })
+  // What Sem said before asking stays in view.
+  expect(screen.getByText('A few ways work.')).toBeInTheDocument()
+  expect(within(card).getByText('Recommended')).toBeInTheDocument()
+  await userEvent.click(within(card).getByRole('button', { name: 'Mon and Tue, No classes' }))
+  await waitFor(() =>
+    expect(srv.sent[0]).toMatchObject({
+      path: '/agent/sessions/s1/proposals/pr1:decide',
+      body: { decision: 'answer', answer: 'Mon and Tue' },
+    }),
+  )
+  await waitFor(() => expect(card).not.toBeInTheDocument())
+  expect(screen.getByText('Which evenings?')).toBeInTheDocument()
+  expect(screen.getByText('Mon and Tue')).toBeInTheDocument()
+  expect(await messageInput()).toBeInTheDocument()
 })
 
 test('/ picks a skill and @ refers to a course, which works in its term', async () => {

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   Presentation,
 } from 'lucide-react'
+import { m } from '@/paraglide/messages'
 
 /**
  * How a file is shown: `pdf` in the PDF viewer, `image` as is, `text`/`markdown` fetched and
@@ -50,4 +51,24 @@ export function typeLabel(item: Pick<ItemOut, 'kind' | 'display_name' | 'origina
   const name = item.original_name ?? item.display_name
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+}
+
+/** The kind of a file as people name it ("Word document"), from its type or extension. */
+export function fileKindName(file: { name: string; mime_type?: string | null }): string | null {
+  const mime = file.mime_type ?? ''
+  const ext = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase() ?? ''
+  if (mime === 'application/pdf' || ext === 'pdf') return m.files_kind_pdf()
+  if (/wordprocessingml|msword/.test(mime) || ext === 'docx' || ext === 'doc')
+    return m.files_kind_word()
+  if (/presentationml|powerpoint/.test(mime) || ext === 'pptx' || ext === 'ppt')
+    return m.files_kind_slides()
+  if (/spreadsheetml|ms-excel/.test(mime) || ext === 'xlsx' || ext === 'xls')
+    return m.files_kind_sheet()
+  if (mime.startsWith('image/')) return m.files_kind_image()
+  if (mime.startsWith('video/')) return m.files_kind_video()
+  if (mime.startsWith('audio/')) return m.files_kind_audio()
+  if (/zip|compressed|x-tar|gzip/.test(mime) || ['zip', 'gz', 'tar', '7z', 'rar'].includes(ext))
+    return m.files_kind_archive()
+  if (mime === 'text/plain' || ext === 'txt') return m.files_kind_text()
+  return ext ? m.files_kind_other({ ext: ext.toUpperCase() }) : null
 }

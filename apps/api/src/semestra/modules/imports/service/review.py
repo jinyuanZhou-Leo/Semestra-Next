@@ -111,7 +111,11 @@ def _switched(item: ImportsItem, to: str) -> dict[str, Any]:
     if to == "task":
         if data.get("note"):
             common["notes"] = data["note"]
-        held = {k: data[k] for k in ("category_ref", "weight") if data.get(k) is not None}
+        held = {
+            k: data[k]
+            for k in ("category_ref", "weight", "points_earned", "points_possible")
+            if data.get(k) is not None
+        }
         return validated_data("task", {**restored, **common, "held": held or None})
     if not str(common.get("course_ref", "")).startswith(("course:", "item:")):
         raise AppError("import.course_ref_missing", 422)

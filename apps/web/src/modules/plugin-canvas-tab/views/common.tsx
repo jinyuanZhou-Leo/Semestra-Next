@@ -1,13 +1,5 @@
 import type { Submission } from '@semestra/api-client'
-import {
-  ArrowLeft,
-  ChevronDown,
-  ExternalLink,
-  Lock,
-  type LucideIcon,
-  Palette,
-  Type,
-} from 'lucide-react'
+import { ArrowLeft, ExternalLink, Lock, type LucideIcon, Palette, Type } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { type InternalLink, SafeHtml } from '@/components/SafeHtml'
 import { formatDaysUntil } from '@/lib/format'
@@ -29,37 +21,57 @@ import { type CanvasDisplay, useCanvasPage } from '../context'
 import { fileContentUrl } from '../open-in-canvas'
 import { refLocation } from '../navigation'
 
-/** The title row of an item opened inside a view: back to the list, the item, Canvas. */
-export function DetailHeader({
+/**
+ * The header of every Canvas view: the title (and a line under it) on the left; on the right the
+ * view's quiet controls as icon buttons (display, "Open in Canvas") and at most one primary
+ * action last, so every view's header reads the same way.
+ */
+export function ViewHeader({
   title,
   meta,
-  webUrl,
+  tools,
+  primary,
   withDisplay,
-  onBack,
+  webUrl,
 }: {
   title: string
   meta?: ReactNode
-  webUrl?: string | null
+  /** Icon buttons before the display menu. */
+  tools?: ReactNode
+  /** The view's one main action (`Button` default variant or `AiAction`). */
+  primary?: ReactNode
   /** The item has HTML: show the display menu. */
   withDisplay?: boolean
-  onBack: () => void
+  webUrl?: string | null
 }) {
+  return (
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div className="min-w-0">
+        <h2 className="font-heading text-lg font-semibold">{title}</h2>
+        {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {tools}
+        {withDisplay ? <DisplayMenu /> : null}
+        {webUrl ? <OpenInCanvasIcon href={webUrl} /> : null}
+        {primary ? <div className="ml-2">{primary}</div> : null}
+      </div>
+    </div>
+  )
+}
+
+/** The header of an item opened inside a view: back to the list above, then the item. */
+export function DetailHeader({
+  onBack,
+  ...header
+}: Parameters<typeof ViewHeader>[0] & { onBack: () => void }) {
   return (
     <div className="space-y-2">
       <Button variant="ghost" size="sm" className="-ml-2" onClick={onBack}>
         <ArrowLeft aria-hidden />
         {m.canvas_tab_back()}
       </Button>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-heading text-lg font-semibold">{title}</h2>
-          {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {withDisplay ? <DisplayMenu /> : null}
-          {webUrl ? <OpenInCanvasIcon href={webUrl} /> : null}
-        </div>
-      </div>
+      <ViewHeader {...header} />
     </div>
   )
 }
@@ -77,13 +89,24 @@ export function DisplayMenu() {
   const Icon = DISPLAY_ICONS[display]
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" />}
-      >
-        <Icon aria-hidden />
-        {DISPLAY_NAMES[display]()}
-        <ChevronDown aria-hidden />
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`${m.canvas_tab_display()}: ${DISPLAY_NAMES[display]()}`}
+                />
+              }
+            />
+          }
+        >
+          <Icon aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{`${m.canvas_tab_display()}: ${DISPLAY_NAMES[display]()}`}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuGroup>
           <DropdownMenuLabel>{m.canvas_tab_display()}</DropdownMenuLabel>
