@@ -1,29 +1,15 @@
 import type { AgentProposalOut } from '@semestra/api-client'
-import { ArrowRight, PencilLine, Trash2 } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useAllModules } from '@/app/registry'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemFooter,
-  ItemMedia,
-  ItemTitle,
-} from '@/ui/item'
-import { Label } from '@/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
-import { Textarea } from '@/ui/textarea'
-import { capabilityTitle, fieldLabel, formatValue } from '../labels'
+import { fieldLabel, formatValue } from '../labels'
 import type { Change } from '../stream'
-import type { Decision } from '../use-chat'
 
 type Schema = {
   type?: string
@@ -59,7 +45,7 @@ function resolve(schema: Schema | undefined, root: Schema): Schema | undefined {
 type Editable = { key: string; schema: Schema; kind: 'text' | 'number' | 'boolean' | 'enum' }
 
 /** The arguments a person can change: plain values, not ids. */
-function editableFields(proposal: AgentProposalOut): Editable[] {
+export function editableFields(proposal: AgentProposalOut): Editable[] {
   const root = (proposal.input_schema ?? {}) as Schema
   const out: Editable[] = []
   for (const [key, raw] of Object.entries(root.properties ?? {})) {
@@ -80,7 +66,7 @@ function editableFields(proposal: AgentProposalOut): Editable[] {
   return out
 }
 
-function EditForm({
+export function EditForm({
   proposal,
   onSubmit,
   onCancel,
@@ -260,114 +246,4 @@ export function ProposalChanges({ proposal }: { proposal: AgentProposalOut }) {
 /** Where the change can be seen, from the capability's preview. */
 export function proposalLink(proposal: AgentProposalOut): string | null {
   return ((proposal.preview ?? {}) as Preview).link?.to ?? null
-}
-
-/**
- * A write the assistant wants to make, waiting for the user (M12 §3.5, §6.1; AI Elements
- * "Confirmation"): what changes (before → after), approve, reject with an optional reason, or
- * change the values first. Once decided it is a step line again.
- */
-export function ProposalCard({
-  proposal,
-  disabled,
-  onDecide,
-}: {
-  proposal: AgentProposalOut
-  disabled: boolean
-  onDecide: (decision: Decision) => void
-}) {
-  const id = useId()
-  const [mode, setMode] = useState<'view' | 'edit' | 'reject'>('view')
-  const [remember, setRemember] = useState(false)
-  const [reason, setReason] = useState('')
-  const preview = (proposal.preview ?? {}) as Preview
-  const destructive = proposal.effect === 'destructive'
-  const canEdit = editableFields(proposal).length > 0
-  const title = capabilityTitle(proposal.capability)
-
-  return (
-    <Item variant="outline" size="sm" aria-label={title} className="flex-wrap">
-      <ItemMedia variant="icon">{destructive ? <Trash2 /> : <PencilLine />}</ItemMedia>
-      <ItemContent>
-        <ItemTitle>
-          {title}
-          {destructive ? (
-            <Badge variant="destructive">{m.assistant_proposal_destructive()}</Badge>
-          ) : null}
-        </ItemTitle>
-        {preview.target ? <ItemDescription>{preview.target}</ItemDescription> : null}
-      </ItemContent>
-      {mode === 'view' ? (
-        <ItemActions>
-          <Button variant="outline" size="sm" disabled={disabled} onClick={() => setMode('reject')}>
-            {m.assistant_proposal_reject()}
-          </Button>
-          {canEdit ? (
-            <Button variant="outline" size="sm" disabled={disabled} onClick={() => setMode('edit')}>
-              {m.assistant_proposal_edit()}
-            </Button>
-          ) : null}
-          <Button
-            size="sm"
-            variant={destructive ? 'destructive' : 'default'}
-            disabled={disabled}
-            onClick={() => onDecide({ proposalId: proposal.id, decision: 'approve', remember })}
-          >
-            {m.assistant_proposal_approve()}
-          </Button>
-        </ItemActions>
-      ) : null}
-      <ItemFooter className="flex-col items-stretch gap-3">
-        {mode === 'edit' ? (
-          <EditForm
-            proposal={proposal}
-            disabled={disabled}
-            onCancel={() => setMode('view')}
-            onSubmit={(args) =>
-              onDecide({ proposalId: proposal.id, decision: 'edit', args, remember })
-            }
-          />
-        ) : (
-          <ProposalChanges proposal={proposal} />
-        )}
-        {mode === 'reject' ? (
-          <div className="space-y-2">
-            <Label htmlFor={`${id}-reason`}>{m.assistant_proposal_reason()}</Label>
-            <Textarea
-              id={`${id}-reason`}
-              rows={2}
-              value={reason}
-              placeholder={m.assistant_proposal_reason_placeholder()}
-              onChange={(event) => setReason(event.target.value)}
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setMode('view')} disabled={disabled}>
-                {m.common_cancel()}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() =>
-                  onDecide({
-                    proposalId: proposal.id,
-                    decision: 'reject',
-                    reason: reason.trim() || undefined,
-                  })
-                }
-              >
-                {m.assistant_proposal_reject()}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        {mode === 'view' && proposal.effect === 'write' ? (
-          <Label className="text-xs font-normal text-muted-foreground">
-            <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked)} />
-            {m.assistant_proposal_remember()}
-          </Label>
-        ) : null}
-      </ItemFooter>
-    </Item>
-  )
 }

@@ -83,13 +83,15 @@ import {
   type ViewItem,
 } from '../transcript'
 import type { PauseReason } from '../stream'
-import { type Decision, useChat } from '../use-chat'
+import { useChat } from '../use-chat'
 import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
 import { ChipCourses, RefChip } from './RefChip'
-import { ProposalCard } from './ProposalCard'
+import { AskedBlock } from './Asked'
+import { Reveal, SmoothHeight, Swap } from './motion'
+import { PendingDock } from './PendingDock'
 import { Remembered } from './Remembered'
 import { ScopeChip } from './ScopeChip'
 import { SuggestionChips } from './SuggestionChips'
@@ -297,56 +299,32 @@ const sameReferences = (a: readonly MessageReference[], b: readonly MessageRefer
 function AssistantMessage({
   item,
   citations,
-  busy,
   active,
   showReasoning,
-  onDecide,
   footer,
   latest,
 }: {
   item: Extract<ViewItem, { kind: 'assistant' }>
   citations: ReturnType<typeof citationsOf>
-  busy: boolean
   /** This answer is being written now. */
   active: boolean
   showReasoning: boolean
-  onDecide: (decisions: Decision[]) => void
   /** Copy and regenerate under the answer; `null` while there is nothing to act on. */
   footer: React.ReactNode
   /** The latest answer shows its actions without hovering. */
   latest: boolean
 }) {
-  const pending = item.proposals.filter((p) => p.status === 'pending')
   return (
     <Message>
       <MessageContent className="gap-3">
         <Thinking item={item} active={active} showReasoning={showReasoning} />
+        {item.asked.map((asked) => (
+          <AskedBlock key={asked.key} asked={asked} citations={citations} />
+        ))}
         {item.answer ? (
           <Markdown text={item.answer} citations={citations} streaming={active} />
         ) : null}
         <Remembered steps={item.steps} />
-        {pending.length > 1 ? (
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() =>
-                onDecide(pending.map((p) => ({ proposalId: p.id, decision: 'approve' as const })))
-              }
-            >
-              {m.assistant_proposal_approve_all({ count: pending.length })}
-            </Button>
-          </div>
-        ) : null}
-        {pending.map((proposal) => (
-          <ProposalCard
-            key={proposal.id}
-            proposal={proposal}
-            disabled={busy}
-            onDecide={(decision) => onDecide([decision])}
-          />
-        ))}
         {footer ? (
           <MessageFooter className={cn('-mt-1 gap-0.5 px-0', latest ? null : hoverActions)}>
             {footer}
@@ -532,6 +510,7 @@ export function Conversation({
   const showReasoning = useShowReasoning()
   // Counts the messages sent from here, so the transcript can follow each one.
   const [sent, setSent] = useState(0)
+  const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set())
   // A new conversation works where the page is until the user picks another place.
   const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
   const newScope = chosenScope ?? pageScope
@@ -712,6 +691,11 @@ export function Conversation({
   }
 
   const lastAssistant = items.findLast((item) => item.kind === 'assistant')
+  // What Sem waits on takes the input's place until it is answered; a card leaves as soon as it
+  // is decided, and comes back if sending the decision fails.
+  const waiting = (detail?.proposals ?? [])
+    .filter((p) => p.status === 'pending' && !decided.has(p.id))
+    .toSorted((a, b) => a.created_at.localeCompare(b.created_at))
   // What is being compacted now is dimmed, with a running divider below it.
   const compacted =
     detail && chat.compacting
@@ -789,10 +773,8 @@ export function Conversation({
                           <AssistantMessage
                             item={item}
                             citations={citations}
-                            busy={chat.generating}
                             active={item === lastAssistant && chat.generating}
                             showReasoning={showReasoning}
-                            onDecide={(decisions) => void chat.decide(decisions)}
                             latest={item === lastAssistant}
                             footer={
                               item.answer ||
@@ -898,24 +880,45 @@ export function Conversation({
             </Tooltip>
           ) : null}
         </div>
-        <Composer
-          programId={programId}
-          generating={chat.generating}
-          disabled={!ai.available}
-          attachments={attachments}
-          onFiles={(files) => void addFiles(files)}
-          onRemoveAttachment={removeAttachment}
-          onSubmit={submit}
-          onStop={() => void chat.stop()}
-          onScope={(next) => void changeScope(next)}
-          focusInput={focusInput}
-          initialContent={initialContent}
-          onContentChange={onContentChange}
-          context={sessionId ? (detail?.context ?? null) : null}
-          canCompact={canCompact}
-          compacting={chat.compacting}
-          onCompact={compact}
-        />
+        {/* The input and the waiting panel share one spot; the area eases to the new height. */}
+        <SmoothHeight animateKey={waiting.length > 0 ? 'pending' : 'input'}>
+          <Swap itemKey={waiting.length > 0 ? 'pending' : null}>
+            <PendingDock
+              proposals={waiting}
+              disabled={chat.generating}
+              onDecide={(decisions) => {
+                const ids = decisions.map((d) => d.proposalId)
+                setDecided((current) => new Set([...current, ...ids]))
+                setSent((n) => n + 1)
+                void chat.decide(decisions).then((ok) => {
+                  if (ok) return
+                  setDecided((current) => new Set([...current].filter((id) => !ids.includes(id))))
+                })
+              }}
+            />
+          </Swap>
+          {/* Hidden, not unmounted, while the panel is up: a draft typed meanwhile is kept. */}
+          <Reveal shown={waiting.length === 0}>
+            <Composer
+              programId={programId}
+              generating={chat.generating}
+              disabled={!ai.available}
+              attachments={attachments}
+              onFiles={(files) => void addFiles(files)}
+              onRemoveAttachment={removeAttachment}
+              onSubmit={submit}
+              onStop={() => void chat.stop()}
+              onScope={(next) => void changeScope(next)}
+              focusInput={focusInput}
+              initialContent={initialContent}
+              onContentChange={onContentChange}
+              context={sessionId ? (detail?.context ?? null) : null}
+              canCompact={canCompact}
+              compacting={chat.compacting}
+              onCompact={compact}
+            />
+          </Reveal>
+        </SmoothHeight>
       </div>
     </section>
   )

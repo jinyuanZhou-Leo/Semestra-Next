@@ -9,6 +9,9 @@ export function capabilityName(tool: string): string {
   return tool.replaceAll('__', '.')
 }
 
+/** The tool Sem asks the user a question with; its card is answered, not approved. */
+export const ASK_USER = 'ask_user'
+
 export type StepStatus = 'running' | 'done' | 'error' | 'waiting' | 'rejected' | 'expired'
 
 /** One tool call of an answer, shown as a collapsible "step" line (M12 §6.1). */
@@ -39,6 +42,9 @@ export type ProcessEntry = {
   | { kind: 'step'; key: string; step: Step }
 )
 
+/** What Sem said before asking, and its questions: shown outside the folded steps. */
+export type Asked = { key: string; text: string; questions: Step[] }
+
 export type ViewItem =
   | {
       kind: 'user'
@@ -60,6 +66,7 @@ export type ViewItem =
       /** The reply itself: the text of the last message once it no longer calls tools. */
       answer: string
       steps: Step[]
+      asked: Asked[]
       proposals: AgentProposalOut[]
       /** How long the model worked before answering; null for answers stored without it. */
       thinkingMs: number | null
@@ -273,6 +280,7 @@ function assistantItem(
   const lastCalls = last.content.some((b) => b.type === 'tool_call')
   const process: ProcessEntry[] = []
   const steps: Step[] = []
+  const asked: Asked[] = []
   let thinkingMs: number | null = null
   for (const message of messages) {
     const calls = message.content.filter((b) => b.type === 'tool_call')
@@ -287,11 +295,18 @@ function assistantItem(
       }
     })
     const text = textOf(message)
-    // Words said before calling tools ("Let me check your grades") belong to the process.
-    if (text && (message !== last || lastCalls)) {
+    const questions = calls
+      .filter((c) => str(c.name) === ASK_USER)
+      .map((c) => stepOf(c, message.id))
+    if (questions.length > 0) {
+      // Words said before asking lead up to the question, so they stay in view with it.
+      asked.push({ key: message.id, text, questions })
+    } else if (text && (message !== last || lastCalls)) {
+      // Words said before calling tools ("Let me check your grades") belong to the process.
       process.push({ kind: 'text', key: `${message.id}-t`, text, message: message.id })
     }
     for (const call of calls) {
+      if (str(call.name) === ASK_USER) continue
       const step = stepOf(call, message.id)
       steps.push(step)
       process.push({ kind: 'step', key: `${message.id}-${step.callId}`, step, message: message.id })
@@ -307,6 +322,7 @@ function assistantItem(
     process,
     answer: lastCalls ? '' : textOf(last),
     steps,
+    asked,
     proposals: proposals.filter((p) => ids.has(p.message_id)),
     thinkingMs,
   }

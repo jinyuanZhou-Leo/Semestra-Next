@@ -237,8 +237,11 @@ class EditMessageBody(BaseModel):
 
 class Decision(BaseModel):
     proposal_id: str
-    decision: Literal["approve", "reject", "edit"]
+    decision: Literal["approve", "reject", "edit", "answer"]
     args: dict[str, Any] | None = None
+    answer: str | None = Field(
+        default=None, max_length=2000, description="The reply to a question (`answer`)."
+    )
     remember: bool = False
     reason: str | None = Field(default=None, max_length=1000)
 
@@ -248,8 +251,11 @@ class CompactBody(BaseModel):
 
 
 class DecideBody(BaseModel):
-    decision: Literal["approve", "reject", "edit"]
+    decision: Literal["approve", "reject", "edit", "answer"]
     args: dict[str, Any] | None = None
+    answer: str | None = Field(
+        default=None, max_length=2000, description="The reply to a question (`answer`)."
+    )
     remember: bool = False
     reason: str | None = Field(default=None, max_length=1000)
 

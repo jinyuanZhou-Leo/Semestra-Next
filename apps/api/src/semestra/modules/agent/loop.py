@@ -22,6 +22,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 import structlog
+from pydantic import ValidationError
 from pydantic_ai import Agent, AgentRun, RunContext, ToolReturn
 from pydantic_ai.capabilities import AbstractCapability, Caching, ToolSearch
 from pydantic_ai.capabilities import Capability as Bundle
@@ -59,7 +60,7 @@ from starlette.datastructures import State
 from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, run_after_commit
 from semestra.core.db import new_id
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, validation_error
 from semestra.core.events import events
 from semestra.modules.agent import history, memory, outcome, service, skills, tools
 from semestra.modules.agent.compaction import compact, compact_now
@@ -231,6 +232,14 @@ async def _read_result(ctx: RunContext[Turn], call_id: str, offset: int) -> str:
     return wrap_untrusted(shown, tools.tool_name(name)) if tools.is_untrusted(name) else shown
 
 
+async def _ask(ctx: RunContext[Turn], **_args: Any) -> ToolReturn:
+    """`ask_user` runs only once answered (`decide`); the answer is its result. The question
+    itself is the card `_Hooks` raises."""
+    turn, call_id = ctx.deps, ctx.tool_call_id or ""
+    result = turn.decided.get(call_id) or outcome.error("agent.interrupted")
+    return _tool_return(None, call_id, result, turn)
+
+
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
     cap = turn.caps.get(tools.capability_name(call.tool_name))
     result = outcome.error(code, ran=False, **params)
@@ -266,6 +275,15 @@ class _Hooks(AbstractCapability[Turn]):
             raise _skipped(turn, call, "agent.repeated_call", times=counters.repeats)
         if counters.repeats >= REPEAT_BLOCK:
             raise _skipped(turn, call, "agent.repeated_call", times=counters.repeats)
+        if call.tool_name == tools.ASK_USER:
+            try:
+                asked = tools.AskUser.model_validate(args)
+            except ValidationError as exc:
+                payload = outcome.error_payload(validation_error(exc))
+                result = Outcome(False, payload, "common.validation")
+                returned = _tool_return(None, call.tool_call_id, result, turn)
+                raise SkipToolExecution(returned) from None
+            raise ApprovalRequired(metadata={"args": asked.model_dump(mode="json")})
         cap = turn.caps.get(tools.capability_name(call.tool_name))
         if cap is None or cap.effect == "read":
             return args
@@ -382,7 +400,7 @@ def _agent(
     capabilities: list[AbstractCapability[Turn]] = [_Hooks(), Caching()]
     toolsets = []
     if turn.model.supports_tools:
-        toolsets.append(tools.toolset(available, _tool, _read_result))
+        toolsets.append(tools.toolset(available, _tool, _read_result, _ask))
         capabilities = [
             ToolSearch(
                 strategy=tools.search,
