@@ -291,8 +291,20 @@ export type AssistantContribution = {
  * A calendar source's label, icon and click behaviour in the calendar (M04 §5.2). The data itself
  * always comes from the backend source of the same name (`calendar.occurrence.list`).
  */
+/** What a calendar source's "new" form gets: the slot picked, in Program wall-clock time. */
+export type CalendarCreateProps = {
+  programId: string
+  termId: string
+  /** `yyyy-MM-ddTHH:mm`; for an all-day slot the time is `00:00`. */
+  start: string
+  allDay: boolean
+  /** Saved: the calendar refetches and closes the dialog. */
+  onDone: () => void
+  onCancel: () => void
+}
+
 export type CalendarSourceContribution = {
-  /** Backend source name, e.g. 'grading.assessments'. */
+  /** Backend source name, e.g. 'tasks.due'. */
   source: string
   label: Message
   icon: LucideIcon
@@ -304,6 +316,21 @@ export type CalendarSourceContribution = {
     navigate: (to: string) => void,
     ctx: { programId: string },
   ) => void
+  /**
+   * Items can be checked off: a checkbox on the item and in its details (status `done` when
+   * finished). Resolves once saved.
+   */
+  complete?: (occurrence: Occurrence, completed: boolean) => Promise<unknown>
+  /**
+   * Items can be dragged to another day or time (`time` null: all day). An item it returns false
+   * for stays put, e.g. a task whose date follows an assessment. Resolves once saved.
+   */
+  reschedule?: {
+    allowed: (occurrence: Occurrence) => boolean
+    save: (occurrence: Occurrence, due: { date: string; time: string | null }) => Promise<unknown>
+  }
+  /** Items can be created from the calendar: a choice next to "event" in its new dialog. */
+  create?: { label: Message; form: Preloadable<CalendarCreateProps> }
 }
 
 export type SearchResult = { id: string; title: string; subtitle?: string; to: string }

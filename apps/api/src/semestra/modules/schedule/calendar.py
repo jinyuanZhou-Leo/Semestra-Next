@@ -51,6 +51,9 @@ class OccurrenceMeta(BaseModel):
     instructor: str | None = None
     note: str | None = None
     url: str | None = Field(default=None, description="Link to the item elsewhere (e.g. the LMS)")
+    assessment_id: str | None = Field(
+        default=None, description="For a task that stands for an assessment: that assessment"
+    )
     updated_at: datetime | None = Field(
         default=None, description="When the item (or, for a class, one of its dates) last changed"
     )

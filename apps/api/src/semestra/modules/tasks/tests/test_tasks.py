@@ -502,9 +502,7 @@ async def test_deleting_a_program_removes_its_lists_and_tasks(
 # --- calendar and agent surface -------------------------------------------------------------
 
 
-async def test_the_calendar_source_lists_unfinished_dated_tasks(
-    app: FastAPI, api: Api, user: UserHandle
-):
+async def test_the_calendar_source_lists_dated_tasks(app: FastAPI, api: Api, user: UserHandle):
     s = await api.setup()
     pid, courses = s["program"], s["courses"]
     await api.task(pid, "overdue", due_date="2026-01-10")
@@ -525,13 +523,19 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
         async with system_ctx(app.state, user.id) as ctx:
             return await due_source(ctx, q)
 
-    [item] = await occurrences()
+    item, done = sorted(await occurrences(), key=lambda o: o.start_at)
     assert (item.title, item.kind, item.all_day, item.status) == ("in", "task", False, None)
+    # A finished task stays on its day, marked done; only unfinished ones come along as overdue.
+    assert (done.title, done.status) == ("finished", "done")
     assert item.start_at == datetime(2026, 1, 20, 9, 30, tzinfo=zone).astimezone(UTC)
     assert item.color_ref is not None
     assert item.course_id == courses["aps"]
-    late = await occurrences(include_overdue=True)
-    assert [(o.title, o.status) for o in late] == [("overdue", "overdue"), ("in", None)]
+    late = sorted(await occurrences(include_overdue=True), key=lambda o: o.start_at)
+    assert [(o.title, o.status) for o in late] == [
+        ("overdue", "overdue"),
+        ("in", None),
+        ("finished", "done"),
+    ]
     assert late[0].all_day
     assert [o.title for o in await occurrences(course_ids=frozenset([courses["aps"]]))] == ["in"]
     # The calendar collects it with the other sources.
@@ -545,7 +549,7 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
             ),
             ["tasks.due"],
         )
-    assert [o.title for o in merged] == ["in"]
+    assert [o.title for o in merged] == ["in", "finished"]
 
 
 @pytest.mark.parametrize("zone_name", ["Pacific/Auckland", "Pacific/Pago_Pago"])

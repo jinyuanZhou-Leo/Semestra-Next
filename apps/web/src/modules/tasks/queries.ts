@@ -140,13 +140,11 @@ export function invalidateTasks(queryClient: QueryClient) {
 export type { Task }
 
 export type TaskSettings = {
-  auto_tasks_from_assessments: boolean
   default_priority: Task['priority']
   show_completed_in_lists: boolean
 }
 
 export const DEFAULT_TASK_SETTINGS: TaskSettings = {
-  auto_tasks_from_assessments: false,
   default_priority: 'none',
   show_completed_in_lists: false,
 }

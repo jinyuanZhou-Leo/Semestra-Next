@@ -5,7 +5,6 @@ import {
   PROGRAM_SETUP_FIELDS,
   type ProgramSetupField,
 } from '@/modules/academics/types'
-import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { courseColumns } from './extensions/columns'
 import { prefetchGradesPage } from './queries'
@@ -147,19 +146,6 @@ export default defineModule({
       icon: Percent,
       order: 30,
       component: preloadable(() => settings().then((s) => ({ default: s.CourseGradingSection }))),
-    },
-  ],
-  calendarSources: [
-    {
-      source: 'grading.assessments',
-      label: m.grading_calendar_source,
-      icon: CalendarClock,
-      defaultVisible: true,
-      onOpen: (o, navigate, { programId }) => {
-        if (!o.course_id) return
-        const path = coursePath(programId, o.course_id, 'grades')
-        navigate(o.ref?.id ? `${path}?assessment=${encodeURIComponent(o.ref.id)}` : path)
-      },
     },
   ],
   extensions: {

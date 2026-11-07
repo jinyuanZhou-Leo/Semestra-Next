@@ -7,6 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import {
   CalendarX2,
+  CircleCheck,
+  Circle,
   ExternalLink,
   MapPin,
   Pencil,
@@ -50,6 +52,7 @@ export function OccurrenceDetails({
   onMove,
   onEditMeeting,
   onEditEvent,
+  onToggle,
 }: {
   occurrence: Occurrence
   timezone: string
@@ -60,6 +63,8 @@ export function OccurrenceDetails({
   onMove: (o: Occurrence) => void
   onEditMeeting: (o: Occurrence) => void
   onEditEvent: (o: Occurrence) => void
+  /** The item can be checked off (its source has `complete`). */
+  onToggle?: (completed: boolean) => void
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -93,7 +98,13 @@ export function OccurrenceDetails({
               className="size-3 shrink-0 rounded-full"
               style={{ backgroundColor: occurrenceColor(o) }}
             />
-            <span className={o.status === 'cancelled' ? 'line-through' : undefined}>{o.title}</span>
+            <span
+              className={
+                o.status === 'cancelled' || o.status === 'done' ? 'line-through' : undefined
+              }
+            >
+              {o.title}
+            </span>
           </DialogTitle>
           <DialogDescription>
             {dayLabel(wallDate(o.start_at, timezone))} · {timeRange(o, timezone)}
@@ -110,6 +121,9 @@ export function OccurrenceDetails({
             ) : null}
             {o.status === 'moved' ? (
               <Badge variant="secondary">{m.schedule_status_moved()}</Badge>
+            ) : null}
+            {o.status === 'done' ? (
+              <Badge variant="secondary">{m.schedule_status_done()}</Badge>
             ) : null}
             {o.status === 'overdue' ? (
               <Badge variant="destructive">{m.schedule_status_overdue()}</Badge>
@@ -144,6 +158,12 @@ export function OccurrenceDetails({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          {onToggle ? (
+            <Button variant="outline" size="sm" onClick={() => onToggle(o.status !== 'done')}>
+              {o.status === 'done' ? <Circle aria-hidden /> : <CircleCheck aria-hidden />}
+              {o.status === 'done' ? m.schedule_mark_not_done() : m.schedule_mark_done()}
+            </Button>
+          ) : null}
           {isMeeting(o) && meetingId && originalDate ? (
             o.status === 'cancelled' || o.status === 'moved' ? (
               <Button

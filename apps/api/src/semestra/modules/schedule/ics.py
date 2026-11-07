@@ -30,7 +30,8 @@ def build_calendar(name: str, timezone: str, items: Sequence[Occurrence], now: d
     cal.add("calscale", "GREGORIAN")
     cal.add("x-wr-calname", name)
     cal.add("x-wr-timezone", timezone)
-    for o in items:
+    # Finished tasks are of no use in another calendar app (VEVENT has no "completed").
+    for o in (o for o in items if o.status != "done"):
         ev = VEvent()
         ev.add("uid", f"{o.id}@semestra")
         ev.add("dtstamp", now)

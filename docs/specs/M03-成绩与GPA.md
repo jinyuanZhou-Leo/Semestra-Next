@@ -184,7 +184,7 @@ grading_assessments
 - `grading.assessment.upcoming`（GET `/programs/{program_id}/upcoming-assessments`，可选 `term_id` / `course_id`，`limit` ≤ 50）：未出分、未 dropped、有截止的考核，按截止排序，给 upcoming 卡片与 agent。
 - 别的模块读考核的分数与权重走 `grading.service.assessment_snapshots(ids)`（M09 的更新审阅用），不直接查 `grading_assessments`。
 - `GradebookSummary.categories`：每个分类（`category_id` 为空的是未分类）的权重、已出分权重、平均分、贡献，由 engine 计算；成绩构成卡与分组标题行直接用它，前端不再自己算。
-- `assessment_deadlines()`（`service/assessments.py`）给 M04 用：返回某时间范围内尚未出分的考核截止点。日历源 `grading.assessments` 在 `grading/calendar.py` 注册（只有日期的截止点显示为当天的全天项，有时间的是一个时间点；考核增删改后发 `calendar.changed`），前端在 `grading/manifest.ts` 的 `calendarSources` 里，点击打开课程的 `grades` Page（`?assessment=<id>`），该行滚动到可见处并短暂高亮，随后参数从地址栏移除。
+- 考核的截止日期在日历里只经它的待办显示（M05：每个有截止日期的考核恰好有一个任务，`tasks_items.assessment_id`），本模块不注册日历源。课程的 `grades` Page 接受 `?assessment=<id>`：该行滚动到可见处并短暂高亮，随后参数从地址栏移除（日历里点开考核的待办“打开来源”就到这里）。
 - 官方成绩覆盖（`final_override_percentage`）即使权重不足 100 也生效（用户已经知道最终成绩）；此时不给 `required_average` 与 `reachable`。`include_in_gpa=false` 的课程不进 GPA，但已完成的学分仍计入"已获学分"。
 - 错误码 `grading.scale_invalid` 的 `reason` 为 `empty`、`range_invalid`、`overlap`、`not_monotonic`、`not_from_zero`、`not_to_hundred`、`points_out_of_range`、`max_points_invalid`、`category_key_duplicate`；`grading.points_invalid` 的 `reason` 为 `points_possible_missing`、`above_scale_maximum`、`conflicting_score`。前端对每个码只给一条文案，不按 reason 细分。
 

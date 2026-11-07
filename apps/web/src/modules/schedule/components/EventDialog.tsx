@@ -6,7 +6,8 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Clock2 } from 'lucide-react'
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, Suspense, useId, useState } from 'react'
+import type { CalendarSourceContribution } from '@/app/extensions'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { calendarLocale } from '@/lib/calendar'
 import { formatDate } from '@/lib/format'
@@ -39,6 +40,8 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
 import { isoDay } from '@/lib/day'
@@ -111,9 +114,13 @@ function draftOf(
   }
 }
 
+const EVENT = 'event'
+
 /**
  * Add or edit a one-off event such as an exam or office hours (M04 §2). Times are entered in the
- * Program's time zone; the API reads times without an offset the same way.
+ * Program's time zone; the API reads times without an offset the same way. In the calendar a new
+ * item can also be one of the sources that `create` (a to-do): a switch at the top picks which,
+ * and that source's own form takes the dialog's place under it.
  */
 export function EventDialog({
   programId,
@@ -122,6 +129,7 @@ export function EventDialog({
   courseId,
   event,
   slot,
+  creators = [],
   open,
   onOpenChange,
 }: {
@@ -133,6 +141,8 @@ export function EventDialog({
   courseId?: string
   event?: OneOffEvent
   slot?: EventSlot
+  /** Calendar sources a new item can be instead of an event (needs `termId` and `slot`). */
+  creators?: readonly CalendarSourceContribution[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -146,6 +156,9 @@ export function EventDialog({
   const [deleting, setDeleting] = useState(false)
   const [startOpen, setStartOpen] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
+  const kinds = event || !termId || !slot ? [] : creators.filter((c) => c.create)
+  const [kind, setKind] = useState(EVENT)
+  const creator = kinds.find((c) => c.source === kind)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
 
@@ -224,213 +237,251 @@ export function EventDialog({
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{event ? m.schedule_event_edit() : m.schedule_event_add()}</DialogTitle>
+          <DialogTitle>
+            {event
+              ? m.schedule_event_edit()
+              : kinds.length > 0
+                ? m.schedule_new()
+                : m.schedule_event_add()}
+          </DialogTitle>
         </DialogHeader>
-        <form noValidate onSubmit={submit} className="grid grid-cols-2 gap-4">
-          <Field className="col-span-2" data-invalid={(touched && titleMissing) || undefined}>
-            <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_event_title()}</FieldLabel>
-            <Input
-              id={`${fid}-1`}
-              aria-invalid={(touched && titleMissing) || undefined}
-              placeholder={m.schedule_event_title_placeholder()}
-              value={draft.title}
-              onChange={(e) => set('title', e.target.value)}
+        {kinds.length > 0 ? (
+          <ToggleGroup
+            aria-label={m.schedule_new_kind()}
+            size="sm"
+            className={SEGMENTED}
+            value={[kind]}
+            onValueChange={(value) => value[0] && setKind(value[0])}
+          >
+            <ToggleGroupItem value={EVENT} className={SEGMENT}>
+              {m.schedule_new_event()}
+            </ToggleGroupItem>
+            {kinds.map((c) => (
+              <ToggleGroupItem key={c.source} value={c.source} className={SEGMENT}>
+                {c.create!.label()}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        ) : null}
+        {creator?.create && termId && slot ? (
+          // The calendar preloads these forms as it opens the dialog; this covers a slow load.
+          <Suspense fallback={<div className="h-40" />}>
+            <creator.create.form
+              programId={programId}
+              termId={termId}
+              start={slot.start}
+              allDay={slot.allDay}
+              onDone={() => void done()}
+              onCancel={() => onOpenChange(false)}
             />
-            {touched && titleMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_course()}</FieldLabel>
-            <Select
-              value={draft.course_id}
-              items={courseItems}
-              onValueChange={(next) => next && set('course_id', next)}
-            >
-              <SelectTrigger id={`${fid}-2`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {courseItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_type()}</FieldLabel>
-            <Select
-              value={draft.type_code}
-              items={typeItems}
-              onValueChange={(next) => next && set('type_code', next)}
-            >
-              <SelectTrigger id={`${fid}-3`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {typeItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field orientation="horizontal" className="col-span-2 w-auto">
-            <Checkbox
-              id={`${fid}-all-day`}
-              checked={draft.all_day}
-              onCheckedChange={(on) => set('all_day', on)}
-            />
-            <FieldLabel htmlFor={`${fid}-all-day`} className="font-normal">
-              {m.schedule_all_day()}
-            </FieldLabel>
-          </Field>
-          <Field className="col-span-2" data-invalid={(touched && timeMissing) || undefined}>
-            <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_starts()}</FieldLabel>
-            <div className="flex gap-2">
-              <Popover open={startOpen} onOpenChange={setStartOpen}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      id={`${fid}-4`}
-                      type="button"
-                      variant="outline"
-                      aria-invalid={(touched && timeMissing) || undefined}
-                      data-empty={!startSelected}
-                      className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
-                    />
-                  }
-                >
-                  <CalendarIcon data-icon="inline-start" />
-                  {startSelected ? formatDate(startDay) : m.schedule_date_placeholder()}
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startSelected}
-                    defaultMonth={startSelected}
-                    {...calendar}
-                    onSelect={(next) => {
-                      const day = next ? isoDay(next) : ''
-                      set(
-                        'start',
-                        day ? withDay(draft.start, day) : withClock('', clock(draft.start)),
-                      )
-                      setStartOpen(false)
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
-              {draft.all_day ? null : (
-                <InputGroup className="w-32 shrink-0">
-                  <InputGroupInput
-                    type="time"
-                    aria-label={m.schedule_start_time()}
-                    className={TIME_INPUT}
-                    value={clock(draft.start)}
-                    onChange={(input) => set('start', withClock(draft.start, input.target.value))}
-                  />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-              )}
-            </div>
-            {touched && timeMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
-          </Field>
-          <Field className="col-span-2" data-invalid={(touched && timeInvalid) || undefined}>
-            <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_ends()}</FieldLabel>
-            <div className="flex gap-2">
-              <Popover open={endOpen} onOpenChange={setEndOpen}>
-                <PopoverTrigger
-                  render={
-                    <Button
-                      id={`${fid}-5`}
-                      type="button"
-                      variant="outline"
-                      aria-invalid={(touched && timeInvalid) || undefined}
-                      data-empty={!endSelected}
-                      className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
-                    />
-                  }
-                >
-                  <CalendarIcon data-icon="inline-start" />
-                  {endSelected ? formatDate(endDay) : m.schedule_date_placeholder()}
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endSelected}
-                    defaultMonth={endSelected}
-                    {...calendar}
-                    onSelect={(next) => {
-                      const day = next ? isoDay(next) : ''
-                      set('end', day ? withDay(draft.end, day) : withClock('', clock(draft.end)))
-                      setEndOpen(false)
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
-              {draft.all_day ? null : (
-                <InputGroup className="w-32 shrink-0">
-                  <InputGroupInput
-                    type="time"
-                    aria-label={m.schedule_end_time()}
-                    className={TIME_INPUT}
-                    value={clock(draft.end)}
-                    onChange={(input) => set('end', withClock(draft.end, input.target.value))}
-                  />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-              )}
-            </div>
-            {touched && timeInvalid ? (
-              <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
-            ) : null}
-          </Field>
-          <Field className="col-span-2">
-            <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_location()}</FieldLabel>
-            <Input
-              id={`${fid}-6`}
-              value={draft.location}
-              onChange={(e) => set('location', e.target.value)}
-            />
-          </Field>
-          <Field className="col-span-2">
-            <FieldLabel htmlFor={`${fid}-7`}>{m.schedule_note()}</FieldLabel>
-            <Textarea
-              id={`${fid}-7`}
-              rows={2}
-              value={draft.note}
-              onChange={(e) => set('note', e.target.value)}
-            />
-          </Field>
-          <DialogFooter className="col-span-2">
-            {event ? (
-              <Button
-                type="button"
-                variant="destructive"
-                className="mr-auto"
-                onClick={() => setDeleting(true)}
+          </Suspense>
+        ) : (
+          <form noValidate onSubmit={submit} className="grid grid-cols-2 gap-4">
+            <Field className="col-span-2" data-invalid={(touched && titleMissing) || undefined}>
+              <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_event_title()}</FieldLabel>
+              <Input
+                id={`${fid}-1`}
+                aria-invalid={(touched && titleMissing) || undefined}
+                placeholder={m.schedule_event_title_placeholder()}
+                value={draft.title}
+                onChange={(e) => set('title', e.target.value)}
+              />
+              {touched && titleMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_course()}</FieldLabel>
+              <Select
+                value={draft.course_id}
+                items={courseItems}
+                onValueChange={(next) => next && set('course_id', next)}
               >
-                {m.schedule_event_delete()}
+                <SelectTrigger id={`${fid}-2`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {courseItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_type()}</FieldLabel>
+              <Select
+                value={draft.type_code}
+                items={typeItems}
+                onValueChange={(next) => next && set('type_code', next)}
+              >
+                <SelectTrigger id={`${fid}-3`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {typeItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field orientation="horizontal" className="col-span-2 w-auto">
+              <Checkbox
+                id={`${fid}-all-day`}
+                checked={draft.all_day}
+                onCheckedChange={(on) => set('all_day', on)}
+              />
+              <FieldLabel htmlFor={`${fid}-all-day`} className="font-normal">
+                {m.schedule_all_day()}
+              </FieldLabel>
+            </Field>
+            <Field className="col-span-2" data-invalid={(touched && timeMissing) || undefined}>
+              <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_starts()}</FieldLabel>
+              <div className="flex gap-2">
+                <Popover open={startOpen} onOpenChange={setStartOpen}>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        id={`${fid}-4`}
+                        type="button"
+                        variant="outline"
+                        aria-invalid={(touched && timeMissing) || undefined}
+                        data-empty={!startSelected}
+                        className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
+                      />
+                    }
+                  >
+                    <CalendarIcon data-icon="inline-start" />
+                    {startSelected ? formatDate(startDay) : m.schedule_date_placeholder()}
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={startSelected}
+                      defaultMonth={startSelected}
+                      {...calendar}
+                      onSelect={(next) => {
+                        const day = next ? isoDay(next) : ''
+                        set(
+                          'start',
+                          day ? withDay(draft.start, day) : withClock('', clock(draft.start)),
+                        )
+                        setStartOpen(false)
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {draft.all_day ? null : (
+                  <InputGroup className="w-32 shrink-0">
+                    <InputGroupInput
+                      type="time"
+                      aria-label={m.schedule_start_time()}
+                      className={TIME_INPUT}
+                      value={clock(draft.start)}
+                      onChange={(input) => set('start', withClock(draft.start, input.target.value))}
+                    />
+                    <InputGroupAddon>
+                      <Clock2 aria-hidden />
+                    </InputGroupAddon>
+                  </InputGroup>
+                )}
+              </div>
+              {touched && timeMissing ? <FieldError>{m.schedule_required()}</FieldError> : null}
+            </Field>
+            <Field className="col-span-2" data-invalid={(touched && timeInvalid) || undefined}>
+              <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_ends()}</FieldLabel>
+              <div className="flex gap-2">
+                <Popover open={endOpen} onOpenChange={setEndOpen}>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        id={`${fid}-5`}
+                        type="button"
+                        variant="outline"
+                        aria-invalid={(touched && timeInvalid) || undefined}
+                        data-empty={!endSelected}
+                        className="w-full min-w-0 flex-1 justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
+                      />
+                    }
+                  >
+                    <CalendarIcon data-icon="inline-start" />
+                    {endSelected ? formatDate(endDay) : m.schedule_date_placeholder()}
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={endSelected}
+                      defaultMonth={endSelected}
+                      {...calendar}
+                      onSelect={(next) => {
+                        const day = next ? isoDay(next) : ''
+                        set('end', day ? withDay(draft.end, day) : withClock('', clock(draft.end)))
+                        setEndOpen(false)
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {draft.all_day ? null : (
+                  <InputGroup className="w-32 shrink-0">
+                    <InputGroupInput
+                      type="time"
+                      aria-label={m.schedule_end_time()}
+                      className={TIME_INPUT}
+                      value={clock(draft.end)}
+                      onChange={(input) => set('end', withClock(draft.end, input.target.value))}
+                    />
+                    <InputGroupAddon>
+                      <Clock2 aria-hidden />
+                    </InputGroupAddon>
+                  </InputGroup>
+                )}
+              </div>
+              {touched && timeInvalid ? (
+                <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
+              ) : null}
+            </Field>
+            <Field className="col-span-2">
+              <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_location()}</FieldLabel>
+              <Input
+                id={`${fid}-6`}
+                value={draft.location}
+                onChange={(e) => set('location', e.target.value)}
+              />
+            </Field>
+            <Field className="col-span-2">
+              <FieldLabel htmlFor={`${fid}-7`}>{m.schedule_note()}</FieldLabel>
+              <Textarea
+                id={`${fid}-7`}
+                rows={2}
+                value={draft.note}
+                onChange={(e) => set('note', e.target.value)}
+              />
+            </Field>
+            <DialogFooter className="col-span-2">
+              {event ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="mr-auto"
+                  onClick={() => setDeleting(true)}
+                >
+                  {m.schedule_event_delete()}
+                </Button>
+              ) : null}
+              <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
+                {m.common_cancel()}
+              </DialogClose>
+              <Button type="submit" disabled={pending}>
+                {pending ? m.common_saving() : m.common_save()}
               </Button>
-            ) : null}
-            <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-              {m.common_cancel()}
-            </DialogClose>
-            <Button type="submit" disabled={pending}>
-              {pending ? m.common_saving() : m.common_save()}
-            </Button>
-          </DialogFooter>
-        </form>
+            </DialogFooter>
+          </form>
+        )}
         {event ? (
           <ConfirmDialog
             open={deleting}

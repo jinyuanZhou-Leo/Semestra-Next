@@ -6863,6 +6863,12 @@ export type OccurrenceMeta = {
      */
     url?: string | null;
     /**
+     * Assessment Id
+     *
+     * For a task that stands for an assessment: that assessment
+     */
+    assessment_id?: string | null;
+    /**
      * Updated At
      *
      * When the item (or, for a class, one of its dates) last changed

@@ -4,13 +4,15 @@ import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/rea
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { type ReactNode, forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
+import type { ModuleManifest } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
 import academics from '@/modules/academics/manifest'
 import { type World, academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import auth from '@/modules/auth/manifest'
 import settings from '@/modules/settings/manifest'
+import tasks from '@/modules/tasks/manifest'
 import { routeTree } from '@/routeTree.gen'
 import { API, newQueryClient, renderWithRouter, server, user } from '@/test-utils'
 import TodayCard from './cards/TodayCard'
@@ -19,8 +21,15 @@ import schedule from './manifest'
 
 /** FullCalendar does not lay out in jsdom; a stand-in exposes its props to the tests. */
 type CalendarProps = {
-  events: { id: string; title: string; display?: string }[]
+  events: {
+    id: string
+    title: string
+    display?: string
+    extendedProps?: Record<string, unknown>
+  }[]
   eventDrop: (info: unknown) => void
+  eventClick: (info: unknown) => void
+  eventContent: (arg: unknown) => ReactNode
   datesSet: (info: unknown) => void
   initialDate: string
   weekNumberHeaderContent: (arg: { date?: Date }) => string
@@ -235,7 +244,10 @@ beforeEach(() => {
   )
 })
 
-function mount(path: string) {
+function mount(
+  path: string,
+  modules: readonly ModuleManifest[] = [auth, settings, academics, schedule],
+) {
   const queryClient = newQueryClient()
   const router = createRouter({
     routeTree,
@@ -243,7 +255,7 @@ function mount(path: string) {
     history: createMemoryHistory({ initialEntries: [path] }),
   })
   render(
-    <ModuleRegistry value={[auth, settings, academics, schedule]}>
+    <ModuleRegistry value={modules}>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
@@ -252,8 +264,8 @@ function mount(path: string) {
   return { router, queryClient }
 }
 
-async function openCalendar() {
-  mount('/p/p1/t/t2/calendar')
+async function openCalendar(modules?: Parameters<typeof mount>[1]) {
+  mount('/p/p1/t/t2/calendar', modules)
   await screen.findByText(
     'APS105H1',
     { selector: '[data-testid=calendar] li' },
@@ -339,6 +351,118 @@ test('dragging a class asks whether to move only this one, which saves an except
       },
     }),
   )
+})
+
+test('a to-do in the calendar is checked off in place, dragged to another day and created from "New"', async () => {
+  const task: Occurrence = {
+    id: 'tasks.due:t1',
+    source: 'tasks.due',
+    kind: 'task',
+    title: 'Problem set 1',
+    start_at: '2026-01-13T05:00:00Z',
+    end_at: '2026-01-14T05:00:00Z',
+    all_day: true,
+    course_id: 'c1',
+    color_ref: 'subject-1',
+    status: null,
+    ref: { entity: 'tasks.item', id: 't1' },
+    meta: { term_id: 't2' },
+  }
+  server.use(
+    http.get(`${API}/programs/:id/calendar`, () =>
+      HttpResponse.json({
+        timezone: 'America/Toronto',
+        start: '2026-01-11',
+        end: '2026-01-18',
+        items: [lecture, task],
+        weeks: [],
+        breaks: [],
+      }),
+    ),
+    http.post(`${API}/tasks/:id\\:complete`, async ({ request }) => {
+      log.requests.push({
+        method: 'POST',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json({})
+    }),
+    http.patch(`${API}/tasks/:id`, async ({ request }) => {
+      log.requests.push({
+        method: 'PATCH',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json({})
+    }),
+    http.post(`${API}/programs/:id/tasks`, async ({ request }) => {
+      log.requests.push({
+        method: 'POST',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json({}, { status: 201 })
+    }),
+  )
+  await openCalendar([auth, settings, academics, schedule, tasks])
+  await screen.findByText('Problem set 1', { selector: '[data-testid=calendar] li' })
+  const event = calendar.props!.events.find((e) => e.id === task.id)!
+
+  // The checkbox on the item saves at once and does not open the item's details.
+  const content = render(
+    <>
+      {calendar.props!.eventContent({
+        event: { ...event, allDay: true, extendedProps: event.extendedProps },
+        view: { type: 'dayGridMonth' },
+        timeText: '',
+      })}
+    </>,
+  )
+  const box = within(content.container).getByRole('checkbox', { name: 'Complete Problem set 1' })
+  await userEvent.click(box)
+  act(() => calendar.props!.eventClick({ event, jsEvent: { target: box } }))
+  await waitFor(() =>
+    expect(log.requests).toContainEqual({
+      method: 'POST',
+      path: '/tasks/t1:complete',
+      body: { completed: true },
+    }),
+  )
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  content.unmount()
+
+  // Dragging moves its due date; an all-day drop leaves it without a time.
+  act(() =>
+    calendar.props!.eventDrop({
+      event: { extendedProps: event.extendedProps, start: new Date(2026, 0, 15), allDay: true },
+      revert: vi.fn<() => void>(),
+    }),
+  )
+  await waitFor(() =>
+    expect(log.requests).toContainEqual({
+      method: 'PATCH',
+      path: '/tasks/t1',
+      body: { due_date: '2026-01-15', due_time: null },
+    }),
+  )
+
+  // "New" can make a to-do instead of an event.
+  await userEvent.click(screen.getByRole('button', { name: 'New' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'To-do' }))
+  await within(dialog).findByPlaceholderText('Add notes', undefined, { timeout: 10_000 })
+  await userEvent.type(within(dialog).getByLabelText('Title'), 'Read chapter 3')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(log.requests).toContainEqual(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/programs/p1/tasks',
+        body: expect.objectContaining({ title: 'Read chapter 3', due_time: '09:00' }),
+      }),
+    ),
+  )
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 test('the week number beside the days is the term week of the first day shown, west of UTC too', async () => {

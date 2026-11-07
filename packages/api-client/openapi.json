@@ -28151,6 +28151,18 @@
             "title": "Url",
             "description": "Link to the item elsewhere (e.g. the LMS)"
           },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "For a task that stands for an assessment: that assessment"
+          },
           "updated_at": {
             "anyOf": [
               {

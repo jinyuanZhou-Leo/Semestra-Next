@@ -41,6 +41,7 @@ function task(overrides: Partial<Task> & { id: string }): Task {
     position: 1,
     source_kind: null,
     source_ref: null,
+    assessment_id: null,
     overdue: false,
     created_at: stamp,
     updated_at: stamp,
@@ -349,8 +350,7 @@ test("an assessment's task keeps its title, date and course, and links to the gr
       title: 'APS105H1 · Midterm',
       course_id: 'c1',
       due_date: '2026-03-02',
-      source_kind: 'assessment',
-      source_ref: 'a1',
+      assessment_id: 'a1',
     }),
   ]
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)

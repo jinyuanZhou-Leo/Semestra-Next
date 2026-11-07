@@ -22,14 +22,12 @@ import { Switch } from '@/ui/switch'
 import { useFeed } from '../queries'
 
 type FeedSource = Feed['sources'][number]
-const FEED_SOURCES: readonly FeedSource[] = ['schedule', 'assessments', 'tasks', 'lms']
+const FEED_SOURCES: readonly FeedSource[] = ['schedule', 'tasks', 'lms']
 
 function sourceLabel(source: FeedSource): string {
   switch (source) {
     case 'schedule':
       return m.schedule_feed_source_schedule()
-    case 'assessments':
-      return m.schedule_feed_source_assessments()
     case 'tasks':
       return m.schedule_feed_source_tasks()
     case 'lms':

@@ -13,7 +13,7 @@
 - **从 LMS 批量导入课程**（旧 `import_program_courses`）：名称取外部课程名，别名取课程代码，分类从课程代码推断，学分取默认值，可选择目标学期；导入时同时建立课程关联。
 - **读取接口**：导航、公告、作业、成绩、单元及条目、文件（元数据与内容）、页面、测验、syllabus。这些接口与平台无关，Canvas Tab 插件和 Agent 都使用它们。
 - **作业导入为成绩簿考核**（一次性导入）。
-- **学期日历叠加**：开启同步的已关联课程，其作业截止时间与 LMS 日历事件显示在日历中（旧 event-core 的 LMS 日历源；按 provider 批量请求，Canvas 使用 context codes）。
+- **学期日历叠加**：开启同步的已关联课程，其 LMS 日历事件（不是作业）显示在日历中（按 provider 批量请求，Canvas 使用 context codes）。作业要导入才进日历：导入后成为考核（有截止日期就有待办）或待办，日历经 `tasks.due` 显示。
 - 设置界面：连接管理（Provider 选择、Provider 专属表单与 logo），课程设置中的关联管理，Program 设置中的连接绑定。
 - 出站请求防 SSRF；凭证加密存储并带版本号。
 
@@ -70,7 +70,7 @@ class LmsProvider(Protocol):
 - **凭证两种形态**：① 手填个人访问令牌（`access_token`，默认，托管版与自托管都可用）；② 自托管开启 `SEMESTRA_LMS_CANVAS_SIGN_IN` 后，可在学校登录页完成 SSO/MFA，把回调地址粘回应用（`sign_in.py`）。后者借用 Canvas 官方移动端 OAuth 客户端（`sso.canvaslms.com/api/v1/mobile_verify.json`），换到的 refresh token 长期有效，access token 临近过期或 401 时自动续期；续期后的凭证在请求提交后用单独短事务写回（与读缓存一样，不在读请求事务里写库）。关闭开关后不再续期：已有连接在 access token 过期后变为 `lms.invalid_credentials`，用户改填令牌；删除或更换这类连接时仍会尽力撤销（必要时用 refresh token 换一次 access token）。文件预览和下载与其它读取一样，遇 401 续期后重试一次。`credentials_hint` 为 `{method: "sign_in"}` 或令牌掩码。只允许 https（`lms.sign_in_https_required`）：换码和续期都会发送 client secret 与 refresh token。删除或更换凭证时，提交后尽力向 Canvas 撤销旧令牌：撤销需要有效的 access token，所以过期时先续期，遇 401 再续期重试一次；refresh token 已失效说明用户已在 Canvas 上移除，不算失败；其它失败只记日志。未验证：按 Canvas 开源代码，开发者密钥开了 `force_token_reuse` 时重新登录不返回 refresh token，换码以 `lms.sign_in_failed`（`no_token`）失败，旧连接不受影响（可删除后重连）；开了 `replace_tokens` 时登录会废掉同一密钥下的其它令牌，包括手机 App 的。移动端密钥是否开启这两项无法从外部确认。
 - 所有请求都通过 `core.http.safe_client()`。文件下载跟随的重定向只允许同源或 Canvas 文件 CDN，每一跳都要在解析后检查不是私网地址。
 - `navigation` 映射 Canvas tabs：`home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`discussions` 映射为对应的内置类型，`type=external` 映射为 `external`，其它映射为 `unknown`。
-- `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，同时获取 `type=event` 与 `type=assignment`。
+- `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，只取 `type=event`（作业不进日历叠加）。
 - 错误映射：带 `WWW-Authenticate` 的 401 → `lms.invalid_credentials`；不带的 401（已登录但某个页面或文件被锁）和普通 403 → `lms.forbidden`；403 且正文含 `Rate Limit Exceeded` 或 `X-Rate-Limit-Remaining` 已降到 0 → `lms.rate_limited`（Canvas 默认用 403 限流，站点开启后才用 429；没有 `Retry-After`，按 60 秒）；429 → `lms.rate_limited`（带 `retry_after`）；404 → `common.not_found`；网络错误或超时 → `lms.unreachable`；私网地址 → `lms.blocked_address`；学校登录未开启 → `lms.sign_in_disabled`；Canvas 不认识该校 → `lms.sign_in_unavailable`；学校登录用了 http 地址 → `lms.sign_in_https_required`；粘贴的回调无授权码/已过期 → `lms.sign_in_failed`。
 
 ### 2.4 读缓存
@@ -114,7 +114,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - 浏览类数据（公告、单元、页面等）实时读取，有缓存。
   - **课程同步**（`lms.course.link.sync`，旧 `sync_course_link`）只刷新关联本身的外部元数据（代码、名称、学期、web_url），不修改课程本身。
   - 作业导入是一次性的。之后 `lms.course.check_updates` 对比 `lms_imported_refs.snapshot`，如果截止时间、分值、权重、名称或成绩变化，在成绩页和 Canvas Tab 显示"有 N 项更新"。用户确认后生成一个 M08 session，其 items 为更新类 item，审核后才写入。
-  - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。已导入为考核或待办的作业不重复显示。
+  - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
 - `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测；读取接口和 Canvas Tab 仍然可用。
 - 定时任务 `lms.refresh_status`（每 6 小时）：验证所有连接是否仍然有效，失效时标记为 error 并通过 SSE 发出 `lms.connection.status_changed`。
 
@@ -192,13 +192,13 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
 - 绑定规则：有关联时不能更换绑定；关联必须使用 Program 的绑定连接；关联唯一性。
 - 导入：同一作业导入两次只创建一次；导入课程同时创建关联且在同一事务中；更新检测。
-- 日历：`sync_enabled=false` 的课程不出现；已导入作业不重复；多课程合并为一次请求。
+- 日历：`sync_enabled=false` 的课程不出现；只显示平台日历事件；多课程合并为一次请求。
 - HTML 清洗：去掉 script/style/事件属性；内部链接改写。
 - 凭证：任何响应和日志中都不出现明文。
 
 ## 12. 验收
 - 添加 Canvas 连接并绑定到 Program 后，在学期向导中能一次性导入本学期全部课程，课程自动关联。
-- 导入作业后，日历中不出现重复的截止事件。
+- 作业的截止日期只经导入后的待办出现在日历里，不会出现两次。
 - 用假 provider 跑通全部模块测试，证明新增 provider 不需要修改模块代码。
 
 ## 实现说明（M09 落地时补充）

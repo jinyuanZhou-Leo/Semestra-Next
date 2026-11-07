@@ -107,7 +107,7 @@ export function TaskDetail({
 
   const source = task.source_kind && task.source_kind !== 'manual' ? task.source_kind : null
   // An assessment's task follows it: its title, due date and course change in the gradebook.
-  const managed = task.source_kind === 'assessment'
+  const managed = task.assessment_id !== null
   const listName = (list: TaskList) => list.name
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
@@ -297,10 +297,15 @@ export function TaskDetail({
             </p>
           ) : null}
           <div className="flex items-center justify-between gap-2 pt-1">
-            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
-              <Trash2 aria-hidden />
-              {m.common_delete()}
-            </Button>
+            {/* An assessment's task goes only with its assessment. */}
+            {managed ? (
+              <span />
+            ) : (
+              <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
+                <Trash2 aria-hidden />
+                {m.common_delete()}
+              </Button>
+            )}
             <Button disabled={!dirty || !valid || saving} onClick={() => void save()}>
               {m.common_save()}
             </Button>
@@ -338,7 +343,6 @@ function CourseOption({ course }: { course: Course }) {
 }
 
 const SOURCE_NAMES: Record<string, () => string> = {
-  assessment: m.tasks_source_assessment,
   lms: m.tasks_source_lms,
   syllabus: m.tasks_source_syllabus,
   agent: m.tasks_source_agent,

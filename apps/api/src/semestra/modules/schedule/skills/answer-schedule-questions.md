@@ -20,12 +20,14 @@ converting.
 
 **Which tool.**
 - Today, or "what's due soon": `calendar.today.get` first. It has today's classes and events,
-  deadlines and due tasks of the next 7 days, and today's term week.
+  the tasks due in the next 7 days (assessments due show up as their tasks), and today's term
+  week.
 - Any other day or range: `calendar.occurrence.list` with `start` and `end` dates (`end` is the
   day after the last day). Keep the range to what was asked: a week or two, not a whole term.
-  Narrow it with `course_ids`, `kinds` (class, event, deadline, task) or `sources`
-  (`schedule.meetings`, `schedule.events`, `grading.assessments`, `tasks.due`, `lms.events`).
-  Tasks that came from an assessment show once, as the deadline.
+  Narrow it with `course_ids`, `kinds` (class, event, task) or `sources`
+  (`schedule.meetings`, `schedule.events`, `tasks.due`, `lms.events`). Every dated assessment
+  has a task, so its due date shows once, as that task (`meta.assessment_id`); finished tasks
+  have `status: done`. `lms.events` are the LMS's own calendar events, not assignments.
 - "Week 6" or "reading week" as dates: `academics.term.get_weeks`.
 - "When does APS105 meet?" (the weekly pattern rather than dates): `schedule.meeting.list`.
 

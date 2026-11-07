@@ -163,8 +163,6 @@ export const settingsMessages = {
   settings_status_saving: m.settings_status_saving,
   settings_switch_off: m.settings_switch_off,
   settings_switch_on: m.settings_switch_on,
-  settings_tasks_auto_tasks_from_assessments_description: m.settings_tasks_auto_tasks_from_assessments_description,
-  settings_tasks_auto_tasks_from_assessments_label: m.settings_tasks_auto_tasks_from_assessments_label,
   settings_tasks_default_priority_description: m.settings_tasks_default_priority_description,
   settings_tasks_default_priority_label: m.settings_tasks_default_priority_label,
   settings_tasks_default_priority_option_high: m.settings_tasks_default_priority_option_high,

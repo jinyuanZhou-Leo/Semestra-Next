@@ -310,6 +310,8 @@ async def today(ctx: Ctx, program_id: str) -> Today:
             tasks=[
                 o
                 for o in items
-                if o.kind == "task" and (o.status == "overdue" or o.start_at < tomorrow)
+                if o.kind == "task"
+                and o.status != "done"
+                and (o.status == "overdue" or o.start_at < tomorrow)
             ],
         )
