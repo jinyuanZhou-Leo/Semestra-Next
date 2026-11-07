@@ -121,5 +121,5 @@ defineModule({
   - **作业与成绩合并**：Canvas 菜单里的作业、测验、成绩三项合成一项“作业与成绩”（`navigation.ts` 的 `MERGED`，放在三者中第一个的位置），`?tab=grades|quizzes` 跳到 `assignments`，测验 `ref` 变成 `quiz:<id>`。一张表：计分测验并到对应作业行（名称前有测验图标，展开后多次数、题目数、限时），练习测验单独成组放最后（不能勾选、不显示反馈）。去掉成绩页的总评卡片和引导 `Alert`，删掉 `GradesView`、`QuizzesView`。
   - 导入只有一个主按钮“导入 ▾”（导入到成绩簿 / 导入到待办），不再用 `AiAction`（这不是 AI 操作）；已导入的行在名称后标“已在成绩簿”或“已在待办”，不能再勾选（每个作业只导入一次）。导入到成绩簿时 Canvas 上已出的成绩一起带入（M09）。
   - **统一页面头**：各视图用 `views/common.tsx` 的 `ViewHeader`（标题取 Canvas 菜单里的名称；右侧依次是工具、显示方式图标菜单、在 Canvas 中打开图标，最后是唯一的主按钮）；详情页是返回按钮 + `ViewHeader`。
-  - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`。
+  - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`，文案前缀改为 `files_kind_*`。
   - M08 导入会话失败（例如没有可导入的内容）时，`SessionView` 显示 `Empty` + 原因 + “关闭”，不再是撑满对话框的红色 `Alert`。

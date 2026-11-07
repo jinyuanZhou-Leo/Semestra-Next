@@ -57,18 +57,18 @@ export function typeLabel(item: Pick<ItemOut, 'kind' | 'display_name' | 'origina
 export function fileKindName(file: { name: string; mime_type?: string | null }): string | null {
   const mime = file.mime_type ?? ''
   const ext = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase() ?? ''
-  if (mime === 'application/pdf' || ext === 'pdf') return m.canvas_tab_file_kind_pdf()
+  if (mime === 'application/pdf' || ext === 'pdf') return m.files_kind_pdf()
   if (/wordprocessingml|msword/.test(mime) || ext === 'docx' || ext === 'doc')
-    return m.canvas_tab_file_kind_word()
+    return m.files_kind_word()
   if (/presentationml|powerpoint/.test(mime) || ext === 'pptx' || ext === 'ppt')
-    return m.canvas_tab_file_kind_slides()
+    return m.files_kind_slides()
   if (/spreadsheetml|ms-excel/.test(mime) || ext === 'xlsx' || ext === 'xls')
-    return m.canvas_tab_file_kind_sheet()
-  if (mime.startsWith('image/')) return m.canvas_tab_file_kind_image()
-  if (mime.startsWith('video/')) return m.canvas_tab_file_kind_video()
-  if (mime.startsWith('audio/')) return m.canvas_tab_file_kind_audio()
+    return m.files_kind_sheet()
+  if (mime.startsWith('image/')) return m.files_kind_image()
+  if (mime.startsWith('video/')) return m.files_kind_video()
+  if (mime.startsWith('audio/')) return m.files_kind_audio()
   if (/zip|compressed|x-tar|gzip/.test(mime) || ['zip', 'gz', 'tar', '7z', 'rar'].includes(ext))
-    return m.canvas_tab_file_kind_archive()
-  if (mime === 'text/plain' || ext === 'txt') return m.canvas_tab_file_kind_text()
-  return ext ? m.canvas_tab_file_kind_other({ ext: ext.toUpperCase() }) : null
+    return m.files_kind_archive()
+  if (mime === 'text/plain' || ext === 'txt') return m.files_kind_text()
+  return ext ? m.files_kind_other({ ext: ext.toUpperCase() }) : null
 }

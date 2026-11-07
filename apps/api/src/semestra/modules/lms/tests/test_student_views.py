@@ -92,8 +92,14 @@ async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1", "a2"]}
     )
     session = await api.call("GET", f"/imports/{started['session_id']}")
-    first = by_type(session, "assessment")[0]["data"]
-    assert (first["points_earned"], first["points_possible"]) == (8, 10)
+    first = by_type(session, "assessment")[0]
+    assert (first["data"]["points_earned"], first["data"]["points_possible"]) == (8, 10)
+    # Switched to a task and back in the review, it keeps the grade.
+    url = f"/imports/{session['id']}/items/{first['id']}"
+    await api.call("PATCH", url, json={"type": "task"})
+    back = await api.call("PATCH", url, json={"type": "assessment"})
+    data = next(i for i in back["items"] if i["id"] == first["id"])["data"]
+    assert (data["points_earned"], data["points_possible"]) == (8, 10)
     assert (await api.commit(started["session_id"]))["failed"] == 0
     assessments = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
     lab = next(a for a in assessments if a["title"] == "Lab 1")
