@@ -798,6 +798,7 @@
   "grading_graded_courses": "{count} 门课已出成绩",
   "grading_term_empty": "还没有课程",
   "grading_target_gpa": "目标 GPA",
+  "grading_target_grade": "目标成绩",
   "grading_planned_gpa": "规划 GPA",
   "grading_target_met": "已达标",
   "grading_target_gap": "还差 {gap}",
