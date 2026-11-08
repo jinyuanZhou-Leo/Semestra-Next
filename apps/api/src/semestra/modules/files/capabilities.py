@@ -12,6 +12,9 @@ from semestra.modules.files.schemas import (
     DocumentOutline,
     DocumentRead,
     DocumentReadInput,
+    EntriesDeleteInput,
+    EntriesMoved,
+    EntriesMoveInput,
     FilesItemList,
     FilesItemListInput,
     FilesUsageBreakdown,
@@ -187,6 +190,40 @@ unless recursive=true, which permanently deletes all its files, links and subfol
 )
 async def folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> Deleted:
     await service.delete_folder(ctx, inp.folder_id, inp.recursive)
+    return Deleted()
+
+
+@capability(
+    name="files.entry.move_many",
+    summary="Move several files, links and folders of a course into one folder.",
+    description="""Use when the user wants several things of one course in another folder of the
+same course (to_folder_id null = course root). Folders move with everything inside them. All of
+them move or, if one cannot (a folder name already taken there, folders nested too deep), none
+do.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/files:move"),
+    tags=TAGS,
+)
+async def entries_move(ctx: Ctx, inp: EntriesMoveInput) -> EntriesMoved:
+    moved = await service.move_entries(
+        ctx, inp.course_id, inp.item_ids, inp.folder_ids, inp.to_folder_id
+    )
+    return EntriesMoved(moved=moved)
+
+
+@capability(
+    name="files.entry.delete_many",
+    summary="Delete several files, links and folders of a course permanently.",
+    description="""Use only when the user clearly asks to delete these. Folders go with
+everything inside them; nothing can be restored. All of them are deleted, or none if one is
+not found.""",
+    effect="destructive",
+    http=Http("POST", "/courses/{course_id}/files:delete"),
+    preview=service.preview_entries_delete,
+    tags=TAGS,
+)
+async def entries_delete(ctx: Ctx, inp: EntriesDeleteInput) -> Deleted:
+    await service.delete_entries(ctx, inp.course_id, inp.item_ids, inp.folder_ids)
     return Deleted()
 
 

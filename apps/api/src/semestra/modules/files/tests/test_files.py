@@ -346,6 +346,54 @@ async def test_folder_depth_and_non_empty_delete(fx: Fx):
     assert left == {"folders": [], "items": [], "next_cursor": None}
 
 
+async def test_moving_and_deleting_several_is_all_or_nothing(fx: Fx):
+    async def folder(name: str, parent_id: str | None = None) -> str:
+        made = await fx.call(
+            "POST", f"/courses/{fx.course_id}/folders", json={"name": name, "parent_id": parent_id}
+        )
+        return made["id"]
+
+    target = await folder("Target")
+    await folder("Notes", target)
+    notes, week1 = await folder("Notes"), await folder("Week 1")
+    a = await fx.upload("a.txt", b"a")
+    b = await fx.upload("b.txt", b"b", folder_id=week1)
+
+    # "Notes" is already taken in Target: nothing moves, not even the files.
+    taken = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/files:move",
+        json={"item_ids": [a["id"]], "folder_ids": [week1, notes], "to_folder_id": target},
+        status=409,
+    )
+    assert taken["error"]["code"] == "common.conflict"
+    listing = await fx.call("GET", f"/courses/{fx.course_id}/files", params={"recursive": True})
+    assert {i["id"]: i["folder_id"] for i in listing["items"]} == {a["id"]: None, b["id"]: week1}
+
+    moved = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/files:move",
+        json={"item_ids": [a["id"]], "folder_ids": [week1], "to_folder_id": target},
+    )
+    assert moved == {"moved": 2}
+
+    # A chosen folder takes what is in it, even when that was chosen too; an unknown id stops it.
+    await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/files:delete",
+        json={"item_ids": [b["id"], "missing"], "folder_ids": [week1]},
+        status=404,
+    )
+    await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/files:delete",
+        json={"item_ids": [a["id"], b["id"]], "folder_ids": [week1]},
+    )
+    left = await fx.call("GET", f"/courses/{fx.course_id}/files", params={"recursive": True})
+    assert left["items"] == []
+    assert sorted(f["name"] for f in left["folders"]) == ["Notes", "Notes", "Target"]
+
+
 # --- content download ---------------------------------------------------------------------------
 
 
