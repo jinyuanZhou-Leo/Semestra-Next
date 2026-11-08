@@ -19,6 +19,11 @@ test('install links carry the server config with the token', () => {
   const config = new URL(setup.href).searchParams.get('config')!
   expect(JSON.parse(atob(config))).toEqual({ url, headers: { Authorization: 'Bearer spat_x' } })
   expect(JSON.parse(setup.text).mcpServers.semestra.url).toBe(url)
+  // No link sends the token over the network: each opens its app directly.
+  for (const id of ['cursor', 'lm-studio'] as const) {
+    const link = mcpSetup(id, url, 'spat_x')
+    expect(link.kind === 'link' && new URL(link.href).protocol).not.toBe('https:')
+  }
 })
 
 test('connecting a client creates a token named after it and fills it into the command', async () => {

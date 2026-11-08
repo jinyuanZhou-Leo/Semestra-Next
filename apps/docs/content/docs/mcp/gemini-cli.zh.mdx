@@ -18,11 +18,11 @@ description: 用一条命令把 Semestra 加进 Gemini CLI。
 在终端运行：
 
 ```bash
-gemini mcp add --transport http semestra https://semestra.example.com/mcp \
+gemini mcp add --scope user --transport http semestra https://semestra.example.com/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-默认写进项目的 `.gemini/settings.json`；加 `--scope user` 则写进 `~/.gemini/settings.json`。也可以直接编辑文件，注意键名是 `httpUrl`：
+`--scope user` 会写进 `~/.gemini/settings.json`，在任何目录都能用。不加时写进当前目录的 `.gemini/settings.json`，不要把其中的令牌提交进仓库。也可以直接编辑文件，注意键名是 `httpUrl`：
 
 ```json
 {

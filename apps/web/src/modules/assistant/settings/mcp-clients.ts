@@ -65,7 +65,8 @@ export function mcpSetup(client: ClientId, url: string, token: string): Setup {
     case 'lm-studio':
       return {
         kind: 'link',
-        href: `https://lmstudio.ai/install-mcp?name=${SERVER}&config=${encodeURIComponent(base64({ url, headers }))}`,
+        // The app's own scheme: an https link would send the token to lmstudio.ai.
+        href: `lmstudio://add_mcp?name=${SERVER}&config=${encodeURIComponent(base64({ url, headers }))}`,
         file: '~/.lmstudio/mcp.json',
         text: json({ mcpServers: { [SERVER]: { url, headers } } }),
       }
@@ -77,7 +78,7 @@ export function mcpSetup(client: ClientId, url: string, token: string): Setup {
     case 'gemini-cli':
       return {
         kind: 'command',
-        text: `gemini mcp add --transport http ${SERVER} ${url} \\\n  --header "Authorization: Bearer ${token}"`,
+        text: `gemini mcp add --scope user --transport http ${SERVER} ${url} \\\n  --header "Authorization: Bearer ${token}"`,
       }
     case 'vscode':
       return {

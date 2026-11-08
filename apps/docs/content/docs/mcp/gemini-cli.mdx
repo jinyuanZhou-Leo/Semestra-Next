@@ -18,11 +18,11 @@ Create an API token first: Settings → **AI → API & MCP → API tokens → Cr
 Run this in a terminal:
 
 ```bash
-gemini mcp add --transport http semestra https://semestra.example.com/mcp \
+gemini mcp add --scope user --transport http semestra https://semestra.example.com/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-By default it goes into the project's `.gemini/settings.json`; add `--scope user` for `~/.gemini/settings.json`. Editing the file by hand works too. Note the key is `httpUrl`:
+`--scope user` writes it to `~/.gemini/settings.json`, so it works in every directory. Without it, the server goes into `.gemini/settings.json` in the current directory; do not commit a token there. Editing the file by hand works too. Note the key is `httpUrl`:
 
 ```json
 {
