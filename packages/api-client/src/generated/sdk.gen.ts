@@ -5208,7 +5208,7 @@ export const scheduleEventCreate = <ThrowOnError extends boolean = false>(option
  * Add one or more one-off events: exams, office hours, make-up classes, appointments.
  *
  * Times without an offset are read in the Program's time zone. For something
- * that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+ * that repeats weekly use schedule.section.create_many. An item with the same source_kind and
  * source_ref as an existing event of the Program updates it.
  */
 export const scheduleEventCreateMany = <ThrowOnError extends boolean = false>(options: Options<ScheduleEventCreateManyData, ThrowOnError>): RequestResult<ScheduleEventCreateManyResponses, ScheduleEventCreateManyErrors, ThrowOnError> => (options.client ?? client).post<ScheduleEventCreateManyResponses, ScheduleEventCreateManyErrors, ThrowOnError>({

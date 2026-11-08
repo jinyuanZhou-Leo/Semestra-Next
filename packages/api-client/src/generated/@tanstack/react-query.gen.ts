@@ -4602,7 +4602,7 @@ export const scheduleEventCreateMutation = (options?: Partial<Options<ScheduleEv
  * Add one or more one-off events: exams, office hours, make-up classes, appointments.
  *
  * Times without an offset are read in the Program's time zone. For something
- * that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+ * that repeats weekly use schedule.section.create_many. An item with the same source_kind and
  * source_ref as an existing event of the Program updates it.
  */
 export const scheduleEventCreateManyMutation = (options?: Partial<Options<ScheduleEventCreateManyData>>): UseMutationOptions<ScheduleEventCreateManyResponse, ScheduleEventCreateManyError, Options<ScheduleEventCreateManyData>> => {

@@ -2,10 +2,12 @@
 
 A section (LEC0101) was the meetings of a course and term sharing a type and code, each with its
 own weeks, so its times could run in different weeks. Now `schedule_sections` holds what the
-times share and `schedule_meetings` only the weekday, hours, room, title and on/off. Meetings
-with a code become one section per course, term, type and code; a meeting without a code is a
-section of its own. A section takes the weeks of its first time (by weekday and start) and the
-first instructor any of its times had.
+times share and `schedule_meetings` only the weekday, hours, room, title and on/off. No class
+moves: meetings with a code that run in the same weeks become one section per course, term,
+type, code and weeks. When a code's times run in different weeks, the first (by weekday and
+start) keeps the code and the others become sections without one, with the code as their
+title, the rule `schedule.section.create_many` follows for imports. A meeting without a code is
+a section of its own. A section takes the first instructor any of its times had.
 
 Revision ID: 0037
 Revises: 0036
@@ -84,6 +86,7 @@ def upgrade() -> None:
         sa.column("section_id", sa.String),
         sa.column("weekday", sa.Integer),
         sa.column("start_time", sa.Time),
+        sa.column("title", sa.String),
         sa.column("created_at", UTC_DT),
         sa.column("updated_at", UTC_DT),
         *(sa.column(name) for name in _SHARED),
@@ -101,19 +104,32 @@ def upgrade() -> None:
         )
     ).all()
     found: dict[tuple[Any, ...], dict[str, Any]] = {}
+    coded: dict[tuple[Any, ...], tuple[Any, ...]] = {}  # code -> the weeks that keep it
     new_sections: list[dict[str, Any]] = []
     for row in rows:
         m = row._mapping
-        key = (
-            (m["user_id"], m["course_id"], m["term_id"], m["type_code"], m["section_code"])
-            if m["section_code"]
-            else (m["id"],)
+        code = (m["user_id"], m["course_id"], m["term_id"], m["type_code"], m["section_code"])
+        weeks = (
+            m["recurrence"],
+            m["anchor_week"] if m["recurrence"] == "biweekly" else None,
+            m["start_week"],
+            m["end_week"],
+            bool(m["skip_breaks"]),
         )
+        key = (*code, weeks) if m["section_code"] else (m["id"],)
+        keeps_code = bool(m["section_code"]) and coded.setdefault(code, weeks) == weeks
+        if m["section_code"] and not keeps_code:
+            conn.execute(
+                meetings.update()
+                .where(meetings.c.id == m["id"])
+                .values(title=m["title"] or m["section_code"])
+            )
         section = found.get(key)
         if section is None:
             section = {
                 "id": str(uuid.uuid7()),
                 **{name: m[name] for name in _SHARED},
+                "section_code": m["section_code"] if keeps_code else "",
                 "created_at": m["created_at"],
                 "updated_at": m["updated_at"],
             }

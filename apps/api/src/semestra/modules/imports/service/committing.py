@@ -65,7 +65,6 @@ class _Commit:
         self.categories: dict[str, dict[str, str]] = {}  # course id → key → category id
         self.terms: dict[str, Any] = {}
         # Meeting item id → (course id, term id, start week, end week).
-        self.weeks: dict[str, tuple[str, str, int, int | None]] = {}
 
     def written(self, item_id: str) -> str | None:
         item = self.by_id.get(item_id)
@@ -108,8 +107,6 @@ class _Commit:
     async def meeting_weeks(self, item: ImportsItem) -> tuple[str, str, int, int | None]:
         """A meeting item's course, term and weeks; raises when it cannot be placed (validation
         flags most of these)."""
-        if item.id in self.weeks:
-            return self.weeks[item.id]
         data = item.data
         course_id = self.course_id(data.get("course_ref"))
         assert course_id is not None
@@ -123,36 +120,7 @@ class _Commit:
         if problem:
             # Never placed in the term's first week instead.
             raise AppError(problem, 422, term_id=term_id)
-        self.weeks[item.id] = (course_id, term_id, start_week or 1, end_week)
-        return self.weeks[item.id]
-
-    async def section_weeks(
-        self, item: ImportsItem, course_id: str, term_id: str, type_code: str, code: str
-    ) -> tuple[int, int | None]:
-        """The weeks of the section a meeting item goes to: from the first week of its accepted
-        times to the last (a section without a code is just this time)."""
-        _, _, start, end = await self.meeting_weeks(item)
-        if not code:
-            return start, end
-        spans = [(start, end)]
-        for other in self.by_id.values():
-            data = other.data
-            if (
-                other.id == item.id
-                or other.type != "meeting"
-                or other.decision != "accept"
-                or str(data.get("section_code") or "").strip() != code
-                or str(data.get("type_code") or "LEC") != type_code
-            ):
-                continue
-            try:
-                other_course, other_term, s, e = await self.meeting_weeks(other)
-            except AppError:
-                continue
-            if (other_course, other_term) == (course_id, term_id):
-                spans.append((s, e))
-        ends = [e for _, e in spans if e is not None]
-        return min(s for s, _ in spans), max(ends) if len(ends) == len(spans) else None
+        return course_id, term_id, start_week or 1, end_week
 
     async def category_ids(self, course_id: str) -> dict[str, str]:
         if course_id not in self.categories:
@@ -261,14 +229,13 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
 
 
 async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
-    """Adds a weekly time to its section (created or found by its code) with its cancelled
-    days. All times of a section share its weeks: those of the commit's times of that section
-    together."""
+    """Adds a weekly time with its own weeks and cancelled days to its section, found by its
+    code; a time of that code that runs in other weeks becomes a section of its own
+    (`schedule.section.create_many`), so no class the file does not have is added."""
     ctx, data = c.ctx, item.data
-    course_id, term_id, _, _ = await c.meeting_weeks(item)
+    course_id, term_id, start_week, end_week = await c.meeting_weeks(item)
     section_code = str(data.get("section_code") or "").strip()
     type_code = str(data.get("type_code") or "LEC")
-    start_week, end_week = await c.section_weeks(item, course_id, term_id, type_code, section_code)
     section: dict[str, Any] = {
         "term_id": term_id,
         "type_code": type_code,

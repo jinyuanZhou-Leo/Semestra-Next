@@ -47,8 +47,8 @@ async def test_a_1_15_backup_restores(
     )
     assert uploaded.status_code == 200, uploaded.text
     counts = uploaded.json()["preview"]["counts"]
-    # Counted after the conversion: two sections, and two tasks gained, one lost.
-    assert counts["schedule"]["sections"] == 2
+    # Counted after the conversion: three sections, and two tasks gained, one lost.
+    assert counts["schedule"]["sections"] == 3
     assert counts["tasks"]["items"] == 5
     assert counts["lms"]["refs"] == 3
 
@@ -121,22 +121,34 @@ async def test_a_1_15_backup_restores(
             ("9003", "task"),
         ]
 
-        # Meetings sharing a code form one section with the weeks of its first time.
-        sections = {
-            s.section_code: s
-            for s in await db.scalars(
-                select(ScheduleSection).where(ScheduleSection.user_id == user.id)
-            )
-        }
-        assert set(sections) == {"", "LEC0101"}
-        lec = sections["LEC0101"]
-        assert (lec.start_week, lec.end_week, lec.instructor) == (2, None, "Dr. Lee")
-        weekdays = set(
-            await db.scalars(
-                select(ScheduleMeeting.weekday).where(ScheduleMeeting.section_id == lec.id)
-            )
+        # No class moves: of a code's times in different weeks, the first (Monday) keeps the
+        # code and the Wednesday one becomes a section of its own, titled with the code.
+        sections = list(
+            await db.scalars(select(ScheduleSection).where(ScheduleSection.user_id == user.id))
         )
-        assert weekdays == {1, 3}
+        assert sorted(s.section_code for s in sections) == ["", "", "LEC0101"]
+        by_meeting = {
+            (m.weekday, m.start_time): (m, s)
+            for m, s in await db.execute(
+                select(ScheduleMeeting, ScheduleSection).join(ScheduleSection)
+            )
+            if s.user_id == user.id
+        }
+        mon, lec = by_meeting[(1, time(14))]
+        assert (lec.section_code, lec.start_week, lec.end_week, lec.instructor) == (
+            "LEC0101",
+            2,
+            None,
+            None,
+        )
+        wed, other = by_meeting[(3, time(9))]
+        assert (other.section_code, other.start_week, other.end_week, other.instructor) == (
+            "",
+            1,
+            6,
+            "Dr. Lee",
+        )
+        assert (mon.title, wed.title) == (None, "LEC0101")
         cancelled = await db.scalar(
             select(ScheduleMeeting.weekday)
             .join(ScheduleMeetingException)
