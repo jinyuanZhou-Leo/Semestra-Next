@@ -1,4 +1,4 @@
-import type { ItemOut } from '@semestra/api-client'
+import type { FolderOut, ItemOut } from '@semestra/api-client'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer'
@@ -9,6 +9,7 @@ import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { highlightHtml, searchTerms, snippetParts } from './highlight'
 import { Citation } from './components/Citation'
+import { type Target, canMoveInto } from './folders'
 import CourseFilesPage from './pages/CourseFilesPage'
 import { findDuplicates, planUpload } from './upload'
 
@@ -339,4 +340,72 @@ test('a long file list renders only the rows near the screen', async () => {
   const shown = screen.getAllByRole('button', { name: /^week-\d+\.pdf$/ }).length
   expect(shown).toBeGreaterThan(5)
   expect(shown).toBeLessThan(100)
+})
+
+function makeFolder(id: string, name: string, parent_id: string | null = null): FolderOut {
+  return {
+    item_count: 0,
+    id,
+    course_id: 'c1',
+    parent_id,
+    name,
+    created_at: '2026-01-10T12:00:00Z',
+    updated_at: '2026-01-10T12:00:00Z',
+  }
+}
+
+test('a folder cannot move into itself, below itself, or deeper than three levels', () => {
+  const folders = [
+    makeFolder('a', 'A'),
+    makeFolder('b', 'B', 'a'),
+    makeFolder('c', 'C', 'b'),
+    makeFolder('d', 'D'),
+  ]
+  const a: Target = { type: 'folder', folder: folders[0]! }
+  const d: Target = { type: 'folder', folder: folders[3]! }
+  const file: Target = { type: 'item', item: item({ folder_id: 'a' }) }
+  expect(canMoveInto([a], 'a', folders)).toBe(false)
+  expect(canMoveInto([a], 'b', folders)).toBe(false)
+  expect(canMoveInto([a], 'd', folders)).toBe(false) // A › B › C would sit four deep
+  expect(canMoveInto([d], 'b', folders)).toBe(true)
+  expect(canMoveInto([d], 'c', folders)).toBe(false)
+  // Already there: nothing to do, unless something else in the move is elsewhere.
+  expect(canMoveInto([file], 'a', folders)).toBe(false)
+  expect(canMoveInto([file, d], 'a', folders)).toBe(true)
+})
+
+test('selected files move together to a folder picked in the tree', async () => {
+  const moved: { id: string; body: unknown }[] = []
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Week 1'), makeFolder('f2', 'Slides', 'f1')],
+        items,
+        next_cursor: null,
+      }),
+    ),
+    http.patch(`${API}/files/:id`, async ({ params, request }) => {
+      moved.push({ id: String(params.id), body: await request.json() })
+      return HttpResponse.json(items.find((i) => i.id === params.id))
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('checkbox', { name: 'Select syllabus.pdf' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Select Piazza' }))
+  expect(screen.getByText('2 selected')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Move to…' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Move 2 items' })
+  // Where they are now is not a destination.
+  expect(within(dialog).getByRole('button', { name: 'All files' })).toBeDisabled()
+  const here = within(dialog).getByRole('button', { name: 'Move here' })
+  expect(here).toBeDisabled()
+  await user.click(within(dialog).getByRole('button', { name: 'Slides' }))
+  await user.click(here)
+
+  await waitFor(() => expect(moved).toHaveLength(2))
+  expect(moved.map((m) => m.body)).toEqual([{ folder_id: 'f2' }, { folder_id: 'f2' }])
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
 })

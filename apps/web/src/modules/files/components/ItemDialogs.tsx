@@ -1,245 +1,57 @@
 import type { FolderOut, ItemOut } from '@semestra/api-client'
 import {
   filesFolderCreateMutation,
-  filesFolderDeleteMutation,
   filesFolderUpdateMutation,
-  filesItemDeleteMutation,
   filesItemUpdateMutation,
   filesLinkCreateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useId, useState } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
-import { Input } from '@/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
+import { FieldError } from '@/ui/field'
+import { useDeleteTargets } from '../actions'
+import { type Target, filesInside, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
-
-export type Target = { type: 'item'; item: ItemOut } | { type: 'folder'; folder: FolderOut }
+import { MoveDialog } from './MoveDialog'
+import { NameDialog } from './NameDialog'
 
 /** The dialog the file page has open, if any. */
 export type ItemAction =
   | { kind: 'rename'; target: Target }
-  | { kind: 'move'; item: ItemOut }
-  | { kind: 'delete'; target: Target }
+  | { kind: 'move'; targets: Target[] }
+  | { kind: 'delete'; targets: Target[] }
   | { kind: 'new-folder'; parentId: string | null }
   | { kind: 'new-link'; folderId: string | null }
-
-/** "Week 1 / Slides" for each folder, in tree order, for the move picker. */
-export function folderPaths(folders: readonly FolderOut[]): { id: string; path: string }[] {
-  const out: { id: string; path: string }[] = []
-  const visit = (parentId: string | null, prefix: string) => {
-    for (const folder of folders
-      .filter((f) => f.parent_id === parentId)
-      .toSorted((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
-      const path = prefix ? `${prefix} / ${folder.name}` : folder.name
-      out.push({ id: folder.id, path })
-      visit(folder.id, path)
-    }
-  }
-  visit(null, '')
-  return out
-}
 
 function useFilesMutation<T>(options: T) {
   const queryClient = useQueryClient()
   return { ...options, onSuccess: () => invalidateFiles(queryClient) }
 }
 
-function NameDialog({
-  open,
-  title,
-  label,
-  initial,
-  submitLabel,
-  pending,
-  error,
-  onSubmit,
-  onClose,
-  extraField,
-}: {
-  open: boolean
-  title: string
-  label: string
-  initial: string
-  submitLabel: string
-  pending: boolean
-  error: string | null
-  onSubmit: (value: string, extra: string) => void
-  onClose: () => void
-  extraField?: { label: string; placeholder?: string; required: boolean }
-}) {
-  const id = useId()
-  const [value, setValue] = useState(initial)
-  const [extra, setExtra] = useState('')
-  const [touched, setTouched] = useState(false)
-  const nameMissing = !extraField?.required && value.trim() === ''
-  const extraMissing = Boolean(extraField?.required) && extra.trim() === ''
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    setTouched(true)
-    if (nameMissing || extraMissing) return
-    onSubmit(value.trim(), extra.trim())
-  }
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && !pending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form noValidate onSubmit={submit}>
-          <FieldGroup className="gap-4">
-            {extraField ? (
-              <Field data-invalid={(touched && extraMissing) || undefined}>
-                <FieldLabel htmlFor={`${id}-extra`}>{extraField.label}</FieldLabel>
-                <Input
-                  id={`${id}-extra`}
-                  type="url"
-                  inputMode="url"
-                  placeholder={extraField.placeholder}
-                  aria-invalid={(touched && extraMissing) || undefined}
-                  value={extra}
-                  onChange={(event) => setExtra(event.target.value)}
-                />
-                {touched && extraMissing ? <FieldError>{m.files_required()}</FieldError> : null}
-              </Field>
-            ) : null}
-            <Field data-invalid={(touched && nameMissing) || undefined}>
-              <FieldLabel htmlFor={`${id}-name`}>{label}</FieldLabel>
-              <Input
-                id={`${id}-name`}
-                aria-invalid={(touched && nameMissing) || undefined}
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-              />
-              {touched && nameMissing ? <FieldError>{m.files_required()}</FieldError> : null}
-            </Field>
-            {error ? <FieldError>{error}</FieldError> : null}
-            <DialogFooter>
-              <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-                {m.common_cancel()}
-              </DialogClose>
-              <Button type="submit" disabled={pending}>
-                {pending ? m.common_saving() : submitLabel}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function MoveDialog({
-  item,
-  folders,
-  onClose,
-}: {
-  item: ItemOut
-  folders: readonly FolderOut[]
-  onClose: () => void
-}) {
-  const id = useId()
-  const [folderId, setFolderId] = useState(item.folder_id ?? '')
-  const update = useMutation({ ...useFilesMutation(filesItemUpdateMutation()) })
-  return (
-    <Dialog open onOpenChange={(next) => !next && !update.isPending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{m.files_move_title({ name: item.display_name })}</DialogTitle>
-        </DialogHeader>
-        <form
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            update.mutate(
-              { path: { item_id: item.id }, body: { folder_id: folderId || null } },
-              { onSuccess: onClose },
-            )
-          }}
-        >
-          <FieldGroup className="gap-4">
-            <Field>
-              <FieldLabel htmlFor={`${id}-folder`}>{m.files_folder()}</FieldLabel>
-              <NativeSelect
-                id={`${id}-folder`}
-                value={folderId}
-                onChange={(event) => setFolderId(event.target.value)}
-              >
-                <NativeSelectOption value="">{m.files_all_files()}</NativeSelectOption>
-                {folderPaths(folders).map((f) => (
-                  <NativeSelectOption key={f.id} value={f.id}>
-                    {f.path}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-            {update.error ? <FieldError>{errorMessage(update.error)}</FieldError> : null}
-            <DialogFooter>
-              <DialogClose
-                render={<Button type="button" variant="outline" disabled={update.isPending} />}
-              >
-                {m.common_cancel()}
-              </DialogClose>
-              <Button type="submit" disabled={update.isPending}>
-                {update.isPending ? m.common_saving() : m.files_move()}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** Files in a folder and all its subfolders. */
-export function filesInside(
-  folderId: string,
-  folders: readonly FolderOut[],
-  items: readonly ItemOut[],
-): number {
-  const ids = new Set([folderId])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const f of folders) {
-      if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) {
-        ids.add(f.id)
-        grew = true
-      }
-    }
-  }
-  return items.filter((i) => i.folder_id && ids.has(i.folder_id)).length
-}
-
 function DeleteDialog({
-  target,
-  fileCount,
+  targets,
+  folders,
+  items,
   onClose,
+  onDone,
 }: {
-  target: Target
-  fileCount: number
+  targets: Target[]
+  folders: readonly FolderOut[]
+  items: readonly ItemOut[]
   onClose: () => void
+  onDone?: () => void
 }) {
-  const removeItem = useMutation({ ...useFilesMutation(filesItemDeleteMutation()) })
-  const removeFolder = useMutation({ ...useFilesMutation(filesFolderDeleteMutation()) })
-  const pending = removeItem.isPending || removeFolder.isPending
-  const error = removeItem.error ?? removeFolder.error
-  const name = target.type === 'item' ? target.item.display_name : target.folder.name
-  const description =
-    target.type === 'item'
-      ? target.item.kind === 'link'
+  const remove = useDeleteTargets()
+  const only = targets.length === 1 ? targets[0] : undefined
+  const fileCount = targets.reduce(
+    (sum, t) => sum + (t.type === 'folder' ? filesInside(t.folder.id, folders, items) : 1),
+    0,
+  )
+  const description = !only
+    ? m.files_delete_many_description({ count: fileCount })
+    : only.type === 'item'
+      ? only.item.kind === 'link'
         ? m.files_delete_link_description()
         : m.files_delete_item_description()
       : fileCount > 0
@@ -249,19 +61,22 @@ function DeleteDialog({
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onClose()}
-      title={m.files_delete_title({ name })}
+      title={
+        only
+          ? m.files_delete_title({ name: targetName(only) })
+          : m.files_delete_many_title({ count: targets.length })
+      }
       description={description}
       confirmLabel={m.common_delete()}
-      pending={pending}
-      extra={error ? <FieldError>{errorMessage(error)}</FieldError> : null}
+      pending={remove.isPending}
+      extra={remove.error ? <FieldError>{errorMessage(remove.error)}</FieldError> : null}
       onConfirm={() =>
-        target.type === 'item'
-          ? removeItem.mutate({ path: { item_id: target.item.id } }, { onSuccess: onClose })
-          : removeFolder.mutate(
-              // Subfolders without files count as empty too, so delete the whole branch.
-              { path: { folder_id: target.folder.id }, query: { recursive: true } },
-              { onSuccess: onClose },
-            )
+        remove.mutate(targets, {
+          onSuccess: () => {
+            onDone?.()
+            onClose()
+          },
+        })
       }
     />
   )
@@ -274,12 +89,15 @@ export function ItemDialogs({
   items,
   action,
   onClose,
+  onDone,
 }: {
   courseId: string
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
   action: ItemAction | null
   onClose: () => void
+  /** After a move or delete went through (the page clears its selection). */
+  onDone?: () => void
 }) {
   const updateItem = useMutation({ ...useFilesMutation(filesItemUpdateMutation()) })
   const updateFolder = useMutation({ ...useFilesMutation(filesFolderUpdateMutation()) })
@@ -292,12 +110,25 @@ export function ItemDialogs({
   if (!action) return null
 
   if (action.kind === 'move')
-    return <MoveDialog item={action.item} folders={folders} onClose={close} />
-  if (action.kind === 'delete') {
-    const { target } = action
-    const fileCount = target.type === 'folder' ? filesInside(target.folder.id, folders, items) : 0
-    return <DeleteDialog target={target} fileCount={fileCount} onClose={close} />
-  }
+    return (
+      <MoveDialog
+        courseId={courseId}
+        targets={action.targets}
+        folders={folders}
+        onClose={close}
+        onDone={onDone}
+      />
+    )
+  if (action.kind === 'delete')
+    return (
+      <DeleteDialog
+        targets={action.targets}
+        folders={folders}
+        items={items}
+        onClose={close}
+        onDone={onDone}
+      />
+    )
 
   if (action.kind === 'rename') {
     const { target } = action
