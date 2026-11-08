@@ -116,6 +116,9 @@ export function CompositionRing<T extends RingSlice>({
             // Below the ring rather than at the pointer: the ring is smaller than the tooltip,
             // which would otherwise hide it (and the figure in its middle) while hovering.
             position={{ x: 0, y: RING + 8 }}
+            // Its place never changes; animated, it slides down from the ring's top each time it
+            // appears.
+            isAnimationActive={false}
             allowEscapeViewBox={{ x: true, y: true }}
             wrapperStyle={{ zIndex: 10 }}
           />

@@ -798,6 +798,7 @@
   "grading_graded_courses": "{count} courses graded",
   "grading_term_empty": "No courses yet",
   "grading_target_gpa": "Target GPA",
+  "grading_target_grade": "Target grade",
   "grading_planned_gpa": "Planned GPA",
   "grading_target_met": "On target",
   "grading_target_gap": "{gap} short",
