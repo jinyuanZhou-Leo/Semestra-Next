@@ -1,11 +1,16 @@
-"""Tasks generated from assessments (M05 §3): one task per assessment with a due date, kept in
-sync through the `grading.assessment.*` events and finished once the assessment has a score."""
+"""Assessment tasks (M05 §3): every assessment with a due date has exactly one task, linked by
+`assessment_id`. It follows the assessment's title, due date and course, is finished once the
+assessment has a score, and goes when the assessment is deleted (the foreign key) or loses its
+due date. A task made for an assessment that is already past due stays open (overdue): whether it
+was handed in is the user's to say. An assessment imported from the same source as an existing
+to-do (a platform assignment first imported as a to-do, then added to the gradebook) takes that
+to-do over instead of getting a second one. This module is the only writer of that link."""
 
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -15,8 +20,6 @@ from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.tasks import rules, service
 from semestra.modules.tasks.models import TasksItem
 from semestra.modules.tasks.schemas import TaskFields
-
-SOURCE_KIND = "assessment"
 
 
 @dataclass(frozen=True)
@@ -28,7 +31,9 @@ class AssessmentInfo:
     course_code: str | None
     due_at: datetime | None
     due_has_time: bool
-    scored: bool = False
+    scored: bool = False  # graded or dropped
+    source_kind: str | None = None
+    source_ref: str | None = None
 
 
 async def _info(ctx: Ctx, row: GradingAssessment) -> AssessmentInfo | None:
@@ -44,29 +49,52 @@ async def _info(ctx: Ctx, row: GradingAssessment) -> AssessmentInfo | None:
         course_code=course.code or course.alias or course.title,
         due_at=row.due_at,
         due_has_time=row.due_has_time,
-        scored=row.score_percentage is not None,
+        # A dropped assessment counts as done: nothing is left to hand in for it.
+        scored=row.score_percentage is not None or row.dropped,
+        source_kind=row.source_kind,
+        source_ref=row.source_ref,
     )
 
 
-async def enabled(ctx: Ctx, program_id: str) -> bool:
-    return (await service.program_settings(ctx, program_id)).auto_tasks_from_assessments
+async def task_of(ctx: Ctx, assessment_id: str) -> TasksItem | None:
+    return await ctx.db.scalar(
+        select(TasksItem).where(
+            TasksItem.user_id == ctx.user_id, TasksItem.assessment_id == assessment_id
+        )
+    )
 
 
-async def sync_assessment(
-    ctx: Ctx, info: AssessmentInfo | None, assessment_id: str, *, create: bool = True
-) -> None:
-    """Brings the task of one assessment in line with it. `info` is None once it is deleted.
-    Without `create` only an existing task is updated or removed."""
-    existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
-    await _sync(ctx, info, existing, create=create)
+async def _same_source(ctx: Ctx, info: AssessmentInfo) -> TasksItem | None:
+    """A to-do of no assessment imported from the same item as this assessment."""
+    if info.source_kind is None or info.source_ref is None:
+        return None
+    return await ctx.db.scalar(
+        select(TasksItem).where(
+            TasksItem.user_id == ctx.user_id,
+            TasksItem.assessment_id.is_(None),
+            TasksItem.source_kind == info.source_kind,
+            TasksItem.source_ref == info.source_ref,
+        )
+    )
 
 
-async def _sync(
-    ctx: Ctx, info: AssessmentInfo | None, existing: TasksItem | None, *, create: bool
-) -> None:
+async def sync(ctx: Ctx, assessment_id: str) -> None:
+    """Brings the task of one assessment in line with it (after any change to it)."""
+    existing = await task_of(ctx, assessment_id)
+    row = await grading.find_assessment_row(ctx, assessment_id)
+    info = None if row is None else await _info(ctx, row)
+    changed: list[str] = []
+    # A to-do of the same item (an LMS assignment first imported as a to-do) becomes the
+    # assessment's; without a due date it goes, like any assessment to-do.
+    if (
+        existing is None
+        and info is not None
+        and (existing := await _same_source(ctx, info)) is not None
+    ):
+        existing.assessment_id = info.id
+        changed.append("assessment_id")
     if info is None or info.due_at is None:
-        # Gone or no longer scheduled: an unfinished task goes, a finished one stays.
-        if existing is not None and existing.completed_at is None:
+        if existing is not None:
             await _drop(ctx, existing)
         return
     program = await academics.get_program_row(ctx, info.program_id)
@@ -75,24 +103,29 @@ async def _sync(
     due_time = local.time().replace(tzinfo=None) if info.due_has_time else None
     title = rules.auto_title(info.course_code, info.title)
     if existing is None:
-        if info.scored or not create:
-            return  # nothing left to do for an assessment that is already marked
         fields = TaskFields(
             title=title,
             due_date=due_date,
             due_time=due_time,
             priority="medium",
             course_id=info.course_id,
-            source_kind=SOURCE_KIND,
-            source_ref=info.id,
+            source_kind="manual",
         )
         try:
-            row = await service.create_task_row(ctx, program, fields, default_priority="medium")
+            row = await service.create_task_row(
+                ctx,
+                program,
+                fields,
+                default_priority="medium",
+                completed_at=ctx.now if info.scored else None,
+            )
         except AppError:
             return  # the course vanished meanwhile; its deletion cleans up on its own
-        await service.announce_item(ctx, "created", row, calendar=False)
+        row.assessment_id = info.id
+        await ctx.db.flush()
+        # Finished ones stay on the calendar too (marked done), so it always changes.
+        await service.announce_item(ctx, "created", row, calendar=True)
         return
-    changed: list[str] = []
     if existing.title != title:
         existing.title = title
         changed.append("title")
@@ -111,43 +144,15 @@ async def _sync(
     if changed:
         existing.updated_at = ctx.now
         await ctx.db.flush()
-        await service.announce_item(ctx, "updated", existing, calendar=False, changed=changed)
+        await service.announce_item(ctx, "updated", existing, calendar=True, changed=changed)
+
+
+async def drop(ctx: Ctx, assessment_id: str) -> None:
+    if (row := await task_of(ctx, assessment_id)) is not None:
+        await _drop(ctx, row)
 
 
 async def _drop(ctx: Ctx, row: TasksItem) -> None:
     await ctx.db.delete(row)
     await ctx.db.flush()
-    await service.announce_item(ctx, "deleted", row, calendar=False)
-
-
-async def on_assessment_event(ctx: Ctx, kind: str, program_id: str, assessment_id: str) -> None:
-    """The switch only decides whether new tasks are made: tasks made while it was on keep
-    following their assessment, since they stay read-only where the assessment decides."""
-    create = await enabled(ctx, program_id)
-    existing = await service.existing_by_source(ctx, SOURCE_KIND, assessment_id)
-    if not create and existing is None:
-        return
-    row = None if kind == "deleted" else await grading.find_assessment_row(ctx, assessment_id)
-    info = None if row is None else await _info(ctx, row)
-    await _sync(ctx, info, existing, create=create)
-
-
-async def backfill(ctx: Ctx, program_id: str) -> int:
-    """Creates the missing tasks of a Program (after the switch is turned on); returns how
-    many were created."""
-    before = await _count(ctx, program_id)
-    for row in await grading.dated_unscored_assessment_rows(ctx, program_id):
-        if info := await _info(ctx, row):
-            await sync_assessment(ctx, info, info.id)
-    return await _count(ctx, program_id) - before
-
-
-async def _count(ctx: Ctx, program_id: str) -> int:
-    count = await ctx.db.scalar(
-        select(func.count()).where(
-            TasksItem.user_id == ctx.user_id,
-            TasksItem.program_id == program_id,
-            TasksItem.source_kind == SOURCE_KIND,
-        )
-    )
-    return count or 0
+    await service.announce_item(ctx, "deleted", row, calendar=row.due_date is not None)

@@ -13,14 +13,17 @@ export function occurrenceColor(o: Pick<Occurrence, 'color_ref'>): string {
 export const isMeeting = (o: Occurrence) => o.source === 'schedule.meetings'
 export const isOneOff = (o: Occurrence) => o.source === 'schedule.events'
 
-/** Timed items of one week as grid blocks (week card, export). All-day items are left out. */
+/**
+ * Timed items of one week as grid blocks (week card, export). All-day items and finished tasks
+ * are left out.
+ */
 export function weekGridItems(
   items: readonly Occurrence[],
   tz: string,
   onClick?: (o: Occurrence) => void,
 ): GridItem[] {
   return items
-    .filter((o) => !o.all_day)
+    .filter((o) => !o.all_day && o.status !== 'done')
     .map((o) => {
       const start = toWall(o.start_at, tz)
       const end = toWall(o.end_at ?? o.start_at, tz)

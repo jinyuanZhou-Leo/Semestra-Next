@@ -17,12 +17,27 @@ const scope: Scope = { kind: 'course', programId: 'p1', courseId: 'c1' }
 let book = gradebook()
 let patches: { id: string; body: unknown }[] = []
 let simulations: unknown[] = []
+/** The course's to-dos, for the gradebook's to-do column (M05). */
+let todos: Record<string, unknown>[] = []
+let completes: { id: string; body: unknown }[] = []
 
 beforeEach(() => {
   book = gradebook()
   patches = []
   simulations = []
+  todos = []
+  completes = []
   server.use(
+    http.get(`${API}/programs/p1/tasks`, () =>
+      HttpResponse.json({ items: todos, next_cursor: null, total: todos.length }),
+    ),
+    http.post(`${API}/tasks/:id\\:complete`, async ({ params, request }) => {
+      completes.push({ id: String(params.id), body: await request.json() })
+      todos = todos.map((t) =>
+        t.id === params.id ? { ...t, completed_at: '2026-01-01T00:00:00Z' } : t,
+      )
+      return HttpResponse.json(todos.find((t) => t.id === params.id))
+    }),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
     http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)),
@@ -375,4 +390,38 @@ test('picking a target from the scale saves it as the course target', async () =
   await userEvent.click(await screen.findByRole('combobox', { name: 'Target GPA' }))
   await userEvent.click(await screen.findByRole('option', { name: /3\.7 · A-/ }))
   await waitFor(() => expect(results).toEqual([{ target_points: 3.7 }]))
+})
+
+test("an assessment's to-do is checked off from its row", async () => {
+  todos = [
+    {
+      id: 't2',
+      program_id: 'p1',
+      term_id: null,
+      course_id: 'c1',
+      list_id: null,
+      title: 'APS105H1 · Final exam',
+      notes: '',
+      due_date: '2026-04-20',
+      due_time: null,
+      priority: 'medium',
+      flagged: false,
+      completed_at: null,
+      position: 1,
+      source_kind: 'manual',
+      source_ref: null,
+      assessment_id: 'a2',
+      overdue: false,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+  ]
+  mount()
+  const check = await screen.findByRole('checkbox', { name: 'Complete APS105H1 · Final exam' })
+  // Quiz 1 has no to-do (no due date): a dash.
+  const quiz = screen.getByText('Quiz 1').closest('tr')!
+  expect(within(quiz).queryByRole('checkbox')).toBeNull()
+  await userEvent.click(check)
+  await waitFor(() => expect(completes).toEqual([{ id: 't2', body: { completed: true } }]))
+  await waitFor(() => expect(check.getAttribute('aria-checked')).toBe('true'))
 })

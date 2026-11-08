@@ -47,7 +47,7 @@ export function TaskSheet({
   const [notes, setNotes] = useState(task.notes)
   const [deleting, setDeleting] = useState(false)
   // An assessment's task follows it: title, date and course change in the gradebook.
-  const managed = task.source_kind === 'assessment'
+  const managed = task.assessment_id !== null
   const done = draft.completed_at !== null
   const save = (body: TaskUpdateInputBody) => {
     setDraft((current) => ({ ...current, ...body }) as Task)
@@ -196,15 +196,17 @@ export function TaskSheet({
               >
                 {done ? m.mobile_task_reopen() : m.mobile_task_complete()}
               </Button>
-              <Button
-                variant="destructive"
-                size="icon"
-                className="size-11"
-                aria-label={m.mobile_task_delete()}
-                onClick={() => setDeleting(true)}
-              >
-                <Trash2 aria-hidden />
-              </Button>
+              {managed ? null : (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="size-11"
+                  aria-label={m.mobile_task_delete()}
+                  onClick={() => setDeleting(true)}
+                >
+                  <Trash2 aria-hidden />
+                </Button>
+              )}
             </div>
           </div>
         </DrawerContent>

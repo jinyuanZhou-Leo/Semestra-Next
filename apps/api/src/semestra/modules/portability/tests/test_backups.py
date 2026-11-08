@@ -734,6 +734,26 @@ async def test_rejects_old_and_broken_backups(
     assert error["code"] == "portability.unsupported_version"
     assert error["params"] == {"version": "2"}
 
+    # A module's data older than it can read (tasks before assessment links) is refused too.
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        manifest = {
+            "format": "semestra-backup",
+            "version": 1,
+            "exported_at": "2026-01-01T00:00:00Z",
+            "app_version": "1.0.0",
+            "modules": {"tasks": 1},
+            "include_files": False,
+            "counts": {},
+        }
+        z.writestr("manifest.json", json.dumps(manifest))
+        z.writestr("data/tasks.json", json.dumps({"schema_version": 1, "lists": [], "items": []}))
+    error = (await _upload(client, out.getvalue())).json()["error"]
+    assert (error["code"], error["params"]) == (
+        "portability.unsupported_version",
+        {"version": "tasks 1"},
+    )
+
 
 async def test_refuses_oversized_data_entries(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs

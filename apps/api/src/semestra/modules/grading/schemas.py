@@ -21,7 +21,8 @@ ForecastModel = Literal["auto", "simple_minimum_needed"]
 YearAttribution = Literal["end_term", "split_evenly"]
 Basis = Literal["percentage", "pass_fail"]
 GradeStatus = Literal["completed", "in_progress", "passed", "failed"]
-AssessmentStatus = Literal["graded", "pending", "overdue"]
+# Whether a deadline was missed is the to-do's to say (M05): past due and ungraded is pending.
+AssessmentStatus = Literal["graded", "pending"]
 SourceKind = Literal["lms", "syllabus", "manual"]
 
 
@@ -286,7 +287,7 @@ class AssessmentUpdateInput(BaseModel):
 class AssessmentListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     status: AssessmentStatus | None = Field(
-        default=None, description="graded, pending (no score yet) or overdue (pending, past due)"
+        default=None, description="graded, or pending (no score yet)"
     )
     fields: list[AssessmentField] | None = Field(
         default=None,

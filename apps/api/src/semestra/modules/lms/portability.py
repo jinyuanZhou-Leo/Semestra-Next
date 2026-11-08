@@ -66,6 +66,7 @@ class RefRow(BaseModel):
     target_id: str
     snapshot: dict[str, Any] = {}
     imported_at: datetime
+    submitted_at: datetime | None = None
 
 
 class LmsPayload(BaseModel):
@@ -205,6 +206,7 @@ async def import_(
                 target_id=target_id,
                 snapshot=r.snapshot,
                 imported_at=r.imported_at,
+                submitted_at=r.submitted_at,
             )
         )
         report.imported["refs"] += 1

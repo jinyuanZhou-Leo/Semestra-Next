@@ -8,10 +8,9 @@ result, gradebook, what-if) and `summaries` (term, Program and course summaries)
 
 from semestra.modules.grading.service.assessments import (
     AssessmentSnapshot,
-    assessment_deadlines,
     assessment_snapshots,
+    counted_weights,
     create_assessments,
-    dated_unscored_assessment_rows,
     delete_assessment,
     find_assessment_row,
     find_assessments,
@@ -58,13 +57,12 @@ from semestra.modules.grading.service.summaries import (
 
 __all__ = [
     "AssessmentSnapshot",
-    "assessment_deadlines",
     "assessment_snapshots",
+    "counted_weights",
     "course_grades",
     "create_assessments",
     "create_category",
     "create_scale",
-    "dated_unscored_assessment_rows",
     "delete_assessment",
     "delete_category",
     "delete_course_data",

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
+import { gradebook } from '@/modules/grading/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
 import CounterCard from './cards/CounterCard'
@@ -41,6 +42,7 @@ function task(overrides: Partial<Task> & { id: string }): Task {
     position: 1,
     source_kind: null,
     source_ref: null,
+    assessment_id: null,
     overdue: false,
     created_at: stamp,
     updated_at: stamp,
@@ -342,20 +344,25 @@ test('"Edit details" opens the side panel, and saving closes it', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Details' })).toBeNull())
 })
 
-test("an assessment's task keeps its title, date and course, and links to the gradebook", async () => {
+test("an assessment's task keeps its title, date and course, and shows its gradebook row", async () => {
   items = [
     task({
       id: 't3',
-      title: 'APS105H1 · Midterm',
+      title: 'APS105H1 · Final exam',
       course_id: 'c1',
       due_date: '2026-03-02',
-      source_kind: 'assessment',
-      source_ref: 'a1',
+      assessment_id: 'a2',
     }),
   ]
+  server.use(
+    http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(gradebook())),
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
+    ),
+  )
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   await userEvent.click(
-    await screen.findByRole('button', { name: 'Edit title: APS105H1 · Midterm' }),
+    await screen.findByRole('button', { name: 'Edit title: APS105H1 · Final exam' }),
   )
   const title = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
   expect(title.readOnly).toBe(true)
@@ -367,15 +374,21 @@ test("an assessment's task keeps its title, date and course, and links to the gr
   await waitFor(() => expect(log.updates).toEqual([{ id: 't3', body: { flagged: true } }]))
   await userEvent.type(title, '{Escape}')
 
-  await userEvent.click(screen.getByRole('button', { name: 'More actions for APS105H1 · Midterm' }))
+  await userEvent.click(
+    screen.getByRole('button', { name: 'More actions for APS105H1 · Final exam' }),
+  )
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
   const sheet = await screen.findByRole('dialog', { name: 'Details' })
-  expect((within(sheet).getByRole('textbox', { name: 'Title' }) as HTMLInputElement).readOnly).toBe(
-    true,
-  )
-  expect(within(sheet).getByRole('combobox', { name: 'Course' })).toHaveProperty('disabled', true)
-  expect(within(sheet).getByRole('link', { name: 'Open the gradebook' }).getAttribute('href')).toBe(
-    '/p/p1/c/c1/grades',
+  // Title, due date and course follow the assessment: plain text, not fields.
+  expect(within(sheet).queryByRole('textbox', { name: 'Title' })).toBeNull()
+  expect(
+    within(sheet).getByText('APS105H1 · Final exam', { selector: '.font-medium' }),
+  ).toBeVisible()
+  expect(within(sheet).queryByRole('combobox', { name: 'Course' })).toBeNull()
+  // The assessment it belongs to: category, weight, score, and its row in the gradebook.
+  expect(await within(sheet).findByText('Exam · 60% of the grade · Not graded')).toBeTruthy()
+  expect(within(sheet).getByText('Open').closest('a')?.getAttribute('href')).toBe(
+    '/p/p1/c/c1/grades?assessment=a2',
   )
 })
 

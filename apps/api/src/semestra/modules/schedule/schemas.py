@@ -19,7 +19,7 @@ Weekday = Annotated[int, Field(ge=1, le=7)]
 WeekNumber = Annotated[int, Field(ge=1, le=60)]
 Recurrence = Literal["weekly", "biweekly"]
 SourceName = Annotated[str, Field(min_length=1, max_length=64)]
-FeedSource = Literal["schedule", "assessments", "tasks", "lms"]
+FeedSource = Literal["schedule", "tasks", "lms"]
 
 
 class Deleted(BaseModel):
@@ -389,14 +389,13 @@ class OccurrencesInput(BaseModel):
     end: date = Field(description="Day after the last day (exclusive); at most 400 days later")
     sources: list[SourceName] | None = Field(
         default=None,
-        description="Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; "
-        "all by default",
+        description="Sources to include, e.g. ['schedule.meetings', 'tasks.due']; all by default",
     )
     term_id: Id | None = Field(default=None, description="Only this term")
     course_ids: list[Id] | None = Field(default=None, description="Only these courses")
     kinds: list[OccurrenceKind] | None = Field(
         default=None,
-        description="Only these kinds: class, event, deadline, task; all by default",
+        description="Only these kinds: class, event, task; all by default",
     )
 
 
@@ -436,7 +435,7 @@ class Today(BaseModel):
     timezone: str
     week: TodayWeek | None = Field(description="The current term's week, if in a term")
     items: list[Occurrence] = Field(description="Today's classes and events")
-    upcoming: list[Occurrence] = Field(description="Deadlines and due tasks in the next 7 days")
+    upcoming: list[Occurrence] = Field(description="Tasks due in the next 7 days")
     tasks: list[Occurrence] = Field(description="Tasks due today and overdue ones")
 
 
@@ -464,7 +463,7 @@ class FeedState(BaseModel):
 class FeedCreateInput(BaseModel):
     program_id: Id = Field(description="Program id")
     sources: list[FeedSource] = Field(
-        default_factory=lambda: ["schedule", "assessments", "tasks"],
+        default_factory=lambda: ["schedule", "tasks"],
         min_length=1,
         description="What the feed contains",
     )

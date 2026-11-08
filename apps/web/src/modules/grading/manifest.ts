@@ -5,9 +5,10 @@ import {
   PROGRAM_SETUP_FIELDS,
   type ProgramSetupField,
 } from '@/modules/academics/types'
-import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
+import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { courseColumns } from './extensions/columns'
+import TaskGradebook from './extensions/TaskGradebook'
 import { prefetchGradesPage } from './queries'
 import { ScalePresetField } from './extensions/SetupField'
 
@@ -149,22 +150,12 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.CourseGradingSection }))),
     },
   ],
-  calendarSources: [
-    {
-      source: 'grading.assessments',
-      label: m.grading_calendar_source,
-      icon: CalendarClock,
-      defaultVisible: true,
-      onOpen: (o, navigate, { programId }) => {
-        if (!o.course_id) return
-        const path = coursePath(programId, o.course_id, 'grades')
-        navigate(o.ref?.id ? `${path}?assessment=${encodeURIComponent(o.ref.id)}` : path)
-      },
-    },
-  ],
   extensions: {
     [COURSE_COLUMNS]: courseColumns,
     [PROGRAM_SETUP_FIELDS]: [setupField],
+    [TASK_DETAIL_SECTIONS]: [
+      { id: 'grading.assessment', Component: TaskGradebook },
+    ] satisfies TaskDetailSection[],
   },
   uiPrefPrefixes: ['grading.'],
   realtimeInvalidations: {

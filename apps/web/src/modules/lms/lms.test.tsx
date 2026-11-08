@@ -518,7 +518,7 @@ test('an LMS assignment can switch between assessment and task in the review', a
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
 })
 
-test('a changed assignment shows its name and old → new values', async () => {
+test('a changed assignment shows its old → new values', async () => {
   renderWithRouter(
     <ItemEditor
       item={importItem({
@@ -532,9 +532,7 @@ test('a changed assignment shows its name and old → new values', async () => {
       editable
     />,
   )
-  expect(await screen.findByRole('heading', { name: 'Lab 1' })).toBeInTheDocument()
-  expect(screen.getByText('Assessment change')).toBeInTheDocument()
-  expect(screen.getByText('2026-02-07')).toBeInTheDocument()
+  expect(await screen.findByText('2026-02-07')).toBeInTheDocument()
   expect(screen.getByText('2026-02-12')).toBeInTheDocument()
 })
 

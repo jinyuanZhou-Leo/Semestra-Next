@@ -1,7 +1,7 @@
 """notifications: push devices and planned reminders
 
-Revision ID: 0033
-Revises: 0032
+Revision ID: 0036
+Revises: 0035
 Create Date: 2026-11-07 22:29:07.238552
 
 """
@@ -14,8 +14,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = "0033"
-down_revision: str | Sequence[str] | None = "0032"
+revision: str = "0036"
+down_revision: str | Sequence[str] | None = "0035"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

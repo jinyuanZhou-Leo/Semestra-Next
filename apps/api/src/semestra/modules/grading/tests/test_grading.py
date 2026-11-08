@@ -1,7 +1,6 @@
 """Grading over HTTP and the agent surface (M03 §8)."""
 
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -12,7 +11,7 @@ from sqlalchemy import func, select
 from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
-from semestra.modules.grading import models, service
+from semestra.modules.grading import models
 from semestra.testing import MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -386,7 +385,7 @@ async def test_due_dates_use_the_programs_time_zone(api: Api):
     assert (cleared["due_at"], cleared["due_date"]) == (None, None)
 
 
-async def test_overdue_status_and_filters(api: Api):
+async def test_status_filters(api: Api):
     _, course = await one_course(api)
     cid = course["id"]
     await api.assessment(cid, "Old", 10, due_date="2020-01-01")
@@ -398,9 +397,10 @@ async def test_overdue_status_and_filters(api: Api):
         return [i["title"] for i in page["items"]]
 
     base = f"/courses/{cid}/assessments"
-    assert titles(await api.call("GET", base, params={"status": "overdue"})) == ["Old"]
     assert titles(await api.call("GET", base, params={"status": "graded"})) == ["Done"]
+    # Past due and ungraded is waiting for its grade, not overdue (that is the to-do's word).
     assert titles(await api.call("GET", base, params={"status": "pending"})) == [
+        "Old",
         "Future",
         "Undated",
     ]
@@ -531,8 +531,6 @@ async def test_events_say_what_changed(api: Api, app: FastAPI):
         ("grading.course_result.updated", None),
         ("grading.assessment.deleted", []),
     ]
-    updated = [e for e in pushed if e["type"] == "grading.assessment.updated"]
-    assert [e["data"]["due_changed"] for e in updated] == [False, False, False, True, True, False]
 
 
 async def test_point_scores_obey_the_percentage_limit(api: Api):
@@ -549,26 +547,6 @@ async def test_point_scores_obey_the_percentage_limit(api: Api):
         "PATCH", f"/assessments/{a['id']}", json={"points_earned": 105, "points_possible": 100}
     )
     assert bonus["score_percentage"] == 105
-
-
-async def test_calendar_deadlines_leave_out_scored_and_dropped_work(api: Api, app: FastAPI):
-    program, course = await one_course(api)
-    cid = course["id"]
-    open_ = await api.assessment(cid, "Open", 10, due_date="2025-10-01")
-    done = await api.assessment(cid, "Done", 10, due_date="2025-10-02", score_percentage=90)
-    gone = await api.assessment(cid, "Gone", 10, due_date="2025-10-03", dropped=True)
-    del done, gone
-    async with app.state.session_factory() as db:
-        owner = await db.scalar(select(models.GradingScale.user_id))
-    assert owner
-    async with system_ctx(app.state, owner) as ctx:
-        found = await service.assessment_deadlines(
-            ctx,
-            program["id"],
-            datetime(2025, 9, 1, tzinfo=UTC),
-            datetime(2025, 11, 1, tzinfo=UTC),
-        )
-    assert [a.id for a in found] == [open_["id"]]
 
 
 # --- term and Program figures ---------------------------------------------------------------
@@ -903,36 +881,6 @@ async def test_agent_tools_are_described_and_list_fields_can_be_selected(api: Ap
 # --- calendar (M04) -------------------------------------------------------------------------
 
 
-async def test_ungraded_deadlines_show_in_the_calendar(api: Api, app: FastAPI):
-    program, course = await one_course(api, code="APS105H1")
-    pid, cid = program["id"], course["id"]
-    timed = await api.assessment(cid, "Lab 1", 10, due_date="2025-10-06", due_time="17:00")
-    await api.assessment(cid, "Essay", 20, due_date="2025-10-08")
-    await api.assessment(cid, "Quiz", 5, due_date="2025-10-07", score_percentage=80)
-    await api.assessment(cid, "Midterm", 30, due_date="2025-11-01")
-    got = await api.call(
-        "GET",
-        f"/programs/{pid}/calendar",
-        params={"start": "2025-10-06", "end": "2025-10-13", "sources": ["grading.assessments"]},
-    )
-    items = [
-        (o["title"], o["kind"], o["all_day"], o["start_at"], o["end_at"]) for o in got["items"]
-    ]
-    assert items == [
-        ("APS105H1 · Lab 1", "deadline", False, "2025-10-06T21:00:00Z", None),
-        ("APS105H1 · Essay", "deadline", True, "2025-10-08T04:00:00Z", "2025-10-09T04:00:00Z"),
-    ]
-    assert got["items"][0]["ref"] == {"entity": "grading.assessment", "id": timed["id"]}
-    async with app.state.session_factory() as db:
-        owner = await db.scalar(select(models.GradingScale.user_id))
-    assert owner
-    with collect_events(app, owner) as pushed:
-        await api.call("PATCH", f"/assessments/{timed['id']}", json={"score_percentage": 90})
-    assert {"type": "calendar.changed", "data": {"program_id": pid}} in [
-        {"type": e["type"], "data": e["data"]} for e in pushed
-    ]
-
-
 async def test_rounding_before_lookup_can_be_turned_off(api: Api):
     program, course = await one_course(api)
     cid = course["id"]
@@ -1034,4 +982,5 @@ async def test_a_batch_is_one_event_and_the_calendar_hears_only_what_it_shows(
     created = [e for e in pushed if e["type"] == "grading.assessment.created"]
     assert len(created) == 1
     assert created[0]["data"]["assessment_ids"] == [a["id"] for a in out["created"]]
-    assert sum(e["type"] == "calendar.changed" for e in pushed) == 2  # the batch, the title
+    # Through the tasks: one per new task, then the title; the weight is not on the calendar.
+    assert sum(e["type"] == "calendar.changed" for e in pushed) == 4

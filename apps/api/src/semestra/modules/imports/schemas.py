@@ -198,8 +198,8 @@ class AssessmentData(BaseModel):
     category_ref: CategoryRef | None = Field(
         default=None, description="`item:<key>` for a category item, or `key:<key>`"
     )
-    weight: Annotated[float, Field(ge=0, le=100)] = Field(
-        default=0, description="Weight in percent of the course grade"
+    weight: Annotated[float, Field(ge=0, le=100)] | None = Field(
+        default=None, description="Weight in percent of the course grade; empty when unknown"
     )
     due_date: date | None = Field(default=None, description="Local due date")
     due_time: time | None = Field(default=None, description="Local due time")
@@ -332,10 +332,32 @@ class SessionTarget(BaseModel):
     end_date: date | None = Field(default=None, description="Wizard: last day of that term")
 
 
+class CourseWeights(BaseModel):
+    course_ref: str = Field(description="`course:<id>` or `item:<course item id>`")
+    total: float = Field(description="Weights of the course's assessments once imported, in %")
+    existing: int = Field(description="How many of them are in the gradebook already")
+    ok: bool = Field(description="The total is 100")
+
+
+class CategoryWeights(BaseModel):
+    item_id: str = Field(description="The category item")
+    expected: float = Field(description="The total the category states, in %")
+    total: float = Field(description="What its accepted assessments add up to, in %")
+    ok: bool = Field(description="The two agree")
+
+
 class SessionSummary(BaseModel):
     counts: dict[str, int] = Field(default_factory=dict, description="Items per type")
     accepted: dict[str, int] = Field(default_factory=dict, description="Accepted items per type")
     issues: dict[str, int] = Field(default_factory=dict, description="Open issues per code")
+    weights: list[CourseWeights] = Field(
+        default_factory=list,
+        description="Per course with assessments here: what its weights add up to with them",
+    )
+    category_weights: list[CategoryWeights] = Field(
+        default_factory=list,
+        description="Per new category: what its assessments here add up to",
+    )
     created: int = 0
     updated: int = 0
     failed: int = 0

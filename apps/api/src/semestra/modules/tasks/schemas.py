@@ -7,7 +7,7 @@ Id = Annotated[str, Field(min_length=1, max_length=64)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
 Priority = Literal["none", "low", "medium", "high", "urgent"]
-SourceKind = Literal["assessment", "lms", "syllabus", "agent", "manual"]
+SourceKind = Literal["lms", "syllabus", "agent", "manual"]
 View = Literal["today", "scheduled", "all", "completed", "inbox", "flagged"]
 Sort = Literal["manual", "due", "priority", "created", "title"]
 
@@ -100,6 +100,10 @@ class Task(BaseModel):
     position: float
     source_kind: SourceKind | None
     source_ref: str | None
+    assessment_id: str | None = Field(
+        description="The gradebook assessment this task stands for: its title, due date and "
+        "course follow the assessment, and it is deleted with it"
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -120,6 +124,7 @@ TaskField = Literal[
     "position",
     "source_kind",
     "source_ref",
+    "assessment_id",
     "created_at",
     "updated_at",
 ]
@@ -144,7 +149,7 @@ class TaskFields(BaseModel):
     source_kind: SourceKind = Field(
         default="manual",
         description="Where the task came from. The assistant may only use agent (its default), "
-        "syllabus or manual; assessment and lms tasks are made by the app itself",
+        "syllabus or manual; lms tasks are made by the app itself",
     )
     source_ref: Annotated[str, Field(max_length=200)] | None = Field(
         default=None, description="Id of the source item; makes batch imports idempotent"
@@ -267,8 +272,9 @@ class TaskCandidate(BaseModel):
     course_id: str | None
     due_date: date | None
     completed: bool
-    source_kind: SourceKind | None = Field(
-        description="assessment: title, due date and course follow the assessment"
+    source_kind: SourceKind | None
+    assessment_id: str | None = Field(
+        description="Set when title, due date and course follow a gradebook assessment"
     )
     score: float
 

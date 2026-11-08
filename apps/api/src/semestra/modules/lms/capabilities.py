@@ -48,6 +48,7 @@ from semestra.modules.lms.schemas.io import (
     ModuleItemList,
     ModuleItemsInput,
     ModuleList,
+    NewAssignmentList,
     PageGetInput,
     PageList,
     ProgramBinding,
@@ -61,6 +62,7 @@ from semestra.modules.lms.schemas.io import (
     SubmissionInput,
     TermAnnouncementList,
     TermAnnouncementsInput,
+    TermNewAssignmentsInput,
     UpdatesOutput,
 )
 
@@ -433,8 +435,9 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Announ
     name="lms.assignment.list",
     untrusted=True,
     summary="Assignments of a linked course on Canvas or another LMS, marked when imported.",
-    description="""To add them to the gradebook or tasks use lms.assignment.import (reviewed by
-the user), never the gradebook or task capabilities directly.""",
+    description="""To add them to the gradebook or tasks use lms.assignment.import (and
+lms.assignment.add_to_gradebook for ones imported as tasks), never the gradebook or task
+capabilities directly.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/assignments"),
     tags=TAGS,
@@ -442,6 +445,20 @@ the user), never the gradebook or task capabilities directly.""",
 )
 async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     return await reads.assignments(ctx, inp.course_id, inp.refresh)
+
+
+@capability(
+    name="lms.term.new_assignments",
+    summary="Assignments of a term's LMS-linked courses that are due later and not imported.",
+    description="""From the cached lists, per course (the "today" page's prompt). Not for agents:
+they read one course with lms.assignment.list (`new_ids`).""",
+    effect="read",
+    http=Http("GET", "/terms/{term_id}/lms/new-assignments"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def term_new_assignments(ctx: Ctx, inp: TermNewAssignmentsInput) -> NewAssignmentList:
+    return await reads.term_new_assignments(ctx, inp.term_id)
 
 
 @capability(
@@ -700,10 +717,11 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
 
 @capability(
     name="lms.assignment.import",
-    summary="Start importing assignments of a linked course as assessments or tasks.",
-    description="""Creates an import the user reviews; each item can be switched between an
-assessment and a task there. Assignments imported before are left out. Then commit it like
-any import (imports.session.commit).""",
+    summary="Import a linked course's assignments: worth points into the gradebook, else as tasks.",
+    description="""Assignments worth points become assessments (each gets its task), the others
+tasks; ones imported before are left out. Saved at once when nothing needs a decision
+(`committed`); otherwise the user reviews it, then commit it like any import
+(imports.session.commit).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:assignments"),
     preview=previews.preview_assignment_import,
@@ -711,6 +729,21 @@ any import (imports.session.commit).""",
 )
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     return await imports.import_assignments(ctx, inp)
+
+
+@capability(
+    name="lms.assignment.add_to_gradebook",
+    summary="Move imported LMS assignments that have no gradebook entry into the gradebook.",
+    description="""For assignments whose `imported_as.kind` is task in lms.assignment.list: each
+becomes an assessment and keeps its to-do. Saved at once when nothing needs a decision
+(`committed`); otherwise commit it after the review (imports.session.commit).""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/lms/imports:gradebook"),
+    preview=previews.preview_add_to_gradebook,
+    tags=TAGS,
+)
+async def add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
+    return await imports.add_to_gradebook(ctx, inp)
 
 
 @capability(

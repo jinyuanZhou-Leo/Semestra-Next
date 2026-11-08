@@ -45,14 +45,9 @@ def _local(due_at: datetime, tz: str) -> datetime:
     return due_at.astimezone(ZoneInfo(tz))
 
 
-def assessment_out(row: models.GradingAssessment, tz: str, now: datetime) -> Assessment:
+def assessment_out(row: models.GradingAssessment, tz: str) -> Assessment:
     local = _local(row.due_at, tz) if row.due_at is not None else None
-    if row.score_percentage is not None:
-        status = "graded"
-    elif row.due_at is not None and row.due_at < now:
-        status = "overdue"
-    else:
-        status = "pending"
+    status = "graded" if row.score_percentage is not None else "pending"
     return Assessment.model_validate(
         {
             **{c.key: getattr(row, c.key) for c in row.__table__.columns},
@@ -97,30 +92,17 @@ async def scored_counts(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, tuple[
     return out
 
 
+async def counted_weights(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, list[float]]:
+    """Per course, the weights of its counted (not dropped) assessments: what an import adds to
+    is checked against them (M08 shows the total on the course)."""
+    rows = await assessment_rows(ctx, course_ids)
+    return {cid: [r.weight for r in found if not r.dropped] for cid, found in rows.items()}
+
+
 async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAssessment | None:
     """The ctx user's assessment, or None (for other modules: M05 keeps its tasks in sync)."""
     row = await ctx.db.get(models.GradingAssessment, assessment_id)
     return row if row is not None and row.user_id == ctx.user_id else None
-
-
-async def dated_unscored_assessment_rows(
-    ctx: Ctx, program_id: str
-) -> list[models.GradingAssessment]:
-    """A Program's assessments with a due date and no score yet, soonest first."""
-    return list(
-        await ctx.db.scalars(
-            select(models.GradingAssessment)
-            .where(
-                models.GradingAssessment.user_id == ctx.user_id,
-                models.GradingAssessment.course_id.in_(
-                    [c.id for c in await program_courses(ctx, program_id)]
-                ),
-                models.GradingAssessment.due_at.is_not(None),
-                models.GradingAssessment.score_percentage.is_(None),
-            )
-            .order_by(models.GradingAssessment.due_at)
-        )
-    )
 
 
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
@@ -211,7 +193,7 @@ def _new_assessment(
 async def _announce_assessment(
     ctx: Ctx, kind: str, row: models.GradingAssessment, program_id: str, changed: Sequence[str]
 ) -> None:
-    await events.publish(
+    await _publish(
         ctx,
         f"grading.assessment.{kind}",
         {
@@ -219,9 +201,15 @@ async def _announce_assessment(
             "course_id": row.course_id,
             "program_id": program_id,
             "changed": list(changed),
-            "due_changed": bool({"due_at", "due_has_time"} & set(changed)),
         },
     )
+
+
+async def _publish(ctx: Ctx, event_type: str, data: dict[str, Any]) -> None:
+    """In the transaction first (M05 keeps "a dated assessment has exactly one task" there, so
+    it holds at commit), then after it."""
+    await events.publish_in_transaction(ctx, event_type, data)
+    await events.publish(ctx, event_type, data)
 
 
 async def create_assessments(
@@ -270,7 +258,7 @@ async def create_assessments(
     if created:
         # One event for the whole batch: an import of 30 assessments is one change to react to.
         dated = any(r.due_at is not None for r in created)
-        await events.publish(
+        await _publish(
             ctx,
             "grading.assessment.created",
             {
@@ -279,11 +267,10 @@ async def create_assessments(
                 "course_id": course.id,
                 "program_id": program.id,
                 "changed": ["due_at"] if dated else [],
-                "due_changed": dated,
             },
         )
     return AssessmentCreateManyResult(
-        created=[assessment_out(r, program.timezone, ctx.now) for r in created], skipped=skipped
+        created=[assessment_out(r, program.timezone) for r in created], skipped=skipped
     )
 
 
@@ -297,7 +284,7 @@ async def preview_assessment_update(ctx: Ctx, inp: AssessmentUpdateInput) -> dic
     row = await _get_assessment(ctx, inp.assessment_id)
     course, program = await course_and_program(ctx, row.course_id)
     # Before-values as the user sees them: the deadline as a local date and time.
-    current = assessment_out(row, program.timezone, ctx.now)
+    current = assessment_out(row, program.timezone)
     changes: list[dict[str, Any]] = []
     for field in sorted(inp.model_fields_set - {"assessment_id"}):
         after = getattr(inp, field)
@@ -398,7 +385,7 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     changed = [k for k, v in before.items() if getattr(row, k) != v]
     if changed:
         await _announce_assessment(ctx, "updated", row, program.id, changed)
-    return assessment_out(row, tz, ctx.now)
+    return assessment_out(row, tz)
 
 
 def _updated_score(
@@ -454,7 +441,7 @@ async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
     await events.publish(
         ctx,
         "grading.assessment.deleted",
-        {**data, "changed": [], "due_changed": row.due_at is not None},
+        {**data, "changed": []},
     )
 
 
@@ -478,7 +465,7 @@ async def reorder_assessments(
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
     _, program = await course_and_program(ctx, inp.course_id)
     rows = (await assessment_rows(ctx, [inp.course_id]))[inp.course_id]
-    outs = [assessment_out(r, program.timezone, ctx.now) for r in rows]
+    outs = [assessment_out(r, program.timezone) for r in rows]
     if inp.status is not None:
         outs = [a for a in outs if a.status == inp.status]
     offset = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
@@ -603,39 +590,10 @@ async def _current_term_id(ctx: Ctx, program: AcademicsProgram) -> str | None:
     return term.id if term else None
 
 
-async def assessment_deadlines(
-    ctx: Ctx,
-    program_id: str,
-    start: datetime,
-    end: datetime,
-    course_ids: Sequence[str] | None = None,
-) -> list[Assessment]:
-    """Unscored, undropped assessments due in [start, end): the calendar source M04 registers."""
-    program = await academics.get_program_row(ctx, program_id)
-    allowed = {c.id for c in await program_courses(ctx, program_id)}
-    wanted = [c for c in (course_ids or allowed) if c in allowed]
-    if not wanted:
-        return []
-    rows = (
-        await ctx.db.scalars(
-            select(models.GradingAssessment)
-            .where(
-                models.GradingAssessment.user_id == ctx.user_id,
-                models.GradingAssessment.course_id.in_(wanted),
-                models.GradingAssessment.dropped.is_(False),
-                models.GradingAssessment.score_percentage.is_(None),
-                models.GradingAssessment.due_at >= start,
-                models.GradingAssessment.due_at < end,
-            )
-            .order_by(models.GradingAssessment.due_at)
-        )
-    ).all()
-    return [assessment_out(r, program.timezone, ctx.now) for r in rows]
-
-
 async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessments:
-    """Ungraded, undropped assessments with a deadline, soonest first (overdue ones first of
-    all), for a Program, one of its terms or one course: the "upcoming" card in one request."""
+    """Ungraded, undropped assessments still to come, soonest first, for a Program, one of its
+    terms or one course: the "upcoming" card in one request. A past one waits for its grade; it
+    is not upcoming (and whether it was handed in is its to-do's business)."""
     program = await academics.get_program_row(ctx, inp.program_id)
     allowed = {c.id for c in await program_courses(ctx, program.id, inp.term_id)}
     wanted = [inp.course_id] if inp.course_id is not None else sorted(allowed)
@@ -650,13 +608,13 @@ async def upcoming_assessments(ctx: Ctx, inp: UpcomingInput) -> UpcomingAssessme
                 models.GradingAssessment.course_id.in_(wanted),
                 models.GradingAssessment.dropped.is_(False),
                 models.GradingAssessment.score_percentage.is_(None),
-                models.GradingAssessment.due_at.is_not(None),
+                models.GradingAssessment.due_at >= ctx.now,
             )
             .order_by(models.GradingAssessment.due_at, models.GradingAssessment.title)
             .limit(inp.limit)
         )
     ).all()
-    return UpcomingAssessments(items=[assessment_out(r, program.timezone, ctx.now) for r in rows])
+    return UpcomingAssessments(items=[assessment_out(r, program.timezone) for r in rows])
 
 
 @dataclass(frozen=True)

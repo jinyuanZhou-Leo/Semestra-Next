@@ -245,8 +245,20 @@ async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> li
         ctx.db.add(item)
         rows.append(item)
     await ctx.db.flush()
-    await revalidate(ctx, row, [*existing, *rows])
+    items = [*existing, *rows]
+    await revalidate(ctx, row, items)
+    # Already in the gradebook: left out unless the user ticks it (M08 §5). Only when added, so
+    # a later edit never undoes the user's choice.
+    duplicates = [i for i in rows if i.decision == "accept" and _is_duplicate(i)]
+    if duplicates:
+        for item in duplicates:
+            item.decision = "reject"
+        await revalidate(ctx, row, items)
     return rows
+
+
+def _is_duplicate(item: ImportsItem) -> bool:
+    return any(issue["code"] == "import.duplicate_assessment" for issue in item.issues)
 
 
 async def add_items_capability(

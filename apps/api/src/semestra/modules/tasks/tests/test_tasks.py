@@ -14,7 +14,7 @@ from semestra.core.capability import registry
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.schedule.calendar import Occurrence, OccurrenceQuery, collect
-from semestra.modules.tasks import auto, service
+from semestra.modules.tasks import service
 from semestra.modules.tasks.calendar import due_source
 from semestra.modules.tasks.schemas import Task, TaskFindInput
 from semestra.modules.tasks.settings import TasksSettings
@@ -502,9 +502,7 @@ async def test_deleting_a_program_removes_its_lists_and_tasks(
 # --- calendar and agent surface -------------------------------------------------------------
 
 
-async def test_the_calendar_source_lists_unfinished_dated_tasks(
-    app: FastAPI, api: Api, user: UserHandle
-):
+async def test_the_calendar_source_lists_dated_tasks(app: FastAPI, api: Api, user: UserHandle):
     s = await api.setup()
     pid, courses = s["program"], s["courses"]
     await api.task(pid, "overdue", due_date="2026-01-10")
@@ -525,13 +523,19 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
         async with system_ctx(app.state, user.id) as ctx:
             return await due_source(ctx, q)
 
-    [item] = await occurrences()
+    item, done = sorted(await occurrences(), key=lambda o: o.start_at)
     assert (item.title, item.kind, item.all_day, item.status) == ("in", "task", False, None)
+    # A finished task stays on its day, marked done; only unfinished ones come along as overdue.
+    assert (done.title, done.status) == ("finished", "done")
     assert item.start_at == datetime(2026, 1, 20, 9, 30, tzinfo=zone).astimezone(UTC)
     assert item.color_ref is not None
     assert item.course_id == courses["aps"]
-    late = await occurrences(include_overdue=True)
-    assert [(o.title, o.status) for o in late] == [("overdue", "overdue"), ("in", None)]
+    late = sorted(await occurrences(include_overdue=True), key=lambda o: o.start_at)
+    assert [(o.title, o.status) for o in late] == [
+        ("overdue", "overdue"),
+        ("in", None),
+        ("finished", "done"),
+    ]
     assert late[0].all_day
     assert [o.title for o in await occurrences(course_ids=frozenset([courses["aps"]]))] == ["in"]
     # The calendar collects it with the other sources.
@@ -545,7 +549,7 @@ async def test_the_calendar_source_lists_unfinished_dated_tasks(
             ),
             ["tasks.due"],
         )
-    assert [o.title for o in merged] == ["in"]
+    assert [o.title for o in merged] == ["in", "finished"]
 
 
 @pytest.mark.parametrize("zone_name", ["Pacific/Auckland", "Pacific/Pago_Pago"])
@@ -666,7 +670,7 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
         full = await registry.invoke(ctx, "tasks.item.get", {"task_id": made_id}, "http")
         assert cast("Task", full).source_kind == "agent"
         # Refused in the check, so before the assistant's confirmation card.
-        for kind in ("assessment", "lms"):
+        for kind in ("lms",):
             with pytest.raises(AppError) as refused:
                 await registry.validate(
                     ctx,
@@ -689,44 +693,42 @@ async def assessment(api: Api, course_id: str, title: str, **body: Any) -> dict[
     )
 
 
-async def enable_auto(api: Api, pid: str) -> None:
-    await api.call(
-        "PATCH",
-        "/me/settings/tasks",
-        json={
-            "scope_type": "program",
-            "scope_id": pid,
-            "values": {"auto_tasks_from_assessments": True},
-        },
-    )
-
-
-async def test_assessments_become_tasks_only_when_the_switch_is_on(api: Api):
+async def test_every_dated_assessment_has_one_task(api: Api):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
     await assessment(api, aps, "Midterm", due_date="2026-02-10", due_time="10:00")
     await assessment(api, aps, "Scored", due_date="2026-02-11", score_percentage=90)
-    await assessment(api, aps, "Undated")
-    assert await api.titles(pid) == []
-
-    await enable_auto(api, pid)  # turning it on creates the tasks that are missing
-    [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
-    assert task["title"] == "APS105H1 · Midterm"
+    await assessment(api, aps, "Dropped", due_date="2026-02-12", dropped=True)
+    await assessment(api, aps, "Past", due_date="2026-01-12", due_time="09:00")
+    undated = await assessment(api, aps, "Undated")
+    page = await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "include"})
+    rows = {t["title"]: t for t in page["items"]}
+    assert sorted(rows) == [
+        "APS105H1 · Dropped",
+        "APS105H1 · Midterm",
+        "APS105H1 · Past",
+        "APS105H1 · Scored",
+    ]
+    task = rows["APS105H1 · Midterm"]
     assert (task["due_date"], task["due_time"]) == ("2026-02-10", "10:00:00")
-    assert (task["priority"], task["source_kind"]) == ("medium", "assessment")
+    assert (task["priority"], task["completed_at"]) == ("medium", None)
     assert (task["course_id"], task["term_id"]) == (aps, s["terms"]["winter"])
+    assert task["assessment_id"] is not None
+    # Graded or dropped: nothing left to hand in.
+    assert rows["APS105H1 · Scored"]["completed_at"] is not None
+    assert rows["APS105H1 · Dropped"]["completed_at"] is not None
+    # Already past due when it is added: open (overdue) until the user says it was handed in.
+    assert rows["APS105H1 · Past"]["completed_at"] is None
 
-    other = await assessment(api, aps, "Quiz", due_date="2026-02-12")
-    titles = await api.titles(pid)
-    assert sorted(titles) == ["APS105H1 · Midterm", "APS105H1 · Quiz"]
-    await api.call("PATCH", f"/assessments/{other['id']}", json={"title": "Quiz 1"})
-    assert len(await api.titles(pid)) == 2  # an update does not duplicate it
+    await api.call("PATCH", f"/assessments/{undated['id']}", json={"title": "Undated 1"})
+    assert len(await api.titles(pid)) == 2  # an update does not create one without a date
+    await api.call("PATCH", f"/assessments/{undated['id']}", json={"due_date": "2026-03-01"})
+    assert len(await api.titles(pid)) == 3
 
 
 async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: UserHandle):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
-    await enable_auto(api, pid)
     a = await assessment(api, aps, "Essay", due_date="2026-02-10")
     [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
     assert (task["due_date"], task["due_time"]) == ("2026-02-10", None)
@@ -754,6 +756,9 @@ async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: U
                 "agent",
             )
     assert refused.value.code == "tasks.managed_by_assessment"
+    # It goes only with its assessment.
+    err = await api.call("DELETE", f"/tasks/{task['id']}", 409)
+    assert err["error"]["params"]["fields"] == ["delete"]
 
     await api.call(
         "PATCH", f"/assessments/{a['id']}", json={"due_date": "2026-02-14", "due_time": "23:00"}
@@ -765,27 +770,25 @@ async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: U
     await api.call("PATCH", f"/assessments/{a['id']}", json={"score_percentage": 88})
     assert (await api.call("GET", f"/tasks/{task['id']}"))["completed_at"] is not None
 
-    # Deleting the assessment keeps its finished task but removes an unfinished one.
-    await api.call("DELETE", f"/assessments/{a['id']}")
-    assert (await api.call("GET", f"/tasks/{task['id']}"))["completed_at"] is not None
-    open_one = await assessment(api, aps, "Lab", due_date="2026-03-01")
-    assert len(await api.titles(pid)) == 1
-    await api.call("DELETE", f"/assessments/{open_one['id']}")
-    assert await api.titles(pid) == []
+    # Deleting the assessment deletes its task, finished or not, and says so.
+    with collect_events(app, user.id) as messages:
+        await api.call("DELETE", f"/assessments/{a['id']}")
+    await api.call("GET", f"/tasks/{task['id']}", 404)
+    [deleted] = [m["data"] for m in messages if m["type"] == "tasks.item.deleted"]
+    assert deleted["task_id"] == task["id"]
 
-    # Losing the due date removes the unfinished task as well.
+    # Losing the due date removes the task as well.
     third = await assessment(api, aps, "Project", due_date="2026-03-05")
     assert len(await api.titles(pid)) == 1
     await api.call("PATCH", f"/assessments/{third['id']}", json={"due_date": None})
     assert await api.titles(pid) == []
 
 
-async def test_assessment_tasks_are_not_a_second_calendar_entry(
+async def test_assessment_due_dates_reach_the_calendar_through_their_tasks(
     app: FastAPI, api: Api, user: UserHandle
 ):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
-    await enable_auto(api, pid)
     await assessment(api, aps, "Midterm", due_date="2026-02-10")
     await api.task(pid, "Own task", due_date="2026-02-10")
     zone = ZoneInfo("America/Toronto")
@@ -797,87 +800,41 @@ async def test_assessment_tasks_are_not_a_second_calendar_entry(
                 datetime(2026, 2, 1, tzinfo=zone).astimezone(UTC),
                 datetime(2026, 3, 1, tzinfo=zone).astimezone(UTC),
             ),
-            ["tasks.due", "grading.assessments"],
         )
     assert sorted((o.source, o.title) for o in merged) == [
-        ("grading.assessments", "APS105H1 · Midterm"),
+        ("tasks.due", "APS105H1 · Midterm"),
         ("tasks.due", "Own task"),
     ]
-
-
-async def test_a_second_run_of_the_backfill_creates_nothing(
-    api: Api, app: FastAPI, user: UserHandle
-):
-    s = await api.setup()
-    pid, aps = s["program"], s["courses"]["aps"]
-    await assessment(api, aps, "One", due_date="2026-03-01")
-    await enable_auto(api, pid)
-    async with system_ctx(app.state, user.id) as ctx:
-        assert await auto.backfill(ctx, pid) == 0
-    assert len(await api.titles(pid)) == 1
-
-
-# --- review fixes (2026-10-22 module review) ------------------------------------------------
 
 
 async def test_deleting_a_course_settles_the_tasks_of_its_assessments(api: Api):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
-    await enable_auto(api, pid)
     await assessment(api, aps, "Midterm", due_date="2026-02-10")
     done = await assessment(api, aps, "Quiz", due_date="2026-02-01")
     await api.call("PATCH", f"/assessments/{done['id']}", json={"score_percentage": 80})
     own = await api.task(pid, "Own", course_id=aps)
     await api.call("DELETE", f"/courses/{aps}")
-    # The unfinished assessment task goes with the assessment; the finished one stays as an
-    # ordinary task that can be edited; the user's own task only loses the course.
+    # The assessments' tasks go with them; the user's own task only loses the course.
     page = await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "include"})
-    rows = {t["title"]: t for t in page["items"]}
-    assert sorted(rows) == ["APS105H1 · Quiz", "Own"]
-    quiz = rows["APS105H1 · Quiz"]
-    assert (quiz["source_kind"], quiz["source_ref"], quiz["course_id"]) == ("manual", None, None)
-    await api.call("PATCH", f"/tasks/{quiz['id']}", json={"title": "Quiz notes"})
-    assert rows["Own"]["id"] == own["id"]
-    assert rows["Own"]["course_id"] is None
+    [row] = page["items"]
+    assert (row["id"], row["course_id"]) == (own["id"], None)
 
 
-async def test_tasks_made_while_the_switch_was_on_keep_following_their_assessment(api: Api):
+async def test_lists_and_clearing_never_delete_an_assessment_task(api: Api):
     s = await api.setup()
     pid, aps = s["program"], s["courses"]["aps"]
-    await enable_auto(api, pid)
-    a = await assessment(api, aps, "Essay", due_date="2026-02-10")
-    await api.call(
-        "PATCH",
-        "/me/settings/tasks",
-        json={
-            "scope_type": "program",
-            "scope_id": pid,
-            "values": {"auto_tasks_from_assessments": False},
-        },
-    )
-    await api.call("PATCH", f"/assessments/{a['id']}", json={"due_date": "2026-02-20"})
-    [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
-    assert task["due_date"] == "2026-02-20"
-    await assessment(api, aps, "New one", due_date="2026-03-01")  # no new task while off
-    assert len(await api.titles(pid)) == 1
-    await api.call("DELETE", f"/assessments/{a['id']}")
-    assert await api.titles(pid) == []
-
-
-async def test_only_turning_the_switch_on_brings_back_deleted_assessment_tasks(api: Api):
-    s = await api.setup()
-    pid, aps = s["program"], s["courses"]["aps"]
-    await enable_auto(api, pid)
-    await assessment(api, aps, "Essay", due_date="2026-02-10")
-    [task] = (await api.call("GET", f"/programs/{pid}/tasks"))["items"]
-    await api.call("DELETE", f"/tasks/{task['id']}")
-    for values in ({"default_priority": "low"}, {"auto_tasks_from_assessments": True}):
-        await api.call(
-            "PATCH",
-            "/me/settings/tasks",
-            json={"scope_type": "program", "scope_id": pid, "values": values},
-        )
-    assert await api.titles(pid) == []  # another setting, or the switch saved as it was
+    a = await assessment(api, aps, "Essay", due_date="2026-02-10", score_percentage=70)
+    [task] = (await api.call("GET", f"/programs/{pid}/tasks", params={"completed": "include"}))[
+        "items"
+    ]
+    drop = await api.call("POST", f"/programs/{pid}/task-lists", json={"name": "Drop"})
+    await api.call("POST", f"/tasks/{task['id']}:move", json={"list_id": drop["id"]})
+    result = await api.call("DELETE", f"/task-lists/{drop['id']}", params={"delete_tasks": True})
+    assert (result["deleted_task_count"], result["moved_task_count"]) == (0, 1)
+    await api.call("POST", f"/programs/{pid}/tasks:clear-completed", json={})
+    kept = await api.call("GET", f"/tasks/{task['id']}")
+    assert (kept["list_id"], kept["assessment_id"]) == (None, a["id"])
 
 
 async def test_deleting_a_list_with_its_tasks_announces_them(

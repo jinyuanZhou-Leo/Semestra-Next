@@ -227,7 +227,7 @@ async def get_gradebook(ctx: Ctx, course_id: str) -> Gradebook:
         ),
         result=_result_out(state.result),
         categories=[category_out(c) for c in state.categories],
-        assessments=[assessment_out(r, tz, ctx.now) for r in state.rows],
+        assessments=[assessment_out(r, tz) for r in state.rows],
         summary=summary,
     )
 

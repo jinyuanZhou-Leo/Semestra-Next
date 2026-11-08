@@ -36,7 +36,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
-import type { PageProps } from '@/app/extensions'
+import { type CalendarSourceContribution, type PageProps, preload } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
@@ -47,6 +47,7 @@ import { useCourses, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +76,7 @@ import {
   invalidateSchedule,
   occurrenceOptions,
   occurrenceRange,
+  patchOccurrence,
   stepPeriod,
   useCalendarInfo,
   useCalendarSettings,
@@ -100,6 +102,8 @@ const TIME_FORMATS = {
   '12h': { hour: 'numeric', minute: '2-digit', hour12: true },
   '24h': { hour: '2-digit', minute: '2-digit', hour12: false },
 } as const satisfies Record<string, FormatterInput>
+// Within a day, to-dos in the all-day row follow their due time (`dueAt`), then their titles.
+const EVENT_ORDER = 'start,-duration,allDay,dueAt,title'
 const FRAME = 'rounded-2xl overflow-clip'
 // Course blocks are the course color mixed into the page (the theme fills them solid).
 const TINTED =
@@ -238,6 +242,24 @@ function TermCalendar({
     )
   const eventOf = (o: Occurrence) =>
     queryClient.fetchQuery(scheduleEventGetOptions({ path: { event_id: o.ref.id } }))
+  const sourceOf = (o: Occurrence) => sources.find((s) => s.source === o.source)
+  // Checking an item off shows at once; a failure puts it back.
+  const toggle = (o: Occurrence, completed: boolean) => {
+    const complete = sourceOf(o)?.complete
+    if (!complete) return
+    const undo = patchOccurrence(queryClient, o.id, { status: completed ? 'done' : null })
+    complete(o, completed)
+      .catch((error: unknown) => {
+        undo()
+        toastError(error)
+      })
+      .finally(() => void invalidateSchedule(queryClient))
+  }
+  // A new item may be another source's (a to-do): its form starts loading with the dialog.
+  const openNew = (slot: EventSlot) => {
+    for (const source of sources) if (source.create) void preload(source.create.form)
+    setEventEdit({ slot })
+  }
   const showDetails = (o: Occurrence) => {
     setDetails(o)
     if (isMeeting(o) && o.course_id) void meetingsOf(o).catch(() => undefined)
@@ -293,25 +315,47 @@ function TermCalendar({
     saveNav({ view: next, date: date ? isoDay(date) : anchor })
   }
 
+  const timeFormat = intl(Intl.DateTimeFormat, TIME_FORMATS[getFormatPreferences().timeFormat])
   const fcEvents: EventInput[] = [
     ...items.map((o): EventInput => {
-      const editable = isOneOff(o) || (isMeeting(o) && o.status !== 'cancelled')
+      const source = sourceOf(o)
+      const resizable = isOneOff(o) || (isMeeting(o) && o.status !== 'cancelled')
+      const editable = resizable || (source?.reschedule?.allowed(o) ?? false)
+      const start = toWall(o.start_at, timezone)
+      // A to-do is a deadline, not a block of time: the week view lists them all in the all-day
+      // row, a timed one with its time in front (one due at 23:59 would otherwise fall below
+      // the hours shown).
+      const dueRow = view === 'week' && o.kind === 'task'
       return {
         id: o.id,
         title: o.title,
-        start: o.all_day ? toWall(o.start_at, timezone).slice(0, 10) : toWall(o.start_at, timezone),
-        end: o.end_at
-          ? o.all_day
-            ? toWall(o.end_at, timezone).slice(0, 10)
-            : toWall(o.end_at, timezone)
-          : undefined,
-        allDay: o.all_day ?? false,
+        start: o.all_day || dueRow ? start.slice(0, 10) : start,
+        end:
+          o.end_at && !dueRow
+            ? o.all_day
+              ? toWall(o.end_at, timezone).slice(0, 10)
+              : toWall(o.end_at, timezone)
+            : undefined,
+        allDay: dueRow || (o.all_day ?? false),
         editable,
-        durationEditable: editable,
-        className: o.status === 'cancelled' ? 'line-through opacity-60' : undefined,
+        durationEditable: resizable,
+        // A finished to-do fades but stays readable; a cancelled class is struck through.
+        className:
+          o.status === 'cancelled'
+            ? 'line-through opacity-60'
+            : o.status === 'done'
+              ? 'opacity-55'
+              : undefined,
         color: occurrenceColor(o),
         contrastColor: 'var(--foreground)',
-        extendedProps: { occurrence: o },
+        extendedProps: {
+          occurrence: o,
+          dueAt: o.kind === 'task' ? o.start_at : undefined,
+          dueTime: dueRow && !o.all_day ? timeFormat.format(new Date(start)) : undefined,
+          onToggle: source?.complete ? (completed: boolean) => toggle(o, completed) : undefined,
+          Mark: source?.Mark,
+          programId,
+        },
       }
     }),
     ...term.breaks.map((b): EventInput => ({
@@ -329,6 +373,20 @@ function TermCalendar({
     const start = info.event.start
     if (!o || !start) return info.revert()
     const end = info.event.end ?? start
+    const reschedule = sourceOf(o)?.reschedule
+    if (reschedule?.allowed(o)) {
+      // Dropped on the all-day row a to-do keeps its time (the week view lists timed ones there).
+      const kept = o.all_day ? null : toWall(o.start_at, timezone).slice(11, 16)
+      const due = { date: isoDay(start), time: info.event.allDay ? kept : hhmm(start) }
+      reschedule
+        .save(o, due)
+        .catch((error: unknown) => {
+          info.revert()
+          toastError(error)
+        })
+        .finally(() => void invalidateSchedule(queryClient))
+      return
+    }
     if (isOneOff(o)) {
       updateEvent.mutate(
         {
@@ -504,12 +562,11 @@ function TermCalendar({
             <Button
               size="sm"
               onClick={() => {
-                const slot = `${anchor}T09:00`
-                setEventEdit({ slot: { start: slot, end: `${anchor}T10:00`, allDay: false } })
+                openNew({ start: `${anchor}T09:00`, end: `${anchor}T10:00`, allDay: false })
               }}
             >
               <Plus aria-hidden />
-              {m.schedule_event_add()}
+              {m.schedule_new()}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -576,6 +633,10 @@ function TermCalendar({
                 dayHeaderFormat={DAY_HEADER_FORMAT}
                 views={VIEWS}
                 rowEventClass={ROW_EVENT_CLASS}
+                eventOrder={EVENT_ORDER}
+                // Items without an end (a to-do due at a time) are points: one due at 23:59 must
+                // not run into the next day.
+                defaultTimedEventDuration="00:01"
                 slotDuration="01:00:00"
                 snapDuration="00:15:00"
                 slotHeaderFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
@@ -589,18 +650,18 @@ function TermCalendar({
                 eventStartEditable
                 select={(arg) => {
                   const end = arg.allDay ? plusDays(isoDay(arg.end), -1) : wall(arg.end)
-                  setEventEdit({
-                    slot: {
-                      start: arg.allDay
-                        ? `${isoDay(arg.start)}T00:00`
-                        : wall(arg.start).slice(0, 16),
-                      end: arg.allDay ? `${end}T00:00` : end.slice(0, 16),
-                      allDay: arg.allDay,
-                    },
+                  openNew({
+                    start: arg.allDay ? `${isoDay(arg.start)}T00:00` : wall(arg.start).slice(0, 16),
+                    end: arg.allDay ? `${end}T00:00` : end.slice(0, 16),
+                    allDay: arg.allDay,
                   })
                   arg.view.calendar.unselect()
                 }}
                 eventClick={(arg) => {
+                  // The item's checkbox checks it off without opening its details.
+                  if ((arg.jsEvent.target as Element | null)?.closest('[data-calendar-check]')) {
+                    return
+                  }
                   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
                   if (o) showDetails(o)
                 }}
@@ -637,6 +698,14 @@ function TermCalendar({
           course={detailsCourse}
           open
           onOpenChange={(open) => !open && setDetails(null)}
+          onToggle={
+            sourceOf(details)?.complete
+              ? (completed) => {
+                  setDetails(null)
+                  toggle(details, completed)
+                }
+              : undefined
+          }
           onMove={(o) => {
             setDetails(null)
             setMove({
@@ -689,6 +758,7 @@ function TermCalendar({
           termId={term.id}
           event={eventEdit.event}
           slot={eventEdit.slot}
+          creators={sources}
           open
           onOpenChange={(open) => !open && setEventEdit(null)}
         />
@@ -745,21 +815,57 @@ function WeekDayHeader({ arg }: { arg: DayHeaderInfo }) {
   )
 }
 
+// A round check like a reminder's: a primary ring, filled with a dot once done.
+// The to-do list's round check (`task-check`), sized for a calendar line.
+// An opaque circle, so the course color under it doesn't tint the empty check.
+const CHECK = 'task-check size-3.5 rounded-full bg-background [&_svg]:size-2.5!'
+
+/** Checks an item off in place; clicks on it do not open the details (see `eventClick`). */
+function Check({ o, onToggle }: { o: Occurrence; onToggle: (completed: boolean) => void }) {
+  // Checking it off pops the circle as on the to-do list (`data-completing` in theme.css).
+  const [popped, setPopped] = useState(false)
+  return (
+    <span
+      data-calendar-check
+      data-completing={popped ? 'checking' : undefined}
+      className="flex shrink-0"
+    >
+      <Checkbox
+        aria-label={m.schedule_check_item({ title: o.title })}
+        checked={o.status === 'done'}
+        onCheckedChange={(checked) => {
+          setPopped(checked)
+          onToggle(checked)
+        }}
+        className={CHECK}
+      />
+    </span>
+  )
+}
+
 function EventContent({ arg }: { arg: EventDisplayInfo }) {
   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
   if (!o) return <span className="fc-event-title">{arg.event.title}</span>
   const conflict = (o.meta?.conflicts_with?.length ?? 0) > 0
+  const onToggle = arg.event.extendedProps.onToggle as ((completed: boolean) => void) | undefined
+  const check = onToggle ? <Check o={o} onToggle={onToggle} /> : null
+  const dueTime = arg.event.extendedProps.dueTime as string | undefined
+  const Mark = arg.event.extendedProps.Mark as CalendarSourceContribution['Mark']
+  const mark = Mark ? <Mark programId={arg.event.extendedProps.programId as string} /> : null
   if (arg.view.type === 'timeGridWeek' && !arg.event.allDay) {
-    // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place.
+    // The timetable's block (WeekGrid): a straight-edged course-colored bar, title, place. The
+    // content takes the block's corners and clips the bar to them (a 4px bar cannot round a
+    // larger corner itself); FullCalendar's resize handles sit outside it, so they stay whole.
     return (
-      <div className="flex h-full min-w-0 overflow-hidden leading-tight">
+      <div className="flex h-full min-w-0 overflow-hidden rounded-[calc(var(--radius)-2px)] leading-tight">
         <span
           aria-hidden
-          className="w-1 shrink-0 rounded-l-[calc(var(--radius)-2px)]"
+          className="w-1 shrink-0"
           style={{ backgroundColor: occurrenceColor(o) }}
         />
         <span className="min-w-0 flex-1 px-1 py-0.5">
           <span className="flex items-center gap-1 font-medium">
+            {check}
             {conflict ? (
               <TriangleAlert
                 aria-label={m.schedule_conflict()}
@@ -767,6 +873,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
               />
             ) : null}
             <span className="truncate">{o.title}</span>
+            {mark}
           </span>
           {o.location ? (
             <span className="block truncate text-muted-foreground">{o.location}</span>
@@ -782,6 +889,7 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
         <span className="w-28 shrink-0 text-muted-foreground tabular-nums">
           {arg.timeText || m.schedule_all_day()}
         </span>
+        {check}
         {conflict ? (
           <TriangleAlert
             aria-label={m.schedule_conflict()}
@@ -789,12 +897,14 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
           />
         ) : null}
         <span className="truncate font-medium">{o.title}</span>
+        {mark}
       </span>
     )
   }
   return (
     <div className="flex min-w-0 flex-col overflow-hidden px-1 leading-tight">
       <span className="flex items-center gap-1 truncate font-medium">
+        {check}
         {conflict ? (
           <TriangleAlert
             aria-label={m.schedule_conflict()}
@@ -804,7 +914,12 @@ function EventContent({ arg }: { arg: EventDisplayInfo }) {
         {arg.timeText && arg.view.type === 'dayGridMonth' ? (
           <span className="text-muted-foreground">{arg.timeText}</span>
         ) : null}
+        {/* The week's all-day row lists the day's deadlines; their times are in the details. */}
+        {dueTime && arg.view.type !== 'timeGridWeek' ? (
+          <span className="text-muted-foreground tabular-nums">{dueTime}</span>
+        ) : null}
         <span className="truncate">{o.title}</span>
+        {mark}
       </span>
       {arg.view.type === 'timeGridWeek' && o.location ? (
         <span className="truncate text-muted-foreground">{o.location}</span>

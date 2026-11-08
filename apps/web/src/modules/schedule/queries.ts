@@ -1,4 +1,10 @@
-import type { CalendarOccurrenceListData, Meeting, Term } from '@semestra/api-client'
+import type {
+  CalendarOccurrenceListData,
+  Meeting,
+  Occurrence,
+  Occurrences,
+  Term,
+} from '@semestra/api-client'
 import {
   academicsProgramGetOptions,
   academicsTermGetWeeksOptions,
@@ -245,6 +251,30 @@ function operationId(queryKey: readonly unknown[]): string {
 }
 
 /** Refetch the calendar and schedule queries after a change made from this tab. */
+/**
+ * Changes one item in every cached occurrence list (checking it off shows at once); the returned
+ * function puts the lists back.
+ */
+export function patchOccurrence(
+  queryClient: QueryClient,
+  id: string,
+  patch: Partial<Occurrence>,
+): () => void {
+  const snapshot = queryClient.getQueriesData<Occurrences>({
+    predicate: (query) => operationId(query.queryKey) === 'calendarOccurrenceList',
+  })
+  for (const [key, data] of snapshot) {
+    if (!data) continue
+    queryClient.setQueryData<Occurrences>(key, {
+      ...data,
+      items: data.items.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    })
+  }
+  return () => {
+    for (const [key, data] of snapshot) queryClient.setQueryData(key, data)
+  }
+}
+
 export function invalidateSchedule(queryClient: QueryClient) {
   return queryClient.invalidateQueries({
     predicate: (query) => {

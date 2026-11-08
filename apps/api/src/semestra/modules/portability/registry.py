@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from semestra.core.context import Ctx
+from semestra.core.errors import AppError
 
 
 class Writer(Protocol):
@@ -102,6 +103,15 @@ class Adapter:
     prepare: PrepareFn | None = None
     # Row caps by table name (e.g. Sem memories), for the data overview.
     limits: Mapping[str, int] = field(default_factory=lambda: {})
+    # Backups of older versions are refused rather than converted (no compatibility before 2.0).
+    oldest_version: int = 1
+
+    def check_version(self, version: int) -> None:
+        """Refuses a backup whose data for this module this version cannot read."""
+        if not self.oldest_version <= version <= self.schema_version:
+            raise AppError(
+                "portability.unsupported_version", 400, version=f"{self.module} {version}"
+            )
 
 
 _adapters: dict[str, Adapter] = {}
@@ -120,6 +130,7 @@ def register_portability(
     tables: tuple[str, ...] = (),
     prepare: PrepareFn | None = None,
     limits: Mapping[str, int] | None = None,
+    oldest_version: int = 1,
 ) -> None:
     if module in _adapters:
         raise ValueError(f"duplicate portability adapter {module!r}")
@@ -140,6 +151,7 @@ def register_portability(
         tables=tuple(tables),
         prepare=prepare,
         limits=dict(limits or {}),
+        oldest_version=oldest_version,
     )
 
 

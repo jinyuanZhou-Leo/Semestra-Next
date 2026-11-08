@@ -15,6 +15,7 @@ import {
   SearchX,
 } from 'lucide-react'
 import { Fragment, useState, type ReactNode } from 'react'
+import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
@@ -29,13 +30,16 @@ import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
 import { type AssessmentFilter, matchesFilter } from '../filter'
+import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '../types'
 import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
   type AssessmentRow,
   type TableActions,
   TableActionsContext,
+  actionsColumn,
   assessmentColumns,
+  extensionColumn,
   features,
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
@@ -60,6 +64,7 @@ function fromSorting(sorting: SortingState): SortPref {
  * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
  */
 export function AssessmentTable({
+  programId,
   courseId,
   assessments,
   categories,
@@ -73,6 +78,7 @@ export function AssessmentTable({
   onClearFilter,
   toolbar,
 }: {
+  programId: string
   courseId: string
   assessments: readonly Assessment[]
   categories: readonly AssessmentCategory[]
@@ -139,7 +145,11 @@ export function AssessmentTable({
     .filter((a) => matchesFilter(a, filter, search))
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
+  const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
+  const columns = [...assessmentColumns, ...contributed.map(extensionColumn), actionsColumn]
   const actionsValue: TableActions = {
+    programId,
+    extensions: new Map(contributed.map((ext) => [ext.id, ext])),
     categories: byId,
     whatIf,
     predictions,
@@ -154,7 +164,7 @@ export function AssessmentTable({
 
   const table = useTable({
     features,
-    columns: assessmentColumns,
+    columns,
     data,
     getRowId: (a) => a.id,
     state: { sorting: toSorting(sort) },
@@ -166,7 +176,7 @@ export function AssessmentTable({
   const groups = grouped
     ? groupByCategory(rows, categories, (r) => r.original.category_id)
     : [{ category: null as AssessmentCategory | null, items: rows }]
-  const columnCount = assessmentColumns.length
+  const columnCount = columns.length
 
   const toggleGroup = (id: string) =>
     setCollapsed((prev) => {
@@ -280,6 +290,7 @@ export function AssessmentTable({
                         )}
                         collapsed={isCollapsed}
                         planning={whatIf.plan}
+                        trailing={contributed.length + 1}
                         onToggle={() => toggleGroup(groupId)}
                       />
                     ) : null}
@@ -338,6 +349,7 @@ function GroupRow({
   figures,
   collapsed,
   planning,
+  trailing,
   onToggle,
 }: {
   category: AssessmentCategory | null
@@ -347,6 +359,8 @@ function GroupRow({
   collapsed: boolean
   /** In plan mode the rows show assumptions; the group's average stays the real one. */
   planning: boolean
+  /** The columns after the score: contributed ones and the row menu. */
+  trailing: number
   onToggle: () => void
 }) {
   const graded = figures?.graded_weight ?? 0
@@ -393,7 +407,7 @@ function GroupRow({
           </span>
         )}
       </TableCell>
-      <TableCell className="py-1.5" />
+      <TableCell colSpan={trailing} className="py-1.5" />
     </TableRow>
   )
 }

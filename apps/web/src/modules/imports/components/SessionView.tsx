@@ -9,8 +9,8 @@ import { SearchX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { AiAction } from '@/components/AiAction'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -28,6 +28,7 @@ import { issueSummary } from '../labels'
 import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
+import { useWorthKeeping } from './worth-keeping'
 
 /** How long the finished check shows before the review replaces the extraction. */
 export const SUCCESS_HOLD_MS = 1000
@@ -79,7 +80,7 @@ function ExtractingAction({ jobId }: { jobId: string | null | undefined }) {
  *
  * `mode` `wizard` ends the review with "Add to wizard" instead of a commit (the term wizard
  * creates the courses, then commits the rest); `onDone` gets the session when the user finished,
- * null when they discarded it or left for later.
+ * null when they discarded it (it stays in the import history).
  */
 export function SessionView({
   session,
@@ -93,11 +94,12 @@ export function SessionView({
   className?: string
 }) {
   const queryClient = useQueryClient()
-  const [discarding, setDiscarding] = useState(false)
   // Set before the pending edits are awaited, so a second click cannot start a second commit.
   const [submitting, setSubmitting] = useState(false)
   const commit = useMutation({ ...importsSessionCommitMutation(), onError: toastError })
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
+  const keep = useWorthKeeping(session)
+  const [confirming, setConfirming] = useState(false)
 
   if (session.status === 'extracting') {
     return (
@@ -192,7 +194,6 @@ export function SessionView({
       {
         onSuccess: () => {
           void invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList'])
-          setDiscarding(false)
           onDone(null)
         },
       },
@@ -200,23 +201,6 @@ export function SessionView({
 
   return (
     <div className={cn('flex min-h-0 flex-col gap-3', className)}>
-      <p
-        className={cn(
-          'min-h-5 text-sm',
-          (!committed && issues) || failedIds.length > 0
-            ? 'text-destructive'
-            : 'text-muted-foreground',
-        )}
-      >
-        {committed
-          ? failedIds.length > 0
-            ? m.imports_result_failed({ count: failedIds.length })
-            : m.imports_result_done({
-                created: session.summary.created ?? 0,
-                updated: session.summary.updated ?? 0,
-              })
-          : (issues ?? m.imports_no_issues())}
-      </p>
       {warnings.map((warning) => (
         <p key={warning} className="text-sm text-muted-foreground">
           {warning}
@@ -226,6 +210,19 @@ export function SessionView({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {committed ? (
           <>
+            <p
+              className={cn(
+                'mr-auto text-sm',
+                failedIds.length > 0 ? 'text-destructive' : 'text-muted-foreground',
+              )}
+            >
+              {failedIds.length > 0
+                ? m.imports_result_failed({ count: failedIds.length })
+                : m.imports_result_done({
+                    created: session.summary.created ?? 0,
+                    updated: session.summary.updated ?? 0,
+                  })}
+            </p>
             <Button variant="ghost" onClick={() => onDone(session)}>
               {m.common_close()}
             </Button>
@@ -237,12 +234,24 @@ export function SessionView({
           </>
         ) : (
           <>
-            <Button variant="destructive" className="mr-auto" onClick={() => setDiscarding(true)}>
+            <Button
+              variant="destructive"
+              className="mr-auto"
+              disabled={discard.isPending}
+              onClick={() => (keep ? setConfirming(true) : runDiscard())}
+            >
               {m.imports_discard()}
             </Button>
-            <Button variant="ghost" onClick={() => onDone(null)}>
-              {m.imports_later()}
-            </Button>
+            <ConfirmDialog
+              open={confirming}
+              onOpenChange={setConfirming}
+              title={m.imports_discard_title()}
+              description={m.imports_discard_description()}
+              confirmLabel={m.imports_discard()}
+              pending={discard.isPending}
+              onConfirm={runDiscard}
+            />
+            {issues ? <p className="text-sm text-destructive">{issues}</p> : null}
             {mode === 'wizard' ? (
               <Button disabled={courses === 0} onClick={() => void addToWizard()}>
                 {m.imports_add_to_wizard({ count: courses })}
@@ -258,15 +267,6 @@ export function SessionView({
           </>
         )}
       </div>
-      <ConfirmDialog
-        open={discarding}
-        onOpenChange={setDiscarding}
-        title={m.imports_discard_title()}
-        description={m.imports_discard_description()}
-        confirmLabel={m.imports_discard()}
-        pending={discard.isPending}
-        onConfirm={runDiscard}
-      />
     </div>
   )
 }
