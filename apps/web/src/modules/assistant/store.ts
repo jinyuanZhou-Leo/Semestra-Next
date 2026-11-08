@@ -1,5 +1,5 @@
-import type { JSONContent } from '@tiptap/core'
 import { useSyncExternalStore } from 'react'
+import { conversationDrafts } from './drafts'
 
 /**
  * Whether the side panel is open and which conversation it shows. Shared by the panel, the
@@ -13,10 +13,6 @@ export type PanelState = {
   question: { text: string; key: number } | null
   /** Changes when another conversation is shown (not when a new one gets its id). */
   view: number
-  /** Whether a new conversation in the panel starts as a temporary chat. */
-  temporary: boolean
-  /** What was written on the full page, which the panel's input starts with. */
-  draft: JSONContent | null
 }
 
 const INITIAL: PanelState = {
@@ -24,20 +20,23 @@ const INITIAL: PanelState = {
   sessionId: null,
   question: null,
   view: 0,
-  temporary: false,
-  draft: null,
 }
 let state: PanelState = INITIAL
-// What the full page shows, so `open` can hand it to the panel; null while the page is closed.
-let page: { sessionId: string | null; temporary: boolean } | null = null
+// The conversation the full page shows, or showed last: its entries in the sidebar and tab bar go
+// back to it, and `open` hands it to the panel. Null for a new conversation.
+let pageSession: string | null = null
+let pageOpen = false
 // The last page outside the assistant, where the hand-over goes back to.
 let returnTo: string | null = null
-let pageDraft: JSONContent | null = null
 const listeners = new Set<() => void>()
+
+function notify() {
+  for (const listener of listeners) listener()
+}
 
 function set(next: Partial<PanelState>) {
   state = { ...state, ...next }
-  for (const listener of listeners) listener()
+  notify()
 }
 
 export const panel = {
@@ -57,25 +56,18 @@ export const panel = {
         open: true,
         sessionId: null,
         question: { text: question.trim(), key: Date.now() },
-        temporary: false,
-        draft: null,
         view: state.view + 1,
       })
     } else {
       set({ open: true })
     }
   },
-  /** Shows an open conversation in the panel (the full page hands its conversation over). */
-  moveHere(sessionId: string | null, temporary: boolean, draft: JSONContent | null) {
-    set({ open: true, sessionId, temporary, draft, question: null, view: state.view + 1 })
-  },
-  page: () => page,
-  setPage(next: typeof page) {
-    page = next
-  },
-  pageDraft: () => pageDraft,
-  setPageDraft(doc: JSONContent | null) {
-    pageDraft = doc
+  /**
+   * Shows the full page's conversation in the panel; what was prepared in it comes along, since
+   * drafts belong to the conversation (`drafts.ts`).
+   */
+  moveHere(sessionId: string | null) {
+    set({ open: true, sessionId, question: null, view: state.view + 1 })
   },
   returnTo: () => returnTo,
   setReturnTo(href: string) {
@@ -85,27 +77,45 @@ export const panel = {
     set({ open: false })
   },
   show(sessionId: string | null) {
-    set({ sessionId, temporary: false, draft: null, question: null, view: state.view + 1 })
+    set({ sessionId, question: null, view: state.view + 1 })
   },
   /** A new conversation was created by its first message. */
   created(sessionId: string) {
     set({ sessionId })
-  },
-  /** The panel's input took the carried-over text; it is not offered again on a reopen. */
-  takeDraft() {
-    if (state.draft) set({ draft: null })
   },
   takeQuestion() {
     const question = state.question
     if (question) set({ question: null })
     return question
   },
-  /** Tests start from a closed panel. */
+  /** A conversation was deleted: nothing goes back to it, and its draft is dropped. */
+  forget(sessionId: string) {
+    conversationDrafts.forget(sessionId)
+    if (pageSession === sessionId) assistantPage.show(null)
+    if (state.sessionId === sessionId) panel.show(null)
+  },
+  /** Tests start from a closed panel and no drafts. */
   reset() {
     state = INITIAL
-    page = null
-    pageDraft = null
+    pageSession = null
+    pageOpen = false
     returnTo = null
+    conversationDrafts.reset()
+  },
+}
+
+/** The full page (`/p/$programId/assistant/$sessionId?`), as far as the rest of the app needs it. */
+export const assistantPage = {
+  subscribe: panel.subscribe,
+  isOpen: () => pageOpen,
+  sessionId: () => pageSession,
+  setOpen(open: boolean) {
+    pageOpen = open
+  },
+  show(sessionId: string | null) {
+    if (pageSession === sessionId) return
+    pageSession = sessionId
+    notify()
   },
 }
 

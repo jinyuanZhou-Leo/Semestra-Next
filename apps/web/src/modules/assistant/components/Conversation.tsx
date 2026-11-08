@@ -72,6 +72,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
+import { conversationDrafts, NEW_CONVERSATION } from '../drafts'
 import { skillTitle } from '../labels'
 import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
 import { useProgramEntities } from '../scope'
@@ -479,10 +480,6 @@ export function Conversation({
   focusInput,
   className,
   contentClassName,
-  initialTemporary = false,
-  onTemporaryChange,
-  initialContent,
-  onContentChange,
 }: {
   sessionId: string | null
   pageScope: AgentScope | null
@@ -495,27 +492,35 @@ export function Conversation({
   className?: string
   /** Applied to the message column and the input area, so the scrollbar can sit at the edge. */
   contentClassName?: string
-  /** A new conversation starts as a temporary chat (the full page's choice carried over). */
-  initialTemporary?: boolean
-  /** Reports whether the conversation shown is temporary, when it changes. */
-  onTemporaryChange?: (temporary: boolean) => void
-  /** The input starts with this, and reports what is written (the hand-over keeps drafts). */
-  initialContent?: JSONContent | null
-  onContentChange?: (doc: JSONContent) => void
 }) {
   const queryClient = useQueryClient()
   const temporaryId = useId()
   const ai = useAiStatus('chat')
-  const chat = useChat(sessionId, onCreated)
+  const chat = useChat(sessionId, (id) => {
+    conversationDrafts.created(id)
+    onCreated(id)
+  })
+  // What was prepared here before (another page, a closed panel, the other view): drafts belong
+  // to the conversation, not to this component.
+  const draftKey = sessionId ?? NEW_CONVERSATION
+  const [draft] = useState(() => conversationDrafts.get(draftKey))
   const showReasoning = useShowReasoning()
   // Counts the messages sent from here, so the transcript can follow each one.
   const [sent, setSent] = useState(0)
   const [decided, setDecided] = useState<ReadonlySet<string>>(() => new Set())
   // A new conversation works where the page is until the user picks another place.
-  const [chosenScope, setChosenScope] = useState<AgentScope | null>(null)
+  const [chosenScope, setChosenScope] = useState<AgentScope | null>(draft.scope ?? null)
   const newScope = chosenScope ?? pageScope
-  const [temporaryChoice, setTemporaryChoice] = useState(initialTemporary)
-  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [temporaryChoice, setTemporaryChoice] = useState(draft.temporary ?? false)
+  const [attachments, setAttachments] = useState<readonly PendingAttachment[]>(
+    draft.attachments ?? [],
+  )
+  // Uploaded files stay with the conversation until sent or removed.
+  useEffect(() => {
+    conversationDrafts.update(draftKey, {
+      attachments: attachments.filter((a) => a.id !== null && a.error === null),
+    })
+  }, [draftKey, attachments])
   // Keys removed from the composer, so an upload that finishes later is deleted, not kept.
   const removed = useRef(new Set<string>())
   const detail = chat.detail
@@ -530,10 +535,6 @@ export function Conversation({
     () => (sessionId ? void preloadMarkdown() : whenSettled(() => void preloadMarkdown())),
     [sessionId],
   )
-  const reportTemporary = useEffectEvent((value: boolean) => onTemporaryChange?.(value))
-  useEffect(() => {
-    reportTemporary(temporary)
-  }, [temporary])
   const items = detail ? buildItems(detail, chat.generating) : []
   const citations = detail ? citationsOf(detail) : new Map()
   const savedFiles = new Map(
@@ -562,6 +563,7 @@ export function Conversation({
   async function changeScope(next: AgentScope) {
     if (!sessionId) {
       setChosenScope(next)
+      conversationDrafts.update(NEW_CONVERSATION, { scope: next })
       return
     }
     await agentSessionUpdate({ path: { id: sessionId }, body: { scope: next } })
@@ -873,7 +875,10 @@ export function Conversation({
                   size="sm"
                   checked={temporary}
                   disabled={sessionId !== null}
-                  onCheckedChange={setTemporaryChoice}
+                  onCheckedChange={(checked) => {
+                    setTemporaryChoice(checked)
+                    conversationDrafts.update(NEW_CONVERSATION, { temporary: checked })
+                  }}
                 />
               </TooltipTrigger>
               <TooltipContent>{m.assistant_temporary_chat_hint()}</TooltipContent>
@@ -910,8 +915,8 @@ export function Conversation({
               onStop={() => void chat.stop()}
               onScope={(next) => void changeScope(next)}
               focusInput={focusInput}
-              initialContent={initialContent}
-              onContentChange={onContentChange}
+              initialContent={draft.doc ?? null}
+              onContentChange={(doc) => conversationDrafts.update(draftKey, { doc })}
               context={sessionId ? (detail?.context ?? null) : null}
               canCompact={canCompact}
               compacting={chat.compacting}

@@ -295,6 +295,11 @@ export type AssistantContribution = {
   /** Whether the panel is open (for `useSyncExternalStore`), e.g. to highlight its entry. */
   panel: { subscribe: (listener: () => void) => () => void; isOpen: () => boolean }
   /**
+   * The conversation the full page shows or showed last (null: a new one), for
+   * `useSyncExternalStore`: the entries that open the page go back to it.
+   */
+  page: { subscribe: (listener: () => void) => () => void; sessionId: () => string | null }
+  /**
    * Wraps the app shell's content and docks the panel beside it (M12 §6.1). The Program route
    * preloads it with the shell.
    */

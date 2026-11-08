@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useLocation } from '@tanstack/react-router'
 import { History, MoreHorizontal, SquarePen } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useElementWidth } from '@/hooks/use-element-size'
 import { ShellToolbar } from '@/app/host/ShellToolbar'
 import { cn } from '@/lib/utils'
@@ -10,8 +9,8 @@ import { Button } from '@/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { usePageConversation } from '../page-conversation'
 import { programScope } from '../scope'
-import { panel } from '../store'
 import { sessionQueryOptions } from '../use-chat'
 import { Conversation } from './Conversation'
 import { SessionColumn } from './SessionColumn'
@@ -54,33 +53,11 @@ export function AssistantPage({
 }) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const sessionsColumn = useElementWidth(root) >= SESSIONS_COLUMN_MIN_WIDTH
-  // Which conversation the URL shows, read with the history entry in one snapshot: the location
-  // changes before the route's params do, and reading the entry alone gave a new key for one
-  // render while a new conversation got its URL, which remounted it and dropped the typed text.
-  // Every visit to the page without a conversation (a link, "New conversation") is a new history
-  // entry, so its key starts a new conversation even when the URL was already the page's.
-  const at = useLocation({
-    select: (l) => {
-      const segment = l.pathname.replace(/\/$/, '').split('/').at(-1)
-      // oxlint-disable-next-line no-underscore-dangle -- the router's name for an entry's key
-      return segment === 'assistant' ? `new-${l.state.__TSR_key ?? ''}` : (segment ?? '')
-    },
-  })
-  // A conversation created here keeps its component (and its running answer) when the URL
-  // changes to its id.
-  const [created, setCreated] = useState({ id: null as string | null, key: '' })
+  const conversation = usePageConversation(sessionId)
   const [historyOpen, setHistoryOpen] = useState(false)
   const session = useQuery(sessionQueryOptions(sessionId)).data?.session
   const editing = useSessionEditing((id) => id === sessionId && onNavigate(null))
-  const key = at === created.id ? created.key : at
   const title = session ? sessionTitle(session) : m.assistant_name()
-  const [temporary, setTemporary] = useState(false)
-  // The conversation shown, also before its URL has its id: what "continue in side panel" moves.
-  const currentId = sessionId ?? (created.key === key ? created.id : null)
-  useEffect(() => {
-    panel.setPage({ sessionId: currentId, temporary })
-  }, [currentId, temporary])
-  useEffect(() => () => panel.setPage(null), [])
 
   return (
     <div ref={setRoot} className="flex h-full min-h-0 flex-col">
@@ -170,21 +147,19 @@ export function AssistantPage({
       <div className={cn('flex min-h-0 flex-1', sessionsColumn && 'gap-6 pt-2 pl-4')}>
         {sessionsColumn ? (
           <SessionColumn
-            activeId={currentId}
+            activeId={conversation.currentId}
             onSelect={(id) => onNavigate(id)}
             onNew={() => onNavigate(null)}
             editing={editing}
           />
         ) : null}
         <Conversation
-          key={key}
+          key={conversation.key}
           contentClassName="mx-auto w-full max-w-3xl"
           sessionId={sessionId}
-          onTemporaryChange={setTemporary}
-          onContentChange={panel.setPageDraft}
           pageScope={programScope(programId)}
           onCreated={(id) => {
-            setCreated({ id, key })
+            conversation.created(id)
             onNavigate(id, { replace: true })
           }}
           focusInput

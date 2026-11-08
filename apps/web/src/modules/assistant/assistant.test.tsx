@@ -15,7 +15,7 @@ import {
   createRouter,
   useNavigate,
 } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
@@ -26,7 +26,6 @@ import { SidebarProvider } from '@/ui/sidebar'
 import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
 import manifest from './manifest'
-import { readPrompt } from './prompt'
 import { panel } from './store'
 import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
@@ -119,6 +118,7 @@ function msg(id: string, role: AgentMessageOut['role'], content: Record<string, 
 let assistantSettings: Record<string, unknown> = {}
 
 beforeEach(() => {
+  panel.reset()
   assistantSettings = {}
   srv = {
     detail: { session: session(), messages: [], proposals: [], attachments: [], generating: false },
@@ -1698,16 +1698,16 @@ test('a round whose only call waits on a card keeps the whole sentence the model
   expect(screen.getByText('Please confirm below.')).toBeVisible()
 })
 
-test('on the page, opening the panel hands over the conversation, its temporary choice, and goes back', async () => {
-  panel.reset()
+test('a draft and its temporary choice survive a remount, and the panel takes them from the page', async () => {
   const root = createRootRoute({ component: Outlet })
   const page = createRoute({
     getParentRoute: () => root,
     path: '/p/$programId/assistant/{-$sessionId}',
     component: () => <AssistantPage programId="p1" sessionId={null} onNavigate={() => {}} />,
   })
+  const elsewhere = createRoute({ getParentRoute: () => root, path: '/p/$programId/today' })
   const router = createRouter({
-    routeTree: root.addChildren([page]),
+    routeTree: root.addChildren([page, elsewhere]),
     history: createMemoryHistory({ initialEntries: ['/p/p1/assistant'] }),
   })
   render(
@@ -1719,18 +1719,21 @@ test('on the page, opening the panel hands over the conversation, its temporary 
   )
   await userEvent.click(await screen.findByRole('switch', { name: 'Temporary chat' }))
   await userEvent.type(await messageInput(), 'half a thought')
-  await waitFor(() => expect(panel.page()).toEqual({ sessionId: null, temporary: true }))
+  // The settings dialog (a new history entry) keeps the conversation and what is written.
+  const input = await messageInput()
+  await act(() => router.navigate({ href: '/p/p1/assistant?settings=account' }))
+  expect(await messageInput()).toBe(input)
+  // Another page and back: the same new conversation, with the text and the choice.
+  await act(() => router.navigate({ href: '/p/p1/today' }))
+  await act(() => router.navigate({ href: '/p/p1/assistant' }))
+  expect(await messageInput()).toHaveTextContent('half a thought')
+  expect(screen.getByRole('switch', { name: 'Temporary chat' })).toBeChecked()
+
   const navigate = vi.fn<(to: string) => void>()
   manifest.assistant?.open({ navigate, programId: 'p1' } as never, undefined)
-  expect(panel.get()).toMatchObject({
-    open: true,
-    sessionId: null,
-    temporary: true,
-  })
-  expect(readPrompt(panel.get().draft ?? {}).text).toBe('half a thought')
-  // No page before it: back to Today.
+  expect(panel.get()).toMatchObject({ open: true, sessionId: null })
+  // No page outside the assistant before it: back to Today.
   expect(navigate).toHaveBeenCalledWith('/p/p1/today')
-  panel.reset()
 })
 
 test('earlier items are reused while the last answer streams', () => {

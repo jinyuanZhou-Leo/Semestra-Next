@@ -45,6 +45,7 @@ import { Input } from '@/ui/input'
 import { Item, ItemActions, ItemContent, ItemGroup } from '@/ui/item'
 import { Label } from '@/ui/label'
 import { Skeleton } from '@/ui/skeleton'
+import { panel } from '../store'
 
 type Group = { id: string; title: string; items: AgentSessionOut[] }
 
@@ -170,6 +171,7 @@ export function useSessionEditing(onDeleted?: (id: string) => void) {
     ...agentSessionDeleteMutation(),
     onSuccess: (_, variables) => {
       void invalidateOperations(queryClient, ['agentSessionList'])
+      panel.forget(variables.path.id)
       onDeleted?.(variables.path.id)
       deleting.close()
     },
