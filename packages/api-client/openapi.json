@@ -13218,7 +13218,7 @@
           "schedule"
         ],
         "summary": "Add one or more one-off events: exams, office hours, make-up classes, appointments.",
-        "description": "Times without an offset are read in the Program's time zone. For something\nthat repeats weekly use schedule.meeting.create_many. An item with the same source_kind and\nsource_ref as an existing event of the Program updates it.",
+        "description": "Times without an offset are read in the Program's time zone. For something\nthat repeats weekly use schedule.section.create_many. An item with the same source_kind and\nsource_ref as an existing event of the Program updates it.",
         "operationId": "scheduleEventCreateMany",
         "security": [
           {
@@ -14177,13 +14177,13 @@
         }
       }
     },
-    "/courses/{course_id}/meetings": {
+    "/sections/{section_id}/meetings": {
       "post": {
         "tags": [
           "schedule"
         ],
-        "summary": "Add a weekly (or biweekly) class time to a course in one of its terms.",
-        "description": "Times are wall-clock times in the Program's time zone. Check\nschedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up\nclass) use schedule.event.create instead.",
+        "summary": "Add a weekly time to a section, e.g. a second lecture day.",
+        "description": "The time runs in the section's weeks. Check schedule.conflict.list afterwards\nand mention any overlap.",
         "operationId": "scheduleMeetingCreate",
         "security": [
           {
@@ -14191,19 +14191,22 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
           {
-            "name": "course_id",
+            "name": "section_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
+              "description": "Section the time belongs to",
+              "title": "Section Id"
             },
-            "description": "Course id"
+            "description": "Section the time belongs to"
           }
         ],
         "requestBody": {
@@ -14238,146 +14241,6 @@
             "description": "Default Response"
           }
         }
-      },
-      "get": {
-        "tags": [
-          "schedule"
-        ],
-        "summary": "List a course's weekly class times, with their cancelled or moved dates.",
-        "description": "Use to see when a course meets each week, or to find the meeting id before\nchanging or cancelling one class. Optionally only one term of a year-long course.",
-        "operationId": "scheduleMeetingList",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          },
-          {
-            "name": "term_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only this term's meetings",
-              "title": "Term Id"
-            },
-            "description": "Only this term's meetings"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeetingList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/meetings:batch": {
-      "post": {
-        "tags": [
-          "schedule"
-        ],
-        "summary": "Add one or more weekly (or biweekly) class times to a course.",
-        "description": "Each meeting runs in one of the course's terms; times are wall-clock times in\nthe Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a\nsingle extra session (exam, make-up class) use schedule.event.create_many instead. An item with the\nsame source_kind and source_ref as an existing meeting of the course updates it.",
-        "operationId": "scheduleMeetingCreateMany",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MeetingCreateManyInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeetingCreateManyResult"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
       }
     },
     "/meetings/{meeting_id}": {
@@ -14385,8 +14248,8 @@
         "tags": [
           "schedule"
         ],
-        "summary": "Delete a weekly class time with all its dates.",
-        "description": "Removes this weekly time entirely; a section that meets on two days has two.\nTo cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the\nuser does not attend use\nschedule.meeting.set_enabled.",
+        "summary": "Delete one weekly time of a section with all its dates.",
+        "description": "A section's last time goes with the section. To cancel one class use\nschedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use\nschedule.meeting.set_enabled.",
         "operationId": "scheduleMeetingDelete",
         "security": [
           {
@@ -14439,8 +14302,8 @@
         "tags": [
           "schedule"
         ],
-        "summary": "Change a weekly class time for the whole term (time, room, weeks, ...).",
-        "description": "Changes every week. To change or cancel a single date use\nschedule.exception.upsert instead.",
+        "summary": "Change one weekly time of a section for the whole term (day, hours, room).",
+        "description": "Changes every week. The weeks are the section's: schedule.section.update. To\nchange or cancel a single date use schedule.exception.upsert instead.",
         "operationId": "scheduleMeetingUpdate",
         "security": [
           {
@@ -14500,66 +14363,13 @@
         }
       }
     },
-    "/terms/{term_id}/meetings": {
-      "get": {
-        "tags": [
-          "schedule"
-        ],
-        "summary": "List the weekly class times of every course in a term.",
-        "description": "For the term timetable; schedule.meeting.list is per course.",
-        "operationId": "scheduleMeetingListForTerm",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "term_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Term id",
-              "title": "Term Id"
-            },
-            "description": "Term id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeetingList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/courses/{course_id}/meetings:enabled": {
       "put": {
         "tags": [
           "schedule"
         ],
         "summary": "Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
-        "description": "To hide a whole section, pass every meeting with its section_code (a section\ncan meet on several days). To keep only one section, pass its meetings with enabled=true and the\nother sections' meetings as other_meeting_ids. Disabled meetings stay in the course but are left\nout of the calendar. Returns only the meetings whose state changed (empty when they already were\nas asked).",
+        "description": "To hide a whole section, pass all of its meetings. To keep only one section,\npass its meetings with enabled=true and the other sections' meetings as other_meeting_ids.\nDisabled meetings stay in the course but are left out of the calendar. Returns only the meetings\nwhose state changed (empty when they already were as asked).",
         "operationId": "scheduleMeetingSetEnabled",
         "security": [
           {
@@ -14619,13 +14429,273 @@
         }
       }
     },
+    "/courses/{course_id}/sections:batch": {
+      "post": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Add class sections with their weekly (or biweekly) times to a course.",
+        "description": "Each section runs in one of the course's terms; times are wall-clock times in\nthe Program's time zone, and all times of a section share its weeks. A section code the course\nalready has in that term adds the times to that section. Check schedule.conflict.list afterwards\nand mention any overlap. For a single extra session (exam, make-up class) use\nschedule.event.create_many instead.",
+        "operationId": "scheduleSectionCreateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionCreateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionCreateManyResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/sections/{section_id}": {
+      "delete": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Delete a section with all its weekly times and dates.",
+        "description": "To hide a section the user does not attend use schedule.meeting.set_enabled\ninstead; to cancel one class use schedule.exception.upsert.",
+        "operationId": "scheduleSectionDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Section id",
+              "title": "Section Id"
+            },
+            "description": "Section id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__schedule__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "Change a section for the whole term: its code, type, instructor or weeks.",
+        "description": "The weeks apply to every weekly time of the section. To change one time's\nday, hours or room use schedule.meeting.update; to change or cancel a single date use\nschedule.exception.upsert.",
+        "operationId": "scheduleSectionUpdate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Section id",
+              "title": "Section Id"
+            },
+            "description": "Section id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionUpdateInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Section"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/sections": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "List a course's class sections with their weekly times and cancelled or moved dates.",
+        "description": "Use to see when a course meets each week, or to find a section or meeting id\nbefore changing or cancelling a class. A section (e.g. LEC0101) has one or more weekly times\n(meetings) that all run in the section's weeks. Optionally only one term of a year-long course.",
+        "operationId": "scheduleSectionList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this term's sections",
+              "title": "Term Id"
+            },
+            "description": "Only this term's sections"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
       "put": {
         "tags": [
           "schedule"
         ],
-        "summary": "Add, edit or delete a section with all its weekly times in one change.",
-        "description": "The app's section editor: updates, adds and deletes the section's meetings\ntogether. Sem and MCP use schedule.meeting.create_many, update and delete.",
+        "summary": "Add or edit a section with all its weekly times in one change.",
+        "description": "The app's section editor: the section's fields and weeks, and its times\nupdated, added and deleted together. Sem and MCP use schedule.section.update and the\nschedule.meeting tools.",
         "operationId": "scheduleSectionSave",
         "security": [
           {
@@ -14664,7 +14734,60 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MeetingList"
+                  "$ref": "#/components/schemas/Section"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/terms/{term_id}/sections": {
+      "get": {
+        "tags": [
+          "schedule"
+        ],
+        "summary": "List the class sections of every course in a term.",
+        "description": "For the term timetable; schedule.section.list is per course.",
+        "operationId": "scheduleSectionListForTerm",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Term id",
+              "title": "Term Id"
+            },
+            "description": "Term id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionList"
                 }
               }
             }
@@ -26856,54 +26979,9 @@
             "type": "string",
             "title": "Id"
           },
-          "course_id": {
+          "section_id": {
             "type": "string",
-            "title": "Course Id"
-          },
-          "term_id": {
-            "type": "string",
-            "title": "Term Id"
-          },
-          "section_code": {
-            "type": "string",
-            "title": "Section Code"
-          },
-          "type_code": {
-            "type": "string",
-            "title": "Type Code"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "instructor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructor"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location"
+            "title": "Section Id"
           },
           "weekday": {
             "type": "integer",
@@ -26921,42 +26999,33 @@
             "format": "time",
             "title": "End Time"
           },
-          "recurrence": {
-            "type": "string",
-            "enum": [
-              "weekly",
-              "biweekly"
-            ],
-            "title": "Recurrence"
-          },
-          "anchor_week": {
-            "type": "integer",
-            "title": "Anchor Week",
-            "description": "Biweekly: the term week it starts alternating from"
-          },
-          "start_week": {
-            "type": "integer",
-            "title": "Start Week"
-          },
-          "end_week": {
+          "location": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "End Week",
-            "description": "Last term week; null = until the end of term"
+            "title": "Location"
           },
-          "skip_breaks": {
-            "type": "boolean",
-            "title": "Skip Breaks"
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Optional name of this time, e.g. 'Lab'"
           },
           "enabled": {
             "type": "boolean",
-            "title": "Enabled"
+            "title": "Enabled",
+            "description": "Shown in the calendar"
           },
           "source_kind": {
             "anyOf": [
@@ -27002,21 +27071,12 @@
         "type": "object",
         "required": [
           "id",
-          "course_id",
-          "term_id",
-          "section_code",
-          "type_code",
-          "title",
-          "instructor",
-          "location",
+          "section_id",
           "weekday",
           "start_time",
           "end_time",
-          "recurrence",
-          "anchor_week",
-          "start_week",
-          "end_week",
-          "skip_breaks",
+          "location",
+          "title",
           "enabled",
           "source_kind",
           "source_ref",
@@ -27028,65 +27088,6 @@
       },
       "MeetingCreateInputBody": {
         "properties": {
-          "term_id": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Term Id",
-            "description": "Term of the course the meeting runs in"
-          },
-          "section_code": {
-            "type": "string",
-            "maxLength": 32,
-            "title": "Section Code",
-            "description": "Section, e.g. 'LEC0101'",
-            "default": ""
-          },
-          "type_code": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9]{1,8}$",
-            "title": "Type Code",
-            "description": "Event type code of the Program, e.g. 'LEC'"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title",
-            "description": "Optional title"
-          },
-          "instructor": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructor",
-            "description": "Instructor"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location",
-            "description": "Room or building"
-          },
           "weekday": {
             "type": "integer",
             "maximum": 7.0,
@@ -27106,151 +27107,46 @@
             "title": "End Time",
             "description": "End, after the start"
           },
-          "recurrence": {
-            "type": "string",
-            "enum": [
-              "weekly",
-              "biweekly"
-            ],
-            "title": "Recurrence",
-            "description": "Every week or every other week",
-            "default": "weekly"
-          },
-          "anchor_week": {
+          "location": {
             "anyOf": [
               {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Anchor Week",
-            "description": "Biweekly: first week it happens; defaults to start_week"
+            "title": "Location",
+            "description": "Room or building"
           },
-          "start_week": {
-            "type": "integer",
-            "maximum": 60.0,
-            "minimum": 1.0,
-            "title": "Start Week",
-            "description": "First term week",
-            "default": 1
-          },
-          "end_week": {
+          "title": {
             "anyOf": [
               {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
               }
             ],
-            "title": "End Week",
-            "description": "Last term week; null = until the end of term"
-          },
-          "skip_breaks": {
-            "type": "boolean",
-            "title": "Skip Breaks",
-            "description": "No class in break weeks and on breaks",
-            "default": true
+            "title": "Title",
+            "description": "Optional name of this time"
           },
           "enabled": {
             "type": "boolean",
             "title": "Enabled",
-            "description": "Disabled sections are not shown",
+            "description": "False hides it from the calendar",
             "default": true
-          },
-          "source_kind": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Kind",
-            "description": "Importer that created it, e.g. 'ics'"
-          },
-          "source_ref": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Ref",
-            "description": "Id of the item in the import source, for de-duplication"
           }
         },
         "type": "object",
         "required": [
-          "term_id",
-          "type_code",
           "weekday",
           "start_time",
           "end_time"
         ],
         "title": "MeetingCreateInputBody"
-      },
-      "MeetingCreateManyInputBody": {
-        "properties": {
-          "meetings": {
-            "items": {
-              "$ref": "#/components/schemas/MeetingFields"
-            },
-            "type": "array",
-            "maxItems": 100,
-            "minItems": 1,
-            "title": "Meetings",
-            "description": "Meetings; same source_kind+source_ref updates"
-          }
-        },
-        "type": "object",
-        "required": [
-          "meetings"
-        ],
-        "title": "MeetingCreateManyInputBody"
-      },
-      "MeetingCreateManyResult": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/Meeting"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "created_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Created Ids"
-          },
-          "updated_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Updated Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "created_ids",
-          "updated_ids"
-        ],
-        "title": "MeetingCreateManyResult"
       },
       "MeetingException": {
         "properties": {
@@ -27354,181 +27250,6 @@
         ],
         "title": "MeetingException"
       },
-      "MeetingFields": {
-        "properties": {
-          "term_id": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Term Id",
-            "description": "Term of the course the meeting runs in"
-          },
-          "section_code": {
-            "type": "string",
-            "maxLength": 32,
-            "title": "Section Code",
-            "description": "Section, e.g. 'LEC0101'",
-            "default": ""
-          },
-          "type_code": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9]{1,8}$",
-            "title": "Type Code",
-            "description": "Event type code of the Program, e.g. 'LEC'"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title",
-            "description": "Optional title"
-          },
-          "instructor": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructor",
-            "description": "Instructor"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location",
-            "description": "Room or building"
-          },
-          "weekday": {
-            "type": "integer",
-            "maximum": 7.0,
-            "minimum": 1.0,
-            "title": "Weekday",
-            "description": "1 = Monday .. 7 = Sunday"
-          },
-          "start_time": {
-            "type": "string",
-            "format": "time",
-            "title": "Start Time",
-            "description": "Start, wall-clock time in the Program's time zone"
-          },
-          "end_time": {
-            "type": "string",
-            "format": "time",
-            "title": "End Time",
-            "description": "End, after the start"
-          },
-          "recurrence": {
-            "type": "string",
-            "enum": [
-              "weekly",
-              "biweekly"
-            ],
-            "title": "Recurrence",
-            "description": "Every week or every other week",
-            "default": "weekly"
-          },
-          "anchor_week": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Anchor Week",
-            "description": "Biweekly: first week it happens; defaults to start_week"
-          },
-          "start_week": {
-            "type": "integer",
-            "maximum": 60.0,
-            "minimum": 1.0,
-            "title": "Start Week",
-            "description": "First term week",
-            "default": 1
-          },
-          "end_week": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Week",
-            "description": "Last term week; null = until the end of term"
-          },
-          "skip_breaks": {
-            "type": "boolean",
-            "title": "Skip Breaks",
-            "description": "No class in break weeks and on breaks",
-            "default": true
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "description": "Disabled sections are not shown",
-            "default": true
-          },
-          "source_kind": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Kind",
-            "description": "Importer that created it, e.g. 'ics'"
-          },
-          "source_ref": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Ref",
-            "description": "Id of the item in the import source, for de-duplication"
-          }
-        },
-        "type": "object",
-        "required": [
-          "term_id",
-          "type_code",
-          "weekday",
-          "start_time",
-          "end_time"
-        ],
-        "title": "MeetingFields"
-      },
       "MeetingList": {
         "properties": {
           "items": {
@@ -27536,8 +27257,7 @@
               "$ref": "#/components/schemas/Meeting"
             },
             "type": "array",
-            "title": "Items",
-            "description": "By term, weekday and start time"
+            "title": "Items"
           }
         },
         "type": "object",
@@ -27586,85 +27306,6 @@
       },
       "MeetingUpdateInputBody": {
         "properties": {
-          "term_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Term Id",
-            "description": "Another term of the course"
-          },
-          "section_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 32
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Section Code",
-            "description": "Section"
-          },
-          "type_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9]{1,8}$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type Code",
-            "description": "Event type code"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title",
-            "description": "Title, or null"
-          },
-          "instructor": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructor",
-            "description": "Instructor, or null"
-          },
-          "location": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location",
-            "description": "Location, or null"
-          },
           "weekday": {
             "anyOf": [
               {
@@ -27705,75 +27346,31 @@
             "title": "End Time",
             "description": "End time"
           },
-          "recurrence": {
+          "location": {
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "weekly",
-                  "biweekly"
-                ]
+                "maxLength": 200
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Recurrence",
-            "description": "weekly or biweekly"
+            "title": "Location",
+            "description": "Location, or null"
           },
-          "anchor_week": {
+          "title": {
             "anyOf": [
               {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Anchor Week",
-            "description": "Biweekly anchor week; null = the first week"
-          },
-          "start_week": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Week",
-            "description": "First term week"
-          },
-          "end_week": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 60.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Week",
-            "description": "Last term week, or null"
-          },
-          "skip_breaks": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Skip Breaks",
-            "description": "Skip breaks"
+            "title": "Title",
+            "description": "Title, or null"
           },
           "enabled": {
             "anyOf": [
@@ -28536,6 +28133,159 @@
         ],
         "title": "NewAssignments"
       },
+      "NewMeeting": {
+        "properties": {
+          "weekday": {
+            "type": "integer",
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Weekday",
+            "description": "1 = Monday .. 7 = Sunday"
+          },
+          "start_time": {
+            "type": "string",
+            "format": "time",
+            "title": "Start Time",
+            "description": "Start, wall-clock time in the Program's time zone"
+          },
+          "end_time": {
+            "type": "string",
+            "format": "time",
+            "title": "End Time",
+            "description": "End, after the start"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "Room or building"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Optional name of this time"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "False hides it from the calendar",
+            "default": true
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Kind",
+            "description": "Importer that created it, e.g. 'ics'"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref",
+            "description": "Id of the time in the import source, for de-duplication"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weekday",
+          "start_time",
+          "end_time"
+        ],
+        "title": "NewMeeting"
+      },
+      "NewSection": {
+        "properties": {
+          "term_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Term Id",
+            "description": "Term of the course the section runs in"
+          },
+          "type_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,8}$",
+            "title": "Type Code",
+            "description": "Event type code of the Program, e.g. 'LEC'"
+          },
+          "section_code": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Section Code",
+            "description": "Section, e.g. 'LEC0101'",
+            "default": ""
+          },
+          "instructor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructor",
+            "description": "Instructor"
+          },
+          "weeks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionWeeks"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weeks of all its times; null keeps an existing section's, and a new one runs every week of the term"
+          },
+          "meetings": {
+            "items": {
+              "$ref": "#/components/schemas/NewMeeting"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Meetings",
+            "description": "Its weekly times, e.g. Monday and Wednesday"
+          }
+        },
+        "type": "object",
+        "required": [
+          "term_id",
+          "type_code",
+          "meetings"
+        ],
+        "title": "NewSection"
+      },
       "Note": {
         "properties": {
           "instance_id": {
@@ -28767,6 +28517,17 @@
               }
             ],
             "title": "Meeting Id"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
           },
           "original_date": {
             "anyOf": [
@@ -31935,6 +31696,183 @@
         ],
         "title": "SearchResult"
       },
+      "Section": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "term_id": {
+            "type": "string",
+            "title": "Term Id"
+          },
+          "type_code": {
+            "type": "string",
+            "title": "Type Code"
+          },
+          "section_code": {
+            "type": "string",
+            "title": "Section Code",
+            "description": "e.g. 'LEC0101'; empty when the source has none"
+          },
+          "instructor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructor"
+          },
+          "recurrence": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "biweekly"
+            ],
+            "title": "Recurrence"
+          },
+          "anchor_week": {
+            "type": "integer",
+            "title": "Anchor Week",
+            "description": "Biweekly: the term week it starts alternating from"
+          },
+          "start_week": {
+            "type": "integer",
+            "title": "Start Week"
+          },
+          "end_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Week",
+            "description": "Last term week; null = until the end of term"
+          },
+          "skip_breaks": {
+            "type": "boolean",
+            "title": "Skip Breaks"
+          },
+          "meetings": {
+            "items": {
+              "$ref": "#/components/schemas/Meeting"
+            },
+            "type": "array",
+            "title": "Meetings",
+            "description": "Weekly times, by weekday and start time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "term_id",
+          "type_code",
+          "section_code",
+          "instructor",
+          "recurrence",
+          "anchor_week",
+          "start_week",
+          "end_week",
+          "skip_breaks",
+          "meetings",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Section",
+        "description": "A class section with its weekly times; all of them run in the section's weeks."
+      },
+      "SectionCreateManyInputBody": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/NewSection"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Sections",
+            "description": "Sections"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sections"
+        ],
+        "title": "SectionCreateManyInputBody"
+      },
+      "SectionCreateManyResult": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "The sections written, with all their times"
+          },
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids",
+            "description": "Meetings added"
+          },
+          "updated_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated Ids",
+            "description": "Meetings that existed and were updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "created_ids",
+          "updated_ids"
+        ],
+        "title": "SectionCreateManyResult"
+      },
+      "SectionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "By term, type and section code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SectionList"
+      },
       "SectionSaveInputBody": {
         "properties": {
           "term_id": {
@@ -31944,16 +31882,11 @@
             "title": "Term Id",
             "description": "Term of the course the section runs in"
           },
-          "meeting_ids": {
-            "items": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 50,
-            "title": "Meeting Ids",
-            "description": "The section's meetings before the change"
+          "type_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,8}$",
+            "title": "Type Code",
+            "description": "Event type code of the Program, e.g. 'LEC'"
           },
           "section_code": {
             "type": "string",
@@ -31961,12 +31894,6 @@
             "title": "Section Code",
             "description": "Section, e.g. 'LEC0101'",
             "default": ""
-          },
-          "type_code": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9]{1,8}$",
-            "title": "Type Code",
-            "description": "Event type code of the Program, e.g. 'LEC'"
           },
           "instructor": {
             "anyOf": [
@@ -31981,25 +31908,33 @@
             "title": "Instructor",
             "description": "Instructor"
           },
-          "weeks": {
+          "section_id": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SectionWeeks"
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Weeks for every time; null keeps each meeting's and gives new times the weeks of the section's first meeting"
+            "title": "Section Id",
+            "description": "The section edited; null adds one"
+          },
+          "weeks": {
+            "$ref": "#/components/schemas/SectionWeeks",
+            "description": "Weeks of all times"
           },
           "times": {
             "items": {
               "$ref": "#/components/schemas/SectionTime"
             },
             "type": "array",
-            "maxItems": 50,
+            "maxItems": 20,
+            "minItems": 1,
             "title": "Times",
-            "description": "The section's times after it"
+            "description": "Its weekly times"
           }
         },
         "type": "object",
@@ -32012,20 +31947,6 @@
       },
       "SectionTime": {
         "properties": {
-          "meeting_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Meeting Id",
-            "description": "The meeting this time edits; null adds a new one"
-          },
           "weekday": {
             "type": "integer",
             "maximum": 7.0,
@@ -32057,6 +31978,20 @@
             ],
             "title": "Location",
             "description": "Room or building"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id",
+            "description": "The meeting this time edits; null adds a new one"
           }
         },
         "type": "object",
@@ -32066,6 +32001,135 @@
           "end_time"
         ],
         "title": "SectionTime"
+      },
+      "SectionUpdateInputBody": {
+        "properties": {
+          "term_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term Id",
+            "description": "Another term of the course"
+          },
+          "type_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{1,8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Code",
+            "description": "Event type code"
+          },
+          "section_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Code",
+            "description": "Section code"
+          },
+          "instructor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructor",
+            "description": "Instructor, or null"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "weekly",
+                  "biweekly"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence",
+            "description": "weekly or biweekly"
+          },
+          "anchor_week": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Week",
+            "description": "Biweekly anchor week; null = the first week"
+          },
+          "start_week": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Week",
+            "description": "First term week"
+          },
+          "end_week": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Week",
+            "description": "Last term week, or null"
+          },
+          "skip_breaks": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Breaks",
+            "description": "Skip breaks"
+          }
+        },
+        "type": "object",
+        "title": "SectionUpdateInputBody"
       },
       "SectionWeeks": {
         "properties": {
@@ -32113,7 +32177,7 @@
               }
             ],
             "title": "End Week",
-            "description": "Last term week, or null"
+            "description": "Last term week; null = until the end of term"
           },
           "skip_breaks": {
             "type": "boolean",

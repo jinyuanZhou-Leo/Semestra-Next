@@ -34,6 +34,7 @@ from semestra.modules.schedule.models import (
     ScheduleEvent,
     ScheduleMeeting,
     ScheduleMeetingException,
+    ScheduleSection,
 )
 from semestra.modules.schedule.schemas import (
     CalendarBreak,
@@ -54,7 +55,8 @@ async def _range_terms(ctx: Ctx, q: OccurrenceQuery, tz: ZoneInfo) -> list[Acade
     moved_into = set(
         (
             await ctx.db.scalars(
-                select(ScheduleMeeting.term_id)
+                select(ScheduleSection.term_id)
+                .join(ScheduleMeeting, ScheduleMeeting.section_id == ScheduleSection.id)
                 .join(ScheduleMeetingException)
                 .where(
                     ScheduleMeetingException.user_id == ctx.user_id,
@@ -81,23 +83,25 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
     if not terms:
         return []
     courses = await program_courses(ctx, program.id)
-    rows = (
-        await ctx.db.scalars(
-            select(ScheduleMeeting).where(
+    pairs = (
+        await ctx.db.execute(
+            select(ScheduleMeeting, ScheduleSection)
+            .join(ScheduleSection, ScheduleSection.id == ScheduleMeeting.section_id)
+            .where(
                 ScheduleMeeting.user_id == ctx.user_id,
-                ScheduleMeeting.term_id.in_([t.id for t in terms]),
+                ScheduleSection.term_id.in_([t.id for t in terms]),
                 ScheduleMeeting.enabled.is_(True),
             )
         )
     ).all()
-    rows = [r for r in rows if r.course_id in courses and q.wants_course(r.course_id)]
-    exceptions = await exceptions_of(ctx, [r.id for r in rows])
+    rows = [(m, s) for m, s in pairs if s.course_id in courses and q.wants_course(s.course_id)]
+    exceptions = await exceptions_of(ctx, [m.id for m, _ in rows])
     infos = {t.id: await term_info(ctx, t) for t in terms}
     out: list[Occurrence] = []
-    for row in rows:
-        course = courses[row.course_id]
+    for row, section in rows:
+        course = courses[section.course_id]
         by_date = {e.original_date: e for e in exceptions.get(row.id, [])}
-        for md in await meeting_dates(ctx, row, infos[row.term_id]):
+        for md in await meeting_dates(ctx, section, row, infos[section.term_id]):
             exc = by_date.get(md.day)
             day, start_t, end_t, location = md.day, row.start_time, row.end_time, row.location
             status = None
@@ -125,21 +129,23 @@ async def meetings_source(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
                     start_at=start,
                     end_at=end,
                     course_id=course.id,
-                    type_code=row.type_code,
+                    type_code=section.type_code,
                     location=location,
                     color_ref=course.resolved_color,
                     status=status,
                     ref=OccurrenceRef(entity="schedule.meeting", id=row.id),
                     meta=OccurrenceMeta(
-                        term_id=row.term_id,
+                        term_id=section.term_id,
                         meeting_id=row.id,
+                        section_id=section.id,
                         original_date=md.day,
                         original_start_at=original_start,
                         week_number=md.week_number,
-                        section_code=row.section_code or None,
-                        instructor=row.instructor,
+                        section_code=section.section_code or None,
+                        instructor=section.instructor,
                         note=exc.note if exc is not None else None,
-                        updated_at=row.updated_at,
+                        # The weeks are the section's.
+                        updated_at=max(row.updated_at, section.updated_at),
                     ),
                 )
             )

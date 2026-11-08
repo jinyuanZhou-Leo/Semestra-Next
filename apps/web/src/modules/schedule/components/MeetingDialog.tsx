@@ -1,4 +1,4 @@
-import type { Meeting } from '@semestra/api-client'
+import type { Meeting, Section } from '@semestra/api-client'
 import {
   scheduleMeetingDeleteMutation,
   scheduleMeetingUpdateMutation,
@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
+import { sectionLabel } from '../labels'
 import { invalidateSchedule } from '../queries'
 import { weekdayName } from '../time'
 
@@ -39,10 +40,12 @@ import { weekdayName } from '../time'
  * section's times share (type, code, instructor, weeks) is edited with the section.
  */
 export function MeetingDialog({
+  section,
   meeting,
   open,
   onOpenChange,
 }: {
+  section: Section
   meeting: Meeting
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -93,14 +96,13 @@ export function MeetingDialog({
   }
 
   const weekdays = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: weekdayName(d) }))
-  const section = [meeting.section_code, meeting.type_code].filter(Boolean)[0] ?? ''
 
   return (
     <Dialog open={open} onOpenChange={(next) => !update.isPending && onOpenChange(next)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{m.schedule_meeting_edit()}</DialogTitle>
-          <DialogDescription>{section}</DialogDescription>
+          <DialogDescription>{sectionLabel(section)}</DialogDescription>
         </DialogHeader>
         <form noValidate onSubmit={submit} className="flex flex-col gap-6">
           <FieldGroup>

@@ -155,6 +155,7 @@ export const errorMessages = {
   error_schedule_event_type_in_use: m.error_schedule_event_type_in_use,
   error_schedule_feed_revoked: m.error_schedule_feed_revoked,
   error_schedule_range_too_large: m.error_schedule_range_too_large,
+  error_schedule_section_exists: m.error_schedule_section_exists,
   error_schedule_term_not_in_course: m.error_schedule_term_not_in_course,
   error_schedule_time_range_invalid: m.error_schedule_time_range_invalid,
   error_schedule_week_range_invalid: m.error_schedule_week_range_invalid,

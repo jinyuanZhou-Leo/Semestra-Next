@@ -30,6 +30,16 @@ WINTER = {
 }
 
 
+async def times(api: Any, course_id: str) -> list[dict[str, Any]]:
+    """The course's weekly times, each with its section's fields."""
+    sections = (await api.call("GET", f"/courses/{course_id}/sections"))["items"]
+    return [
+        {**{k: v for k, v in s.items() if k != "meetings"}, **m}
+        for s in sections
+        for m in s["meetings"]
+    ]
+
+
 def ev(value: Any, page: int = 1, quote: str | None = None) -> dict[str, Any]:
     return {
         "value": value,
@@ -165,7 +175,7 @@ async def test_ics_import_creates_courses_and_meetings_once(api: Api):
     assert done["session"]["status"] == "committed"
     courses = await api.call("GET", f"/programs/{program_id}/courses")
     aps = next(c for c in courses["items"] if c["code"] == "APS105H1")
-    meetings = (await api.call("GET", f"/courses/{aps['id']}/meetings"))["items"]
+    meetings = await times(api, aps["id"])
     lec = next(m for m in meetings if m["weekday"] == 1)
     assert (lec["start_week"], lec["end_week"], lec["section_code"]) == (1, 13, "LEC0101")
     assert next(m for m in meetings if m["type_code"] == "TUT")["recurrence"] == "biweekly"
@@ -188,7 +198,7 @@ async def test_ics_import_creates_courses_and_meetings_once(api: Api):
     assert result["failed"] == 0
     courses = await api.call("GET", f"/programs/{program_id}/courses")
     assert len(courses["items"]) == 2
-    meetings = (await api.call("GET", f"/courses/{aps['id']}/meetings"))["items"]
+    meetings = await times(api, aps["id"])
     assert len(meetings) == 3
 
 
@@ -219,7 +229,7 @@ async def test_a_repeated_import_takes_back_only_its_own_cancellations(api: Api)
     await run(lecture("20260126"))
     courses = await api.call("GET", f"/programs/{program_id}/courses")
     course_id = courses["items"][0]["id"]
-    (meeting,) = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    (meeting,) = await times(api, course_id)
     # The user's own changes: one more cancellation, and a move of a date the file cancels later.
     for day, body in (
         ("2026-02-02", {"kind": "cancelled"}),
@@ -228,7 +238,7 @@ async def test_a_repeated_import_takes_back_only_its_own_cancellations(api: Api)
         await api.call("PUT", f"/meetings/{meeting['id']}/exceptions/{day}", json=body)
 
     await run(lecture("20260209"))
-    (meeting,) = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    (meeting,) = await times(api, course_id)
     assert [(e["original_date"], e["kind"], e["imported"]) for e in meeting["exceptions"]] == [
         ("2026-02-02", "cancelled", False),
         ("2026-02-09", "moved", False),
@@ -404,7 +414,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     updated = await api.call("GET", f"/courses/{course['id']}")
     assert updated["title"] == "Computer Fundamentals"
     assert updated["instructors"][0]["name"] == "Ada Lovelace"
-    meetings = (await api.call("GET", f"/courses/{course['id']}/meetings"))["items"]
+    meetings = await times(api, course["id"])
     assert [(m["weekday"], m["type_code"]) for m in meetings] == [(2, "LEC"), (4, "PRA")]
 
     # Importing the same syllabus again: no duplicates.
@@ -427,7 +437,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert again["failed"] == 0
     book = await api.call("GET", f"/courses/{course['id']}/gradebook")
     assert len(book["assessments"]) == 6  # with Quiz 0
-    meetings = (await api.call("GET", f"/courses/{course['id']}/meetings"))["items"]
+    meetings = await times(api, course["id"])
     assert len(meetings) == 2
 
 
@@ -489,7 +499,7 @@ async def test_wizard_session_commits_after_the_term_exists(
     )
     assert done["failed"] == 0, [i["result"] for i in done["session"]["items"] if i["result"]]
     assert done["session"]["target"]["term_id"] == created["term"]["id"]
-    meetings = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
+    meetings = await times(api, course_id)
     assert {m["term_id"] for m in meetings} == {created["term"]["id"]}
     book = await api.call("GET", f"/courses/{course_id}/gradebook")
     assert len(book["assessments"]) == 5

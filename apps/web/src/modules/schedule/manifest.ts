@@ -17,8 +17,8 @@ import { prefetchCalendarPage, prefetchToday } from './queries'
 
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
-  'scheduleMeetingList',
-  'scheduleMeetingListForTerm',
+  'scheduleSectionList',
+  'scheduleSectionListForTerm',
   'scheduleEventList',
   'scheduleEventGet',
   'scheduleEventTypeList',
@@ -28,9 +28,9 @@ const SCHEDULE_QUERIES = [
 
 /** Each of these comes with `calendar.changed`, which refreshes the calendar queries. */
 const SCHEDULE_EVENTS = [
-  'schedule.meeting.created',
-  'schedule.meeting.updated',
-  'schedule.meeting.deleted',
+  'schedule.section.created',
+  'schedule.section.updated',
+  'schedule.section.deleted',
   'schedule.exception.upserted',
   'schedule.exception.deleted',
   'schedule.event.created',
@@ -52,7 +52,7 @@ const ACADEMICS_EVENTS = [
 ] as const
 
 /**
- * M04 课表与日历: event types, meetings and their exceptions, one-off events, the term calendar
+ * M04 课表与日历: event types, sections with their weekly times and exceptions, one-off events, the term calendar
  * that merges every calendar source, the Program's "today" page, export and ICS feeds.
  * Extension point for other modules: `schedule.meetingImportSources` (see `./types.ts`).
  */
@@ -211,7 +211,7 @@ export default defineModule({
     ...SCHEDULE_EVENTS.map((event) => [event, SCHEDULE_QUERIES]),
     ...ACADEMICS_EVENTS.map((event) => [
       event,
-      [...CALENDAR_QUERIES, 'scheduleMeetingList', 'scheduleMeetingListForTerm'],
+      [...CALENDAR_QUERIES, 'scheduleSectionList', 'scheduleSectionListForTerm'],
     ]),
     ['schedule.feed.created', ['scheduleFeedGet']],
     ['schedule.feed.updated', ['scheduleFeedGet']],

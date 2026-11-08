@@ -5,8 +5,21 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
-from semestra.modules.schedule import common, event_types, feeds, meetings, one_off, sources
-from semestra.modules.schedule.models import ScheduleEvent, ScheduleEventType, ScheduleMeeting
+from semestra.modules.schedule import (
+    common,
+    event_types,
+    feeds,
+    meetings,
+    one_off,
+    sections,
+    sources,
+)
+from semestra.modules.schedule.models import (
+    ScheduleEvent,
+    ScheduleEventType,
+    ScheduleMeeting,
+    ScheduleSection,
+)
 from semestra.modules.schedule.schemas import (
     ConflictList,
     Deleted,
@@ -31,11 +44,7 @@ from semestra.modules.schedule.schemas import (
     FeedUpdateInput,
     Meeting,
     MeetingCreateInput,
-    MeetingCreateManyInput,
-    MeetingCreateManyResult,
-    MeetingFields,
     MeetingList,
-    MeetingListInput,
     MeetingRef,
     MeetingSetEnabledInput,
     MeetingUpdateInput,
@@ -44,9 +53,16 @@ from semestra.modules.schedule.schemas import (
     OneOffEvent,
     OneOffEventList,
     ProgramRef,
+    Section,
+    SectionCreateManyInput,
+    SectionCreateManyResult,
+    SectionList,
+    SectionListInput,
+    SectionRef,
     SectionSaveInput,
-    TermMeetingListInput,
+    SectionUpdateInput,
     TermRef,
+    TermSectionListInput,
     Today,
 )
 
@@ -67,10 +83,12 @@ _EXCEPTION_FIELDS = tuple(
     )
 )  # fmt: skip
 _MEETING_FIELDS = (
-    "id", "term_id", "section_code", "type_code", "title", "instructor", "location", "weekday",
-    "start_time", "end_time", "recurrence", "anchor_week", "start_week", "end_week",
-    "skip_breaks", "enabled",
+    "id", "weekday", "start_time", "end_time", "location", "title", "enabled",
     *_EXCEPTION_FIELDS,
+)  # fmt: skip
+_SECTION_FIELDS = (
+    "id", "term_id", "type_code", "section_code", "instructor", "recurrence", "anchor_week",
+    "start_week", "end_week", "skip_breaks", *(f"meetings.{f}" for f in _MEETING_FIELDS),
 )  # fmt: skip
 _EVENT_FIELDS = (
     "id", "term_id", "course_id", "type_code", "title", "start_at", "end_at", "all_day",
@@ -92,8 +110,10 @@ agent_hints(
         "schedule.term_not_in_course": "The course is not taught in that term; use one of the "
         "course's term_ids.",
         "schedule.range_too_large": "Ask for at most `max_days` days at a time.",
-        "schedule.event_type_in_use": "Meetings or events still use this type; move them to "
+        "schedule.event_type_in_use": "Sections or events still use this type; move them to "
         "another type first.",
+        "schedule.section_exists": "The course already has a section with that code in the term; "
+        "add the times to it or use another code.",
     }
 )
 
@@ -214,101 +234,132 @@ async def event_type_reorder(ctx: Ctx, inp: EventTypeOrderInput) -> EventTypeLis
     )
 
 
-# --- meetings -------------------------------------------------------------------------------
+# --- sections and meetings ------------------------------------------------------------------
 
 
 @capability(
-    name="schedule.meeting.list",
-    summary="List a course's weekly class times, with their cancelled or moved dates.",
-    description="""Use to see when a course meets each week, or to find the meeting id before
-changing or cancelling one class. Optionally only one term of a year-long course.""",
+    name="schedule.section.list",
+    summary="List a course's class sections with their weekly times and cancelled or moved dates.",
+    description="""Use to see when a course meets each week, or to find a section or meeting id
+before changing or cancelling a class. A section (e.g. LEC0101) has one or more weekly times
+(meetings) that all run in the section's weeks. Optionally only one term of a year-long course.""",
     effect="read",
-    http=Http("GET", "/courses/{course_id}/meetings"),
+    http=Http("GET", "/courses/{course_id}/sections"),
     tags=TAGS,
-    agent_output_fields=tuple(f"items.{f}" for f in _MEETING_FIELDS),
+    agent_output_fields=tuple(f"items.{f}" for f in _SECTION_FIELDS),
 )
-async def meeting_list(ctx: Ctx, inp: MeetingListInput) -> MeetingList:
-    return MeetingList(items=await meetings.list_meetings(ctx, inp.course_id, inp.term_id))
+async def section_list(ctx: Ctx, inp: SectionListInput) -> SectionList:
+    return SectionList(items=await sections.list_sections(ctx, inp.course_id, inp.term_id))
 
 
 @capability(
-    name="schedule.meeting.list_for_term",
-    summary="List the weekly class times of every course in a term.",
-    description="For the term timetable; schedule.meeting.list is per course.",
+    name="schedule.section.list_for_term",
+    summary="List the class sections of every course in a term.",
+    description="For the term timetable; schedule.section.list is per course.",
     effect="read",
-    http=Http("GET", "/terms/{term_id}/meetings"),
+    http=Http("GET", "/terms/{term_id}/sections"),
     expose=("http",),
     tags=TAGS,
 )
-async def meeting_list_for_term(ctx: Ctx, inp: TermMeetingListInput) -> MeetingList:
-    return MeetingList(items=await meetings.list_term_meetings(ctx, inp.term_id))
+async def section_list_for_term(ctx: Ctx, inp: TermSectionListInput) -> SectionList:
+    return SectionList(items=await sections.list_term_sections(ctx, inp.term_id))
 
 
 @capability(
-    name="schedule.meeting.create",
-    summary="Add a weekly (or biweekly) class time to a course in one of its terms.",
-    description="""Times are wall-clock times in the Program's time zone. Check
-schedule.conflict.list afterwards and mention any overlap. For a single extra session (exam, make-up
-class) use schedule.event.create instead.""",
+    name="schedule.section.create_many",
+    summary="Add class sections with their weekly (or biweekly) times to a course.",
+    description="""Each section runs in one of the course's terms; times are wall-clock times in
+the Program's time zone, and all times of a section share its weeks. A section code the course
+already has in that term adds the times to that section. Check schedule.conflict.list afterwards
+and mention any overlap. For a single extra session (exam, make-up class) use
+schedule.event.create_many instead.""",
     effect="write",
-    expose=("http",),  # Sem and MCP use create_many, with one item or more
-    http=Http("POST", "/courses/{course_id}/meetings"),
-    tags=TAGS,
-    agent_output_fields=("id", "section_code", "type_code", "weekday", "start_time", "end_time"),
-)
-async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
-    return await meetings.create_meeting(
-        ctx, inp.course_id, MeetingFields.model_validate(inp.model_dump(exclude={"course_id"}))
-    )
-
-
-@capability(
-    name="schedule.meeting.create_many",
-    summary="Add one or more weekly (or biweekly) class times to a course.",
-    description="""Each meeting runs in one of the course's terms; times are wall-clock times in
-the Program's time zone. Check schedule.conflict.list afterwards and mention any overlap. For a
-single extra session (exam, make-up class) use schedule.event.create_many instead. An item with the
-same source_kind and source_ref as an existing meeting of the course updates it.""",
-    effect="write",
-    http=Http("POST", "/courses/{course_id}/meetings:batch"),
+    http=Http("POST", "/courses/{course_id}/sections:batch"),
     tags=TAGS,
     agent_output_fields=(
         "created_ids",
         "updated_ids",
         "items.id",
         "items.section_code",
-        "items.weekday",
-        "items.start_time",
+        "items.meetings.id",
+        "items.meetings.weekday",
+        "items.meetings.start_time",
     ),
 )
-async def meeting_create_many(ctx: Ctx, inp: MeetingCreateManyInput) -> MeetingCreateManyResult:
-    return await meetings.create_meetings(ctx, inp.course_id, inp.meetings)
+async def section_create_many(ctx: Ctx, inp: SectionCreateManyInput) -> SectionCreateManyResult:
+    return await sections.create_sections(ctx, inp.course_id, inp.sections)
 
 
 @capability(
     name="schedule.section.save",
-    summary="Add, edit or delete a section with all its weekly times in one change.",
-    description="""The app's section editor: updates, adds and deletes the section's meetings
-together. Sem and MCP use schedule.meeting.create_many, update and delete.""",
+    summary="Add or edit a section with all its weekly times in one change.",
+    description="""The app's section editor: the section's fields and weeks, and its times
+updated, added and deleted together. Sem and MCP use schedule.section.update and the
+schedule.meeting tools.""",
     effect="write",
     expose=("http",),
     http=Http("PUT", "/courses/{course_id}/sections"),
     tags=TAGS,
 )
-async def section_save(ctx: Ctx, inp: SectionSaveInput) -> MeetingList:
-    return MeetingList(items=await meetings.save_section(ctx, inp))
+async def section_save(ctx: Ctx, inp: SectionSaveInput) -> Section:
+    return await sections.save_section(ctx, inp)
+
+
+@capability(
+    name="schedule.section.update",
+    record=("section_id", owned_row(ScheduleSection)),
+    summary="Change a section for the whole term: its code, type, instructor or weeks.",
+    description="""The weeks apply to every weekly time of the section. To change one time's
+day, hours or room use schedule.meeting.update; to change or cancel a single date use
+schedule.exception.upsert.""",
+    effect="write",
+    http=Http("PATCH", "/sections/{section_id}"),
+    tags=TAGS,
+    agent_output_fields=("id", "section_code", CHANGED),
+)
+async def section_update(ctx: Ctx, inp: SectionUpdateInput) -> Section:
+    return await sections.update_section(ctx, inp)
+
+
+@capability(
+    name="schedule.section.delete",
+    summary="Delete a section with all its weekly times and dates.",
+    description="""To hide a section the user does not attend use schedule.meeting.set_enabled
+instead; to cancel one class use schedule.exception.upsert.""",
+    effect="destructive",
+    http=Http("DELETE", "/sections/{section_id}"),
+    preview=sections.preview_section_delete,
+    tags=TAGS,
+)
+async def section_delete(ctx: Ctx, inp: SectionRef) -> Deleted:
+    await sections.delete_section(ctx, inp.section_id)
+    return Deleted()
+
+
+@capability(
+    name="schedule.meeting.create",
+    summary="Add a weekly time to a section, e.g. a second lecture day.",
+    description="""The time runs in the section's weeks. Check schedule.conflict.list afterwards
+and mention any overlap.""",
+    effect="write",
+    http=Http("POST", "/sections/{section_id}/meetings"),
+    tags=TAGS,
+    agent_output_fields=("id", "section_id", "weekday", "start_time", "end_time"),
+)
+async def meeting_create(ctx: Ctx, inp: MeetingCreateInput) -> Meeting:
+    return await meetings.create_meeting(ctx, inp)
 
 
 @capability(
     name="schedule.meeting.update",
     record=("meeting_id", owned_row(ScheduleMeeting)),
-    summary="Change a weekly class time for the whole term (time, room, weeks, ...).",
-    description="""Changes every week. To change or cancel a single date use
-schedule.exception.upsert instead.""",
+    summary="Change one weekly time of a section for the whole term (day, hours, room).",
+    description="""Changes every week. The weeks are the section's: schedule.section.update. To
+change or cancel a single date use schedule.exception.upsert instead.""",
     effect="write",
     http=Http("PATCH", "/meetings/{meeting_id}"),
     tags=TAGS,
-    agent_output_fields=("id", "section_code", CHANGED),
+    agent_output_fields=("id", "section_id", CHANGED),
 )
 async def meeting_update(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
     return await meetings.update_meeting(ctx, inp)
@@ -316,10 +367,9 @@ async def meeting_update(ctx: Ctx, inp: MeetingUpdateInput) -> Meeting:
 
 @capability(
     name="schedule.meeting.delete",
-    summary="Delete a weekly class time with all its dates.",
-    description="""Removes this weekly time entirely; a section that meets on two days has two.
-To cancel one class use schedule.exception.upsert with kind 'cancelled'; to hide a section the
-user does not attend use
+    summary="Delete one weekly time of a section with all its dates.",
+    description="""A section's last time goes with the section. To cancel one class use
+schedule.exception.upsert with kind 'cancelled'; to hide a section the user does not attend use
 schedule.meeting.set_enabled.""",
     effect="destructive",
     http=Http("DELETE", "/meetings/{meeting_id}"),
@@ -334,15 +384,14 @@ async def meeting_delete(ctx: Ctx, inp: MeetingRef) -> Deleted:
 @capability(
     name="schedule.meeting.set_enabled",
     summary="Show or hide weekly class times of a course, e.g. keep only the user's tutorial.",
-    description="""To hide a whole section, pass every meeting with its section_code (a section
-can meet on several days). To keep only one section, pass its meetings with enabled=true and the
-other sections' meetings as other_meeting_ids. Disabled meetings stay in the course but are left
-out of the calendar. Returns only the meetings whose state changed (empty when they already were
-as asked).""",
+    description="""To hide a whole section, pass all of its meetings. To keep only one section,
+pass its meetings with enabled=true and the other sections' meetings as other_meeting_ids.
+Disabled meetings stay in the course but are left out of the calendar. Returns only the meetings
+whose state changed (empty when they already were as asked).""",
     effect="write",
     http=Http("PUT", "/courses/{course_id}/meetings:enabled"),
     tags=TAGS,
-    agent_output_fields=("items.id", "items.section_code", "items.enabled"),
+    agent_output_fields=("items.id", "items.section_id", "items.enabled"),
 )
 async def meeting_set_enabled(ctx: Ctx, inp: MeetingSetEnabledInput) -> MeetingList:
     return MeetingList(
@@ -362,7 +411,7 @@ meeting.""",
     http=Http("PUT", "/meetings/{meeting_id}/exceptions/{original_date}"),
     preview=meetings.preview_exception_upsert,
     tags=TAGS,
-    agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
+    agent_output_fields=("id", "section_id", *_EXCEPTION_FIELDS),
 )
 async def exception_upsert(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     return await meetings.upsert_exception(ctx, inp)
@@ -377,7 +426,7 @@ moved with schedule.exception.upsert takes place after all.""",
     http=Http("DELETE", "/meetings/{meeting_id}/exceptions/{original_date}"),
     preview=meetings.preview_exception_delete,
     tags=TAGS,
-    agent_output_fields=("id", "section_code", *_EXCEPTION_FIELDS),
+    agent_output_fields=("id", "section_id", *_EXCEPTION_FIELDS),
 )
 async def exception_delete(ctx: Ctx, inp: ExceptionRef) -> Meeting:
     return await meetings.delete_exception(ctx, inp.meeting_id, inp.original_date)
@@ -445,7 +494,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     name="schedule.event.create_many",
     summary="Add one or more one-off events: exams, office hours, make-up classes, appointments.",
     description="""Times without an offset are read in the Program's time zone. For something
-that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+that repeats weekly use schedule.section.create_many. An item with the same source_kind and
 source_ref as an existing event of the Program updates it.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/events:batch"),

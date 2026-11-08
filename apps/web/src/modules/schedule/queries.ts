@@ -1,8 +1,8 @@
 import type {
   CalendarOccurrenceListData,
-  Meeting,
   Occurrence,
   Occurrences,
+  Section,
   Term,
 } from '@semestra/api-client'
 import {
@@ -15,8 +15,8 @@ import {
   scheduleEventListOptions,
   scheduleEventTypeListOptions,
   scheduleFeedGetOptions,
-  scheduleMeetingListForTermOptions,
-  scheduleMeetingListOptions,
+  scheduleSectionListForTermOptions,
+  scheduleSectionListOptions,
   settingsPreferenceGetOptions,
   settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
@@ -37,25 +37,25 @@ export function useEventTypes(programId: string) {
   })
 }
 
-export function useMeetings(courseId: string, termId?: string) {
+export function useSections(courseId: string, termId?: string) {
   return useQuery({
-    ...scheduleMeetingListOptions({
+    ...scheduleSectionListOptions({
       path: { course_id: courseId },
       query: termId ? { term_id: termId } : {},
     }),
   })
 }
 
-/** Every meeting of the term's courses (the timetable and the export). */
-export function useTermMeetings(termId: string, enabled = true) {
+/** Every section of the term's courses (the timetable and the export). */
+export function useTermSections(termId: string, enabled = true) {
   const query = useQuery({
-    ...scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+    ...scheduleSectionListForTermOptions({ path: { term_id: termId } }),
     enabled,
   })
-  return { items: query.data?.items ?? NO_MEETINGS, isPending: query.isPending }
+  return { items: query.data?.items ?? NO_SECTIONS, isPending: query.isPending }
 }
 
-const NO_MEETINGS: Meeting[] = []
+const NO_SECTIONS: Section[] = []
 
 export function useConflicts(termId: string) {
   return useQuery({
@@ -213,7 +213,7 @@ export function prefetchCalendarPage(
         const view = nav?.view ?? defaults.default_view
         if (view === 'timetable') {
           return queryClient.prefetchQuery(
-            scheduleMeetingListForTermOptions({ path: { term_id: termId } }),
+            scheduleSectionListForTermOptions({ path: { term_id: termId } }),
           )
         }
         const term = terms.items.find((t) => t.id === termId)

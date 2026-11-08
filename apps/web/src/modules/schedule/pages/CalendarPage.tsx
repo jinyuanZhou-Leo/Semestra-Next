@@ -16,12 +16,12 @@ import '@fullcalendar/react/skeleton.css'
 import classicThemePlugin from '@fullcalendar/react/themes/classic'
 import '@fullcalendar/react/themes/classic/theme.css'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
-import type { Meeting, OneOffEvent, Occurrence, Term } from '@semestra/api-client'
+import type { OneOffEvent, Occurrence, Term } from '@semestra/api-client'
 import {
   scheduleEventGetOptions,
   scheduleEventUpdateMutation,
   scheduleExceptionUpsertMutation,
-  scheduleMeetingListOptions,
+  scheduleSectionListOptions,
   scheduleMeetingUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -69,6 +69,7 @@ import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from '../filter
 import { useProgramTimezone } from '../hooks'
 import { weekLabel } from '../labels'
 import { isMeeting, isOneOff, occurrenceColor, weekOf } from '../occurrence'
+import { type SectionTime, sectionTimes } from '../sections'
 import {
   type CalendarNav,
   type CalendarView,
@@ -81,7 +82,7 @@ import {
   useCalendarInfo,
   useCalendarSettings,
   useOccurrences,
-  useTermMeetings,
+  useTermSections,
 } from '../queries'
 import { isoDay } from '@/lib/day'
 import { hhmm, isoWeekday, plusDays, toWall, todayIn, wall } from '../time'
@@ -222,20 +223,20 @@ function TermCalendar({
 
   const [details, setDetails] = useState<Occurrence | null>(null)
   const [move, setMove] = useState<MoveTarget | null>(null)
-  const [meetingEdit, setMeetingEdit] = useState<Meeting | null>(null)
+  const [meetingEdit, setMeetingEdit] = useState<SectionTime | null>(null)
   const [eventEdit, setEventEdit] = useState<{ event?: OneOffEvent; slot?: EventSlot } | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [share, setShare] = useState<ShareKind | null>(null)
-  // Only the timetable and the export show meetings; the other views show occurrences, and
-  // editing one fetches its meeting or event when asked.
-  const termMeetings = useTermMeetings(term.id, view === 'timetable' || share === 'image')
-  const meetings = termMeetings.items
+  // Only the timetable and the export show sections; the other views show occurrences, and
+  // editing one fetches its section or event when asked.
+  const termSections = useTermSections(term.id, view === 'timetable' || share === 'image')
+  const times = sectionTimes(termSections.items)
 
-  // The meeting or event behind an occurrence, for its editor: fetched when its details open,
+  // The section or event behind an occurrence, for its editor: fetched when its details open,
   // so "Edit" usually finds it cached.
-  const meetingsOf = (o: Occurrence) =>
+  const sectionsOf = (o: Occurrence) =>
     queryClient.fetchQuery(
-      scheduleMeetingListOptions({
+      scheduleSectionListOptions({
         path: { course_id: o.course_id ?? '' },
         query: { term_id: term.id },
       }),
@@ -262,7 +263,7 @@ function TermCalendar({
   }
   const showDetails = (o: Occurrence) => {
     setDetails(o)
-    if (isMeeting(o) && o.course_id) void meetingsOf(o).catch(() => undefined)
+    if (isMeeting(o) && o.course_id) void sectionsOf(o).catch(() => undefined)
     else if (isOneOff(o)) void eventOf(o).catch(() => undefined)
   }
 
@@ -461,7 +462,7 @@ function TermCalendar({
   const currentWeek = weekOf(weeks, rangeStart ? midWeek(rangeStart) : anchor)
   const detailsCourse = details ? courses.find((c) => c.id === details.course_id) : undefined
   const editingCourse = meetingEdit
-    ? courses.find((c) => c.id === meetingEdit.course_id)
+    ? courses.find((c) => c.id === meetingEdit.section.course_id)
     : undefined
   const minWidth =
     settings.min_column_width > 0
@@ -598,7 +599,7 @@ function TermCalendar({
         {view === 'timetable' ? (
           <TimetableView
             termId={term.id}
-            meetings={meetings}
+            times={times}
             courses={courses}
             dayStart={settings.day_start}
             dayEnd={settings.day_end}
@@ -721,11 +722,13 @@ function TermCalendar({
           onEditMeeting={(o) => {
             if (!o.course_id) return
             // The details stay open until the meeting is here, then give way to its editor.
-            meetingsOf(o)
+            sectionsOf(o)
               .then((list) => {
-                const meeting = list.items.find((mt) => mt.id === o.meta?.meeting_id)
+                const time = sectionTimes(list.items).find(
+                  (t) => t.meeting.id === o.meta?.meeting_id,
+                )
                 setDetails(null)
-                if (meeting) setMeetingEdit(meeting)
+                if (time) setMeetingEdit(time)
                 else toast.error(m.error_common_not_found())
               })
               .catch(toastError)
@@ -745,8 +748,9 @@ function TermCalendar({
       ) : null}
       {meetingEdit && editingCourse ? (
         <MeetingDialog
-          key={meetingEdit.id}
-          meeting={meetingEdit}
+          key={meetingEdit.meeting.id}
+          section={meetingEdit.section}
+          meeting={meetingEdit.meeting}
           open
           onOpenChange={(open) => !open && setMeetingEdit(null)}
         />
@@ -785,8 +789,8 @@ function TermCalendar({
           weeks={weeks}
           currentWeekStart={anchor}
           courses={courses}
-          meetings={meetings}
-          meetingsPending={termMeetings.isPending}
+          times={times}
+          timesPending={termSections.isPending}
           sources={sources}
           defaultSources={wanted}
           hiddenCourses={filters.hiddenCourses}

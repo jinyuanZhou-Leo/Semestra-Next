@@ -1,4 +1,4 @@
-import type { Meeting, MeetingException } from '@semestra/api-client'
+import type { Meeting, MeetingException, Section } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { RotateCcw } from 'lucide-react'
 import { createContext, use } from 'react'
@@ -10,7 +10,7 @@ import { dayLabel, sectionLabel } from '../labels'
 import { ActionsHeader } from './ActionsHeader'
 
 const features = settingsTableFeatures
-export type ExceptionRow = { meeting: Meeting; exc: MeetingException }
+export type ExceptionRow = { section: Section; meeting: Meeting; exc: MeetingException }
 const exceptionColumn = createColumnHelper<typeof features, ExceptionRow>()
 
 type ExceptionsState = {
@@ -26,7 +26,7 @@ function ExceptionDateCell({ row }: ExceptionCell) {
 }
 
 function ExceptionSectionCell({ row }: ExceptionCell) {
-  return sectionLabel(row.original.meeting)
+  return sectionLabel(row.original.section)
 }
 
 function ExceptionChangeCell({ row }: ExceptionCell) {
@@ -74,7 +74,7 @@ const exceptionColumns = exceptionColumn.columns([
     header: () => m.schedule_date(),
     cell: ExceptionDateCell,
   }),
-  exceptionColumn.accessor((r) => r.meeting.section_code, {
+  exceptionColumn.accessor((r) => r.section.section_code, {
     id: 'section',
     header: () => m.schedule_section_code(),
     cell: ExceptionSectionCell,

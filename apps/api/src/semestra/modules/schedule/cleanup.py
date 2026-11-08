@@ -9,24 +9,24 @@ from sqlalchemy import delete, select, update
 
 from semestra.core.context import Ctx
 from semestra.core.events import events
-from semestra.modules.schedule.meetings import delete_meetings
+from semestra.modules.schedule.meetings import delete_sections
 from semestra.modules.schedule.models import (
     ScheduleEvent,
     ScheduleEventType,
     ScheduleFeed,
-    ScheduleMeeting,
+    ScheduleSection,
 )
 
 
 async def delete_for_course(ctx: Ctx, course_id: str, program_id: str) -> None:
-    meeting_ids = (
+    section_ids = (
         await ctx.db.scalars(
-            select(ScheduleMeeting.id).where(
-                ScheduleMeeting.user_id == ctx.user_id, ScheduleMeeting.course_id == course_id
+            select(ScheduleSection.id).where(
+                ScheduleSection.user_id == ctx.user_id, ScheduleSection.course_id == course_id
             )
         )
     ).all()
-    await delete_meetings(ctx, list(meeting_ids))
+    await delete_sections(ctx, list(section_ids))
     await ctx.db.execute(
         delete(ScheduleEvent).where(
             ScheduleEvent.user_id == ctx.user_id, ScheduleEvent.course_id == course_id
@@ -35,14 +35,14 @@ async def delete_for_course(ctx: Ctx, course_id: str, program_id: str) -> None:
 
 
 async def delete_for_term(ctx: Ctx, term_id: str, program_id: str) -> None:
-    meeting_ids = (
+    section_ids = (
         await ctx.db.scalars(
-            select(ScheduleMeeting.id).where(
-                ScheduleMeeting.user_id == ctx.user_id, ScheduleMeeting.term_id == term_id
+            select(ScheduleSection.id).where(
+                ScheduleSection.user_id == ctx.user_id, ScheduleSection.term_id == term_id
             )
         )
     ).all()
-    await delete_meetings(ctx, list(meeting_ids))
+    await delete_sections(ctx, list(section_ids))
     # Events of courses that stay (a full-year course) stay on the course, as when a course
     # leaves a term; the deleted courses' events went with them (`delete_for_course`).
     await ctx.db.execute(
@@ -71,19 +71,19 @@ async def delete_for_program(ctx: Ctx, program_id: str) -> None:
 async def unlink_course_terms(
     ctx: Ctx, course_id: str, program_id: str, term_ids: Sequence[str]
 ) -> None:
-    """A course left some terms: their meetings go, and its events there stop naming the term
+    """A course left some terms: their sections go, and its events there stop naming the term
     (they stay on the course). This runs after the academics commit, so it announces itself for
     clients that already refetched."""
-    meeting_ids = (
+    section_ids = (
         await ctx.db.scalars(
-            select(ScheduleMeeting.id).where(
-                ScheduleMeeting.user_id == ctx.user_id,
-                ScheduleMeeting.course_id == course_id,
-                ScheduleMeeting.term_id.not_in(list(term_ids)),
+            select(ScheduleSection.id).where(
+                ScheduleSection.user_id == ctx.user_id,
+                ScheduleSection.course_id == course_id,
+                ScheduleSection.term_id.not_in(list(term_ids)),
             )
         )
     ).all()
-    await delete_meetings(ctx, list(meeting_ids))
+    await delete_sections(ctx, list(section_ids))
     event_ids = (
         await ctx.db.scalars(
             select(ScheduleEvent.id).where(
@@ -100,11 +100,11 @@ async def unlink_course_terms(
             .where(ScheduleEvent.id.in_(list(event_ids)))
             .values(term_id=None, updated_at=ctx.now)
         )
-    for meeting_id in meeting_ids:
+    if section_ids:
         await events.publish(
             ctx,
-            "schedule.meeting.deleted",
-            {"meeting_id": meeting_id, "course_id": course_id, "program_id": program_id},
+            "schedule.section.deleted",
+            {"section_ids": list(section_ids), "course_id": course_id, "program_id": program_id},
         )
     for event_id in event_ids:
         await events.publish(
@@ -112,5 +112,5 @@ async def unlink_course_terms(
             "schedule.event.updated",
             {"event_id": event_id, "fields": ["term_id"], "program_id": program_id},
         )
-    if meeting_ids or event_ids:
+    if section_ids or event_ids:
         await events.publish(ctx, "calendar.changed", {"program_id": program_id})

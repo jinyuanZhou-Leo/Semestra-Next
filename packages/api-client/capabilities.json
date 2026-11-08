@@ -953,11 +953,11 @@
       "plugin_id": null
     },
     {
-      "name": "schedule__meeting__create_many",
-      "capability": "schedule.meeting.create_many",
+      "name": "schedule__meeting__create",
+      "capability": "schedule.meeting.create",
       "module": "schedule",
       "effect": "write",
-      "summary": "Add one or more weekly (or biweekly) class times to a course.",
+      "summary": "Add a weekly time to a section, e.g. a second lecture day.",
       "plugin_id": null
     },
     {
@@ -965,15 +965,7 @@
       "capability": "schedule.meeting.delete",
       "module": "schedule",
       "effect": "destructive",
-      "summary": "Delete a weekly class time with all its dates.",
-      "plugin_id": null
-    },
-    {
-      "name": "schedule__meeting__list",
-      "capability": "schedule.meeting.list",
-      "module": "schedule",
-      "effect": "read",
-      "summary": "List a course's weekly class times, with their cancelled or moved dates.",
+      "summary": "Delete one weekly time of a section with all its dates.",
       "plugin_id": null
     },
     {
@@ -989,7 +981,39 @@
       "capability": "schedule.meeting.update",
       "module": "schedule",
       "effect": "write",
-      "summary": "Change a weekly class time for the whole term (time, room, weeks, ...).",
+      "summary": "Change one weekly time of a section for the whole term (day, hours, room).",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__section__create_many",
+      "capability": "schedule.section.create_many",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Add class sections with their weekly (or biweekly) times to a course.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__section__delete",
+      "capability": "schedule.section.delete",
+      "module": "schedule",
+      "effect": "destructive",
+      "summary": "Delete a section with all its weekly times and dates.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__section__list",
+      "capability": "schedule.section.list",
+      "module": "schedule",
+      "effect": "read",
+      "summary": "List a course's class sections with their weekly times and cancelled or moved dates.",
+      "plugin_id": null
+    },
+    {
+      "name": "schedule__section__update",
+      "capability": "schedule.section.update",
+      "module": "schedule",
+      "effect": "write",
+      "summary": "Change a section for the whole term: its code, type, instructor or weeks.",
       "plugin_id": null
     },
     {
@@ -1189,7 +1213,7 @@
         "calendar__occurrence__list",
         "academics__course__find",
         "academics__term__get_weeks",
-        "schedule__meeting__list"
+        "schedule__section__list"
       ]
     },
     {
@@ -1202,8 +1226,11 @@
       "tools": [
         "academics__course__find",
         "calendar__occurrence__list",
-        "schedule__meeting__list",
-        "schedule__meeting__create_many",
+        "schedule__section__list",
+        "schedule__section__create_many",
+        "schedule__section__update",
+        "schedule__section__delete",
+        "schedule__meeting__create",
         "schedule__meeting__update",
         "schedule__meeting__delete",
         "schedule__meeting__set_enabled",

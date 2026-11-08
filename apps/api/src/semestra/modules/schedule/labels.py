@@ -1,4 +1,4 @@
-"""Names of meetings, event types and events for the assistant's chat (`core.labels`)."""
+"""Names of sections, meetings, event types and events for the assistant's chat (`core.labels`)."""
 
 from typing import Any
 
@@ -6,6 +6,14 @@ from semestra.core.context import Ctx
 from semestra.core.labels import each, owned_names, resolver
 from semestra.modules.schedule import meetings
 from semestra.modules.schedule.models import ScheduleEvent, ScheduleEventType
+
+
+@resolver("section")
+async def section(ctx: Ctx, ids: list[str], args: dict[str, Any]) -> dict[str, str]:
+    async def label(id_: str) -> str:
+        return await meetings.section_label(ctx, await meetings.section_row(ctx, id_))
+
+    return await each(ids, label)
 
 
 @resolver("meeting")

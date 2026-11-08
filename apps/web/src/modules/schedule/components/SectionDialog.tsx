@@ -1,4 +1,4 @@
-import type { Meeting } from '@semestra/api-client'
+import type { Section } from '@semestra/api-client'
 import { scheduleSectionSaveMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper, useTable } from '@tanstack/react-table'
@@ -38,8 +38,8 @@ import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
+import { wholeTerm } from '../sections'
 import { weekdayName } from '../time'
-import { weeksDiffer, wholeTerm } from './SectionsTable'
 
 /** A time row; `id` is the meeting it edits, absent for a new one. */
 type Time = {
@@ -65,11 +65,8 @@ function nextTime(all: readonly Time[]): Time {
 
 const int = (value: string) => (value.trim() === '' ? null : Number.parseInt(value, 10))
 
-/**
- * The section's weeks: the whole term (every week, breaks skipped), set weeks, or, for a section
- * whose times already differ, left as each time has them.
- */
-type WeeksMode = 'term' | 'custom' | 'vary'
+/** The section's weeks: the whole term (every week, breaks skipped) or set weeks. */
+type WeeksMode = 'term' | 'custom'
 
 // ---- The times table: TanStack Table, columns outside the component, rows edited via context.
 
@@ -271,7 +268,7 @@ export function SectionDialog({
   courseId,
   termId,
   typeCode,
-  meetings = [],
+  section,
   withNewTime = false,
   open,
   onOpenChange,
@@ -280,8 +277,8 @@ export function SectionDialog({
   courseId: string
   termId: string
   typeCode: string
-  /** The section's meetings when editing it. */
-  meetings?: readonly Meeting[]
+  /** The section when editing it. */
+  section?: Section
   /** Opens with a new time after the section's own ("Add a time" of a section). */
   withNewTime?: boolean
   open: boolean
@@ -290,17 +287,13 @@ export function SectionDialog({
   const fid = useId()
   const queryClient = useQueryClient()
   const types = useEventTypes(programId).data?.items ?? []
-  const first = meetings[0]
-  const editing = first !== undefined
-  const differ = weeksDiffer(meetings)
-  const [type, setType] = useState(first?.type_code ?? typeCode)
-  const [code, setCode] = useState(first?.section_code ?? '')
-  const [instructor, setInstructor] = useState(
-    meetings.find((mt) => mt.instructor)?.instructor ?? '',
-  )
+  const editing = section !== undefined
+  const [type, setType] = useState(section?.type_code ?? typeCode)
+  const [code, setCode] = useState(section?.section_code ?? '')
+  const [instructor, setInstructor] = useState(section?.instructor ?? '')
   const [times, setTimes] = useState<Time[]>(() => {
-    if (!editing) return [nextTime([])]
-    const own = meetings.map((mt, key) => ({
+    if (!section) return [nextTime([])]
+    const own = section.meetings.map((mt, key) => ({
       key,
       id: mt.id,
       weekday: String(mt.weekday),
@@ -310,14 +303,14 @@ export function SectionDialog({
     }))
     return withNewTime ? [...own, nextTime(own)] : own
   })
-  const [mode, setMode] = useState<WeeksMode>(
-    differ ? 'vary' : first && !wholeTerm(first) ? 'custom' : 'term',
+  const [mode, setMode] = useState<WeeksMode>(section && !wholeTerm(section) ? 'custom' : 'term')
+  const [recurrence, setRecurrence] = useState<'weekly' | 'biweekly'>(
+    section?.recurrence ?? 'weekly',
   )
-  const [recurrence, setRecurrence] = useState<'weekly' | 'biweekly'>(first?.recurrence ?? 'weekly')
-  const [anchorWeek, setAnchorWeek] = useState(String(first?.anchor_week ?? 1))
-  const [startWeek, setStartWeek] = useState(String(first?.start_week ?? 1))
-  const [endWeek, setEndWeek] = useState(first?.end_week != null ? String(first.end_week) : '')
-  const [skipBreaks, setSkipBreaks] = useState(first?.skip_breaks ?? true)
+  const [anchorWeek, setAnchorWeek] = useState(String(section?.anchor_week ?? 1))
+  const [startWeek, setStartWeek] = useState(String(section?.start_week ?? 1))
+  const [endWeek, setEndWeek] = useState(section?.end_week != null ? String(section.end_week) : '')
+  const [skipBreaks, setSkipBreaks] = useState(section?.skip_breaks ?? true)
   const [touched, setTouched] = useState(false)
 
   // One request for the whole section (`schedule.section.save`): its times are updated,
@@ -338,7 +331,6 @@ export function SectionDialog({
   )
 
   const weeks = () => {
-    if (mode === 'vary') return null
     if (mode === 'term') {
       return {
         recurrence: 'weekly' as const,
@@ -364,12 +356,11 @@ export function SectionDialog({
     save.mutate({
       path: { course_id: courseId },
       body: {
-        term_id: first?.term_id ?? termId,
-        meeting_ids: meetings.map((mt) => mt.id),
+        section_id: section?.id ?? null,
+        term_id: section?.term_id ?? termId,
         type_code: type,
         section_code: code.trim(),
         instructor: instructor.trim() || null,
-        // Without weeks, the times keep theirs and new ones take the section's (server side).
         weeks: weeks(),
         times: times.map((t) => ({
           meeting_id: t.id ?? null,
@@ -393,7 +384,6 @@ export function SectionDialog({
   const typeItems = types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` }))
   if (!typeItems.some((o) => o.value === type)) typeItems.push({ value: type, label: type })
   const modes = [
-    ...(differ ? [{ value: 'vary' as const, label: m.schedule_weeks_vary() }] : []),
     { value: 'term' as const, label: m.schedule_weeks_whole_term() },
     { value: 'custom' as const, label: m.schedule_weeks_custom() },
   ]
@@ -464,10 +454,7 @@ export function SectionDialog({
             </section>
 
             <SettingsGroup>
-              <SettingRow
-                label={m.schedule_weeks()}
-                description={mode === 'vary' ? m.schedule_section_weeks_differ() : undefined}
-              >
+              <SettingRow label={m.schedule_weeks()}>
                 {(labelId) => (
                   <ChoiceControl<WeeksMode>
                     labelId={labelId}

@@ -120,12 +120,14 @@ async def test_clearing_completed_tasks_counts_them(agent: Agent):
 
 async def test_a_class_cancelled_on_one_date_names_the_section(agent: Agent):
     _, course, _ = await agent.course_with_lab()
-    meeting = await agent.call(
+    created = await agent.call(
         "POST",
-        f"/courses/{course['id']}/meetings",
-        json={"term_id": course["term_ids"][0], "type_code": "LEC", "section_code": "0101",
-              "weekday": 2, "start_time": "10:00", "end_time": "11:00"},
+        f"/courses/{course['id']}/sections:batch",
+        json={"sections": [{"term_id": course["term_ids"][0], "type_code": "LEC",
+              "section_code": "0101",
+              "meetings": [{"weekday": 2, "start_time": "10:00", "end_time": "11:00"}]}]},
     )  # fmt: skip
+    meeting = created["items"][0]["meetings"][0]
     card = await _card(
         agent,
         "schedule.exception.upsert",

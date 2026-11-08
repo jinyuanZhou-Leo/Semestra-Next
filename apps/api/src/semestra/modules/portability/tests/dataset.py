@@ -60,6 +60,7 @@ from semestra.modules.schedule.models import (
     ScheduleFeed,
     ScheduleMeeting,
     ScheduleMeetingException,
+    ScheduleSection,
 )
 from semestra.modules.settings.models import SettingsPreferences, SettingsUiState, SettingsValue
 from semestra.modules.tasks.models import TasksItem, TasksList
@@ -95,14 +96,11 @@ async def populate(
     db.add_all([term, course])
     await db.flush()
     category = GradingCategory(**u, course_id=course.id, key="exam", name="Exams", color="red")
+    section = ScheduleSection(**u, course_id=course.id, term_id=term.id, type_code="LEC")
+    db.add(section)
+    await db.flush()
     meeting = ScheduleMeeting(
-        **u,
-        course_id=course.id,
-        term_id=term.id,
-        type_code="LEC",
-        weekday=1,
-        start_time=time(9),
-        end_time=time(10),
+        **u, section_id=section.id, weekday=1, start_time=time(9), end_time=time(10)
     )
     card = LayoutsCardSetting(
         instance_id=new_id(),

@@ -5967,33 +5967,9 @@ export type Meeting = {
      */
     id: string;
     /**
-     * Course Id
+     * Section Id
      */
-    course_id: string;
-    /**
-     * Term Id
-     */
-    term_id: string;
-    /**
-     * Section Code
-     */
-    section_code: string;
-    /**
-     * Type Code
-     */
-    type_code: string;
-    /**
-     * Title
-     */
-    title: string | null;
-    /**
-     * Instructor
-     */
-    instructor: string | null;
-    /**
-     * Location
-     */
-    location: string | null;
+    section_id: string;
     /**
      * Weekday
      *
@@ -6011,31 +5987,19 @@ export type Meeting = {
      */
     end_time: string;
     /**
-     * Recurrence
+     * Location
      */
-    recurrence: 'weekly' | 'biweekly';
+    location: string | null;
     /**
-     * Anchor Week
+     * Title
      *
-     * Biweekly: the term week it starts alternating from
+     * Optional name of this time, e.g. 'Lab'
      */
-    anchor_week: number;
-    /**
-     * Start Week
-     */
-    start_week: number;
-    /**
-     * End Week
-     *
-     * Last term week; null = until the end of term
-     */
-    end_week: number | null;
-    /**
-     * Skip Breaks
-     */
-    skip_breaks: boolean;
+    title: string | null;
     /**
      * Enabled
+     *
+     * Shown in the calendar
      */
     enabled: boolean;
     /**
@@ -6067,42 +6031,6 @@ export type Meeting = {
  */
 export type MeetingCreateInputBody = {
     /**
-     * Term Id
-     *
-     * Term of the course the meeting runs in
-     */
-    term_id: string;
-    /**
-     * Section Code
-     *
-     * Section, e.g. 'LEC0101'
-     */
-    section_code?: string;
-    /**
-     * Type Code
-     *
-     * Event type code of the Program, e.g. 'LEC'
-     */
-    type_code: string;
-    /**
-     * Title
-     *
-     * Optional title
-     */
-    title?: string | null;
-    /**
-     * Instructor
-     *
-     * Instructor
-     */
-    instructor?: string | null;
-    /**
-     * Location
-     *
-     * Room or building
-     */
-    location?: string | null;
-    /**
      * Weekday
      *
      * 1 = Monday .. 7 = Sunday
@@ -6121,83 +6049,23 @@ export type MeetingCreateInputBody = {
      */
     end_time: string;
     /**
-     * Recurrence
+     * Location
      *
-     * Every week or every other week
+     * Room or building
      */
-    recurrence?: 'weekly' | 'biweekly';
+    location?: string | null;
     /**
-     * Anchor Week
+     * Title
      *
-     * Biweekly: first week it happens; defaults to start_week
+     * Optional name of this time
      */
-    anchor_week?: number | null;
-    /**
-     * Start Week
-     *
-     * First term week
-     */
-    start_week?: number;
-    /**
-     * End Week
-     *
-     * Last term week; null = until the end of term
-     */
-    end_week?: number | null;
-    /**
-     * Skip Breaks
-     *
-     * No class in break weeks and on breaks
-     */
-    skip_breaks?: boolean;
+    title?: string | null;
     /**
      * Enabled
      *
-     * Disabled sections are not shown
+     * False hides it from the calendar
      */
     enabled?: boolean;
-    /**
-     * Source Kind
-     *
-     * Importer that created it, e.g. 'ics'
-     */
-    source_kind?: string | null;
-    /**
-     * Source Ref
-     *
-     * Id of the item in the import source, for de-duplication
-     */
-    source_ref?: string | null;
-};
-
-/**
- * MeetingCreateManyInputBody
- */
-export type MeetingCreateManyInputBody = {
-    /**
-     * Meetings
-     *
-     * Meetings; same source_kind+source_ref updates
-     */
-    meetings: Array<MeetingFields>;
-};
-
-/**
- * MeetingCreateManyResult
- */
-export type MeetingCreateManyResult = {
-    /**
-     * Items
-     */
-    items: Array<Meeting>;
-    /**
-     * Created Ids
-     */
-    created_ids: Array<string>;
-    /**
-     * Updated Ids
-     */
-    updated_ids: Array<string>;
 };
 
 /**
@@ -6249,121 +6117,11 @@ export type MeetingException = {
 };
 
 /**
- * MeetingFields
- */
-export type MeetingFields = {
-    /**
-     * Term Id
-     *
-     * Term of the course the meeting runs in
-     */
-    term_id: string;
-    /**
-     * Section Code
-     *
-     * Section, e.g. 'LEC0101'
-     */
-    section_code?: string;
-    /**
-     * Type Code
-     *
-     * Event type code of the Program, e.g. 'LEC'
-     */
-    type_code: string;
-    /**
-     * Title
-     *
-     * Optional title
-     */
-    title?: string | null;
-    /**
-     * Instructor
-     *
-     * Instructor
-     */
-    instructor?: string | null;
-    /**
-     * Location
-     *
-     * Room or building
-     */
-    location?: string | null;
-    /**
-     * Weekday
-     *
-     * 1 = Monday .. 7 = Sunday
-     */
-    weekday: number;
-    /**
-     * Start Time
-     *
-     * Start, wall-clock time in the Program's time zone
-     */
-    start_time: string;
-    /**
-     * End Time
-     *
-     * End, after the start
-     */
-    end_time: string;
-    /**
-     * Recurrence
-     *
-     * Every week or every other week
-     */
-    recurrence?: 'weekly' | 'biweekly';
-    /**
-     * Anchor Week
-     *
-     * Biweekly: first week it happens; defaults to start_week
-     */
-    anchor_week?: number | null;
-    /**
-     * Start Week
-     *
-     * First term week
-     */
-    start_week?: number;
-    /**
-     * End Week
-     *
-     * Last term week; null = until the end of term
-     */
-    end_week?: number | null;
-    /**
-     * Skip Breaks
-     *
-     * No class in break weeks and on breaks
-     */
-    skip_breaks?: boolean;
-    /**
-     * Enabled
-     *
-     * Disabled sections are not shown
-     */
-    enabled?: boolean;
-    /**
-     * Source Kind
-     *
-     * Importer that created it, e.g. 'ics'
-     */
-    source_kind?: string | null;
-    /**
-     * Source Ref
-     *
-     * Id of the item in the import source, for de-duplication
-     */
-    source_ref?: string | null;
-};
-
-/**
  * MeetingList
  */
 export type MeetingList = {
     /**
      * Items
-     *
-     * By term, weekday and start time
      */
     items: Array<Meeting>;
 };
@@ -6397,42 +6155,6 @@ export type MeetingSetEnabledInputBody = {
  */
 export type MeetingUpdateInputBody = {
     /**
-     * Term Id
-     *
-     * Another term of the course
-     */
-    term_id?: string | null;
-    /**
-     * Section Code
-     *
-     * Section
-     */
-    section_code?: string | null;
-    /**
-     * Type Code
-     *
-     * Event type code
-     */
-    type_code?: string | null;
-    /**
-     * Title
-     *
-     * Title, or null
-     */
-    title?: string | null;
-    /**
-     * Instructor
-     *
-     * Instructor, or null
-     */
-    instructor?: string | null;
-    /**
-     * Location
-     *
-     * Location, or null
-     */
-    location?: string | null;
-    /**
      * Weekday
      *
      * 1 = Monday .. 7 = Sunday
@@ -6451,35 +6173,17 @@ export type MeetingUpdateInputBody = {
      */
     end_time?: string | null;
     /**
-     * Recurrence
+     * Location
      *
-     * weekly or biweekly
+     * Location, or null
      */
-    recurrence?: 'weekly' | 'biweekly' | null;
+    location?: string | null;
     /**
-     * Anchor Week
+     * Title
      *
-     * Biweekly anchor week; null = the first week
+     * Title, or null
      */
-    anchor_week?: number | null;
-    /**
-     * Start Week
-     *
-     * First term week
-     */
-    start_week?: number | null;
-    /**
-     * End Week
-     *
-     * Last term week, or null
-     */
-    end_week?: number | null;
-    /**
-     * Skip Breaks
-     *
-     * Skip breaks
-     */
-    skip_breaks?: boolean | null;
+    title?: string | null;
     /**
      * Enabled
      *
@@ -6903,6 +6607,100 @@ export type NewAssignments = {
 };
 
 /**
+ * NewMeeting
+ */
+export type NewMeeting = {
+    /**
+     * Weekday
+     *
+     * 1 = Monday .. 7 = Sunday
+     */
+    weekday: number;
+    /**
+     * Start Time
+     *
+     * Start, wall-clock time in the Program's time zone
+     */
+    start_time: string;
+    /**
+     * End Time
+     *
+     * End, after the start
+     */
+    end_time: string;
+    /**
+     * Location
+     *
+     * Room or building
+     */
+    location?: string | null;
+    /**
+     * Title
+     *
+     * Optional name of this time
+     */
+    title?: string | null;
+    /**
+     * Enabled
+     *
+     * False hides it from the calendar
+     */
+    enabled?: boolean;
+    /**
+     * Source Kind
+     *
+     * Importer that created it, e.g. 'ics'
+     */
+    source_kind?: string | null;
+    /**
+     * Source Ref
+     *
+     * Id of the time in the import source, for de-duplication
+     */
+    source_ref?: string | null;
+};
+
+/**
+ * NewSection
+ */
+export type NewSection = {
+    /**
+     * Term Id
+     *
+     * Term of the course the section runs in
+     */
+    term_id: string;
+    /**
+     * Type Code
+     *
+     * Event type code of the Program, e.g. 'LEC'
+     */
+    type_code: string;
+    /**
+     * Section Code
+     *
+     * Section, e.g. 'LEC0101'
+     */
+    section_code?: string;
+    /**
+     * Instructor
+     *
+     * Instructor
+     */
+    instructor?: string | null;
+    /**
+     * Weeks of all its times; null keeps an existing section's, and a new one runs every week of the term
+     */
+    weeks?: SectionWeeks | null;
+    /**
+     * Meetings
+     *
+     * Its weekly times, e.g. Monday and Wednesday
+     */
+    meetings: Array<NewMeeting>;
+};
+
+/**
  * Note
  */
 export type Note = {
@@ -7034,6 +6832,10 @@ export type OccurrenceMeta = {
      * Meeting Id
      */
     meeting_id?: string | null;
+    /**
+     * Section Id
+     */
+    section_id?: string | null;
     /**
      * Original Date
      *
@@ -8797,6 +8599,126 @@ export type SearchResult = {
 };
 
 /**
+ * Section
+ *
+ * A class section with its weekly times; all of them run in the section's weeks.
+ */
+export type Section = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Term Id
+     */
+    term_id: string;
+    /**
+     * Type Code
+     */
+    type_code: string;
+    /**
+     * Section Code
+     *
+     * e.g. 'LEC0101'; empty when the source has none
+     */
+    section_code: string;
+    /**
+     * Instructor
+     */
+    instructor: string | null;
+    /**
+     * Recurrence
+     */
+    recurrence: 'weekly' | 'biweekly';
+    /**
+     * Anchor Week
+     *
+     * Biweekly: the term week it starts alternating from
+     */
+    anchor_week: number;
+    /**
+     * Start Week
+     */
+    start_week: number;
+    /**
+     * End Week
+     *
+     * Last term week; null = until the end of term
+     */
+    end_week: number | null;
+    /**
+     * Skip Breaks
+     */
+    skip_breaks: boolean;
+    /**
+     * Meetings
+     *
+     * Weekly times, by weekday and start time
+     */
+    meetings: Array<Meeting>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * SectionCreateManyInputBody
+ */
+export type SectionCreateManyInputBody = {
+    /**
+     * Sections
+     *
+     * Sections
+     */
+    sections: Array<NewSection>;
+};
+
+/**
+ * SectionCreateManyResult
+ */
+export type SectionCreateManyResult = {
+    /**
+     * Items
+     *
+     * The sections written, with all their times
+     */
+    items: Array<Section>;
+    /**
+     * Created Ids
+     *
+     * Meetings added
+     */
+    created_ids: Array<string>;
+    /**
+     * Updated Ids
+     *
+     * Meetings that existed and were updated
+     */
+    updated_ids: Array<string>;
+};
+
+/**
+ * SectionList
+ */
+export type SectionList = {
+    /**
+     * Items
+     *
+     * By term, type and section code
+     */
+    items: Array<Section>;
+};
+
+/**
  * SectionSaveInputBody
  */
 export type SectionSaveInputBody = {
@@ -8807,11 +8729,11 @@ export type SectionSaveInputBody = {
      */
     term_id: string;
     /**
-     * Meeting Ids
+     * Type Code
      *
-     * The section's meetings before the change
+     * Event type code of the Program, e.g. 'LEC'
      */
-    meeting_ids?: Array<string>;
+    type_code: string;
     /**
      * Section Code
      *
@@ -8819,25 +8741,25 @@ export type SectionSaveInputBody = {
      */
     section_code?: string;
     /**
-     * Type Code
-     *
-     * Event type code of the Program, e.g. 'LEC'
-     */
-    type_code: string;
-    /**
      * Instructor
      *
      * Instructor
      */
     instructor?: string | null;
     /**
-     * Weeks for every time; null keeps each meeting's and gives new times the weeks of the section's first meeting
+     * Section Id
+     *
+     * The section edited; null adds one
      */
-    weeks?: SectionWeeks | null;
+    section_id?: string | null;
+    /**
+     * Weeks of all times
+     */
+    weeks?: SectionWeeks;
     /**
      * Times
      *
-     * The section's times after it
+     * Its weekly times
      */
     times: Array<SectionTime>;
 };
@@ -8846,12 +8768,6 @@ export type SectionSaveInputBody = {
  * SectionTime
  */
 export type SectionTime = {
-    /**
-     * Meeting Id
-     *
-     * The meeting this time edits; null adds a new one
-     */
-    meeting_id?: string | null;
     /**
      * Weekday
      *
@@ -8876,6 +8792,72 @@ export type SectionTime = {
      * Room or building
      */
     location?: string | null;
+    /**
+     * Meeting Id
+     *
+     * The meeting this time edits; null adds a new one
+     */
+    meeting_id?: string | null;
+};
+
+/**
+ * SectionUpdateInputBody
+ */
+export type SectionUpdateInputBody = {
+    /**
+     * Term Id
+     *
+     * Another term of the course
+     */
+    term_id?: string | null;
+    /**
+     * Type Code
+     *
+     * Event type code
+     */
+    type_code?: string | null;
+    /**
+     * Section Code
+     *
+     * Section code
+     */
+    section_code?: string | null;
+    /**
+     * Instructor
+     *
+     * Instructor, or null
+     */
+    instructor?: string | null;
+    /**
+     * Recurrence
+     *
+     * weekly or biweekly
+     */
+    recurrence?: 'weekly' | 'biweekly' | null;
+    /**
+     * Anchor Week
+     *
+     * Biweekly anchor week; null = the first week
+     */
+    anchor_week?: number | null;
+    /**
+     * Start Week
+     *
+     * First term week
+     */
+    start_week?: number | null;
+    /**
+     * End Week
+     *
+     * Last term week, or null
+     */
+    end_week?: number | null;
+    /**
+     * Skip Breaks
+     *
+     * Skip breaks
+     */
+    skip_breaks?: boolean | null;
 };
 
 /**
@@ -8903,7 +8885,7 @@ export type SectionWeeks = {
     /**
      * End Week
      *
-     * Last term week, or null
+     * Last term week; null = until the end of term
      */
     end_week?: number | null;
     /**
@@ -19324,57 +19306,18 @@ export type ScheduleFeedUpdateResponses = {
 
 export type ScheduleFeedUpdateResponse = ScheduleFeedUpdateResponses[keyof ScheduleFeedUpdateResponses];
 
-export type ScheduleMeetingListData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: {
-        /**
-         * Term Id
-         *
-         * Only this term's meetings
-         */
-        term_id?: string | null;
-    };
-    url: '/courses/{course_id}/meetings';
-};
-
-export type ScheduleMeetingListErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type ScheduleMeetingListError = ScheduleMeetingListErrors[keyof ScheduleMeetingListErrors];
-
-export type ScheduleMeetingListResponses = {
-    /**
-     * Successful Response
-     */
-    200: MeetingList;
-};
-
-export type ScheduleMeetingListResponse = ScheduleMeetingListResponses[keyof ScheduleMeetingListResponses];
-
 export type ScheduleMeetingCreateData = {
     body: MeetingCreateInputBody;
     path: {
         /**
-         * Course Id
+         * Section Id
          *
-         * Course id
+         * Section the time belongs to
          */
-        course_id: string;
+        section_id: string;
     };
     query?: never;
-    url: '/courses/{course_id}/meetings';
+    url: '/sections/{section_id}/meetings';
 };
 
 export type ScheduleMeetingCreateErrors = {
@@ -19394,38 +19337,6 @@ export type ScheduleMeetingCreateResponses = {
 };
 
 export type ScheduleMeetingCreateResponse = ScheduleMeetingCreateResponses[keyof ScheduleMeetingCreateResponses];
-
-export type ScheduleMeetingCreateManyData = {
-    body: MeetingCreateManyInputBody;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/meetings:batch';
-};
-
-export type ScheduleMeetingCreateManyErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type ScheduleMeetingCreateManyError = ScheduleMeetingCreateManyErrors[keyof ScheduleMeetingCreateManyErrors];
-
-export type ScheduleMeetingCreateManyResponses = {
-    /**
-     * Successful Response
-     */
-    200: MeetingCreateManyResult;
-};
-
-export type ScheduleMeetingCreateManyResponse = ScheduleMeetingCreateManyResponses[keyof ScheduleMeetingCreateManyResponses];
 
 export type ScheduleMeetingDeleteData = {
     body?: never;
@@ -19491,38 +19402,6 @@ export type ScheduleMeetingUpdateResponses = {
 
 export type ScheduleMeetingUpdateResponse = ScheduleMeetingUpdateResponses[keyof ScheduleMeetingUpdateResponses];
 
-export type ScheduleMeetingListForTermData = {
-    body?: never;
-    path: {
-        /**
-         * Term Id
-         *
-         * Term id
-         */
-        term_id: string;
-    };
-    query?: never;
-    url: '/terms/{term_id}/meetings';
-};
-
-export type ScheduleMeetingListForTermErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type ScheduleMeetingListForTermError = ScheduleMeetingListForTermErrors[keyof ScheduleMeetingListForTermErrors];
-
-export type ScheduleMeetingListForTermResponses = {
-    /**
-     * Successful Response
-     */
-    200: MeetingList;
-};
-
-export type ScheduleMeetingListForTermResponse = ScheduleMeetingListForTermResponses[keyof ScheduleMeetingListForTermResponses];
-
 export type ScheduleMeetingSetEnabledData = {
     body: MeetingSetEnabledInputBody;
     path: {
@@ -19555,6 +19434,141 @@ export type ScheduleMeetingSetEnabledResponses = {
 
 export type ScheduleMeetingSetEnabledResponse = ScheduleMeetingSetEnabledResponses[keyof ScheduleMeetingSetEnabledResponses];
 
+export type ScheduleSectionCreateManyData = {
+    body: SectionCreateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/sections:batch';
+};
+
+export type ScheduleSectionCreateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionCreateManyError = ScheduleSectionCreateManyErrors[keyof ScheduleSectionCreateManyErrors];
+
+export type ScheduleSectionCreateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: SectionCreateManyResult;
+};
+
+export type ScheduleSectionCreateManyResponse = ScheduleSectionCreateManyResponses[keyof ScheduleSectionCreateManyResponses];
+
+export type ScheduleSectionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Section Id
+         *
+         * Section id
+         */
+        section_id: string;
+    };
+    query?: never;
+    url: '/sections/{section_id}';
+};
+
+export type ScheduleSectionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionDeleteError = ScheduleSectionDeleteErrors[keyof ScheduleSectionDeleteErrors];
+
+export type ScheduleSectionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesScheduleSchemasDeleted;
+};
+
+export type ScheduleSectionDeleteResponse = ScheduleSectionDeleteResponses[keyof ScheduleSectionDeleteResponses];
+
+export type ScheduleSectionUpdateData = {
+    body: SectionUpdateInputBody;
+    path: {
+        /**
+         * Section Id
+         *
+         * Section id
+         */
+        section_id: string;
+    };
+    query?: never;
+    url: '/sections/{section_id}';
+};
+
+export type ScheduleSectionUpdateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionUpdateError = ScheduleSectionUpdateErrors[keyof ScheduleSectionUpdateErrors];
+
+export type ScheduleSectionUpdateResponses = {
+    /**
+     * Successful Response
+     */
+    200: Section;
+};
+
+export type ScheduleSectionUpdateResponse = ScheduleSectionUpdateResponses[keyof ScheduleSectionUpdateResponses];
+
+export type ScheduleSectionListData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only this term's sections
+         */
+        term_id?: string | null;
+    };
+    url: '/courses/{course_id}/sections';
+};
+
+export type ScheduleSectionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionListError = ScheduleSectionListErrors[keyof ScheduleSectionListErrors];
+
+export type ScheduleSectionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: SectionList;
+};
+
+export type ScheduleSectionListResponse = ScheduleSectionListResponses[keyof ScheduleSectionListResponses];
+
 export type ScheduleSectionSaveData = {
     body: SectionSaveInputBody;
     path: {
@@ -19582,10 +19596,42 @@ export type ScheduleSectionSaveResponses = {
     /**
      * Successful Response
      */
-    200: MeetingList;
+    200: Section;
 };
 
 export type ScheduleSectionSaveResponse = ScheduleSectionSaveResponses[keyof ScheduleSectionSaveResponses];
+
+export type ScheduleSectionListForTermData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/sections';
+};
+
+export type ScheduleSectionListForTermErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type ScheduleSectionListForTermError = ScheduleSectionListForTermErrors[keyof ScheduleSectionListForTermErrors];
+
+export type ScheduleSectionListForTermResponses = {
+    /**
+     * Successful Response
+     */
+    200: SectionList;
+};
+
+export type ScheduleSectionListForTermResponse = ScheduleSectionListForTermResponses[keyof ScheduleSectionListForTermResponses];
 
 export type SettingsPreferenceGetData = {
     body?: never;
