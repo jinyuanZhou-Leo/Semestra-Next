@@ -2,14 +2,14 @@
   "schema_version": 1,
   "habit_checkins": [
     {
-      "instance_id": "01a1b925-a53f-76df-96fc-8f8fc9d49862",
+      "instance_id": "01a1b946-af8c-7439-9a4c-148ffe1f5902",
       "day": "2026-01-14"
     }
   ],
   "pomodoro_sessions": [
     {
-      "instance_id": "01a1b925-a556-7192-b34a-990b2825f4fa",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "instance_id": "01a1b946-afa3-77ef-9e04-d4957592bdbc",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "started_at": "2026-01-15T12:00:00Z",
       "ended_at": "2026-01-15T12:25:00Z",
       "duration_sec": 1500,

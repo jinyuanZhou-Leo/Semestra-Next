@@ -2,8 +2,9 @@
 
 Assessment tasks were optional (a Program setting) and linked by `source_kind='assessment'` +
 `source_ref`. Now the link is a foreign key and the task always exists: existing links move to
-the new column, linked tasks of assessments without a due date go, and the missing tasks are
-created (finished, as of the due date, when the assessment is graded, dropped or already past due:
+the new column, an assessment without a task takes over the unlinked to-do of the same source (a
+Canvas assignment imported both ways, as the app does since), linked tasks of assessments without
+a due date go, and the missing tasks are created (finished, as of the due date, when the assessment is graded, dropped or already past due:
 these are old coursework, not a flood of new "overdue" to-dos after the upgrade). The calendar shows assessment due
 dates only through these tasks, so calendar feeds that listed "assessments" now list "tasks".
 
@@ -64,6 +65,8 @@ assessments = sa.table(
     sa.column("due_has_time", sa.Boolean),
     sa.column("score_percentage", sa.Float),
     sa.column("dropped", sa.Boolean),
+    sa.column("source_kind", sa.String),
+    sa.column("source_ref", sa.String),
 )
 courses = sa.table(
     "academics_courses",
@@ -125,6 +128,7 @@ def upgrade() -> None:
         .where(tasks.c.source_kind == "assessment")
         .values(source_kind="manual", source_ref=None)
     )
+    _take_over_same_source(conn)
     # A task stands only for a dated assessment.
     conn.execute(
         tasks.delete().where(
@@ -155,6 +159,39 @@ def upgrade() -> None:
             conn.execute(
                 feeds.update().where(feeds.c.id == row.id).values(sources=json.dumps(merged))
             )
+
+
+def _take_over_same_source(conn: sa.Connection) -> None:
+    """The to-do of a platform item that was also imported into the gradebook (same source)
+    becomes the assessment's task, keeping what the user did with it."""
+    orphans = conn.execute(
+        sa.select(
+            assessments.c.id, assessments.c.user_id, assessments.c.source_kind,
+            assessments.c.source_ref,
+        )
+        .where(
+            assessments.c.source_kind.is_not(None),
+            assessments.c.source_ref.is_not(None),
+            assessments.c.id.not_in(
+                sa.select(tasks.c.assessment_id).where(tasks.c.assessment_id.is_not(None))
+            ),
+        )
+        .order_by(assessments.c.id)
+    ).all()  # fmt: skip
+    for a in orphans:
+        task_id = conn.scalar(
+            sa.select(tasks.c.id)
+            .where(
+                tasks.c.user_id == a.user_id,
+                tasks.c.assessment_id.is_(None),
+                tasks.c.source_kind == a.source_kind,
+                tasks.c.source_ref == a.source_ref,
+            )
+            .order_by(tasks.c.id)
+            .limit(1)
+        )
+        if task_id is not None:
+            conn.execute(tasks.update().where(tasks.c.id == task_id).values(assessment_id=a.id))
 
 
 def _term(conn: sa.Connection, course_id: str, due: date) -> str | None:

@@ -3,7 +3,7 @@
 Version 2 links a task to its assessment by `assessment_id` (grading is imported first, so the
 reference resolves). Version 1 (up to 1.15) linked them through `source_kind='assessment'` and
 `source_ref`, and assessment tasks were optional; `_v1_to_v2` converts such a backup the way
-migration 0033 converted the tables.
+migration 0033 converts the tables.
 """
 
 from datetime import date, datetime
@@ -22,9 +22,11 @@ def _rows(payload: dict[str, Any] | None, key: str) -> list[dict[str, Any]]:
 
 
 def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
-    """Links move to `assessment_id` (links to assessments the backup lacks are dropped), a task
-    of an assessment without a due date goes, and every dated assessment without a task gets one:
-    finished, as of the due date, when it is graded, dropped or already past due."""
+    """Links move to `assessment_id` (links to assessments the backup lacks are dropped); an
+    assessment without a task takes over the unlinked to-do of the same source (a Canvas
+    assignment imported both ways), as the app does, keeping what the user did with it; a task of
+    an assessment without a due date goes; and every dated assessment still without a task gets
+    one: finished, as of the due date, when it is graded, dropped or already past due."""
     assessments = {a["id"]: a for a in _rows(archive.payload("grading"), "assessments")}
     items: list[dict[str, Any]] = []
     for item in _rows(payload, "items"):
@@ -32,15 +34,33 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
             linked = assessments.get(item.get("source_ref"))
             item = {**item, "source_kind": "manual", "source_ref": None}
             if linked is not None:
-                if linked.get("due_at") is None:
-                    continue
                 item["assessment_id"] = linked["id"]
         items.append(item)
+    _take_over_same_source(items, assessments)
+    items = [
+        i
+        for i in items
+        if i.get("assessment_id") is None or assessments[i["assessment_id"]].get("due_at")
+    ]
     has_task = {i.get("assessment_id") for i in items}
     missing = [a for a in assessments.values() if a.get("due_at") and a["id"] not in has_task]
     missing.sort(key=lambda a: datetime.fromisoformat(a["due_at"]))
     items += _assessment_tasks(missing, items, archive)
     return {**payload, "items": items}
+
+
+def _take_over_same_source(
+    items: list[dict[str, Any]], assessments: dict[str, dict[str, Any]]
+) -> None:
+    linked = {i.get("assessment_id") for i in items}
+    unlinked: dict[tuple[Any, Any], dict[str, Any]] = {}
+    for i in items:
+        if i.get("assessment_id") is None and i.get("source_kind") and i.get("source_ref"):
+            unlinked.setdefault((i["source_kind"], i["source_ref"]), i)
+    for a in assessments.values():
+        source = (a.get("source_kind"), a.get("source_ref"))
+        if a["id"] not in linked and all(source) and (task := unlinked.pop(source, None)):
+            task["assessment_id"] = a["id"]
 
 
 def _assessment_tasks(

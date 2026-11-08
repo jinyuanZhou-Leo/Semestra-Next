@@ -2,19 +2,19 @@
   "schema_version": 1,
   "folders": [
     {
-      "id": "01a1b925-a544-76f5-9fbd-98b428cbcfab",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "id": "01a1b946-af90-7481-8e90-1db8df219ed0",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "parent_id": null,
       "name": "Lectures",
-      "created_at": "2026-11-08T03:13:34.532181+00:00",
-      "updated_at": "2026-11-08T03:13:34.532183+00:00"
+      "created_at": "2026-11-08T03:49:39.856396+00:00",
+      "updated_at": "2026-11-08T03:49:39.856398+00:00"
     }
   ],
   "items": [
     {
-      "id": "01a1b925-a54e-741f-869d-65180b8e2688",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "folder_id": "01a1b925-a544-76f5-9fbd-98b428cbcfab",
+      "id": "01a1b946-af9b-750c-b314-f4a90c651705",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "folder_id": "01a1b946-af90-7481-8e90-1db8df219ed0",
       "kind": "link",
       "display_name": "Syllabus",
       "original_name": null,
@@ -26,8 +26,8 @@
       "source_kind": null,
       "source_ref": null,
       "doc_status": "none",
-      "created_at": "2026-11-08T03:13:34.542415+00:00",
-      "updated_at": "2026-11-08T03:13:34.542417+00:00"
+      "created_at": "2026-11-08T03:49:39.867342+00:00",
+      "updated_at": "2026-11-08T03:49:39.867345+00:00"
     }
   ]
 }

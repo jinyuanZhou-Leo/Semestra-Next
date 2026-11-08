@@ -2,7 +2,7 @@
   "schema_version": 1,
   "providers": [
     {
-      "id": "01a1b925-a542-75b5-ba44-0ebd08d3323f",
+      "id": "01a1b946-af8f-7335-9bc7-14f10a67a27e",
       "kind": "openai",
       "display_name": "OpenAI",
       "base_url": null,
@@ -11,15 +11,15 @@
       ],
       "enabled": true,
       "max_concurrency": null,
-      "created_at": "2026-11-08T03:13:34.530982+00:00",
-      "updated_at": "2026-11-08T03:13:34.530984+00:00",
+      "created_at": "2026-11-08T03:49:39.855364+00:00",
+      "updated_at": "2026-11-08T03:49:39.855367+00:00",
       "had_key": true
     }
   ],
   "model_assignments": [
     {
       "purpose": "chat",
-      "provider_id": "01a1b925-a542-75b5-ba44-0ebd08d3323f",
+      "provider_id": "01a1b946-af8f-7335-9bc7-14f10a67a27e",
       "model": "gpt-5",
       "params": {}
     },

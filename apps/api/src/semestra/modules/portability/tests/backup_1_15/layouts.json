@@ -8,7 +8,7 @@
         "schedule"
       ],
       "hidden": [],
-      "updated_at": "2026-11-08T03:13:34.568572+00:00"
+      "updated_at": "2026-11-08T03:49:39.893144+00:00"
     }
   ],
   "templates": [
@@ -20,44 +20,44 @@
           "size": "2x1"
         }
       ],
-      "updated_at": "2026-11-08T03:13:34.569469+00:00"
+      "updated_at": "2026-11-08T03:49:39.893986+00:00"
     }
   ],
   "card_settings": [
     {
-      "instance_id": "01a1b925-a53f-76df-96fc-8f8fc9d49862",
+      "instance_id": "01a1b946-af8c-7439-9a4c-148ffe1f5902",
       "card_id": "sticky-note.note",
       "scope_type": "course",
-      "scope_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "scope_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "settings": {
         "text": "Remember the quiz",
-        "course": "01a1b925-a53d-72ad-b792-80a1768368f0"
+        "course": "01a1b946-af8a-763d-a1dd-96cd8b402b37"
       },
-      "updated_at": "2026-11-08T03:13:34.535265+00:00"
+      "updated_at": "2026-11-08T03:49:39.860181+00:00"
     },
     {
-      "instance_id": "01a1b925-a556-7192-b34a-990b2825f4fa",
+      "instance_id": "01a1b946-afa3-77ef-9e04-d4957592bdbc",
       "card_id": "pomodoro.timer",
       "scope_type": "program",
-      "scope_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "scope_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
       "settings": {},
-      "updated_at": "2026-11-08T03:13:34.567707+00:00"
+      "updated_at": "2026-11-08T03:49:39.892293+00:00"
     }
   ],
   "boards": [
     {
-      "id": "01a1b925-a567-766a-9bdb-4009425b4ab9",
+      "id": "01a1b946-afb3-74c5-9eab-c5267afa6632",
       "scope_type": "course",
-      "scope_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "scope_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "cards": [
         {
-          "instance_id": "01a1b925-a53f-76df-96fc-8f8fc9d49862",
+          "instance_id": "01a1b946-af8c-7439-9a4c-148ffe1f5902",
           "card_id": "sticky-note.note",
           "x": 0,
           "y": 0
         }
       ],
-      "updated_at": "2026-11-08T03:13:34.567231+00:00"
+      "updated_at": "2026-11-08T03:49:39.891765+00:00"
     }
   ]
 }

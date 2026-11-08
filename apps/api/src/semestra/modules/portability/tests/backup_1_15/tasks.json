@@ -2,24 +2,24 @@
   "schema_version": 1,
   "lists": [
     {
-      "id": "01a1b925-a54b-7761-8eec-fd9e5dad7bdc",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "id": "01a1b946-af97-7776-b136-2eb10f680547",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
       "term_id": null,
       "name": "Errands",
       "color": null,
       "icon": null,
       "position": 0,
-      "created_at": "2026-11-08T03:13:34.539039+00:00",
-      "updated_at": "2026-11-08T03:13:34.539041+00:00"
+      "created_at": "2026-11-08T03:49:39.863776+00:00",
+      "updated_at": "2026-11-08T03:49:39.863777+00:00"
     }
   ],
   "items": [
     {
-      "id": "01a1b925-a578-758b-a323-71f96c1a50db",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "list_id": "01a1b925-a54b-7761-8eec-fd9e5dad7bdc",
+      "id": "01a1b946-afc6-7362-b96f-4910ae9a6ae4",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "list_id": "01a1b946-af97-7776-b136-2eb10f680547",
       "title": "Study for the midterm",
       "notes": "",
       "due_date": "2025-10-19",
@@ -29,34 +29,34 @@
       "completed_at": null,
       "position": 0.0,
       "source_kind": "assessment",
-      "source_ref": "01a1b925-a556-7192-b34a-9909280034e8",
-      "created_at": "2026-11-08T03:13:34.584531+00:00",
-      "updated_at": "2026-11-08T03:13:34.584533+00:00"
+      "source_ref": "01a1b946-afa3-77ef-9e04-d4937d2434f5",
+      "created_at": "2026-11-08T03:49:39.910067+00:00",
+      "updated_at": "2026-11-08T03:49:39.910069+00:00"
     },
     {
-      "id": "01a1b925-a581-7144-aae6-9943904bfcca",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "list_id": null,
+      "id": "01a1b946-afd2-778e-a770-d313b35ba142",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "list_id": "01a1b946-af97-7776-b136-2eb10f680547",
       "title": "Lab report",
-      "notes": "",
+      "notes": "Bring the lab kit",
       "due_date": "2025-11-03",
       "due_time": null,
-      "priority": "none",
+      "priority": "high",
       "flagged": false,
-      "completed_at": null,
+      "completed_at": "2025-11-02T18:00:00+00:00",
       "position": 0.0,
       "source_kind": "lms",
-      "source_ref": "assignment:9002",
-      "created_at": "2026-11-08T03:13:34.593656+00:00",
-      "updated_at": "2026-11-08T03:13:34.593657+00:00"
+      "source_ref": "lms:01a1b946-af95-77c9-94ac-674e47a2cb3c:assignment:9002",
+      "created_at": "2026-11-08T03:49:39.922387+00:00",
+      "updated_at": "2026-11-08T03:49:39.922389+00:00"
     },
     {
-      "id": "01a1b925-a581-7144-aae6-99447509a705",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "id": "01a1b946-afd3-77b5-81fd-6b01a2fdd438",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
       "term_id": null,
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "list_id": null,
       "title": "Reading response",
       "notes": "",
@@ -67,15 +67,15 @@
       "completed_at": null,
       "position": 0.0,
       "source_kind": "lms",
-      "source_ref": "assignment:9003",
-      "created_at": "2026-11-08T03:13:34.593663+00:00",
-      "updated_at": "2026-11-08T03:13:34.593663+00:00"
+      "source_ref": "lms:01a1b946-af95-77c9-94ac-674e47a2cb3c:assignment:9003",
+      "created_at": "2026-11-08T03:49:39.923190+00:00",
+      "updated_at": "2026-11-08T03:49:39.923191+00:00"
     },
     {
-      "id": "01a1b925-a581-7144-aae6-99454e6f166d",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "id": "01a1b946-afd3-77b5-81fd-6b0237895bd6",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
       "term_id": null,
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "list_id": null,
       "title": "Participation",
       "notes": "",
@@ -86,9 +86,9 @@
       "completed_at": null,
       "position": 0.0,
       "source_kind": "assessment",
-      "source_ref": "01a1b925-a57e-7292-a795-a09bf37bcc5a",
-      "created_at": "2026-11-08T03:13:34.593667+00:00",
-      "updated_at": "2026-11-08T03:13:34.593667+00:00"
+      "source_ref": "01a1b946-afcf-71a5-9c27-2d794b0dfe8e",
+      "created_at": "2026-11-08T03:49:39.923198+00:00",
+      "updated_at": "2026-11-08T03:49:39.923198+00:00"
     }
   ]
 }

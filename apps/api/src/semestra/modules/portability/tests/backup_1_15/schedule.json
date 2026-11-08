@@ -2,8 +2,8 @@
   "schema_version": 1,
   "event_types": [
     {
-      "id": "01a1b925-a571-76d6-b9ca-a28bd2124021",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "id": "01a1b946-afbe-7239-9d4d-8d3ccbbe2c41",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
       "code": "LEC",
       "name": "Lecture",
       "color": null,
@@ -14,9 +14,9 @@
   ],
   "meetings": [
     {
-      "id": "01a1b925-a549-71c8-ae45-3987052b1331",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
+      "id": "01a1b946-af96-7511-b306-3f3390abc113",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
       "section_code": "",
       "type_code": "LEC",
       "title": null,
@@ -33,13 +33,13 @@
       "enabled": true,
       "source_kind": null,
       "source_ref": null,
-      "created_at": "2026-11-08T03:13:34.537964+00:00",
-      "updated_at": "2026-11-08T03:13:34.537966+00:00"
+      "created_at": "2026-11-08T03:49:39.862682+00:00",
+      "updated_at": "2026-11-08T03:49:39.862684+00:00"
     },
     {
-      "id": "01a1b925-a580-74ad-a539-722eca37f107",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
+      "id": "01a1b946-afd0-7779-a69a-d6c527b01e0d",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
       "section_code": "LEC0101",
       "type_code": "LEC",
       "title": null,
@@ -56,13 +56,13 @@
       "enabled": true,
       "source_kind": null,
       "source_ref": null,
-      "created_at": "2026-11-08T03:13:34.592210+00:00",
-      "updated_at": "2026-11-08T03:13:34.592212+00:00"
+      "created_at": "2026-11-08T03:49:39.920928+00:00",
+      "updated_at": "2026-11-08T03:49:39.920930+00:00"
     },
     {
-      "id": "01a1b925-a580-74ad-a539-722fb0c67344",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
+      "id": "01a1b946-afd0-7779-a69a-d6c6c975caf9",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
       "section_code": "LEC0101",
       "type_code": "LEC",
       "title": null,
@@ -79,14 +79,14 @@
       "enabled": true,
       "source_kind": null,
       "source_ref": null,
-      "created_at": "2026-11-08T03:13:34.592218+00:00",
-      "updated_at": "2026-11-08T03:13:34.592218+00:00"
+      "created_at": "2026-11-08T03:49:39.920937+00:00",
+      "updated_at": "2026-11-08T03:49:39.920938+00:00"
     }
   ],
   "meeting_exceptions": [
     {
-      "id": "01a1b925-a574-76a9-ae99-b3d5b5d4ac88",
-      "meeting_id": "01a1b925-a549-71c8-ae45-3987052b1331",
+      "id": "01a1b946-afc0-7766-abaa-901a520239a8",
+      "meeting_id": "01a1b946-af96-7511-b306-3f3390abc113",
       "original_date": "2025-09-08",
       "kind": "cancelled",
       "new_date": null,
@@ -97,8 +97,8 @@
       "imported": false
     },
     {
-      "id": "01a1b925-a583-7743-873d-865f29d4d85c",
-      "meeting_id": "01a1b925-a580-74ad-a539-722eca37f107",
+      "id": "01a1b946-afd5-73cd-8170-d5f7a777241a",
+      "meeting_id": "01a1b946-afd0-7779-a69a-d6c527b01e0d",
       "original_date": "2025-09-10",
       "kind": "cancelled",
       "new_date": null,
@@ -111,10 +111,10 @@
   ],
   "events": [
     {
-      "id": "01a1b925-a570-714e-a830-ba4e88032c9d",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
-      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "id": "01a1b946-afbd-770b-b3ee-ddd81395042e",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "term_id": "01a1b946-af8b-739c-8479-6edc00230565",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
       "type_code": null,
       "title": "Final exam",
       "start_at": "2025-12-15T14:00:00+00:00",
@@ -124,8 +124,8 @@
       "note": null,
       "source_kind": null,
       "source_ref": null,
-      "created_at": "2026-11-08T03:13:34.576926+00:00",
-      "updated_at": "2026-11-08T03:13:34.576928+00:00"
+      "created_at": "2026-11-08T03:49:39.901356+00:00",
+      "updated_at": "2026-11-08T03:49:39.901359+00:00"
     }
   ]
 }

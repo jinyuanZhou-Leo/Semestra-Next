@@ -48,9 +48,9 @@ async def test_a_1_15_backup_restores(
     )
     assert uploaded.status_code == 200, uploaded.text
     counts = uploaded.json()["preview"]["counts"]
-    # Counted after the conversion: three sections, and two tasks gained, one lost.
+    # Counted after the conversion: three sections; one task gained, one lost.
     assert counts["schedule"]["sections"] == 3
-    assert counts["tasks"]["items"] == 5
+    assert counts["tasks"]["items"] == 4
     assert counts["lms"]["refs"] == 3
 
     started = await client.post(
@@ -78,8 +78,9 @@ async def test_a_1_15_backup_restores(
                 )
             )
         }
-        # The linked task keeps its own title; dated assessments without one get one, finished
-        # when past due; the task of an assessment without a due date is gone.
+        # The linked task keeps its own title; the Canvas to-do of the assignment that was also
+        # imported into the gradebook becomes its task, as the user left it; the dated
+        # assessment without one gets one; the task of an assessment without a due date is gone.
         assert set(tasks) == {
             assessments["Midterm"],
             assessments["Lab report"],
@@ -87,12 +88,14 @@ async def test_a_1_15_backup_restores(
         }
         assert tasks[assessments["Midterm"]].title == "Study for the midterm"
         lab = tasks[assessments["Lab report"]]
-        assert (lab.title, lab.due_date, lab.due_time) == (
-            "APS100 · Lab report",
-            date(2025, 11, 3),
-            time(23, 59),
+        assert lab.list_id is not None
+        assert (lab.title, lab.source_kind, lab.priority, lab.notes, lab.completed_at) == (
+            "Lab report",
+            "lms",
+            "high",
+            "Bring the lab kit",
+            datetime(2025, 11, 2, 18, tzinfo=UTC),
         )
-        assert lab.completed_at == datetime(2025, 11, 4, 4, 59, tzinfo=UTC)
         project = tasks[assessments["Final project"]]
         assert (project.due_date, project.due_time, project.completed_at) == (
             date(2026, 4, 10),
@@ -100,8 +103,15 @@ async def test_a_1_15_backup_restores(
             None,
         )
         assert project.term_id is not None
-        titles = set(await db.scalars(select(TasksItem.title).where(TasksItem.user_id == user.id)))
-        assert "Participation" not in titles
+        titles = list(await db.scalars(select(TasksItem.title).where(TasksItem.user_id == user.id)))
+        assert sorted(titles) == sorted(
+            [
+                "Study for the midterm",
+                "Lab report",
+                "Reading response",
+                "APS100 · Final project",
+            ]
+        )
         assert set(
             await db.scalars(
                 select(TasksItem.source_kind).where(TasksItem.user_id == user.id).distinct()

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "connections": [
     {
-      "id": "01a1b925-a548-744a-9c3e-0e614485ec2e",
+      "id": "01a1b946-af95-77c9-94ac-674e47a2cb3c",
       "provider": "canvas",
       "display_name": "Quercus",
       "config": {
@@ -13,16 +13,16 @@
   ],
   "bindings": [
     {
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
-      "connection_id": "01a1b925-a548-744a-9c3e-0e614485ec2e"
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "connection_id": "01a1b946-af95-77c9-94ac-674e47a2cb3c"
     }
   ],
   "links": [
     {
-      "id": "01a1b925-a54f-7108-a46c-b31feb7dafbb",
-      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
-      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
-      "connection_id": "01a1b925-a548-744a-9c3e-0e614485ec2e",
+      "id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "connection_id": "01a1b946-af95-77c9-94ac-674e47a2cb3c",
       "external_course_id": "101",
       "external_code": "APS100",
       "external_name": null,
@@ -33,44 +33,44 @@
   ],
   "refs": [
     {
-      "link_id": "01a1b925-a54f-7108-a46c-b31feb7dafbb",
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
       "external_kind": "assignment",
       "external_id": "9001",
       "target_kind": "assessment",
-      "target_id": "01a1b925-a556-7192-b34a-9909280034e8",
+      "target_id": "01a1b946-afa3-77ef-9e04-d4937d2434f5",
       "snapshot": {
         "title": "Midterm"
       },
       "imported_at": "2026-01-15T12:00:00Z"
     },
     {
-      "link_id": "01a1b925-a54f-7108-a46c-b31feb7dafbb",
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
       "external_kind": "assignment",
       "external_id": "9002",
       "target_kind": "assessment",
-      "target_id": "01a1b925-a57d-7270-9e34-244fe8c38338",
+      "target_id": "01a1b946-afce-77fa-a313-4914d000e4ce",
       "snapshot": {
         "title": "Lab report"
       },
       "imported_at": "2026-01-15T12:00:00Z"
     },
     {
-      "link_id": "01a1b925-a54f-7108-a46c-b31feb7dafbb",
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
       "external_kind": "assignment",
       "external_id": "9002",
       "target_kind": "task",
-      "target_id": "01a1b925-a581-7144-aae6-9943904bfcca",
+      "target_id": "01a1b946-afd2-778e-a770-d313b35ba142",
       "snapshot": {
         "title": "Lab report"
       },
       "imported_at": "2026-01-15T12:00:00Z"
     },
     {
-      "link_id": "01a1b925-a54f-7108-a46c-b31feb7dafbb",
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
       "external_kind": "assignment",
       "external_id": "9003",
       "target_kind": "task",
-      "target_id": "01a1b925-a581-7144-aae6-99447509a705",
+      "target_id": "01a1b946-afd3-77b5-81fd-6b01a2fdd438",
       "snapshot": {
         "title": "Reading response"
       },
