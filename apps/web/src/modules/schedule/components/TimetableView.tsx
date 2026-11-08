@@ -1,26 +1,28 @@
-import type { Course, Meeting } from '@semestra/api-client'
+import type { Course } from '@semestra/api-client'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { sectionLabel } from '../labels'
 import { useConflicts } from '../queries'
+import type { SectionTime } from '../sections'
 import { type GridItem, WeekGrid, minutes, weekDays } from './WeekGrid'
 
 /** Enabled meetings as blocks of the weekly template; conflicting ones get a warning mark. */
 export function meetingGridItems(
-  meetings: readonly Meeting[],
+  times: readonly SectionTime[],
   courses: readonly Course[],
   conflicting: ReadonlySet<string>,
-  onClick?: (meeting: Meeting) => void,
+  onClick?: (time: SectionTime) => void,
   { bySection = false }: { bySection?: boolean } = {},
 ): GridItem[] {
-  return meetings
-    .filter((mt) => mt.enabled)
-    .map((mt) => {
-      const course = courses.find((c) => c.id === mt.course_id)
+  return times
+    .filter(({ meeting }) => meeting.enabled)
+    .map((time) => {
+      const { section, meeting: mt } = time
+      const course = courses.find((c) => c.id === section.course_id)
       const label = course ? courseLabel(course) : ''
       const parts = [
-        bySection ? null : mt.section_code || null,
-        mt.recurrence === 'biweekly' ? m.schedule_recurrence_biweekly() : null,
+        bySection ? null : section.section_code || null,
+        section.recurrence === 'biweekly' ? m.schedule_recurrence_biweekly() : null,
         mt.location,
       ].filter(Boolean)
       return {
@@ -29,10 +31,10 @@ export function meetingGridItems(
         start: minutes(mt.start_time),
         end: minutes(mt.end_time),
         color: course ? courseColor(course) : 'var(--subject-12)',
-        title: bySection ? sectionLabel(mt) : `${label} ${mt.type_code}`.trim(),
+        title: bySection ? sectionLabel(section) : `${label} ${section.type_code}`.trim(),
         subtitle: parts.join(' · ') || undefined,
         conflict: conflicting.has(mt.id),
-        onClick: onClick ? () => onClick(mt) : undefined,
+        onClick: onClick ? () => onClick(time) : undefined,
       }
     })
 }
@@ -49,7 +51,7 @@ export function useConflictingIds(termId: string): Set<string> {
  */
 export function TimetableView({
   termId,
-  meetings,
+  times,
   courses,
   dayStart,
   dayEnd,
@@ -57,18 +59,20 @@ export function TimetableView({
   onEditMeeting,
 }: {
   termId: string
-  meetings: readonly Meeting[]
+  times: readonly SectionTime[]
   courses: readonly Course[]
   dayStart: string
   dayEnd: string
   showWeekends: boolean
-  onEditMeeting: (meeting: Meeting) => void
+  onEditMeeting: (time: SectionTime) => void
 }) {
   const conflicting = useConflictingIds(termId)
   return (
     <WeekGrid
-      days={weekDays(showWeekends || meetings.some((mt) => mt.enabled && mt.weekday >= 6))}
-      items={meetingGridItems(meetings, courses, conflicting, onEditMeeting)}
+      days={weekDays(
+        showWeekends || times.some(({ meeting }) => meeting.enabled && meeting.weekday >= 6),
+      )}
+      items={meetingGridItems(times, courses, conflicting, onEditMeeting)}
       dayStart={minutes(dayStart)}
       dayEnd={minutes(dayEnd)}
       // The calendar's type sizes (FullCalendar's): 13px headers, compact blocks.

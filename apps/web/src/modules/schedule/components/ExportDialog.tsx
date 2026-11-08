@@ -1,4 +1,4 @@
-import type { Course, Meeting, Occurrence, TermWeek } from '@semestra/api-client'
+import type { Course, Occurrence, TermWeek } from '@semestra/api-client'
 import { calendarOccurrenceListOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarArrowDown, Image as ImageIcon, Link2, type LucideIcon } from 'lucide-react'
@@ -36,6 +36,7 @@ import { weekGridItems } from '../occurrence'
 import type { CalendarSettings } from '../queries'
 import { dayInWeek, localDay, plusDays, wallDate } from '../time'
 import { FeedPanel } from './FeedPanel'
+import type { SectionTime } from '../sections'
 import { meetingGridItems } from './TimetableView'
 import { type GridDay, WeekGrid, minutes, weekDays } from './WeekGrid'
 
@@ -62,9 +63,9 @@ export type ShareProps = {
   weeks: readonly TermWeek[]
   currentWeekStart: string
   courses: readonly Course[]
-  meetings: readonly Meeting[]
-  /** The meetings are still loading: the timetable template waits for them. */
-  meetingsPending?: boolean
+  times: readonly SectionTime[]
+  /** The sections are still loading: the timetable template waits for them. */
+  timesPending?: boolean
   sources: readonly CalendarSourceContribution[]
   defaultSources: readonly string[]
   hiddenCourses: readonly string[]
@@ -290,8 +291,8 @@ function ImagePanel({
   weeks,
   currentWeekStart,
   courses,
-  meetings,
-  meetingsPending = false,
+  times,
+  timesPending = false,
   sources,
   defaultSources,
   hiddenCourses,
@@ -344,9 +345,12 @@ function ImagePanel({
   const templateSheet = (): Sheet => ({
     key: 'template',
     title: `${termName} · ${m.schedule_view_timetable()}`,
-    days: weekDays(settings.show_weekends || meetings.some((mt) => mt.enabled && mt.weekday >= 6)),
+    days: weekDays(
+      settings.show_weekends ||
+        times.some(({ meeting }) => meeting.enabled && meeting.weekday >= 6),
+    ),
     items: meetingGridItems(
-      meetings.filter((mt) => !hidden.has(mt.course_id)),
+      times.filter(({ section }) => !hidden.has(section.course_id)),
       courses,
       new Set(),
     ),
@@ -521,9 +525,7 @@ function ImagePanel({
       </div>
       <DialogFooter>
         <Button
-          disabled={
-            busy || (range === 'template' ? meetingsPending : wanted.length === 0 || !fromDay)
-          }
+          disabled={busy || (range === 'template' ? timesPending : wanted.length === 0 || !fromDay)}
           onClick={() => void run()}
         >
           {busy ? m.schedule_exporting() : m.schedule_export_save({ format: format.toUpperCase() })}

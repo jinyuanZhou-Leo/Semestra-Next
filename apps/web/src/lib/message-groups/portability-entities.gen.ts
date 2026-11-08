@@ -21,5 +21,6 @@ export const portabilityEntityMessages = {
   portability_entity_plugins_builtin_pomodoro_sessions: m.portability_entity_plugins_builtin_pomodoro_sessions,
   portability_entity_schedule_events: m.portability_entity_schedule_events,
   portability_entity_schedule_meetings: m.portability_entity_schedule_meetings,
+  portability_entity_schedule_sections: m.portability_entity_schedule_sections,
   portability_entity_tasks_items: m.portability_entity_tasks_items,
 } as unknown as Readonly<Record<string, MessageFn | undefined>>

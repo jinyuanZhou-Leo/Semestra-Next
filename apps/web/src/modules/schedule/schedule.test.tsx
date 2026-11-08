@@ -1,4 +1,4 @@
-import type { EventType, Meeting, OneOffEvent, Occurrence } from '@semestra/api-client'
+import type { EventType, Meeting, OneOffEvent, Occurrence, Section } from '@semestra/api-client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
@@ -105,25 +105,33 @@ const types: EventType[] = ['LEC', 'PRA', 'TUT'].map((code, position) => ({
 
 const meeting: Meeting = {
   id: 'm1',
-  course_id: 'c1',
-  term_id: 't2',
-  section_code: 'LEC0101',
-  type_code: 'LEC',
+  section_id: 's1',
   title: null,
-  instructor: null,
   location: 'BA 1160',
   weekday: 1,
   start_time: '10:00:00',
   end_time: '11:00:00',
+  enabled: true,
+  source_kind: null,
+  source_ref: null,
+  exceptions: [],
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+}
+
+const section: Section = {
+  id: 's1',
+  course_id: 'c1',
+  term_id: 't2',
+  section_code: 'LEC0101',
+  type_code: 'LEC',
+  instructor: null,
   recurrence: 'weekly',
   anchor_week: 1,
   start_week: 1,
   end_week: null,
   skip_breaks: true,
-  enabled: true,
-  source_kind: null,
-  source_ref: null,
-  exceptions: [],
+  meetings: [meeting],
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -164,10 +172,10 @@ function scheduleHandlers(log: Log) {
         breaks: [],
       }),
     ),
-    http.get(`${API}/courses/:id/meetings`, ({ params }) =>
-      HttpResponse.json({ items: params.id === 'c1' ? [meeting] : [] }),
+    http.get(`${API}/courses/:id/sections`, ({ params }) =>
+      HttpResponse.json({ items: params.id === 'c1' ? [section] : [] }),
     ),
-    http.get(`${API}/terms/:id/meetings`, () => HttpResponse.json({ items: [meeting] })),
+    http.get(`${API}/terms/:id/sections`, () => HttpResponse.json({ items: [section] })),
     http.get(`${API}/terms/:id/schedule-conflicts`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/events`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs/:id/calendar-feed`, () => HttpResponse.json({ feed: null })),
@@ -300,7 +308,7 @@ test('the week view asks for no meetings, events or feeds before they are needed
     server.events.removeListener('request:start', listen)
   }
   expect(gets).toContain('/programs/p1/calendar')
-  expect(gets.filter((path) => /\/meetings$|\/events$|\/calendar-feed$/.test(path))).toEqual([])
+  expect(gets.filter((path) => /\/sections$|\/events$|\/calendar-feed$/.test(path))).toEqual([])
 })
 
 test('the calendar asks for the week it opens on without waiting for it to draw, then the weeks either side', async () => {
@@ -648,10 +656,15 @@ test('the course schedule shows a full-width week, one row per section, and add 
 
 test('"keep only this section" keeps all its days and hides the other sections in one request', async () => {
   const wednesday = { ...meeting, id: 'm1b', weekday: 3 }
-  const other = { ...meeting, id: 'm2', section_code: 'LEC0201', weekday: 2 }
+  const other = {
+    ...section,
+    id: 's2',
+    section_code: 'LEC0201',
+    meetings: [{ ...meeting, id: 'm2', section_id: 's2', weekday: 2 }],
+  }
   server.use(
-    http.get(`${API}/courses/:id/meetings`, () =>
-      HttpResponse.json({ items: [meeting, wednesday, other] }),
+    http.get(`${API}/courses/:id/sections`, () =>
+      HttpResponse.json({ items: [{ ...section, meetings: [meeting, wednesday] }, other] }),
     ),
     http.put(`${API}/courses/:id/meetings\\:enabled`, async ({ request }) => {
       log.requests.push({
@@ -686,7 +699,7 @@ test('a new section is saved with all its times in one request', async () => {
         path: new URL(request.url).pathname,
         body: await request.json(),
       })
-      return HttpResponse.json({ items: [] })
+      return HttpResponse.json({ ...section, id: 's2', section_code: 'LEC0201' })
     }),
   )
   mount('/p/p1/c/c1/schedule')
@@ -700,13 +713,13 @@ test('a new section is saved with all its times in one request', async () => {
   const saves = () => log.requests.filter((r) => r.path === '/courses/c1/sections')
   await waitFor(() => expect(saves()).toHaveLength(1))
   const body = saves()[0]!.body as {
+    section_id: string | null
     section_code: string
     type_code: string
-    meeting_ids: string[]
     weeks: unknown
     times: Array<{ meeting_id: string | null; weekday: number }>
   }
-  expect([body.section_code, body.type_code, body.meeting_ids]).toEqual(['LEC0201', 'LEC', []])
+  expect([body.section_id, body.section_code, body.type_code]).toEqual([null, 'LEC0201', 'LEC'])
   // Weeks stay hidden on "Whole term": every week, breaks skipped.
   expect(body.weeks).toEqual({
     recurrence: 'weekly',

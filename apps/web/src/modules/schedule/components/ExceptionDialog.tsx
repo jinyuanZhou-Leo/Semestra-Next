@@ -1,4 +1,4 @@
-import type { Meeting, Term } from '@semestra/api-client'
+import type { Term } from '@semestra/api-client'
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import { CalendarIcon, Clock2 } from 'lucide-react'
@@ -34,6 +34,7 @@ import {
 } from '@/ui/select'
 import { Textarea } from '@/ui/textarea'
 import { sectionLabel } from '../labels'
+import type { SectionTime } from '../sections'
 import { useTerms } from '@/modules/academics/queries'
 import { invalidateSchedule, occurrenceOptions } from '../queries'
 import { localDay, plusDays, weekdayName } from '../time'
@@ -152,7 +153,7 @@ export function ExceptionDialog({
   courseId,
   termId,
   today,
-  meetings,
+  times,
   open,
   onOpenChange,
 }: {
@@ -161,14 +162,14 @@ export function ExceptionDialog({
   termId: string
   /** Today in the Program's time zone. */
   today: string
-  /** The sections that can be picked: the switched-on ones, in the tables' order. */
-  meetings: Meeting[]
+  /** The times that can be picked: the switched-on ones, in the tables' order. */
+  times: SectionTime[]
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
   const queryClient = useQueryClient()
-  const [meetingId, setMeetingId] = useState(meetings[0]?.id ?? '')
+  const [meetingId, setMeetingId] = useState(times[0]?.meeting.id ?? '')
   const [originalDate, setOriginalDate] = useState('')
   const [kind, setKind] = useState<'cancelled' | 'moved'>('cancelled')
   const [date, setDate] = useState('')
@@ -178,7 +179,7 @@ export function ExceptionDialog({
   const [location, setLocation] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [touched, setTouched] = useState(false)
-  const meeting = meetings.find((mt) => mt.id === meetingId)
+  const meeting = times.find((t) => t.meeting.id === meetingId)?.meeting
   const term = useTerms(programId).data?.items.find((t) => t.id === termId)
   const classDays = useClassDays(programId, courseId, term)
   const meetingDays = meeting ? classDays?.get(meeting.id) : undefined
@@ -235,9 +236,9 @@ export function ExceptionDialog({
     })
   }
 
-  const items = meetings.map((mt) => ({
+  const items = times.map(({ section, meeting: mt }) => ({
     value: mt.id,
-    label: `${sectionLabel(mt)} · ${weekdayName(mt.weekday, 'short')} ${formatTime(mt.start_time)} – ${formatTime(mt.end_time)}`,
+    label: `${sectionLabel(section)} · ${weekdayName(mt.weekday, 'short')} ${formatTime(mt.start_time)} – ${formatTime(mt.end_time)}`,
   }))
 
   return (

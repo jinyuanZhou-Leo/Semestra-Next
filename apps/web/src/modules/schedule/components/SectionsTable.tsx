@@ -1,4 +1,4 @@
-import type { EventType, Meeting } from '@semestra/api-client'
+import type { EventType, Meeting, Section } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { ChevronRight, ListFilter, Pencil, Plus, Trash2 } from 'lucide-react'
 import { createContext, use, useState } from 'react'
@@ -10,34 +10,10 @@ import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
-import { typeName } from '../labels'
+import { sectionLabel, typeName } from '../labels'
+import { weeksText } from '../sections'
 import { weekdayName } from '../time'
 import { ActionsHeader } from './ActionsHeader'
-
-/** A section (e.g. LEC0101) with its meetings, in weekday order. */
-export type Section = { key: string; code: string; typeCode: string; meetings: Meeting[] }
-
-/** The weeks a meeting runs, e.g. "Biweekly (week 2) · Weeks 1–12". */
-/** Whether a time runs every week of the term, skipping breaks: the section dialog's default. */
-export const wholeTerm = (mt: Meeting) =>
-  mt.recurrence === 'weekly' && mt.start_week === 1 && mt.end_week == null && mt.skip_breaks
-
-export function weeksText(mt: Meeting): string {
-  if (wholeTerm(mt)) return m.schedule_weeks_whole_term()
-  const range = mt.end_week
-    ? m.schedule_weeks_range({ start: mt.start_week, end: mt.end_week })
-    : m.schedule_weeks_from({ start: mt.start_week })
-  return mt.recurrence === 'biweekly'
-    ? `${m.schedule_recurrence_biweekly()} (${m.schedule_week_number({ number: mt.anchor_week })}) · ${range}`
-    : range
-}
-
-const weeksKey = (mt: Meeting) =>
-  [mt.recurrence, mt.anchor_week, mt.start_week, mt.end_week, mt.skip_breaks].join('|')
-
-/** Whether the meetings of a section run in different weeks. */
-export const weeksDiffer = (meetings: readonly Meeting[]) =>
-  new Set(meetings.map(weeksKey)).size > 1
 
 const timeRange = (mt: Meeting) => `${formatTime(mt.start_time)} – ${formatTime(mt.end_time)}`
 
@@ -56,31 +32,21 @@ function timesSummary(meetings: readonly Meeting[]): string {
     .join(' · ')
 }
 
-/** Groups meetings into sections, in the order of the Program's types, then by section code. */
-export function sectionsOf(meetings: readonly Meeting[], types: readonly EventType[]): Section[] {
+/** Sections in the order of the Program's types, then by section code. */
+export function sortSections(sections: readonly Section[], types: readonly EventType[]): Section[] {
   const typeOrder = (code: string) => {
     const i = types.findIndex((t) => t.code === code)
     return i === -1 ? types.length : i
   }
-  const sorted = meetings.toSorted(
+  const firstTime = (s: Section) => s.meetings[0]
+  return sections.toSorted(
     (a, b) =>
       typeOrder(a.type_code) - typeOrder(b.type_code) ||
       a.type_code.localeCompare(b.type_code) ||
       a.section_code.localeCompare(b.section_code, undefined, { numeric: true }) ||
-      a.weekday - b.weekday ||
-      a.start_time.localeCompare(b.start_time),
+      (firstTime(a)?.weekday ?? 0) - (firstTime(b)?.weekday ?? 0) ||
+      (firstTime(a)?.start_time ?? '').localeCompare(firstTime(b)?.start_time ?? ''),
   )
-  // A meeting without a section code is a section of its own.
-  const sections: Section[] = []
-  for (const mt of sorted) {
-    const last = sections.at(-1)
-    if (mt.section_code && last?.code === mt.section_code && last.typeCode === mt.type_code) {
-      last.meetings.push(mt)
-    } else {
-      sections.push({ key: mt.id, code: mt.section_code, typeCode: mt.type_code, meetings: [mt] })
-    }
-  }
-  return sections
 }
 
 /** A table row: a section, or one of its meetings while the section is expanded. */
@@ -100,7 +66,7 @@ type TableState = {
   onExpand: (key: string) => void
   onToggle: (ids: string[], enabled: boolean) => void
   onKeepOnly: (keep: string[], others: string[]) => void
-  onEdit: (meeting: Meeting) => void
+  onEdit: (section: Section, meeting: Meeting) => void
   onEditSection: (section: Section, withNewTime: boolean) => void
   onDeleteSection: (section: Section) => void
 }
@@ -119,13 +85,13 @@ type CellProps = CellContext<typeof features, Row>
 /** A switched-off section's or meeting's text is dimmed; its switch and menu stay readable. */
 const dim = (on: boolean) => cn(!on && 'text-muted-foreground opacity-60')
 const sectionOn = (section: Section) => section.meetings.some((mt) => mt.enabled)
-const sectionName = (section: Section) => section.code || section.typeCode
+const sectionName = (section: Section) => sectionLabel(section)
 
 function ExpandCell({ row }: CellProps) {
   const { expanded, onExpand } = useSections()
   const r = row.original
   if (r.kind !== 'section') return null
-  const open = expanded.has(r.section.key)
+  const open = expanded.has(r.section.id)
   return (
     <Button
       variant="ghost"
@@ -136,7 +102,7 @@ function ExpandCell({ row }: CellProps) {
           ? m.schedule_section_collapse({ section: sectionName(r.section) })
           : m.schedule_section_expand({ section: sectionName(r.section) })
       }
-      onClick={() => onExpand(r.section.key)}
+      onClick={() => onExpand(r.section.id)}
     >
       <ChevronRight
         aria-hidden
@@ -185,13 +151,14 @@ function SectionCell({ row }: CellProps) {
   const r = row.original
   if (r.kind !== 'section') return null
   const { section } = r
-  const type = types.find((t) => t.code === section.typeCode)
-  const instructor = section.meetings.find((mt) => mt.instructor)?.instructor
-  const detail = [type ? typeName(type) : section.typeCode, instructor].filter(Boolean).join(' · ')
+  const type = types.find((t) => t.code === section.type_code)
+  const detail = [type ? typeName(type) : section.type_code, section.instructor]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <div className={cn('min-w-0', dim(sectionOn(section)))}>
       <div className="flex items-center gap-2 font-medium">
-        <span className="truncate">{section.code || '—'}</span>
+        <span className="truncate">{section.section_code || '—'}</span>
         {section.meetings.some((mt) => conflicting.has(mt.id)) ? (
           <Badge variant="destructive">{m.schedule_conflict()}</Badge>
         ) : null}
@@ -234,21 +201,13 @@ function LocationCell({ row }: CellProps) {
   )
 }
 
-/** A section's weeks; when its meetings differ, each meeting shows its own. */
+/** The section's weeks, which all of its times share. */
 function WeeksCell({ row }: CellProps) {
   const r = row.original
-  const differ = weeksDiffer(r.section.meetings)
-  if (r.kind === 'section') {
-    const first = r.section.meetings[0]
-    return (
-      <span className={cn('block truncate', dim(sectionOn(r.section)))}>
-        {differ || !first ? m.schedule_weeks_vary() : weeksText(first)}
-      </span>
-    )
-  }
-  return differ ? (
-    <span className={cn('block truncate', dim(r.meeting.enabled))}>{weeksText(r.meeting)}</span>
-  ) : null
+  if (r.kind !== 'section') return null
+  return (
+    <span className={cn('block truncate', dim(sectionOn(r.section)))}>{weeksText(r.section)}</span>
+  )
 }
 
 function ActionsCell({ row }: CellProps) {
@@ -262,7 +221,7 @@ function ActionsCell({ row }: CellProps) {
           day: weekdayName(r.meeting.weekday),
         })}
       >
-        <DropdownMenuItem onClick={() => onEdit(r.meeting)}>
+        <DropdownMenuItem onClick={() => onEdit(r.section, r.meeting)}>
           <Pencil aria-hidden />
           {m.schedule_meeting_edit()}
         </DropdownMenuItem>
@@ -273,7 +232,7 @@ function ActionsCell({ row }: CellProps) {
   const own = section.meetings
   // "Keep only this one" switches off the other sections of the same type.
   const others = sections
-    .filter((s) => s !== section && s.typeCode === section.typeCode)
+    .filter((s) => s.id !== section.id && s.type_code === section.type_code)
     .flatMap((s) => s.meetings)
   return (
     <RowMenu label={m.schedule_section_actions({ section: sectionName(section) })}>
@@ -341,10 +300,10 @@ const COLUMN_CLASS: Record<string, string> = {
  */
 export function SectionsTable({
   types,
-  meetings,
+  sections: unsorted,
   ...state
-}: Omit<TableState, 'sections' | 'expanded' | 'onExpand'> & { meetings: readonly Meeting[] }) {
-  const sections = sectionsOf(meetings, types)
+}: Omit<TableState, 'expanded' | 'onExpand'>) {
+  const sections = sortSections(unsorted, types)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const onExpand = (key: string) =>
     setExpanded((prev) => {
@@ -353,8 +312,8 @@ export function SectionsTable({
       return next
     })
   const rows: Row[] = sections.flatMap((section) => [
-    { kind: 'section' as const, id: `s:${section.key}`, section },
-    ...(expanded.has(section.key)
+    { kind: 'section' as const, id: `s:${section.id}`, section },
+    ...(expanded.has(section.id)
       ? section.meetings.map((meeting) => ({
           kind: 'meeting' as const,
           id: `m:${meeting.id}`,

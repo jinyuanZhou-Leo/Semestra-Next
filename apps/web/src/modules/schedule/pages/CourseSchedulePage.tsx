@@ -1,8 +1,8 @@
-import type { Course, Meeting, OneOffEvent } from '@semestra/api-client'
+import type { Course, OneOffEvent, Section } from '@semestra/api-client'
 import {
   scheduleExceptionDeleteMutation,
   scheduleMeetingSetEnabledMutation,
-  scheduleSectionSaveMutation,
+  scheduleSectionDeleteMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -38,18 +38,20 @@ import { EventsTable } from '../components/EventsTable'
 import { ExceptionDialog } from '../components/ExceptionDialog'
 import { ExceptionsTable } from '../components/ExceptionsTable'
 import { MeetingDialog } from '../components/MeetingDialog'
-import { type Section, SectionsTable } from '../components/SectionsTable'
+import { SectionsTable, sortSections } from '../components/SectionsTable'
 import { SectionDialog } from '../components/SectionDialog'
 import { meetingGridItems, useConflictingIds } from '../components/TimetableView'
 import { WeekGrid, minutes, weekDays } from '../components/WeekGrid'
 import { useProgramTimezone } from '../hooks'
+import { sectionLabel } from '../labels'
+import { type SectionTime, sectionTimes } from '../sections'
 import { todayIn } from '../time'
 import {
   invalidateSchedule,
   useCalendarSettingsState,
   useEvents,
   useEventTypes,
-  useMeetings,
+  useSections,
 } from '../queries'
 import { MEETING_IMPORT_SOURCES, type MeetingImportSource } from '../types'
 
@@ -111,7 +113,7 @@ function TermSchedule({
   timezone: string
 }) {
   const queryClient = useQueryClient()
-  const meetings = useMeetings(course.id, termId).data?.items ?? []
+  const sections = useSections(course.id, termId).data?.items ?? []
   const types = useEventTypes(programId).data?.items ?? []
   const events = (useEvents(programId, { course_id: course.id }).data?.items ?? []).filter(
     (e) => !e.term_id || e.term_id === termId,
@@ -123,7 +125,7 @@ function TermSchedule({
       .launch({ programId, courseId: course.id, termId })
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
-  const [editing, setEditing] = useState<Meeting | null>(null)
+  const [editing, setEditing] = useState<SectionTime | null>(null)
   const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
   const [exceptionAdd, setExceptionAdd] = useState(false)
   const [sectionAdd, setSectionAdd] = useState(false)
@@ -132,10 +134,8 @@ function TermSchedule({
     withNewTime: boolean
   } | null>(null)
   const [sectionDelete, setSectionDelete] = useState<Section | null>(null)
-  // One request (`schedule.section.save` with no times): ids already gone are skipped, so a
-  // retry after a failure finishes the job.
   const removeSection = useMutation({
-    ...scheduleSectionSaveMutation(),
+    ...scheduleSectionDeleteMutation(),
     onError: toastError,
     onSuccess: () => setSectionDelete(null),
     onSettled: () => invalidateSchedule(queryClient),
@@ -159,26 +159,18 @@ function TermSchedule({
       body: { meeting_ids: keep, enabled: true, other_meeting_ids: others },
     })
 
-  const typeCodes = [
-    ...types.map((t) => t.code).filter((code) => meetings.some((mt) => mt.type_code === code)),
-    ...new Set(
-      meetings.map((mt) => mt.type_code).filter((code) => !types.some((t) => t.code === code)),
-    ),
-  ]
-  const exceptions = meetings
-    .flatMap((mt) => mt.exceptions.map((exc) => ({ meeting: mt, exc })))
+  const exceptions = sectionTimes(sections)
+    .flatMap(({ section, meeting }) => meeting.exceptions.map((exc) => ({ section, meeting, exc })))
     .toSorted((a, b) => a.exc.original_date.localeCompare(b.exc.original_date))
 
-  const enabled = meetings.filter((mt) => mt.enabled)
-  // The classes that can be cancelled or moved: switched-on sections, in the tables' order.
-  const cancellable = typeCodes.flatMap((code) =>
-    enabled
-      .filter((mt) => mt.type_code === code)
+  // The classes that can be cancelled or moved: switched-on times, in the tables' order.
+  const enabled = sortSections(sections, types).flatMap((section) =>
+    sectionTimes([section])
+      .filter(({ meeting }) => meeting.enabled)
       .toSorted(
         (a, b) =>
-          a.section_code.localeCompare(b.section_code, undefined, { numeric: true }) ||
-          a.weekday - b.weekday ||
-          a.start_time.localeCompare(b.start_time),
+          a.meeting.weekday - b.meeting.weekday ||
+          a.meeting.start_time.localeCompare(b.meeting.start_time),
       ),
   )
   // The whole week and day of the Program's calendar settings; the grid widens for classes
@@ -211,14 +203,14 @@ function TermSchedule({
           description={m.schedule_meetings_hint()}
         >
           {importMenu}
-          {meetings.length > 0 ? (
+          {sections.length > 0 ? (
             <Button size="sm" variant="outline" onClick={() => setSectionAdd(true)}>
               <Plus aria-hidden />
               {m.schedule_section_new_title()}
             </Button>
           ) : null}
         </SectionHeader>
-        {meetings.length === 0 ? (
+        {sections.length === 0 ? (
           <Empty className="rounded-2xl border border-solid border-border p-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -256,7 +248,9 @@ function TermSchedule({
                   <div aria-hidden className="h-[calc(14*44px+3.5rem)]" />
                 ) : (
                   <WeekGrid
-                    days={weekDays(calendar.show_weekends || enabled.some((mt) => mt.weekday >= 6))}
+                    days={weekDays(
+                      calendar.show_weekends || enabled.some(({ meeting }) => meeting.weekday >= 6),
+                    )}
                     items={gridItems}
                     dayStart={minutes(calendar.day_start)}
                     dayEnd={minutes(calendar.day_end)}
@@ -267,12 +261,12 @@ function TermSchedule({
             )}
             <SectionsTable
               types={types}
-              meetings={meetings}
+              sections={sections}
               conflicting={conflicting}
               busy={setEnabled.isPending}
               onToggle={toggle}
               onKeepOnly={keepOnly}
-              onEdit={setEditing}
+              onEdit={(section, meeting) => setEditing({ section, meeting })}
               onEditSection={(section, withNewTime) => setSectionEdit({ section, withNewTime })}
               onDeleteSection={setSectionDelete}
             />
@@ -312,14 +306,14 @@ function TermSchedule({
         )}
       </section>
 
-      {meetings.length > 0 || exceptions.length > 0 ? (
+      {sections.length > 0 || exceptions.length > 0 ? (
         <section aria-labelledby={`${termId}-exceptions`} className="space-y-3">
           <SectionHeader
             id={`${termId}-exceptions`}
             title={m.schedule_exceptions()}
             description={m.schedule_exceptions_hint()}
           >
-            {exceptions.length > 0 && cancellable.length > 0 ? (
+            {exceptions.length > 0 && enabled.length > 0 ? (
               <Button size="sm" variant="outline" onClick={() => setExceptionAdd(true)}>
                 <Plus aria-hidden />
                 {m.schedule_exception_add()}
@@ -334,7 +328,7 @@ function TermSchedule({
                 </EmptyMedia>
                 <EmptyTitle>{m.schedule_exceptions_empty()}</EmptyTitle>
               </EmptyHeader>
-              {cancellable.length > 0 ? (
+              {enabled.length > 0 ? (
                 <EmptyContent>
                   <Button size="sm" variant="link" onClick={() => setExceptionAdd(true)}>
                     {m.schedule_exception_add()}
@@ -358,8 +352,9 @@ function TermSchedule({
 
       {editing ? (
         <MeetingDialog
-          key={editing.id}
-          meeting={editing}
+          key={editing.meeting.id}
+          section={editing.section}
+          meeting={editing.meeting}
           open
           onOpenChange={(open) => !open && setEditing(null)}
         />
@@ -376,12 +371,12 @@ function TermSchedule({
       ) : null}
       {sectionEdit ? (
         <SectionDialog
-          key={sectionEdit.section.key}
+          key={sectionEdit.section.id}
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.section.typeCode}
-          meetings={sectionEdit.section.meetings}
+          typeCode={sectionEdit.section.type_code}
+          section={sectionEdit.section}
           withNewTime={sectionEdit.withNewTime}
           open
           onOpenChange={(open) => !open && setSectionEdit(null)}
@@ -390,24 +385,15 @@ function TermSchedule({
       <ConfirmDialog
         open={sectionDelete !== null}
         onOpenChange={(open) => !open && setSectionDelete(null)}
-        title={m.schedule_section_delete_title({ section: sectionDelete?.code ?? '' })}
+        title={m.schedule_section_delete_title({
+          section: sectionDelete ? sectionLabel(sectionDelete) : '',
+        })}
         description={m.schedule_section_delete_description()}
         confirmLabel={m.schedule_section_delete()}
         pending={removeSection.isPending}
-        onConfirm={() => {
-          const first = sectionDelete?.meetings[0]
-          if (!sectionDelete || !first) return
-          removeSection.mutate({
-            path: { course_id: course.id },
-            body: {
-              term_id: first.term_id,
-              meeting_ids: sectionDelete.meetings.map((mt) => mt.id),
-              type_code: first.type_code,
-              section_code: first.section_code,
-              times: [],
-            },
-          })
-        }}
+        onConfirm={() =>
+          sectionDelete && removeSection.mutate({ path: { section_id: sectionDelete.id } })
+        }
       />
       {exceptionAdd ? (
         <ExceptionDialog
@@ -415,7 +401,7 @@ function TermSchedule({
           courseId={course.id}
           termId={termId}
           today={todayIn(timezone)}
-          meetings={cancellable}
+          times={enabled}
           open
           onOpenChange={(open) => !open && setExceptionAdd(false)}
         />

@@ -460,6 +460,7 @@ const OVERVIEW: OverviewRow[] = [
     tables: [
       ['tasks_items', m.portability_entity_tasks_items],
       ['schedule_events', m.portability_entity_schedule_events],
+      ['schedule_sections', m.portability_entity_schedule_sections],
       ['schedule_meetings', m.portability_entity_schedule_meetings],
     ],
   },
