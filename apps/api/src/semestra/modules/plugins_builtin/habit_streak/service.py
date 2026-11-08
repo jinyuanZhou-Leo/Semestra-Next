@@ -37,7 +37,7 @@ async def _days(ctx: Ctx, instance_id: str) -> set[date]:
     return set(rows)
 
 
-def _goal(settings: dict[str, Any]) -> tuple[str, int]:
+def goal_of(settings: dict[str, Any]) -> tuple[str, int]:
     goal = "weekly" if settings.get("goal", DEFAULT_GOAL) == "weekly" else "daily"
     target = settings.get("weekly_target", DEFAULT_WEEKLY_TARGET)
     if not isinstance(target, int) or isinstance(target, bool) or not 1 <= target <= 7:
@@ -48,7 +48,7 @@ def _goal(settings: dict[str, Any]) -> tuple[str, int]:
 async def _stats(
     ctx: Ctx, instance: instances.CardInstance, today: date, days: set[date]
 ) -> HabitStreakGet:
-    goal, target = _goal(instance.settings)
+    goal, target = goal_of(instance.settings)
     week_start = await academics.week_start(ctx)
     if goal == "weekly":
         current, longest = streak.weekly_streaks(days, today, target, week_start)
@@ -68,6 +68,19 @@ async def _stats(
         week_start=week_start,
         checked_today=today in days,
     )
+
+
+async def left_today(ctx: Ctx, instance: instances.CardInstance, today: date) -> int:
+    """Check-ins still due for the running period, 0 when nothing is due today: today is
+    checked, or the week already reached its target (the daily reminder, M18)."""
+    days = await _days(ctx, instance.instance_id)
+    if today in days:
+        return 0
+    goal, target = goal_of(instance.settings)
+    if goal != "weekly":
+        return 1
+    week_start = await academics.week_start(ctx)
+    return max(target - streak.week_count(days, today, week_start), 0)
 
 
 async def stats(ctx: Ctx, instance_id: str) -> HabitStreakGet:

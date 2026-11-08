@@ -5,7 +5,12 @@ into pushes, and `reminders.py` plans reminders from the calendar (M04)."""
 
 from fastapi import FastAPI
 
-from semestra.modules.notifications import capabilities, reminders, subscribers  # noqa: F401
+from semestra.modules.notifications import (  # noqa: F401  (registers on import)
+    capabilities,
+    reminders,
+    subscribers,
+    watch,
+)
 from semestra.modules.notifications.settings import NotificationsSettings
 from semestra.modules.settings import register_settings
 

@@ -3,5 +3,6 @@
 from semestra.modules.plugins_builtin.habit_streak import (  # noqa: F401  (registers on import)
     capabilities,
     models,
+    reminders,
     subscribers,
 )

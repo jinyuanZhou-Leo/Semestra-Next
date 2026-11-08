@@ -1,7 +1,14 @@
+import { Clock2 } from 'lucide-react'
 import { useId } from 'react'
 import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
+import { cn } from '@/lib/utils'
+import { TIME_INPUT } from '@/lib/time-input'
+import { useDeviceState } from '@/modules/notifications/push'
 import { m } from '@/paraglide/messages'
+import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { ItemSeparator } from '@/ui/item'
 import { ColorSwatch } from '@/components/ColorSwatch'
 import { RadioGroup } from '@/ui/radio-group'
 import { Switch } from '@/ui/switch'
@@ -23,9 +30,12 @@ const COLOR_NAMES: Record<(typeof COLOR_TOKENS)[number], () => string> = {
   'subject-11': m.habit_color_subject_11,
 }
 
-/** Settings form of both habit cards (name, icon, goal, color). */
+/** Settings form of the habit card (name, icon, color, goal, daily reminder). */
 export default function HabitSettingsForm({ value, onChange }: Props) {
   const id = useId()
+  const device = useDeviceState()
+  // The reminder is a notification: say so when this device would not show it.
+  const deviceOff = value.remind && device !== 'on' && device !== 'checking'
   const set = (patch: Partial<HabitSettings>) => onChange({ ...value, ...patch })
   return (
     <div className="space-y-4">
@@ -138,6 +148,48 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
               />
             )}
           </SettingRow>,
+        ]}
+      </SettingsGroup>
+      <SettingsGroup>
+        {[
+          <Collapsible key="remind" open={value.remind}>
+            <SettingRow
+              label={m.habit_settings_remind_label()}
+              description={deviceOff ? m.habit_settings_remind_device_off() : undefined}
+            >
+              {(labelId) => (
+                <Switch
+                  aria-labelledby={labelId}
+                  checked={value.remind}
+                  onCheckedChange={(remind) => set({ remind })}
+                />
+              )}
+            </SettingRow>
+            <CollapsibleContent
+              className={cn(
+                'h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out',
+                'data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none',
+              )}
+            >
+              <ItemSeparator className="my-0" />
+              <SettingRow label={m.habit_settings_remind_at_label()} htmlFor={`${id}-remind-at`}>
+                <InputGroup className="w-32">
+                  <InputGroupInput
+                    id={`${id}-remind-at`}
+                    type="time"
+                    className={TIME_INPUT}
+                    value={value.remind_at}
+                    onChange={(event) => {
+                      if (event.target.value) set({ remind_at: event.target.value.slice(0, 5) })
+                    }}
+                  />
+                  <InputGroupAddon>
+                    <Clock2 aria-hidden />
+                  </InputGroupAddon>
+                </InputGroup>
+              </SettingRow>
+            </CollapsibleContent>
+          </Collapsible>,
         ]}
       </SettingsGroup>
     </div>

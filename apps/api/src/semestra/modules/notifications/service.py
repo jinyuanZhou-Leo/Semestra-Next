@@ -37,6 +37,12 @@ CATEGORY: dict[str, str] = {
     "restore_failed": "jobs",
     "model_ready": "jobs",
     "model_failed": "jobs",
+    "lms_grades_one": "lms",
+    "lms_grades_other": "lms",
+    "lms_changes_one": "lms",
+    "lms_changes_other": "lms",
+    "lms_announcements_one": "lms",
+    "lms_announcements_other": "lms",
     "approval": "assistant",
     "sign_in": "sign_in",
 }
@@ -151,7 +157,7 @@ def in_quiet_hours(cfg: NotificationsSettings, local: datetime) -> bool:
 async def allowed(ctx: Ctx, message: Message, cfg: NotificationsSettings | None = None) -> bool:
     cfg = cfg or await settings_of(ctx)
     setting = CATEGORY.get(message.kind)
-    if setting is not None and not getattr(cfg, setting):
+    if setting is not None and getattr(cfg, setting) in (False, "off"):
         return False
     return not in_quiet_hours(cfg, ctx.now.astimezone(await zone_of(ctx)))
 

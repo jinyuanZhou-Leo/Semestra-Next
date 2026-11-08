@@ -71,6 +71,9 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(default=None)
     last_error_code: Mapped[str | None] = mapped_column(String, default=None)
+    # When the background check for update notifications last looked (M18); until its first
+    # look nothing is reported, so linking a course or turning notifications on is quiet.
+    watched_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsImportedRef(Base, OwnedMixin):
@@ -99,6 +102,9 @@ class LmsImportedRef(Base, OwnedMixin):
     # When the platform first showed the assignment handed in (its to-do was finished then, if
     # the account allows it): once per assignment, so a to-do opened again by hand stays open.
     submitted_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Platform values of the changes the background check already reported, by field
+    # (`watch.py`): each change is told once, whether or not the user reviews it.
+    reported: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class LmsCache(Base, OwnedMixin):

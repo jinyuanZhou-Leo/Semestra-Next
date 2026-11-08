@@ -17,6 +17,14 @@
   "model_failed": { "title": "模型下载失败", "body": "打开设置 → 数据重试。" },
   "approval": { "title": "Sem 在等你确认", "body": "批准或拒绝提议的修改后才能继续。" },
   "sign_in": { "title": "新的登录", "body": "$device 登录了你的账户。如果不是你，在设置 → 账户中将其退出。" },
+  "lms_grades_one": { "title": "$course 有新成绩", "body": "$items" },
+  "lms_grades_other": { "title": "$course 有新成绩", "body": "$items" },
+  "lms_changes_one": { "title": "$course 的作业有变更", "body": "$items" },
+  "lms_changes_other": { "title": "$course 的作业有变更", "body": "$items" },
+  "lms_announcements_one": { "title": "$course 有新公告", "body": "$items" },
+  "lms_announcements_other": { "title": "$course 有新公告", "body": "$items" },
+  "habit_daily": { "title": "$name", "body": "今天还没有打卡。" },
+  "habit_weekly": { "title": "$name", "body": "本周还差 $left。" },
   "words": {
     "minute_one": "$n 分钟",
     "minute_other": "$n 分钟",
@@ -32,6 +40,11 @@
     "tasks_other": "$n 项待办到期",
     "join": "，",
     "separator": " · ",
-    "unknown_device": "一台新设备"
+    "unknown_device": "一台新设备",
+    "list": "、",
+    "more": "$items 等 $n 项",
+    "habit": "习惯",
+    "times_one": "$n 天",
+    "times_other": "$n 天"
   }
 }
