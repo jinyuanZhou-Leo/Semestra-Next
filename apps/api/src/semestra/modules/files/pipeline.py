@@ -605,33 +605,49 @@ async def _count_failure(ctx: JobCtx, item_id: str) -> None:
         await db.commit()
 
 
-async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
+async def _stale(ctx: JobCtx, space: str, *, retry: bool) -> list[tuple[str, str, str]]:
+    """(item, course, active document) of the user's documents without vectors in `space`."""
     async with ctx.state.session_factory() as db:
-        candidates = list(
-            (
-                await db.execute(
-                    select(
-                        FilesItem.id,
-                        FilesItem.course_id,
-                        FilesItem.active_document_id,
-                        FilesIndexState.vector_fingerprint,
-                        FilesIndexState.vector_document_id,
-                    )
-                    .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
-                    .where(
-                        FilesItem.user_id == ctx.user_id,
-                        FilesItem.active_document_id.is_not(None),
-                        *([retries_left()] if retry else []),
-                    )
-                    .order_by(FilesItem.id)
+        candidates = (
+            await db.execute(
+                select(
+                    FilesItem.id,
+                    FilesItem.course_id,
+                    FilesItem.active_document_id,
+                    FilesIndexState.vector_fingerprint,
+                    FilesIndexState.vector_document_id,
                 )
-            ).all()
-        )
-    stale = [
+                .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
+                .where(
+                    FilesItem.user_id == ctx.user_id,
+                    FilesItem.active_document_id.is_not(None),
+                    *([retries_left()] if retry else []),
+                )
+                .order_by(FilesItem.id)
+            )
+        ).all()
+    return [
         (item_id, course_id, document_id)
         for item_id, course_id, document_id, old_space, old_document in candidates
         if not (old_space == space and old_document == document_id)
     ]
+
+
+async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
+    """Embeds the stale documents, then looks again until none is left: a document that became
+    active meanwhile (its own embedding raced a model change, and enqueueing the rebuild joined
+    this job) is not left in the old space. Each document is tried once per run."""
+    done = 0
+    tried: set[tuple[str, str]] = set()
+    while stale := [s for s in await _stale(ctx, space, retry=retry) if (s[0], s[2]) not in tried]:
+        tried.update((item_id, document_id) for item_id, _, document_id in stale)
+        done += await _embed_stale(ctx, store, space, stale)
+    return done
+
+
+async def _embed_stale(
+    ctx: JobCtx, store: VectorStore, space: str, stale: list[tuple[str, str, str]]
+) -> int:
     done = 0
     for number, (item_id, course_id, document_id) in enumerate(stale):
         await ctx.check_cancelled()

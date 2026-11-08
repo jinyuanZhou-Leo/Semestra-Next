@@ -16,7 +16,7 @@ import functools
 import json
 import re
 import unicodedata
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, get_args, get_origin
 
@@ -351,11 +351,12 @@ def _walk(node: object, path: str) -> list[tuple[str, Evidenced[Any]]]:
 
 
 def verify_evidence(
-    value: BaseModel, pages: Sequence[PageText], *, has_images: bool = False
+    value: BaseModel, pages: Sequence[PageText], *, image_pages: Collection[int] = ()
 ) -> list[ExtractionWarning]:
     """Keeps only quotes that occur in the page text (ignoring whitespace), fixing the page
     number when the quote is on another page; otherwise drops the evidence and lowers the
-    confidence. Evidence pointing at an image cannot be checked and is kept as it is."""
+    confidence. Evidence pointing at an image (`image_pages`: the pages shown as images, a
+    scanned page may also have a line of text) cannot be checked and is kept as it is."""
     by_page: dict[int, str] = {}
     for p in pages:
         by_page[p.page] = by_page.get(p.page, "") + _norm(p.text)
@@ -374,7 +375,7 @@ def verify_evidence(
         if found is not None:
             ev.page = found
             continue
-        if has_images and (ev.page is None or ev.page not in by_page):
+        if image_pages and (ev.page is None or ev.page in image_pages or ev.page not in by_page):
             continue  # most likely quoted from an image: there is no text to check it against
         leaf.evidence = None
         leaf.confidence = min(leaf.confidence, LOW_CONFIDENCE)
@@ -535,7 +536,11 @@ async def extract[T: BaseModel](
             for name, f in schema.model_fields.items():
                 data.setdefault(name, _empty(f.annotation))
             value = schema.model_validate(data)
-            warnings.extend(verify_evidence(value, segment.pages, has_images=bool(segment.images)))
+            warnings.extend(
+                verify_evidence(
+                    value, segment.pages, image_pages={page for page, _ in segment.images}
+                )
+            )
             results.append(value)
             mine += 1
             async with report:

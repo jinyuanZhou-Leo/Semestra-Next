@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from cachetools import TTLCache
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.files.vectors import fingerprint
@@ -57,8 +57,10 @@ async def embed_query(ctx: Ctx, query: str) -> tuple[str, list[float]]:
 
 
 async def _embed_query(ctx: Ctx, key: _Key) -> tuple[str, list[float]]:
-    # One attempt: a provider that is slow or rate limited gets keyword search.
-    result = await ai.embed(ctx, [key[3]], source_module="files", query=True, retry=False)
+    # Its own ctx and session: it may outlive the request that started it (see `embed_query`).
+    async with system_ctx(ctx.state, key[0]) as own:
+        # One attempt: a provider that is slow or rate limited gets keyword search.
+        result = await ai.embed(own, [key[3]], source_module="files", query=True, retry=False)
     return fingerprint(result.provider_kind, result.model, result.dim), result.vectors[0]
 
 

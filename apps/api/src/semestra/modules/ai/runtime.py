@@ -53,17 +53,18 @@ class AiRuntime:
             return no_gate  # the instance provider, unless the server set a limit
         return self._limiters.gate(ep.base_url, ep.provider_id, ep.max_concurrency)
 
-    def _spawn(self, state: State, write: Any) -> None:
+    def _spawn(self, state: State, write: Any, gave_up: Any = None) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # e.g. a stream garbage-collected after the loop stopped
             log.warning("ai_bookkeeping_skipped")
             return
-        task = loop.create_task(self._write(state, write))
+        task = loop.create_task(self._write(state, write, gave_up))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _write(self, state: State, write: Any) -> None:
+    async def _write(self, state: State, write: Any, gave_up: Any = None) -> None:
+        """Runs `write` in its own session; `gave_up()` when it could not be saved."""
         for attempt in range(WRITE_ATTEMPTS):
             try:
                 async with state.session_factory() as db:
@@ -73,11 +74,13 @@ class AiRuntime:
             except OperationalError:  # database locked: the caller still holds the write lock
                 if attempt == WRITE_ATTEMPTS - 1:
                     log.warning("ai_bookkeeping_write_failed")
-                    return
+                    break
                 await asyncio.sleep(0.5 * (attempt + 1))
             except Exception:
                 log.exception("ai_bookkeeping_write_failed")
-                return
+                break
+        if gave_up is not None:
+            gave_up()
 
     def record_usage(self, state: State, event: AiUsageEvent) -> None:
         async def write(db: Any) -> None:
@@ -125,7 +128,11 @@ class AiRuntime:
             if replaced():  # while it waited for the write lock: the later outcome stands
                 await db.rollback()
 
-        self._spawn(state, write)
+        def gave_up() -> None:
+            if not replaced():  # not saved: the next call with the same outcome writes it
+                self._health.pop(provider_id, None)
+
+        self._spawn(state, write, gave_up)
 
     def forget_provider(self, provider_id: str) -> None:
         """The provider's health was written elsewhere (a test, a new key): the next call writes

@@ -187,12 +187,13 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
             ref["error_code"] = exc.code
             failed += 1
     await ctx.stage("checking")
-    # Discarded while the model was reading: leave it discarded.
-    await ctx.db.refresh(row, ["status"])
-    if row.status != "extracting":
-        return ExtractResult(session_id=row.id, items=0, failed_sources=failed)
-    row.source_refs = refs
+    # `readings` too: `_save_readings` wrote it behind this session's back, so emptying a stale
+    # copy would not be seen as a change.
+    await ctx.db.refresh(row, ["status", "readings"])
     row.readings = {}
+    if row.status != "extracting":
+        return ExtractResult(session_id=row.id, items=0, failed_sources=failed)  # discarded
+    row.source_refs = refs
     course_info = row.source_meta.get("only") == "course_info"
     if course_info:
         # "Update course info from syllabus": only the field changes of the target course.

@@ -4,6 +4,7 @@ The model only reads; everything that interprets its answer (dates, weights, cat
 courses, duplicates) is deterministic code in `from_syllabus` / `from_timetable`.
 """
 
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import date, time
 from typing import Any, Literal
@@ -301,6 +302,14 @@ def _syllabus_categories(
     return category_refs
 
 
+def _source_ref(normalized: str, seen: Counter[str]) -> str:
+    """`syllabus:<title>`, numbered from the second item of the same title in one syllabus
+    ("Quiz", "Quiz#2"), so each is told apart and a second import of it matches each again."""
+    seen[normalized] += 1
+    count = seen[normalized]
+    return f"syllabus:{normalized}"[:190] + (f"#{count}" if count > 1 else "")
+
+
 def _syllabus_assessments(
     ext: SyllabusExtraction,
     ctx: BuildContext,
@@ -312,6 +321,7 @@ def _syllabus_assessments(
 ) -> set[str]:
     """Adds the assessments; returns their normalized titles."""
     titles: set[str] = set()
+    refs: Counter[str] = Counter()
     for a in ext.grading.assessments:
         name = _text(a.title)
         if not name:
@@ -341,7 +351,7 @@ def _syllabus_assessments(
         if note := _text(a.notes):
             fields.data["note"] = note[:2000]
         normalized = norm_title(name)
-        fields.data["source_ref"] = f"syllabus:{normalized}"[:200]
+        fields.data["source_ref"] = _source_ref(normalized, refs)
         titles.add(normalized)
         builder.add(
             "assessment",
@@ -391,6 +401,7 @@ def _syllabus_dates(
 ) -> None:
     """Important dates: deadlines become tasks, "no class" days cancel meetings, the rest are
     events. One already added as an assessment is skipped."""
+    refs: Counter[str] = Counter()
     for d in ext.important_dates:
         name = _text(d.title)
         if not name or norm_title(name) in titles:
@@ -398,7 +409,7 @@ def _syllabus_dates(
         fields = _Fields(source)
         fields.put("title", d.title, name[:200])
         # Tasks are kept apart per user and events per Program, so the commit adds the course.
-        fields.data["source_ref"] = f"syllabus:{norm_title(name)}"[:200]
+        fields.data["source_ref"] = _source_ref(norm_title(name), refs)
         date_text = _text(d.date_text)
         if date_text:
             fields.put("date_text", d.date_text, date_text[:200])

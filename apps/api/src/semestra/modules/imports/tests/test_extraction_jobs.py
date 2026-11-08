@@ -12,6 +12,7 @@ from semestra.core.events import Event, events
 from semestra.modules import ai
 from semestra.modules.files.models import FilesItem
 from semestra.modules.imports import extraction
+from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.tests.test_imports import SYLLABUS, Api
 
 
@@ -123,6 +124,10 @@ async def test_a_job_that_runs_again_does_not_read_its_files_again(
     assert done["status"] == "ready"
     assert [r["status"] for r in done["source_refs"]] == ["failed", "done"]
     assert len(model_calls) == 3  # the first file once, the second twice
+    async with system_ctx(app.state) as ctx:
+        row = await ctx.db.get(ImportsSession, session["id"])
+        assert row is not None
+        assert row.readings == {}  # kept only while extracting
 
 
 async def test_a_category_weight_is_shared_by_its_assessments(
@@ -286,6 +291,8 @@ async def test_a_gradebook_import_reads_dates_in_the_course_term_and_finds_earli
         },
         "important_dates": [
             {"title": ev("Drop deadline"), "date_text": ev("March 10"), "kind": ev("deadline")},
+            {"title": ev("Problem set"), "date_text": ev("Week 4, Friday"), "kind": ev("deadline")},
+            {"title": ev("Problem set"), "date_text": ev("Week 6, Friday"), "kind": ev("deadline")},
             {"title": ev("Open house"), "date_text": ev("Week 2, Monday")},
         ],
     }  # fmt: skip
@@ -315,5 +322,8 @@ async def test_a_gradebook_import_reads_dates_in_the_course_term_and_finds_earli
     second = await import_once()
     await api.commit(second["id"])
     second = await api.call("GET", f"/imports/{second['id']}")
-    assert by_type(second, "task")[0]["result"]["reused"] is True
+    tasks = by_type(second, "task")
+    assert len(tasks) == 3  # the two problem sets are told apart
+    assert all(t["result"]["reused"] is True for t in tasks)
+    assert len({t["result"]["created_id"] for t in tasks}) == 3
     assert by_type(second, "event")[0]["result"].get("updated_id")

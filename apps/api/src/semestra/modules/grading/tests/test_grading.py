@@ -774,12 +774,10 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
     lab3 = await api.assessment(course["id"], "Lab 3", 5)
     await api.assessment(course["id"], "Lab 4", 5)
     midterm = await api.assessment(course["id"], "Midterm Exam", 20)
-    other_lab = await api.assessment(other["id"], "Lab 3", 5)
+    await api.assessment(other["id"], "Lab 3", 5)
     async with app.state.session_factory() as db:
         owner = await db.scalar(select(models.GradingScale.user_id))
     assert owner
-
-    from semestra.core.context import ScopeRef
 
     async with system_ctx(app.state, owner) as ctx:
         ctx.actor = "agent"
@@ -797,11 +795,6 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         )
         assert candidates(nothing) == []
 
-        # Program-wide, the course on screen comes first.
-        ctx.scope = ScopeRef(program["id"], None, other["id"])
-        wide = await registry.invoke(ctx, "grading.assessment.find", {"query": "lab 3"}, "agent")
-        assert [i["id"] for i in candidates(wide)][:2] == [other_lab["id"], lab3["id"]]
-
 
 async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastAPI):
     program, old = await one_course(api, code="APS105", title="Computer Fundamentals")
@@ -816,7 +809,7 @@ async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastA
     from semestra.core.context import ScopeRef
 
     async with system_ctx(app.state, owner) as ctx:
-        ctx.scope = ScopeRef(program["id"], winter["id"], None)
+        ctx.scope = ScopeRef(program["id"], winter["id"])
         found = candidates(
             await registry.invoke(ctx, "grading.assessment.find", {"query": "midterm"}, "agent")
         )
@@ -830,7 +823,7 @@ async def test_finding_assessments_prefers_the_current_term(api: Api, app: FastA
 
     # One course asked for by id still says whether it is in the current term.
     async with system_ctx(app.state, owner) as ctx:
-        ctx.scope = ScopeRef(program["id"], winter["id"], None)
+        ctx.scope = ScopeRef(program["id"], winter["id"])
         for course, expected in ((new, True), (old, False)):
             one = candidates(
                 await registry.invoke(

@@ -34,11 +34,10 @@ Actor = Literal["user", "agent", "mcp", "system"]
 class ScopeRef:
     program_id: str
     term_id: str | None = None
-    course_id: str | None = None
 
     @classmethod
     def parse(cls, header: str | None) -> ScopeRef | None:
-        """`program:<id>;term:<id>;course:<id>` → ScopeRef. Malformed input is ignored."""
+        """`program:<id>;term:<id>` → ScopeRef. Malformed input is ignored."""
         if not header:
             return None
         parts: dict[str, str] = {}
@@ -48,7 +47,7 @@ class ScopeRef:
                 parts[key.strip()] = value.strip()
         if "program" not in parts:
             return None
-        return cls(parts["program"], parts.get("term"), parts.get("course"))
+        return cls(parts["program"], parts.get("term"))
 
 
 @dataclass(frozen=True)
