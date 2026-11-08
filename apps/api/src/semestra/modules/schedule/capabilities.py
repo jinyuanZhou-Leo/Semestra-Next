@@ -494,7 +494,7 @@ async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     name="schedule.event.create_many",
     summary="Add one or more one-off events: exams, office hours, make-up classes, appointments.",
     description="""Times without an offset are read in the Program's time zone. For something
-that repeats weekly use schedule.meeting.create_many. An item with the same source_kind and
+that repeats weekly use schedule.section.create_many. An item with the same source_kind and
 source_ref as an existing event of the Program updates it.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/events:batch"),

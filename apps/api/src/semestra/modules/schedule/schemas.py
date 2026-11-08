@@ -191,7 +191,10 @@ class NewSection(SectionFields):
 
 class SectionCreateManyInput(BaseModel):
     """A section whose code the course already has in that term gets the times (and the sent
-    fields); a time with the same source_kind+source_ref as one of the course's updates it."""
+    fields) when its weeks are the sent ones or none are sent; times sent with other weeks
+    become a section of their own without the code (it becomes their title), unless they are
+    all of that section's times. A time with the same source_kind+source_ref as one of the
+    course's updates it."""
 
     course_id: Id = Field(description="Course id")
     sections: list[NewSection] = Field(min_length=1, max_length=50, description="Sections")

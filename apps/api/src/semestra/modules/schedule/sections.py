@@ -137,6 +137,15 @@ async def _check_code_free(
         raise AppError("schedule.section_exists", 409, section_code=code)
 
 
+def _same_weeks(row: ScheduleSection, values: dict[str, Any]) -> bool:
+    """Whether the section runs in these weeks (a weekly section has no anchor week)."""
+    return all(
+        getattr(row, k) == v
+        for k, v in values.items()
+        if k != "anchor_week" or values["recurrence"] == "biweekly"
+    )
+
+
 def _code_of(row: ScheduleSection) -> tuple[str, str, str, str, str]:
     return row.course_id, row.term_id, row.type_code, row.section_code, row.id
 
@@ -175,12 +184,19 @@ async def create_sections(
             )
         ).all()
     }
+    members = {sid: {m.id for m in ms} for sid, ms in (await meetings_of(ctx, list(by_id))).items()}
     written: dict[str, ScheduleSection] = {}
     new_sections: list[str] = []
     stale: dict[str, set[str]] = {}  # section id -> meetings whose dates may have moved
     created: list[str] = []
     updated: list[str] = []
     left: set[str] = set()  # sections a moved meeting left
+
+    def fits(section: ScheduleSection, weeks: dict[str, Any] | None, known: set[str]) -> bool:
+        """The times can go into the section: same weeks, or they are all of its times (a
+        repeated import of the whole section, whose weeks then change)."""
+        return weeks is None or _same_weeks(section, weeks) or members[section.id] <= known
+
     for i, item in enumerate(items):
         if item.term_id not in course.term_ids:
             raise AppError("schedule.term_not_in_course", 422, index=i)
@@ -190,28 +206,45 @@ async def create_sections(
                 422,
                 errors=[{"loc": ["sections", i, "type_code"], "code": "unknown_type"}],
             )
-        known = [
-            by_source[(nm.source_kind, nm.source_ref)]
+        weeks = _weeks_values(item.weeks) if item.weeks is not None else None
+        known = {
+            by_source[(nm.source_kind, nm.source_ref)].id
             for nm in item.meetings
             if nm.source_ref is not None and (nm.source_kind, nm.source_ref) in by_source
-        ]
-        key = (item.term_id, item.type_code, item.section_code)
-        section = by_code.get(key) if item.section_code else None
-        if section is None and not item.section_code and known:
+        }
+        # A section code names one set of weeks: times of that code that run in other weeks
+        # are a section of their own, without the code (it stays on them as their title), so
+        # neither the section's other times nor these change their classes (M04 §9).
+        code = item.section_code
+        section = by_code.get((item.term_id, item.type_code, code)) if code else None
+        if section is not None and not fits(section, weeks, known):
+            section, code = None, ""
+        if section is None and not code:
             # A section without a code is found again by its imported times.
-            section = by_id[known[0].section_id]
-            if (section.term_id, section.type_code, section.section_code) != key:
-                section = None
+            section = next(
+                (
+                    by_id[sid]
+                    for sid in dict.fromkeys(
+                        m.section_id for m in by_source.values() if m.id in known
+                    )
+                    if (by_id[sid].term_id, by_id[sid].type_code, by_id[sid].section_code)
+                    == (item.term_id, item.type_code, "")
+                    and fits(by_id[sid], weeks, known)
+                ),
+                None,
+            )
         if section is None:
             section = await _new_section(
                 ctx,
                 course.id,
-                **item.model_dump(include={"term_id", "type_code", "section_code", "instructor"}),
-                **_weeks_values(item.weeks or SectionWeeks()),
+                **item.model_dump(include={"term_id", "type_code", "instructor"}),
+                section_code=code,
+                **(weeks or _weeks_values(SectionWeeks())),
             )
             by_id[section.id] = section
-            if item.section_code:
-                by_code[key] = section
+            members[section.id] = set()
+            if code:
+                by_code[(item.term_id, item.type_code, code)] = section
             new_sections.append(section.id)
         else:
             if "instructor" in item.model_fields_set and section.instructor != item.instructor:
@@ -223,9 +256,12 @@ async def create_sections(
         written[section.id] = section
         for nm in item.meetings:
             values = nm.model_dump(exclude={"enabled"})
+            if code != item.section_code and not values["title"]:
+                values["title"] = item.section_code
             row = by_source.get((nm.source_kind, nm.source_ref)) if nm.source_ref else None
             if row is None:
                 row = new_meeting_row(ctx, section, **values, enabled=nm.enabled)
+                members[section.id].add(row.id)
                 if nm.source_ref is not None:
                     by_source[(nm.source_kind, nm.source_ref)] = row
                 created.append(row.id)
@@ -236,6 +272,8 @@ async def create_sections(
                 values["enabled"] = nm.enabled
             if row.section_id != section.id:
                 left.add(row.section_id)
+                members[row.section_id].discard(row.id)
+                members[section.id].add(row.id)
                 values["section_id"] = section.id
             changed = [k for k, v in values.items() if getattr(row, k) != v]
             for k in changed:

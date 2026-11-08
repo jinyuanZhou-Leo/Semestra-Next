@@ -53,7 +53,9 @@ partway through the term ("from week 6 on"), move each remaining date with
 **New classes.** `schedule.section.create_many` with the term (a year-long course has a term per
 half), type code (see `schedule.event_type.list`; LEC, PRA, TUT are built in, add others with
 `schedule.event_type.create`), section code, weeks and its meetings. A section code the course
-already has in that term adds the meetings to it; `schedule.meeting.create` adds a meeting to a
+already has in that term adds the meetings to it when the weeks match (or are left out); with
+other weeks they become a section of their own, titled with the code, and the existing section
+keeps its weeks; `schedule.meeting.create` adds a meeting to a
 section by its id. Afterwards run `schedule.conflict.list` for the term and tell the user about
 any overlap.
 

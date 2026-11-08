@@ -365,6 +365,62 @@ async def test_times_of_a_section_share_its_weeks(api: Api):
     assert (await api.call("GET", f"/courses/{course_id}/sections"))["items"] == []
 
 
+async def test_times_of_a_code_in_other_weeks_are_a_section_of_their_own(api: Api):
+    """Imports and Sem add times with their own weeks: a section's weeks never change for a
+    time that runs in others, and the time gets no class it does not have."""
+    _, term_id, course_id = await api.setup()
+
+    def time(weekday: int, ref: str, start: int, end: int | None = None) -> dict[str, Any]:
+        return {
+            "term_id": term_id,
+            "type_code": "PRA",
+            "section_code": "PRA0101",
+            "weeks": {"start_week": start, "end_week": end},
+            "meetings": [
+                {
+                    "weekday": weekday,
+                    "start_time": "15:00",
+                    "end_time": "17:00",
+                    "source_kind": "ics",
+                    "source_ref": ref,
+                }
+            ],
+        }
+
+    url = f"/courses/{course_id}/sections:batch"
+
+    async def sections() -> list[tuple[str, int, list[tuple[int, str | None]]]]:
+        out = await api.call("GET", f"/courses/{course_id}/sections")
+        got = [
+            (
+                s["section_code"],
+                s["start_week"],
+                [(m["weekday"], m["title"]) for m in s["meetings"]],
+            )
+            for s in out["items"]
+        ]
+        return sorted(got, reverse=True)  # the coded section first
+
+    tue, thu = time(2, "a", 1, 12), time(4, "b", 3, 12)
+    await api.call("POST", url, json={"sections": [tue, thu]})
+    expected = [("PRA0101", 1, [(2, None)]), ("", 3, [(4, "PRA0101")])]
+    assert await sections() == expected
+    # Importing the same file again finds both where they are.
+    again = await api.call("POST", url, json={"sections": [tue, thu]})
+    assert (len(again["created_ids"]), len(again["updated_ids"])) == (0, 2)
+    assert await sections() == expected
+    # A time in the section's weeks joins it; the file's new weeks for the whole section apply.
+    await api.call("POST", url, json={"sections": [time(5, "c", 1, 12)]})
+    assert (await sections())[0] == ("PRA0101", 1, [(2, None), (5, None)])
+    item = {
+        **tue,
+        "meetings": [*tue["meetings"], {**tue["meetings"][0], "weekday": 5, "source_ref": "c"}],
+    }
+    item["weeks"] = {"start_week": 2, "end_week": 12}
+    await api.call("POST", url, json={"sections": [item]})
+    assert (await sections())[0] == ("PRA0101", 2, [(2, None), (5, None)])
+
+
 async def test_one_off_events(api: Api):
     program_id, term_id, course_id = await api.setup()
     midterm = await api.call(
