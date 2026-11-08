@@ -49,16 +49,19 @@ export function parseNote(summary, bump) {
 const MISSING_AREA = `needs an <!-- area: ... --> marker (one of the keys in .changeset/areas.json)`
 
 /**
- * The notes of the pending changesets. `strict` (the PR check) also requires an area; the release
- * itself takes a note without one (a changeset merged before areas existed) and lists it last.
+ * The next release plan and the notes of its changesets. In pre-release mode a changeset already
+ * shipped in an earlier pre-release is not part of the plan, so each pre-release lists only what is
+ * new since the last one, and the final release (after `changeset pre exit`) lists everything.
+ * `strict` (the PR check) also requires an area; the release itself takes a note without one (a
+ * changeset merged before areas existed) and lists it last.
  */
 async function pendingNotes({ strict = false } = {}) {
   // Loaded here so `notes` runs without `pnpm install` (the release workflow).
-  const { readChangesets } = await import('@changesets/read')
-  const changesets = await readChangesets(ROOT)
+  const { getReleasePlan } = await import('@changesets/get-release-plan')
+  const plan = await getReleasePlan(ROOT)
   const notes = []
   const errors = []
-  for (const changeset of changesets) {
+  for (const changeset of plan.changesets) {
     if (changeset.releases.length === 0) continue // `changeset --empty`
     const bump = LEVELS.findLast((level) => changeset.releases.some((r) => r.type === level))
     const note = parseNote(changeset.summary, bump)
@@ -66,7 +69,7 @@ async function pendingNotes({ strict = false } = {}) {
     else if (strict && !note.area) errors.push(`.changeset/${changeset.id}.md ${MISSING_AREA}`)
     else notes.push({ ...note, bump })
   }
-  return { notes, errors }
+  return { plan, notes, errors }
 }
 
 /** `YYYY-MM-DD` in `timeZone` (UTC when unset). */
@@ -82,14 +85,6 @@ function allReleases() {
   return readdirSync(NOTES_DIR)
     .filter((name) => /^\d+\.\d+\.\d+.*\.json$/.test(name))
     .map((name) => JSON.parse(readFileSync(path.join(NOTES_DIR, name), 'utf8')))
-    .toSorted((a, b) => compareVersions(b.version, a.version))
-}
-
-function compareVersions(a, b) {
-  const pa = a.split(/[.-]/).map(Number)
-  const pb = b.split(/[.-]/).map(Number)
-  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i]
-  return 0
 }
 
 /** Position in `areas.json`; a note without an area goes last. */
@@ -118,8 +113,10 @@ function renderGroups(release) {
     .join('\n')
 }
 
-export function writeChangelog() {
-  const sections = allReleases().map(
+export async function writeChangelog() {
+  const { rcompare } = await import('semver')
+  const releases = allReleases().toSorted((a, b) => rcompare(a.version, b.version))
+  const sections = releases.map(
     (release) => `## ${release.version} (${release.date})\n\n${renderGroups(release)}`,
   )
   const header =
@@ -136,13 +133,11 @@ async function check() {
 }
 
 async function version() {
-  const { notes, errors } = await pendingNotes()
+  const { plan, notes, errors } = await pendingNotes()
   if (errors.length > 0) {
     for (const error of errors) console.error(error)
     process.exit(1)
   }
-  const { getReleasePlan } = await import('@changesets/get-release-plan')
-  const plan = await getReleasePlan(ROOT)
   const release = plan.releases.find((r) => r.name === '@semestra/web')
   if (!release || release.type === 'none') {
     console.log('Nothing to release')
@@ -167,7 +162,7 @@ async function version() {
   execFileSync('uv', ['version', next, '--project', 'apps/api'], { cwd: ROOT, stdio: 'inherit' })
   // The OpenAPI schema carries the version (info.version); keep the committed copy in sync.
   execFileSync('pnpm', ['--filter', '@semestra/api', 'openapi'], { cwd: ROOT, stdio: 'inherit' })
-  writeChangelog()
+  await writeChangelog()
   console.log(`Prepared ${next}`)
 }
 

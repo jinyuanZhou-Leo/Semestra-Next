@@ -79,6 +79,10 @@ it is next needed.
 SEMESTRA_VERSION=1.2.0
 ```
 
+Pre-releases (for example `2.0.0-beta.0`, listed as pre-releases on GitHub) never become `latest`.
+To try one, set its version the same way; set it back to `latest` to return to stable releases.
+Back up first: a newer version upgrades the database, and an older version may not be able to open it.
+
 ## Build the image yourself
 
 From the repository root:

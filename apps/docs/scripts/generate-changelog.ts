@@ -3,6 +3,7 @@
 // `dev` and `build`.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { rcompare } from 'semver'
 
 type Kind = 'breaking' | 'new' | 'improved' | 'fixed'
 type Release = {
@@ -33,13 +34,6 @@ const text = {
   },
 } as const
 
-function compareVersions(a: string, b: string): number {
-  const pa = a.split(/[.-]/, 3).map(Number)
-  const pb = b.split(/[.-]/, 3).map(Number)
-  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return (pa[i] ?? 0) - (pb[i] ?? 0)
-  return 0
-}
-
 /** Release notes are plain text; keep MDX from reading braces and angle brackets as code. */
 function escapeMdx(value: string): string {
   return value.replace(/[{}<>]/g, (c) => `\\${c}`)
@@ -52,7 +46,7 @@ const releases = (
       async (name) => JSON.parse(await readFile(path.join(notesDir, name), 'utf8')) as Release,
     ),
   )
-).toSorted((a, b) => compareVersions(b.version, a.version))
+).toSorted((a, b) => rcompare(a.version, b.version))
 
 for (const lang of ['en', 'zh'] as const) {
   const t = text[lang]

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { API, newQueryClient, renderWithRouter, server } from '@/test-utils'
-import type { Release } from './release-notes'
+import { type Release, versionsBetween } from './release-notes'
 import { pendingAnnouncement, WhatsNew } from './WhatsNew'
 
 const confetti = vi.hoisted(() => vi.fn<(options: object) => Promise<null>>())
@@ -46,11 +46,13 @@ vi.mock('./release-notes', async (importOriginal) => {
     releaseVersions: () => RELEASES.map((r) => r.version),
     loadRelease: async (version: string) => RELEASES.find((r) => r.version === version),
     releasesBetween: async (after: string, upTo: string) =>
-      RELEASES.filter(
-        (r) =>
-          actual.compareVersions(r.version, after) > 0 &&
-          actual.compareVersions(r.version, upTo) <= 0,
-      ),
+      actual
+        .versionsBetween(
+          RELEASES.map((r) => r.version),
+          after,
+          upTo,
+        )
+        .flatMap((version) => RELEASES.filter((r) => r.version === version)),
   }
 })
 
@@ -115,6 +117,13 @@ test('an account from before release notes hears about everything, newest first'
   const { releases, more } = await pendingAnnouncement(newQueryClient(), '1.2.0')
   expect(releases.map((r) => r.version)).toEqual(['1.2.0', '1.1.0', '1.0.0'])
   expect(more).toBe(0)
+})
+
+test('pre-releases sort before their final release, which replaces them in the dialog', () => {
+  const versions = ['1.9.0', '2.0.0-beta.0', '2.0.0-beta.1', '2.0.0', '2.0.1']
+  expect(versionsBetween(versions, '2.0.0-beta.0', '2.0.0-beta.1')).toEqual(['2.0.0-beta.1'])
+  expect(versionsBetween(versions, '1.9.0', '2.0.0')).toEqual(['2.0.0'])
+  expect(versionsBetween(versions, '2.0.0-beta.1', '2.0.1')).toEqual(['2.0.1', '2.0.0'])
 })
 
 test('an older tab never moves the seen version back', async () => {
