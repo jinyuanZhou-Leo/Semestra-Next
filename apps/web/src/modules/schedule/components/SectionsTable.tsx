@@ -1,7 +1,7 @@
 import type { EventType, Meeting, Section } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { ChevronRight, ListFilter, Pencil, Plus, Trash2 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { ChevronRight, ListFilter, Pencil, Trash2 } from 'lucide-react'
+import { createContext, type ReactNode, use, useState } from 'react'
 import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -49,8 +49,13 @@ export function sortSections(sections: readonly Section[], types: readonly Event
   )
 }
 
-/** A table row: a section, or one of its meetings while the section is expanded. */
+/**
+ * A table row: the heading of a type's sections, a section, or one of its meetings. Meetings
+ * are always rendered and fold to no height while their section is collapsed, so expanding
+ * slides the rows below down instead of making them jump.
+ */
 type Row =
+  | { kind: 'type'; id: string; type: string; count: number }
   | { kind: 'section'; id: string; section: Section }
   | { kind: 'meeting'; id: string; section: Section; meeting: Meeting }
 
@@ -67,7 +72,7 @@ type TableState = {
   onToggle: (ids: string[], enabled: boolean) => void
   onKeepOnly: (keep: string[], others: string[]) => void
   onEdit: (section: Section, meeting: Meeting) => void
-  onEditSection: (section: Section, withNewTime: boolean) => void
+  onEditSection: (section: Section) => void
   onDeleteSection: (section: Section) => void
 }
 
@@ -87,9 +92,46 @@ const dim = (on: boolean) => cn(!on && 'text-muted-foreground opacity-60')
 const sectionOn = (section: Section) => section.meetings.some((mt) => mt.enabled)
 const sectionName = (section: Section) => sectionLabel(section)
 
+/** The heading row of a type: its name and how many sections it has, over the whole width. */
+function TypeHeading({ code, count }: { code: string; count: number }) {
+  const { types } = useSections()
+  const type = types.find((t) => t.code === code)
+  return (
+    <div className="flex items-baseline gap-2 text-xs">
+      <span className="font-medium text-foreground">{type ? typeName(type) : code}</span>
+      <span className="text-muted-foreground tabular-nums">{count}</span>
+    </div>
+  )
+}
+
+/**
+ * A meeting row's content, folded to no height while its section is collapsed (grid rows from
+ * 0fr to 1fr, so the height follows the content) and out of the tab order then.
+ */
+function Reveal({ row, children }: { row: Row; children: ReactNode }) {
+  const { expanded } = useSections()
+  if (row.kind !== 'meeting') return children
+  const open = expanded.has(row.section.id)
+  return (
+    <div
+      inert={!open}
+      aria-hidden={!open || undefined}
+      className={cn(
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+        open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+      )}
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="flex h-14 items-center">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 function ExpandCell({ row }: CellProps) {
   const { expanded, onExpand } = useSections()
   const r = row.original
+  if (r.kind === 'type') return <TypeHeading code={r.type} count={r.count} />
   if (r.kind !== 'section') return null
   const open = expanded.has(r.section.id)
   return (
@@ -115,6 +157,7 @@ function ExpandCell({ row }: CellProps) {
 function SwitchCell({ row }: CellProps) {
   const { busy, onToggle } = useSections()
   const r = row.original
+  if (r.kind === 'type') return null
   if (r.kind === 'section') {
     const own = r.section.meetings
     return (
@@ -131,30 +174,30 @@ function SwitchCell({ row }: CellProps) {
       />
     )
   }
-  // A meeting's switch sits a little right of its section's, same size.
+  // A meeting's switch is the small size, centred under its section's (w-11 vs w-7).
   return (
-    <Switch
-      className="ml-6"
-      aria-label={m.schedule_enable_meeting({
-        day: weekdayName(r.meeting.weekday),
-        time: formatTime(r.meeting.start_time),
-      })}
-      checked={r.meeting.enabled}
-      disabled={busy}
-      onCheckedChange={(on) => onToggle([r.meeting.id], on)}
-    />
+    <Reveal row={r}>
+      <Switch
+        size="sm"
+        className="ml-2"
+        aria-label={m.schedule_enable_meeting({
+          day: weekdayName(r.meeting.weekday),
+          time: formatTime(r.meeting.start_time),
+        })}
+        checked={r.meeting.enabled}
+        disabled={busy}
+        onCheckedChange={(on) => onToggle([r.meeting.id], on)}
+      />
+    </Reveal>
   )
 }
 
 function SectionCell({ row }: CellProps) {
-  const { types, conflicting } = useSections()
+  const { conflicting } = useSections()
   const r = row.original
   if (r.kind !== 'section') return null
   const { section } = r
-  const type = types.find((t) => t.code === section.type_code)
-  const detail = [type ? typeName(type) : section.type_code, section.instructor]
-    .filter(Boolean)
-    .join(' · ')
+  // The type is the heading of the group; the second line only has the instructor.
   return (
     <div className={cn('min-w-0', dim(sectionOn(section)))}>
       <div className="flex items-center gap-2 font-medium">
@@ -163,13 +206,16 @@ function SectionCell({ row }: CellProps) {
           <Badge variant="destructive">{m.schedule_conflict()}</Badge>
         ) : null}
       </div>
-      <div className="truncate text-xs text-muted-foreground">{detail}</div>
+      {section.instructor ? (
+        <div className="truncate text-xs text-muted-foreground">{section.instructor}</div>
+      ) : null}
     </div>
   )
 }
 
 function TimeCell({ row }: CellProps) {
   const r = row.original
+  if (r.kind === 'type') return null
   if (r.kind === 'section') {
     return (
       <span className={cn('block truncate tabular-nums', dim(sectionOn(r.section)))}>
@@ -178,14 +224,17 @@ function TimeCell({ row }: CellProps) {
     )
   }
   return (
-    <span className={cn('block truncate tabular-nums', dim(r.meeting.enabled))}>
-      {weekdayName(r.meeting.weekday, 'short')} {timeRange(r.meeting)}
-    </span>
+    <Reveal row={r}>
+      <span className={cn('block truncate tabular-nums', dim(r.meeting.enabled))}>
+        {weekdayName(r.meeting.weekday, 'short')} {timeRange(r.meeting)}
+      </span>
+    </Reveal>
   )
 }
 
 function LocationCell({ row }: CellProps) {
   const r = row.original
+  if (r.kind === 'type') return null
   if (r.kind === 'section') {
     const places = [...new Set(r.section.meetings.map((mt) => mt.location).filter(Boolean))]
     return (
@@ -195,9 +244,11 @@ function LocationCell({ row }: CellProps) {
     )
   }
   return (
-    <span className={cn('block truncate', dim(r.meeting.enabled))}>
-      {r.meeting.location || '—'}
-    </span>
+    <Reveal row={r}>
+      <span className={cn('block truncate', dim(r.meeting.enabled))}>
+        {r.meeting.location || '—'}
+      </span>
+    </Reveal>
   )
 }
 
@@ -213,19 +264,22 @@ function WeeksCell({ row }: CellProps) {
 function ActionsCell({ row }: CellProps) {
   const { sections, onEdit, onEditSection, onDeleteSection, onKeepOnly } = useSections()
   const r = row.original
+  if (r.kind === 'type') return null
   if (r.kind === 'meeting') {
     return (
-      <RowMenu
-        label={m.schedule_meeting_actions({
-          section: sectionName(r.section),
-          day: weekdayName(r.meeting.weekday),
-        })}
-      >
-        <DropdownMenuItem onClick={() => onEdit(r.section, r.meeting)}>
-          <Pencil aria-hidden />
-          {m.schedule_meeting_edit()}
-        </DropdownMenuItem>
-      </RowMenu>
+      <Reveal row={r}>
+        <RowMenu
+          label={m.schedule_meeting_actions({
+            section: sectionName(r.section),
+            day: weekdayName(r.meeting.weekday),
+          })}
+        >
+          <DropdownMenuItem onClick={() => onEdit(r.section, r.meeting)}>
+            <Pencil aria-hidden />
+            {m.schedule_meeting_edit()}
+          </DropdownMenuItem>
+        </RowMenu>
+      </Reveal>
     )
   }
   const { section } = r
@@ -236,13 +290,9 @@ function ActionsCell({ row }: CellProps) {
     .flatMap((s) => s.meetings)
   return (
     <RowMenu label={m.schedule_section_actions({ section: sectionName(section) })}>
-      <DropdownMenuItem onClick={() => onEditSection(section, false)}>
+      <DropdownMenuItem onClick={() => onEditSection(section)}>
         <Pencil aria-hidden />
         {m.schedule_section_edit()}
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => onEditSection(section, true)}>
-        <Plus aria-hidden />
-        {m.schedule_section_add_time()}
       </DropdownMenuItem>
       {others.length > 0 ? (
         <DropdownMenuItem
@@ -286,7 +336,7 @@ const columns = column.columns([
 
 const COLUMN_CLASS: Record<string, string> = {
   expand: 'w-10 pr-0 pl-2',
-  on: 'w-20',
+  on: 'w-20 min-w-20',
   section: 'w-52 min-w-52 max-w-52',
   time: 'w-72 min-w-72 max-w-72',
   location: 'w-full max-w-0',
@@ -294,9 +344,13 @@ const COLUMN_CLASS: Record<string, string> = {
   actions: 'w-10',
 }
 
+/** A cell of a meeting row folds with its content: no padding or height of its own. */
+const FOLD = 'h-auto py-0'
+
 /**
- * The course's sections in one table (M04 §5.3): a row per section with its times summed up;
- * expanding a section lists its meetings, each with its own switch and menu.
+ * The course's sections in one table (M04 §5.3), grouped by type under a heading row: a row per
+ * section with its times summed up; expanding a section lists its meetings, each with its own
+ * switch and menu.
  */
 export function SectionsTable({
   types,
@@ -311,17 +365,27 @@ export function SectionsTable({
       if (!next.delete(key)) next.add(key)
       return next
     })
-  const rows: Row[] = sections.flatMap((section) => [
+  const count = (code: string) => sections.filter((s) => s.type_code === code).length
+  const rows: Row[] = sections.flatMap((section, i) => [
+    ...(sections[i - 1]?.type_code === section.type_code
+      ? []
+      : [
+          {
+            kind: 'type' as const,
+            id: `t:${section.type_code}`,
+            type: section.type_code,
+            count: count(section.type_code),
+          },
+        ]),
     { kind: 'section' as const, id: `s:${section.id}`, section },
-    ...(expanded.has(section.id)
-      ? section.meetings.map((meeting) => ({
-          kind: 'meeting' as const,
-          id: `m:${meeting.id}`,
-          section,
-          meeting,
-        }))
-      : []),
+    ...section.meetings.map((meeting) => ({
+      kind: 'meeting' as const,
+      id: `m:${meeting.id}`,
+      section,
+      meeting,
+    })),
   ])
+  const last = sections.at(-1)
   return (
     <SectionsContext value={{ ...state, types, sections, expanded, onExpand }}>
       <SettingsTable
@@ -330,11 +394,20 @@ export function SectionsTable({
         columns={columns}
         getRowId={(r) => r.id}
         columnClassName={COLUMN_CLASS}
-        rowClassName={(r) =>
-          r.kind === 'meeting'
-            ? 'bg-muted/40 animate-in fade-in slide-in-from-top-1 duration-200'
-            : undefined
-        }
+        rowClassName={(r) => {
+          if (r.kind === 'type') return 'bg-muted/50'
+          if (r.kind === 'meeting') {
+            return expanded.has(r.section.id) ? 'bg-muted/40' : 'border-b-0'
+          }
+          // The table's frame closes the last section while its times are folded away.
+          return r.section === last && !expanded.has(r.section.id) ? 'border-b-0' : undefined
+        }}
+        cellSpan={(columnId, r) => {
+          if (r.kind === 'type') {
+            return columnId === 'expand' ? { colSpan: columns.length, className: 'h-9 pl-4' } : null
+          }
+          return r.kind === 'meeting' ? { className: FOLD } : undefined
+        }}
       />
     </SectionsContext>
   )

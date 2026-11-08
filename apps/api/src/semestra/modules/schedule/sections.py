@@ -117,15 +117,15 @@ async def _new_section(ctx: Ctx, course_id: str, **values: Any) -> ScheduleSecti
     return row
 
 
-async def _check_code_free(
+async def _code_holder(
     ctx: Ctx, course_id: str, term_id: str, type_code: str, code: str, own_id: str | None
-) -> None:
-    """A section code names one section of the course in a term."""
+) -> ScheduleSection | None:
+    """The other section of the course in the term that has the code, if any."""
     if not code:
-        return
+        return None
     with ctx.db.no_autoflush:  # the edited row may already hold the taken code
-        other = await ctx.db.scalar(
-            select(ScheduleSection.id).where(
+        return await ctx.db.scalar(
+            select(ScheduleSection).where(
                 ScheduleSection.user_id == ctx.user_id,
                 ScheduleSection.course_id == course_id,
                 ScheduleSection.term_id == term_id,
@@ -134,7 +134,13 @@ async def _check_code_free(
                 ScheduleSection.id != (own_id or ""),
             )
         )
-    if other is not None:
+
+
+async def _check_code_free(
+    ctx: Ctx, course_id: str, term_id: str, type_code: str, code: str, own_id: str | None
+) -> None:
+    """A section code names one section of the course in a term."""
+    if await _code_holder(ctx, course_id, term_id, type_code, code, own_id) is not None:
         raise AppError("schedule.section_exists", 409, section_code=code)
 
 
@@ -390,59 +396,111 @@ async def save_section(ctx: Ctx, inp: SectionSaveInput) -> Section:
     """One transaction for a section edited as a whole (see `SectionSaveInput`)."""
     course = await course_with_term(ctx, inp.course_id, inp.term_id)
     await check_type_code(ctx, course.program_id, inp.type_code)
+    source = await _course_section(ctx, course, inp.section_id) if inp.section_id else None
+    # Checked before anything is written: the unique code index would fail the flush.
+    holder = await _code_holder(
+        ctx, course.id, inp.term_id, inp.type_code, inp.section_code, inp.section_id
+    )
+    if holder is not None:
+        if not inp.merge:
+            raise AppError("schedule.section_exists", 409, section_code=inp.section_code)
+        return await _merge_into(ctx, course, holder, source, inp)
     fields = inp.model_dump(include={"term_id", "type_code", "section_code", "instructor"})
-    if inp.section_id is None:
-        await _check_code_free(
-            ctx, course.id, inp.term_id, inp.type_code, inp.section_code, own_id=None
-        )
+    if source is None:
         row = await _new_section(ctx, course.id, **fields, **_weeks_values(inp.weeks))
         changed = list(fields)
         existing: list[ScheduleMeeting] = []
     else:
-        row = await _course_section(ctx, course, inp.section_id)
+        row = source
         changed = [k for k, v in fields.items() if getattr(row, k) != v]
         for key in changed:
             setattr(row, key, fields[key])
         existing = (await meetings_of(ctx, [row.id]))[row.id]
     changed += _apply_weeks(row, inp.weeks)
-    await _check_code_free(ctx, *_code_of(row))
     by_id = {m.id: m for m in existing}
     # New times are off when the whole section is.
     enabled = not existing or any(m.enabled for m in existing)
+    kept, moved, edited = _write_times(ctx, row, inp, by_id, enabled)
+    if edited:
+        changed.append("times")
+    keep_ids = {m.id for m in kept}
+    removed = [m.id for m in existing if m.id not in keep_ids]
+    if removed:
+        changed.append("times")
+    await delete_meetings(ctx, removed)
+    if source is not None:
+        stale = [m for m in kept if m.id in by_id]
+        await drop_stale_exceptions(ctx, row, stale if _DATE_FIELDS & set(changed) else moved)
+    if changed:
+        row.updated_at = ctx.now
+    await ctx.db.flush()
+    if source is None:
+        await announce_sections(ctx, course, created=[row.id])
+    elif changed:
+        await announce_sections(ctx, course, updated=[row.id])
+    return (await sections_out(ctx, [row]))[0]
+
+
+def _write_times(
+    ctx: Ctx,
+    row: ScheduleSection,
+    inp: SectionSaveInput,
+    by_id: dict[str, ScheduleMeeting],
+    enabled: bool,
+) -> tuple[list[ScheduleMeeting], list[ScheduleMeeting], bool]:
+    """Writes the editor's times into `row`: those with an id in `by_id` change (and move into
+    `row`), the others are new. Returns the times, the ones whose weekday changed and whether
+    anything changed."""
     kept: list[ScheduleMeeting] = []
     moved: list[ScheduleMeeting] = []
+    edited = False
     for t in inp.times:
         values = t.model_dump(exclude={"meeting_id"})
         if t.meeting_id is None:
             kept.append(new_meeting_row(ctx, row, **values, enabled=enabled))
-            changed.append("times")
+            edited = True
             continue
         meeting = by_id.get(t.meeting_id)
         if meeting is None:
             raise not_found("meeting", t.meeting_id)
+        values["section_id"] = row.id
         diff = [k for k, v in values.items() if getattr(meeting, k) != v]
         for key in diff:
             setattr(meeting, key, values[key])
         check_meeting(meeting)
         if diff:
             meeting.updated_at = ctx.now
-            changed.append("times")
+            edited = True
         if "weekday" in diff:
             moved.append(meeting)
         kept.append(meeting)
+    return kept, moved, edited
+
+
+async def _merge_into(
+    ctx: Ctx,
+    course: Course,
+    target: ScheduleSection,
+    source: ScheduleSection | None,
+    inp: SectionSaveInput,
+) -> Section:
+    """The editor's times join the section that already has the code (M04 §5.3): they take its
+    weeks, and the edited section, left without times, goes. The target keeps its instructor
+    unless it has none."""
+    existing = (await meetings_of(ctx, [source.id]))[source.id] if source else []
+    by_id = {m.id: m for m in existing}
+    own = (await meetings_of(ctx, [target.id]))[target.id]
+    kept, _, _ = _write_times(ctx, target, inp, by_id, any(m.enabled for m in own))
     keep_ids = {m.id for m in kept}
-    removed = [m.id for m in existing if m.id not in keep_ids]
-    if removed:
-        changed.append("times")
-    await delete_meetings(ctx, removed)
-    if inp.section_id is not None:
-        stale = [m for m in kept if m.id in by_id]
-        await drop_stale_exceptions(ctx, row, stale if _DATE_FIELDS & set(changed) else moved)
-    if changed:
-        row.updated_at = ctx.now
+    await delete_meetings(ctx, [m.id for m in existing if m.id not in keep_ids])
+    if not target.instructor and inp.instructor:
+        target.instructor = inp.instructor
+    target.updated_at = ctx.now
     await ctx.db.flush()
-    if inp.section_id is None:
-        await announce_sections(ctx, course, created=[row.id])
-    elif changed:
-        await announce_sections(ctx, course, updated=[row.id])
-    return (await sections_out(ctx, [row]))[0]
+    # The moved times now run in the target's weeks.
+    await drop_stale_exceptions(ctx, target, [m for m in kept if m.id in by_id])
+    if source is not None:
+        await delete_sections(ctx, [source.id])
+    await ctx.db.flush()
+    await announce_sections(ctx, course, updated=[target.id], deleted=[source.id] if source else [])
+    return (await sections_out(ctx, [target]))[0]

@@ -1179,7 +1179,6 @@
   "schedule_section_times": "上课时间",
   "schedule_section_new_title": "添加教学班",
   "schedule_enable_meeting": "在日历中显示{day} {time} 的课",
-  "schedule_section_add_time": "添加时间",
   "schedule_section_delete_description": "它的所有上课时间都会从课表和日历中移除。",
   "schedule_section_delete_title": "删除 {section}？",
   "schedule_section_delete": "删除教学班",
@@ -3077,5 +3076,10 @@
   "settings_notifications_daily_digest_option_8": "早上 8:00",
   "settings_notifications_daily_digest_option_9": "早上 9:00",
   "settings_notifications_daily_digest_option_10": "早上 10:00",
-  "notifications_category_off": "已关闭"
+  "notifications_category_off": "已关闭",
+  "schedule_section_merge_title": "{section} 已经存在",
+  "schedule_section_merge_description": "保存后，这些上课时间会并入 {section}，沿用它的周次，这个教学班随之删除。",
+  "schedule_section_merge": "并入 {section}",
+  "schedule_section_add_time": "添加时间",
+  "schedule_section_merge_confirm_title": "并入 {section}？"
 }
