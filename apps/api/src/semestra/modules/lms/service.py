@@ -471,14 +471,22 @@ class Bound:
     cfg: BaseModel
     creds: BaseModel
 
-    def rewrite(self, url: str) -> Any:
-        return self.provider.rewrite_internal_link(self.cfg, url)
+    def rewrite(self, url: str, course: str | None = None) -> Any:
+        """What a platform link points at; with `course`, only links into that course (a link
+        to another course's page would otherwise open the same slug in this one)."""
+        ref = self.provider.rewrite_internal_link(self.cfg, url)
+        if ref is not None and course is not None and ref.course not in (None, course):
+            return None
+        return ref
 
-    def clean(self, raw: str | None, web_url: str | None = None) -> str | None:
-        """Cleans HTML of an item; its relative links resolve against `web_url`, the item's own
-        address on the platform, like they do there."""
+    def clean(
+        self, raw: str | None, web_url: str | None = None, course: str | None = None
+    ) -> str | None:
+        """Cleans HTML of an item of platform course `course`; its relative links resolve
+        against `web_url`, the item's own address on the platform, like they do there, and only
+        links into the same course are marked as items the app can open."""
         base = urljoin(self.provider.web_base(self.cfg), web_url or "")
-        return html.clean(raw, base=base, rewrite=self.rewrite)
+        return html.clean(raw, base=base, rewrite=lambda url: self.rewrite(url, course))
 
 
 async def bound(ctx: Ctx, row: LmsConnection) -> Bound:

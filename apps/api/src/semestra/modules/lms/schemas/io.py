@@ -343,8 +343,12 @@ class AssignmentsInput(CourseReadInput):
         description="Only those due later and not handed in (upcoming), past due and not handed "
         "in (missing), or graded",
     )
-    due_after: datetime | None = Field(default=None, description="Only those due after this")
-    due_before: datetime | None = Field(default=None, description="Only those due before this")
+    due_after: datetime | None = Field(
+        default=None, description="Only those due after this (no offset: the Program's time)"
+    )
+    due_before: datetime | None = Field(
+        default=None, description="Only those due before this (no offset: the Program's time)"
+    )
     include_total: bool = Field(
         default=False, description="Also the course total as the LMS shows it (`totals`)"
     )
@@ -411,8 +415,12 @@ class PageList(BaseModel):
     truncated: bool
 
 
+# A page's ref is its url slug, made from its title (up to 255 characters, more once escaped).
+PageRef = Annotated[str, Field(min_length=1, max_length=600)]
+
+
 class PageGetInput(CourseReadInput):
-    ref: ExternalId = Field(
+    ref: PageRef = Field(
         description="Page ref from lms.page.list, or `@front` for the course's front page"
     )
 

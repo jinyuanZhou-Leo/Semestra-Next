@@ -21,6 +21,11 @@ _REFRESH = (
 )
 
 
+class LmsSkipped(BaseModel):
+    source: str
+    reason: str = Field(description="hidden (the instructor hid it), failed, or limit")
+
+
 class LmsOutlineInput(BaseModel):
     course_id: Id = Field(description="Course id (linked to the LMS)")
     cursor: str | None = Field(
@@ -91,6 +96,9 @@ class LmsCourseOutline(BaseModel):
     next_cursor: str | None = Field(
         default=None, description="More modules follow: call again with this cursor"
     )
+    skipped: list[LmsSkipped] = Field(
+        default_factory=list, description="What could not be read, and why"
+    )
 
 
 class LmsSearchInput(BaseModel):
@@ -116,11 +124,6 @@ class LmsSearchHit(BaseModel):
     snippet: str = Field(description="The text around the match, as Markdown")
     url: str | None = Field(default=None, description="Its address (a link's target)")
     date: datetime | None = Field(default=None, description="Posted, due or last changed")
-
-
-class LmsSkipped(BaseModel):
-    source: str
-    reason: str = Field(description="hidden (the instructor hid it), failed, or limit")
 
 
 class LmsSearchResults(BaseModel):
@@ -173,7 +176,9 @@ class LmsContentDetail(BaseModel):
 class LmsActivityInput(BaseModel):
     course_id: Id | None = Field(default=None, description="One course (linked to the LMS)")
     term_id: Id | None = Field(default=None, description="Or every linked course of a term")
-    since: datetime | None = Field(default=None, description="Default: 7 days ago")
+    since: datetime | None = Field(
+        default=None, description="Default: 7 days ago (no offset: the Program's time)"
+    )
     refresh: bool = Field(default=False, description=_REFRESH)
 
     @model_validator(mode="after")
@@ -190,12 +195,14 @@ class LmsActivityItem(BaseModel):
     course_id: str
     course: str = Field(description="The course's code or title")
     kind: ActivityKind = Field(
-        description="announcement; grade (newly graded); assignment (new or changed, not "
-        "imported); change (an imported assignment changed on the LMS: lms.change.import)"
+        description="change (an imported assignment changed on the LMS: lms.change.import; "
+        "listed first); announcement; grade (newly graded); assignment (new: not imported, due "
+        "later)"
     )
     ref: str | None = None
     title: str
-    at: datetime | None = None
+    at: datetime | None = Field(default=None, description="When it happened (posted, graded)")
+    due_at: datetime | None = None
     summary: str | None = None
 
 

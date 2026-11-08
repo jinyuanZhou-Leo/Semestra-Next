@@ -107,15 +107,16 @@ MODULE_ITEM_KINDS = {
     "ExternalUrl": "external_url",
     "ExternalTool": "external_tool",
 }
+# Group 1 is the course, group 2 the item.
 LINK_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"/courses/[^/]+/pages/([^/?#]+)", "page"),
-    (r"/courses/[^/]+/wiki/([^/?#]+)", "page"),
-    (r"/courses/[^/]+/assignments/(\d+)", "assignment"),
-    (r"/courses/[^/]+/quizzes/(\d+)", "quiz"),
-    (r"/courses/[^/]+/files/(\d+)", "file"),
-    (r"/courses/[^/]+/modules/(\d+)", "module"),
-    (r"/courses/[^/]+/announcements/(\d+)", "announcement"),
-    (r"/courses/[^/]+/discussion_topics/(\d+)", "discussion"),
+    (r"/courses/([^/]+)/pages/([^/?#]+)", "page"),
+    (r"/courses/([^/]+)/wiki/([^/?#]+)", "page"),
+    (r"/courses/([^/]+)/assignments/(\d+)", "assignment"),
+    (r"/courses/([^/]+)/quizzes/(\d+)", "quiz"),
+    (r"/courses/([^/]+)/files/(\d+)", "file"),
+    (r"/courses/([^/]+)/modules/(\d+)", "module"),
+    (r"/courses/([^/]+)/announcements/(\d+)", "announcement"),
+    (r"/courses/([^/]+)/discussion_topics/(\d+)", "discussion"),
 )
 
 
@@ -353,7 +354,11 @@ class CanvasProvider:
         for pattern, kind in LINK_PATTERNS:
             match = re.search(pattern, path)
             if match:
-                return InternalRef(kind=kind, ref=unquote(match.group(1)))  # pyright: ignore[reportArgumentType]
+                return InternalRef(
+                    kind=kind,  # pyright: ignore[reportArgumentType]
+                    ref=unquote(match.group(2)),
+                    course=unquote(match.group(1)),
+                )
         return None
 
     # --- transport ------------------------------------------------------------------------

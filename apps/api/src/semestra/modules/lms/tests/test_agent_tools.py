@@ -9,7 +9,9 @@ from fastapi import FastAPI
 from semestra.core.capability import registry
 from semestra.core.context import Ctx, run_as_system
 from semestra.modules.academics import service as academics
+from semestra.modules.lms import previews
 from semestra.modules.lms import search as ranking
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import (
     InternalRef,
     Module,
@@ -17,6 +19,7 @@ from semestra.modules.lms.schemas.dto import (
     NavTab,
     Submission,
 )
+from semestra.modules.lms.schemas.io import AssignmentImportInput
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 
@@ -300,3 +303,94 @@ def test_ranking_counts_terms_then_weight():
     assert "needle" in cut
     assert cut.startswith("…")
     assert cut.endswith("…")
+
+
+async def test_times_without_an_offset_are_the_programs(api: Api, fake: FakeProvider):
+    course, term_id = await _linked(api)
+    later = await api.call(
+        "GET", f"/courses/{course}/lms/assignments", params={"due_after": "2026-02-15"}
+    )
+    assert [a["name"] for a in later["items"]] == ["Lab 2", "Midterm"]
+    out = await api.call(
+        "GET", "/me/lms/activity", params={"term_id": term_id, "since": "2026-01-01T00:00:00"}
+    )
+    assert out["since"].startswith("2026-01-01T00:00:00")  # Toronto midnight, not UTC
+    assert out["since"] != "2026-01-01T00:00:00Z"
+
+
+async def test_missing_follows_the_platform_and_skips_work_handed_in_elsewhere(
+    api: Api, fake: FakeProvider
+):
+    course, _ = await _linked(api)
+    lab1, lab2, midterm = fake.course_assignments["101"]
+    for a in (lab1, lab2, midterm):  # all past due (the clock says 2026-01-15)
+        a.due_at = datetime.fromisoformat("2026-01-10T12:00:00+00:00")
+    lab1.submission = Submission(state="unsubmitted", missing=True)
+    lab2.submission = Submission(state="unsubmitted", missing=False)  # excused, say
+    midterm.submission_types = ["on_paper"]
+    out = await api.call("GET", f"/courses/{course}/lms/assignments", params={"status": "missing"})
+    assert [a["name"] for a in out["items"]] == ["Lab 1"]
+
+
+async def test_a_refusal_is_a_hidden_area_only_when_the_menu_says_so(
+    api: Api, fake: FakeProvider, monkeypatch: Any
+):
+    fake.nav.append(NavTab(external_id="pages", kind="pages", label="Pages"))
+    course, _ = await _linked(api)
+
+    async def refused(*_: Any) -> Any:
+        raise lms_error("lms.forbidden")  # dropped from the course, say
+
+    monkeypatch.setattr(type(fake), "pages", refused)
+    err = await api.call("GET", f"/courses/{course}/lms/pages", 403)
+    assert err["error"]["code"] == "lms.forbidden"
+
+
+async def test_links_into_other_courses_stay_links(api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    fake.page_texts = {
+        "hub": (
+            "Hub",
+            '<p><a href="https://fake/courses/101/pages/intro">here</a> '
+            '<a href="https://fake/courses/999/pages/intro">there</a> '
+            '<a href="https://fake/courses/101/modules/3">week</a></p>',
+        )
+    }
+    out = await api.call("GET", f"/courses/{course}/lms/content", params={"ref": "page:hub"})
+    assert "[here](lms:page:intro)" in out["text"]
+    assert "(https://fake/courses/999/pages/intro)" in out["text"]
+    assert "lms:module" not in out["text"]
+    other = await api.call(
+        "GET", f"/courses/{course}/lms/content", 422,
+        params={"url": "https://fake/courses/999/pages/intro"},
+    )  # fmt: skip
+    assert other["error"]["code"] == "lms.other_course"
+
+
+async def test_the_canvas_tab_opens_pages_with_long_slugs(api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    slug = "week-8-" + "calculus-of-surfaces-" * 12
+    page = await api.call("GET", f"/courses/{course}/lms/pages/{slug}")
+    assert page["ref"] == slug
+
+
+async def test_moving_tasks_into_the_gradebook_counts_them_on_the_card(
+    api: Api, app: FastAPI, fake: FakeProvider
+):
+    course, _ = await _linked(api)
+    fake.course_assignments["101"][0].points = None
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    if not started["committed"]:
+        await api.commit(started["session_id"])
+    user_id = (await api.call("GET", "/account/me"))["id"]
+    cards: list[dict[str, Any]] = []
+
+    async def preview(ctx: Ctx) -> None:
+        inp = AssignmentImportInput(course_id=course, external_ids=["a1"], into="gradebook")
+        cards.append(await previews.preview_assignment_import(ctx, inp))
+
+    await run_as_system(app.state, user_id, preview)
+    [change] = cards[0]["changes"]
+    assert change["after"] in (["Lab 1"], 1)  # was 0: it counted only what was never imported

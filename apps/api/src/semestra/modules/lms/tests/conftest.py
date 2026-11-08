@@ -119,10 +119,14 @@ class FakeProvider:
         return "https://fake/"
 
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
+        course = url.split("/courses/", 1)[1].split("/", 1)[0] if "/courses/" in url else None
         if "/pages/" in url:
-            return InternalRef(kind="page", ref=url.rsplit("/", 1)[-1])
+            return InternalRef(kind="page", ref=url.rsplit("/", 1)[-1], course=course)
         if "/files/" in url:
-            return InternalRef(kind="file", ref=url.split("/files/", 1)[1].split("/", 1)[0])
+            ref = url.split("/files/", 1)[1].split("/", 1)[0]
+            return InternalRef(kind="file", ref=ref, course=course)
+        if "/modules/" in url:
+            return InternalRef(kind="module", ref=url.rsplit("/", 1)[-1], course=course)
         return None
 
     def _auth(self, creds: BaseModel) -> None:
@@ -169,8 +173,9 @@ class FakeProvider:
         return [
             Announcement(
                 external_id=f"n{course_id}", external_course_id=course_id, title="Welcome",
-                html='<p>Hi <script>alert(1)</script><a href="https://fake/courses/1/pages/intro">'
-                     'intro</a><img src="https://fake/courses/1/files/77/preview" alt="x"></p>',
+                html='<p>Hi <script>alert(1)</script>'
+                     f'<a href="https://fake/courses/{course_id}/pages/intro">intro</a>'
+                     f'<img src="https://fake/courses/{course_id}/files/77/preview" alt="x"></p>',
             )
             for course_id in course_ids
         ]  # fmt: skip

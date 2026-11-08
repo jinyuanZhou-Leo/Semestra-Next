@@ -243,6 +243,9 @@ class InternalRef(BaseModel):
 
     kind: Literal["page", "assignment", "quiz", "file", "module", "announcement", "discussion"]
     ref: str
+    course: str | None = Field(
+        default=None, description="The platform course the link is in, when the link says"
+    )
 
 
 class Completion(BaseModel):

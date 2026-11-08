@@ -112,8 +112,8 @@ async def test_reads_map_canvas_payloads(settings: Settings, io: Io, mock: respx
     assert a.due_at == datetime(2026, 2, 7, 4, 59, tzinfo=UTC)
     items = await p.module_items(io, cfg, creds, "101", "3")
     assert [i.target.model_dump() if i.target else None for i in items] == [
-        {"kind": "page", "ref": "intro"},
-        {"kind": "file", "ref": "77"},
+        {"kind": "page", "ref": "intro", "course": None},
+        {"kind": "file", "ref": "77", "course": None},
     ]
     [total] = await p.grade_totals(io, cfg, creds, "101")
     assert (total.kind, total.name, total.score) == ("total", "Course total", 90)

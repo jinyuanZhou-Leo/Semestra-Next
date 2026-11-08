@@ -9,11 +9,14 @@ from typing import Any
 
 from markdownify import MarkdownConverter
 
+# The kinds `lms.content.read` opens (`refs.KINDS`); a module link stays an ordinary address.
+READABLE = frozenset(("page", "announcement", "assignment", "quiz", "discussion", "file"))
+
 
 class _Converter(MarkdownConverter):
     def convert_a(self, el: Any, text: str, parent_tags: set[str]) -> str:
         kind, ref = el.get("data-lms-kind"), el.get("data-lms-ref")
-        if kind and ref:
+        if kind in READABLE and ref:
             return f"[{text.strip() or ref}](lms:{kind}:{ref})"
         return super().convert_a(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 

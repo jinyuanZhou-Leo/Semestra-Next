@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, get_args
+from zoneinfo import ZoneInfo
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
@@ -125,11 +126,13 @@ async def _course(ctx: Ctx, course_id: str, refresh: bool) -> _Course:
                 refresh=refresh,
             )
             for module, items in zip(missing, found, strict=True):
-                module.items = (
-                    []
-                    if isinstance(items, AppError)
-                    else [ModuleItem.model_validate(i) for i in items]
-                )
+                if isinstance(items, AppError):
+                    module.items = []
+                    course.skipped.append(
+                        LmsSkipped(source=f"module {module.name}", reason="failed")
+                    )
+                else:
+                    module.items = [ModuleItem.model_validate(i) for i in items]
     if course.has("pages") and course.is_open("pages"):
         try:
             listed = (await reads.pages(ctx, course_id, refresh)).items
@@ -225,6 +228,7 @@ async def outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
         if start == 0
         else [],
         next_cursor=next_cursor,
+        skipped=course.skipped,
     )
 
 
@@ -291,8 +295,12 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
                 LmsSkipped(source=f"pages after the first {SEARCH_MAX_PAGES}", reason="limit")
             )
         page_refs = page_refs[:SEARCH_MAX_PAGES]
+        changed = {p.ref: p.updated_at for p in course.pages or []}
         found = await reads.pages_many(
-            ctx, (course.link, course.b), [refs.parse(r)[1] for r in page_refs], inp.refresh
+            ctx,
+            (course.link, course.b),
+            [(refs.parse(r)[1], changed.get(r)) for r in page_refs],
+            inp.refresh,
         )
         for ref, page in zip(page_refs, found, strict=True):
             if not isinstance(page, AppError):
@@ -412,6 +420,8 @@ async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
         kind, item_id = refs.parse(inp.ref)
     else:
         target = b.rewrite(inp.url or "")
+        if target is not None and target.course not in (None, link.external_course_id):
+            raise lms_error("lms.other_course")
         ref = refs.from_internal(target)
         if ref is None:
             raise lms_error("lms.invalid_ref", ref=(inp.url or "")[:100])
@@ -640,12 +650,15 @@ _READERS: dict[str, _Reader] = {
 
 
 async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
-    since = inp.since or ctx.now - ACTIVITY_WINDOW
     if inp.course_id is not None:
         await service.require_link(ctx, inp.course_id)
         course_ids = [inp.course_id]
+        zone = await reads.course_zone(ctx, inp.course_id)
     else:
-        course_ids = await _term_courses(ctx, inp.term_id or "")
+        term = await academics.get_term_row(ctx, inp.term_id or "")
+        course_ids = await _term_courses(ctx, term.id)
+        zone = ZoneInfo((await academics.get_program_row(ctx, term.program_id)).timezone)
+    since = reads.aware(inp.since, zone) or ctx.now - ACTIVITY_WINDOW
     rows = {c.id: c for c in await academics.courses_by_id(ctx, course_ids)}
     items: list[LmsActivityItem] = []
     skipped: list[LmsSkipped] = []
@@ -658,12 +671,16 @@ async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
             if exc.code not in _SKIPPABLE and inp.course_id is not None:
                 raise
             skipped.append(LmsSkipped(source=label, reason=exc.code))
-    items.sort(key=lambda i: i.at.timestamp() if i.at else 0.0, reverse=True)
+    # Changes come first and are never cut: they are what the user acts on (lms.change.import).
+    changes = [i for i in items if i.kind == "change"]
+    rest = sorted(
+        (i for i in items if i.kind != "change"),
+        key=lambda i: i.at.timestamp() if i.at else 0.0,
+        reverse=True,
+    )
+    room = max(ACTIVITY_MAX - len(changes), 0)
     return LmsActivityList(
-        since=since,
-        items=items[:ACTIVITY_MAX],
-        skipped=skipped,
-        truncated=len(items) > ACTIVITY_MAX,
+        since=since, items=[*changes, *rest[:room]], skipped=skipped, truncated=len(rest) > room
     )
 
 
@@ -673,11 +690,8 @@ async def _term_courses(ctx: Ctx, term_id: str) -> list[str]:
     program = await academics.get_program_row(ctx, term.program_id)
     rows = await academics.courses_by_id(ctx, [li.course_id for li in links])
     courses = await academics.courses_out(ctx, program, rows)
-    return [
-        c.id
-        for c in sorted(courses, key=lambda c: (c.code or c.title).lower())
-        if term_id in c.term_ids
-    ]
+    ordered = sorted(courses, key=lambda c: (c.code or c.title).lower())
+    return [c.id for c in ordered if term_id in c.term_ids]
 
 
 async def _course_activity(
@@ -688,7 +702,12 @@ async def _course_activity(
     out: list[LmsActivityItem] = []
 
     def add(
-        kind: Any, ref: str | None, title: str, at: datetime | None, summary: str | None
+        kind: Any,
+        ref: str | None,
+        title: str,
+        at: datetime | None,
+        summary: str | None,
+        due_at: datetime | None = None,
     ) -> None:
         out.append(
             LmsActivityItem(
@@ -698,6 +717,7 @@ async def _course_activity(
                 ref=ref,
                 title=title,
                 at=at,
+                due_at=due_at,
                 summary=summary,
             )
         )
@@ -707,19 +727,16 @@ async def _course_activity(
             for a in (await reads.announcements(ctx, course_id, None, refresh)).items:
                 if a.posted_at and a.posted_at >= since:
                     text = " ".join(_md(a.html).split())
-                    add(
-                        "announcement",
-                        refs.make("announcement", a.external_id),
-                        a.title,
-                        a.posted_at,
-                        text[:200] or None,
-                    )
+                    ref = refs.make("announcement", a.external_id)
+                    add("announcement", ref, a.title, a.posted_at, text[:200] or None)
         except AppError as exc:
             if exc.code not in _SKIPPABLE:
                 raise
     if "assignments" in b.provider.features:
         data, _ = await reads.raw_assignments(ctx, course_id, refresh, linked=linked)
         imported = await reads.imported_targets(ctx, linked[0].id)
+        # New: what the app offers to import (not imported, due later), changed lately.
+        fresh = set(reads.new_ids(ctx, data, imported))
         for a in data:
             ref = refs.make("assignment", a["external_id"])
             sub = a.get("submission") or {}
@@ -729,8 +746,8 @@ async def _course_activity(
                 grade = f" ({sub['grade']})" if sub.get("grade") else ""
                 add("grade", ref, a["name"], graded, f"{sub['score']:g}{pts}{grade}")
             updated = _dt(a.get("updated_at"))
-            if updated and updated >= since and a["external_id"] not in imported:
-                add("assignment", ref, a["name"], updated, "not imported")
+            if a["external_id"] in fresh and updated and updated >= since:
+                add("assignment", ref, a["name"], updated, None, due_at=_dt(a.get("due_at")))
         for change in (await imports.check_updates(ctx, course_id, refresh)).items:
             fields = ", ".join(f"{k}: {v.old} → {v.new}" for k, v in change.changes.items())
             add("change", refs.make("assignment", change.external_id), change.name, None, fields)

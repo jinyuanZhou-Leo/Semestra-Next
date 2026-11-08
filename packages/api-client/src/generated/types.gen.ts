@@ -5485,6 +5485,12 @@ export type InternalRef = {
      * Ref
      */
     ref: string;
+    /**
+     * Course
+     *
+     * The platform course the link is in, when the link says
+     */
+    course?: string | null;
 };
 
 /**
@@ -5811,7 +5817,7 @@ export type LmsActivityItem = {
     /**
      * Kind
      *
-     * announcement; grade (newly graded); assignment (new or changed, not imported); change (an imported assignment changed on the LMS: lms.change.import)
+     * change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)
      */
     kind: 'announcement' | 'grade' | 'assignment' | 'change';
     /**
@@ -5824,8 +5830,14 @@ export type LmsActivityItem = {
     title: string;
     /**
      * At
+     *
+     * When it happened (posted, graded)
      */
     at?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
     /**
      * Summary
      */
@@ -6024,6 +6036,12 @@ export type LmsCourseOutline = {
      * More modules follow: call again with this cursor
      */
     next_cursor?: string | null;
+    /**
+     * Skipped
+     *
+     * What could not be read, and why
+     */
+    skipped?: Array<LmsSkipped>;
 };
 
 /**
@@ -17205,7 +17223,7 @@ export type LmsActivityListData = {
         /**
          * Since
          *
-         * Default: 7 days ago
+         * Default: 7 days ago (no offset: the Program's time)
          */
         since?: string | null;
         /**
@@ -17415,13 +17433,13 @@ export type LmsAssignmentListData = {
         /**
          * Due After
          *
-         * Only those due after this
+         * Only those due after this (no offset: the Program's time)
          */
         due_after?: string | null;
         /**
          * Due Before
          *
-         * Only those due before this
+         * Only those due before this (no offset: the Program's time)
          */
         due_before?: string | null;
         /**

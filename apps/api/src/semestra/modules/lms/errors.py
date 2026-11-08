@@ -18,6 +18,8 @@ STATUS = {
     "lms.area_hidden": 409,
     # An LMS ref (`<kind>:<id>`) the module can't read: malformed, or a kind with no body.
     "lms.invalid_ref": 422,
+    # An address on the LMS that belongs to another course than the one read.
+    "lms.other_course": 422,
     "lms.unreachable": 502,
     "lms.rate_limited": 429,
     "lms.blocked_address": 400,
@@ -68,8 +70,8 @@ agent_hints(
         "lms.course.link.set.",
         "lms.course_link_exists": "The course is already linked; pass replace=true to change the "
         "link.",
-        "lms.course_already_linked": "That LMS course is linked to another course here; unlink "
-        "that one first.",
+        "lms.course_already_linked": "That LMS course is linked to another course here; the user "
+        "unlinks that one in its course settings first.",
         "lms.feature_unsupported": "This platform or course does not offer that; tell the user.",
         "lms.writes_disabled": "Changing things on the LMS is off in the user's settings; tell "
         "them.",
@@ -84,7 +86,10 @@ agent_hints(
         "students. Its items may still be in the modules: use lms.course.outline or "
         "lms.content.search, which only read what is open.",
         "lms.invalid_ref": "Pass a ref exactly as an lms tool returned it (`<kind>:<id>`, e.g. "
-        "`page:week-1`), or the item's Canvas address as `url`.",
+        "`page:week-1`), or the item's Canvas address as `url`. A module is not an item: its "
+        "items are in lms.course.outline.",
+        "lms.other_course": "That address is in another course on the LMS. If one of the user's "
+        "courses is linked to it, read it there; otherwise give the user the link.",
         "lms.unreachable": "The LMS did not answer; try again later.",
         "lms.rate_limited": "The LMS is limiting requests; wait before trying again.",
         "lms.assignment_already_imported": "This assignment is already in the gradebook; update "

@@ -9562,10 +9562,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Default: 7 days ago",
+              "description": "Default: 7 days ago (no offset: the Program's time)",
               "title": "Since"
             },
-            "description": "Default: 7 days ago"
+            "description": "Default: 7 days ago (no offset: the Program's time)"
           },
           {
             "name": "refresh",
@@ -9991,10 +9991,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Only those due after this",
+              "description": "Only those due after this (no offset: the Program's time)",
               "title": "Due After"
             },
-            "description": "Only those due after this"
+            "description": "Only those due after this (no offset: the Program's time)"
           },
           {
             "name": "due_before",
@@ -10010,10 +10010,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Only those due before this",
+              "description": "Only those due before this (no offset: the Program's time)",
               "title": "Due Before"
             },
-            "description": "Only those due before this"
+            "description": "Only those due before this (no offset: the Program's time)"
           },
           {
             "name": "include_total",
@@ -26703,6 +26703,18 @@
           "ref": {
             "type": "string",
             "title": "Ref"
+          },
+          "course": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course",
+            "description": "The platform course the link is in, when the link says"
           }
         },
         "type": "object",
@@ -27314,7 +27326,7 @@
               "change"
             ],
             "title": "Kind",
-            "description": "announcement; grade (newly graded); assignment (new or changed, not imported); change (an imported assignment changed on the LMS: lms.change.import)"
+            "description": "change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)"
           },
           "ref": {
             "anyOf": [
@@ -27341,7 +27353,20 @@
                 "type": "null"
               }
             ],
-            "title": "At"
+            "title": "At",
+            "description": "When it happened (posted, graded)"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
           },
           "summary": {
             "anyOf": [
@@ -27716,6 +27741,14 @@
             ],
             "title": "Next Cursor",
             "description": "More modules follow: call again with this cursor"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LmsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "What could not be read, and why"
           }
         },
         "type": "object",

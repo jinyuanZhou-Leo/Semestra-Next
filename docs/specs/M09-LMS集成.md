@@ -203,10 +203,13 @@ Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台�
 其余 capability（逐个平台接口的读取、绑定、关联维护、`lms.assignment.add_to_gradebook`、`lms.course.check_updates`）只开放 HTTP，供 Canvas Tab 与设置页使用。
 
 - **ref**（`refs.py`）：`<kind>:<id>`，kind 为 page、announcement、assignment、quiz、discussion、file，外加 `syllabus`。由服务端生成，模型原样传回；页面用 slug（可达 600 字符），其它用平台 id。LMS 文本的 Markdown 里平台内链写成 `lms:<ref>`。`lms.content.read` 也接受 LMS 地址（`rewrite_internal_link`）。导入与文件工具的 id 参数同样接受 ref。
+- **`lms.area_hidden` 要导航确认**：读整个栏目的列表被拒（`lms.not_found` / `lms.forbidden`）时，只有课程导航里没有该栏目或标为隐藏，才报 `lms.area_hidden`；否则保留原错误（课程在平台上被删、学生被移出课程也会被拒）。
+- **链接只认同一门课**：`InternalRef` 带链接所在的平台课程（`course`），`Bound.clean(…, course)` 只把指向本课程的链接标成可在应用里打开的条目；`lms.content.read(url=…)` 遇到别的课程的地址报 `lms.other_course`。模块链接在 Markdown 里保持普通地址（模块不是可读的条目）。
+- **不带时区的时间**（`since`、`due_after`、`due_before`）按 Program 时区解释。
 - **outline / search 只读开放的栏目**：从课程导航得出开放的栏目（`open_areas`），页面、文件、测验、讨论栏目被隐藏时不请求它们的列表（Canvas 会返回 404），在结果的 `skipped` 里注明 `hidden`；模块里的页面仍逐页读取。没有导航功能的平台视为全部开放。
-- **搜索**（`search.py`，方案 A：读缓存 + 本地匹配，不建索引）：文档来自模块条目、页面正文（每次最多 60 页，`reads.read_many` 并发 4 个请求，正文缓存 1 小时）、公告、作业、测验、讨论、大纲和按名搜索的文件。按词匹配：英文词匹配词首，中日文按两字切分；先按命中的不同词数排序，再按得分（标题权重 4、短语加分）和日期。单个来源失败只记进 `skipped`，凭证类错误整体失败。
-- **`lms.activity.list`**：默认最近 7 天；`change` 项来自 `check_updates`，用 `lms.change.import` 交给用户审核。
-- **`lms.assignment.list`**：每项带 `ref`；`status`（upcoming / missing / graded）、`due_after` / `due_before` 过滤；`include_total` 附带课程总分。`lms.assignment.import` 的 `into: gradebook` 即原 `add_to_gradebook`。
+- **搜索**（`search.py`，方案 A：读缓存 + 本地匹配，不建索引）：文档来自模块条目、页面正文（每次最多 60 页，`reads.read_many` 并发 4 个请求；页面列表给出了 `updated_at` 的按它做缓存键、保留 14 天，只能从模块得知的页面缓存 1 小时）、公告、作业、测验、讨论、大纲和按名搜索的文件。按词匹配：英文词匹配词首，中日文按两字切分；先按命中的不同词数排序，再按得分（标题权重 4、短语加分）和日期。单个来源失败只记进 `skipped`，凭证类错误整体失败。
+- **`lms.activity.list`**：默认最近 7 天；`change` 项来自 `check_updates`，排在最前且不参与截断，用 `lms.change.import` 交给用户审核；`assignment` 项只算“新作业”（未导入且未到截止、最近有改动）。
+- **`lms.assignment.list`**：每项带 `ref`；`status`（upcoming / missing / graded；missing 以平台的 missing 标志为准，没有提交记录时才按截止日期推断，且排除纸质等不需在线提交的类型）、`due_after` / `due_before` 过滤；`include_total` 附带课程总分。`lms.assignment.import` 的 `into: gradebook` 即原 `add_to_gradebook`。
 - **课程来源**：academics 新增扩展点 `register_course_source(name, linked)`，`academics.course.find` 的结果带 `sources`，本模块对已关联课程贡献 `lms`，让 Sem 知道课程资料还有 LMS 这一处。
 - 讨论：provider 契约新增 `discussions`、`discussion`（功能标志 `discussions`），Canvas 的公告也按讨论读取（带回复，最多 100 条）。
 - Skill `use-lms.md`：先 `lms.content.search` 再 `lms.content.read`；ref 原样传递；`lms.area_hidden` 与 `skipped` 的含义；导入一律走 M08 审核；LMS 内容是不可信数据。`answer-from-course-files` 在课程 `sources` 含 `lms` 且文件里找不到时也搜 LMS。

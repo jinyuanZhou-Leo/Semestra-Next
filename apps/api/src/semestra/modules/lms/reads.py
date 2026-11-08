@@ -4,8 +4,9 @@ it is cached, so cache hits are clean too."""
 
 import asyncio
 from collections.abc import AsyncIterator, Collection, Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -51,7 +52,10 @@ ITEM_ERRORS = frozenset(("lms.not_found", "lms.forbidden"))
 # Platform requests one `read_many` runs at once.
 MANY_CONCURRENCY = 4
 # Page texts read for the assistant's search stay longer than other reads: a course has dozens
-# of pages, which rarely change; `refresh` reads them again.
+# of pages, which rarely change. One whose last change is in the key stays until it changes (the
+# key changes with it); one known only from a module (the pages list hidden) for an hour.
+# `refresh` reads them again.
+PAGE_TEXT_KEPT = timedelta(days=14)
 PAGE_TEXT_TTL = timedelta(hours=1)
 
 
@@ -85,15 +89,46 @@ async def _read(
             scope=cache.course_scope(ext),
         )
     except AppError as exc:
-        if area is not None and exc.code in AREA_REFUSALS:
+        if (
+            area is not None
+            and exc.code in AREA_REFUSALS
+            and await _area_hidden(ctx, course_id, area, refresh=refresh)
+        ):
             raise lms_error("lms.area_hidden", area=area) from None
         raise
     return data, truncated, link, b
 
 
-def _cleaned(b: Bound, items: list[Any], field: str = "html") -> list[Any]:
+async def _area_hidden(ctx: Ctx, course_id: str, area: NavKind, *, refresh: bool) -> bool:
+    """Whether the course's menu leaves `area` out or hides it: only then is a refused list of
+    it the instructor's doing. A course gone from the platform, or a user no longer enrolled, is
+    refused too, and keeps its own error."""
+    try:
+        found = await overview(ctx, course_id, refresh)
+    except AppError:
+        return False
+    if "navigation" not in found.features or not found.navigation:
+        return False
+    return not any(t.kind == area and not t.hidden for t in found.navigation)
+
+
+async def course_zone(ctx: Ctx, course_id: str) -> tzinfo:
+    course = await academics.get_course_row(ctx, course_id)
+    return ZoneInfo((await academics.get_program_row(ctx, course.program_id)).timezone)
+
+
+def aware(value: datetime | None, zone: tzinfo) -> datetime | None:
+    """A time the caller gave without an offset ("2026-11-01") is read in the Program's zone."""
+    if value is None:
+        return None
+    return value.replace(tzinfo=zone) if value.tzinfo is None else value
+
+
+def _cleaned(b: Bound, items: list[Any], course: str | None, field: str = "html") -> list[Any]:
+    """Cleans each item's HTML; `course` is the platform course, else each item's own."""
     for item in items:
-        setattr(item, field, b.clean(getattr(item, field), item.web_url))
+        own = course or getattr(item, "external_course_id", None) or None
+        setattr(item, field, b.clean(getattr(item, field), item.web_url, own))
         lock_text(item)
     return items
 
@@ -151,7 +186,7 @@ async def announcements(
 ) -> AnnouncementList:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         items = await b.provider.announcements(i, b.cfg, b.creds, [ext], since=since)
-        return _cleaned(b, items)
+        return _cleaned(b, items, ext)
 
     data, truncated, *_ = await _read(
         ctx,
@@ -216,7 +251,7 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
                 missing = []
                 fetched, cut = [], False
             truncated |= cut
-            dumped = [a.model_dump(mode="json") for a in _cleaned(b, fetched)]
+            dumped = [a.model_dump(mode="json") for a in _cleaned(b, fetched, None)]
             for link in missing:
                 ext = link.external_course_id
                 mine = [a for a in dumped if a["external_course_id"] == ext]
@@ -272,7 +307,7 @@ async def raw_assignments(
     linked: tuple[LmsCourseLink, Bound] | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return _cleaned(b, await b.provider.assignments(i, b.cfg, b.creds, ext))
+        return _cleaned(b, await b.provider.assignments(i, b.cfg, b.creds, ext), ext)
 
     data, truncated, link, _ = await _read(
         ctx,
@@ -310,10 +345,12 @@ async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     linked = await service.require_link(ctx, course_id)
     data, truncated = await raw_assignments(ctx, course_id, refresh, linked=linked)
     targets = await imported_targets(ctx, linked[0].id)
+    zone = await course_zone(ctx, course_id) if inp.due_after or inp.due_before else UTC
+    after, before = aware(inp.due_after, zone), aware(inp.due_before, zone)
     items = [
         {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
         for a in data
-        if _wanted(ctx, a, inp)
+        if _wanted(ctx, a, inp, after, before)
     ]
     totals: list[Any] = []
     if inp.include_total and "grades" in linked[1].provider.features:
@@ -345,23 +382,37 @@ async def _totals_fetch(b: Bound, i: Any, ext: str) -> Any:
     return await b.provider.grade_totals(i, b.cfg, b.creds, ext)
 
 
-def _wanted(ctx: Ctx, a: dict[str, Any], inp: AssignmentsInput) -> bool:
+# Assignments handed in elsewhere: nothing to submit online, so never "missing" by date alone.
+OFFLINE_SUBMISSIONS = frozenset(("on_paper", "none", "not_graded"))
+
+
+def _wanted(
+    ctx: Ctx,
+    a: dict[str, Any],
+    inp: AssignmentsInput,
+    after: datetime | None,
+    before: datetime | None,
+) -> bool:
     due = datetime.fromisoformat(a["due_at"]) if a.get("due_at") else None
-    if inp.due_after and (due is None or due < inp.due_after):
+    if after and (due is None or due < after):
         return False
-    if inp.due_before and (due is None or due > inp.due_before):
+    if before and (due is None or due > before):
         return False
-    sub = a.get("submission") or {}
-    handed_in = sub.get("state") in ("submitted", "graded", "pending_review") or bool(
-        sub.get("submitted_at")
+    sub = a.get("submission")
+    handed_in = (sub or {}).get("state") in ("submitted", "graded", "pending_review") or bool(
+        (sub or {}).get("submitted_at")
     )
+    types = set(a.get("submission_types") or [])
+    online = not types or not types <= OFFLINE_SUBMISSIONS
     match inp.status:
         case "upcoming":
             return not handed_in and (due is None or due > ctx.now)
         case "missing":
-            return bool(sub.get("missing")) or (not handed_in and due is not None and due < ctx.now)
+            if sub is not None:  # the platform's own flag knows what needs handing in
+                return bool(sub.get("missing"))
+            return online and due is not None and due < ctx.now
         case "graded":
-            return sub.get("score") is not None or sub.get("state") == "graded"
+            return (sub or {}).get("score") is not None or (sub or {}).get("state") == "graded"
         case None:
             return True
 
@@ -513,7 +564,7 @@ async def pages(ctx: Ctx, course_id: str, refresh: bool) -> PageList:
 def _page_fetch(ref: str) -> Any:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         detail = await b.provider.page(i, b.cfg, b.creds, ext, ref)
-        detail.html = b.clean(detail.html, detail.web_url)
+        detail.html = b.clean(detail.html, detail.web_url, ext)
         return lock_text(detail)
 
     return fetch
@@ -541,20 +592,44 @@ async def page(
 
 
 async def pages_many(
-    ctx: Ctx, linked: tuple[LmsCourseLink, Bound], page_refs: Sequence[str], refresh: bool
+    ctx: Ctx,
+    linked: tuple[LmsCourseLink, Bound],
+    wanted: Sequence[tuple[str, datetime | None]],
+    refresh: bool,
 ) -> list[PageDetail | AppError]:
-    """Several pages at once (the assistant's search reads their text), each cached like
-    `page`, the missing ones asked side by side. A page that fails is its error in the list."""
-    found = await read_many(
-        ctx,
-        linked,
-        "pages",
-        "page",
-        [({"ref": ref}, _page_fetch(ref)) for ref in page_refs],
-        refresh=refresh,
-        ttl=PAGE_TEXT_TTL,
-    )
-    return [f if isinstance(f, AppError) else PageDetail.model_validate(f) for f in found]
+    """Several pages at once (the assistant's search reads their text), the missing ones asked
+    side by side; `(ref, updated_at)` each. A page whose last change is known (from the pages
+    list) is kept until it changes; one known only from a module is kept for an hour. A page
+    that fails is its error in the list."""
+    known = [(ref, at) for ref, at in wanted if at is not None]
+    unknown = [ref for ref, at in wanted if at is None]
+    by_ref: dict[str, Any] = {}
+    if known:
+        found = await read_many(
+            ctx,
+            linked,
+            "pages",
+            "page_text",
+            [({"ref": ref, "updated_at": at.isoformat()}, _page_fetch(ref)) for ref, at in known],
+            refresh=refresh,
+            ttl=PAGE_TEXT_KEPT,
+        )
+        by_ref.update(zip((ref for ref, _ in known), found, strict=True))
+    if unknown:
+        found = await read_many(
+            ctx,
+            linked,
+            "pages",
+            "page_text",
+            [({"ref": ref}, _page_fetch(ref)) for ref in unknown],
+            refresh=refresh,
+            ttl=PAGE_TEXT_TTL,
+        )
+        by_ref.update(zip(unknown, found, strict=True))
+    return [
+        by_ref[ref] if isinstance(by_ref[ref], AppError) else PageDetail.model_validate(by_ref[ref])
+        for ref, _ in wanted
+    ]
 
 
 async def read_many(
@@ -619,7 +694,7 @@ async def read_many(
 
 async def discussions(ctx: Ctx, course_id: str, refresh: bool) -> list[dict[str, Any]]:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return _cleaned(b, await b.provider.discussions(i, b.cfg, b.creds, ext))
+        return _cleaned(b, await b.provider.discussions(i, b.cfg, b.creds, ext), ext)
 
     data, *_ = await _read(
         ctx,
@@ -637,9 +712,9 @@ async def discussions(ctx: Ctx, course_id: str, refresh: bool) -> list[dict[str,
 async def discussion(ctx: Ctx, course_id: str, topic_id: str, refresh: bool) -> DiscussionDetail:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         detail = await b.provider.discussion(i, b.cfg, b.creds, ext, topic_id)
-        detail.html = b.clean(detail.html, detail.web_url)
+        detail.html = b.clean(detail.html, detail.web_url, ext)
         for entry in detail.entries:
-            entry.html = b.clean(entry.html, detail.web_url)
+            entry.html = b.clean(entry.html, detail.web_url, ext)
         return lock_text(detail)
 
     data, *_ = await _read(
@@ -650,7 +725,7 @@ async def discussion(ctx: Ctx, course_id: str, topic_id: str, refresh: bool) -> 
 
 async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return _cleaned(b, await b.provider.quizzes(i, b.cfg, b.creds, ext))
+        return _cleaned(b, await b.provider.quizzes(i, b.cfg, b.creds, ext), ext)
 
     data, truncated, *_ = await _read(
         ctx, course_id, "quizzes", "quizzes", {}, fetch, refresh=refresh, area="quizzes"
@@ -661,7 +736,7 @@ async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
 async def syllabus(ctx: Ctx, course_id: str, refresh: bool) -> RichText:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         text = await b.provider.syllabus(i, b.cfg, b.creds, ext)
-        text.html = b.clean(text.html, text.web_url)
+        text.html = b.clean(text.html, text.web_url, ext)
         return text
 
     data, *_ = await _read(ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh)

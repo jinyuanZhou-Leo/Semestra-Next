@@ -2459,6 +2459,7 @@
   "error_lms_not_found": "It isn't on the LMS any more",
   "error_lms_area_hidden": "The instructor hasn't opened this part of the course",
   "error_lms_invalid_ref": "That LMS item can't be opened",
+  "error_lms_other_course": "That link is to another course",
   "error_lms_writes_disabled": "Changes on the platform are turned off in settings",
   "error_lms_file_too_large": "This file is too large to preview",
   "error_lms_program_not_configured": "This program has no LMS connection",

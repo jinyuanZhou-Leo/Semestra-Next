@@ -2459,6 +2459,7 @@
   "error_lms_not_found": "学习平台上已经没有这一项",
   "error_lms_area_hidden": "老师没有开放课程的这一部分",
   "error_lms_invalid_ref": "无法打开这个学习平台条目",
+  "error_lms_other_course": "这个链接属于另一门课程",
   "error_lms_writes_disabled": "设置里已关闭在平台上做修改",
   "error_lms_file_too_large": "文件太大，无法预览",
   "error_lms_program_not_configured": "本学业项目还没有 LMS 连接",

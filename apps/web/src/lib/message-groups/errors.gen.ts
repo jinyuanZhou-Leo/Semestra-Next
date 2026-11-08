@@ -134,6 +134,7 @@ export const errorMessages = {
   error_lms_invalid_credentials: m.error_lms_invalid_credentials,
   error_lms_invalid_ref: m.error_lms_invalid_ref,
   error_lms_not_found: m.error_lms_not_found,
+  error_lms_other_course: m.error_lms_other_course,
   error_lms_program_has_links: m.error_lms_program_has_links,
   error_lms_program_not_configured: m.error_lms_program_not_configured,
   error_lms_provider_unknown: m.error_lms_provider_unknown,
