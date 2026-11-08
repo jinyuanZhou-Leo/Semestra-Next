@@ -83,6 +83,12 @@ async def check_provider(
         if listed:
             detail = await provider.submission(io, cfg, creds, course_id, listed[0].external_id)
             assert detail.assignment_id == listed[0].external_id
+    if "discussions" in f:
+        topics = await provider.discussions(io, cfg, creds, course_id)
+        reads.append(("discussions", topics))
+        if topics:
+            topic = await provider.discussion(io, cfg, creds, course_id, topics[0].external_id)
+            assert topic.external_id == topics[0].external_id
     if "folders" in f:
         root = await provider.folder(io, cfg, creds, course_id, None)
         assert root.trail

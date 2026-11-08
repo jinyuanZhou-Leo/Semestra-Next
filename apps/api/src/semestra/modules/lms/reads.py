@@ -4,7 +4,7 @@ it is cached, so cache hits are clean too."""
 
 import asyncio
 from collections.abc import AsyncIterator, Collection, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -13,11 +13,14 @@ from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import cache, html, service, submissions
+from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.dto import (
+    DiscussionDetail,
     FileMeta,
     FolderListing,
     LmsFeature,
+    NavKind,
     PageDetail,
     RichText,
     SubmissionDetail,
@@ -25,6 +28,7 @@ from semestra.modules.lms.schemas.dto import (
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
     AssignmentList,
+    AssignmentsInput,
     CourseOverview,
     FileList,
     GradeList,
@@ -39,6 +43,17 @@ from semestra.modules.lms.schemas.io import (
 )
 from semestra.modules.lms.service import Bound
 
+# What the platform answers a list of an area the user can't open with (Canvas: 404 when the
+# instructor hid the tab, 401 when the files are hidden).
+AREA_REFUSALS = frozenset(("lms.not_found", "lms.forbidden"))
+# Errors about one item (`read_many` keeps them per item); the others stop the whole read.
+ITEM_ERRORS = frozenset(("lms.not_found", "lms.forbidden"))
+# Platform requests one `read_many` runs at once.
+MANY_CONCURRENCY = 4
+# Page texts read for the assistant's search stay longer than other reads: a course has dozens
+# of pages, which rarely change; `refresh` reads them again.
+PAGE_TEXT_TTL = timedelta(hours=1)
+
 
 async def _read(
     ctx: Ctx,
@@ -50,32 +65,40 @@ async def _read(
     *,
     refresh: bool,
     linked: tuple[LmsCourseLink, Bound] | None = None,
+    area: NavKind | None = None,
 ) -> tuple[Any, bool, LmsCourseLink, Bound]:
     """One course read through the cache (scoped to the course, so "Refresh" drops it).
-    `linked` is the course's link when the caller looked it up already."""
+    `linked` is the course's link when the caller looked it up already. `area` marks a read of a
+    whole area (the pages, the quizzes...): the platform refusing it means the instructor hid
+    that area (`lms.area_hidden`), not that something is missing."""
     link, b = linked or await service.require_link(ctx, course_id)
     service.require_feature(b, feature)
     ext = link.external_course_id
-    data, truncated = await service.cached(
-        ctx,
-        b,
-        method,
-        {"course": ext, **params},
-        lambda i: fetch(b, i, ext),
-        refresh=refresh,
-        scope=cache.course_scope(ext),
-    )
+    try:
+        data, truncated = await service.cached(
+            ctx,
+            b,
+            method,
+            {"course": ext, **params},
+            lambda i: fetch(b, i, ext),
+            refresh=refresh,
+            scope=cache.course_scope(ext),
+        )
+    except AppError as exc:
+        if area is not None and exc.code in AREA_REFUSALS:
+            raise lms_error("lms.area_hidden", area=area) from None
+        raise
     return data, truncated, link, b
 
 
 def _cleaned(b: Bound, items: list[Any], field: str = "html") -> list[Any]:
     for item in items:
         setattr(item, field, b.clean(getattr(item, field), item.web_url))
-        _lock_text(item)
+        lock_text(item)
     return items
 
 
-def _lock_text(item: Any) -> Any:
+def lock_text(item: Any) -> Any:
     """Lock explanations come as HTML fragments ("…the module <b>Week 2</b>…"): shown as text."""
     if getattr(item, "lock_explanation", None):
         item.lock_explanation = html.to_text(item.lock_explanation)
@@ -138,6 +161,7 @@ async def announcements(
         _announcement_params(since),
         fetch,
         refresh=refresh,
+        area="announcements",
     )
     return AnnouncementList.model_validate({"items": data, "truncated": truncated})
 
@@ -251,7 +275,15 @@ async def raw_assignments(
         return _cleaned(b, await b.provider.assignments(i, b.cfg, b.creds, ext))
 
     data, truncated, link, _ = await _read(
-        ctx, course_id, "assignments", "assignments", {}, fetch, refresh=refresh, linked=linked
+        ctx,
+        course_id,
+        "assignments",
+        "assignments",
+        {},
+        fetch,
+        refresh=refresh,
+        linked=linked,
+        area="assignments",
     )
     submissions.after_read(ctx, link.id, data)
     return data, truncated
@@ -271,14 +303,67 @@ def new_ids(ctx: Ctx, data: list[dict[str, Any]], imported: Collection[str]) -> 
     return [a["external_id"] for a in later]
 
 
-async def assignments(ctx: Ctx, course_id: str, refresh: bool) -> AssignmentList:
+async def assignments(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
+    """The course's assignments with what each was imported as (and the course total when
+    asked). The filters narrow `items` only: `new_ids` is about the whole list."""
+    course_id, refresh = inp.course_id, inp.refresh
     linked = await service.require_link(ctx, course_id)
     data, truncated = await raw_assignments(ctx, course_id, refresh, linked=linked)
     targets = await imported_targets(ctx, linked[0].id)
-    items = [{**a, "imported_as": targets.get(a["external_id"])} for a in data]
+    items = [
+        {**a, "ref": f"assignment:{a['external_id']}", "imported_as": targets.get(a["external_id"])}
+        for a in data
+        if _wanted(ctx, a, inp)
+    ]
+    totals: list[Any] = []
+    if inp.include_total and "grades" in linked[1].provider.features:
+        try:
+            totals, *_ = await _read(
+                ctx,
+                course_id,
+                "grades",
+                "grade_totals",
+                {},
+                _totals_fetch,
+                refresh=refresh,
+                linked=linked,
+            )
+        except AppError as exc:
+            if exc.code not in ITEM_ERRORS:
+                raise
     return AssignmentList.model_validate(
-        {"items": items, "new_ids": new_ids(ctx, data, targets), "truncated": truncated}
+        {
+            "items": items,
+            "new_ids": new_ids(ctx, data, targets),
+            "totals": totals,
+            "truncated": truncated,
+        }
     )
+
+
+async def _totals_fetch(b: Bound, i: Any, ext: str) -> Any:
+    return await b.provider.grade_totals(i, b.cfg, b.creds, ext)
+
+
+def _wanted(ctx: Ctx, a: dict[str, Any], inp: AssignmentsInput) -> bool:
+    due = datetime.fromisoformat(a["due_at"]) if a.get("due_at") else None
+    if inp.due_after and (due is None or due < inp.due_after):
+        return False
+    if inp.due_before and (due is None or due > inp.due_before):
+        return False
+    sub = a.get("submission") or {}
+    handed_in = sub.get("state") in ("submitted", "graded", "pending_review") or bool(
+        sub.get("submitted_at")
+    )
+    match inp.status:
+        case "upcoming":
+            return not handed_in and (due is None or due > ctx.now)
+        case "missing":
+            return bool(sub.get("missing")) or (not handed_in and due is not None and due < ctx.now)
+        case "graded":
+            return sub.get("score") is not None or sub.get("state") == "graded"
+        case None:
+            return True
 
 
 async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
@@ -340,12 +425,17 @@ async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:
     """The course total from the platform, then one row per assignment built from the cached
     assignment list (its submissions carry the scores): the platform is not asked twice."""
 
-    async def fetch(b: Bound, i: Any, ext: str) -> Any:
-        return await b.provider.grade_totals(i, b.cfg, b.creds, ext)
-
     linked = await service.require_link(ctx, course_id)
     totals, truncated, *_ = await _read(
-        ctx, course_id, "grades", "grade_totals", {}, fetch, refresh=refresh, linked=linked
+        ctx,
+        course_id,
+        "grades",
+        "grade_totals",
+        {},
+        _totals_fetch,
+        refresh=refresh,
+        linked=linked,
+        area="grades",
     )
     listed, cut = await raw_assignments(ctx, course_id, refresh, linked=linked)
     rows = [
@@ -370,11 +460,11 @@ async def modules(ctx: Ctx, course_id: str, refresh: bool) -> ModuleList:
         found = await b.provider.modules(i, b.cfg, b.creds, ext)
         for module in found:
             for item in module.items or []:
-                _lock_text(item)
+                lock_text(item)
         return found
 
     data, truncated, *_ = await _read(
-        ctx, course_id, "modules", "modules", {}, fetch, refresh=refresh
+        ctx, course_id, "modules", "modules", {}, fetch, refresh=refresh, area="modules"
     )
     return ModuleList.model_validate({"items": data, "truncated": truncated})
 
@@ -393,7 +483,7 @@ async def module_items(ctx: Ctx, course_id: str, module_id: str, refresh: bool) 
 
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return [
-            _lock_text(item)
+            lock_text(item)
             for item in await b.provider.module_items(i, b.cfg, b.creds, ext, module_id)
         ]
 
@@ -414,18 +504,148 @@ async def pages(ctx: Ctx, course_id: str, refresh: bool) -> PageList:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return await b.provider.pages(i, b.cfg, b.creds, ext)
 
-    data, truncated, *_ = await _read(ctx, course_id, "pages", "pages", {}, fetch, refresh=refresh)
+    data, truncated, *_ = await _read(
+        ctx, course_id, "pages", "pages", {}, fetch, refresh=refresh, area="pages"
+    )
     return PageList.model_validate({"items": data, "truncated": truncated})
 
 
-async def page(ctx: Ctx, course_id: str, ref: str, refresh: bool) -> PageDetail:
+def _page_fetch(ref: str) -> Any:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         detail = await b.provider.page(i, b.cfg, b.creds, ext, ref)
         detail.html = b.clean(detail.html, detail.web_url)
-        return _lock_text(detail)
+        return lock_text(detail)
 
-    data, *_ = await _read(ctx, course_id, "pages", "page", {"ref": ref}, fetch, refresh=refresh)
+    return fetch
+
+
+async def page(
+    ctx: Ctx,
+    course_id: str,
+    ref: str,
+    refresh: bool,
+    *,
+    linked: tuple[LmsCourseLink, Bound] | None = None,
+) -> PageDetail:
+    data, *_ = await _read(
+        ctx,
+        course_id,
+        "pages",
+        "page",
+        {"ref": ref},
+        _page_fetch(ref),
+        refresh=refresh,
+        linked=linked,
+    )
     return PageDetail.model_validate(data)
+
+
+async def pages_many(
+    ctx: Ctx, linked: tuple[LmsCourseLink, Bound], page_refs: Sequence[str], refresh: bool
+) -> list[PageDetail | AppError]:
+    """Several pages at once (the assistant's search reads their text), each cached like
+    `page`, the missing ones asked side by side. A page that fails is its error in the list."""
+    found = await read_many(
+        ctx,
+        linked,
+        "pages",
+        "page",
+        [({"ref": ref}, _page_fetch(ref)) for ref in page_refs],
+        refresh=refresh,
+        ttl=PAGE_TEXT_TTL,
+    )
+    return [f if isinstance(f, AppError) else PageDetail.model_validate(f) for f in found]
+
+
+async def read_many(
+    ctx: Ctx,
+    linked: tuple[LmsCourseLink, Bound],
+    feature: LmsFeature,
+    method: str,
+    wanted: Sequence[tuple[dict[str, Any], Any]],
+    *,
+    refresh: bool,
+    ttl: timedelta = cache.TTL,
+) -> list[Any | AppError]:
+    """Reads of one kind for one course (`(params, fetch)` each, like `_read`): cached ones from
+    the cache, the others from the platform side by side in one attempt (the session is not
+    shared between tasks: only the provider calls run concurrently). An item the platform
+    refuses or lacks is its error in the result; a broken connection fails the whole call."""
+    link, b = linked
+    service.require_feature(b, feature)
+    ext = link.external_course_id
+    keys = [
+        cache.cache_key(ctx.user_id, b.row.id, method, {"course": ext, **params})
+        for params, _ in wanted
+    ]
+    out: list[Any | AppError] = [None] * len(wanted)
+    missing: list[int] = []
+    for n, key in enumerate(keys):
+        hit = None if refresh else await cache.get(ctx, key)
+        if hit is None:
+            missing.append(n)
+        else:
+            out[n] = hit["data"]
+    if not missing:
+        return out
+    gate = asyncio.Semaphore(MANY_CONCURRENCY)
+
+    async def one(i: Any, n: int) -> Any:
+        async with gate:
+            try:
+                return service.dump(await wanted[n][1](b, i, ext))
+            except AppError as exc:
+                if exc.code in ITEM_ERRORS:
+                    return exc
+                raise
+
+    async def run(i: Any) -> list[Any]:
+        return await asyncio.gather(*(one(i, n) for n in missing))
+
+    fetched, _ = await service.call(ctx, b, run)
+    for n, data in zip(missing, fetched, strict=True):
+        out[n] = data
+        if not isinstance(data, AppError):
+            await cache.put(
+                ctx,
+                keys[n],
+                b.row.id,
+                {"data": data, "truncated": False},
+                scope=cache.course_scope(ext),
+                ttl=ttl,
+            )
+    return out
+
+
+async def discussions(ctx: Ctx, course_id: str, refresh: bool) -> list[dict[str, Any]]:
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        return _cleaned(b, await b.provider.discussions(i, b.cfg, b.creds, ext))
+
+    data, *_ = await _read(
+        ctx,
+        course_id,
+        "discussions",
+        "discussions",
+        {},
+        fetch,
+        refresh=refresh,
+        area="discussions",
+    )
+    return data
+
+
+async def discussion(ctx: Ctx, course_id: str, topic_id: str, refresh: bool) -> DiscussionDetail:
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        detail = await b.provider.discussion(i, b.cfg, b.creds, ext, topic_id)
+        detail.html = b.clean(detail.html, detail.web_url)
+        for entry in detail.entries:
+            entry.html = b.clean(entry.html, detail.web_url)
+        return lock_text(detail)
+
+    data, *_ = await _read(
+        ctx, course_id, "discussions", "discussion", {"topic": topic_id}, fetch, refresh=refresh
+    )
+    return DiscussionDetail.model_validate(data)
 
 
 async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
@@ -433,7 +653,7 @@ async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
         return _cleaned(b, await b.provider.quizzes(i, b.cfg, b.creds, ext))
 
     data, truncated, *_ = await _read(
-        ctx, course_id, "quizzes", "quizzes", {}, fetch, refresh=refresh
+        ctx, course_id, "quizzes", "quizzes", {}, fetch, refresh=refresh, area="quizzes"
     )
     return QuizList.model_validate({"items": data, "truncated": truncated})
 
@@ -541,7 +761,14 @@ async def folder(ctx: Ctx, course_id: str, folder_id: str | None, refresh: bool)
         return await b.provider.folder(i, b.cfg, b.creds, ext, folder_id)
 
     data, truncated, *_ = await _read(
-        ctx, course_id, "folders", "folder", {"folder": folder_id}, fetch, refresh=refresh
+        ctx,
+        course_id,
+        "folders",
+        "folder",
+        {"folder": folder_id},
+        fetch,
+        refresh=refresh,
+        area="files" if folder_id is None else None,
     )
     return FolderListing.model_validate({**data, "truncated": truncated})
 
@@ -551,7 +778,14 @@ async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> Fi
         return await b.provider.search_files(i, b.cfg, b.creds, ext, term)
 
     data, truncated, *_ = await _read(
-        ctx, course_id, "folders", "file_search", {"term": term}, fetch, refresh=refresh
+        ctx,
+        course_id,
+        "folders",
+        "file_search",
+        {"term": term},
+        fetch,
+        refresh=refresh,
+        area="files",
     )
     return FileList.model_validate({"items": data, "truncated": truncated})
 

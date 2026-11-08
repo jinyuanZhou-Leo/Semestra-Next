@@ -20,6 +20,9 @@ from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
     ConnectionSummary,
+    Discussion,
+    DiscussionDetail,
+    DiscussionEntry,
     FileMeta,
     Folder,
     FolderListing,
@@ -93,6 +96,12 @@ class FakeProvider:
             ]
         }  # fmt: skip
         self.events: list[LmsCalendarEvent] = []
+        self.nav = [NavTab(external_id="home", kind="home", label="Home")]
+        # The instructor hid the pages: their list is refused, each page still opens.
+        self.pages_hidden = False
+        # Page ref → (title, body); `page` serves "Intro" for any other ref.
+        self.page_texts: dict[str, tuple[str, str]] = {}
+        self.module_list: list[Module] | None = None
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -146,7 +155,7 @@ class FakeProvider:
     async def navigation(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[NavTab]:
-        return [NavTab(external_id="home", kind="home", label="Home")]
+        return list(self.nav)
 
     async def announcements(
         self,
@@ -183,6 +192,8 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Module]:
         self.calls.append(("modules", course_id))
+        if self.module_list is not None:
+            return [m.model_copy(deep=True) for m in self.module_list]
         intro = ModuleItem(external_id="i1", title="Intro", kind="page",
                            lock_explanation="<p>Opens <b>Monday</b></p>")  # fmt: skip
         return [
@@ -200,11 +211,18 @@ class FakeProvider:
     async def pages(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[PageSummary]:
+        self.calls.append(("pages", course_id))
+        if self.pages_hidden:
+            raise lms_error("lms.not_found")
         return [PageSummary(external_id="p1", ref="intro", title="Intro")]
 
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
+        self.calls.append(("page", page_ref))
+        if page_ref in self.page_texts:
+            title, body = self.page_texts[page_ref]
+            return PageDetail(external_id=f"p-{page_ref}", ref=page_ref, title=title, html=body)
         return PageDetail(external_id="p1", ref=page_ref, title="Intro",
                           web_url=f"https://fake/courses/{course_id}/pages/{page_ref}",
                           html="<h1 style='color:#123;position:fixed'>Intro</h1>"
@@ -258,7 +276,26 @@ class FakeProvider:
         if folder_id == "f1":
             notes = FileMeta(external_id="9", name="notes.txt", mime_type="text/plain")
             return FolderListing(folder=sub, trail=[root, sub], folders=[], files=[notes])
-        raise AppError("common.not_found", 404)
+        raise lms_error("lms.not_found")
+
+    async def discussions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[Discussion]:
+        return [Discussion(external_id="d1", title="Study group", html="<p>Who is in?</p>",
+                           reply_count=1)]  # fmt: skip
+
+    async def discussion(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, topic_id: str
+    ) -> DiscussionDetail:
+        self.calls.append(("discussion", topic_id))
+        if topic_id.startswith("n"):  # an announcement
+            return DiscussionDetail(external_id=topic_id, title="Welcome", html="<p>Hi</p>")
+        if topic_id != "d1":
+            raise lms_error("lms.not_found")
+        return DiscussionDetail(
+            external_id="d1", title="Study group", html="<p>Who is in?</p>", reply_count=1,
+            entries=[DiscussionEntry(author="Bo", html="<p>Me</p>")],
+        )  # fmt: skip
 
     async def search_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
@@ -442,6 +479,19 @@ def canvas_api(router: respx.MockRouter) -> None:
     router.get(f"{api}/folders/50/files").mock(
         return_value=ok([{"id": 77, "display_name": "slides.pdf"}])
     )
+    router.get(f"{api}/courses/101/discussion_topics").mock(
+        return_value=ok([{"id": 60, "title": "Study group", "message": "<p>Who?</p>",
+                          "discussion_subentry_count": 1, "author": {"display_name": "Bo"}}])
+    )  # fmt: skip
+    router.get(f"{api}/courses/101/discussion_topics/60").mock(
+        return_value=ok({"id": 60, "title": "Study group", "message": "<p>Who?</p>",
+                         "discussion_subentry_count": 1})
+    )  # fmt: skip
+    router.get(f"{api}/courses/101/discussion_topics/60/view").mock(
+        return_value=ok({"participants": [{"id": 2, "display_name": "Cy"}],
+                         "view": [{"id": 1, "user_id": 2, "message": "<p>Me</p>",
+                                   "replies": [{"id": 2, "user_id": 2, "message": "<p>Too</p>"}]}]})
+    )  # fmt: skip
     router.get(f"{api}/calendar_events").mock(
         return_value=ok([
             {"id": 900, "title": "Lecture", "start_at": "2026-01-12T14:00:00Z",

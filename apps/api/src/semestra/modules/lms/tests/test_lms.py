@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 from fastapi import FastAPI
@@ -694,7 +695,7 @@ async def test_a_host_without_the_api_is_a_config_error_on_save(
     api: Api, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
 ):
     async def missing(*_: Any) -> Any:
-        raise not_found()
+        raise lms_error("lms.not_found")
 
     monkeypatch.setattr(fake, "validate", missing)
     payload = {"provider": "fake", "config": {"base_url": "https://fake.example.edu"},
@@ -756,8 +757,10 @@ async def test_a_refused_resource_leaves_the_connection_alone(
         raise lms_error("lms.forbidden")  # e.g. Pages turned off in this course
 
     monkeypatch.setattr(type(fake), "pages", refused)
-    err = await api.call("GET", f"/courses/{course}/lms/pages", 403)
-    assert err["error"]["code"] == "lms.forbidden"
+    err = await api.call("GET", f"/courses/{course}/lms/pages", 409)
+    assert err["error"] == {
+        "code": "lms.area_hidden", "params": {"area": "pages"}, "request_id": ANY
+    }
     [row] = (await api.call("GET", "/lms/connections"))["items"]
     assert (row["id"], row["status"], row["last_error_code"]) == (conn, "connected", None)
 

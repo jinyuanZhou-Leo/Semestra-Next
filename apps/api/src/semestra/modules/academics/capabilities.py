@@ -302,13 +302,16 @@ async def course_get(ctx: Ctx, inp: CourseRef) -> Course:
     summary="Find courses by how the user names them: code, title words or nickname.",
     description="""Use first whenever the user refers to a course in words ("APS 105", "the
 programming course", "calc") to get its id. Returns candidates with a score; ask the user when
-the top candidates are close. Searches the current Program unless `program_id` is given.""",
+the top candidates are close. Searches the current Program unless `program_id` is given.
+`sources` names where else the course's material is besides its files (`lms`: its course on
+the LMS); look there too when the answer is about the course.""",
     effect="read",
     expose=("agent", "mcp"),
     tags=TAGS,
     agent_core=True,
     agent_output_fields=tuple(
-        f"items.{f}" for f in ("course_id", "code", "title", "alias", "term_ids", "score")
+        f"items.{f}"
+        for f in ("course_id", "code", "title", "alias", "term_ids", "score", "sources")
     ),
 )
 async def course_find(ctx: Ctx, inp: CourseFindInput) -> CourseCandidates:

@@ -2,7 +2,7 @@
 the model tokens and buries the text. HTTP callers keep the cleaned HTML.
 
 A platform link the provider recognized (`data-lms-kind` / `data-lms-ref`, see `html.py`) becomes
-`[text](lms:<kind>/<ref>)`, so the model can still open that file or page.
+`[text](lms:<kind>:<ref>)`: `<kind>:<ref>` is the item's ref, which `lms.content.read` opens.
 """
 
 from typing import Any
@@ -14,7 +14,7 @@ class _Converter(MarkdownConverter):
     def convert_a(self, el: Any, text: str, parent_tags: set[str]) -> str:
         kind, ref = el.get("data-lms-kind"), el.get("data-lms-ref")
         if kind and ref:
-            return f"[{text.strip() or ref}](lms:{kind}/{ref})"
+            return f"[{text.strip() or ref}](lms:{kind}:{ref})"
         return super().convert_a(el, text, parent_tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 

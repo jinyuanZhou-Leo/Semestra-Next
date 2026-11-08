@@ -13,7 +13,9 @@ from fastapi import FastAPI
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
 from semestra.core.jobs import periodic
+from semestra.modules.academics.service import register_course_source
 from semestra.modules.lms import (  # noqa: F401  (registers on import)
+    agent_tools,
     calendar,
     capabilities,
     imports,
@@ -26,12 +28,13 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
 from semestra.modules.lms.cache import purge_expired, runtime
 from semestra.modules.lms.providers import register_lms_provider
 from semestra.modules.lms.providers.canvas import CanvasProvider
-from semestra.modules.lms.service import refresh_all
+from semestra.modules.lms.service import linked_course_ids, refresh_all
 from semestra.modules.lms.settings import LmsSettings, completes_submitted
 from semestra.modules.lms.submissions import courses_to_check
 from semestra.modules.settings import register_settings
 
 register_lms_provider(CanvasProvider())
+register_course_source("lms", linked_course_ids)
 # Allowing writes widens what Sem and MCP clients may do on the platform: only the user flips it.
 register_settings(namespace="lms", schema=LmsSettings, levels=("account",), agent_writable=False)
 

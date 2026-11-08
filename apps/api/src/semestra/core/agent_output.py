@@ -31,8 +31,8 @@ if TYPE_CHECKING:
 # (writes answer with `{id, name, <what changed>}`).
 CHANGED = "<changed>"
 
-# Kept whatever `fields` says: what the next call needs (`external_id`: LMS items).
-_IDS = {"id", "external_id"}
+# Kept whatever `fields` says: what the next call needs (`external_id`, `ref`: LMS items).
+_IDS = {"id", "external_id", "ref"}
 
 ZoneResolver = Callable[[Ctx, BaseModel, BaseModel], Awaitable[tzinfo | None]]
 _zone_resolver: ZoneResolver | None = None

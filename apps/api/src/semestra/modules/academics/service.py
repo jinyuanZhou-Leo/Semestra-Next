@@ -931,6 +931,7 @@ async def find_courses(
         key=lambda pair: (-pair[0], rules.normalize(pair[1].code), pair[1].id),
     )[:limit]
     links = await _links(ctx, [r.id for _, r in best])
+    sources = await _sources(ctx, [r.id for _, r in best])
     orders: dict[str, list[str]] = {}
     for _, r in best:
         if r.program_id not in orders:
@@ -945,10 +946,30 @@ async def find_courses(
                 alias=r.alias,
                 term_ids=[t for t in orders[r.program_id] if t in links.get(r.id, set())],
                 score=s,
+                sources=sources.get(r.id, []),
             )
             for s, r in best
         ]
     )
+
+
+# Other modules tell the assistant where else a course's material is (M09: `lms` for a course
+# linked to Canvas): course ids in, a source name per course out. academics knows none of them.
+CourseSources = Callable[[Ctx, list[str]], Awaitable[set[str]]]
+_course_sources: dict[str, CourseSources] = {}
+
+
+def register_course_source(name: str, linked: CourseSources) -> None:
+    """`linked` returns which of the given courses have material in `name`."""
+    _course_sources[name] = linked
+
+
+async def _sources(ctx: Ctx, course_ids: list[str]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for name in sorted(_course_sources):
+        for course_id in await _course_sources[name](ctx, course_ids):
+            out.setdefault(course_id, []).append(name)
+    return out
 
 
 _NULLABLE_COURSE = {"code", "alias", "color", "description", "website_url"}

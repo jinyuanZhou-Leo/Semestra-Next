@@ -245,7 +245,7 @@ async def _check(
             return await provider.validate(i, cfg, creds)
     except AppError as exc:
         # A reachable host without the platform's API answers the profile read with 404.
-        if exc.code == "common.not_found":
+        if exc.code == "lms.not_found":
             raise lms_error("lms.invalid_config", field="base_url", reason="not_canvas") from exc
         raise
 
@@ -662,18 +662,18 @@ async def cached(
     if _cache_only.get():
         raise NotCached
     result, truncated = await call(ctx, b, fn)
-    data = _dump(result)
+    data = dump(result)
     await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated}, scope=scope)
     return data, truncated
 
 
-def _dump(value: Any) -> Any:
+def dump(value: Any) -> Any:
     """JSON form for the cache, with the fields kept from clients (`dto.INTERNAL`), nested
     DTOs included: the cache is server-side, and reads rebuild their DTOs from it."""
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json", context=INTERNAL)
     if isinstance(value, list):
-        return [_dump(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
+        return [dump(v) for v in value]  # pyright: ignore[reportUnknownVariableType]
     return value
 
 
@@ -839,6 +839,16 @@ async def external_courses(
     return ExternalCourseList(
         connection_id=b.row.id, provider=b.row.provider, items=items, truncated=truncated
     )
+
+
+async def linked_course_ids(ctx: Ctx, course_ids: list[str]) -> set[str]:
+    """Which of the courses are linked (academics' `sources` of a course: `lms`)."""
+    rows = await ctx.db.scalars(
+        select(LmsCourseLink.course_id).where(
+            LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.course_id.in_(course_ids)
+        )
+    )
+    return set(rows)
 
 
 async def link_row(ctx: Ctx, course_id: str) -> LmsCourseLink | None:

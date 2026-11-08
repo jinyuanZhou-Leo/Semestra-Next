@@ -67,7 +67,7 @@ def test_html_fields_reach_agents_as_markdown():
         "<ul><li>one</li></ul><p>Submit lab_3_report.pdf by 11:59 *sharp*</p>"
     )
     assert to_markdown(html) == (
-        "## Lab 3\n\nRead [the handout](lms:file/9) and [this](https://example.com).\n\n- one"
+        "## Lab 3\n\nRead [the handout](lms:file:9) and [this](https://example.com).\n\n- one"
         "\n\nSubmit lab_3_report.pdf by 11:59 *sharp*"  # nothing escaped: the model copies it
     )
 

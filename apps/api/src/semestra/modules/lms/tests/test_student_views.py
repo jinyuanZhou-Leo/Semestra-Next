@@ -64,7 +64,7 @@ async def test_submission_folders_search_and_preview(api: Api, fake: FakeProvide
     assert [f["name"] for f in inner["trail"]] == ["course files", "Lectures"]
     assert [f["name"] for f in inner["files"]] == ["notes.txt"]
     missing = await api.call("GET", f"/courses/{course}/lms/folders?folder_id=zz", 404)
-    assert missing["error"]["code"] == "common.not_found"
+    assert missing["error"]["code"] == "lms.not_found"
 
     found = await api.call("GET", f"/courses/{course}/lms/files?term=notes")
     assert [f["name"] for f in found["items"]] == ["notes.txt"]

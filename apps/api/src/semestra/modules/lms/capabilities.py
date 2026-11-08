@@ -16,6 +16,7 @@ from semestra.modules.lms.schemas.io import (
     AnnouncementRead,
     AnnouncementReadInput,
     AnnouncementsInput,
+    AssignmentImportInput,
     AssignmentList,
     AssignmentsImportInput,
     AssignmentsInput,
@@ -69,6 +70,8 @@ from semestra.modules.lms.schemas.io import (
 
 HTTP_ONLY = ("http",)
 TAGS = ("lms",)
+# The assistant reads through `agent_tools.py` (outline, search, read, activity); the reads here
+# are the Canvas tab's, one per platform endpoint, so they are HTTP only (M09 §8).
 
 # What agents get back (M00 §3.6): no connection config or credential hints, provider debug
 # kinds, platform links or timestamps the model has no use for.
@@ -92,6 +95,7 @@ _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LI
     description="Features the provider lacks are not offered for its connections.",
     effect="read",
     http=Http("GET", "/lms/providers"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=("items.kind", "items.display_name", "items.features"),
 )
@@ -191,6 +195,7 @@ async def connection_validate(ctx: Ctx, inp: ConnectionValidateInput) -> Connect
 manages connections in settings.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms-binding"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_BINDING_FIELDS,
 )
@@ -206,6 +211,7 @@ Afterwards link courses with lms.course.link.set.""",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_set,
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_BINDING_FIELDS,
 )
@@ -221,6 +227,7 @@ them with lms.course.link.delete first. The connection itself stays.""",
     effect="write",
     http=Http("DELETE", "/programs/{program_id}/lms-binding"),
     preview=previews.preview_binding_clear,
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_BINDING_FIELDS,
 )
@@ -234,7 +241,8 @@ async def binding_clear(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 @capability(
     name="lms.course.list",
     summary="The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
-    description="Current-term courses by default; `include_past` for all of them.",
+    description="""Current-term courses by default; `include_past` for all of them. To link one
+to a course here: lms.course.link.set; to create courses from them: lms.course.import.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms/courses"),
     tags=TAGS,
@@ -272,6 +280,7 @@ lms.* read tools: they need a linked course (lms.course_not_linked otherwise). L
 lms.course.link.set.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms-link"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -286,6 +295,7 @@ async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 For one course use lms.course.link.get, which also says which connection the Program uses.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms-links"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=tuple(f"items.{f}" for f in _LINK),
 )
@@ -296,7 +306,8 @@ async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
 @capability(
     name="lms.course.link.set",
     summary="Link a course to its course on the Program's LMS (Canvas or another).",
-    description="""Uses the Program's bound connection (lms.program_not_configured without one).
+    description="""Pick the course from lms.course.list. Uses the Program's bound connection
+(lms.program_not_configured without one: the user connects one in settings).
 An external course can be linked to only one course of the Program
 (lms.course_already_linked). If the course is already linked to another external course this fails
 with lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking
@@ -320,6 +331,7 @@ link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
     preview=previews.preview_link_update,
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -334,6 +346,7 @@ async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
 or moved on the LMS and the link still shows the old code, name or term.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms-link:sync"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -350,6 +363,7 @@ keep reading, use lms.course.link.update instead.""",
     effect="write",
     http=Http("DELETE", "/courses/{course_id}/lms-link"),
     preview=previews.preview_link_delete,
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=_LINK_FIELDS,
 )
@@ -366,6 +380,7 @@ async def link_delete(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     description="A read the platform does not support fails with lms.feature_unsupported.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "provider_name",
@@ -409,6 +424,7 @@ async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_default_fields=("title", "author", "posted_at", "unread"),
 )
@@ -449,17 +465,26 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Announ
 @capability(
     name="lms.assignment.list",
     untrusted=True,
-    summary="Assignments of a linked course on Canvas or another LMS, marked when imported.",
-    description="""To add them to the gradebook or tasks use lms.assignment.import (and
-lms.assignment.add_to_gradebook for ones imported as tasks), never the gradebook or task
-capabilities directly.""",
+    summary="Assignments and graded quizzes of a linked course on the LMS (Canvas), with the "
+    "user's scores and the course total, marked when imported.",
+    description="""For "what is due", "what is missing" and "what did I get": filter by `status`
+or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives its text, rubric and the teacher's
+feedback. To add them to the gradebook or tasks use lms.assignment.import, never the gradebook
+or task capabilities directly.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/assignments"),
     tags=TAGS,
-    agent_default_fields=("name", "due_at", "points", "group_name", "submission", "imported_as"),
+    agent_default_fields=(
+        "name",
+        "due_at",
+        "points",
+        "group_name",
+        "submission",
+        "imported_as",
+    ),
 )
 async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
-    return await reads.assignments(ctx, inp.course_id, inp.refresh)
+    return await reads.assignments(ctx, inp)
 
 
 @capability(
@@ -484,6 +509,7 @@ async def term_new_assignments(ctx: Ctx, inp: TermNewAssignmentsInput) -> NewAss
 `rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/assignments/{assignment_id}/submission"),
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
@@ -498,6 +524,7 @@ and grade as the LMS shows them. The gradebook in this app is grading.gradebook.
 assignments to it use lms.assignment.import.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/grades"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -527,6 +554,7 @@ async def grades_list(ctx: Ctx, inp: CourseReadInput) -> GradeList:
 with their state, unlock date and item count. Items of a module: lms.module_item.list.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/modules"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -545,6 +573,7 @@ quiz, link...) and an indent level. `target` says where an item opens in the app
 file...).""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/modules/{module_id}/items"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -565,6 +594,7 @@ async def module_items_list(ctx: Ctx, inp: ModuleItemsInput) -> ModuleItemList:
 lms.page.get. The syllabus has its own tool, lms.syllabus.get.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/pages"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -582,6 +612,7 @@ async def pages_list(ctx: Ctx, inp: CourseReadInput) -> PageList:
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/pages/{ref}"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=("ref", "title", "updated_at", "locked", "html"),
 )
@@ -598,6 +629,7 @@ with `fields`. A quiz's score and attempts come with lms.assignment.list (its `a
 questions are not available.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/quizzes"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_default_fields=("title", "due_at", "unlock_at", "lock_at", "points", "question_count"),
 )
@@ -612,6 +644,7 @@ async def quizzes_list(ctx: Ctx, inp: QuizzesInput) -> QuizList:
     description="To extract its grading scheme use lms.syllabus.import.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/syllabus"),
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
@@ -625,6 +658,7 @@ async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
 lms.file.save_to_course.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=("external_id", "name", "mime_type", "size_bytes", "updated_at", "locked"),
 )
@@ -639,6 +673,7 @@ async def file_get(ctx: Ctx, inp: FileInput) -> FileMeta:
 students fail with lms.forbidden; their files are still reachable through modules.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/folders"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -669,6 +704,7 @@ last change and whether it is locked. Browse by folder with lms.folder.get, open
 lms.file.preview, or copy it into the course's files with lms.file.save_to_course.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files"),
+    expose=HTTP_ONLY,
     tags=TAGS,
     agent_output_fields=(
         "truncated",
@@ -690,6 +726,7 @@ async def file_search(ctx: Ctx, inp: FileSearchInput) -> FileList:
 lms.file.save_to_course instead.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}/preview"),
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
@@ -700,8 +737,10 @@ async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
 
 @capability(
     name="lms.file.save_to_course",
-    summary="Save a file of a linked course into the course's files.",
-    description="It is then processed like an upload and can be searched and extracted.",
+    summary="Save a file of a linked course on the LMS into the course's files.",
+    description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
+is then processed like an upload and can be searched (files.document.search), cited and
+extracted.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/files/{file_id}:save"),
     preview=previews.preview_file_save,
@@ -733,8 +772,10 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
 @capability(
     name="lms.assignment.import",
     summary="Import a linked course's assignments: worth points into the gradebook, else as tasks.",
-    description="""Assignments worth points become assessments (each gets its task), the others
-tasks; ones imported before are left out. Saved at once when nothing needs a decision
+    description="""Assignments from lms.assignment.list (`ref`s). With `into` auto (default),
+those worth points become assessments (each gets its task), the others tasks; ones imported
+before are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`
+task) become assessments and keep their to-do. Saved at once when nothing needs a decision
 (`committed`); otherwise the user reviews it, then commit it like any import
 (imports.session.commit).""",
     effect="write",
@@ -742,19 +783,21 @@ tasks; ones imported before are left out. Saved at once when nothing needs a dec
     preview=previews.preview_assignment_import,
     tags=TAGS,
 )
-async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
+async def import_assignments(ctx: Ctx, inp: AssignmentImportInput) -> ImportStarted:
+    if inp.into == "gradebook":
+        return await imports.add_to_gradebook(ctx, inp)
     return await imports.import_assignments(ctx, inp)
 
 
 @capability(
     name="lms.assignment.add_to_gradebook",
     summary="Move imported LMS assignments that have no gradebook entry into the gradebook.",
-    description="""For assignments whose `imported_as.kind` is task in lms.assignment.list: each
-becomes an assessment and keeps its to-do. Saved at once when nothing needs a decision
-(`committed`); otherwise commit it after the review (imports.session.commit).""",
+    description="""The app's button; the assistant uses lms.assignment.import with `into`
+gradebook.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:gradebook"),
     preview=previews.preview_add_to_gradebook,
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
@@ -778,9 +821,10 @@ async def import_syllabus(ctx: Ctx, inp: CourseRef) -> ImportStarted:
     name="lms.course.check_updates",
     summary="Imported assignments whose title, due, points, weight or grade changed on the LMS.",
     description="""A `score` change is a grade the gradebook does not have yet. Put them up for
-the user's review with lms.course.queue_updates.""",
+the user's review with lms.change.import.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/updates"),
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def check_updates(ctx: Ctx, inp: CourseReadInput) -> UpdatesOutput:
@@ -788,10 +832,13 @@ async def check_updates(ctx: Ctx, inp: CourseReadInput) -> UpdatesOutput:
 
 
 @capability(
-    name="lms.course.queue_updates",
-    summary="Put the LMS changes of imported assignments up for review.",
-    description="""Creates an import of the changes and changes nothing itself: they are written
-when the import is committed (imports.session.commit) after the user reviewed it.""",
+    name="lms.change.import",
+    summary="Import what changed on the LMS for a course's imported assignments (due dates, "
+    "points, weights, new grades), for the user's review.",
+    description="""The changes are the `change` items of lms.activity.list. Creates an import of
+them and changes nothing itself: they are written when the import is committed
+(imports.session.commit) after the user reviewed it; the result's count says how many.
+Nothing changed: import.no_content.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/updates:review"),
     preview=previews.preview_apply_updates,

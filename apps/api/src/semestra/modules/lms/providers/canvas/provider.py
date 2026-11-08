@@ -40,6 +40,9 @@ from semestra.modules.lms.schemas.dto import (
     Assignment,
     Completion,
     ConnectionSummary,
+    Discussion,
+    DiscussionDetail,
+    DiscussionEntry,
     FileMeta,
     Folder,
     FolderListing,
@@ -70,6 +73,8 @@ MAX_REDIRECTS = 5
 # Canvas accepts at most 10 context codes per calendar request.
 CONTEXT_CODES_PER_REQUEST = 10
 ANNOUNCEMENT_LOOKBACK = timedelta(days=180)
+# Replies of one discussion read (`discussion`), in thread order.
+DISCUSSION_MAX_ENTRIES = 100
 # Where Canvas hands out file downloads besides the instance itself.
 FILE_CDN_SUFFIXES = (
     ".instructure.com",
@@ -247,7 +252,9 @@ def _map_status(response: httpx.Response) -> AppError | None:
             return lms_error("lms.rate_limited", retry_after=60)
         return lms_error("lms.forbidden")
     if status == 404:
-        return AppError("common.not_found", 404)
+        # Canvas answers 404 both for an item that does not exist and for a list of an area the
+        # instructor hid (`tab_enabled?`); the module tells the two apart (`reads._read`).
+        return lms_error("lms.not_found")
     if status == 429:
         retry = _int(response.headers.get("retry-after"), 60)
         return lms_error("lms.rate_limited", retry_after=retry)
@@ -729,6 +736,65 @@ class CanvasProvider:
             locked=bool(r.get("locked_for_user")),
             lock_explanation=_text(r.get("lock_explanation")),
         )
+
+    def _discussion(self, r: dict[str, Any]) -> Discussion:
+        author = r.get("author")
+        return Discussion(
+            external_id=str(r.get("id") or ""),
+            web_url=_text(r.get("html_url")),
+            raw_kind="announcement" if r.get("is_announcement") else "discussion",
+            title=_text(r.get("title")) or "",
+            html=_text(r.get("message")),
+            author=_text(cast(dict[str, Any], author).get("display_name"))
+            if isinstance(author, dict)
+            else _text(r.get("user_name")),
+            posted_at=r.get("posted_at") or r.get("created_at"),
+            last_reply_at=r.get("last_reply_at"),
+            reply_count=_int(r.get("discussion_subentry_count")),
+            locked=bool(r.get("locked_for_user")),
+            lock_explanation=_text(r.get("lock_explanation")),
+        )
+
+    async def discussions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[Discussion]:
+        rows = await self._list(io, cfg, creds, f"/courses/{quote(course_id)}/discussion_topics")
+        return [self._discussion(r) for r in rows if not r.get("is_announcement")]
+
+    async def discussion(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, topic_id: str
+    ) -> DiscussionDetail:
+        base = f"/courses/{quote(course_id)}/discussion_topics/{quote(topic_id, safe='')}"
+        topic = self._discussion(cast(dict[str, Any], await self._get(io, cfg, creds, base)))
+        entries: list[DiscussionEntry] = []
+        truncated = False
+        if topic.reply_count and not topic.locked:
+            # The full thread (`/view`) names authors only in `participants`.
+            view = cast(dict[str, Any], await self._get(io, cfg, creds, f"{base}/view"))
+            names = {
+                str(p.get("id")): _text(p.get("display_name"))
+                for p in cast(list[dict[str, Any]], view.get("participants") or [])
+            }
+
+            def walk(rows: list[dict[str, Any]], depth: int) -> None:
+                nonlocal truncated
+                for r in rows:
+                    if len(entries) >= DISCUSSION_MAX_ENTRIES:
+                        truncated = True
+                        return
+                    if not r.get("deleted"):
+                        entries.append(
+                            DiscussionEntry(
+                                author=names.get(str(r.get("user_id"))),
+                                html=_text(r.get("message")),
+                                created_at=r.get("created_at"),
+                                depth=depth,
+                            )
+                        )
+                    walk(cast(list[dict[str, Any]], r.get("replies") or []), depth + 1)
+
+            walk(cast(list[dict[str, Any]], view.get("view") or []), 0)
+        return DiscussionDetail(**topic.model_dump(), entries=entries, entries_truncated=truncated)
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
         rows = await self._list(io, cfg, creds, f"/courses/{quote(course_id)}/quizzes")

@@ -1,4 +1,4 @@
-"""The module's error codes (M09 §9). Providers raise only these (and `common.not_found`)."""
+"""The module's error codes (M09 §9). Providers raise only these."""
 
 from typing import Any
 
@@ -10,6 +10,14 @@ STATUS = {
     # Not 401: that status means "your Semestra session expired" to the frontend.
     "lms.invalid_credentials": 400,
     "lms.forbidden": 403,
+    # The platform has no such item (any more), or the course has none (no front page). Not
+    # `common.not_found`: that one says an id of this app is wrong.
+    "lms.not_found": 404,
+    # A whole area of the course (pages, files, quizzes...) is not open to the user: the
+    # instructor hid it. Its items may still be reachable through the modules.
+    "lms.area_hidden": 409,
+    # An LMS ref (`<kind>:<id>`) the module can't read: malformed, or a kind with no body.
+    "lms.invalid_ref": 422,
     "lms.unreachable": 502,
     "lms.rate_limited": 429,
     "lms.blocked_address": 400,
@@ -67,8 +75,16 @@ agent_hints(
         "them.",
         "lms.invalid_credentials": "The LMS token stopped working; the user reconnects in "
         "settings.",
-        "lms.forbidden": "The LMS refuses access to this resource (locked or hidden by the "
-        "instructor).",
+        "lms.forbidden": "The LMS refuses this item to the user (locked, or not published yet); "
+        "lms.course.outline shows why an item is locked. Tell the user rather than retrying.",
+        "lms.not_found": "The LMS has no such item (deleted, or the ref is wrong; a course "
+        "without a front page has none). Take refs from lms.course.outline or "
+        "lms.content.search instead of building them.",
+        "lms.area_hidden": "The instructor hid this area of the course (params.area) from "
+        "students. Its items may still be in the modules: use lms.course.outline or "
+        "lms.content.search, which only read what is open.",
+        "lms.invalid_ref": "Pass a ref exactly as an lms tool returned it (`<kind>:<id>`, e.g. "
+        "`page:week-1`), or the item's Canvas address as `url`.",
         "lms.unreachable": "The LMS did not answer; try again later.",
         "lms.rate_limited": "The LMS is limiting requests; wait before trying again.",
         "lms.assignment_already_imported": "This assignment is already in the gradebook; update "
