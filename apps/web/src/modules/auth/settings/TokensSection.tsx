@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { useDialogTarget } from '@/lib/dialog-target'
+import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -195,13 +195,10 @@ function CreateTokenDialog({
 
 function TokenCreatedDialog({
   token,
-  onClose,
-}: {
-  token: TokenCreated | null
-  onClose: () => void
-}) {
+  ...props
+}: { token: TokenCreated | null } & DialogTargetProps) {
   return (
-    <Dialog open={token !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog {...props}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_account_tokens_created_title()}</DialogTitle>
@@ -235,7 +232,7 @@ function TokenCreatedDialog({
           </div>
         ) : null}
         <DialogFooter>
-          <Button onClick={onClose}>{m.auth_account_tokens_done()}</Button>
+          <DialogClose render={<Button />}>{m.auth_account_tokens_done()}</DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -320,7 +317,7 @@ export function TokensSection() {
   const queryClient = useQueryClient()
   const tokens = useQuery(accountTokenListOptions())
   const [creating, setCreating] = useState(false)
-  const [created, setCreated] = useState<TokenCreated | null>(null)
+  const created = useDialogTarget<TokenCreated>()
   const revoking = useDialogTarget<{ id: string; name: string }>()
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
@@ -378,11 +375,11 @@ export function TokensSection() {
         onOpenChange={setCreating}
         onCreated={(token) => {
           setCreating(false)
-          setCreated(token)
+          created.show(token)
           void refresh()
         }}
       />
-      <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
+      <TokenCreatedDialog token={created.target} {...created.props} />
       <ConfirmDialog
         {...revoking.props}
         title={m.auth_account_tokens_revoke_title()}

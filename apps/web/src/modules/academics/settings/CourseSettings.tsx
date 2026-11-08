@@ -1,6 +1,13 @@
-import type { Course, CourseUpdateInputBody, Instructor, Term } from '@semestra/api-client'
 import {
-  academicsCourseSetTermsMutation,
+  academicsCourseSetTerms,
+  academicsCourseUpdate,
+  type Course,
+  type CourseUpdateInputBody,
+  type Instructor,
+  type Term,
+} from '@semestra/api-client'
+import {
+  academicsCourseGetQueryKey,
   academicsCourseUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -156,10 +163,25 @@ export function CourseBasicsSection({ scope }: SettingsSectionProps) {
 function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
   const queryClient = useQueryClient()
   const update = useMutation({ ...academicsCourseUpdateMutation() })
+  // The terms and the planned count are one choice: shown at once (optimistically), saved one
+  // after the other, and put back from the server if either save fails.
+  const courseKey = academicsCourseGetQueryKey({ path: { course_id: course.id } })
   const setTerms = useMutation({
-    ...academicsCourseSetTermsMutation(),
+    mutationFn: async (next: Saved) => {
+      const path = { course_id: course.id }
+      await academicsCourseSetTerms({ path, body: { term_ids: next.term_ids }, throwOnError: true })
+      await academicsCourseUpdate({
+        path,
+        body: { planned_terms: next.planned_terms },
+        throwOnError: true,
+      })
+    },
+    onMutate: async (next) => {
+      await queryClient.cancelQueries({ queryKey: courseKey })
+      queryClient.setQueryData<Course>(courseKey, (current) => current && { ...current, ...next })
+    },
     onError: toastError,
-    onSuccess: () => invalidateAcademics(queryClient),
+    onSettled: () => invalidateAcademics(queryClient),
   })
   const { queue } = useAutosave<CourseUpdateInputBody>({
     save: async (body) => {
@@ -295,10 +317,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
           terms={terms}
           termIds={course.term_ids}
           planned={course.planned_terms}
-          onChange={(next) => {
-            setTerms.mutate({ path: { course_id: course.id }, body: { term_ids: next.term_ids } })
-            queue({ planned_terms: next.planned_terms })
-          }}
+          onChange={(next) => setTerms.mutate(next)}
         />
       </SettingsBlock>
     </>
@@ -352,22 +371,13 @@ function CourseTerms({
   planned: number
   onChange: (next: Saved) => void
 }) {
-  // What was just picked, until the course comes back with it.
-  const [picked, setPicked] = useState<{ start: string; end: string; spanning: boolean } | null>(
-    null,
-  )
-  const range = picked ?? rangeOf(terms, termIds, planned)
+  const range = rangeOf(terms, termIds, planned)
   const name = (id: string) =>
     id === NEXT_TERM ? m.academics_course_term_next() : (terms.find((t) => t.id === id)?.name ?? '')
   const termOptions = terms.map((t) => ({ value: t.id, label: t.name }))
   const endOptions = endChoices(terms, range.start).map((id) => ({ value: id, label: name(id) }))
 
-  const choose = (start: string, end: string | null) => {
-    setPicked(
-      end === null ? { start, end: start, spanning: false } : { start, end, spanning: true },
-    )
-    onChange(rangeTerms(terms, { start, end }))
-  }
+  const choose = (start: string, end: string | null) => onChange(rangeTerms(terms, { start, end }))
   const span = (on: boolean) => {
     if (!on) return choose(range.start, null)
     const next = spanFrom(terms, range.start, range.end)
