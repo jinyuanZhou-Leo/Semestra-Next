@@ -90,10 +90,6 @@ class AccountDeleteInput(BaseModel):
         description="The typed confirmation sentence."
     )
     acknowledged: bool = Field(description="The user ticked that this cannot be undone.")
-    password: Annotated[str, Field(max_length=1024)] | None = Field(
-        default=None,
-        description="Re-authentication when the last sign-in is older than 10 minutes.",
-    )
 
 
 class ExportJobInput(BaseModel):

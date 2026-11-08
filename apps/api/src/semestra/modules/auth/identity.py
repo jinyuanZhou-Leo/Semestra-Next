@@ -103,7 +103,7 @@ async def _from_jwt(
     if user is None:
         return None
     return Identity(
-        user, AuthInfo(kind="jwt", session_id=session.id, session_created_at=session.created_at)
+        user, AuthInfo(kind="jwt", session_id=session.id, verified_at=session.verified_at)
     )
 
 
@@ -132,7 +132,7 @@ async def _from_cookie(
         renewed = token
     return Identity(
         user,
-        AuthInfo(kind="cookie", session_id=session.id, session_created_at=session.created_at),
+        AuthInfo(kind="cookie", session_id=session.id, verified_at=session.verified_at),
         cookie_token=renewed,
     )
 

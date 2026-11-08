@@ -970,11 +970,7 @@ async def test_account_deletion(
     clock.advance(minutes=11)
     stale = await client.post("/me:delete", json=body)
     assert stale.status_code == 403
-    assert stale.json()["error"] == {
-        "code": "auth.reauth_required",
-        "params": {"password": False},
-        "request_id": stale.json()["error"]["request_id"],
-    }
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
     clock.advance(minutes=-11)
 
     deleted = await client.post("/me:delete", json=body)
@@ -1004,7 +1000,7 @@ async def test_account_deletion(
     assert "已删除" in mailer.outbox[-1].content.subject
 
 
-async def test_account_deletion_with_a_password_after_the_window(
+async def test_account_deletion_after_confirming_it_is_you(
     app: FastAPI, client: AsyncClient, clock: Clock, make_user: MakeUser, login_as: LoginAs
 ) -> None:
     user = await make_user(password="correct horse battery")
@@ -1012,10 +1008,9 @@ async def test_account_deletion_with_a_password_after_the_window(
     clock.advance(minutes=30)
     body = {"confirmation": "delete my account", "acknowledged": True}
     stale = await client.post("/me:delete", json=body)
-    assert stale.json()["error"]["params"] == {"password": True}
-    wrong = await client.post("/me:delete", json={**body, "password": "nope"})
-    assert wrong.json()["error"]["code"] == "auth.invalid_credentials"
-    ok = await client.post("/me:delete", json={**body, "password": "correct horse battery"})
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
+    await client.post("/account/reauth/password", json={"password": "correct horse battery"})
+    ok = await client.post("/me:delete", json=body)
     assert ok.status_code == 200, ok.text
 
 

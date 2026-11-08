@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from semestra.core.capability import Http, capability, registry
 from semestra.core.context import Ctx
 from semestra.modules.auth.mailer import MemoryMailer
-from semestra.testing import Clock, MakeUser, UserHandle, last_code
+from semestra.testing import Clock, FakeGoogle, MakeUser, UserHandle, last_code
 
 PASSWORD = "correct horse battery"
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -662,33 +662,77 @@ async def test_avatar_upload_requires_login(client: AsyncClient) -> None:
 # --- re-authentication and credential hygiene -------------------------------------------------
 
 
-async def test_creating_a_token_needs_a_recent_login_or_the_password(
+async def test_creating_a_token_needs_a_recent_check_and_the_password_renews_it(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
 ) -> None:
     await login_as(client, await make_user(password=PASSWORD))
     clock.advance(minutes=11)
     stale = await client.post("/account/tokens", json={"name": "cli"})
     assert stale.status_code == 403
-    assert stale.json()["error"] == {
-        "code": "auth.reauth_required",
-        "params": {"password": True},
-        "request_id": stale.json()["error"]["request_id"],
-    }
-    wrong = await client.post("/account/tokens", json={"name": "cli", "password": "not it at all"})
-    assert wrong.json()["error"]["code"] == "auth.invalid_credentials"
-    await create_pat(client, password=PASSWORD)
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
+    wrong = await client.post("/account/reauth/password", json={"password": "not it at all"})
+    assert wrong.json()["error"]["code"] == "auth.wrong_password"
+    ok = await client.post("/account/reauth/password", json={"password": PASSWORD})
+    assert ok.status_code == 200, ok.text
+    await create_pat(client)
+    clock.advance(minutes=11)  # the check lasts as long as a fresh sign-in
+    assert (await client.post("/account/tokens", json={"name": "cli"})).status_code == 403
 
 
-async def test_a_passwordless_account_signs_in_again_to_create_a_token(
-    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+async def test_a_passwordless_account_confirms_with_an_emailed_code(
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    clock: Clock,
+    mailer: MemoryMailer,
 ) -> None:
-    await login_as(client, await make_user(password=None))
+    user = await make_user(email="nopass@example.com", password=None)
+    await login_as(client, user)
     clock.advance(minutes=11)
-    stale = await client.post("/account/tokens", json={"name": "cli"})
-    assert stale.json()["error"]["params"] == {"password": False}
+    no_password = await client.post("/account/reauth/password", json={"password": "anything"})
+    assert no_password.json()["error"]["code"] == "auth.wrong_password"
+    sent = await client.post("/account/reauth/email-start", json={})
+    assert sent.status_code == 200, sent.text
+    code = last_code(mailer, "nopass@example.com")
+    ok = await client.post("/account/reauth/email-verify", json={"code": code})
+    assert ok.status_code == 200, ok.text
+    await create_pat(client)
+    # The code is spent.
+    again = await client.post("/account/reauth/email-verify", json={"code": code})
+    assert again.json()["error"]["code"] == "auth.invalid_code"
 
 
-async def test_starting_an_email_change_needs_a_recent_login(
+async def test_google_confirms_only_with_a_fresh_token_of_the_linked_account(
+    client: AsyncClient, google: FakeGoogle, clock: Clock
+) -> None:
+    google.add("sign-in", subject="g-me", email="me@gmail.com", issued_at=clock.now)
+    assert (await client.post("/auth/google", json={"id_token": "sign-in"})).status_code == 200
+    client.headers["x-semestra-csrf"] = client.cookies["semestra_csrf"]
+    clock.advance(minutes=11)
+    # The token from signing in is still unexpired, but too old to confirm with.
+    replayed = await client.post("/account/reauth/google", json={"id_token": "sign-in"})
+    assert replayed.json()["error"]["code"] == "auth.google_invalid_token"
+    google.add("other", subject="g-other", email="other@gmail.com", issued_at=clock.now)
+    wrong = await client.post("/account/reauth/google", json={"id_token": "other"})
+    assert wrong.json()["error"]["code"] == "auth.identity_mismatch"
+    google.add("mine", subject="g-me", email="me@gmail.com", issued_at=clock.now)
+    ok = await client.post("/account/reauth/google", json={"id_token": "mine"})
+    assert ok.status_code == 200, ok.text
+    await create_pat(client)
+
+
+async def test_linking_google_needs_a_recent_check(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock, google: FakeGoogle
+) -> None:
+    # Otherwise a stolen session could link its own Google account and confirm with it.
+    await login_as(client, await make_user(password=PASSWORD))
+    clock.advance(minutes=11)
+    google.add("theirs", subject="g-x", email="x@gmail.com", issued_at=clock.now)
+    stale = await client.post("/account/google/link", json={"id_token": "theirs"})
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
+
+
+async def test_starting_an_email_change_needs_a_recent_check(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
 ) -> None:
     await login_as(client, await make_user(email="old@example.com", password=PASSWORD))
@@ -696,7 +740,8 @@ async def test_starting_an_email_change_needs_a_recent_login(
     body = {"new_email": "new@example.com"}
     stale = await client.post("/account/email/change-start", json=body)
     assert stale.json()["error"]["code"] == "auth.reauth_required"
-    ok = await client.post("/account/email/change-start", json={**body, "password": PASSWORD})
+    await client.post("/account/reauth/password", json={"password": PASSWORD})
+    ok = await client.post("/account/email/change-start", json=body)
     assert ok.status_code == 200, ok.text
 
 

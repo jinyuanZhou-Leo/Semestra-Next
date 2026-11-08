@@ -1,13 +1,17 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
 import type { ReactNode } from 'react'
-import { Bar, BarChart, Cell, LabelList, ReferenceLine, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, Cell, LabelList, usePlotArea, XAxis, YAxis } from 'recharts'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { categoryColor, categoryName, percentText } from '../display'
 import type { WhatIf } from '../whatif'
 import { GpaValue } from './GpaValue'
 
-const ROW = 26
+/** A row: the name and value on one line, the bar under them. */
+const ROW = 34
+const BAR = 8
+const LINE = 16
 
 type Datum = {
   id: string
@@ -47,6 +51,49 @@ function ForecastTooltip({
         <span className="font-medium tabular-nums">{percentText(d.value)}</span>
       </div>
     </div>
+  )
+}
+
+/**
+ * A row's name (cut to one line) and predicted value just above its bar, and where the bar has to
+ * reach for the target. Recharts clones this element with the bar's geometry.
+ */
+function RowLabel({
+  y,
+  index,
+  data,
+  required,
+}: {
+  y?: number | string
+  index?: number
+  data: Datum[]
+  required: number | null
+}) {
+  const area = usePlotArea()
+  const d = index === undefined ? undefined : data[index]
+  if (!area || !d || y === undefined) return null
+  const top = Number(y)
+  const mark = required === null ? null : area.x + (area.width * Math.min(required, 100)) / 100
+  return (
+    <g>
+      <foreignObject x={area.x} y={top - LINE - 2} width={area.width} height={LINE}>
+        <div className="flex items-center justify-between gap-3 text-xs leading-4">
+          <span className="truncate text-muted-foreground">{d.title}</span>
+          <span className="shrink-0 font-medium tabular-nums">{percentText(d.value)}</span>
+        </div>
+      </foreignObject>
+      {mark === null ? null : (
+        <line
+          x1={mark}
+          x2={mark}
+          y1={top - 2}
+          y2={top + BAR + 2}
+          className="stroke-foreground"
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
+      )}
+    </g>
   )
 }
 
@@ -103,6 +150,7 @@ export function ForecastCard({
   const letter = final ? s.final_letter : s.forecast_letter
   const points = final ? s.final_points : s.forecast_points
   const required = s.reachable === false ? null : s.required_average
+  const target = required !== null && required > 0 ? required : null
 
   return (
     <section
@@ -115,6 +163,9 @@ export function ForecastCard({
       <div className="mt-1 flex items-baseline gap-2">
         <span className="text-2xl font-semibold tabular-nums">{percentText(value)}</span>
         <span className="flex items-baseline gap-1 text-sm font-semibold tabular-nums">
+          {scale.hide_gpa ? (
+            <span className="text-xs font-normal text-muted-foreground">{m.grading_gpa()}</span>
+          ) : null}
           <GpaValue
             value={points}
             hidden={scale.hide_gpa}
@@ -124,55 +175,48 @@ export function ForecastCard({
         </span>
       </div>
       {data.length > 0 ? (
-        <ChartContainer
-          config={config}
-          className="mt-3 aspect-auto w-full"
-          style={{ height: data.length * ROW + 24 }}
-          initialDimension={{ width: 280, height: data.length * ROW + 24 }}
-        >
-          <BarChart
-            accessibilityLayer
-            data={data}
-            layout="vertical"
-            margin={{ top: 18, right: 36, bottom: 0, left: 0 }}
-            barCategoryGap={6}
+        <>
+          <ChartContainer
+            config={config}
+            className="mt-3 aspect-auto w-full"
+            style={{ height: data.length * ROW }}
+            initialDimension={{ width: 280, height: data.length * ROW }}
           >
-            <XAxis type="number" domain={[0, 100]} hide />
-            <YAxis
-              type="category"
-              dataKey="title"
-              width={84}
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 12 }}
-            />
-            <ChartTooltip cursor={false} content={ForecastTooltip} />
-            <Bar dataKey="value" radius={4} isAnimationActive={false}>
-              {data.map((d) => (
-                <Cell key={d.id} fill={d.color} fillOpacity={d.source === 'assumed' ? 1 : 0.45} />
-              ))}
-              <LabelList
+            <BarChart
+              accessibilityLayer
+              data={data}
+              layout="vertical"
+              margin={{ top: LINE - (ROW - BAR) / 2 + 2, right: 0, bottom: 0, left: 0 }}
+              barSize={BAR}
+            >
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis type="category" dataKey="title" hide />
+              <ChartTooltip cursor={false} content={ForecastTooltip} />
+              <Bar
                 dataKey="value"
-                position="right"
-                className="fill-foreground text-xs tabular-nums"
-                formatter={(v: unknown) => percentText(Number(v))}
-              />
-            </Bar>
-            {required !== null && required > 0 ? (
-              <ReferenceLine
-                x={Math.min(required, 100)}
-                stroke="var(--foreground)"
-                strokeDasharray="3 3"
-                label={{
-                  value: m.grading_forecast_needed({ value: percentText(required) }),
-                  position: 'top',
-                  fontSize: 11,
-                  fill: 'var(--muted-foreground)',
-                }}
-              />
-            ) : null}
-          </BarChart>
-        </ChartContainer>
+                radius={4}
+                background={{ className: 'fill-muted', radius: 4 }}
+                isAnimationActive={false}
+              >
+                {data.map((d) => (
+                  <Cell key={d.id} fill={d.color} fillOpacity={d.source === 'assumed' ? 1 : 0.45} />
+                ))}
+                <LabelList dataKey="value" content={<RowLabel data={data} required={target} />} />
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+          {/* Kept in place without a target (met or out of reach), so the card keeps its height. */}
+          <p
+            aria-hidden={target === null}
+            className={cn(
+              'mt-1 flex items-center gap-1.5 text-xs text-muted-foreground',
+              target === null && 'invisible',
+            )}
+          >
+            <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
+            {m.grading_forecast_needed({ value: percentText(target ?? 0) })}
+          </p>
+        </>
       ) : null}
       {footer}
     </section>
