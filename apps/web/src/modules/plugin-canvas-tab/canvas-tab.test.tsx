@@ -25,12 +25,6 @@ const openImport = vi.hoisted(() =>
 vi.mock('@/modules/imports/launcher', () => ({ openImport }))
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
-// The assignments table reads the course's to-dos for its "In Semestra" column.
-beforeEach(() =>
-  server.use(
-    http.get(`${API}/programs/p1/tasks`, () => HttpResponse.json({ items: [], next_cursor: null })),
-  ),
-)
 afterEach(() => {
   server.resetHandlers()
   openImport.mockClear()
@@ -484,21 +478,6 @@ function assignmentHandlers(body: (path: string, body: unknown) => void, committ
         truncated: false,
       }),
     ),
-    http.get(`${API}/programs/p1/tasks`, () =>
-      HttpResponse.json({
-        items: [
-          {
-            id: 't2',
-            program_id: 'p1',
-            title: 'Lab 2',
-            assessment_id: 'as1',
-            completed_at: '2026-02-01T00:00:00Z',
-          },
-          { id: 't3', program_id: 'p1', title: 'Reading', assessment_id: null, completed_at: null },
-        ],
-        next_cursor: null,
-      }),
-    ),
     http.post(`${API}/courses/c1/lms/imports\\::kind`, async ({ request, params }) => {
       body(String(params.kind), await request.json())
       return HttpResponse.json({
@@ -517,11 +496,14 @@ test('ticked assignments are imported at once when nothing needs a decision', as
   server.use(...assignmentHandlers(body, true))
   renderPage('/?tab=assignments')
   expect(await screen.findByText('Weight 20%')).toBeInTheDocument()
-  // An imported row says where it is in Semestra and cannot be ticked again.
+  // An imported row says where it is in Semestra, linking there, and cannot be ticked again.
   const lab2 = screen.getByText('Lab 2').closest('tr')!
-  expect(within(lab2).getByLabelText('In gradebook')).toBeInTheDocument()
-  // Its to-do, done, checked off as on the to-do list.
-  expect(await within(lab2).findByRole('checkbox', { name: 'Complete Lab 2' })).toBeChecked()
+  expect(within(lab2).getByRole('link', { name: 'In gradebook' })).toHaveAttribute(
+    'href',
+    '/p/p1/c/c1/grades?assessment=as1',
+  )
+  const lab1 = screen.getByText('Lab 1').closest('tr')!
+  expect(within(lab1).getByText('Not added')).toBeInTheDocument()
   expect(within(lab2).getByRole('checkbox', { name: 'Select Lab 2' })).toHaveAttribute(
     'aria-disabled',
     'true',
@@ -539,10 +521,10 @@ test('an import that needs a decision opens the review, and a to-do can join the
   server.use(...assignmentHandlers(body, false))
   renderPage('/?tab=assignments')
   const reading = (await screen.findByText('Reading')).closest('tr')!
-  expect(
-    await within(reading).findByRole('checkbox', { name: 'Complete Reading' }),
-  ).not.toBeChecked()
-  expect(within(reading).queryByLabelText('In gradebook')).toBeNull()
+  expect(within(reading).getByRole('link', { name: 'In to-dos' })).toHaveAttribute(
+    'href',
+    '/p/p1/c/c1/tasks',
+  )
   await userEvent.click(within(reading).getByRole('button', { name: 'More for Reading' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Add to gradebook' }))
   await waitFor(() => expect(body).toHaveBeenCalledWith('gradebook', { external_ids: ['x3'] }))
