@@ -4,9 +4,11 @@ A section (LEC0101) was the meetings of a course and term sharing a type and cod
 own weeks, so its times could run in different weeks. Now `schedule_sections` holds what the
 times share and `schedule_meetings` only the weekday, hours, room, title and on/off. No class
 moves: meetings with a code that run in the same weeks become one section per course, term,
-type, code and weeks. When a code's times run in different weeks, the first (by weekday and
-start) keeps the code and the others become sections without one, with the code as their
-title, the rule `schedule.section.create_many` follows for imports. A meeting without a code is
+type, code and weeks. When a code's times run in different weeks, the weeks with the most
+times keep the code (on a tie, those of the first time by weekday, start and id) and each other
+set of weeks becomes a section without one, with the code as the title of its times that have
+none (`schedule.section.create_many` likewise gives times in other weeks a section of their
+own). A meeting without a code is
 a section of its own. A section takes the first instructor any of its times had.
 
 Revision ID: 0037
@@ -103,21 +105,35 @@ def upgrade() -> None:
             meetings.c.user_id, meetings.c.weekday, meetings.c.start_time, meetings.c.id
         )
     ).all()
-    found: dict[tuple[Any, ...], dict[str, Any]] = {}
-    coded: dict[tuple[Any, ...], tuple[Any, ...]] = {}  # code -> the weeks that keep it
-    new_sections: list[dict[str, Any]] = []
-    for row in rows:
-        m = row._mapping
-        code = (m["user_id"], m["course_id"], m["term_id"], m["type_code"], m["section_code"])
-        weeks = (
+
+    def weeks_of(m: Any) -> tuple[Any, ...]:
+        return (
             m["recurrence"],
             m["anchor_week"] if m["recurrence"] == "biweekly" else None,
             m["start_week"],
             m["end_week"],
             bool(m["skip_breaks"]),
         )
+
+    def code_of(m: Any) -> tuple[Any, ...]:
+        return (m["user_id"], m["course_id"], m["term_id"], m["type_code"], m["section_code"])
+
+    # code -> weeks -> how many times; dicts keep the order the weeks first appear in
+    counts: dict[tuple[Any, ...], dict[tuple[Any, ...], int]] = {}
+    for row in rows:
+        m = row._mapping
+        if m["section_code"]:
+            seen = counts.setdefault(code_of(m), {})
+            seen[weeks_of(m)] = seen.get(weeks_of(m), 0) + 1
+    keeper = {code: max(seen, key=seen.__getitem__) for code, seen in counts.items()}
+
+    found: dict[tuple[Any, ...], dict[str, Any]] = {}
+    new_sections: list[dict[str, Any]] = []
+    for row in rows:
+        m = row._mapping
+        code, weeks = code_of(m), weeks_of(m)
         key = (*code, weeks) if m["section_code"] else (m["id"],)
-        keeps_code = bool(m["section_code"]) and coded.setdefault(code, weeks) == weeks
+        keeps_code = bool(m["section_code"]) and keeper[code] == weeks
         if m["section_code"] and not keeps_code:
             conn.execute(
                 meetings.update()

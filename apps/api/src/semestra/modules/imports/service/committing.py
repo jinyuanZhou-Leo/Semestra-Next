@@ -64,7 +64,10 @@ class _Commit:
         self.term_id: str | None = self.target.term_id
         self.categories: dict[str, dict[str, str]] = {}  # course id → key → category id
         self.terms: dict[str, Any] = {}
-        # Meeting item id → (course id, term id, start week, end week).
+        self.pending: list[ImportsItem] = []  # the items this pass writes, in order
+        # Meeting item id → (its meeting as written, whether it was created), for the items of
+        # a section written together.
+        self.placed: dict[str, tuple[dict[str, Any], bool]] = {}
 
     def written(self, item_id: str) -> str | None:
         item = self.by_id.get(item_id)
@@ -228,18 +231,15 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     return {"created_id": out["skipped"][0]["assessment_id"], "reused": True}
 
 
-async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
-    """Adds a weekly time with its own weeks and cancelled days to its section, found by its
-    code; a time of that code that runs in other weeks becomes a section of its own
-    (`schedule.section.create_many`), so no class the file does not have is added."""
-    ctx, data = c.ctx, item.data
+async def _section_entry(c: _Commit, item: ImportsItem) -> tuple[str, dict[str, Any]]:
+    """A meeting item's course and its `schedule.section.create_many` entry: the time with its
+    own weeks, under its section code."""
+    data = item.data
     course_id, term_id, start_week, end_week = await c.meeting_weeks(item)
-    section_code = str(data.get("section_code") or "").strip()
-    type_code = str(data.get("type_code") or "LEC")
     section: dict[str, Any] = {
         "term_id": term_id,
-        "type_code": type_code,
-        "section_code": section_code,
+        "type_code": str(data.get("type_code") or "LEC"),
+        "section_code": str(data.get("section_code") or "").strip(),
         "weeks": {
             "recurrence": data.get("recurrence", "weekly"),
             "start_week": start_week,
@@ -258,11 +258,58 @@ async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     }
     if data.get("instructor"):
         section["instructor"] = data["instructor"]
-    out = await deps.call(
-        ctx, "schedule.section.create_many", {"course_id": course_id, "sections": [section]}
-    )
-    meeting_id = (out["created_ids"] or out["updated_ids"])[0]
-    meeting = next(m for m in out["items"][0]["meetings"] if m["id"] == meeting_id)
+    return course_id, section
+
+
+async def _place_section(c: _Commit, item: ImportsItem) -> None:
+    """Writes the meeting item with the other items of its section in this pass, in one call,
+    so a repeated import of a whole section whose weeks changed keeps it one section. When that
+    call fails, each item is written on its own and keeps its own error."""
+    course_id, entry = await _section_entry(c, item)
+    group = [(item, entry)]
+    if entry["section_code"]:
+        for other in c.pending:
+            if other.type != "meeting" or other.id == item.id or other.id in c.placed:
+                continue
+            try:
+                other_course, other_entry = await _section_entry(c, other)
+            except AppError:
+                continue  # fails on its own turn
+            if other_course == course_id and all(
+                other_entry[k] == entry[k] for k in ("term_id", "type_code", "section_code")
+            ):
+                group.append((other, other_entry))
+    pending = len(c.ctx.after_commit)
+    try:
+        async with c.ctx.db.begin_nested():
+            out = await deps.call(
+                c.ctx,
+                "schedule.section.create_many",
+                {"course_id": course_id, "sections": [e for _, e in group]},
+            )
+    except AppError:
+        if len(group) == 1:
+            raise
+        del c.ctx.after_commit[pending:]
+        group = group[:1]
+        out = await deps.call(
+            c.ctx, "schedule.section.create_many", {"course_id": course_id, "sections": [entry]}
+        )
+    meetings = {m["source_ref"]: m for s in out["items"] for m in s["meetings"]}
+    for member, e in group:
+        meeting = meetings[e["meetings"][0]["source_ref"]]
+        c.placed[member.id] = (meeting, meeting["id"] in out["created_ids"])
+
+
+async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
+    """Adds a weekly time with its own weeks and cancelled days to its section, found by its
+    code; a time of that code that runs in other weeks becomes a section of its own
+    (`schedule.section.create_many`), so no class the file does not have is added."""
+    ctx, data = c.ctx, item.data
+    if item.id not in c.placed:
+        await _place_section(c, item)
+    meeting, created = c.placed[item.id]
+    meeting_id = meeting["id"]
     cancelled = set(data.get("exceptions") or [])
     # A repeated import takes back the cancellations it wrote before that the file no longer
     # has; the user's own changes stay.
@@ -291,9 +338,7 @@ async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
             # Not a class day of the meeting (a break week, outside its weeks): reported so
             # the user is told which dates were left out.
             skipped.append({"date": day, "code": exc.code})
-    result: dict[str, Any] = (
-        {"created_id": meeting_id} if out["created_ids"] else {"updated_id": meeting_id}
-    )
+    result: dict[str, Any] = {"created_id": meeting_id} if created else {"updated_id": meeting_id}
     if skipped:
         result["skipped_exceptions"] = skipped
     return result
@@ -528,6 +573,7 @@ async def _write_items(
         ),
         key=lambda i: (TYPE_ORDER[i.type], i.position),
     )
+    c.pending = todo
     created: dict[str, str] = {}
     counts = {"created": 0, "updated": 0, "failed": 0}
     for item in todo:

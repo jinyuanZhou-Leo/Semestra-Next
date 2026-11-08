@@ -137,13 +137,16 @@ async def _check_code_free(
         raise AppError("schedule.section_exists", 409, section_code=code)
 
 
-def _same_weeks(row: ScheduleSection, values: dict[str, Any]) -> bool:
-    """Whether the section runs in these weeks (a weekly section has no anchor week)."""
-    return all(
-        getattr(row, k) == v
-        for k, v in values.items()
-        if k != "anchor_week" or values["recurrence"] == "biweekly"
+def _weeks_key(values: dict[str, Any]) -> tuple[Any, ...]:
+    """Weeks compared as the classes they give (a weekly section has no anchor week)."""
+    return tuple(
+        None if k == "anchor_week" and values["recurrence"] != "biweekly" else values[k]
+        for k in _WEEK_FIELDS
     )
+
+
+def _same_weeks(row: ScheduleSection, values: dict[str, Any]) -> bool:
+    return _weeks_key({k: getattr(row, k) for k in _WEEK_FIELDS}) == _weeks_key(values)
 
 
 def _code_of(row: ScheduleSection) -> tuple[str, str, str, str, str]:
@@ -197,6 +200,22 @@ async def create_sections(
         repeated import of the whole section, whose weeks then change)."""
         return weeks is None or _same_weeks(section, weeks) or members[section.id] <= known
 
+    def matched(item: NewSection) -> set[str]:
+        return {
+            by_source[(nm.source_kind, nm.source_ref)].id
+            for nm in item.meetings
+            if nm.source_ref is not None and (nm.source_kind, nm.source_ref) in by_source
+        }
+
+    # Times sent in this call for one code with the same weeks count together, so a repeated
+    # import of a whole section can send each of its times as its own item.
+    together: dict[tuple[Any, ...], set[str]] = {}
+    for item in items:
+        if item.weeks is not None and item.section_code:
+            key = (item.term_id, item.type_code, item.section_code)
+            key += _weeks_key(_weeks_values(item.weeks))
+            together.setdefault(key, set()).update(matched(item))
+
     for i, item in enumerate(items):
         if item.term_id not in course.term_ids:
             raise AppError("schedule.term_not_in_course", 422, index=i)
@@ -207,11 +226,9 @@ async def create_sections(
                 errors=[{"loc": ["sections", i, "type_code"], "code": "unknown_type"}],
             )
         weeks = _weeks_values(item.weeks) if item.weeks is not None else None
-        known = {
-            by_source[(nm.source_kind, nm.source_ref)].id
-            for nm in item.meetings
-            if nm.source_ref is not None and (nm.source_kind, nm.source_ref) in by_source
-        }
+        known = matched(item)
+        if weeks is not None and item.section_code:
+            known |= together[(item.term_id, item.type_code, item.section_code, *_weeks_key(weeks))]
         # A section code names one set of weeks: times of that code that run in other weeks
         # are a section of their own, without the code (it stays on them as their title), so
         # neither the section's other times nor these change their classes (M04 §9).

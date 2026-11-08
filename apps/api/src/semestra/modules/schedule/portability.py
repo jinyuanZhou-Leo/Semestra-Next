@@ -28,51 +28,59 @@ _SECTION = (
 )  # fmt: skip
 
 
+def _weeks(m: dict[str, Any]) -> tuple[Any, ...]:
+    biweekly = m.get("recurrence") == "biweekly"
+    return (
+        m.get("recurrence"),
+        m.get("anchor_week") if biweekly else None,
+        m.get("start_week"),
+        m.get("end_week"),
+        bool(m.get("skip_breaks")),
+    )
+
+
 def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     """No class moves: meetings with a code that run in the same weeks become one section per
-    course, term, type, code and weeks. When a code's times run in different weeks, the first (by
-    weekday and start) keeps the code and the others become sections without one, with the code
-    as their title. A meeting without a code is a section of its own. A section takes the first
-    instructor any of its times had. Meeting ids stay, so their exceptions still point at them."""
+    course, term, type, code and weeks. When a code's times run in different weeks, the weeks
+    with the most times keep the code (on a tie, those of the first time by weekday and start);
+    the others become sections without one, their times titled with the code. A meeting without
+    a code is a section of its own. A section takes the first instructor any of its times had.
+    Meeting ids stay, so their exceptions still point at them."""
     del archive
     old = [m for m in payload.get("meetings") or [] if isinstance(m, dict)]
     old.sort(key=lambda m: (m.get("weekday") or 0, m.get("start_time") or "", m.get("id") or ""))
-    found: dict[tuple[Any, ...], dict[str, Any]] = {}
-    coded: dict[tuple[Any, ...], tuple[Any, ...]] = {}  # code -> the weeks that keep it
-    sections: list[dict[str, Any]] = []
-    meetings: list[dict[str, Any]] = []
+    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for m in old:
         code = m.get("section_code") or ""
         named = (m.get("course_id"), m.get("term_id"), m.get("type_code"), code)
-        weeks = (
-            m.get("recurrence"),
-            m.get("anchor_week") if m.get("recurrence") == "biweekly" else None,
-            m.get("start_week"),
-            m.get("end_week"),
-            bool(m.get("skip_breaks")),
-        )
-        key = (*named, weeks) if code else None
-        keeps_code = bool(code) and coded.setdefault(named, weeks) == weeks
-        meeting = {k: v for k, v in m.items() if k not in _SECTION}
-        if code and not keeps_code:
-            meeting["title"] = m.get("title") or code
-        section = found.get(key) if key else None
-        if section is None:
-            section = {
-                "id": new_id(),
-                **{name: m.get(name) for name in _SECTION},
-                "section_code": code if keeps_code else "",
-                "created_at": m.get("created_at"),
-                "updated_at": m.get("updated_at"),
-            }
-            if key:
-                found[key] = section
-            sections.append(section)
-        else:
-            section["instructor"] = section["instructor"] or m.get("instructor")
-            section["created_at"] = min(section["created_at"], m.get("created_at") or "")
-            section["updated_at"] = max(section["updated_at"], m.get("updated_at") or "")
-        meetings.append({**meeting, "section_id": section["id"]})
+        groups.setdefault((*named, _weeks(m)) if code else (m.get("id"),), []).append(m)
+    # A code -> the weeks that keep it: the largest group, the first one on a tie.
+    keeper: dict[tuple[Any, ...], tuple[Any, ...]] = {}
+    best: dict[tuple[Any, ...], int] = {}
+    for key, times in groups.items():
+        if len(key) == 5 and len(times) > best.get(key[:4], 0):
+            best[key[:4]] = len(times)
+            keeper[key[:4]] = key[4]
+    sections: list[dict[str, Any]] = []
+    meetings: list[dict[str, Any]] = []
+    for key, times in groups.items():
+        first = times[0]
+        code = first.get("section_code") or ""
+        keeps_code = bool(code) and keeper.get(key[:4]) == key[4]
+        section = {
+            "id": new_id(),
+            **{name: first.get(name) for name in _SECTION},
+            "section_code": code if keeps_code else "",
+            "instructor": next((m["instructor"] for m in times if m.get("instructor")), None),
+            "created_at": min(m.get("created_at") or "" for m in times),
+            "updated_at": max(m.get("updated_at") or "" for m in times),
+        }
+        sections.append(section)
+        for m in times:
+            meeting = {k: v for k, v in m.items() if k not in _SECTION}
+            if code and not keeps_code:
+                meeting["title"] = m.get("title") or code
+            meetings.append({**meeting, "section_id": section["id"]})
     return {**payload, "sections": sections, "meetings": meetings}
 
 
