@@ -1,4 +1,5 @@
 import {
+  client,
   notificationsConfigGet,
   notificationsDeviceRegister,
   notificationsDeviceUnregister,
@@ -64,8 +65,11 @@ export function canOffer(): boolean {
 let registration: Promise<ServiceWorkerRegistration> | undefined
 
 function worker(): Promise<ServiceWorkerRegistration> {
+  // The worker hands a replaced subscription to the API itself (`pushsubscriptionchange`), so it
+  // is told where the API is.
+  const api = encodeURIComponent(client.getConfig().baseUrl ?? '')
   registration ??= navigator.serviceWorker
-    .register('/sw.js')
+    .register(`/sw.js?api=${api}`)
     .then(() => navigator.serviceWorker.ready)
   return registration
 }

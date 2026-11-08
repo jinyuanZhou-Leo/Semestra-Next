@@ -9,6 +9,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
+from itertools import pairwise
 
 _WEEKDAY_WORDS: dict[str, int] = {
     "monday": 1, "mon": 1, "tuesday": 2, "tues": 2, "tue": 2, "wednesday": 3, "wed": 3,
@@ -42,6 +43,8 @@ class TermWeekSpan:
     number: int | None
     start_date: date
     end_date: date
+    # A break week: no class unless the term counts it and the meeting runs through breaks.
+    in_break: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,23 @@ class TermDates:
     start: date
     end: date
     weeks: Sequence[TermWeekSpan]
+    # (first, last) day of each break, single days (a public holiday) included.
+    breaks: Sequence[tuple[date, date]] = ()
+
+    def contains(self, day: date) -> bool:
+        return self.start <= day <= self.end
+
+    def class_days(self, weekday: int) -> dict[date, int | None]:
+        """The days of `weekday` a class can be held on, with their week numbers: in the term,
+        outside its breaks (how the schedule places a meeting that skips breaks, M04 §2)."""
+        out: dict[date, int | None] = {}
+        for week in self.weeks:
+            if week.in_break:
+                continue
+            day = week.start_date + timedelta(days=(weekday - week.start_date.isoweekday()) % 7)
+            if self.contains(day) and not any(a <= day <= b for a, b in self.breaks):
+                out[day] = week.number
+        return out
 
 
 def plain_weeks(start: date, end: date) -> list[TermWeekSpan]:
@@ -180,3 +200,35 @@ def pick_term(
     if len(course_term_ids) == 1 or day is None:
         return course_term_ids[-1]
     return None
+
+
+@dataclass(frozen=True)
+class Rhythm:
+    recurrence: str  # weekly | biweekly
+    first: date
+    last: date
+    # Days the rule would hold the class that the source does not have.
+    cancelled: list[date]
+
+
+def rhythm(held: Sequence[date], weekday: int, term: TermDates) -> Rhythm:
+    """How a class held on these days (all in `term`) repeats, and the days the rule would hold
+    it between the first and last held day that the source leaves out (a cancelled or moved
+    class). Every other week when every held week is an even number of teaching weeks after the
+    one before (a reading week in between changes nothing), or, for a file that ignores the
+    term's breaks, when the days are whole fortnights apart; any other spacing is weekly."""
+    days = sorted(set(held))
+    slots = term.class_days(weekday)
+    first, last = days[0], days[-1]
+    between = [d for d in slots if first < d < last and d not in days]
+    numbers = [n for d in days if (n := slots.get(d)) is not None]
+    week_gaps = [b - a for a, b in pairwise(numbers)]
+    day_gaps = [(b - a).days for a, b in pairwise(days)]
+    if week_gaps and len(numbers) == len(days) and all(g >= 2 and g % 2 == 0 for g in week_gaps):
+        parity = numbers[0] % 2
+        cancelled = [d for d in between if (n := slots[d]) is not None and n % 2 == parity]
+        return Rhythm("biweekly", first, last, cancelled)
+    if day_gaps and all(g >= 14 and g % 14 == 0 for g in day_gaps):
+        cancelled = [d for d in between if (d - first).days % 14 == 0]
+        return Rhythm("biweekly", first, last, cancelled)
+    return Rhythm("weekly", first, last, between)

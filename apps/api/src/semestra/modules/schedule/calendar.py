@@ -9,7 +9,9 @@ async def due_tasks(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]: ...
 `kinds` lists what the source can return, so a query for other kinds skips it. A source returns
 the occurrences of its Program that start in `[range_start, range_end)` (and, with
 `include_overdue`, unfinished overdue items before the range: tasks). It publishes
-`calendar.changed` with `{program_id}` whenever its data changes.
+`calendar.changed` with `{program_id}` whenever its data changes; the event is coalesced, so a
+batch may publish it once per row. Term dates, breaks and the Program's time zone move every
+source's occurrences: `subscribers.py` turns those changes into `calendar.changed` too.
 """
 
 from collections.abc import Awaitable, Callable, Iterable, Sequence
@@ -20,8 +22,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from semestra.core.context import Ctx
+from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.schedule.rules import overlaps
+
+CALENDAR_CHANGED = "calendar.changed"
+events.coalesce(CALENDAR_CHANGED)
 
 OccurrenceKind = Literal["class", "event", "task"]
 OccurrenceStatus = Literal["cancelled", "moved", "done", "overdue"]

@@ -2,7 +2,8 @@
 agent use. Every read needs a linked course and the provider's feature; HTML is cleaned before
 it is cached, so cache hits are clean too."""
 
-from collections.abc import AsyncIterator, Collection
+import asyncio
+from collections.abc import AsyncIterator, Collection, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -86,11 +87,13 @@ async def overview(ctx: Ctx, course_id: str, refresh: bool) -> CourseOverview:
     ext = link.external_course_id
 
     async def fetch(i: Any) -> dict[str, Any]:
-        course = await b.provider.get_course(i, b.cfg, b.creds, ext)
-        nav = (
-            await b.provider.navigation(i, b.cfg, b.creds, ext)
-            if "navigation" in b.provider.features
-            else []
+        async def navigation() -> list[Any]:
+            if "navigation" not in b.provider.features:
+                return []
+            return list(await b.provider.navigation(i, b.cfg, b.creds, ext))
+
+        course, nav = await asyncio.gather(
+            b.provider.get_course(i, b.cfg, b.creds, ext), navigation()
         )
         return {
             "course": course.model_dump(mode="json"),
@@ -216,12 +219,25 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
 
 async def imported_targets(ctx: Ctx, link_id: str) -> dict[str, dict[str, str]]:
     """What each imported assignment of the course became: `{kind, id}` by external id."""
+    return (await _imported_targets(ctx, [link_id])).get(link_id, {})
+
+
+async def _imported_targets(
+    ctx: Ctx, link_ids: Sequence[str]
+) -> dict[str, dict[str, dict[str, str]]]:
+    """`imported_targets` of several links in one query, by link id."""
+    out: dict[str, dict[str, dict[str, str]]] = {}
     refs = await ctx.db.scalars(
         select(LmsImportedRef).where(
-            LmsImportedRef.link_id == link_id, LmsImportedRef.external_kind == "assignment"
+            LmsImportedRef.link_id.in_(link_ids), LmsImportedRef.external_kind == "assignment"
         )
     )
-    return {ref.external_id: {"kind": ref.target_kind, "id": ref.target_id} for ref in refs}
+    for ref in refs:
+        out.setdefault(ref.link_id, {})[ref.external_id] = {
+            "kind": ref.target_kind,
+            "id": ref.target_id,
+        }
+    return out
 
 
 async def raw_assignments(
@@ -270,26 +286,44 @@ async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
     from the cached lists only: asking the platform course after course would hold the page
     up. Courses not in the cache are listed in `unread` for the page to read side by side."""
     term = await academics.get_term_row(ctx, term_id)
-    links = await service.program_links(ctx, term.program_id)
+    links = {li.course_id: li for li in await service.program_links(ctx, term.program_id)}
     program = await academics.get_program_row(ctx, term.program_id)
-    rows = await academics.courses_by_id(ctx, [li.course_id for li in links if li.sync_enabled])
-    courses = await academics.courses_out(ctx, program, rows)
+    rows = await academics.courses_by_id(
+        ctx, [li.course_id for li in links.values() if li.sync_enabled]
+    )
+    courses = [
+        c
+        for c in sorted(
+            await academics.courses_out(ctx, program, rows),
+            key=lambda c: (c.code or c.title).lower(),
+        )
+        if term_id in c.term_ids
+    ]
+    connections: dict[str, Bound | None] = {}
+    for connection_id in {links[c.id].connection_id for c in courses}:
+        try:
+            b = await service.bound(ctx, await service.get_connection_row(ctx, connection_id))
+            service.require_feature(b, "assignments")
+        except AppError:
+            b = None  # credentials gone, platform without assignments: its courses are left out
+        connections[connection_id] = b
+    targets = await _imported_targets(ctx, [links[c.id].id for c in courses])
     items: list[NewAssignments] = []
     unread: list[str] = []
-    for course in sorted(courses, key=lambda c: (c.code or c.title).lower()):
-        if term_id not in course.term_ids:
+    for course in courses:
+        link = links[course.id]
+        b = connections[link.connection_id]
+        if b is None:
             continue
         try:
-            linked = await service.require_link(ctx, course.id)
-            service.require_feature(linked[1], "assignments")
             with service.cache_only():
-                data, _ = await raw_assignments(ctx, course.id, False, linked=linked)
+                data, _ = await raw_assignments(ctx, course.id, False, linked=(link, b))
         except service.NotCached:
             unread.append(course.id)
             continue
         except AppError:
             continue
-        found = new_ids(ctx, data, await imported_targets(ctx, linked[0].id))
+        found = new_ids(ctx, data, targets.get(link.id, {}))
         if found:
             names = {a["external_id"]: str(a["name"]) for a in data}
             items.append(

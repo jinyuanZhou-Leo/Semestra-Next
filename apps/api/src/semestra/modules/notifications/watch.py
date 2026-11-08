@@ -3,7 +3,7 @@ want it (M09 `lms.watch` decides what is new and remembers what was told), one n
 course and kind: new grades, changed assignments, new announcements. They show even while a
 Semestra tab is in front: the app does not tell them, and they are recorded as told."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import structlog
 from starlette.datastructures import State
@@ -66,10 +66,11 @@ async def watch_user(state: State, user_id: str) -> None:
     """Each course in a transaction of its own: what was told is committed before the next
     course is read from the platform."""
     links: list[str] = []
-    announcements = False
+    posted: dict[str, list[lms_watch.NewAnnouncement] | None] = {}
+    as_of = None
 
     async def courses(ctx: Ctx) -> None:
-        nonlocal announcements
+        nonlocal as_of
         if ctx.user is None or not await service.has_devices(ctx):
             return
         cfg = await service.settings_of(ctx)
@@ -78,14 +79,18 @@ async def watch_user(state: State, user_id: str) -> None:
         # Not looked at during quiet hours, so what comes up then is told after them.
         if service.in_quiet_hours(cfg, ctx.now.astimezone(await service.zone_of(ctx))):
             return
-        announcements = cfg.lms == "all"
         links.extend(await lms_watch.watched_links(ctx))
+        as_of = ctx.now
+        if cfg.lms == "all":
+            posted.update(await lms_watch.new_announcements(ctx, links, as_of))
 
     await run_as_system(state, user_id, courses)
+    if as_of is None:
+        return
     for link_id in links:
 
-        async def course(ctx: Ctx, link_id: str = link_id) -> None:
-            news = await lms_watch.course_news(ctx, link_id, announcements=announcements)
+        async def course(ctx: Ctx, link_id: str = link_id, as_of: datetime = as_of) -> None:
+            news = await lms_watch.course_news(ctx, link_id, posted.get(link_id, []), as_of)
             if news is not None:
                 for message in await _messages(ctx, news):
                     service.notify_after_commit(ctx, message, user_id=ctx.user_id)

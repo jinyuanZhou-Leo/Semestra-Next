@@ -1,6 +1,7 @@
 """What building and validating import items needs to know (M08)."""
 
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
 from semestra.core.context import Ctx
@@ -41,7 +42,14 @@ async def term_dates_of(ctx: Ctx, term: Any) -> dates.TermDates:
     return dates.TermDates(
         term.start_date,
         term.end_date,
-        [dates.TermWeekSpan(w.number, w.start_date, w.end_date) for w in weeks],
+        [
+            dates.TermWeekSpan(w.number, w.start_date, w.end_date, w.break_ is not None)
+            for w in weeks
+        ],
+        [
+            (date.fromisoformat(b["start_date"]), date.fromisoformat(b["end_date"]))
+            for b in term.breaks
+        ],
     )
 
 
