@@ -8,7 +8,7 @@ the wording of suggested questions is rewritten on the next visit.
 Memories travel (they are the user's own words); the conversation they came from does not. A
 memory overwrites the one with the same name; the import keeps to the 60-memory limit and the
 rules a conversation keeps to. Archives from before memories had names (schema version 1:
-`category` and `content`) are converted on import.
+`category` and `content`) are converted by `_v1_to_v2`.
 """
 
 from typing import Any
@@ -29,26 +29,36 @@ from semestra.modules.agent.models import (
     AgentSuggestions,
 )
 from semestra.modules.portability import ImportOptions, Table, table_adapter
+from semestra.modules.portability.registry import OlderArchive
 
 # Version 1 categories → types (as in migration 0019).
 _TYPES = {"preference": "user", "context": "user", "goal": "project", "constraint": "project"}
 
 
+def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    """Version 1 memories get a name, a type and a line that fits (the whole old text becomes the
+    body when it was longer)."""
+    del archive
+    memories: list[Any] = []
+    for row in payload.get("memories") or []:
+        if isinstance(row, dict) and "name" not in row and isinstance(row.get("content"), str):
+            old_id = str(row.get("id") or "")
+            description, body = memory.split_line(row["content"])
+            row = {
+                **row,
+                "name": "memory-" + old_id.replace("-", "")[-8:],
+                "type": _TYPES.get(str(row.get("category")), "user"),
+                "description": description,
+                "body": body,
+            }
+        memories.append(row)
+    return {**payload, "memories": memories}
+
+
 async def _memory(ctx: Ctx, row: dict[str, Any], opts: ImportOptions) -> dict[str, Any] | None:
-    """A version 1 row gets a name, a type and a line that fits (the whole old text becomes the
-    body when it was longer). A row a conversation could not have saved (a bad name, sensitive
-    text) or one past the limit is left out; a row with an existing name replaces that memory."""
+    """A row a conversation could not have saved (a bad name, sensitive text) or one past the
+    limit is left out; a row with an existing name replaces that memory."""
     del opts
-    if "name" not in row and isinstance(row.get("content"), str):
-        old_id = str(row.get("id") or "")
-        description, body = memory.split_line(row["content"])
-        row = {
-            **row,
-            "name": "memory-" + old_id.replace("-", "")[-8:],
-            "type": _TYPES.get(str(row.get("category")), "user"),
-            "description": description,
-            "body": body,
-        }
     name, description, body = row.get("name"), row.get("description"), row.get("body") or ""
     if not (isinstance(name, str) and isinstance(description, str) and isinstance(body, str)):
         return None
@@ -72,6 +82,7 @@ async def _memory(ctx: Ctx, row: dict[str, Any], opts: ImportOptions) -> dict[st
 ADAPTER = table_adapter(
     module="agent",
     schema_version=2,
+    upgrades={1: _v1_to_v2},
     tables=(
         Table(AgentSession, "sessions", exported=False),
         Table(AgentMessage, "messages", exported=False),

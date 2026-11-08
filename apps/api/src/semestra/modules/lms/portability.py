@@ -4,6 +4,10 @@ Connections are exported without credentials: after an import they need the toke
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links
 and imported refs follow the id map of Programs, courses, assessments and tasks. The cache is
 not exported. Registered at the bottom with M13's `register_portability`.
+
+Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
+where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
+migration 0035 did.
 """
 
 from collections.abc import Mapping
@@ -24,8 +28,21 @@ from semestra.modules.lms.models import (
     LmsProgramBinding,
 )
 from semestra.modules.portability import register_portability
+from semestra.modules.portability.registry import OlderArchive
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    del archive
+    refs = [r for r in payload.get("refs") or [] if isinstance(r, dict)]
+
+    def item(r: dict[str, Any]) -> tuple[Any, ...]:
+        return (r.get("link_id"), r.get("external_kind"), r.get("external_id"))
+
+    graded = {item(r) for r in refs if r.get("target_kind") == "assessment"}
+    kept = [r for r in refs if r.get("target_kind") == "assessment" or item(r) not in graded]
+    return {**payload, "refs": kept}
 
 
 class Writer(Protocol):
@@ -233,6 +250,7 @@ async def purge(ctx: Ctx) -> None:
 register_portability(
     module="lms",
     schema_version=SCHEMA_VERSION,
+    upgrades={1: _v1_to_v2},
     depends_on=("academics", "grading", "tasks", "schedule"),
     export=export,
     import_=import_,

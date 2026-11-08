@@ -52,6 +52,7 @@ from semestra.modules.portability.schemas import (
     ImportStartInput,
     ProgramPreview,
 )
+from semestra.modules.portability.upgrade import Payloads
 
 log = structlog.get_logger()
 
@@ -335,20 +336,21 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
 
 async def _preview(ctx: Ctx, reader: ArchiveReader) -> ImportPreview:
     manifest = reader.manifest
+    payloads = Payloads(reader.payload, manifest.modules, ctx.now)
     counts: dict[str, dict[str, int]] = {}
     unknown: list[str] = []
-    for module, schema_version in sorted(manifest.modules.items()):
+    for module in sorted(manifest.modules):
         adapter = get_adapter(module)
-        payload = reader.payload(module)
         if adapter is None:
             unknown.append(module)
             continue
-        adapter.check_version(schema_version)
-        if payload is not None:
-            try:
+        adapter.check_version(manifest.modules[module])
+        try:
+            payload = payloads.payload(module)
+            if payload is not None:
                 counts[module] = await adapter.preview(payload)
-            except (ValueError, TypeError, AttributeError) as exc:
-                raise invalid() from exc
+        except (ValueError, TypeError, AttributeError, KeyError) as exc:
+            raise invalid() from exc
     files_bytes = reader.files_size()
     remaining = await remaining_quota(ctx)
     return ImportPreview(
@@ -357,7 +359,7 @@ async def _preview(ctx: Ctx, reader: ArchiveReader) -> ImportPreview:
         include_files=manifest.include_files,
         files_bytes=files_bytes,
         counts=counts,
-        programs=_programs(reader.payload("academics")),
+        programs=_programs(payloads.payload("academics")),
         quota_exceeded=remaining is not None and files_bytes > remaining,
         unknown_modules=unknown,
     )
@@ -525,6 +527,7 @@ async def run_import(
         reader = await anyio.to_thread.run_sync(ArchiveReader, path)
         try:
             ordered = [a for a in adapters() if reader.manifest.modules.get(a.module) is not None]
+            payloads = Payloads(reader.payload, reader.manifest.modules, ctx.now)
             for adapter in ordered:
                 adapter.check_version(reader.manifest.modules[adapter.module])
             staged = _StagedFiles(
@@ -535,7 +538,7 @@ async def run_import(
             await ctx.db.commit()  # nothing of this job's own reads stays open while copying
             await ctx.stage("copying")
             for adapter in ordered:
-                payload = reader.payload(adapter.module)
+                payload = payloads.payload(adapter.module)
                 if adapter.prepare is not None and payload is not None:
                     await ctx.check_cancelled()
                     await adapter.prepare(ctx, payload, id_map, options)
@@ -552,7 +555,7 @@ async def run_import(
             skipped: dict[str, dict[str, int]] = {}
             for adapter in ordered:
                 await ctx.check_cancelled()
-                payload = reader.payload(adapter.module)
+                payload = payloads.payload(adapter.module)
                 if payload is None:
                     continue
                 report = await adapter.import_(ctx, payload, id_map, options)

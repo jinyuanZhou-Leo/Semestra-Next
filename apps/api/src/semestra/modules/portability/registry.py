@@ -14,6 +14,11 @@ tables with `tables.table_adapter(...)`; a module with special rules writes the 
 * `purge(ctx)` deletes all of the user's rows in the module (account deletion).
 * `purge_content(ctx, preferences)` deletes what a "replace" import replaces: the data that goes
   into backups, preferences only when they are imported too. Defaults to `purge`.
+* `upgrades[n](payload, archive)` turns the module's payload of schema version `n` into version
+  `n + 1`, so backups of older versions can be restored (`upgrade.py`). A step is a pure function
+  of the archive, like a migration of the module's tables: it may read other modules' payloads
+  (already brought to their current version) through `archive.payload(module)`. Versions the
+  steps do not lead up from are refused with `portability.unsupported_version`.
 
 `tables` names the database tables the adapter is responsible for; a test checks that every
 table with a `user_id` column belongs to one adapter and is empty for the user after `purge`.
@@ -21,6 +26,7 @@ table with a `user_id` column belongs to one adapter and is empty for the user a
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal, Protocol
 
 from semestra.core.context import Ctx
@@ -89,6 +95,20 @@ PurgeFn = Callable[[Ctx], Awaitable[None]]
 PurgeContentFn = Callable[[Ctx, bool], Awaitable[None]]
 
 
+class OlderArchive(Protocol):
+    """What an upgrade step sees of the archive it converts."""
+
+    # When the import runs (what a migration would call "now").
+    now: datetime
+
+    def payload(self, module: str) -> dict[str, Any] | None:
+        """Another module's payload, at that module's current schema version."""
+        ...
+
+
+UpgradeFn = Callable[[dict[str, Any], OlderArchive], dict[str, Any]]
+
+
 @dataclass(frozen=True)
 class Adapter:
     module: str
@@ -103,8 +123,16 @@ class Adapter:
     prepare: PrepareFn | None = None
     # Row caps by table name (e.g. Sem memories), for the data overview.
     limits: Mapping[str, int] = field(default_factory=lambda: {})
-    # Backups of older versions are refused rather than converted (no compatibility before 2.0).
-    oldest_version: int = 1
+    # Version n → n + 1 of the payload, for backups made by older versions.
+    upgrades: Mapping[int, UpgradeFn] = field(default_factory=lambda: {})
+
+    @property
+    def oldest_version(self) -> int:
+        """The oldest payload version the steps lead up from."""
+        version = self.schema_version
+        while version - 1 in self.upgrades:
+            version -= 1
+        return version
 
     def check_version(self, version: int) -> None:
         """Refuses a backup whose data for this module this version cannot read."""
@@ -130,10 +158,12 @@ def register_portability(
     tables: tuple[str, ...] = (),
     prepare: PrepareFn | None = None,
     limits: Mapping[str, int] | None = None,
-    oldest_version: int = 1,
+    upgrades: Mapping[int, UpgradeFn] | None = None,
 ) -> None:
     if module in _adapters:
         raise ValueError(f"duplicate portability adapter {module!r}")
+    if any(not 1 <= n < schema_version for n in upgrades or {}):
+        raise ValueError(f"{module}: upgrade steps go from 1 to {schema_version - 1}")
 
     async def purge_all(ctx: Ctx, preferences: bool) -> None:
         del preferences
@@ -151,7 +181,7 @@ def register_portability(
         tables=tuple(tables),
         prepare=prepare,
         limits=dict(limits or {}),
-        oldest_version=oldest_version,
+        upgrades=dict(upgrades or {}),
     )
 
 

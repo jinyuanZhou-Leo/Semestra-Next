@@ -56,8 +56,13 @@ changes.
 | Backup size                                       | Up to your storage quota plus 50 MB (1 GB plus 50 MB without a quota)   |
 | The backup's files do not fit your quota          | Merge is refused; Replace still works                                   |
 | The backup comes from a newer version             | Refused                                                                 |
+| The backup comes from an older version (1.x)      | Converted to the current format, then imported like any other backup    |
 | It holds data of a feature this version lacks     | That data is left out; the rest imports                                 |
 | A JSON backup from the old Semestra app           | Refused                                                                 |
+
+A backup from 1.x is converted the same way the upgrade to 2.0 converts existing data: weekly
+classes that share a section code become one section, and every assessment with a due date gets
+its to-do (finished if it is graded or already past due).
 
 ## Local models
 

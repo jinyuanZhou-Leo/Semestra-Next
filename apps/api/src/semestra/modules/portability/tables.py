@@ -34,6 +34,7 @@ from semestra.modules.portability.registry import (
     IdMap,
     ImportOptions,
     ImportReport,
+    UpgradeFn,
     Writer,
     register_portability,
 )
@@ -291,7 +292,7 @@ def table_adapter(
     *,
     module: str,
     schema_version: int,
-    oldest_version: int = 1,
+    upgrades: Mapping[int, UpgradeFn] | None = None,
     depends_on: tuple[str, ...] = (),
     tables: Sequence[Table],
 ) -> TableAdapter:
@@ -308,6 +309,6 @@ def table_adapter(
         purge_content=adapter.purge_content,
         tables=tuple(t.model.__tablename__ for t in tables),
         limits={t.model.__tablename__: t.limit for t in tables if t.limit is not None},
-        oldest_version=oldest_version,
+        upgrades=upgrades,
     )
     return adapter
