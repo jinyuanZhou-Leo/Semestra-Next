@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 Effect = Literal["read", "write", "destructive"]
-ProposalStatus = Literal["pending", "approved", "rejected", "executed", "failed", "expired"]
+ProposalStatus = Literal["pending", "executing", "rejected", "executed", "failed", "expired"]
 
 
 class AgentScope(BaseModel):
