@@ -74,9 +74,9 @@ import { ListDialog } from './ListDialog'
 
 /** Which list a tasks page shows, remembered per Program, term or course. */
 export function useTaskSelection(scopeId: string) {
-  const [pref, setPref] = useUiPref('tasks.selection', 'all', { scope: scopeId })
+  const [pref, setPref, loaded] = useUiPref('tasks.selection', 'all', { scope: scopeId })
   const selection = parseSelection(pref)
-  return [selection, (next: Selection) => setPref(selectionKey(next))] as const
+  return [selection, (next: Selection) => setPref(selectionKey(next)), loaded] as const
 }
 
 /**

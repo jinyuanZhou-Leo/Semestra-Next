@@ -46,7 +46,13 @@ import { type EditFocus, SortableTaskRow, TaskRow } from '../components/TaskRow'
 import { TaskListsColumn, TasksViewMenu, useTaskSelection } from '../components/TaskLists'
 import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
 import { newTaskPlace } from '../new-task'
-import { useProgramToday, useTaskCounts, useTaskLists, useTaskSettings, useTasks } from '../queries'
+import {
+  useProgramToday,
+  useTaskCounts,
+  useTaskLists,
+  useTaskSettingsState,
+  useTasks,
+} from '../queries'
 import {
   INBOX,
   SMART_VIEWS,
@@ -86,16 +92,19 @@ export default function TasksPage({ scope }: PageProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : undefined
   const taskScope = { programId, termId, courseId }
   const scopeId = courseId ?? termId ?? programId
-  const [selection, setSelection] = useTaskSelection(scopeId)
+  const [selection, setSelection, selectionLoaded] = useTaskSelection(scopeId)
   // The lists get a column of their own where the page is wide enough (not on a course's page).
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const width = useElementWidth(root)
   const listsColumn = !courseId && width >= LISTS_COLUMN_MIN_WIDTH
   const key = selectionKey(selection)
-  const [viewPref, setViewPref] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
+  const [viewPref, setViewPref, viewLoaded] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
     scope: `${scopeId}.${key}`,
   })
-  const settings = useTaskSettings(programId)
+  const { settings, loaded: settingsLoaded } = useTaskSettingsState(programId)
+  // The task queries' keys come from the remembered list, sort and folding: wait for them, or
+  // a cold start would fetch the default list first and then the remembered one.
+  const ready = selectionLoaded && viewLoaded && settingsLoaded
   const { actions, pending } = useTaskActions()
   const lists = useTaskLists(programId)
   const counts = useTaskCounts(taskScope)
@@ -105,17 +114,18 @@ export default function TasksPage({ scope }: PageProps) {
   // How many rows are loaded; a new selection starts over (see `select`).
   const [openLimit, setOpenLimit] = useState(PAGE)
   const [doneLimit, setDoneLimit] = useState(DONE_PAGE)
-  const tasks = useTasks(taskScope, selection, {
-    sort: viewPref.sort,
-    completed: 'hide',
-    limit: completedView ? doneLimit : openLimit,
-  })
+  const tasks = useTasks(
+    taskScope,
+    selection,
+    { sort: viewPref.sort, completed: 'hide', limit: completedView ? doneLimit : openLimit },
+    ready,
+  )
   // Folded, the finished tasks are only counted: one row is fetched for the total.
   const finished = useTasks(
     taskScope,
     selection,
     { sort: 'created', completed: 'only', limit: doneOpen ? doneLimit : 1 },
-    !completedView,
+    ready && !completedView,
   )
   const today = useProgramToday(programId)
   const listRef = useRef<HTMLElement>(null)
