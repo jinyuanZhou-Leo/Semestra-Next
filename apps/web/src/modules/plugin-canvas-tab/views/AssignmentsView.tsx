@@ -1,4 +1,4 @@
-import type { AssignmentOut, Quiz, Task } from '@semestra/api-client'
+import type { AssignmentOut, Quiz } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsQuizListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
@@ -25,16 +25,16 @@ import {
   ListChecks,
   Lock,
   MessagesSquare,
-  NotebookPen,
   Search,
   SearchX,
 } from 'lucide-react'
 import { createContext, Fragment, use, useState } from 'react'
 import { RowMenu } from '@/app/settings'
+import { HistoryLink } from '@/components/HistoryLink'
 import { toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
+import { coursePath } from '@/modules/academics/paths'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
-import { courseTasksOptions, TaskCheck } from '@/modules/tasks/components/TaskCheck'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -117,6 +117,7 @@ type CellProps = CellContext<typeof features, Row>
  * would not update when only the selection changes.
  */
 type TableState = {
+  programId: string
   courseId: string
   /** Read once, so "due in 3 days" doesn't change between renders. */
   now: number
@@ -124,8 +125,6 @@ type TableState = {
   /** Rows that can still be imported, in the table's order. */
   selectable: readonly string[]
   setSelected: (ids: readonly string[], on: boolean) => void
-  /** The to-do of what an assignment was imported as; null without one. */
-  todoOf: (a: AssignmentOut) => Task | null
   /** "Add to gradebook" for an assignment imported as a to-do. */
   toGradebook: (a: AssignmentOut) => void
 }
@@ -214,30 +213,32 @@ function NameCell({ row }: CellProps) {
 }
 
 /**
- * Where an imported assignment is in Semestra: its to-do, checked off in place as on the to-do
- * list, and the gradebook mark when it is an assessment.
+ * Where an assignment went in Semestra, in words, linking there: the course's gradebook (at its
+ * assessment) or its to-dos. A practice quiz can't be imported, so it says nothing.
  */
 function InSemestraCell({ row }: CellProps) {
-  const { todoOf, courseId } = useTableState()
-  const a = row.original.assignment
-  if (!a.imported_as) return <span className="text-muted-foreground">—</span>
-  const task = todoOf(a)
+  const { programId, courseId } = useTableState()
+  const { assignment: a, practice } = row.original
+  if (practice) return null
+  if (!a.imported_as)
+    return <span className="text-muted-foreground">{m.canvas_tab_not_added()}</span>
+  const [Icon, label, href] =
+    a.imported_as.kind === 'assessment'
+      ? [
+          GraduationCap,
+          m.canvas_tab_added_to_gradebook(),
+          `${coursePath(programId, courseId, 'grades')}?assessment=${encodeURIComponent(a.imported_as.id)}`,
+        ]
+      : [ListChecks, m.canvas_tab_added_to_tasks(), coursePath(programId, courseId, 'tasks')]
   return (
-    <span className="flex items-center gap-2">
-      {task ? <TaskCheck task={task} courseId={courseId} /> : null}
-      {a.imported_as.kind === 'assessment' ? (
-        <Tooltip>
-          <TooltipTrigger
-            className="inline-flex rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={m.canvas_tab_in_gradebook()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <NotebookPen aria-hidden className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent>{m.canvas_tab_in_gradebook()}</TooltipContent>
-        </Tooltip>
-      ) : null}
-    </span>
+    <HistoryLink
+      href={href}
+      onClick={(event) => event.stopPropagation()}
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-sm outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      {label}
+    </HistoryLink>
   )
 }
 
@@ -476,18 +477,6 @@ function groupsOf(rows: readonly Row[]): Group[] {
 
 function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: string }) {
   const { programId, courseId, go, title } = useCanvasPage()
-  // The to-dos of the course's imported assignments, for the "In Semestra" column.
-  const todos = useQuery({
-    ...courseTasksOptions(programId, courseId),
-    select: (page) => {
-      const byTarget = new Map<string, Task>()
-      for (const t of page.items) {
-        byTarget.set(t.id, t)
-        if (t.assessment_id) byTarget.set(t.assessment_id, t)
-      }
-      return byTarget
-    },
-  }).data
   const [sorting, setSorting] = useState<SortingState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
@@ -531,6 +520,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
   // button says how many.
   const picked = selectable.filter((id) => rowSelection[id])
   const state: TableState = {
+    programId,
     courseId,
     now,
     selected: rowSelection,
@@ -544,7 +534,6 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
         }
         return next
       }),
-    todoOf: (a) => (a.imported_as ? (todos?.get(a.imported_as.id) ?? null) : null),
     toGradebook: (a) => {
       addToGradebook(courseId, [a.external_id], m.lms_canvas()).catch(toastError)
     },

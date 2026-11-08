@@ -5583,6 +5583,138 @@
         }
       }
     },
+    "/courses/{course_id}/files:delete": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete several files, links and folders of a course permanently.",
+        "description": "Use only when the user clearly asks to delete these. Folders go with\neverything inside them; nothing can be restored. All of them are deleted, or none if one is\nnot found.",
+        "operationId": "filesEntryDeleteMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntriesDeleteInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/files:move": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Move several files, links and folders of a course into one folder.",
+        "description": "Use when the user wants several things of one course in another folder of the\nsame course (to_folder_id null = course root). Folders move with everything inside them. All of\nthem move or, if one cannot (a folder name already taken there, folders nested too deep), none\ndo.",
+        "operationId": "filesEntryMoveMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntriesMoveInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntriesMoved"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/folders": {
       "post": {
         "tags": [
@@ -22621,6 +22753,93 @@
           "code"
         ],
         "title": "EmailVerifyIn"
+      },
+      "EntriesDeleteInputBody": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Item Ids",
+            "description": "Files and links to delete"
+          },
+          "folder_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Folder Ids",
+            "description": "Folders to delete with everything inside them"
+          }
+        },
+        "type": "object",
+        "title": "EntriesDeleteInputBody"
+      },
+      "EntriesMoveInputBody": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Item Ids",
+            "description": "Files and links to move"
+          },
+          "folder_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Folder Ids",
+            "description": "Folders to move, with their contents"
+          },
+          "to_folder_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Folder Id",
+            "description": "Folder to move them into; null moves them to the course root"
+          }
+        },
+        "type": "object",
+        "required": [
+          "to_folder_id"
+        ],
+        "title": "EntriesMoveInputBody"
+      },
+      "EntriesMoved": {
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "title": "Moved",
+            "description": "Files, links and folders moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "title": "EntriesMoved"
       },
       "ErrorBody": {
         "properties": {

@@ -161,6 +161,35 @@ class FolderDeleteInput(BaseModel):
     )
 
 
+class EntriesMoveInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    item_ids: list[Id] = Field(
+        default_factory=list, max_length=1000, description="Files and links to move"
+    )
+    folder_ids: list[Id] = Field(
+        default_factory=list, max_length=1000, description="Folders to move, with their contents"
+    )
+    to_folder_id: Id | None = Field(
+        description="Folder to move them into; null moves them to the course root"
+    )
+
+
+class EntriesDeleteInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    item_ids: list[Id] = Field(
+        default_factory=list, max_length=1000, description="Files and links to delete"
+    )
+    folder_ids: list[Id] = Field(
+        default_factory=list,
+        max_length=1000,
+        description="Folders to delete with everything inside them",
+    )
+
+
+class EntriesMoved(BaseModel):
+    moved: int = Field(description="Files, links and folders moved")
+
+
 class UploadResult(BaseModel):
     items: list[ItemOut]
 

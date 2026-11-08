@@ -41,6 +41,8 @@ export const capabilityMessages = {
   capability_files_document_outline_title: m.capability_files_document_outline_title,
   capability_files_document_read_title: m.capability_files_document_read_title,
   capability_files_document_search_title: m.capability_files_document_search_title,
+  capability_files_entry_delete_many_title: m.capability_files_entry_delete_many_title,
+  capability_files_entry_move_many_title: m.capability_files_entry_move_many_title,
   capability_files_folder_create_title: m.capability_files_folder_create_title,
   capability_files_folder_delete_title: m.capability_files_folder_delete_title,
   capability_files_item_delete_title: m.capability_files_item_delete_title,
