@@ -593,19 +593,11 @@
       "plugin_id": null
     },
     {
-      "name": "lms__announcement__list",
-      "capability": "lms.announcement.list",
+      "name": "lms__activity__list",
+      "capability": "lms.activity.list",
       "module": "lms",
       "effect": "read",
-      "summary": "Recent announcements of a linked course on Canvas or another LMS, newest first.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__assignment__add_to_gradebook",
-      "capability": "lms.assignment.add_to_gradebook",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Move imported LMS assignments that have no gradebook entry into the gradebook.",
+      "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and changed imported ones.",
       "plugin_id": null
     },
     {
@@ -621,15 +613,31 @@
       "capability": "lms.assignment.list",
       "module": "lms",
       "effect": "read",
-      "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
+      "summary": "Assignments and graded quizzes of a linked course on the LMS (Canvas), with the user's scores and the course total, marked when imported.",
       "plugin_id": null
     },
     {
-      "name": "lms__course__check_updates",
-      "capability": "lms.course.check_updates",
+      "name": "lms__change__import",
+      "capability": "lms.change.import",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Import what changed on the LMS for a course's imported assignments (due dates, points, weights, new grades), for the user's review.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__content__read",
+      "capability": "lms.content.read",
       "module": "lms",
       "effect": "read",
-      "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
+      "summary": "Read one item of a course on the LMS (Canvas) in full, as Markdown.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__content__search",
+      "capability": "lms.content.search",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Search everything in a course on the LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
       "plugin_id": null
     },
     {
@@ -641,51 +649,11 @@
       "plugin_id": null
     },
     {
-      "name": "lms__course__link__delete",
-      "capability": "lms.course.link.delete",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Unlink a course from its LMS course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__course__link__get",
-      "capability": "lms.course.link.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "The LMS course a course is linked to, if any.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__course__link__list",
-      "capability": "lms.course.link.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Every LMS course link in a Program.",
-      "plugin_id": null
-    },
-    {
       "name": "lms__course__link__set",
       "capability": "lms.course.link.set",
       "module": "lms",
       "effect": "write",
       "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__course__link__sync",
-      "capability": "lms.course.link.sync",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Refresh the linked LMS course's code, name and term.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__course__link__update",
-      "capability": "lms.course.link.update",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Turn LMS sync of a linked course on or off.",
       "plugin_id": null
     },
     {
@@ -697,35 +665,11 @@
       "plugin_id": null
     },
     {
-      "name": "lms__course__overview",
-      "capability": "lms.course.overview",
+      "name": "lms__course__outline",
+      "capability": "lms.course.outline",
       "module": "lms",
       "effect": "read",
-      "summary": "A linked course on the LMS: details, navigation and supported features.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__course__queue_updates",
-      "capability": "lms.course.queue_updates",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Put the LMS changes of imported assignments up for review.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__file__get",
-      "capability": "lms.file.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Details of a file of a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__file__preview",
-      "capability": "lms.file.preview",
-      "module": "lms",
-      "effect": "read",
-      "summary": "The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
+      "summary": "A course on the LMS (Canvas) at a glance: its modules with every item, in order.",
       "plugin_id": null
     },
     {
@@ -733,119 +677,7 @@
       "capability": "lms.file.save_to_course",
       "module": "lms",
       "effect": "write",
-      "summary": "Save a file of a linked course into the course's files.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__file__search",
-      "capability": "lms.file.search",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Find files of a linked course on the LMS by name.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__folder__get",
-      "capability": "lms.folder.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "A folder of a linked course's files on the LMS: its subfolders and files.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__grade__list",
-      "capability": "lms.grade.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "The user's grades on Canvas or another LMS for a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__module__list",
-      "capability": "lms.module.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Modules of a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__module_item__list",
-      "capability": "lms.module_item.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Items of one module of a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__page__get",
-      "capability": "lms.page.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "One page of a linked course; the assistant gets its body as Markdown.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__page__list",
-      "capability": "lms.page.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Pages of a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__program__binding__clear",
-      "capability": "lms.program.binding.clear",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Unbind a Program's LMS connection.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__program__binding__get",
-      "capability": "lms.program.binding.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Which LMS connection a Program uses.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__program__binding__set",
-      "capability": "lms.program.binding.set",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Bind an LMS connection to a Program.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__provider__list",
-      "capability": "lms.provider.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "LMS platforms the app can connect to, with their features and settings.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__quiz__list",
-      "capability": "lms.quiz.list",
-      "module": "lms",
-      "effect": "read",
-      "summary": "Quizzes of a linked course.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__submission__get",
-      "capability": "lms.submission.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "The user's submission of one assignment on the LMS, with the teacher's feedback.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__syllabus__get",
-      "capability": "lms.syllabus.get",
-      "module": "lms",
-      "effect": "read",
-      "summary": "The syllabus of a linked course on Canvas or another LMS.",
+      "summary": "Save a file of a linked course on the LMS into the course's files.",
       "plugin_id": null
     },
     {
@@ -1206,7 +1038,9 @@
         "files__document__read",
         "files__document__outline",
         "files__item__list",
-        "academics__course__find"
+        "academics__course__find",
+        "lms__content__search",
+        "lms__content__read"
       ]
     },
     {
@@ -1388,32 +1222,20 @@
         "en": "Use the LMS",
         "zh-CN": "使用学习平台"
       },
-      "description": "Use when the user asks about their LMS (Canvas) courses, such as announcements, assignments, feedback, pages, modules, files, quizzes or grades there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
+      "description": "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments, changes or a syllabus into the app.",
       "tools": [
-        "lms__course__link__get",
-        "lms__course__overview",
-        "lms__announcement__list",
+        "lms__content__search",
+        "lms__content__read",
+        "lms__course__outline",
+        "lms__activity__list",
         "lms__assignment__list",
-        "lms__grade__list",
-        "lms__module__list",
-        "lms__module_item__list",
-        "lms__page__list",
-        "lms__page__get",
-        "lms__quiz__list",
-        "lms__syllabus__get",
-        "lms__submission__get",
-        "lms__folder__get",
-        "lms__file__search",
-        "lms__file__get",
-        "lms__file__preview",
-        "lms__file__save_to_course",
         "lms__course__list",
         "lms__course__link__set",
+        "lms__file__save_to_course",
         "lms__course__import",
         "lms__assignment__import",
         "lms__syllabus__import",
-        "lms__course__check_updates",
-        "lms__course__queue_updates",
+        "lms__change__import",
         "imports__session__get",
         "imports__item__update",
         "imports__item__decide_many",

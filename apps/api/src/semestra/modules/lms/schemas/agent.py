@@ -21,7 +21,7 @@ _REFRESH = (
 )
 
 
-class OutlineInput(BaseModel):
+class LmsOutlineInput(BaseModel):
     course_id: Id = Field(description="Course id (linked to the LMS)")
     cursor: str | None = Field(
         default=None, max_length=20, description="`next_cursor` of the previous call"
@@ -29,7 +29,7 @@ class OutlineInput(BaseModel):
     refresh: bool = Field(default=False, description=_REFRESH)
 
 
-class OutlineItem(BaseModel):
+class LmsOutlineItem(BaseModel):
     title: str
     kind: str = Field(
         description="page, assignment, quiz, file, discussion, external_url, external_tool or "
@@ -51,26 +51,26 @@ class OutlineItem(BaseModel):
     )
 
 
-class OutlineModule(BaseModel):
+class LmsOutlineModule(BaseModel):
     name: str
     state: str | None = Field(default=None, description="locked, unlocked, started or completed")
     unlock_at: datetime | None = None
-    items: list[OutlineItem]
+    items: list[LmsOutlineItem]
 
 
-class OutlinePage(BaseModel):
+class LmsOutlinePage(BaseModel):
     ref: str
     title: str
     updated_at: datetime | None = None
     front_page: bool = False
 
 
-class OutlineTab(BaseModel):
+class LmsOutlineTab(BaseModel):
     label: str
     url: str | None = None
 
 
-class CourseOutline(BaseModel):
+class LmsCourseOutline(BaseModel):
     course_id: str
     code: str | None = None
     name: str
@@ -80,12 +80,12 @@ class CourseOutline(BaseModel):
         description="Areas of the course open to the user (pages, files, quizzes...); hidden "
         "ones are left out, their items may still be in the modules. Null: not known"
     )
-    external_tabs: list[OutlineTab] = Field(
+    external_tabs: list[LmsOutlineTab] = Field(
         default_factory=list,
         description="Tools the course links in its menu (recordings, forums...): links only",
     )
-    modules: list[OutlineModule]
-    other_pages: list[OutlinePage] = Field(
+    modules: list[LmsOutlineModule]
+    other_pages: list[LmsOutlinePage] = Field(
         default_factory=list, description="Pages that are in no module"
     )
     next_cursor: str | None = Field(
@@ -93,7 +93,7 @@ class CourseOutline(BaseModel):
     )
 
 
-class SearchInput(BaseModel):
+class LmsSearchInput(BaseModel):
     course_id: Id = Field(description="Course id (linked to the LMS)")
     query: str = Field(
         min_length=1,
@@ -108,7 +108,7 @@ class SearchInput(BaseModel):
     refresh: bool = Field(default=False, description=_REFRESH)
 
 
-class SearchHit(BaseModel):
+class LmsSearchHit(BaseModel):
     ref: str | None = Field(description="Read it with lms.content.read (null for a link)")
     kind: ContentKind
     title: str
@@ -118,19 +118,19 @@ class SearchHit(BaseModel):
     date: datetime | None = Field(default=None, description="Posted, due or last changed")
 
 
-class Skipped(BaseModel):
+class LmsSkipped(BaseModel):
     source: str
     reason: str = Field(description="hidden (the instructor hid it), failed, or limit")
 
 
-class SearchResults(BaseModel):
-    hits: list[SearchHit] = Field(description="Best match first")
-    skipped: list[Skipped] = Field(
+class LmsSearchResults(BaseModel):
+    hits: list[LmsSearchHit] = Field(description="Best match first")
+    skipped: list[LmsSkipped] = Field(
         default_factory=list, description="What could not be searched, and why"
     )
 
 
-class ReadInput(BaseModel):
+class LmsReadInput(BaseModel):
     course_id: Id = Field(description="Course id (linked to the LMS)")
     ref: RefStr | None = Field(
         default=None,
@@ -150,7 +150,7 @@ class ReadInput(BaseModel):
         return self
 
 
-class ContentDetail(BaseModel):
+class LmsContentDetail(BaseModel):
     ref: str
     kind: ContentKind
     title: str
@@ -170,7 +170,7 @@ class ContentDetail(BaseModel):
     note: str | None = None
 
 
-class ActivityInput(BaseModel):
+class LmsActivityInput(BaseModel):
     course_id: Id | None = Field(default=None, description="One course (linked to the LMS)")
     term_id: Id | None = Field(default=None, description="Or every linked course of a term")
     since: datetime | None = Field(default=None, description="Default: 7 days ago")
@@ -186,7 +186,7 @@ class ActivityInput(BaseModel):
 ActivityKind = Literal["announcement", "grade", "assignment", "change"]
 
 
-class ActivityItem(BaseModel):
+class LmsActivityItem(BaseModel):
     course_id: str
     course: str = Field(description="The course's code or title")
     kind: ActivityKind = Field(
@@ -199,8 +199,8 @@ class ActivityItem(BaseModel):
     summary: str | None = None
 
 
-class ActivityList(BaseModel):
+class LmsActivityList(BaseModel):
     since: datetime
-    items: list[ActivityItem] = Field(description="Newest first")
-    skipped: list[Skipped] = Field(default_factory=list)
+    items: list[LmsActivityItem] = Field(description="Newest first")
+    skipped: list[LmsSkipped] = Field(default_factory=list)
     truncated: bool = False

@@ -5,14 +5,14 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.modules.lms import content
 from semestra.modules.lms.schemas.agent import (
-    ActivityInput,
-    ActivityList,
-    ContentDetail,
-    CourseOutline,
-    OutlineInput,
-    ReadInput,
-    SearchInput,
-    SearchResults,
+    LmsActivityInput,
+    LmsActivityList,
+    LmsContentDetail,
+    LmsCourseOutline,
+    LmsOutlineInput,
+    LmsReadInput,
+    LmsSearchInput,
+    LmsSearchResults,
 )
 
 TAGS = ("lms",)
@@ -32,7 +32,7 @@ see what a course has; to find something specific, lms.content.search is faster.
     expose=AGENTS,
     tags=TAGS,
 )
-async def course_outline(ctx: Ctx, inp: OutlineInput) -> CourseOutline:
+async def course_outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
     return await content.outline(ctx, inp)
 
 
@@ -51,7 +51,7 @@ instructor hid, a limit).""",
     expose=AGENTS,
     tags=TAGS,
 )
-async def content_search(ctx: Ctx, inp: SearchInput) -> SearchResults:
+async def content_search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
     return await content.search(ctx, inp)
 
 
@@ -68,7 +68,7 @@ again with `next_offset`. Links in the text written `lms:<ref>` open with this t
     expose=AGENTS,
     tags=TAGS,
 )
-async def content_read(ctx: Ctx, inp: ReadInput) -> ContentDetail:
+async def content_read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     return await content.read(ctx, inp)
 
 
@@ -86,5 +86,5 @@ lms.content.read.""",
     expose=AGENTS,
     tags=TAGS,
 )
-async def activity_list(ctx: Ctx, inp: ActivityInput) -> ActivityList:
+async def activity_list(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
     return await content.activity(ctx, inp)

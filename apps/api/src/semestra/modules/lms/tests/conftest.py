@@ -11,7 +11,6 @@ from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
-from semestra.core.errors import AppError
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
 from semestra.modules.lms.providers.canvas import provider as canvas_module

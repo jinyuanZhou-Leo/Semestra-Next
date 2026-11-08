@@ -361,7 +361,7 @@ test('a wiki course without a front page shows its modules', async () => {
   server.use(
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview('wiki'))),
     http.get(`${API}/courses/c1/lms/pages/:ref`, () => {
-      const { status, body } = apiError('common.not_found', 404)
+      const { status, body } = apiError('lms.not_found', 404)
       return HttpResponse.json(body, { status })
     }),
     http.get(`${API}/courses/c1/lms/modules`, () =>

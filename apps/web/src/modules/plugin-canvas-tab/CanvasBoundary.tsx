@@ -30,7 +30,7 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
 /**
  * Loading, error and empty states of a Canvas read (M16 §4). An invalid or missing API token
  * leads to the connection settings; an item this account may not see (`lms.forbidden`, a locked
- * page or file) points to Canvas; "too many requests" asks to try again later.
+ * page or file) or an area the instructor hid (`lms.area_hidden`) points to Canvas; "too many requests" asks to try again later.
  */
 export function CanvasBoundary<T>({
   query,
@@ -51,12 +51,17 @@ export function CanvasBoundary<T>({
   if (query.isPending) return skeleton ?? <ListSkeleton />
   if (query.isError) {
     const code = errorCode(query.error)
-    if (code === 'lms.forbidden') {
+    if (code === 'lms.forbidden' || code === 'lms.area_hidden') {
+      const hidden = code === 'lms.area_hidden'
       return (
         <Alert>
           <Lock aria-hidden />
-          <AlertTitle>{m.canvas_tab_forbidden_title()}</AlertTitle>
-          <AlertDescription>{m.canvas_tab_forbidden_hint()}</AlertDescription>
+          <AlertTitle>
+            {hidden ? m.canvas_tab_hidden_title() : m.canvas_tab_forbidden_title()}
+          </AlertTitle>
+          <AlertDescription>
+            {hidden ? m.canvas_tab_hidden_hint() : m.canvas_tab_forbidden_hint()}
+          </AlertDescription>
           <AlertAction>
             <Button
               size="sm"

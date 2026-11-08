@@ -4,7 +4,8 @@ module read anyway. Pure functions, no platform or database.
 A query is split into terms: words for letters and digits, character pairs for Chinese and
 Japanese (which have no spaces). A document scores by how many distinct terms it contains
 (the first key), then by where (a title counts more than the text) and how often; the whole
-query as a phrase adds to it. Terms match inside words too, so `record` finds "Recordings".
+query as a phrase adds to it. A word matches the start of words, so `record` finds "Recordings"
+but `lab` does not find "available"; Chinese pairs match anywhere.
 """
 
 import re
@@ -18,6 +19,12 @@ TITLE_WEIGHT = 4.0
 PHRASE_BONUS = 3.0
 # Occurrences counted per term in a text: a long page repeating a word is not more relevant.
 MAX_COUNT = 5
+
+
+def _pattern(term: str) -> re.Pattern[str]:
+    if _cjk(term[0]):
+        return re.compile(re.escape(term))
+    return re.compile(r"(?<![^\W_])" + re.escape(term))
 
 
 def _cjk(ch: str) -> bool:
@@ -67,15 +74,16 @@ def rank(query: str, doc: Doc) -> Match | None:
     phrase = normalize(query).strip()
     matched, score, at = 0, 0.0, -1
     for term in wanted:
-        in_title = title.count(term)
-        in_text = text.count(term)
-        if not in_title and not in_text:
+        pattern = _pattern(term)
+        in_title = len(pattern.findall(title))
+        first = pattern.search(text)
+        if not in_title and first is None:
             continue
+        in_text = len(pattern.findall(text)) if first is not None else 0
         matched += 1
         score += TITLE_WEIGHT * min(in_title, MAX_COUNT) + min(in_text, MAX_COUNT)
-        if in_text:
-            pos = text.find(term)
-            at = pos if at < 0 else min(at, pos)
+        if first is not None:
+            at = first.start() if at < 0 else min(at, first.start())
     if not matched:
         return None
     if len(phrase) > 1 and (phrase in title or phrase in text):

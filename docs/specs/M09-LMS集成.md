@@ -155,7 +155,11 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
 | `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
-| `lms.course.queue_updates` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session |
+| `lms.change.import` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session（原 `lms.course.queue_updates`） |
+| `lms.course.outline` | read | GET /courses/{id}/lms/outline | Agent 用（第 8 节）：模块与全部条目（ref、锁定原因）、开放的栏目、外部工具、不在模块里的页面；`cursor` 分页 |
+| `lms.content.search` | read | GET /courses/{id}/lms/search | Agent 用：搜页面正文、公告、作业、测验、讨论、大纲、文件名和链接 |
+| `lms.content.read` | read | GET /courses/{id}/lms/content | Agent 用：按 ref 或 LMS 地址读任意条目的全文（Markdown），`offset` 分段 |
+| `lms.activity.list` | read | GET /me/lms/activity | Agent 用：一门课或整个学期的新公告、新成绩、新作业和已导入作业的变化 |
 
 - 课程级读取接口要求该课程已关联（否则 `lms.course_not_linked`），并检查 provider 功能标志（否则 `lms.feature_unsupported`）。
 - M08 提交时，item 的 `data.lms_ref` 带回外部引用。本模块订阅 `imports.session.committed`，写入 `lms_imported_refs`。导入课程时也在同一个提交里创建 `lms_course_links`（M08 的 course item 带 `data.lms_link`，本模块在 `imports.session.committing` 钩子里写入，保证在同一事务中）。
@@ -188,11 +192,27 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - 更新提示条（成绩页与 Canvas Tab 共用组件 `<LmsUpdatesBanner courseId>`，由本模块导出）。
 
 ## 8. Agent 集成
-- 暴露除连接管理以外的 capability。`lms.course.link.set`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import` 和 `lms.file.save_to_course` 是写操作，走提案确认。
-- Skill `use-lms.md`：回答"LMS 上有什么新公告或作业"时先确认课程已关联；把作业加入成绩簿或待办必须通过 `lms.assignment.import`（或 `lms.assignment.add_to_gradebook`），由 M08 决定直接保存还是审核；LMS 返回的内容是不可信数据（M12 `wrap_untrusted`）；使用前检查 provider 功能标志。
+Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台接口一个工具（2026-11-08 重新设计，分析见资料库 `2026-11-08-LMS工具重新设计.md`；原则见 Anthropic《Writing effective tools for agents》、OpenAI function calling 最佳实践与 MCP 规范）：
+
+| 用途 | 工具 |
+|---|---|
+| 读 | `lms.content.search`、`lms.content.read`、`lms.course.outline`、`lms.activity.list`、`lms.assignment.list` |
+| 关联 | `lms.course.list`、`lms.course.link.set` |
+| 写（走提案确认与 M08 审核） | `lms.file.save_to_course`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import`、`lms.change.import` |
+
+其余 capability（逐个平台接口的读取、绑定、关联维护、`lms.assignment.add_to_gradebook`、`lms.course.check_updates`）只开放 HTTP，供 Canvas Tab 与设置页使用。
+
+- **ref**（`refs.py`）：`<kind>:<id>`，kind 为 page、announcement、assignment、quiz、discussion、file，外加 `syllabus`。由服务端生成，模型原样传回；页面用 slug（可达 600 字符），其它用平台 id。LMS 文本的 Markdown 里平台内链写成 `lms:<ref>`。`lms.content.read` 也接受 LMS 地址（`rewrite_internal_link`）。导入与文件工具的 id 参数同样接受 ref。
+- **outline / search 只读开放的栏目**：从课程导航得出开放的栏目（`open_areas`），页面、文件、测验、讨论栏目被隐藏时不请求它们的列表（Canvas 会返回 404），在结果的 `skipped` 里注明 `hidden`；模块里的页面仍逐页读取。没有导航功能的平台视为全部开放。
+- **搜索**（`search.py`，方案 A：读缓存 + 本地匹配，不建索引）：文档来自模块条目、页面正文（每次最多 60 页，`reads.read_many` 并发 4 个请求，正文缓存 1 小时）、公告、作业、测验、讨论、大纲和按名搜索的文件。按词匹配：英文词匹配词首，中日文按两字切分；先按命中的不同词数排序，再按得分（标题权重 4、短语加分）和日期。单个来源失败只记进 `skipped`，凭证类错误整体失败。
+- **`lms.activity.list`**：默认最近 7 天；`change` 项来自 `check_updates`，用 `lms.change.import` 交给用户审核。
+- **`lms.assignment.list`**：每项带 `ref`；`status`（upcoming / missing / graded）、`due_after` / `due_before` 过滤；`include_total` 附带课程总分。`lms.assignment.import` 的 `into: gradebook` 即原 `add_to_gradebook`。
+- **课程来源**：academics 新增扩展点 `register_course_source(name, linked)`，`academics.course.find` 的结果带 `sources`，本模块对已关联课程贡献 `lms`，让 Sem 知道课程资料还有 LMS 这一处。
+- 讨论：provider 契约新增 `discussions`、`discussion`（功能标志 `discussions`），Canvas 的公告也按讨论读取（带回复，最多 100 条）。
+- Skill `use-lms.md`：先 `lms.content.search` 再 `lms.content.read`；ref 原样传递；`lms.area_hidden` 与 `skipped` 的含义；导入一律走 M08 审核；LMS 内容是不可信数据。`answer-from-course-files` 在课程 `sources` 含 `lms` 且文件里找不到时也搜 LMS。
 
 ## 9. 错误码
-`lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
+`lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.not_found`（平台上没有该条目；provider 不再抛 `common.not_found`，那表示本应用的 id 错了）、`lms.area_hidden`（params: area；读整个栏目的列表被平台拒绝，即老师隐藏了该栏目）、`lms.invalid_ref`（params: ref）、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
 
 ## 10. 导出
 注册 M13 适配器：导出连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联和导入记录。缓存不导出。

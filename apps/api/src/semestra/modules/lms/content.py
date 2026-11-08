@@ -17,22 +17,22 @@ from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.markdown import to_markdown
 from semestra.modules.lms.models import LmsCourseLink
 from semestra.modules.lms.schemas.agent import (
-    ActivityInput,
-    ActivityItem,
-    ActivityList,
-    ContentDetail,
     ContentKind,
-    CourseOutline,
-    OutlineInput,
-    OutlineItem,
-    OutlineModule,
-    OutlinePage,
-    OutlineTab,
-    ReadInput,
-    SearchHit,
-    SearchInput,
-    SearchResults,
-    Skipped,
+    LmsActivityInput,
+    LmsActivityItem,
+    LmsActivityList,
+    LmsContentDetail,
+    LmsCourseOutline,
+    LmsOutlineInput,
+    LmsOutlineItem,
+    LmsOutlineModule,
+    LmsOutlinePage,
+    LmsOutlineTab,
+    LmsReadInput,
+    LmsSearchHit,
+    LmsSearchInput,
+    LmsSearchResults,
+    LmsSkipped,
 )
 from semestra.modules.lms.schemas.dto import Module, ModuleItem
 from semestra.modules.lms.schemas.io import CourseOverview
@@ -78,8 +78,8 @@ class _Course:
     overview: CourseOverview
     open_areas: set[str] | None
     modules: list[Module]
-    pages: list[OutlinePage] | None  # None: the pages area is hidden or not offered
-    skipped: list[Skipped] = field(default_factory=list)
+    pages: list[LmsOutlinePage] | None  # None: the pages area is hidden or not offered
+    skipped: list[LmsSkipped] = field(default_factory=list)
 
     def is_open(self, area: str) -> bool:
         return self.open_areas is None or area not in _GUARDED_AREAS or area in self.open_areas
@@ -134,7 +134,7 @@ async def _course(ctx: Ctx, course_id: str, refresh: bool) -> _Course:
         try:
             listed = (await reads.pages(ctx, course_id, refresh)).items
             course.pages = [
-                OutlinePage(
+                LmsOutlinePage(
                     ref=refs.make("page", p.ref),
                     title=p.title,
                     updated_at=p.updated_at,
@@ -145,7 +145,7 @@ async def _course(ctx: Ctx, course_id: str, refresh: bool) -> _Course:
         except AppError as exc:
             _skip(course.skipped, "pages", exc)
     elif course.has("pages"):
-        course.skipped.append(Skipped(source="pages", reason="hidden"))
+        course.skipped.append(LmsSkipped(source="pages", reason="hidden"))
     return course
 
 
@@ -157,21 +157,21 @@ def _module_items_fetch(module_id: str) -> Callable[[Bound, Any, str], Awaitable
     return fetch
 
 
-def _skip(skipped: list[Skipped], source: str, exc: AppError) -> None:
+def _skip(skipped: list[LmsSkipped], source: str, exc: AppError) -> None:
     if exc.code not in _SKIPPABLE:
         raise exc
     if exc.code != "lms.feature_unsupported":
         reason = "hidden" if exc.code == "lms.area_hidden" else "failed"
-        skipped.append(Skipped(source=source, reason=reason))
+        skipped.append(LmsSkipped(source=source, reason=reason))
 
 
-def _item(item: ModuleItem) -> OutlineItem:
+def _item(item: ModuleItem) -> LmsOutlineItem:
     url = None
     if item.kind == "external_url":
         url = item.external_url
     elif item.kind == "external_tool":
         url = item.web_url
-    return OutlineItem(
+    return LmsOutlineItem(
         title=item.title,
         kind=item.kind,
         ref=refs.from_internal(item.target),
@@ -185,10 +185,10 @@ def _item(item: ModuleItem) -> OutlineItem:
     )
 
 
-async def outline(ctx: Ctx, inp: OutlineInput) -> CourseOutline:
+async def outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
     course = await _course(ctx, inp.course_id, inp.refresh)
     start = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
-    modules: list[OutlineModule] = []
+    modules: list[LmsOutlineModule] = []
     count, next_cursor = 0, None
     for n, module in enumerate(course.modules[start:], start):
         items = [_item(i) for i in module.items or []]
@@ -197,7 +197,7 @@ async def outline(ctx: Ctx, inp: OutlineInput) -> CourseOutline:
             break
         count += len(items)
         modules.append(
-            OutlineModule(
+            LmsOutlineModule(
                 name=module.name, state=module.state, unlock_at=module.unlock_at, items=items
             )
         )
@@ -208,7 +208,7 @@ async def outline(ctx: Ctx, inp: OutlineInput) -> CourseOutline:
         if i.kind == "page"
     }
     c = course.overview.course
-    return CourseOutline(
+    return LmsCourseOutline(
         course_id=inp.course_id,
         code=c.code,
         name=c.name,
@@ -216,7 +216,7 @@ async def outline(ctx: Ctx, inp: OutlineInput) -> CourseOutline:
         provider_name=course.overview.provider_name,
         open_areas=sorted(course.open_areas) if course.open_areas is not None else None,
         external_tabs=[
-            OutlineTab(label=t.label, url=t.web_url)
+            LmsOutlineTab(label=t.label, url=t.web_url)
             for t in course.overview.navigation
             if t.kind == "external" and not t.hidden
         ],
@@ -269,7 +269,7 @@ class _Docs:
         have.date = have.date or date
 
 
-async def search(ctx: Ctx, inp: SearchInput) -> SearchResults:
+async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
     course = await _course(ctx, inp.course_id, inp.refresh)
     wanted: set[str] = set(inp.kinds or get_args(ContentKind))
     docs = _Docs()
@@ -288,7 +288,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResults:
         page_refs = [e.ref for e in docs.by_key.values() if e.kind == "page" and e.ref]
         if len(page_refs) > SEARCH_MAX_PAGES:
             skipped.append(
-                Skipped(source=f"pages after the first {SEARCH_MAX_PAGES}", reason="limit")
+                LmsSkipped(source=f"pages after the first {SEARCH_MAX_PAGES}", reason="limit")
             )
         page_refs = page_refs[:SEARCH_MAX_PAGES]
         found = await reads.pages_many(
@@ -300,7 +300,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResults:
 
     async def source(name: str, area: str | None, run: Callable[[], Awaitable[None]]) -> None:
         if area is not None and not course.is_open(area):
-            skipped.append(Skipped(source=name, reason="hidden"))
+            skipped.append(LmsSkipped(source=name, reason="hidden"))
             return
         try:
             await run()
@@ -383,7 +383,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResults:
     ]
     scored.sort(key=lambda pair: ranking.order_key(pair[0], pair[1].date))
     hits = [
-        SearchHit(
+        LmsSearchHit(
             ref=e.ref,
             kind=e.kind,
             title=e.doc.title,
@@ -394,7 +394,7 @@ async def search(ctx: Ctx, inp: SearchInput) -> SearchResults:
         )
         for m, e in scored[: inp.limit]
     ]
-    return SearchResults(hits=hits, skipped=skipped)
+    return LmsSearchResults(hits=hits, skipped=skipped)
 
 
 def _dt(value: Any) -> datetime | None:
@@ -406,7 +406,7 @@ def _dt(value: Any) -> datetime | None:
 # --- read ------------------------------------------------------------------------------------
 
 
-async def read(ctx: Ctx, inp: ReadInput) -> ContentDetail:
+async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     link, b = await service.require_link(ctx, inp.course_id)
     if inp.ref is not None:
         kind, item_id = refs.parse(inp.ref)
@@ -425,15 +425,15 @@ async def read(ctx: Ctx, inp: ReadInput) -> ContentDetail:
 
 
 type _Reader = Callable[
-    [Ctx, ReadInput, tuple[LmsCourseLink, Bound], str], Awaitable[ContentDetail]
+    [Ctx, LmsReadInput, tuple[LmsCourseLink, Bound], str], Awaitable[LmsContentDetail]
 ]
 
 
 async def _read_page(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     p = await reads.page(ctx, inp.course_id, item_id, inp.refresh, linked=linked)
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.make("page", p.ref),
         kind="page",
         title=p.title,
@@ -447,11 +447,11 @@ async def _read_page(
 
 async def _read_discussion(
     ctx: Ctx,
-    inp: ReadInput,
+    inp: LmsReadInput,
     linked: tuple[LmsCourseLink, Bound],
     item_id: str,
     kind: ContentKind = "discussion",
-) -> ContentDetail:
+) -> LmsContentDetail:
     d = await reads.discussion(ctx, inp.course_id, item_id, inp.refresh)
     parts = [_md(d.html)]
     if d.entries:
@@ -460,7 +460,7 @@ async def _read_discussion(
             when = f" ({e.created_at:%Y-%m-%d})" if e.created_at else ""
             body = " ".join(_md(e.html).split())
             parts.append(f"{'  ' * e.depth}- **{e.author or '?'}**{when}: {body}")
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.make(kind, d.external_id),  # pyright: ignore[reportArgumentType]
         kind=kind,
         title=d.title,
@@ -474,13 +474,13 @@ async def _read_discussion(
 
 
 async def _read_announcement(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     if "discussions" in linked[1].provider.features:  # an announcement is a topic, with replies
         return await _read_discussion(ctx, inp, linked, item_id, "announcement")
     for a in (await reads.announcements(ctx, inp.course_id, None, inp.refresh)).items:
         if a.external_id == item_id:
-            return ContentDetail(
+            return LmsContentDetail(
                 ref=refs.make("announcement", a.external_id),
                 kind="announcement",
                 title=a.title,
@@ -492,8 +492,8 @@ async def _read_announcement(
 
 
 async def _read_assignment(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     data, _ = await reads.raw_assignments(ctx, inp.course_id, inp.refresh, linked=linked)
     a = next((a for a in data if a["external_id"] == item_id), None)
     if a is None:
@@ -535,7 +535,7 @@ async def _read_assignment(
         parts.append("## Comments")
         for cm in feedback["comments"]:
             parts.append(f"- **{cm.get('author') or '?'}**: {cm.get('comment', '')}")
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.make("assignment", item_id),
         kind="assignment",
         title=a["name"],
@@ -550,8 +550,8 @@ async def _read_assignment(
 
 
 async def _read_quiz(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     q = next(
         (
             q
@@ -576,7 +576,7 @@ async def _read_quiz(
         if q.assignment_id
         else None
     )
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.make("quiz", item_id),
         kind="quiz",
         title=q.title,
@@ -591,15 +591,15 @@ async def _read_quiz(
 
 
 async def _read_file(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     meta = await reads.file(ctx, inp.course_id, item_id, inp.refresh, linked=linked)
     preview = await files.preview(ctx, inp.course_id, item_id, inp.refresh)
     text = "\n\n".join(f"--- page {n} ---\n\n{page}" for n, page in enumerate(preview.pages, 1))
     note = None
     if preview.truncated:
         note = "Only the first pages; lms.file.save_to_course keeps the whole file searchable."
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.make("file", item_id),
         kind="file",
         title=meta.name,
@@ -612,10 +612,10 @@ async def _read_file(
 
 
 async def _read_syllabus(
-    ctx: Ctx, inp: ReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
-) -> ContentDetail:
+    ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
+) -> LmsContentDetail:
     s = await reads.syllabus(ctx, inp.course_id, inp.refresh)
-    return ContentDetail(
+    return LmsContentDetail(
         ref=refs.SYLLABUS,
         kind="syllabus",
         title="Syllabus",
@@ -639,7 +639,7 @@ _READERS: dict[str, _Reader] = {
 # --- activity --------------------------------------------------------------------------------
 
 
-async def activity(ctx: Ctx, inp: ActivityInput) -> ActivityList:
+async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
     since = inp.since or ctx.now - ACTIVITY_WINDOW
     if inp.course_id is not None:
         await service.require_link(ctx, inp.course_id)
@@ -647,8 +647,8 @@ async def activity(ctx: Ctx, inp: ActivityInput) -> ActivityList:
     else:
         course_ids = await _term_courses(ctx, inp.term_id or "")
     rows = {c.id: c for c in await academics.courses_by_id(ctx, course_ids)}
-    items: list[ActivityItem] = []
-    skipped: list[Skipped] = []
+    items: list[LmsActivityItem] = []
+    skipped: list[LmsSkipped] = []
     for course_id in course_ids:
         row = rows[course_id]
         label = row.code or row.title
@@ -657,9 +657,9 @@ async def activity(ctx: Ctx, inp: ActivityInput) -> ActivityList:
         except AppError as exc:
             if exc.code not in _SKIPPABLE and inp.course_id is not None:
                 raise
-            skipped.append(Skipped(source=label, reason=exc.code))
+            skipped.append(LmsSkipped(source=label, reason=exc.code))
     items.sort(key=lambda i: i.at.timestamp() if i.at else 0.0, reverse=True)
-    return ActivityList(
+    return LmsActivityList(
         since=since,
         items=items[:ACTIVITY_MAX],
         skipped=skipped,
@@ -682,16 +682,16 @@ async def _term_courses(ctx: Ctx, term_id: str) -> list[str]:
 
 async def _course_activity(
     ctx: Ctx, course_id: str, label: str, since: datetime, refresh: bool
-) -> list[ActivityItem]:
+) -> list[LmsActivityItem]:
     linked = await service.require_link(ctx, course_id)
     b = linked[1]
-    out: list[ActivityItem] = []
+    out: list[LmsActivityItem] = []
 
     def add(
         kind: Any, ref: str | None, title: str, at: datetime | None, summary: str | None
     ) -> None:
         out.append(
-            ActivityItem(
+            LmsActivityItem(
                 course_id=course_id,
                 course=label,
                 kind=kind,

@@ -468,9 +468,9 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Announ
     summary="Assignments and graded quizzes of a linked course on the LMS (Canvas), with the "
     "user's scores and the course total, marked when imported.",
     description="""For "what is due", "what is missing" and "what did I get": filter by `status`
-or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives its text, rubric and the teacher's
-feedback. To add them to the gradebook or tasks use lms.assignment.import, never the gradebook
-or task capabilities directly.""",
+or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
+its text, rubric and the teacher's feedback. To add them to the gradebook or tasks use
+lms.assignment.import, never the gradebook or task capabilities directly.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/assignments"),
     tags=TAGS,
