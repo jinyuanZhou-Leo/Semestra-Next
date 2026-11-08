@@ -9,13 +9,14 @@ import {
   importsSessionListOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isReading } from './status'
 
-/** Polls while the session is extracting (the job's SSE progress also refetches it). */
+/** Polls while the session is being read (the job's SSE progress also refetches it). */
 export function useImportSession(sessionId: string | null) {
   return useQuery({
     ...importsSessionGetOptions({ path: { session_id: sessionId ?? '' } }),
     enabled: Boolean(sessionId),
-    refetchInterval: (query) => (query.state.data?.status === 'extracting' ? 2000 : false),
+    refetchInterval: (query) => (isReading(query.state.data) ? 2000 : false),
   })
 }
 

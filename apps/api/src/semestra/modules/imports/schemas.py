@@ -14,7 +14,16 @@ from pydantic_core import PydanticCustomError
 from semestra.modules.academics.schemas import Credits, Id, Instructor
 
 SourceKind = Literal["ics", "syllabus", "timetable_image", "lms", "text", "agent"]
-SessionStatus = Literal["extracting", "ready", "committing", "committed", "failed", "discarded"]
+SessionStatus = Literal[
+    "extracting",
+    "waiting_files",
+    "ready",
+    "committing",
+    "committed",
+    "up_to_date",
+    "failed",
+    "discarded",
+]
 ItemType = Literal[
     "course",
     "meeting",
@@ -675,7 +684,6 @@ class ItemsAddInput(BaseModel):
     items: list[AddedItem] = Field(
         min_length=1, max_length=500, description="Items to append, each with its type's fields"
     )
-    ready: bool = Field(default=True, description="Mark the session ready for review")
 
 
 class WizardCourse(BaseModel):

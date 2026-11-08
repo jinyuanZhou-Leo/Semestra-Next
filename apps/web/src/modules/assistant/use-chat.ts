@@ -122,6 +122,15 @@ function batcher(apply: (events: AgentEvent[]) => void) {
 
 const keyOf = (id: string) => agentSessionGetQueryKey({ path: { id } })
 
+type CompactionStatus = 'running' | 'done' | 'skipped'
+
+/** Older turns being summarized, up to the message `until` once the server says which. */
+type Compaction = { until: string | null }
+
+function compactionOf(status: CompactionStatus, until: string | null): Compaction | null {
+  return status === 'running' ? { until } : null
+}
+
 // Conversations whose turn this page already streams: the panel and the full page share the
 // cache entry, so only one of them may apply the events.
 const streaming = new Set<string>()
@@ -132,7 +141,7 @@ function eventHandler(
   id: string,
   restart: boolean,
   setError: (error: ChatError) => void,
-  onCompaction: (status: 'running' | 'done' | 'skipped', until: string | null) => void,
+  onCompaction: (status: CompactionStatus, until: string | null) => void,
 ) {
   const batch = batcher((events) =>
     queryClient.setQueryData<AgentSessionDetail>(keyOf(id), (current) =>
@@ -204,11 +213,8 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const queryClient = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ChatError | null>(null)
-  // Older turns are being compacted (a turn's own, or one the user asked for), up to
-  // `compactingUntil` once the server says which.
-  const [compacting, setCompacting] = useState(false)
-  const [compactingUntil, setCompactingUntil] = useState<string | null>(null)
-  const skipped = useRef(false)
+  // A turn's own compaction, or one the user asked for.
+  const [compaction, setCompaction] = useState<Compaction | null>(null)
   const stopped = useRef(false)
   const controller = useRef<AbortController | null>(null)
   // The conversation this hook creates on the first upload or send: one request at a time,
@@ -222,13 +228,24 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     refetchOnWindowFocus: !busy,
   })
 
-  /** Runs one streaming request; false when it failed before the turn started. */
-  async function run(id: string, path: string, body: unknown): Promise<boolean> {
+  /**
+   * Runs one streaming request; false when it failed before the turn started. `onCompaction`
+   * also hears how a compaction went.
+   */
+  async function run(
+    id: string,
+    path: string,
+    body: unknown,
+    onCompaction?: (status: CompactionStatus) => void,
+  ): Promise<boolean> {
     setBusy(true)
     setError(null)
     const abort = new AbortController()
     controller.current = abort
-    const { onEvent, flush } = eventHandler(queryClient, id, false, setError, onCompaction)
+    const { onEvent, flush } = eventHandler(queryClient, id, false, setError, (status, until) => {
+      setCompaction(compactionOf(status, until))
+      onCompaction?.(status)
+    })
     streaming.add(id)
     const result = await streamTurn(
       (handle, onId) => streamAgent(path, body, handle, onId, abort.signal),
@@ -245,16 +262,9 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       current ? { ...current, generating: false } : current,
     )
     setBusy(false)
-    setCompacting(false)
-    setCompactingUntil(null)
+    setCompaction(null)
     await settle(queryClient, id)
     return result.started
-  }
-
-  function onCompaction(status: 'running' | 'done' | 'skipped', until: string | null) {
-    setCompacting(status === 'running')
-    setCompactingUntil(status === 'running' ? until : null)
-    if (status === 'skipped') skipped.current = true
   }
 
   // A turn this page did not start (another tab, or one running before a reload): follow it.
@@ -269,16 +279,12 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
         sessionId,
         true,
         setError,
-        (status, until) => {
-          setCompacting(status === 'running')
-          setCompactingUntil(status === 'running' ? until : null)
-        },
+        (status, until) => setCompaction(compactionOf(status, until)),
       )
       return followAgent(sessionId, null, onEvent, () => {}, abort.signal).then(
         async () => {
           flush()
-          setCompacting(false)
-          setCompactingUntil(null)
+          setCompaction(null)
           if (abort.signal.aborted) return
           await settle(queryClient, sessionId)
           // Another turn began as this one ended (a card decided in another tab): follow it
@@ -449,13 +455,15 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
    */
   async function compact(focus: string): Promise<'done' | 'skipped' | 'stopped' | 'failed'> {
     if (!sessionId) return 'failed'
-    skipped.current = false
     stopped.current = false
-    setCompacting(true)
-    const started = await run(sessionId, `/agent/sessions/${sessionId}:compact`, { focus })
+    let skipped = false
+    setCompaction({ until: null })
+    const started = await run(sessionId, `/agent/sessions/${sessionId}:compact`, { focus }, (s) => {
+      if (s === 'skipped') skipped = true
+    })
     if (!started) return 'failed'
     if (stopped.current) return 'stopped'
-    return skipped.current ? 'skipped' : 'done'
+    return skipped ? 'skipped' : 'done'
   }
 
   async function stop() {
@@ -476,8 +484,8 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
     loadError: detail.error,
     busy,
     generating,
-    compacting,
-    compactingUntil,
+    compacting: compaction !== null,
+    compactingUntil: compaction?.until ?? null,
     error,
     clearError: () => setError(null),
     ensureSession,

@@ -854,7 +854,7 @@ async def test_course_info_up_to_date(api: Api, fake_ai: list[dict[str, Any]], r
     )  # fmt: skip
     await run_jobs()
     session = await api.call("GET", f"/imports/{session['id']}")
-    assert (session["status"], session["error_code"]) == ("failed", "import.no_changes")
+    assert (session["status"], session["error_code"]) == ("up_to_date", None)
 
 
 async def test_discard_while_reading_stays_discarded(

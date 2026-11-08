@@ -77,7 +77,7 @@ class AgentProposal(Base, OwnedMixin):
     capability: Mapped[str] = mapped_column(String)
     args: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     preview: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
-    # 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'expired'
+    # `ProposalStatus`: pending → executing → executed | failed; or rejected / expired.
     status: Mapped[str] = mapped_column(String, default="pending")
     result: Mapped[Any] = mapped_column(JSON, default=None, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String, default=None)

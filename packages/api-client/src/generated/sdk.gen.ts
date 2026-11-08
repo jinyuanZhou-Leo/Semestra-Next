@@ -3339,9 +3339,9 @@ export const importsSessionCommit = <ThrowOnError extends boolean = false>(optio
 /**
  * Import history of a Program, newest first.
  *
- * Each import says where it came from and its state (extracting, ready,
- * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
- * days.
+ * Each import says where it came from and its state (extracting,
+ * waiting_files, ready, committed, up_to_date, failed, discarded). Open one with
+ * imports.session.get. Closed imports are kept for 30 days.
  */
 export const importsSessionList = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionListData, ThrowOnError>): RequestResult<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionListResponses, ImportsSessionListErrors, ThrowOnError>({
     security: [
@@ -3374,10 +3374,10 @@ export const importsSessionList = <ThrowOnError extends boolean = false>(options
  * to the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.
  * An import never creates terms: the target term must exist (academics.term.create first). ICS is
  * parsed at once (status ready); the other sources are extracted in the background (status
- * extracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a
- * document's contents with the modules' own create capabilities instead of importing it. The
- * assistant gets `summary` and the first
- * 25 items; read the rest with imports.session.get.
+ * extracting, or waiting_files while course files are still being processed, → ready): call
+ * imports.session.get with wait_seconds to wait for it. Never write a document's contents with
+ * the modules' own create capabilities instead of importing it. The assistant gets `summary` and
+ * the first 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreate = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionCreateData, ThrowOnError>): RequestResult<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError> => (options.client ?? client).post<ImportsSessionCreateResponses, ImportsSessionCreateErrors, ThrowOnError>({
     security: [
@@ -3439,8 +3439,8 @@ export const importsSessionDiscard = <ThrowOnError extends boolean = false>(opti
  * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
  * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and
  * `fields`; items come 25 at a time, follow `next_cursor` for more. While it is
- * extracting, pass wait_seconds (up to 25) to wait for the result in one call; if it
- * is still extracting after that, tell the user and stop instead of calling again.
+ * extracting or waiting_files, pass wait_seconds (up to 25) to wait for the result in
+ * one call; if it is still not ready after that, tell the user and stop instead of calling again.
  */
 export const importsSessionGet = <ThrowOnError extends boolean = false>(options: Options<ImportsSessionGetData, ThrowOnError>): RequestResult<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError> => (options.client ?? client).get<ImportsSessionGetResponses, ImportsSessionGetErrors, ThrowOnError>({
     security: [

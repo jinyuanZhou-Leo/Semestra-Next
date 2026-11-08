@@ -14,6 +14,7 @@ from semestra.modules.imports.schemas import (
     ImportSession,
     ImportSessionDetail,
 )
+from semestra.modules.imports.states import READING
 
 WAIT_POLL_SECONDS = 0.5
 
@@ -31,7 +32,7 @@ async def wait_while_extracting(ctx: Ctx, row: ImportsSession, seconds: int) -> 
     transaction may not see the job's commits."""
     deadline = time_.monotonic() + seconds
     status = row.status
-    while status == "extracting" and time_.monotonic() < deadline:
+    while status in READING and time_.monotonic() < deadline:
         await asyncio.sleep(WAIT_POLL_SECONDS)
         async with ctx.state.session_factory() as db:
             status = await db.scalar(

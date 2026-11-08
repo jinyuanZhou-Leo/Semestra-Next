@@ -79,7 +79,7 @@ async def test_a_course_file_still_processing_is_waited_for(
     )  # fmt: skip
     await run_jobs()
     waiting = await api.call("GET", f"/imports/{session['id']}")
-    assert waiting["status"] == "extracting"
+    assert waiting["status"] == "waiting_files"
     assert waiting["source_refs"][0]["status"] == "waiting"
     assert model_calls == []  # nothing read or paid for yet
 
