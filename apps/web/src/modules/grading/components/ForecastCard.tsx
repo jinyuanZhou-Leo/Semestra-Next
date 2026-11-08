@@ -1,6 +1,7 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
 import type { ReactNode } from 'react'
 import { Bar, BarChart, Cell, LabelList, usePlotArea, XAxis, YAxis } from 'recharts'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { categoryColor, categoryName, percentText } from '../display'
@@ -77,9 +78,7 @@ function RowLabel({
     <g>
       <foreignObject x={area.x} y={top - LINE - 2} width={area.width} height={LINE}>
         <div className="flex items-center justify-between gap-3 text-xs leading-4">
-          <span className="truncate text-muted-foreground" title={d.title}>
-            {d.title}
-          </span>
+          <span className="truncate text-muted-foreground">{d.title}</span>
           <span className="shrink-0 font-medium tabular-nums">{percentText(d.value)}</span>
         </div>
       </foreignObject>
@@ -206,12 +205,17 @@ export function ForecastCard({
               </Bar>
             </BarChart>
           </ChartContainer>
-          {target === null ? null : (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
-              {m.grading_forecast_needed({ value: percentText(target) })}
-            </p>
-          )}
+          {/* Kept in place without a target (met or out of reach), so the card keeps its height. */}
+          <p
+            aria-hidden={target === null}
+            className={cn(
+              'mt-1 flex items-center gap-1.5 text-xs text-muted-foreground',
+              target === null && 'invisible',
+            )}
+          >
+            <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
+            {m.grading_forecast_needed({ value: percentText(target ?? 0) })}
+          </p>
         </>
       ) : null}
       {footer}
