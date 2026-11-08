@@ -1,6 +1,6 @@
 import type { EventType, Meeting, Section } from '@semestra/api-client'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { ChevronRight, ListFilter, Pencil, Trash2 } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff, ListFilter, Pencil, Trash2 } from 'lucide-react'
 import { createContext, type ReactNode, use, useState } from 'react'
 import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { formatTime } from '@/lib/format'
@@ -174,22 +174,8 @@ function SwitchCell({ row }: CellProps) {
       />
     )
   }
-  // A meeting's switch is the small size, centred under its section's (w-11 vs w-7).
-  return (
-    <Reveal row={r}>
-      <Switch
-        size="sm"
-        className="ml-2"
-        aria-label={m.schedule_enable_meeting({
-          day: weekdayName(r.meeting.weekday),
-          time: formatTime(r.meeting.start_time),
-        })}
-        checked={r.meeting.enabled}
-        disabled={busy}
-        onCheckedChange={(on) => onToggle([r.meeting.id], on)}
-      />
-    </Reveal>
-  )
+  // A meeting is shown or hidden from its menu; a hidden one is dimmed.
+  return null
 }
 
 function SectionCell({ row }: CellProps) {
@@ -262,7 +248,8 @@ function WeeksCell({ row }: CellProps) {
 }
 
 function ActionsCell({ row }: CellProps) {
-  const { sections, onEdit, onEditSection, onDeleteSection, onKeepOnly } = useSections()
+  const { sections, busy, onEdit, onEditSection, onDeleteSection, onKeepOnly, onToggle } =
+    useSections()
   const r = row.original
   if (r.kind === 'type') return null
   if (r.kind === 'meeting') {
@@ -277,6 +264,13 @@ function ActionsCell({ row }: CellProps) {
           <DropdownMenuItem onClick={() => onEdit(r.section, r.meeting)}>
             <Pencil aria-hidden />
             {m.schedule_meeting_edit()}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={busy}
+            onClick={() => onToggle([r.meeting.id], !r.meeting.enabled)}
+          >
+            {r.meeting.enabled ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+            {r.meeting.enabled ? m.schedule_meeting_hide() : m.schedule_meeting_show()}
           </DropdownMenuItem>
         </RowMenu>
       </Reveal>
