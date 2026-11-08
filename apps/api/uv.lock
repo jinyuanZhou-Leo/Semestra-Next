@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'darwin' and extra != 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr'",
@@ -236,7 +236,7 @@ version = "4.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.15'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.15' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a1/98/7e457a3b014976887a050561955c0b76e1e7e2d6e27b78ecef2ef80518f2/anyio-4.16.0.tar.gz", hash = "sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb", size = 310971, upload-time = "2026-11-01T11:20:07.282Z" }
 wheels = [
@@ -357,7 +357,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -625,7 +625,7 @@ name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/af/182eb91b0df3fe75c4d9f26fe70684569566745f6ba7e5c9c73a862c5252/cryptography-50.0.2.tar.gz", hash = "sha256:7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5", size = 880623, upload-time = "2026-09-30T15:30:04.884Z" }
 wheels = [
@@ -954,6 +954,15 @@ wheels = [
 ]
 
 [[package]]
+name = "http-ece"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/af/249d1576653b69c20b9ac30e284b63bd94af6a175d72d87813235caf2482/http_ece-1.2.1.tar.gz", hash = "sha256:8c6ab23116bbf6affda894acfd5f2ca0fb8facbcbb72121c11c75c33e7ce8cff", size = 8830, upload-time = "2024-08-08T00:10:47.301Z" }
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -971,8 +980,8 @@ name = "httpcore2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-embedding' and extra != 'extra-12-semestra-api-ocr') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr') or (extra != 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr')" },
+    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-embedding' and extra != 'extra-12-semestra-api-ocr') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr') or (extra != 'extra-12-semestra-api-local-cuda' and extra != 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/61/afa9d6b7452f9eca73f73d45324eb0bb52f098fd5e6049bf6b8263be9b4e/httpcore2-2.16.0.tar.gz", hash = "sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643", size = 69886, upload-time = "2026-10-21T07:09:45.31Z" }
 wheels = [
@@ -1059,11 +1068,11 @@ name = "httpx2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "sys_platform != 'emscripten'" },
-    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
-    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten'" },
+    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
+    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
     { name = "idna" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/73/5ca2cedf5e4e50423d1c258877865a6b62793633b561c58499f8aeb33b7e/httpx2-2.16.0.tar.gz", hash = "sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f", size = 103116, upload-time = "2026-10-21T07:09:46.348Z" }
 wheels = [
@@ -1490,12 +1499,12 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32'" },
+    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/8d/e0d339616f4810e9051d4aba6887afab289ab1f81875fe908b606cdfd0e3/mcp-2.3.0.tar.gz", hash = "sha256:8b147a50441cf059dc88c684e0aeed3687f0aa0f39c6cde7b90330effd2b34d8", size = 4171955, upload-time = "2026-10-02T22:06:56.091Z" }
 wheels = [
@@ -2169,6 +2178,17 @@ wheels = [
 ]
 
 [[package]]
+name = "py-vapid"
+version = "1.9.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6b/46/8843d8e00eb4fcece8e12c109ecf5b17a3d4cc9355dab23c2585cb51ed3c/py_vapid-1.9.6-py2.py3-none-any.whl", hash = "sha256:06d775951016f63f0d0d6dd8babd333fc2f831f0769fd5db2e1ec8cfbbccc70f", size = 19428, upload-time = "2026-10-14T19:13:04.404Z" },
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2507,7 +2527,7 @@ name = "pytest"
 version = "9.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -2937,6 +2957,7 @@ dependencies = [
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "genai-prices" },
+    { name = "http-ece" },
     { name = "httptools" },
     { name = "httpx" },
     { name = "icalendar" },
@@ -2947,6 +2968,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pillow" },
     { name = "pillow-heif" },
+    { name = "py-vapid" },
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "google", "openai"] },
     { name = "pydantic-settings" },
@@ -2965,7 +2987,7 @@ dependencies = [
     { name = "structlog" },
     { name = "tzdata" },
     { name = "uvicorn" },
-    { name = "uvloop", marker = "sys_platform != 'win32'" },
+    { name = "uvloop", marker = "sys_platform != 'win32' or (extra == 'extra-12-semestra-api-embedding' and extra == 'extra-12-semestra-api-local-cuda') or (extra == 'extra-12-semestra-api-local-cuda' and extra == 'extra-12-semestra-api-ocr')" },
     { name = "watchfiles" },
     { name = "websockets" },
 ]
@@ -3013,6 +3035,7 @@ requires-dist = [
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.143.3" },
     { name = "genai-prices", specifier = ">=0.1.13" },
+    { name = "http-ece", specifier = ">=1.2.1" },
     { name = "httptools", specifier = ">=0.9.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "huggingface-hub", marker = "extra == 'embedding'", specifier = ">=2.3.0" },
@@ -3032,6 +3055,7 @@ requires-dist = [
     { name = "paddleocr", marker = "extra == 'ocr'", specifier = ">=3.7.0" },
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "pillow-heif", specifier = ">=1.8.1" },
+    { name = "py-vapid", specifier = ">=1.9.6" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "google", "openai"], specifier = "==2.65.0" },
     { name = "pydantic-settings", specifier = ">=2.16.0" },

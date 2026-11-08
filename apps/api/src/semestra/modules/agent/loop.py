@@ -852,7 +852,11 @@ async def _propose(
             )
             ctx.db.add(row)
             rows.append(row)
+        if rows:
+            data = {"session_id": session.id, "program_id": session.program_id, "count": len(rows)}
+            await events.publish(ctx, "agent.proposals.created", data)
         await ctx.db.commit()
+        await run_after_commit(ctx)
         return [
             {"event": "proposal", "data": service.proposal_out(p).model_dump(mode="json")}
             for p in rows

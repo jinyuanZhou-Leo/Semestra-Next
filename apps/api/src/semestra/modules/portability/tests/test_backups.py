@@ -43,7 +43,8 @@ RunJobs = Callable[[], Awaitable[None]]
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 # Tables an account owns that no adapter exports: sign-in data, jobs and this module's own rows,
 # all removed with the `auth_users` row.
-NOT_ADAPTED = ("auth_", "core_", "portability_")
+# Device subscriptions and planned reminders are tied to this server and its sessions.
+NOT_ADAPTED = ("auth_", "core_", "portability_", "notifications_")
 
 
 def _user_tables() -> list[Table]:

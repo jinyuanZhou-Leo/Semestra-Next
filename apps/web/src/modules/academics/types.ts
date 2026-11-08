@@ -112,6 +112,8 @@ export type OnboardingStep = {
   order: number
   title: Message
   component: ComponentType<{ onDone: () => void }>
+  /** Leaves the step out where it cannot apply (notifications in a browser without them). */
+  available?: () => boolean
 }
 
 export const COURSE_COLUMNS = 'academics.courseColumns'

@@ -11,8 +11,11 @@ import { useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
+import { cn } from '@/lib/utils'
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
+import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
+import { ItemSeparator } from '@/ui/item'
 import type { FieldOverrides, Scope, SettingsLevel } from '../extensions'
 import { useAutosave } from './autosave'
 import { FieldControlView, type Inheritance, valueText } from './fields'
@@ -52,6 +55,8 @@ type Props = {
   level: SettingsLevel
   scope?: Scope
   fields?: FieldOverrides
+  /** Replaces the group's rounded border, for a form shown inside another list. */
+  className?: string
 }
 
 /**
@@ -59,7 +64,7 @@ type Props = {
  * per field, saved automatically. On a level below another that can set the namespace, each
  * control starts with "follow …" (M11 §5.2).
  */
-export function NamespaceForm({ namespace, level, scope, fields }: Props) {
+export function NamespaceForm({ namespace, level, scope, fields, className }: Props) {
   const params = scopeParamsFor(level, scope)
   const schemas = useQuery({ ...settingsSchemaListOptions(), staleTime: Infinity })
   const values = useQuery({
@@ -88,6 +93,8 @@ export function NamespaceForm({ namespace, level, scope, fields }: Props) {
                 params={params}
                 data={data}
                 fields={describeFields(definition.json_schema as JsonSchema, fields)}
+                when={fields?.when ?? {}}
+                className={className}
               />
             )}
           </AsyncBoundary>
@@ -107,14 +114,18 @@ function Form({
   params,
   data,
   fields,
+  when,
+  className,
 }: {
   namespace: string
   level: SettingsLevel
+  when: Readonly<Record<string, string>>
   /** The levels above this one where the namespace can be set, highest first. */
   above: SettingsLevel[]
   params: ScopeParams
   data: ResolvedSettings
   fields: FieldDescriptor[]
+  className?: string
 }) {
   const queryClient = useQueryClient()
   const idBase = useId()
@@ -182,53 +193,83 @@ function Form({
     return <p className="text-sm text-muted-foreground">{m.settings_no_options()}</p>
   }
 
-  return (
-    <SettingsGroup>
-      {fields.map((field) => {
-        const id = `${idBase}-${field.key}`
-        const labelId = `${id}-label`
-        const drafted = field.key in draft
-        const following = drafted
-          ? draft[field.key] === FOLLOWING
-          : data.sources[field.key] !== level
-        const inherited = data.inherited[field.key]
-        const value = drafted
-          ? following
-            ? inherited?.value
-            : draft[field.key]
-          : data.values[field.key]
-        // A value nobody set comes from the nearest level above, which itself follows the default.
-        const from = inherited && inherited.source !== 'default' ? inherited.source : above.at(-1)
-        const inherit: Inheritance | undefined =
-          from && inherited
-            ? {
-                following,
-                from: LEVEL_NAMES[from](),
-                valueText: valueText(namespace, field, inherited.value),
-                follow: () => void follow(field.key),
-              }
-            : undefined
-        return (
-          <SettingRow
-            key={field.key}
-            data-field={field.key}
-            label={fieldLabel(namespace, field.key)}
+  const row = (field: FieldDescriptor) => {
+    const id = `${idBase}-${field.key}`
+    const labelId = `${id}-label`
+    const drafted = field.key in draft
+    const following = drafted ? draft[field.key] === FOLLOWING : data.sources[field.key] !== level
+    const inherited = data.inherited[field.key]
+    const value = drafted
+      ? following
+        ? inherited?.value
+        : draft[field.key]
+      : data.values[field.key]
+    // A value nobody set comes from the nearest level above, which itself follows the default.
+    const from = inherited && inherited.source !== 'default' ? inherited.source : above.at(-1)
+    const inherit: Inheritance | undefined =
+      from && inherited
+        ? {
+            following,
+            from: LEVEL_NAMES[from](),
+            valueText: valueText(namespace, field, inherited.value),
+            follow: () => void follow(field.key),
+          }
+        : undefined
+    return {
+      value,
+      element: (
+        <SettingRow
+          key={field.key}
+          data-field={field.key}
+          label={fieldLabel(namespace, field.key)}
+          labelId={labelId}
+          htmlFor={id}
+          description={fieldDescription(namespace, field.key)}
+        >
+          <FieldControlView
+            namespace={namespace}
+            field={field}
+            id={id}
             labelId={labelId}
-            htmlFor={id}
-            description={fieldDescription(namespace, field.key)}
-          >
-            <FieldControlView
-              namespace={namespace}
-              field={field}
-              id={id}
-              labelId={labelId}
-              value={value}
-              onChange={(next) => change(field.key, next)}
-              inherit={inherit}
-            />
-          </SettingRow>
-        )
-      })}
+            value={value}
+            onChange={(next) => change(field.key, next)}
+            inherit={inherit}
+          />
+        </SettingRow>
+      ),
+    }
+  }
+
+  // A field that depends on a switch of this form opens under that switch's row.
+  const keys = new Set(fields.map((field) => field.key))
+  const dependent = (field: FieldDescriptor) => keys.has(when[field.key] ?? '')
+  return (
+    <SettingsGroup className={className}>
+      {fields
+        .filter((field) => !dependent(field))
+        .map((field) => {
+          const own = row(field)
+          const under = fields.filter((other) => when[other.key] === field.key)
+          if (under.length === 0) return own.element
+          return (
+            <Collapsible key={field.key} open={Boolean(own.value)}>
+              {own.element}
+              <CollapsibleContent
+                className={cn(
+                  'h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out',
+                  'data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none',
+                )}
+              >
+                {under.map((other) => (
+                  <div key={other.key}>
+                    <ItemSeparator className="my-0" />
+                    {row(other).element}
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )
+        })}
     </SettingsGroup>
   )
 }

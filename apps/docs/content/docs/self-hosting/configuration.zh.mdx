@@ -114,5 +114,5 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | `SEMESTRA_LOG_LEVEL`       | `INFO`   | 日志级别                                               |
 | `SEMESTRA_SENTRY_DSN`      | （空）   | 把错误报告给 Sentry；为空则关闭                        |
 
-只有在 `SEMESTRA_AUTO_SECRETS=true` 时容器才会生成密钥，compose 文件已经设置了它。`SEMESTRA_SKIP_MIGRATIONS=true`
+只有在 `SEMESTRA_AUTO_SECRETS=true` 时容器才会生成密钥，compose 文件已经设置了它。签名[通知](/docs/notifications)用的密钥由 `SEMESTRA_SECRET_KEY` 派生；更换后，各浏览器会在下次打开 Semestra 时重新订阅。通知需要 HTTPS（或 `localhost`），服务器也要能通过 HTTPS 访问浏览器的推送服务。`SEMESTRA_SKIP_MIGRATIONS=true`
 会在启动时跳过迁移。

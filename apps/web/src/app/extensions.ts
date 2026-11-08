@@ -174,6 +174,7 @@ export type SettingsGroup =
   | 'grades'
   | 'account'
   | 'preferences'
+  | 'notifications'
   | 'calendar'
   | 'ai-providers'
   | 'ai-models'
@@ -196,6 +197,11 @@ export type FieldOverrides = {
   hidden?: readonly string[]
   /** Force a control instead of the one picked from the field's type. */
   controls?: Readonly<Record<string, FieldControl>>
+  /**
+   * Fields shown only while a switch field of the same form is on, as `{ field: switchField }`
+   * (quiet hours' times under "Quiet hours"). They open below the switch's row.
+   */
+  when?: Readonly<Record<string, string>>
 }
 
 type SettingsSectionBase = {

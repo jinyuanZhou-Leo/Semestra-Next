@@ -32,9 +32,9 @@ export function Onboarding() {
   const { locale, changeLocale } = useLocale()
   const updatePreferences = useUpdatePreferences()
   const [, setTourDone] = useUiPref<boolean | null>(TOUR_DONE_KEY, null)
-  const extra = useExtensions<OnboardingStep>(ONBOARDING_STEPS).toSorted(
-    (a, b) => a.order - b.order,
-  )
+  const extra = useExtensions<OnboardingStep>(ONBOARDING_STEPS)
+    .filter((s) => s.available?.() ?? true)
+    .toSorted((a, b) => a.order - b.order)
   const { user } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
   const [progress, setProgress] = useState<Progress>(() => load(user?.id))

@@ -1,4 +1,4 @@
-/** Sound and browser notification when a phase ends (M14 §3). Both degrade to nothing. */
+/** The sound when a phase ends (M14 §3); the notification goes through M18 (`showLocal`). */
 
 let audio: AudioContext | undefined
 
@@ -46,26 +46,5 @@ export function playChime(): void {
     }
   } catch {
     // No audio device, or the browser blocked it before any interaction: stay silent.
-  }
-}
-
-/** Asks once, the first time a timer starts with notifications on. */
-export function askNotificationPermission(): void {
-  try {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      void Notification.requestPermission()
-    }
-  } catch {
-    // Some browsers throw instead of returning a promise.
-  }
-}
-
-export function showNotification(title: string, body: string): void {
-  try {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      void new Notification(title, { body })
-    }
-  } catch {
-    // Not allowed here (some mobile browsers only allow service-worker notifications).
   }
 }

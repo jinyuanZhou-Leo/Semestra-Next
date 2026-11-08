@@ -12,6 +12,7 @@ export const GROUP_ORDER: readonly SettingsGroup[] = [
   'grades',
   'account',
   'preferences',
+  'notifications',
   'calendar',
   'ai-providers',
   'ai-models',
@@ -30,6 +31,7 @@ export const GROUP_TITLES: Record<SettingsGroup, Message> = {
   grades: m.settings_group_grades,
   account: m.settings_group_account,
   preferences: m.settings_group_preferences,
+  notifications: m.settings_group_notifications,
   calendar: m.settings_group_calendar,
   'ai-providers': m.settings_group_ai_providers,
   'ai-models': m.settings_group_ai_models,
@@ -97,6 +99,7 @@ export const CLUSTER_TITLES: Record<NavCluster, Message> = {
 const ACCOUNT_CLUSTERS: Partial<Record<SettingsGroup, NavCluster>> = {
   account: 'personal',
   preferences: 'personal',
+  notifications: 'personal',
   calendar: 'personal',
   'ai-providers': 'ai',
   'ai-models': 'ai',

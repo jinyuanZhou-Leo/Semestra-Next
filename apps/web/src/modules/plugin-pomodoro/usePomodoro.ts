@@ -8,7 +8,8 @@ import { toApiError } from '@/app/api'
 import { refreshUiPrefs, updateUiPref, useUiPref } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
-import { askNotificationPermission, playChime, showNotification, unlockAudio } from './alerts'
+import { deviceState, enableDevice, showLocal } from '@/modules/notifications/push'
+import { playChime, unlockAudio } from './alerts'
 import type { PomodoroSettings } from './schema'
 import {
   INITIAL_STATE,
@@ -115,9 +116,10 @@ export function finishPhase(args: Finish) {
   if (now - (state.endsAt ?? now) < STALE_ALERT_MS) {
     if (runtime.sound) playChime()
     if (runtime.notify) {
-      showNotification(
+      void showLocal(
         state.mode === 'focus' ? m.pomodoro_done_focus() : m.pomodoro_done_break(),
         modeLabel(done.state.mode),
+        'pomodoro',
       )
     }
   }
@@ -265,7 +267,10 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
             : undefined,
         )
       }
-      if (settings.notify && state.status === 'idle') askNotificationPermission()
+      // The first start with notifications on asks to turn them on for this device (M18).
+      if (settings.notify && state.status === 'idle' && deviceState() === 'off') {
+        enableDevice().catch(() => undefined)
+      }
       const t = Date.now()
       setNow(t)
       setState(start(state, t, config))

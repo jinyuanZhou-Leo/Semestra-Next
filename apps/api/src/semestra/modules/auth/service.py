@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
+from semestra.core.events import events
 from semestra.core.i18n import render_email
 from semestra.modules.auth import avatar, crypto, ratelimit
 from semestra.modules.auth.google import GoogleClaims, GoogleVerifier
@@ -435,7 +436,11 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
 # --- flows ----------------------------------------------------------------------------------
 
 
-async def _notify_new_sign_in(ctx: Ctx, user: AuthUser, meta: RequestMeta) -> None:
+async def _notify_new_sign_in(ctx: Ctx, signed_in: SignedIn, meta: RequestMeta) -> None:
+    user = signed_in.user
+    # Pushed to the account's other devices (M18); the email is the instance's choice.
+    data = {"session_id": signed_in.session.id, "user_agent": meta.user_agent}
+    await events.publish(ctx, "auth.session.created", data, user_id=user.id)
     if not ctx.settings.notify_new_sign_in:
         return
     await _send_later(
@@ -465,7 +470,7 @@ async def verify_email_code(
         if user.email_verified_at is None:
             user.email_verified_at = ctx.now
         signed_in = await create_session(ctx, user, client, meta)
-        await _notify_new_sign_in(ctx, user, meta)
+        await _notify_new_sign_in(ctx, signed_in, meta)
         return signed_in, None
     token = crypto.new_token(crypto.REGISTRATION_PREFIX)
     challenge.verification_token_hash = crypto.hash_token(token)
@@ -517,7 +522,7 @@ async def login_with_password(
     if crypto.needs_rehash(user.password_hash):
         user.password_hash = await crypto.hash_password(password)
     signed_in = await create_session(ctx, user, client, meta)
-    await _notify_new_sign_in(ctx, user, meta)
+    await _notify_new_sign_in(ctx, signed_in, meta)
     return signed_in
 
 
@@ -595,7 +600,7 @@ async def login_with_google(
     elif identity is not None:
         identity.email = claims.email  # the Google account's address may have changed
     signed_in = await create_session(ctx, user, client, meta)
-    await _notify_new_sign_in(ctx, user, meta)
+    await _notify_new_sign_in(ctx, signed_in, meta)
     return signed_in
 
 

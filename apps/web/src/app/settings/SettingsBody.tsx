@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import {
   BarChart3,
+  BellRing,
   Boxes,
   CalendarDays,
   Database,
@@ -81,6 +82,7 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
   grades: GraduationCap,
   account: UserRound,
   preferences: Palette,
+  notifications: BellRing,
   calendar: CalendarDays,
   'ai-providers': KeyRound,
   'ai-models': Boxes,

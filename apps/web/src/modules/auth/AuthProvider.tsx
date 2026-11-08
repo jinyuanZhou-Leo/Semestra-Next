@@ -7,6 +7,7 @@ import { clearCollapsedMirror } from '@/app/boot'
 import { setSignedIn } from '@/app/session-expiry'
 import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
+import { forgetDevice } from '@/modules/notifications/push'
 import { dropCompletions, flushCompletions } from '@/modules/tasks/completion'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
 import { AuthContext, type AuthState } from './useAuth'
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       setSignedIn(false)
+      void forgetDevice()
       clearCollapsedMirror()
       queryClient.clear()
       resetUiPrefs(queryClient)
