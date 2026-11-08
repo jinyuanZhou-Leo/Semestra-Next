@@ -65,11 +65,14 @@ function EmailRow({ user }: { user: UserOut }) {
     setEditing(true)
   }
 
+  // Also sent again once the user confirms it's them: with the address the form shows by then.
+  const save = () => {
+    const target = newEmail.trim()
+    if (target) start.mutate({ body: { new_email: target } })
+  }
   const send = (e: FormEvent) => {
     e.preventDefault()
-    const target = newEmail.trim()
-    if (!target || reauth) return
-    start.mutate({ body: { new_email: target } })
+    if (!reauth) save()
   }
 
   return (
@@ -106,10 +109,7 @@ function EmailRow({ user }: { user: UserOut }) {
                   onChange={(e) => setNewEmail(e.target.value)}
                 />
               </Field>
-              <ReauthStep
-                error={start.error}
-                onVerified={() => start.variables && start.mutate(start.variables)}
-              />
+              <ReauthStep error={start.error} onVerified={save} />
               <FieldError>{start.error && !reauth ? errorMessage(start.error) : null}</FieldError>
               <div className="flex gap-2">
                 <Button type="submit" disabled={!newEmail.trim() || reauth}>
@@ -174,12 +174,15 @@ function PasswordRow({ user }: { user: UserOut }) {
     setEditing(true)
   }
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  const save = () => {
     if (!next) return
     change.mutate({
       body: { current_password: user.has_password ? current : null, new_password: next },
     })
+  }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    save()
   }
 
   return (
@@ -234,10 +237,7 @@ function PasswordRow({ user }: { user: UserOut }) {
                 onChange={(e) => setNext(e.target.value)}
               />
             </Field>
-            <ReauthStep
-              error={change.error}
-              onVerified={() => change.variables && change.mutate(change.variables)}
-            />
+            <ReauthStep error={change.error} onVerified={save} />
             <FieldError>
               {change.error && !needsReauth(change.error) ? errorMessage(change.error) : null}
             </FieldError>
@@ -306,7 +306,15 @@ function GoogleRow({ user, clientId }: { user: UserOut; clientId: string | null 
           </ItemActions>
         ) : null}
       </Item>
-      {link.error ? (
+      {needsReauth(link.error) ? (
+        <div className="mx-4 mb-4">
+          {/* The Google credential is still valid: link it once the user confirms it's them. */}
+          <ReauthStep
+            error={link.error}
+            onVerified={() => link.variables && link.mutate(link.variables)}
+          />
+        </div>
+      ) : link.error ? (
         <FieldError className="mx-4 mb-3">{errorMessage(link.error)}</FieldError>
       ) : null}
       <ConfirmDialog

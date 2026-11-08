@@ -702,19 +702,34 @@ async def test_a_passwordless_account_confirms_with_an_emailed_code(
     assert again.json()["error"]["code"] == "auth.invalid_code"
 
 
-async def test_google_confirms_only_with_the_linked_account(
+async def test_google_confirms_only_with_a_fresh_token_of_the_linked_account(
     client: AsyncClient, google: FakeGoogle, clock: Clock
 ) -> None:
-    google.add("mine", subject="g-me", email="me@gmail.com")
-    google.add("other", subject="g-other", email="other@gmail.com")
-    assert (await client.post("/auth/google", json={"id_token": "mine"})).status_code == 200
+    google.add("sign-in", subject="g-me", email="me@gmail.com", issued_at=clock.now)
+    assert (await client.post("/auth/google", json={"id_token": "sign-in"})).status_code == 200
     client.headers["x-semestra-csrf"] = client.cookies["semestra_csrf"]
     clock.advance(minutes=11)
+    # The token from signing in is still unexpired, but too old to confirm with.
+    replayed = await client.post("/account/reauth/google", json={"id_token": "sign-in"})
+    assert replayed.json()["error"]["code"] == "auth.google_invalid_token"
+    google.add("other", subject="g-other", email="other@gmail.com", issued_at=clock.now)
     wrong = await client.post("/account/reauth/google", json={"id_token": "other"})
     assert wrong.json()["error"]["code"] == "auth.identity_mismatch"
+    google.add("mine", subject="g-me", email="me@gmail.com", issued_at=clock.now)
     ok = await client.post("/account/reauth/google", json={"id_token": "mine"})
     assert ok.status_code == 200, ok.text
     await create_pat(client)
+
+
+async def test_linking_google_needs_a_recent_check(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock, google: FakeGoogle
+) -> None:
+    # Otherwise a stolen session could link its own Google account and confirm with it.
+    await login_as(client, await make_user(password=PASSWORD))
+    clock.advance(minutes=11)
+    google.add("theirs", subject="g-x", email="x@gmail.com", issued_at=clock.now)
+    stale = await client.post("/account/google/link", json={"id_token": "theirs"})
+    assert stale.json()["error"]["code"] == "auth.reauth_required"
 
 
 async def test_starting_an_email_change_needs_a_recent_check(

@@ -107,8 +107,8 @@ function CreateTokenDialog({
   })
   const reauth = needsReauth(create.error)
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  // Also sent again once the user confirms it's them: with what the form shows by then.
+  const save = () => {
     if (!name.trim()) return
     create.mutate({
       body: {
@@ -117,6 +117,10 @@ function CreateTokenDialog({
         expires_in_days: days === 'never' ? null : Number(days),
       },
     })
+  }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    save()
   }
 
   return (
@@ -165,10 +169,7 @@ function CreateTokenDialog({
                 options={expiryItems}
               />
             </Field>
-            <ReauthStep
-              error={create.error}
-              onVerified={() => create.variables && create.mutate(create.variables)}
-            />
+            <ReauthStep error={create.error} onVerified={save} />
             <FieldError>{create.error && !reauth ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>
               <DialogClose

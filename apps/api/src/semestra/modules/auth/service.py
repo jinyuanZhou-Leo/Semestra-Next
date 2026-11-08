@@ -43,6 +43,9 @@ CODE_TTL = timedelta(minutes=10)
 RESEND_INTERVAL = timedelta(seconds=60)
 REGISTRATION_TTL = timedelta(minutes=15)
 REAUTH_WINDOW = timedelta(minutes=10)
+# A Google ID token lives an hour and is not single-use: re-authenticating with one needs it to
+# have just been issued, so a leaked token (e.g. the one from signing in) cannot be replayed.
+REAUTH_GOOGLE_MAX_AGE = timedelta(minutes=5)
 EMAIL_START_PER_EMAIL = (10, timedelta(hours=1))
 EMAIL_START_PER_IP = (30, timedelta(hours=1))
 LOGIN_PER_EMAIL = (10, timedelta(minutes=15))
@@ -678,6 +681,11 @@ async def reauth_with_google(ctx: Ctx, claims: GoogleClaims) -> None:
     """The Google account must be the one linked to this user, not just any signed-in one."""
     user = _require_user(ctx)
     session_id = _current_session_id(ctx)
+    issued = claims.issued_at
+    if issued is None or not ctx.now - REAUTH_GOOGLE_MAX_AGE <= issued <= ctx.now + timedelta(
+        minutes=1
+    ):
+        raise AppError("auth.google_invalid_token", 401)
     linked = (
         await ctx.db.execute(
             select(AuthIdentity.id).where(
@@ -833,6 +841,8 @@ async def change_email_confirm(ctx: Ctx, code: str) -> UserOut:
 
 async def link_google(ctx: Ctx, claims: GoogleClaims) -> UserOut:
     user = _require_user(ctx)
+    # A new sign-in method is a way back into the account (and into `reauth_with_google`).
+    await require_recent_auth(ctx)
     identity = (
         await ctx.db.execute(
             select(AuthIdentity).where(

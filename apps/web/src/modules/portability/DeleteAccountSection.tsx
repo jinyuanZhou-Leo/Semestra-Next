@@ -41,6 +41,8 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   })
   const error = remove.error
   const reauth = needsReauth(error)
+  // Also sent again once the user confirms it's them: with what the dialog shows by then.
+  const confirm = () => remove.mutate({ body: { confirmation: phrase, acknowledged } })
   const matches = phrase.trim().toLowerCase() === m.portability_delete_phrase().toLowerCase()
 
   return (
@@ -77,18 +79,11 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
               {m.portability_delete_acknowledge()}
             </FieldLabel>
           </Field>
-          <ReauthStep
-            error={error}
-            onVerified={() => remove.variables && remove.mutate(remove.variables)}
-          />
+          <ReauthStep error={error} onVerified={confirm} />
           {error && !reauth ? <FieldError>{errorMessage(error)}</FieldError> : null}
         </FieldGroup>
       }
-      onConfirm={() =>
-        remove.mutate({
-          body: { confirmation: phrase, acknowledged },
-        })
-      }
+      onConfirm={confirm}
     />
   )
 }
