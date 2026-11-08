@@ -381,7 +381,7 @@ async def _write_event(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "type_code": data.get("type_code"),
         "location": data.get("location"),
         "source_kind": c.row.source_kind,
-        "source_ref": data.get("source_ref") or f"import:{item.id}",
+        "source_ref": _shared_source_ref(item, course_id),
     }
     out = await deps.call(
         ctx, "schedule.event.create_many", {"program_id": program_id, "events": [event]}
@@ -389,6 +389,19 @@ async def _write_event(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     if out["created_ids"]:
         return {"created_id": out["created_ids"][0]}
     return {"updated_id": out["updated_ids"][0]}
+
+
+def _shared_source_ref(item: ImportsItem, course_id: str | None) -> str:
+    """The source of a task or event. Those are told apart across all of the user's (or the
+    Program's) courses, while a syllabus names a date only within its course, so its ref gets the
+    course: importing the same syllabus again, into the wizard's new course or the gradebook,
+    finds what the first import made."""
+    ref = item.data.get("source_ref")
+    if not ref:
+        return f"import:{item.id}"
+    if course_id is not None and ref.startswith("syllabus:"):
+        return f"syllabus:{course_id}:{ref.removeprefix('syllabus:')}"
+    return ref
 
 
 async def _write_patch(c: _Commit, item: ImportsItem) -> dict[str, Any]:
@@ -429,7 +442,7 @@ async def _write_task(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "priority": data.get("priority") if data.get("priority") != "none" else None,
         "course_id": course_id,
         "source_kind": {"lms": "lms", "agent": "agent"}.get(c.row.source_kind, "syllabus"),
-        "source_ref": (data.get("source_ref") or f"import:{item.id}")[:200],
+        "source_ref": _shared_source_ref(item, course_id)[:200],
     }
     out = await deps.call(
         ctx, "tasks.item.create_many", {"program_id": program_id, "items": [task]}

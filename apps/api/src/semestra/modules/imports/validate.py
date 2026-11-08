@@ -9,7 +9,13 @@ from typing import Any
 
 from semestra.modules.grading.engine import weights_add_up
 from semestra.modules.imports.build import norm_title
-from semestra.modules.imports.dates import TermDates, TermWeekSpan, meeting_weeks, pick_term
+from semestra.modules.imports.dates import (
+    TermDates,
+    TermWeekSpan,
+    meeting_weeks,
+    near_term,
+    pick_term,
+)
 from semestra.modules.imports.models import ImportsItem
 
 CATEGORY_TOLERANCE = 0.5
@@ -25,8 +31,8 @@ class ValidationContext:
     existing_weights: dict[str, list[float]] = field(default_factory=lambda: {})
     # Existing course id → how many terms it has.
     course_term_counts: dict[str, int] = field(default_factory=lambda: {})
-    # Weeks of the target term (or wizard dates); None when the target has no single term.
-    target_weeks: Sequence[TermWeekSpan] | None = None
+    # The target term (or the wizard's dates); None when the target has no single term.
+    target_term: TermDates | None = None
     # Existing course id → its term ids.
     course_terms: dict[str, list[str]] = field(default_factory=lambda: {})
     # Dates and weeks of every term a meeting may land in (target, course items' `term_ids`,
@@ -76,7 +82,9 @@ def _meeting_term_weeks(
     terms = course_term_ids(item.data.get("course_ref"), by_id, ctx)
     term_id = pick_term(ctx.target_term_id, terms, _day(item.data.get("first_date")), ctx.terms)
     span = ctx.terms.get(term_id) if term_id else None
-    return span.weeks if span is not None else ctx.target_weeks
+    if span is None:
+        span = ctx.target_term
+    return span.weeks if span is not None else None
 
 
 def validate(
@@ -134,7 +142,25 @@ def _item_issues(
         found.append(_issue("import.date_unresolved", text=data.get("date_text") or ""))
     if item.type == "meeting" and not data.get("term_ref"):
         found.extend(_meeting_issues(item, by_id, ctx))
+    day = _day(data.get("date" if item.type == "event" else "due_date"))
+    dated = item.type in ("assessment", "task", "event")
+    if dated and day and _outside_terms(day, item, by_id, ctx):
+        found.append(_issue("import.date_outside_term", date=day.isoformat()))
     return found
+
+
+def _outside_terms(
+    day: date, item: ImportsItem, by_id: Mapping[str, ImportsItem], ctx: ValidationContext
+) -> bool:
+    """A date far from every term the item's course runs in (or the target term): most often a
+    year the model guessed for a date the syllabus gave without one."""
+    term_ids = course_term_ids(item.data.get("course_ref"), by_id, ctx)
+    if term_ids is None and ctx.target_term_id is not None:
+        term_ids = [ctx.target_term_id]
+    spans = [ctx.terms[t] for t in term_ids or () if t in ctx.terms]
+    if not spans and ctx.target_term is not None:
+        spans = [ctx.target_term]
+    return bool(spans) and not any(near_term(day, span) for span in spans)
 
 
 def _meeting_issues(

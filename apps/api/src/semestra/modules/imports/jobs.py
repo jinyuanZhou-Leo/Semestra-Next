@@ -2,9 +2,8 @@
 
 from typing import Any
 
-import anyio
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
@@ -28,50 +27,41 @@ class ExtractResult(BaseModel):
 
 
 STAGES = [("reading", 15), ("extracting", 75), ("checking", 10)]
-# Model errors that may pass: a file that hits one is read once more before it counts as failed.
-# Not `ai.timeout`: the time limit follows the output limit, so a timeout comes back on a second
-# read (and is billed twice); `ai.extract` reads the part in halves instead.
-TRANSIENT = {"ai.rate_limited", "ai.provider_unreachable"}
-SOURCE_ATTEMPTS = 2
-SOURCE_RETRY_SECONDS = 20.0
 
 
 async def _source_input(
     ctx: JobCtx, row: ImportsSession, ref: dict[str, Any]
-) -> tuple[list[ai.PageText], list[ai.Image], dict[str, str | None]]:
+) -> tuple[list[ai.PageText], list[ai.Image]]:
     if ref.get("upload_id"):
         upload = await ctx.db.get(ImportsUpload, ref["upload_id"])
         if upload is None:
             raise AppError("common.not_found", 404)
         data = await service.read_upload_bytes(ctx, upload)
-        source: dict[str, str | None] = {"upload_id": upload.id}
         if row.source_kind == "timetable_image":
-            return (
-                [],
-                await deps.render_pages(ctx.settings, data, upload.mime_type, upload.filename),
-                source,
+            return [], await deps.render_pages(
+                ctx.settings, data, upload.mime_type, upload.filename
             )
-        texts, images = await deps.read_upload(
-            ctx.settings, data, upload.filename, upload.mime_type
-        )
-        return texts, images, source
+        return await deps.read_upload(ctx.settings, data, upload.filename, upload.mime_type)
     if ref.get("file_item_id"):
-        pages = await deps.read_course_file(ctx, ref["file_item_id"], row.program_id)
-        item_source: dict[str, str | None] = {"file_item_id": ref["file_item_id"]}
-        return pages, [], item_source
-    return deps.text_pages(row.text or ""), [], {}
+        return await deps.read_course_file(ctx, ref["file_item_id"], row.program_id), []
+    return deps.text_pages(row.text or ""), []
 
 
-async def _extract_source(
-    ctx: JobCtx,
-    row: ImportsSession,
-    ref: dict[str, Any],
-    context: build.BuildContext,
-    builder: build.Builder,
-    index: int,
-    total: int,
-) -> None:
-    texts, images, source = await _source_input(ctx, row, ref)
+def _source_of(ref: dict[str, Any]) -> dict[str, str | None]:
+    """Where the evidence of a file's items points."""
+    if ref.get("upload_id"):
+        return {"upload_id": ref["upload_id"]}
+    if ref.get("file_item_id"):
+        return {"file_item_id": ref["file_item_id"]}
+    return {}
+
+
+async def _read_source(
+    ctx: JobCtx, row: ImportsSession, ref: dict[str, Any], index: int, total: int
+) -> BaseModel:
+    """The model's reading of one file. Passing provider errors are retried by M06 for each
+    request (`adapters.model`), so a file is never read twice here."""
+    texts, images = await _source_input(ctx, row, ref)
     if not texts and not images:
         raise AppError("import.no_content", 422)
 
@@ -79,28 +69,52 @@ async def _extract_source(
         await ctx.stage("extracting", fraction=(index + done / max(parts, 1)) / total)
 
     await ctx.stage("extracting", fraction=index / total)
-    label = ref.get("filename") or "document"
     if row.source_kind == "timetable_image":
-        timetable = await extraction.extract_timetable(
+        return await extraction.extract_timetable(
             ctx, images, source_ref=row.id, on_segment=on_segment
         )
+    return await extraction.extract_syllabus(
+        ctx,
+        texts,
+        images=images,
+        label=ref.get("filename") or "document",
+        source_ref=row.id,
+        course_only=row.source_meta.get("only") == "course_info",
+        on_segment=on_segment,
+    )
+
+
+def _add_source_items(
+    row: ImportsSession,
+    ref: dict[str, Any],
+    reading: dict[str, Any],
+    context: build.BuildContext,
+    builder: build.Builder,
+) -> None:
+    """The items of one file, from its saved reading."""
+    source = _source_of(ref)
+    if row.source_kind == "timetable_image":
+        timetable = extraction.TimetableExtraction.model_validate(reading)
         added = extraction.from_timetable(timetable, context, builder, source)
     else:
-        course_only = row.source_meta.get("only") == "course_info"
-        syllabus = await extraction.extract_syllabus(
-            ctx,
-            texts,
-            images=images,
-            label=label,
-            source_ref=row.id,
-            course_only=course_only,
-            on_segment=on_segment,
-        )
+        syllabus = extraction.SyllabusExtraction.model_validate(reading)
         added = extraction.from_syllabus(syllabus, context, builder, source)
-        if course_only and extraction.states_course(syllabus):
+        if row.source_meta.get("only") == "course_info" and extraction.states_course(syllabus):
             return  # read fine: a course that is up to date adds no change
     if added == 0:
         raise AppError("import.no_content", 422)
+
+
+async def _save_readings(ctx: JobCtx, session_id: str, readings: dict[str, Any]) -> None:
+    """Keeps what the model read so far in its own short transaction: a job that runs again
+    (a crash, a locked database at the end) builds the items again without paying for them."""
+    async with ctx.state.session_factory() as db:
+        await db.execute(
+            update(ImportsSession)
+            .where(ImportsSession.id == session_id, ImportsSession.status == "extracting")
+            .values(readings=readings)
+        )
+        await db.commit()
 
 
 async def _extract_failed(ctx: Ctx, payload: ExtractPayload, job: CoreJob) -> None:
@@ -110,6 +124,7 @@ async def _extract_failed(ctx: Ctx, payload: ExtractPayload, job: CoreJob) -> No
         return
     move(row, "failed")
     row.error_code = "import.extraction_failed"
+    row.readings = {}
     row.job_id = None
     row.updated_at = ctx.now
     await events.publish(
@@ -147,30 +162,37 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
     builder = build.Builder(context)
     total = len(refs)
     failed = 0
+    # File index → the model's reading of it ({"value"}) or the error it ended with
+    # ({"error_code"}), from an earlier run of this job.
+    readings: dict[str, Any] = dict(row.readings)
     for index, ref in enumerate(refs):
-        await ctx.check_cancelled()
-        await ctx.stage("reading", current=index, total=total)
-        ref["status"] = "extracting"
-        for attempt in range(SOURCE_ATTEMPTS):
+        key = str(index)
+        if key not in readings:
+            await ctx.check_cancelled()
+            await ctx.stage("reading", current=index, total=total)
+            ref["status"] = "extracting"
             try:
-                await _extract_source(ctx, row, ref, context, builder, index, total)
-                ref["status"] = "done"
-                break
+                value = await _read_source(ctx, row, ref, index, total)
+                readings[key] = {"value": value.model_dump(mode="json")}
             except AppError as exc:
-                if exc.code in TRANSIENT and attempt + 1 < SOURCE_ATTEMPTS:
-                    # The provider already retried; one more try after a pause, for this file
-                    # only (the ones before it are not read again).
-                    await anyio.sleep(SOURCE_RETRY_SECONDS)
-                    continue
-                ref["status"] = "failed"
-                ref["error_code"] = exc.code
-                failed += 1
+                readings[key] = {"error_code": exc.code}
+            await _save_readings(ctx, row.id, readings)
+        try:
+            if code := readings[key].get("error_code"):
+                raise AppError(code, 422)
+            _add_source_items(row, ref, readings[key]["value"], context, builder)
+            ref["status"] = "done"
+        except AppError as exc:
+            ref["status"] = "failed"
+            ref["error_code"] = exc.code
+            failed += 1
     await ctx.stage("checking")
     # Discarded while the model was reading: leave it discarded.
     await ctx.db.refresh(row, ["status"])
     if row.status != "extracting":
         return ExtractResult(session_id=row.id, items=0, failed_sources=failed)
     row.source_refs = refs
+    row.readings = {}
     course_info = row.source_meta.get("only") == "course_info"
     if course_info:
         # "Update course info from syllabus": only the field changes of the target course.

@@ -52,8 +52,8 @@ tools one by one.
 5. **Commit.** These issues make their items fail: `import.date_unresolved`,
    `import.course_ref_missing`, `import.term_unresolved`, `import.outside_term`,
    `import.no_teaching_weeks`. Fix them from what you know, reject the item, or ask the user
-   about them and stop. The others (`import.duplicate_*`, weights that do not add up) only need
-   mentioning. Then, in the same reply,
+   about them and stop. The others (`import.duplicate_*`, `import.date_outside_term`: most often a
+   wrong year, weights that do not add up) only need mentioning. Then, in the same reply,
    say what the commit will write (courses, class times, assessments per term, and what you left
    out) and call `imports.session.commit`; the user confirms on its card. Report `created`, `updated` and `failed`; for failed items say why
    (`result.error_code`) and offer to fix and commit again (only the failed items are retried).

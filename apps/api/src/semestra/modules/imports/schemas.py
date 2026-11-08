@@ -331,8 +331,8 @@ class SessionTarget(BaseModel):
     )
     term_id: Id | None = Field(
         default=None,
-        description="Term (kind term, or course's term; with term_wizard, the existing term the "
-        "courses are added to, for its real weeks)",
+        description="Term (kind term, or course's term: without it, the course's current or next "
+        "term; with term_wizard, the existing term the courses are added to, for its real weeks)",
     )
     course_id: Id | None = Field(default=None, description="Course (kind course)")
     start_date: date | None = Field(

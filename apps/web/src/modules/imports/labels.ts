@@ -105,6 +105,7 @@ export function itemWeight(item: ImportItem): number | null {
 
 const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
   'import.date_unresolved': m.imports_issue_dates,
+  'import.date_outside_term': m.imports_issue_dates,
   'import.duplicate_course': m.imports_issue_duplicates,
   'import.duplicate_assessment': m.imports_issue_duplicates,
   'import.term_unresolved': m.imports_issue_terms,
