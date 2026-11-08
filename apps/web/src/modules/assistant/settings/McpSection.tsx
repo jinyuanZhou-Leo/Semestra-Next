@@ -1,15 +1,13 @@
 import { agentPreferenceGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, KeyRound } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import {
-  ActionRow,
   ChoiceControl,
   SettingRow,
   SettingsBlock,
   SettingsGroup,
   SettingsNote,
-  useSettingsDialog,
 } from '@/app/settings'
 import { apiUrl } from '@/lib/api-extras'
 import { docsUrl } from '@/lib/docs'
@@ -52,7 +50,6 @@ export function mcpConfig(client: Client, url: string, token: string): string {
 
 /** The MCP server (M12 §5): its address and client setups; the catalog lives in the docs. */
 export function McpSection() {
-  const settings = useSettingsDialog()
   const [client, setClient] = useState<Client>('claude-desktop')
   // Clients run outside the browser: same-origin deployments need the page's origin.
   const url = new URL(apiUrl('/mcp'), window.location.origin).href
@@ -72,12 +69,6 @@ export function McpSection() {
             <CodeBlockContent className="pr-10">{url}</CodeBlockContent>
           </CodeBlock>
         </SettingRow>
-        <ActionRow
-          icon={KeyRound}
-          onClick={() => settings.open({ level: 'account', group: 'account', section: 'tokens' })}
-        >
-          {m.assistant_mcp_tokens()}
-        </ActionRow>
       </SettingsGroup>
       <SettingsBlock
         title={m.assistant_mcp_setup()}
@@ -132,7 +123,6 @@ export function McpSection() {
 export function McpPermissionsSection() {
   const preferences = useQuery(agentPreferenceGetOptions())
   const update = useUpdatePreferences()
-  const settings = useSettingsDialog()
   return (
     <div className="space-y-3">
       <SettingsGroup>
@@ -146,14 +136,7 @@ export function McpPermissionsSection() {
           label={m.assistant_permissions_write()}
           description={m.assistant_mcp_write_description()}
         >
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => settings.open({ level: 'account', group: 'account', section: 'tokens' })}
-          >
-            <KeyRound aria-hidden />
-            {m.assistant_mcp_manage_tokens()}
-          </Button>
+          <span className="text-sm text-muted-foreground">{m.assistant_mcp_allowed()}</span>
         </SettingRow>
         <SettingRow
           label={m.assistant_permissions_destructive()}

@@ -45,10 +45,7 @@ export function ProgramUnbound() {
         <EmptyDescription>{m.lms_course_program_unbound_hint()}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button
-          size="sm"
-          onClick={() => settings.open({ level: 'program', group: 'integrations' })}
-        >
+        <Button size="sm" onClick={() => settings.open({ level: 'program', group: 'lms' })}>
           {m.lms_course_open_program_settings()}
         </Button>
       </EmptyContent>

@@ -43,7 +43,7 @@ export default defineModule({
     {
       id: 'lms-connections',
       level: 'account',
-      group: 'integrations',
+      group: 'lms',
       title: m.lms_settings_connections,
       description: m.lms_settings_connections_description,
       icon: Link2,
@@ -53,7 +53,7 @@ export default defineModule({
     {
       id: 'lms-sync',
       level: 'account',
-      group: 'integrations',
+      group: 'lms',
       title: m.lms_settings_sync,
       description: m.lms_settings_sync_description,
       icon: RefreshCw,
@@ -63,7 +63,7 @@ export default defineModule({
     {
       id: 'program-lms',
       level: 'program',
-      group: 'integrations',
+      group: 'lms',
       title: m.lms_settings_program,
       description: m.lms_settings_program_description,
       icon: Link2,
@@ -73,7 +73,7 @@ export default defineModule({
     {
       id: 'course-lms',
       level: 'course',
-      group: 'integrations',
+      group: 'lms',
       title: m.lms_settings_course,
       description: m.lms_settings_course_description,
       icon: Link2,

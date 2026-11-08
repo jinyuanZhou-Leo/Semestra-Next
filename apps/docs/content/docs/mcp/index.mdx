@@ -7,13 +7,13 @@ Semestra runs an [MCP](https://modelcontextprotocol.io) server, so an AI client 
 can read your schedule, grades and tasks, and change them when you allow it. It offers the same
 operations as the in-app assistant Sem.
 
-- **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Global settings → **Integrations → MCP server** shows the exact address
+- **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Global settings → **API & MCP → MCP server** shows the exact address
 - **Transport**: Streamable HTTP (stateless, JSON responses)
 - **Authentication**: `Authorization: Bearer spat_…` with an API token. Session cookies are not accepted
 
 ## 1. Create an API token
 
-Global settings → **Account → API tokens** → create a token. Choose:
+Global settings → **API & MCP → API tokens** → create a token. Choose:
 
 - **Access**: _Read only_ or _Read and write_.
 - **Expiry**: never, 30, 90 or 365 days.
@@ -82,8 +82,8 @@ Then ask something like "What classes do I have tomorrow?"
 
 - **Write tools run immediately.** Unlike Sem, which shows a confirmation card, Semestra relies on
   the client's own approval prompt for MCP calls.
-- **Delete data** is off by default. Turn it on in global settings → **Integrations**, under
-  **MCP clients**.
+- **Delete data** is off by default. Turn it on in global settings → **API & MCP**, under
+  **Client permissions**.
 - Tools of a plugin appear only while that plugin is installed on your account.
 - Changes made over MCP appear in open browser tabs right away.
 

@@ -57,11 +57,11 @@ export default defineModule({
     {
       id: 'assistant-mcp-permissions',
       level: 'account',
-      group: 'integrations',
+      group: 'api-mcp',
       title: m.assistant_settings_mcp_permissions,
       description: m.assistant_settings_mcp_permissions_description,
       icon: PlugZap,
-      order: 40,
+      order: 30,
       component: preloadable(() => settings().then((s) => ({ default: s.McpPermissionsSection }))),
     },
     {
@@ -97,11 +97,11 @@ export default defineModule({
     {
       id: 'assistant-mcp',
       level: 'account',
-      group: 'integrations',
+      group: 'api-mcp',
       title: m.assistant_settings_mcp,
       description: m.assistant_settings_mcp_description,
       icon: Plug,
-      order: 30,
+      order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.McpSection }))),
     },
   ],

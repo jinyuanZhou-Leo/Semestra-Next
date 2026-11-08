@@ -54,10 +54,7 @@ export function AssignmentPicker({
               <EmptyDescription>{m.lms_course_not_linked_hint()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button
-                size="sm"
-                onClick={() => settings.open({ level: 'course', group: 'integrations' })}
-              >
+              <Button size="sm" onClick={() => settings.open({ level: 'course', group: 'lms' })}>
                 {m.lms_course_open_settings()}
               </Button>
             </EmptyContent>

@@ -5,16 +5,16 @@ description: Link Semestra to your Canvas account, a program and its courses.
 
 Semestra connects to learning platforms through providers. Canvas is the only provider today.
 A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
-unless you turn on **Allow changes on the platform** under global settings → **Integrations →
+unless you turn on **Allow changes on the platform** under global settings → **Learning platforms →
 Sync**; for now that only marks an announcement read on Canvas when you open it in Semestra.
 
 There are three levels, each set up once:
 
 | Level      | Where                                                     | What it holds                                         |
 | ---------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| Connection | Global settings → **Integrations → LMS connections**      | Canvas address and credentials. You can have several  |
-| Program    | Program settings → **Integrations → LMS**                 | Which connection this program's courses use           |
-| Course     | Course settings → **Integrations → LMS**                  | Which Canvas course this course is linked to          |
+| Connection | Global settings → **Learning platforms → LMS connections**      | Canvas address and credentials. You can have several  |
+| Program    | Program settings → **Learning platforms → LMS**                 | Which connection this program's courses use           |
+| Course     | Course settings → **Learning platforms → LMS**                  | Which Canvas course this course is linked to          |
 
 ## 1. Add a connection
 
@@ -92,7 +92,7 @@ program is linked, the binding cannot be changed or removed.
 ## 3. Link courses
 
 Either [import courses from Canvas](./imports.mdx), which links them as they are created, or
-pick the Canvas course in an existing course's settings → **Integrations → LMS**. A Canvas course
+pick the Canvas course in an existing course's settings → **Learning platforms → LMS**. A Canvas course
 can be linked to only one course per program, and a year-long course has a single link. The same
 place refreshes the course's details from Canvas, links a different course or unlinks it.
 
@@ -117,7 +117,7 @@ Sem can still read the course.
   its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
   assignment is checked off once, so a to-do you uncheck stays open. Semestra checks about
   every hour, for assignments due in the past two weeks or later. Turn it off under
-  global settings → **Integrations → Sync**.
+  global settings → **Learning platforms → Sync**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
 

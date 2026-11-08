@@ -36,12 +36,15 @@ const token = {
   expires_at: null,
 }
 
-function mount(signOut: () => Promise<void> = async () => {}) {
+function mount(
+  signOut: () => Promise<void> = async () => {},
+  group: 'account' | 'api-mcp' = 'account',
+) {
   server.use(http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })))
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <ModuleRegistry value={[manifest]}>
-        <SettingsSections level="account" group="account" />
+        <SettingsSections level="account" group={group} />
       </ModuleRegistry>
     </AuthContext.Provider>,
   )
@@ -115,7 +118,7 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
       return HttpResponse.json({ ...token, scopes: ['read', 'write'], token: 'spat_SECRET' })
     }),
   )
-  mount()
+  mount(undefined, 'api-mcp')
 
   await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
   const form = await screen.findByRole('dialog')
@@ -150,7 +153,7 @@ test('after the re-authentication window, creating a token asks for the password
       return HttpResponse.json({ ...token, token: 'spat_SECRET' })
     }),
   )
-  mount()
+  mount(undefined, 'api-mcp')
 
   await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
   const form = await screen.findByRole('dialog')
@@ -208,7 +211,7 @@ test('revoking a token asks for confirmation first', async () => {
       return HttpResponse.json({ ok: true })
     }),
   )
-  mount()
+  mount(undefined, 'api-mcp')
   await userEvent.click(await screen.findByRole('button', { name: 'Actions for Claude Desktop' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }))
   expect(revoked).not.toHaveBeenCalled()
