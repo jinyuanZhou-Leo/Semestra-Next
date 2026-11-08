@@ -1,3 +1,5 @@
+import compare from 'semver/functions/compare'
+import prerelease from 'semver/functions/prerelease'
 import { getLocale } from '@/paraglide/runtime'
 import AREAS from '../../../../../.changeset/areas.json'
 
@@ -35,15 +37,20 @@ const byVersion = new Map(
   Object.entries(files).map(([file, load]) => [file.replace(/^.*\/|\.json$/g, ''), load]),
 )
 
-/** Plain `MAJOR.MINOR.PATCH` comparison; a pre-release suffix is ignored. */
-export function compareVersions(a: string, b: string): number {
-  const pa = a.split(/[.-]/, 3).map(Number)
-  const pb = b.split(/[.-]/, 3).map(Number)
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) return diff
-  }
-  return 0
+/** SemVer precedence: `2.0.0-beta.0` < `2.0.0-beta.1` < `2.0.0`. */
+export const compareVersions = compare
+
+/**
+ * The versions after `after` up to and including `upTo`, newest first. A pre-release is left out
+ * when its final release is in the range too: the final release's notes repeat everything in it.
+ */
+export function versionsBetween(versions: string[], after: string, upTo: string): string[] {
+  const range = versions.filter(
+    (v) => compareVersions(v, after) > 0 && compareVersions(v, upTo) <= 0,
+  )
+  return range
+    .filter((v) => !prerelease(v) || !range.includes(v.replace(/-.*$/, '')))
+    .toSorted((a, b) => compareVersions(b, a))
 }
 
 /** Versions that have notes, newest first. */
@@ -57,9 +64,7 @@ export async function loadRelease(version: string): Promise<Release | undefined>
 
 /** The notes of every version after `after` up to and including `upTo`, newest first. */
 export async function releasesBetween(after: string, upTo: string): Promise<Release[]> {
-  const versions = releaseVersions().filter(
-    (v) => compareVersions(v, after) > 0 && compareVersions(v, upTo) <= 0,
-  )
+  const versions = versionsBetween(releaseVersions(), after, upTo)
   const releases = await Promise.all(versions.map(loadRelease))
   return releases.filter((release) => release !== undefined)
 }

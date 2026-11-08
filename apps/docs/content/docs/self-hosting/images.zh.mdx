@@ -64,6 +64,8 @@ docker compose exec semestra semestra embedding-models --all
 SEMESTRA_VERSION=1.2.0
 ```
 
+预发布版本（例如 `2.0.0-beta.0`，在 GitHub 上标为 Pre-release）不会成为 `latest`。想试用时同样写上它的版本；改回 `latest` 就回到正式版。试用前先备份：新版本会升级数据库，旧版本可能无法再打开它。
+
 ## 自己构建镜像
 
 在仓库根目录运行：

@@ -29,3 +29,13 @@ Drag gradebook categories to reorder them.
 - Internal-only changes (refactors, CI, tests): `pnpm changeset --empty`.
 
 `pnpm release:check` validates the pending changesets; the release flow is in `scripts/release.mjs`.
+
+## Pre-releases
+
+`.changeset/pre.json` puts the repository in pre-release mode (`pnpm changeset pre enter beta`):
+the version PR then makes `2.0.0-beta.0`, `2.0.0-beta.1`, … Each one's notes list only the
+changesets added since the previous pre-release (Changesets moves the shipped ones to
+`.changeset/pre/`). Its tag becomes a GitHub pre-release, its images don't move `latest`, and the
+hosted app still deploys it like any release. `pnpm changeset pre exit` in a PR ends the mode: the
+next version PR makes `2.0.0`, whose notes repeat everything since the last stable release, and
+the "What's new" dialog shows those instead of the pre-releases'.
