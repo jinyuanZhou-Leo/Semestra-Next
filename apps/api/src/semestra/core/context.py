@@ -58,7 +58,8 @@ class AuthInfo:
     session_id: str | None = None
     token_id: str | None = None
     scopes: tuple[str, ...] = ()
-    session_created_at: datetime | None = None
+    # When the session last proved who is using it (sign-in or re-authentication).
+    verified_at: datetime | None = None
 
 
 @dataclass

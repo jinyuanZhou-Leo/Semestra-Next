@@ -15,7 +15,7 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
-import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
+import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
@@ -96,32 +96,27 @@ function CreateTokenDialog({
   const [name, setName] = useState('')
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('never')
-  const [password, setPassword] = useState('')
-  const create = useMutation(accountTokenCreateMutation())
-  const { needsPassword } = reauthState(create.error)
+  const create = useMutation({
+    ...accountTokenCreateMutation(),
+    onSuccess: (token) => {
+      setName('')
+      setScope('read')
+      setDays('never')
+      onCreated(token)
+    },
+  })
+  const reauth = needsReauth(create.error)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    create.mutate(
-      {
-        body: {
-          name: name.trim(),
-          scopes: scope === 'write' ? ['read', 'write'] : ['read'],
-          expires_in_days: days === 'never' ? null : Number(days),
-          password: password === '' ? null : password,
-        },
+    create.mutate({
+      body: {
+        name: name.trim(),
+        scopes: scope === 'write' ? ['read', 'write'] : ['read'],
+        expires_in_days: days === 'never' ? null : Number(days),
       },
-      {
-        onSuccess: (token) => {
-          setName('')
-          setScope('read')
-          setDays('never')
-          setPassword('')
-          onCreated(token)
-        },
-      },
-    )
+    })
   }
 
   return (
@@ -170,19 +165,18 @@ function CreateTokenDialog({
                 options={expiryItems}
               />
             </Field>
-            <ReauthFields error={create.error} password={password} onPasswordChange={setPassword} />
-            <FieldError>
-              {create.error && !reauthState(create.error).handled
-                ? errorMessage(create.error)
-                : null}
-            </FieldError>
+            <ReauthStep
+              error={create.error}
+              onVerified={() => create.variables && create.mutate(create.variables)}
+            />
+            <FieldError>{create.error && !reauth ? errorMessage(create.error) : null}</FieldError>
             <DialogFooter>
               <DialogClose
                 render={<Button type="button" variant="outline" disabled={create.isPending} />}
               >
                 {m.common_cancel()}
               </DialogClose>
-              <Button type="submit" disabled={!name.trim() || (needsPassword && password === '')}>
+              <Button type="submit" disabled={!name.trim() || reauth}>
                 {create.isPending ? m.common_saving() : m.auth_account_tokens_create()}
               </Button>
             </DialogFooter>

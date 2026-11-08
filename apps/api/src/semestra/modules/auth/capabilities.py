@@ -86,15 +86,8 @@ async def password_change(ctx: Ctx, inp: PasswordChangeInput) -> UserOut:
     return await service.change_password(ctx, inp.current_password, inp.new_password)
 
 
-REAUTH_PASSWORD = Field(
-    default=None,
-    description="Current password; needed unless the session signed in during the last 10 minutes",
-)
-
-
 class EmailChangeStartInput(BaseModel):
     new_email: Email = Field(description="The new email address; a code is sent to it")
-    password: Password | None = REAUTH_PASSWORD
 
 
 @capability(
@@ -107,7 +100,7 @@ class EmailChangeStartInput(BaseModel):
     tags=("account",),
 )
 async def email_change_start(ctx: Ctx, inp: EmailChangeStartInput) -> EmailStartResult:
-    return await service.change_email_start(ctx, inp.new_email, _meta(ctx), inp.password)
+    return await service.change_email_start(ctx, inp.new_email, _meta(ctx))
 
 
 class EmailChangeConfirmInput(BaseModel):
@@ -230,7 +223,6 @@ class TokenCreateInput(BaseModel):
     expires_in_days: int | None = Field(
         default=None, ge=1, le=3650, description="Lifetime in days; omit for no expiry"
     )
-    password: Password | None = REAUTH_PASSWORD
 
 
 @capability(
@@ -243,9 +235,7 @@ class TokenCreateInput(BaseModel):
     tags=("account",),
 )
 async def tokens_create(ctx: Ctx, inp: TokenCreateInput) -> TokenCreated:
-    return await service.create_token(
-        ctx, inp.name.strip(), inp.scopes, inp.expires_in_days, inp.password
-    )
+    return await service.create_token(ctx, inp.name.strip(), inp.scopes, inp.expires_in_days)
 
 
 class TokenRevokeInput(BaseModel):
@@ -264,3 +254,79 @@ class TokenRevokeInput(BaseModel):
 async def tokens_revoke(ctx: Ctx, inp: TokenRevokeInput) -> Revoked:
     await service.revoke_token(ctx, inp.id)
     return Revoked()
+
+
+# --- re-authentication (M01 §4.5) ------------------------------------------------------------
+# Sensitive actions (API tokens, email change, account deletion, a first password) answer
+# `auth.reauth_required` when this session last proved who is using it over 10 minutes ago.
+# Any one of these checks renews that for the current session, and the client retries.
+
+REAUTH_NOTE = " Renews re-authentication for the current session. Not available to agents."
+
+
+class Verified(BaseModel):
+    ok: bool = True
+
+
+class ReauthPasswordInput(BaseModel):
+    password: Password = Field(description="The account password")
+
+
+@capability(
+    name="account.reauth.password",
+    summary="Confirm it is you with the account password.",
+    description="Checks the password." + REAUTH_NOTE,
+    effect="write",
+    http=Http("POST", "/account/reauth/password"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_password(ctx: Ctx, inp: ReauthPasswordInput) -> Verified:
+    await service.reauth_with_password(ctx, inp.password)
+    return Verified()
+
+
+@capability(
+    name="account.reauth.email_start",
+    summary="Email a code to confirm it is you.",
+    description="Sends a 6-digit code to the account's email address. Not available to agents.",
+    effect="write",
+    http=Http("POST", "/account/reauth/email-start"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_email_start(ctx: Ctx, inp: NoInput) -> EmailStartResult:
+    return await service.reauth_email_start(ctx)
+
+
+class ReauthEmailVerifyInput(BaseModel):
+    code: Code = Field(description="The 6-digit code from account.reauth.email_start")
+
+
+@capability(
+    name="account.reauth.email_verify",
+    summary="Confirm it is you with the emailed code.",
+    description="Checks the code sent by account.reauth.email_start." + REAUTH_NOTE,
+    effect="write",
+    http=Http("POST", "/account/reauth/email-verify"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_email_verify(ctx: Ctx, inp: ReauthEmailVerifyInput) -> Verified:
+    await service.reauth_email_verify(ctx, inp.code)
+    return Verified()
+
+
+@capability(
+    name="account.reauth.google",
+    summary="Confirm it is you with the linked Google account.",
+    description="Checks a Google ID token for the account's linked Google sign-in." + REAUTH_NOTE,
+    effect="write",
+    http=Http("POST", "/account/reauth/google"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_google(ctx: Ctx, inp: GoogleLinkInput) -> Verified:
+    claims = await ctx.state.auth_runtime.google.verify(inp.id_token)
+    await service.reauth_with_google(ctx, claims)
+    return Verified()

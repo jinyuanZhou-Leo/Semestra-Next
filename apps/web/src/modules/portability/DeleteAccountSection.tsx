@@ -4,7 +4,7 @@ import { useId, useState } from 'react'
 import { DangerZone, SettingRow } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/modules/auth/useAuth'
-import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
+import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -12,7 +12,7 @@ import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 
-/** Delete the account (M13 §5): typed sentence, a tick, and a recent sign-in or the password. */
+/** Delete the account (M13 §5): typed sentence, a tick, and a recent check that it is the user. */
 export function DeleteAccountSection() {
   const [open, setOpen] = useState(false)
   return (
@@ -34,14 +34,13 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   const { signOut } = useAuth()
   const [phrase, setPhrase] = useState('')
   const [acknowledged, setAcknowledged] = useState(false)
-  const [password, setPassword] = useState('')
   const remove = useMutation({
     ...accountDeleteMutation(),
     // The server has signed this account out everywhere; forget the session here too.
     onSuccess: () => signOut({ to: '/account-deleted', flush: false }),
   })
   const error = remove.error
-  const { needsPassword } = reauthState(error)
+  const reauth = needsReauth(error)
   const matches = phrase.trim().toLowerCase() === m.portability_delete_phrase().toLowerCase()
 
   return (
@@ -54,7 +53,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
       description={m.portability_delete_dialog_desc()}
       confirmLabel={m.portability_delete_title()}
       pending={remove.isPending}
-      confirmDisabled={!matches || !acknowledged || (needsPassword && password === '')}
+      confirmDisabled={!matches || !acknowledged || reauth}
       extra={
         <FieldGroup className="gap-4">
           <Field>
@@ -78,19 +77,16 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
               {m.portability_delete_acknowledge()}
             </FieldLabel>
           </Field>
-          <ReauthFields error={error} password={password} onPasswordChange={setPassword} />
-          {error && !reauthState(error).handled ? (
-            <FieldError>{errorMessage(error)}</FieldError>
-          ) : null}
+          <ReauthStep
+            error={error}
+            onVerified={() => remove.variables && remove.mutate(remove.variables)}
+          />
+          {error && !reauth ? <FieldError>{errorMessage(error)}</FieldError> : null}
         </FieldGroup>
       }
       onConfirm={() =>
         remove.mutate({
-          body: {
-            confirmation: phrase,
-            acknowledged,
-            password: password === '' ? null : password,
-          },
+          body: { confirmation: phrase, acknowledged },
         })
       }
     />

@@ -16,7 +16,7 @@ import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { COLLAPSE } from '@/lib/collapse'
 import { errorMessage, toastError } from '@/lib/errors'
-import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
+import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -39,9 +39,11 @@ function EmailRow({ user }: { user: UserOut }) {
   const [newEmail, setNewEmail] = useState('')
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [code, setCode] = useState('')
-  const [password, setPassword] = useState('')
-  const start = useMutation(accountEmailChangeStartMutation())
-  const { needsPassword } = reauthState(start.error)
+  const start = useMutation({
+    ...accountEmailChangeStartMutation(),
+    onSuccess: (_data, variables) => setSentTo(variables.body.new_email),
+  })
+  const reauth = needsReauth(start.error)
   const confirm = useMutation({
     ...accountEmailChangeConfirmMutation(),
     onSuccess: (data) => {
@@ -58,7 +60,6 @@ function EmailRow({ user }: { user: UserOut }) {
     setSentTo(null)
     setNewEmail('')
     setCode('')
-    setPassword('')
     start.reset()
     confirm.reset()
     setEditing(true)
@@ -67,11 +68,8 @@ function EmailRow({ user }: { user: UserOut }) {
   const send = (e: FormEvent) => {
     e.preventDefault()
     const target = newEmail.trim()
-    if (!target || (needsPassword && password === '')) return
-    start.mutate(
-      { body: { new_email: target, password: password === '' ? null : password } },
-      { onSuccess: () => setSentTo(target) },
-    )
+    if (!target || reauth) return
+    start.mutate({ body: { new_email: target } })
   }
 
   return (
@@ -108,21 +106,13 @@ function EmailRow({ user }: { user: UserOut }) {
                   onChange={(e) => setNewEmail(e.target.value)}
                 />
               </Field>
-              <ReauthFields
+              <ReauthStep
                 error={start.error}
-                password={password}
-                onPasswordChange={setPassword}
+                onVerified={() => start.variables && start.mutate(start.variables)}
               />
-              <FieldError>
-                {start.error && !reauthState(start.error).handled
-                  ? errorMessage(start.error)
-                  : null}
-              </FieldError>
+              <FieldError>{start.error && !reauth ? errorMessage(start.error) : null}</FieldError>
               <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  disabled={!newEmail.trim() || (needsPassword && password === '')}
-                >
+                <Button type="submit" disabled={!newEmail.trim() || reauth}>
                   {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
                 </Button>
                 <Button type="button" variant="ghost" onClick={close}>
@@ -244,9 +234,15 @@ function PasswordRow({ user }: { user: UserOut }) {
                 onChange={(e) => setNext(e.target.value)}
               />
             </Field>
-            <FieldError>{change.error ? errorMessage(change.error) : null}</FieldError>
+            <ReauthStep
+              error={change.error}
+              onVerified={() => change.variables && change.mutate(change.variables)}
+            />
+            <FieldError>
+              {change.error && !needsReauth(change.error) ? errorMessage(change.error) : null}
+            </FieldError>
             <div className="flex gap-2">
-              <Button type="submit" disabled={!next}>
+              <Button type="submit" disabled={!next || needsReauth(change.error)}>
                 {change.isPending ? m.common_saving() : m.common_save()}
               </Button>
               <Button type="button" variant="ghost" onClick={close}>

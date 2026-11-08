@@ -20,12 +20,6 @@ export type AccountDeleteInputBody = {
      * The user ticked that this cannot be undone.
      */
     acknowledged: boolean;
-    /**
-     * Password
-     *
-     * Re-authentication when the last sign-in is older than 10 minutes.
-     */
-    password?: string | null;
 };
 
 /**
@@ -3465,12 +3459,6 @@ export type EmailChangeStartInputBody = {
      * The new email address; a code is sent to it
      */
     new_email: string;
-    /**
-     * Password
-     *
-     * Current password; needed unless the session signed in during the last 10 minutes
-     */
-    password?: string | null;
 };
 
 /**
@@ -8111,6 +8099,30 @@ export type Ready = {
 };
 
 /**
+ * ReauthEmailVerifyInputBody
+ */
+export type ReauthEmailVerifyInputBody = {
+    /**
+     * Code
+     *
+     * The 6-digit code from account.reauth.email_start
+     */
+    code: string;
+};
+
+/**
+ * ReauthPasswordInputBody
+ */
+export type ReauthPasswordInputBody = {
+    /**
+     * Password
+     *
+     * The account password
+     */
+    password: string;
+};
+
+/**
  * RecommendedModel
  */
 export type RecommendedModel = {
@@ -10923,12 +10935,6 @@ export type TokenCreateInputBody = {
      * Lifetime in days; omit for no expiry
      */
     expires_in_days?: number | null;
-    /**
-     * Password
-     *
-     * Current password; needed unless the session signed in during the last 10 minutes
-     */
-    password?: string | null;
 };
 
 /**
@@ -11427,6 +11433,16 @@ export type ValuesUpdateInputBody = {
     values: {
         [key: string]: JsonValue;
     };
+};
+
+/**
+ * Verified
+ */
+export type Verified = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
 };
 
 /**
@@ -13359,6 +13375,106 @@ export type AccountProfileUpdateResponses = {
 };
 
 export type AccountProfileUpdateResponse = AccountProfileUpdateResponses[keyof AccountProfileUpdateResponses];
+
+export type AccountReauthEmailStartData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/email-start';
+};
+
+export type AccountReauthEmailStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthEmailStartError = AccountReauthEmailStartErrors[keyof AccountReauthEmailStartErrors];
+
+export type AccountReauthEmailStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailStartResult;
+};
+
+export type AccountReauthEmailStartResponse = AccountReauthEmailStartResponses[keyof AccountReauthEmailStartResponses];
+
+export type AccountReauthEmailVerifyData = {
+    body: ReauthEmailVerifyInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/email-verify';
+};
+
+export type AccountReauthEmailVerifyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthEmailVerifyError = AccountReauthEmailVerifyErrors[keyof AccountReauthEmailVerifyErrors];
+
+export type AccountReauthEmailVerifyResponses = {
+    /**
+     * Successful Response
+     */
+    200: Verified;
+};
+
+export type AccountReauthEmailVerifyResponse = AccountReauthEmailVerifyResponses[keyof AccountReauthEmailVerifyResponses];
+
+export type AccountReauthGoogleData = {
+    body: GoogleLinkInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/google';
+};
+
+export type AccountReauthGoogleErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthGoogleError = AccountReauthGoogleErrors[keyof AccountReauthGoogleErrors];
+
+export type AccountReauthGoogleResponses = {
+    /**
+     * Successful Response
+     */
+    200: Verified;
+};
+
+export type AccountReauthGoogleResponse = AccountReauthGoogleResponses[keyof AccountReauthGoogleResponses];
+
+export type AccountReauthPasswordData = {
+    body: ReauthPasswordInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/password';
+};
+
+export type AccountReauthPasswordErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthPasswordError = AccountReauthPasswordErrors[keyof AccountReauthPasswordErrors];
+
+export type AccountReauthPasswordResponses = {
+    /**
+     * Successful Response
+     */
+    200: Verified;
+};
+
+export type AccountReauthPasswordResponse = AccountReauthPasswordResponses[keyof AccountReauthPasswordResponses];
 
 export type AccountSessionListData = {
     body?: never;
