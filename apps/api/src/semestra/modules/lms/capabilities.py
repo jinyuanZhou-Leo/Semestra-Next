@@ -28,6 +28,7 @@ from semestra.modules.lms.schemas.io import (
     ConnectionList,
     ConnectionUpdateInput,
     ConnectionValidateInput,
+    CourseLinkList,
     CourseLinkState,
     CourseOverview,
     CourseReadInput,
@@ -276,6 +277,20 @@ lms.course.link.set.""",
 )
 async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     return await service.link_state(ctx, inp.course_id)
+
+
+@capability(
+    name="lms.course.link.list",
+    summary="Every LMS course link in a Program.",
+    description="""Which of the Program's courses are linked, and to which LMS course, in one call.
+For one course use lms.course.link.get, which also says which connection the Program uses.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/lms-links"),
+    tags=TAGS,
+    agent_output_fields=tuple(f"items.{f}" for f in _LINK),
+)
+async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
+    return await service.link_list(ctx, inp.program_id)
 
 
 @capability(

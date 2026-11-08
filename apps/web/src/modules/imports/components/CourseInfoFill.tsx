@@ -36,7 +36,7 @@ import {
   DialogTitle,
 } from '@/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { invalidateAfterCommit, settleEdits, storeSession, useImportSession } from '../queries'
+import { settleEdits, storeSession, useImportSession } from '../queries'
 import { SOURCES, readableCourseFile } from '../sources'
 import type { FileImportRequest } from '../types'
 import { PatchEditor } from './ItemEditor'
@@ -138,7 +138,6 @@ export function CourseInfoFill({
       .mutateAsync({ path: { session_id: current.id }, body: {} })
       .catch(() => null) // reported by onError
     if (!result) return
-    await invalidateAfterCommit(queryClient)
     toast.success(m.imports_course_info_applied())
     reset()
     onApplied()

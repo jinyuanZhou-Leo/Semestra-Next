@@ -1,7 +1,6 @@
 import { Globe } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { worldClockSettingsSchema } from './schema'
 
 /** M14 §5 世界时钟: time and date in up to three zones. No backend. */
 export default defineModule({
@@ -19,10 +18,7 @@ export default defineModule({
       sizes: ['s', 'm'],
       defaultSize: 's',
       component: preloadable(() => import('./WorldClockCard')),
-      settings: {
-        schema: worldClockSettingsSchema,
-        component: preloadable(() => import('./WorldClockSettingsForm')),
-      },
+      settings: () => import('./schema'),
       multiple: true,
     },
   ],

@@ -26,7 +26,7 @@ const VIEWS = SMART_VIEWS.filter((view) => view.view !== 'completed')
  */
 export default function TasksMobilePage({ scope }: PageProps) {
   const { programId } = scope
-  const [key, setKey] = useUiPref('tasks.phone_selection', 'all')
+  const [key, setKey, keyLoaded] = useUiPref('tasks.phone_selection', 'all')
   const lists = useTaskLists(programId).data?.items ?? []
   const parsed = parseSelection(key)
   // A list deleted elsewhere falls back to All.
@@ -36,7 +36,8 @@ export default function TasksMobilePage({ scope }: PageProps) {
       : parsed.kind === 'course' || (parsed.kind === 'smart' && parsed.view === 'completed')
         ? parseSelection('all')
         : parsed
-  const tasks = useTasks({ programId }, selection, { sort: 'due', completed: 'hide' })
+  // Not with the default list first: wait for the remembered one.
+  const tasks = useTasks({ programId }, selection, { sort: 'due', completed: 'hide' }, keyLoaded)
   const today = useProgramToday(programId)
   const { actions } = useTaskActions()
   const items = tasks.data?.items

@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
+from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
 from semestra.modules.grading.service import AssessmentSnapshot
@@ -735,6 +736,9 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             # Another session put it into the gradebook meanwhile: roll this commit back.
             raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
     await ctx.db.flush()
+    # What each course reports as new or imported has changed.
+    for link in links.values():
+        await events.publish(ctx, "lms.course.imports_recorded", {"course_id": link.course_id})
 
 
 register_commit_hook("lms", on_commit)

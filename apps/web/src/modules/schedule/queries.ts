@@ -28,8 +28,8 @@ import { readUiPref } from '@/app/ui-pref'
 import { firstDayFor } from '@/lib/format'
 import { courseListOptions } from '@/modules/academics/queries'
 import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from './filters'
-import { isoDay } from '@/lib/day'
-import { localDay, plusDays, todayIn, weekStartOf } from './time'
+import { dayDate, isoDay, plusDays, weekStartOf } from '@/lib/day'
+import { todayIn } from './time'
 
 export function useEventTypes(programId: string) {
   return useQuery({
@@ -146,7 +146,7 @@ export function occurrenceRange(
 /** A day in the period before (`-1`) or after (`1`) the one `date` is in, as the arrows move. */
 export function stepPeriod(view: Exclude<CalendarView, 'timetable'>, date: string, step: -1 | 1) {
   return view === 'month'
-    ? isoDay(addMonths(localDay(`${date.slice(0, 7)}-01`), step))
+    ? isoDay(addMonths(dayDate(`${date.slice(0, 7)}-01`), step))
     : plusDays(date, 7 * step)
 }
 

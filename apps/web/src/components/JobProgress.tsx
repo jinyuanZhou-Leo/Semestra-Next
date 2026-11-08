@@ -31,7 +31,7 @@ export function JobProgress({
   const waiting = job ? jobIsWaiting(job) : false
   const displayed = Math.round(useSmoothedProgress(progress, status === 'running' && !waiting))
   // Ticks while a rate limit's wait counts down.
-  const now = useNow((at) => job != null && (jobWaitsUntil(job) ?? 0) > at, 1000)
+  const now = useNow(1000, (at) => job != null && (jobWaitsUntil(job) ?? 0) > at)
   if (!job) return null
 
   const text =

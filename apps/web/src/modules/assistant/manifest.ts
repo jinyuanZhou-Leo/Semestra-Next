@@ -1,7 +1,6 @@
 import { Bookmark, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { AssistantDock } from './components/AssistantDock'
 import { panel } from './store'
 
 const settings = () => import('./settings/sections')
@@ -30,7 +29,9 @@ export default defineModule({
       )
     },
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
-    Dock: AssistantDock,
+    Dock: preloadable(() =>
+      import('./components/AssistantDock').then((mod) => ({ default: mod.AssistantDock })),
+    ),
     mobile: preloadable(() => import('./mobile/AssistantMobilePage')),
   },
   settingsSections: [

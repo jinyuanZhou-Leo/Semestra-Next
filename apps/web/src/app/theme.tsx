@@ -10,6 +10,7 @@ import {
   storedAppearance,
   systemTheme,
 } from './appearance'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
 export type { Accent, ReduceMotion, Theme }
 
@@ -94,6 +95,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useMotionPreference(): 'always' | 'never' | 'user' {
   const reduceMotion = useContext(ThemeContext)?.reduceMotion
   return reduceMotion === 'on' ? 'always' : reduceMotion === 'off' ? 'never' : 'user'
+}
+
+/**
+ * Whether to skip animations: the app's motion setting, or under "system" the OS's. For what
+ * motion does not animate itself (timers, progress, canvas effects); motion components follow
+ * `useMotionPreference` through `MotionConfig`.
+ */
+export function useReducedMotion(): boolean {
+  const preference = useMotionPreference()
+  const system = useMediaQuery('(prefers-reduced-motion: reduce)')
+  return preference === 'always' || (preference === 'user' && system)
 }
 
 export function useTheme(): ThemeState {

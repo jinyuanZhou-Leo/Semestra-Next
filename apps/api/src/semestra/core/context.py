@@ -84,9 +84,13 @@ class Ctx:
     # `Registry.invoke`. It only decides the shape of the output (a token over HTTP gets the full
     # output); permission rules use `delegated`, which a token has on every route.
     surface: str = "http"
-    # The browser tab that sent the request (`X-Semestra-Client`); events it causes carry it as
-    # `origin`, so that tab can skip echoes of its own changes (M00 §3.8).
+    # The browser tab that sent the request (`X-Semestra-Client`), and the module of the
+    # capability it called over HTTP (set by the generated route). Only that module's own events
+    # carry the tab as `origin`: the tab refreshed what its mutation changed and may skip their
+    # echo, but not the events of other modules (a task created by the gradebook) or of a custom
+    # route or the agent, whose results it did not see (M00 §4.7).
     client_id: str | None = None
+    origin_module: str | None = None
     # Values worked out once per request (e.g. the installed plugins); whoever changes the
     # underlying data drops its key.
     cache: dict[object, Any] = field(default_factory=lambda: {})

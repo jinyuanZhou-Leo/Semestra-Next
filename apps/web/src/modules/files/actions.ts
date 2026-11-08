@@ -32,7 +32,7 @@ export function useMoveTargets() {
         body: { ...entryIds(targets), to_folder_id: folderId },
         throwOnError: true,
       }),
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: (_data, { courseId }) => invalidateFiles(queryClient, courseId),
   })
 }
 
@@ -46,6 +46,6 @@ export function useDeleteTargets() {
         body: entryIds(targets),
         throwOnError: true,
       }),
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: (_data, { courseId }) => invalidateFiles(queryClient, courseId),
   })
 }

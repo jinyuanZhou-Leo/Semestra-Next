@@ -1,7 +1,7 @@
 import { CalendarDays } from 'lucide-react'
 import { useState } from 'react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
-import { useElementHeight } from '@/app/board/media'
+import { useElementHeight } from '@/hooks/use-element-size'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -10,7 +10,8 @@ import { useProgramTimezone } from '../hooks'
 import { weekGridItems } from '../occurrence'
 import { useOpenOccurrence } from '../open'
 import { useCalendarSettings, useOccurrences } from '../queries'
-import { isoWeekday, localDay, plusDays, todayIn, wallDate, weekdayName } from '../time'
+import { todayIn, wallDate, weekdayName } from '../time'
+import { dayDate, isoWeekday, plusDays } from '@/lib/day'
 
 export const WEEK_SOURCES = ['schedule.meetings', 'schedule.events']
 
@@ -58,10 +59,10 @@ export default function WeekCard({ scope, size }: CardProps) {
   ).data
   if (!occurrences || !tz) return <CardSkeleton />
   const dates = Array.from({ length: span }, (_, i) => plusDays(start, i))
-    .filter((date) => settings.show_weekends || isoWeekday(localDay(date)) < 6)
+    .filter((date) => settings.show_weekends || isoWeekday(dayDate(date)) < 6)
     .slice(0, count)
   const days: GridDay[] = dates.map((date) => {
-    const day = localDay(date)
+    const day = dayDate(date)
     const weekday = isoWeekday(day)
     return {
       weekday,

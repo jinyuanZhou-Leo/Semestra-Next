@@ -85,8 +85,8 @@ import {
   useOccurrences,
   useTermSections,
 } from '../queries'
-import { isoDay } from '@/lib/day'
-import { hhmm, isoWeekday, plusDays, toWall, todayIn, wall } from '../time'
+import { isoDay, isoWeekday, plusDays } from '@/lib/day'
+import { hhmm, toWall, todayIn, wall } from '../time'
 
 const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
   week: 'timeGridWeek',
@@ -250,7 +250,7 @@ function TermCalendar({
     const complete = sourceOf(o)?.complete
     if (!complete) return
     const undo = patchOccurrence(queryClient, o.id, { status: completed ? 'done' : null })
-    complete(o, completed)
+    complete(o, completed, queryClient)
       .catch((error: unknown) => {
         undo()
         toastError(error)
@@ -381,7 +381,7 @@ function TermCalendar({
       const kept = o.all_day ? null : toWall(o.start_at, timezone).slice(11, 16)
       const due = { date: isoDay(start), time: info.event.allDay ? kept : hhmm(start) }
       reschedule
-        .save(o, due)
+        .save(o, due, queryClient)
         .catch((error: unknown) => {
           info.revert()
           toastError(error)

@@ -2,7 +2,7 @@ import { lazy } from 'react'
 import { expect, test, vi } from 'vitest'
 import { layoutsBoardGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { QueryClient } from '@tanstack/react-query'
-import { builtInModules, installedModules, preloadPage } from './registry'
+import { builtInModules, installedModules, mergeInvalidations, preloadPage } from './registry'
 import { preloadable } from './extensions'
 import type { ModuleManifest } from './extensions'
 
@@ -10,9 +10,14 @@ const PROGRAM = { kind: 'program', programId: 'p1' } as const
 const TERM = { kind: 'term', programId: 'p1', termId: 't1' } as const
 const COURSE = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
 
-const canPreload = (part: unknown) => typeof part !== 'object' || part === null || 'preload' in part
+const canPreload = (part: unknown) =>
+  (typeof part === 'function' || (typeof part === 'object' && part !== null)) && 'preload' in part
 
-test('every lazy page, card, settings section and calendar form of a built-in module can preload', () => {
+test('every lazy page, card, settings section and calendar form of a built-in module can preload', async () => {
+  const cardSettings = new Map<string, unknown>()
+  for (const card of builtInModules.flatMap((module) => module.cards ?? [])) {
+    if (card.settings) cardSettings.set(card.id, (await card.settings()).default.component)
+  }
   const plain = builtInModules.flatMap((module) => [
     ...(module.pages ?? []).flatMap((page) =>
       [page.component, page.mobile?.component]
@@ -20,7 +25,7 @@ test('every lazy page, card, settings section and calendar form of a built-in mo
         .map(() => `${module.id}:${page.id}`),
     ),
     ...(module.cards ?? []).flatMap((card) =>
-      [card.component, card.settings?.component]
+      [card.component, cardSettings.get(card.id)]
         .filter((part) => part !== undefined && !canPreload(part))
         .map(() => `${module.id}:${card.id}`),
     ),
@@ -183,4 +188,17 @@ test('preloadPage waits until the page code has loaded', async () => {
   finish()
   await loading
   expect(done).toBe(true)
+})
+
+test("a module skipping its own echo still leaves other modules' refetches", () => {
+  const modules = [
+    {
+      id: 'a',
+      realtimeInvalidations: { 'a.changed': ['aGet'] },
+      realtimeSkipOwn: ['a.changed'],
+    },
+    { id: 'b', realtimeInvalidations: { 'a.changed': ['bGet'] } },
+  ] as unknown as ModuleManifest[]
+  expect(mergeInvalidations(modules)).toEqual({ 'a.changed': ['aGet', 'bGet'] })
+  expect(mergeInvalidations(modules, { own: true })).toEqual({ 'a.changed': ['bGet'] })
 })

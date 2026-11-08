@@ -1,25 +1,12 @@
-import {
-  AnimatePresence,
-  MotionConfig,
-  type Variants,
-  motion,
-  useIsPresent,
-  useReducedMotion,
-} from 'motion/react'
+import { AnimatePresence, MotionConfig, type Variants, motion, useIsPresent } from 'motion/react'
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useMotionPreference } from '@/app/theme'
+import { useMotionPreference, useReducedMotion } from '@/app/theme'
 import { cn } from '@/lib/utils'
 
 /** The frame shared by the input box and the panels that take its place. */
 export const INPUT_FRAME = 'rounded-2xl border-border bg-background shadow-xs dark:bg-background'
 
 const SPRING = { type: 'spring', duration: 0.35, bounce: 0 } as const
-
-function useReduced() {
-  const preference = useMotionPreference()
-  const system = useReducedMotion()
-  return preference === 'always' || (preference === 'user' && Boolean(system))
-}
 
 /**
  * Animates its own height to follow its content, so the area grows or shrinks smoothly when what is
@@ -40,7 +27,7 @@ export function SmoothHeight({
   const latest = useRef(animateKey)
   const measured = useRef(animateKey)
   const [size, setSize] = useState<{ height: number; animate: boolean } | null>(null)
-  const reduced = useReduced()
+  const reduced = useReducedMotion()
 
   useLayoutEffect(() => {
     latest.current = animateKey

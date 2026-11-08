@@ -83,7 +83,7 @@ class EventBus:
     ) -> None:
         """Queue an event for after commit. `user_id` defaults to the ctx user."""
         target = user_id if user_id is not None else (ctx.user.id if ctx.user else None)
-        event = Event(event_type, data, target, ctx.client_id)
+        event = Event(event_type, data, target, _origin(ctx, event_type))
         # One dispatcher per transaction, so its events reach subscribers and SSE in order.
         for callback in ctx.after_commit:
             if isinstance(callback, _Dispatcher):
@@ -110,6 +110,13 @@ class EventBus:
             if event.origin is not None:
                 message["origin"] = event.origin
             realtime.send(event.user_id, message)
+
+
+def _origin(ctx: Ctx, event_type: str) -> str | None:
+    """The tab an event is an echo for: only events of the module whose capability it called."""
+    if ctx.origin_module is None or event_type.split(".", 1)[0] != ctx.origin_module:
+        return None
+    return ctx.client_id
 
 
 @dataclass

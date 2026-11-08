@@ -4,7 +4,6 @@ import { coursePath, termPath } from '@/modules/academics/paths'
 import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
-import { listCardSettingsSchema } from './cards/schema'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
 import AssessmentTaskCell from './components/AssessmentTaskCell'
 import { CalendarOpenLabel } from './components/CalendarOpenLabel'
@@ -12,6 +11,15 @@ import { prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
+const TASK_EVENTS = [
+  'tasks.item.created',
+  'tasks.item.updated',
+  'tasks.item.completed',
+  'tasks.item.deleted',
+  'tasks.list.created',
+  'tasks.list.updated',
+  'tasks.list.deleted',
+]
 
 /**
  * M05 待办: task lists and tasks per Program, smart lists, a tasks page for every term and course,
@@ -59,10 +67,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'm',
       component: preloadable(() => import('./cards/ListCard')),
-      settings: {
-        schema: listCardSettingsSchema,
-        component: preloadable(() => import('./cards/ListCardSettings')),
-      },
+      settings: () => import('./cards/schema'),
       multiple: true,
       headerActions: NewTaskButton,
     },
@@ -127,19 +132,13 @@ export default defineModule({
   },
   uiPrefPrefixes: ['tasks.'],
   realtimeInvalidations: Object.fromEntries([
-    ...[
-      'tasks.item.created',
-      'tasks.item.updated',
-      'tasks.item.completed',
-      'tasks.item.deleted',
-      'tasks.list.created',
-      'tasks.list.updated',
-      'tasks.list.deleted',
-    ].map((event) => [event, TASK_QUERIES]),
+    ...TASK_EVENTS.map((event) => [event, TASK_QUERIES]),
     ['calendar.changed', CALENDAR_QUERIES],
     ['academics.course.updated', ['tasksItemQuery']],
     ['academics.course.deleted', ['tasksItemQuery', 'tasksItemCount']],
     ['academics.term.deleted', [...TASK_QUERIES]],
     ['settings.values.updated', ['tasksItemQuery', 'tasksItemCount']],
   ]),
+  // Every task change this tab makes refreshes the task queries itself (`invalidateTasks`).
+  realtimeSkipOwn: TASK_EVENTS,
 })

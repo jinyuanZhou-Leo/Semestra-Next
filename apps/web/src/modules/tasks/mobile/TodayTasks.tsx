@@ -1,12 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
 import { MobileSection } from '@/app/mobile/MobilePage'
-import { plusDays } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { useProgramToday, useTasksDueBetween, useTodayTasks } from '../queries'
 import { TaskSections, groupByDue } from './TaskSections'
+import { plusDays } from '@/lib/day'
 
 /**
  * The tasks part of the phone's Today (M17): overdue and due today, then the next 7 days, each

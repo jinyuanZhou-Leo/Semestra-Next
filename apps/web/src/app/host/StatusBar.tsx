@@ -55,14 +55,6 @@ export function visibleJobs(jobs: readonly JobOut[], seen: readonly string[], no
   )
 }
 
-/** One entry per job, newest first (ids are time-ordered). */
-export function mergeJobs(...lists: (readonly JobOut[] | undefined)[]): JobOut[] {
-  const byId = new Map<string, JobOut>()
-  for (const list of lists)
-    for (const job of list ?? []) if (!byId.has(job.id)) byId.set(job.id, job)
-  return [...byId.values()].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
-}
-
 function jobTitle(job: JobOut, kinds: readonly JobKindContribution[]): string {
   return kinds.find((k) => k.kind === job.kind)?.title() ?? jobStageLabel(job)
 }
@@ -203,19 +195,15 @@ function JobRow({
  */
 function JobsLine() {
   const { state } = useSidebar()
-  // Every active job (however many finished after it), plus the newest finished ones.
-  const recent = useQuery(coreJobListOptions({ query: { limit: 20 } })).data?.items
-  const running = useQuery(coreJobListOptions({ query: { status: 'running', limit: 50 } })).data
-    ?.items
-  const pending = useQuery(coreJobListOptions({ query: { status: 'pending', limit: 50 } })).data
-    ?.items
+  // The newest jobs, plus every active one however many finished after it.
+  const all =
+    useQuery(coreJobListOptions({ query: { limit: 20, with_active: true } })).data?.items ?? []
   const [seen, setSeen] = useUiPref<string[]>(SEEN_KEY, [])
   const [open, setOpen] = useState(false)
   // Jobs the list showed when it opened: none of them vanishes under the user while it is open.
   const [held, setHeld] = useState<readonly string[]>([])
   const kinds = useModules().flatMap((module) => module.jobKinds ?? [])
-  const all = mergeJobs(recent, running, pending)
-  const now = useNow((at) =>
+  const now = useNow(500, (at) =>
     all.some((job) => job.status === 'succeeded' && finishedAgo(job, at) < DONE_VISIBLE_MS),
   )
   const shown = visibleJobs(all, seen, now)

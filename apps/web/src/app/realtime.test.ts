@@ -67,7 +67,7 @@ test('a function target refetches only the queries of the ids in the event', () 
 test('echoes of this tab are skipped only for event types that opt in', () => {
   const { invalidate, source } = setup({
     invalidations: { own: ['coreJobList'], shared: ['coreJobList'] },
-    skipOwn: new Set(['own']),
+    own: { shared: ['coreJobList'] },
   })
   source.emit({ type: 'own', data: {}, origin: CLIENT_ID })
   vi.advanceTimersByTime(COALESCE_MS)

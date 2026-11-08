@@ -29,14 +29,6 @@ export function storeSession(queryClient: QueryClient, session: ImportSessionDet
   queryClient.setQueryData(importsSessionGetQueryKey({ path: { session_id: session.id } }), session)
 }
 
-/**
- * After a commit the courses, gradebooks, schedules and tasks it wrote are stale. Refetching every
- * active query is simpler than listing every module's keys, and a commit is rare.
- */
-export async function invalidateAfterCommit(queryClient: QueryClient) {
-  await queryClient.invalidateQueries()
-}
-
 /** Field edits still being saved; a commit waits for them so it writes what the review shows. */
 const pendingEdits = new Set<Promise<unknown>>()
 

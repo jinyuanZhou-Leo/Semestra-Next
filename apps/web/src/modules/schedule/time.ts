@@ -1,6 +1,5 @@
 import { TZDate } from '@date-fns/tz'
-import { addDays, format } from 'date-fns'
-import { isoDay } from '@/lib/day'
+import { format } from 'date-fns'
 import { intl } from '@/lib/format'
 
 /**
@@ -26,16 +25,6 @@ export function wallDate(iso: string, tz: string): string {
   return format(new TZDate(iso, tz), 'yyyy-MM-dd')
 }
 
-/** A `yyyy-MM-dd` day as a browser-local midnight `Date`. */
-export function localDay(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number)
-  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1)
-}
-
-export function plusDays(day: string, days: number): string {
-  return isoDay(addDays(localDay(day), days))
-}
-
 /** "HH:MM" of a wall-clock `Date`. */
 export function hhmm(local: Date): string {
   return format(local, 'HH:mm')
@@ -51,21 +40,4 @@ export function weekdayName(weekday: number, width: 'long' | 'short' = 'long'): 
   // 2024-01-01 was a Monday.
   const date = new Date(2024, 0, weekday)
   return intl(Intl.DateTimeFormat, { weekday: width }).format(date)
-}
-
-/** ISO weekday (1 = Monday … 7 = Sunday) of a `Date`. */
-export function isoWeekday(local: Date): number {
-  return local.getDay() === 0 ? 7 : local.getDay()
-}
-
-/** The first day of the week that contains `day`; `first` is 1 (Monday) or 7 (Sunday). */
-export function weekStartOf(day: string, first: 1 | 7): string {
-  const offset = (isoWeekday(localDay(day)) - first + 7) % 7
-  return plusDays(day, -offset)
-}
-
-/** The date of `weekday` (1–7) in the week starting on `weekStart`. */
-export function dayInWeek(weekStart: string, weekday: number): string {
-  const offset = (weekday - isoWeekday(localDay(weekStart)) + 7) % 7
-  return plusDays(weekStart, offset)
 }

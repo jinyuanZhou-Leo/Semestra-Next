@@ -252,6 +252,9 @@ async def test_list_is_paginated_newest_first(
     assert ([j["id"] for j in rest["items"]], rest["next_cursor"]) == ([ids[0]], None)
     filtered = (await client.get("/jobs", params={"status": "succeeded"})).json()
     assert filtered["items"] == []
+    # The newest page plus every job still in progress (all three are pending).
+    active = (await client.get("/jobs", params={"limit": 1, "with_active": True})).json()
+    assert [j["id"] for j in active["items"]] == ids[::-1]
 
 
 async def test_worker_runs_jobs_in_the_background(

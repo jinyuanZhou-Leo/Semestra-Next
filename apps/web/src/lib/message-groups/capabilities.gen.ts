@@ -96,6 +96,7 @@ export const capabilityMessages = {
   capability_lms_course_import_title: m.capability_lms_course_import_title,
   capability_lms_course_link_delete_title: m.capability_lms_course_link_delete_title,
   capability_lms_course_link_get_title: m.capability_lms_course_link_get_title,
+  capability_lms_course_link_list_title: m.capability_lms_course_link_list_title,
   capability_lms_course_link_set_title: m.capability_lms_course_link_set_title,
   capability_lms_course_link_sync_title: m.capability_lms_course_link_sync_title,
   capability_lms_course_link_update_title: m.capability_lms_course_link_update_title,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type CardSettings, preloadable } from '@/app/extensions'
 
 export const COUNTER_LABEL_MAX = 60
 
@@ -20,3 +21,9 @@ export const counterSettingsSchema = z
   })
 
 export type CounterSettings = z.infer<typeof counterSettingsSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: counterSettingsSchema,
+  component: preloadable(() => import('./CounterSettingsForm')),
+} satisfies CardSettings

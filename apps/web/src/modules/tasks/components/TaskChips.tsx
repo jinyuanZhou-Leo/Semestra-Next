@@ -20,8 +20,8 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { isoDay } from '@/lib/day'
-import { dueLabel, localDate } from '../due'
+import { dayDate, isoDay } from '@/lib/day'
+import { dueLabel } from '../due'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'
 
@@ -83,8 +83,8 @@ export function TaskChips({
           <Calendar
             {...calendarLocale()}
             mode="single"
-            selected={task.due_date ? localDate(task.due_date) : undefined}
-            defaultMonth={task.due_date ? localDate(task.due_date) : undefined}
+            selected={task.due_date ? dayDate(task.due_date) : undefined}
+            defaultMonth={task.due_date ? dayDate(task.due_date) : undefined}
             onSelect={(date) => {
               if (date) onChange({ due_date: isoDay(date) })
               setDateOpen(false)

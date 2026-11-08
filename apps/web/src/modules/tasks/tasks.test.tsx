@@ -129,6 +129,19 @@ beforeEach(() => {
   )
 })
 
+test('a cold start fetches the remembered list only, not the default one first', async () => {
+  server.use(
+    http.post(`${API}/me/ui-state\\:get`, async () => {
+      await delay(50)
+      return HttpResponse.json({ items: { 'tasks.selection.p1': 'flagged' } })
+    }),
+  )
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await waitFor(() => expect(log.queries.length).toBeGreaterThan(0))
+  await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
+  expect(log.queries.map((q) => q.view)).toEqual(log.queries.map(() => 'flagged'))
+})
+
 test('the page lists the tasks and adds one from the header button with its chips', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   expect(await screen.findByText('Read chapter 3')).toBeTruthy()

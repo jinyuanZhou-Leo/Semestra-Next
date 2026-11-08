@@ -17,6 +17,7 @@ from semestra.modules.lms.models import LmsConnection, LmsImportedRef
 from semestra.modules.lms.schemas.dto import LmsCalendarEvent
 from semestra.modules.lms.schemas.io import CoursesImportInput
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
+from semestra.testing import collect_events
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -109,6 +110,8 @@ async def test_binding_and_link_rules(api: Api):
     state = await api.link(course_a, "101")
     assert state["link"]["external_name"] == "Computer Fundamentals"
     assert state["link"]["connection_id"] == conn
+    links = await api.call("GET", f"/programs/{program_id}/lms-links")
+    assert [(li["course_id"], li["provider"]) for li in links["items"]] == [(course_a, "fake")]
     # One external course, one course of the Program.
     err = await api.link(course_b, "101", 409)
     assert err["error"] == {
@@ -320,16 +323,21 @@ async def test_a_link_is_refused_when_the_binding_moved_during_the_lookup(
     assert state["link"] is None
 
 
-async def test_import_assignments_once_and_updates(api: Api, fake: FakeProvider):
+async def test_import_assignments_once_and_updates(api: Api, app: FastAPI, fake: FakeProvider):
     program_id, term_id, conn = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
-    started = await api.call(
-        "POST", f"/courses/{course}/lms/imports:assignments",
-        json={"external_ids": ["a1", "a2", "a3"]},
-    )  # fmt: skip
+    me = await api.call("GET", "/account/me")
+    with collect_events(app, me["id"]) as messages:
+        started = await api.call(
+            "POST", f"/courses/{course}/lms/imports:assignments",
+            json={"external_ids": ["a1", "a2", "a3"]},
+        )  # fmt: skip
     # Nothing needed a decision: saved at once.
     assert (started["committed"], started["failed"]) == (True, 0)
+    # The course's "new on the platform" list changed with it.
+    recorded = [m["data"] for m in messages if m["type"] == "lms.course.imports_recorded"]
+    assert recorded == [{"course_id": course}]
     session = await api.call("GET", f"/imports/{started['session_id']}")
     categories = by_type(session, "category")
     assert [(c["data"]["name"], c["data"]["weight_total"]) for c in categories] == [

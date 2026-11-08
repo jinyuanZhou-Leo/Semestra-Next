@@ -13,7 +13,7 @@ import { CardGrid } from './host/CardGrid'
 import { orderPages, useSaveNav } from './host/nav'
 import { PageHeader } from './host/PageHeader'
 import { ScopeNav } from './host/ScopeNav'
-import { mergeJobs, StatusBar, visibleJobs } from './host/StatusBar'
+import { StatusBar, visibleJobs } from './host/StatusBar'
 import { InstalledPluginsProvider, ModuleRegistry, useModules } from './registry'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -419,9 +419,6 @@ test('the status bar keeps running jobs, recent successes and unseen failures', 
     'done-now',
     'failed',
   ])
-  // A long-running job older than the recent page still counts.
-  const old = job('0-old-running', 'running', null)
-  expect(mergeJobs(jobs.slice(1), [old, jobs[0]!]).map((j) => j.id)).toContain('0-old-running')
 })
 
 test('several jobs that just succeeded read as done, not failed', async () => {

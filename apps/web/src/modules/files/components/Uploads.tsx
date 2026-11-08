@@ -93,7 +93,7 @@ export function useUploads(): Uploads {
           patch(row.key, { status: 'failed', loaded: row.size, error: errorMessage(error) }),
         )
     }
-    await invalidateFiles(queryClient)
+    await invalidateFiles(queryClient, courseId)
   }
 
   const start = (files: readonly File[], target: UploadTarget) => {

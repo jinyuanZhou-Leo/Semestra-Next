@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type CardSettings, preloadable } from '@/app/extensions'
 
 /** Pomodoro card settings (M14 §3) and the course a focus session is spent on (large size). */
 export const pomodoroSettingsSchema = z.object({
@@ -13,3 +14,9 @@ export const pomodoroSettingsSchema = z.object({
 })
 
 export type PomodoroSettings = z.infer<typeof pomodoroSettingsSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: pomodoroSettingsSchema,
+  component: preloadable(() => import('./PomodoroSettingsForm')),
+} satisfies CardSettings

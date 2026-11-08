@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type CardSettings, preloadable } from '@/app/extensions'
 import { COLOR_TOKENS } from '../plugin-kit/colors'
 
 /** Icons a habit can use: a short list of lucide names, so the bundle keeps only these. */
@@ -44,3 +45,9 @@ export const habitSettingsSchema = z.object({
 })
 
 export type HabitSettings = z.infer<typeof habitSettingsSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: habitSettingsSchema,
+  component: preloadable(() => import('./HabitSettingsForm')),
+} satisfies CardSettings

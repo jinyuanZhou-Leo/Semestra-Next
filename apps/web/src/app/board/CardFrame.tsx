@@ -1,5 +1,5 @@
 import { GripVertical, Settings2, Trash2 } from 'lucide-react'
-import { type KeyboardEvent, useId, useRef } from 'react'
+import { type ComponentType, type KeyboardEvent, Suspense, useId, useRef } from 'react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
@@ -9,14 +9,14 @@ import { Button } from '@/ui/button'
 import { ButtonGroup, ButtonGroupSeparator } from '@/ui/button-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import type { CardContribution, CardSize, Scope } from '../extensions'
+import type { CardContribution, CardProps, CardSize, Scope } from '../extensions'
 import { PluginBoundary } from '../host/PluginBoundary'
 import type { DraftCard } from './Board'
 import { CardSettingsDialog } from './CardSettingsDialog'
 import { CardSkeleton } from './CardSkeleton'
 import { SPANS } from './layout'
 import { useCardSettings } from './queries'
-import { parseCardSettings } from './settings'
+import { parseCardSettings, useCardSettingsSpec } from './settings'
 
 type Props = {
   scope: Scope
@@ -80,10 +80,9 @@ export function CardFrame({
   const title = contribution.title()
   const hintId = useId()
   const frame = useRef<HTMLElement>(null)
-  const settings = parseCardSettings(contribution, card.settings)
   const Body = contribution.component
   const Actions = contribution.headerActions
-  const props = { scope, instanceId: card.id, size: card.size, settings }
+  const props = { contribution, stored: card.settings, scope, instanceId: card.id, size: card.size }
   // A small (1×1) card names itself in its content, so its title row would only take space;
   // cards whose content cannot say what they are keep it (`keepTitleWhenSmall`).
   const titled = card.size !== 's' || contribution.keepTitleWhenSmall === true
@@ -96,8 +95,8 @@ export function CardFrame({
     Actions || contribution.settings ? (
       <div className="flex shrink-0 items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 group-hover/board-card:opacity-100 focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100">
         {Actions ? (
-          <PluginBoundary compact>
-            <Actions {...props} />
+          <PluginBoundary compact fallback={null}>
+            <CardPart component={Actions} {...props} />
           </PluginBoundary>
         ) : null}
         {contribution.settings ? (
@@ -206,7 +205,7 @@ export function CardFrame({
           inert={editing || undefined}
         >
           <PluginBoundary compact fallback={<CardSkeleton />}>
-            <Body {...props} />
+            <CardPart component={Body} {...props} />
           </PluginBoundary>
         </div>
         {resizingTo ? (
@@ -266,6 +265,22 @@ export function CardFrame({
   )
 }
 
+/** The card's content or header actions, given its stored settings parsed by its schema. */
+function CardPart({
+  component: Part,
+  contribution,
+  stored,
+  ...props
+}: Omit<CardProps, 'settings'> & {
+  // oxlint-disable-next-line no-explicit-any
+  component: ComponentType<CardProps<any>>
+  contribution: CardContribution
+  stored: unknown
+}) {
+  const settings = parseCardSettings(useCardSettingsSpec(contribution), stored)
+  return <Part {...props} settings={settings} />
+}
+
 /**
  * A card's settings or remove confirmation, rendered by the board outside the grid. Settings
  * changed while editing go into the draft too, so the saved layout carries them.
@@ -317,14 +332,17 @@ export function CardDialog({
         onConfirm={onRemove}
       />
       {contribution.settings ? (
-        <CardSettingsDialog
-          card={contribution}
-          scope={scope}
-          value={parseCardSettings(contribution, card.settings)}
-          open={open && dialog === 'settings'}
-          onOpenChange={(next) => !next && onClose()}
-          onSubmit={submitSettings}
-        />
+        // The card has loaded its settings to render; this only waits if it has not yet.
+        <Suspense fallback={null}>
+          <CardSettingsDialog
+            card={contribution}
+            scope={scope}
+            stored={card.settings}
+            open={open && dialog === 'settings'}
+            onOpenChange={(next) => !next && onClose()}
+            onSubmit={submitSettings}
+          />
+        </Suspense>
       ) : null}
     </>
   )

@@ -223,6 +223,10 @@ class CourseLinkState(BaseModel):
     )
 
 
+class CourseLinkList(BaseModel):
+    items: list[CourseLink]
+
+
 class LinkSetInput(BaseModel):
     course_id: Id = Field(description="Course id")
     external_course_id: ExternalId = Field(description="External course id (lms.course.list)")

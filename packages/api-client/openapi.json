@@ -5305,6 +5305,18 @@
               "title": "Limit"
             },
             "description": "Page size."
+          },
+          {
+            "name": "with_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also every pending or running job however old (first page only), so a list of the newest jobs never misses one still in progress.",
+              "default": false,
+              "title": "With Active"
+            },
+            "description": "Also every pending or running job however old (first page only), so a list of the newest jobs never misses one still in progress."
           }
         ],
         "responses": {
@@ -10397,6 +10409,62 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CourseLinkState"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/lms-links": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Every LMS course link in a Program.",
+        "description": "Which of the Program's courses are linked, and to which LMS course, in one call.\nFor one course use lms.course.link.get, which also says which connection the Program uses.",
+        "operationId": "lmsCourseLinkList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseLinkList"
                 }
               }
             }
@@ -21595,6 +21663,22 @@
           "created_at"
         ],
         "title": "CourseLink"
+      },
+      "CourseLinkList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CourseLink"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CourseLinkList"
       },
       "CourseLinkState": {
         "properties": {

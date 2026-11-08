@@ -6,21 +6,11 @@ import type {
 } from '@semestra/api-client'
 import { gradingSimulateCourse, gradingSimulateTerm } from '@semestra/api-client'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { type WhatIf, activeScores } from './whatif'
+import { useDebounced } from '@/hooks/use-debounced'
 
 const SIMULATE_DELAY_MS = 200
-
-/** `value`, once it has stopped changing for `delay` ms. */
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(timer)
-  }, [value, delay])
-  return debounced
-}
 
 /**
  * Runs a plan simulation for `body` after the user stopped typing, while `planning`. A new

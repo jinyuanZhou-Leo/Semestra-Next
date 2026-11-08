@@ -1,29 +1,66 @@
 import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
-import { defineModule, preloadable, type QueryKeyPrefix } from '@/app/extensions'
+import {
+  defineModule,
+  type InvalidationTarget,
+  preloadable,
+  type QueryKeyPrefix,
+  type QueryMatch,
+} from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { QuickOpenPicker } from './cards/QuickOpenPicker'
-import { quickOpenSchema } from './cards/quick-open'
 import { prefetchFilesPage } from './queries'
 
-const LISTS = ['filesItemList', 'filesItemGet'] as const
 const PAGES = ['filesDocumentRead', 'filesDocumentOutline'] as const
 
+type Data = Readonly<Record<string, unknown>>
+
+/** The list of the event's course (every course's when the event has none). */
+const courseList = (data: Data): (QueryKeyPrefix | QueryMatch)[] =>
+  typeof data.course_id === 'string'
+    ? [{ _id: 'filesItemList', path: { course_id: data.course_id } }]
+    : ['filesItemList']
+
+/** These queries of the event's file only. */
+const ofItem =
+  (operations: readonly QueryKeyPrefix[]) =>
+  (data: Data): (QueryKeyPrefix | QueryMatch)[] =>
+    typeof data.item_id === 'string'
+      ? operations.map((_id) => ({ _id, path: { item_id: data.item_id } }))
+      : [...operations]
+
 /**
- * What each event can change. Creating or renaming a folder only changes the list; search shows names and
- * files still being processed; a document's pages only change when it is switched or goes away.
+ * What each event can change, narrowed by its payload to one course's list and one file's
+ * queries: uploading to one course does not refetch the others. Search shows names and files
+ * still being processed; a document's pages only change when it is switched or goes away.
+ * Deleting a folder or a course takes files whose ids the event does not list.
  */
 const INVALIDATIONS = {
-  'files.item.created': [...LISTS, 'filesUsageGet', 'filesDocumentSearch'],
-  'files.item.updated': [...LISTS, 'filesDocumentSearch'],
-  'files.item.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
-  'files.document.ready': [...LISTS, 'filesDocumentSearch', ...PAGES],
-  'files.document.failed': [...LISTS, 'filesDocumentSearch'],
-  'files.folder.created': ['filesItemList'],
-  'files.folder.updated': ['filesItemList'],
-  // A recursive delete takes its files with it.
-  'files.folder.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
-  'academics.course.deleted': [...LISTS, 'filesUsageGet', 'filesDocumentSearch', ...PAGES],
-} satisfies Record<string, readonly QueryKeyPrefix[]>
+  'files.item.created': [courseList, 'filesUsageGet', 'filesDocumentSearch'],
+  'files.item.updated': [courseList, ofItem(['filesItemGet']), 'filesDocumentSearch'],
+  'files.item.deleted': [
+    courseList,
+    ofItem(['filesItemGet', ...PAGES]),
+    'filesUsageGet',
+    'filesDocumentSearch',
+  ],
+  'files.document.ready': [courseList, ofItem(['filesItemGet', ...PAGES]), 'filesDocumentSearch'],
+  'files.document.failed': [courseList, ofItem(['filesItemGet']), 'filesDocumentSearch'],
+  'files.folder.created': [courseList],
+  'files.folder.updated': [courseList],
+  'files.folder.deleted': [
+    courseList,
+    'filesItemGet',
+    'filesUsageGet',
+    'filesDocumentSearch',
+    ...PAGES,
+  ],
+  'academics.course.deleted': [
+    courseList,
+    'filesItemGet',
+    'filesUsageGet',
+    'filesDocumentSearch',
+    ...PAGES,
+  ],
+} satisfies Record<string, readonly InvalidationTarget[]>
 
 /**
  * M07 文件与文档管线: course files and links, previews, and the document pipeline that makes them
@@ -58,7 +95,7 @@ export default defineModule({
       component: preloadable(() => import('./cards/QuickOpenCard')),
       keepTitleWhenSmall: true,
       multiple: true,
-      settings: { schema: quickOpenSchema, component: QuickOpenPicker },
+      settings: () => import('./cards/quick-open'),
     },
     {
       id: 'files.recent',

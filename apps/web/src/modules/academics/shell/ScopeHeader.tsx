@@ -2,6 +2,7 @@ import type { Course, Program, Term } from '@semestra/api-client'
 import { ChevronDown, Pin, PinOff, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Scope } from '@/app/extensions'
+import { formatHotkey } from '@/app/hotkeys'
 import { PageHeader } from '@/app/host/PageHeader'
 import { ScopeNav } from '@/app/host/ScopeNav'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
@@ -28,7 +29,6 @@ import { courseColor, courseLabel } from '../color'
 import { coursePath, termPath, termsAndCoursesPath } from '../paths'
 import { usePins } from '../pins'
 import { useCourseLinkTab } from './course-tab'
-import { modifierKey } from './hotkeys'
 
 type Sibling = { id: string; label: string; href: string; dot?: string; shortcut?: string }
 
@@ -146,7 +146,6 @@ export function ScopeHeader({
         : null
   const pinned = pin ? isPinned(pin) : false
   const index = course ? (termCourses ?? []).findIndex((c) => c.id === course.id) : -1
-  const mod = modifierKey()
   const tabOf = useCourseLinkTab(
     program.id,
     (termCourses ?? []).map((c) => c.id),
@@ -156,7 +155,12 @@ export function ScopeHeader({
     label: courseLabel(c),
     href: coursePath(program.id, c.id, tabOf(c.id), term?.id),
     dot: courseColor(c),
-    shortcut: i === index - 1 ? `${mod} ↑` : i === index + 1 ? `${mod} ↓` : undefined,
+    shortcut:
+      i === index - 1
+        ? formatHotkey('mod+up')
+        : i === index + 1
+          ? formatHotkey('mod+down')
+          : undefined,
   }))
   const termSiblings = terms.map((t) => ({
     id: t.id,

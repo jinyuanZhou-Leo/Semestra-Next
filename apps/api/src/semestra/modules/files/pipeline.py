@@ -165,7 +165,7 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     await events.publish(
         ctx,
         "files.document.failed",
-        {"item_id": item.id, "code": code, "params": job.error_params or {}},
+        {**data, "code": code, "params": job.error_params or {}},
         user_id=item.user_id,
     )
 

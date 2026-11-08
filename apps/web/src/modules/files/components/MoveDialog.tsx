@@ -185,7 +185,7 @@ export function MoveDialog({
   const move = useMoveTargets()
   const createFolder = useMutation({
     ...filesFolderCreateMutation(),
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: () => invalidateFiles(queryClient, courseId),
   })
   const tree = folderTree(folders)
   const [selected, setSelected] = useState<string | null | undefined>(undefined)

@@ -1,7 +1,7 @@
-import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import type { Message } from '@/app/extensions'
-import { useMotionPreference } from '@/app/theme'
+import { useMotionPreference, useReducedMotion } from '@/app/theme'
 import { m } from '@/paraglide/messages'
 
 const SAMPLES: readonly { title: Message; body: Message }[] = [
@@ -19,9 +19,8 @@ const EVERY_MS = 3200
  */
 export function NotificationPreview() {
   const preference = useMotionPreference()
-  const system = useReducedMotion()
   // Reduced motion: the first example stays put instead of sliding through the others.
-  const still = preference === 'always' || (preference === 'user' && Boolean(system))
+  const still = useReducedMotion()
   const [index, setIndex] = useState(0)
   useEffect(() => {
     if (still) return

@@ -252,16 +252,18 @@ export async function readUiPref<T>(queryClient: QueryClient, key: string): Prom
 /**
  * `const [sort, setSort] = useUiPref('tasks.sort', 'due')`. Key naming: `<module>.<what>`,
  * plus `.<scopeId>` for per-scope state (pass `scope` to append it). The default is used while
- * loading and when nothing has been saved.
+ * loading and when nothing has been saved; the third item says whether the stored value has
+ * been read (or failed to load, which keeps the default), for queries whose key depends on it
+ * (so they do not run once with the default).
  */
 export function useUiPref<T>(
   key: string,
   defaultValue: T,
   options: { scope?: string } = {},
-): [T, (value: T) => void] {
+): [T, (value: T) => void, boolean] {
   const queryClient = useQueryClient()
   const fullKey = options.scope ? `${key}.${options.scope}` : key
-  const { data } = useQuery({
+  const { data, isPending } = useQuery({
     queryKey: queryKeyFor(fullKey),
     queryFn: () => load(queryClient, fullKey),
     staleTime: Infinity,
@@ -269,5 +271,5 @@ export function useUiPref<T>(
     retry: false,
   })
   const set = useCallback((value: T) => write(queryClient, fullKey, value), [queryClient, fullKey])
-  return [data?.found ? (data.value as T) : defaultValue, set]
+  return [data?.found ? (data.value as T) : defaultValue, set, !isPending]
 }

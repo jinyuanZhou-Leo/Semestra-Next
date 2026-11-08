@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { type ZodType, z } from 'zod'
 import type { ModuleManifest } from './extensions'
 
 /**
@@ -7,7 +7,11 @@ import type { ModuleManifest } from './extensions'
  * `apps/api/src/semestra/modules/plugins/web_manifest.json` by `pnpm manifest:export`; the
  * backend validates layouts with it and a test keeps the file in step with the manifests.
  */
-export function exportManifests(modules: readonly ModuleManifest[]) {
+export async function exportManifests(modules: readonly ModuleManifest[]) {
+  const schemas = new Map<string, ZodType>()
+  for (const card of modules.flatMap((m) => m.cards ?? [])) {
+    if (card.settings) schemas.set(card.id, (await card.settings()).default.schema)
+  }
   return {
     modules: modules.map((m) => ({
       id: m.id,
@@ -19,8 +23,8 @@ export function exportManifests(modules: readonly ModuleManifest[]) {
         sizes: [...c.sizes],
         default_size: c.defaultSize,
         multiple: c.multiple,
-        settings_schema: c.settings
-          ? z.toJSONSchema(c.settings.schema, { io: 'input', unrepresentable: 'any' })
+        settings_schema: schemas.has(c.id)
+          ? z.toJSONSchema(schemas.get(c.id)!, { io: 'input', unrepresentable: 'any' })
           : null,
       })),
       default_board: Object.fromEntries(

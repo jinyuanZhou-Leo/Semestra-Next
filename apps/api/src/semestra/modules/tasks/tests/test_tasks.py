@@ -376,8 +376,9 @@ async def test_sorting_search_and_paging(api: Api):
 async def test_complete_reopen_and_events(api: Api, app: FastAPI, user: UserHandle):
     s = await api.setup()
     task = await api.task(s["program"], due_date="2026-02-01")
+    tab = {"X-Semestra-Client": "tab-1"}
     with collect_events(app, user.id) as messages:
-        done = await api.call("POST", f"/tasks/{task['id']}:complete", json={})
+        done = await api.call("POST", f"/tasks/{task['id']}:complete", json={}, headers=tab)
         again = await api.call("POST", f"/tasks/{task['id']}:complete", json={})
         reopened = await api.call(
             "POST", f"/tasks/{task['id']}:complete", json={"completed": False}
@@ -392,6 +393,8 @@ async def test_complete_reopen_and_events(api: Api, app: FastAPI, user: UserHand
         "tasks.item.updated",
         "calendar.changed",
     ]
+    # Only the tasks module's own event is an echo for the tab; the calendar refetches anyway.
+    assert [m.get("origin") for m in messages][:2] == ["tab-1", None]
 
 
 async def test_move_between_lists_and_within_a_list(api: Api):
@@ -773,10 +776,12 @@ async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: U
 
     # Deleting the assessment deletes its task, finished or not, and says so.
     with collect_events(app, user.id) as messages:
-        await api.call("DELETE", f"/assessments/{a['id']}")
+        await api.call("DELETE", f"/assessments/{a['id']}", headers={"X-Semestra-Client": "tab-1"})
     await api.call("GET", f"/tasks/{task['id']}", 404)
-    [deleted] = [m["data"] for m in messages if m["type"] == "tasks.item.deleted"]
-    assert deleted["task_id"] == task["id"]
+    [deleted] = [m for m in messages if m["type"] == "tasks.item.deleted"]
+    assert deleted["data"]["task_id"] == task["id"]
+    # The gradebook's tab did not refresh its to-dos: the event is not an echo for it.
+    assert "origin" not in deleted
 
     # Losing the due date removes the task as well.
     third = await assessment(api, aps, "Project", due_date="2026-03-05")

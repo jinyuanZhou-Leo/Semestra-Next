@@ -1,11 +1,12 @@
-import type { CourseLinkState } from '@semestra/api-client'
+import type { CourseLinkList } from '@semestra/api-client'
 import { ExternalLink, School } from 'lucide-react'
 import { defineModule, type Scope, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { courseLinkOptions, openLinkedCourse } from './open-in-canvas'
+import { openLinkedCourse, programLinksOptions } from './open-in-canvas'
 
+// The Program's links, not each course's: the sidebar asks for every course of the term at once.
 function linkQuery(scope: Scope) {
-  return scope.kind === 'course' ? courseLinkOptions(scope.courseId) : null
+  return scope.kind === 'course' ? programLinksOptions(scope.programId) : null
 }
 
 /**
@@ -28,8 +29,12 @@ export default defineModule({
       icon: School,
       order: 1000,
       availabilityQuery: linkQuery,
-      isAvailable: (_scope, data) =>
-        (data as CourseLinkState | undefined)?.link?.provider === 'canvas',
+      isAvailable: (scope, data) =>
+        scope.kind === 'course' &&
+        ((data as CourseLinkList | undefined)?.items.some(
+          (link) => link.course_id === scope.courseId && link.provider === 'canvas',
+        ) ??
+          false),
       component: preloadable(() => import('./CanvasCoursePage')),
     },
   ],

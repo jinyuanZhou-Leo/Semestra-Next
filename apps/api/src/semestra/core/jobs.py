@@ -806,6 +806,11 @@ class JobListInput(BaseModel):
     kind: str | None = Field(default=None, description="Only jobs of this kind, e.g. files.parse.")
     cursor: str | None = Field(default=None, description="`next_cursor` of the previous page.")
     limit: Annotated[int, Field(ge=1, le=100)] = Field(default=20, description="Page size.")
+    with_active: bool = Field(
+        default=False,
+        description="Also every pending or running job however old (first page only), so a list "
+        "of the newest jobs never misses one still in progress.",
+    )
 
 
 class JobPage(BaseModel):
@@ -863,7 +868,15 @@ async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
         query = query.where(CoreJob.id < inp.cursor)
     rows = (await ctx.db.scalars(query.order_by(CoreJob.id.desc()).limit(inp.limit + 1))).all()
     items = [JobOut.of(r) for r in rows[: inp.limit]]
-    return JobPage(items=items, next_cursor=items[-1].id if len(rows) > inp.limit else None)
+    next_cursor = items[-1].id if len(rows) > inp.limit else None
+    if inp.with_active and inp.cursor is None and next_cursor is not None:
+        older = await ctx.db.scalars(
+            query.where(CoreJob.id < next_cursor, CoreJob.status.in_(("pending", "running")))
+            .order_by(CoreJob.id.desc())
+            .limit(100)
+        )
+        items += [JobOut.of(r) for r in older]
+    return JobPage(items=items, next_cursor=next_cursor)
 
 
 @capability(

@@ -8,6 +8,7 @@ import {
   useEffect,
   useState,
 } from 'react'
+import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from '@/ui/item'
@@ -22,23 +23,6 @@ import { useCommandContext } from './context'
 // first time the palette opens, or once the page has settled, whichever comes first.
 const loadPalette = () =>
   import('./CommandPalette').then((mod) => ({ default: mod.CommandPalette }))
-const PALETTE_LOAD_DELAY_MS = 2000
-
-function useSettled(): boolean {
-  const [settled, setSettled] = useState(false)
-  useEffect(() => {
-    let idle: number | undefined
-    const timer = setTimeout(() => {
-      if ('requestIdleCallback' in window) idle = requestIdleCallback(() => setSettled(true))
-      else setSettled(true)
-    }, PALETTE_LOAD_DELAY_MS)
-    return () => {
-      clearTimeout(timer)
-      if (idle !== undefined) cancelIdleCallback(idle)
-    }
-  }, [])
-  return settled
-}
 
 type LoaderState = {
   Palette: LazyExoticComponent<ComponentType>
@@ -131,7 +115,8 @@ export function CommandCenter() {
   const assistant = useModules().find((module) => module.assistant)?.assistant
   const program = { kind: 'program', programId: ctx.programId ?? '' } as const
   const hasToday = usePages(program).some((page) => page.id === 'today') && !!ctx.programId
-  const settled = useSettled()
+  const [settled, setSettled] = useState(false)
+  useEffect(() => whenSettled(() => setSettled(true)), [])
 
   useHotkey(
     'mod+k',

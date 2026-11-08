@@ -18,6 +18,7 @@ export type LmsProviderUi = {
   description?: Message
   /** What identifies a saved connection besides its name, e.g. Canvas' host. */
   summary?: (config: Record<string, unknown>) => string | null
+  /** `preloadable()`: it loads when the connections section shows, not with the app. */
   ConfigForm: ComponentType<LmsConfigFormProps>
   /**
    * Whether the form can be sent; the server still checks everything. `saved` is the config of

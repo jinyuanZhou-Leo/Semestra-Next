@@ -105,7 +105,7 @@ function usePinToggle() {
   return useMutation({
     ...filesItemUpdateMutation(),
     onError: toastError,
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
   })
 }
 
@@ -292,7 +292,7 @@ function ReprocessItem({ item }: { item: ItemOut }) {
   const reprocess = useMutation({
     ...filesItemReprocessMutation(),
     onError: toastError,
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
   })
   return (
     <DropdownMenuItem onClick={() => reprocess.mutate({ path: { item_id: item.id } })}>

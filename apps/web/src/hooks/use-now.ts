@@ -1,13 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
-/** The current time (ms), ticking every `everyMs` while `tick(now)` holds. */
-export function useNow(tick: (now: number) => boolean, everyMs = 500): number {
+const always = () => true
+
+/**
+ * The current time (ms), refreshed every `everyMs` while `active(now)` holds (by default always),
+ * for "now" lines, relative times and countdowns. Stops ticking once `active` turns false, so a
+ * finished countdown no longer re-renders.
+ */
+export function useNow(everyMs = 60_000, active: (now: number) => boolean = always): number {
   const [now, setNow] = useState(() => Date.now())
-  const ticking = tick(now)
+  const ticking = active(now)
+  const started = useRef(false)
   useEffect(() => {
     if (!ticking) return
-    const timer = setInterval(() => setNow(Date.now()), everyMs)
-    return () => clearInterval(timer)
+    const update = () => setNow(Date.now())
+    // Ticking again after a pause (a new countdown): catch up at once, not a tick later.
+    const resume = started.current ? window.setTimeout(update, 0) : undefined
+    started.current = true
+    const timer = window.setInterval(update, everyMs)
+    return () => {
+      window.clearTimeout(resume)
+      window.clearInterval(timer)
+    }
   }, [ticking, everyMs])
   return now
 }

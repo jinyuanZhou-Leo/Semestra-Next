@@ -6,12 +6,13 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { countdown } from '../countdown'
-import { useNow } from '@/lib/now'
+import { useNow } from '@/hooks/use-now'
 import { useProgramTimezone } from '../hooks'
 import { dayLabel, timeParts } from '../labels'
 import { useOpenOccurrence } from '../open'
 import { useOccurrences } from '../queries'
-import { plusDays, todayIn, wallDate } from '../time'
+import { todayIn, wallDate } from '../time'
+import { plusDays } from '@/lib/day'
 
 const SOON = 60 * 60_000
 

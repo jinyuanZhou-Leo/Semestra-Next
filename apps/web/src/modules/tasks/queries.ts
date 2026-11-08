@@ -151,14 +151,23 @@ export const DEFAULT_TASK_SETTINGS: TaskSettings = {
 
 /** The `tasks` namespace (M11), resolved for a Program. */
 export function useTaskSettings(programId: string): TaskSettings {
-  const values = useQuery({
+  return useTaskSettingsState(programId).settings
+}
+
+/** The settings, and whether they have arrived (the defaults stand in until then). */
+export function useTaskSettingsState(programId: string): {
+  settings: TaskSettings
+  loaded: boolean
+} {
+  const query = useQuery({
     ...settingsValueGetOptions({
       path: { namespace: 'tasks' },
       query: { scope_type: 'program', scope_id: programId },
     }),
     staleTime: STALE,
-  }).data?.values
-  return { ...DEFAULT_TASK_SETTINGS, ...(values as Partial<TaskSettings> | undefined) }
+  })
+  const values = query.data?.values as Partial<TaskSettings> | undefined
+  return { settings: { ...DEFAULT_TASK_SETTINGS, ...values }, loaded: !query.isPending }
 }
 
 function deviceTimeZone(): string {

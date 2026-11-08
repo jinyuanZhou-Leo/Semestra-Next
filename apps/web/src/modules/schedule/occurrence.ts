@@ -2,7 +2,8 @@ import type { Occurrence } from '@semestra/api-client'
 import { subjectColor } from '@/lib/subject-color'
 import type { GridItem } from './components/WeekGrid'
 import { minutes } from './components/WeekGrid'
-import { isoWeekday, localDay, toWall } from './time'
+import { toWall } from './time'
+import { dayDate, isoWeekday } from '@/lib/day'
 
 /** The course's color; items without one (personal events) use the neutral palette slot. */
 export function occurrenceColor(o: Pick<Occurrence, 'color_ref'>): string {
@@ -31,7 +32,7 @@ export function weekGridItems(
       const endMin = end.slice(0, 10) === start.slice(0, 10) ? minutes(end.slice(11, 16)) : 24 * 60
       return {
         id: o.id,
-        weekday: isoWeekday(localDay(start.slice(0, 10))),
+        weekday: isoWeekday(dayDate(start.slice(0, 10))),
         start: startMin,
         end: Math.max(endMin, startMin + 20),
         color: occurrenceColor(o),

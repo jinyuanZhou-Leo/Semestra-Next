@@ -144,7 +144,6 @@ test('shows the dialog with confetti, and closing it remembers the version', asy
   )
   expect(headings).toEqual(['New', 'Fixed'])
   await waitFor(() => expect(confetti).toHaveBeenCalledTimes(2))
-  expect(confetti.mock.calls[0]![0]).toMatchObject({ disableForReducedMotion: true })
 
   await userEvent.click(screen.getByRole('button', { name: 'Got it' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())

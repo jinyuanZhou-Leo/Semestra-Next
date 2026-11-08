@@ -1,7 +1,6 @@
 import { NotebookPen } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { helloNoteCardSchema } from './schema'
 
 /**
  * Plugin template (M14 §6): one Page, one Card with settings and one settings section.
@@ -36,8 +35,8 @@ export default defineModule({
       sizes: ['s', 'm', 'l'],
       defaultSize: 'm',
       component: preloadable(() => import('./HelloNoteCard')),
-      // With `settings.component` omitted the host builds a form from the schema.
-      settings: { schema: helloNoteCardSchema },
+      // The schema file's default export has no `component`, so the host builds a form from the schema.
+      settings: () => import('./schema'),
       multiple: true,
     },
   ],

@@ -1,6 +1,6 @@
 import { useQueries } from '@tanstack/react-query'
 import { ChevronRight, CornerDownLeft, FileText, Sparkles } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useEffect, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useState } from 'react'
 import { m } from '@/paraglide/messages'
 import {
   Command,
@@ -27,6 +27,7 @@ import { useUiPref } from '../ui-pref'
 import { setPalette, usePaletteState } from './bus'
 import { useCommandContext } from './context'
 import { type Matchable, pushRecent, rank } from './rank'
+import { useDebounced } from '@/hooks/use-debounced'
 
 export const RECENT_KEY = 'commands.recent'
 const SEARCH_MIN_LENGTH = 2
@@ -45,15 +46,6 @@ type Entry = Matchable & {
   /** Opens a second list instead of running. */
   opens?: boolean
   select: () => void | Promise<void>
-}
-
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(timer)
-  }, [value, delay])
-  return delay === 0 ? value : debounced
 }
 
 function childEntry(prefix: string, child: CommandChild, ctx: CommandContext): Entry {

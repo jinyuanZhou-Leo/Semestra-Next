@@ -9,6 +9,7 @@ import { preload, preloadable } from '@/app/extensions'
 import { navOptions } from '@/app/host/nav'
 import { isPhone, usePhone } from '@/app/mobile/phone'
 import { usePreferences, useUpdatePreferences } from '@/app/preferences'
+import { installedModules } from '@/app/registry'
 import { prefetchCurrentTermCourses } from '@/modules/academics/current-term'
 import { AppShell } from '@/modules/academics/shell/AppShell'
 
@@ -31,7 +32,9 @@ export const Route = createFileRoute('/_authed/p/$programId')({
     queryClient.ensureQueryData(navOptions('program')).catch(ignore)
     queryClient.ensureQueryData(navOptions('term')).catch(ignore)
     prefetchCurrentTermCourses(queryClient, programId).catch(ignore)
-    return isPhone() ? preload(MobileShell) : undefined
+    if (isPhone()) return preload(MobileShell)
+    // The desktop shell's content renders inside the assistant's dock.
+    return preload(installedModules(queryClient).find((m) => m.assistant)?.assistant?.Dock)
   },
   component: ProgramLayout,
 })

@@ -6,16 +6,6 @@ import { m } from '@/paraglide/messages'
 export type ProviderKind = Provider['kind']
 export type Capability = Provider['capabilities'][number]
 
-export const KINDS: readonly ProviderKind[] = [
-  'anthropic',
-  'openai',
-  'gemini',
-  'openai_compatible',
-  'openai_responses',
-  'anthropic_compatible',
-  'ollama',
-]
-
 export const CAPABILITIES: readonly Capability[] = [
   'chat',
   'tools',

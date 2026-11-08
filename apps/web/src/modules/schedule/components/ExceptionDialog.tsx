@@ -5,7 +5,7 @@ import { CalendarIcon, Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { ChoiceControl } from '@/app/settings'
 import { calendarLocale } from '@/lib/calendar'
-import { isoDay } from '@/lib/day'
+import { dayDate, isoDay, plusDays } from '@/lib/day'
 import { toastError } from '@/lib/errors'
 import { formatDate, formatTime } from '@/lib/format'
 import { TIME_INPUT } from '@/lib/time-input'
@@ -37,7 +37,7 @@ import { sectionLabel } from '../labels'
 import type { SectionTime } from '../sections'
 import { useTerms } from '@/modules/academics/queries'
 import { invalidateSchedule, occurrenceOptions } from '../queries'
-import { localDay, plusDays, weekdayName } from '../time'
+import { weekdayName } from '../time'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -60,7 +60,7 @@ function DateField({
   invalid?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const picked = DAY.test(value) ? localDay(value) : undefined
+  const picked = DAY.test(value) ? dayDate(value) : undefined
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -83,9 +83,9 @@ function DateField({
           {...calendarLocale()}
           mode="single"
           selected={picked}
-          defaultMonth={picked ?? (range ? localDay(clampDay(range.today, range)) : undefined)}
-          startMonth={range ? localDay(range.start) : undefined}
-          endMonth={range ? localDay(range.end) : undefined}
+          defaultMonth={picked ?? (range ? dayDate(clampDay(range.today, range)) : undefined)}
+          startMonth={range ? dayDate(range.start) : undefined}
+          endMonth={range ? dayDate(range.end) : undefined}
           disabled={allowed ? (day) => !allowed(day) : undefined}
           onSelect={(next) => {
             onChange(next ? isoDay(next) : '')

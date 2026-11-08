@@ -24,7 +24,7 @@ export function StatusCell({ item, compact = false }: { item: ItemOut; compact?:
   const retry = useMutation({
     ...filesItemReprocessMutation(),
     onError: toastError,
-    onSuccess: () => invalidateFiles(queryClient),
+    onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
   })
 
   if (item.doc_status === 'pending' || item.doc_status === 'processing') {

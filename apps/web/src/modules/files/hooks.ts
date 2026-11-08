@@ -4,16 +4,6 @@ function hasFiles(event: { dataTransfer: DataTransfer | null }) {
   return event.dataTransfer?.types.includes('Files') ?? false
 }
 
-/** `value`, once it has stopped changing for `delay` ms (search boxes). */
-export function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(timer)
-  }, [value, delay])
-  return debounced
-}
-
 /**
  * True while files are dragged over the window, and `onDrop` gets them: the whole page is the
  * drop zone (M07 §6.1). A drop that a target inside the page took (a folder, a course section:

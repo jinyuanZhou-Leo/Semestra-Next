@@ -15,14 +15,15 @@ import {
 } from '@/ui/dialog'
 import { FieldError } from '@/ui/field'
 import { SettingRow, SettingsGroup } from '../settings/rows'
-import type { CardContribution, Scope } from '../extensions'
-import { cardNamespace } from './settings'
+import type { CardContribution, CardSettings, Scope } from '../extensions'
+import { cardNamespace, parseCardSettings, useCardSettingsSpec } from './settings'
 
 type Props = {
   card: CardContribution
   /** The board the card is on, for a custom form (`card.settings.component`). */
   scope: Scope
-  value: unknown
+  /** The instance's stored settings; the form starts from them parsed by the schema. */
+  stored: unknown
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Resolves when saved; the dialog stays open (and shows the error) if it rejects. */
@@ -31,20 +32,22 @@ type Props = {
 
 function GeneratedForm({
   card,
+  spec,
   value,
   onChange,
 }: {
   card: CardContribution
+  spec: CardSettings
   value: Record<string, unknown>
   onChange: (value: Record<string, unknown>) => void
 }) {
   const baseId = useId()
   const namespace = cardNamespace(card.id)
-  const schema = z.toJSONSchema(card.settings!.schema, {
+  const schema = z.toJSONSchema(spec.schema, {
     io: 'input',
     unrepresentable: 'any',
   }) as JsonSchema
-  const fields = describeFields(schema, card.settings?.fields)
+  const fields = describeFields(schema, spec.fields)
   return (
     <SettingsGroup>
       {fields.map((field) => {
@@ -73,7 +76,9 @@ function GeneratedForm({
 }
 
 /** Settings of one card instance (M10 §5.2): the card's own component or a generated form. */
-export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onSubmit }: Props) {
+export function CardSettingsDialog({ card, scope, stored, open, onOpenChange, onSubmit }: Props) {
+  const spec = useCardSettingsSpec(card)
+  const value = parseCardSettings(spec, stored)
   const [draft, setDraft] = useState(value)
   const [invalid, setInvalid] = useState(false)
   const [pending, setPending] = useState(false)
@@ -86,12 +91,12 @@ export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onS
       setInvalid(false)
     }
   }
-  if (!card.settings) return null
-  const Custom = card.settings.component
+  if (!spec) return null
+  const Custom = spec.component
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const parsed = card.settings!.schema.safeParse(draft)
+    const parsed = spec.schema.safeParse(draft)
     if (!parsed.success) {
       setInvalid(true)
       return
@@ -119,6 +124,7 @@ export function CardSettingsDialog({ card, scope, value, open, onOpenChange, onS
           ) : (
             <GeneratedForm
               card={card}
+              spec={spec}
               value={(draft ?? {}) as Record<string, unknown>}
               onChange={setDraft}
             />

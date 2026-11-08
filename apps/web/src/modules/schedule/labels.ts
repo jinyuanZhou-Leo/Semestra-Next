@@ -1,7 +1,7 @@
 import type { EventType, Occurrence, Section } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
 import { intl } from '@/lib/format'
-import { localDay } from './time'
+import { dayDate } from '@/lib/day'
 
 const BUILTIN_NAMES: Record<string, () => string> = {
   LEC: m.schedule_type_lec,
@@ -48,11 +48,11 @@ export function dayLabel(day: string): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-  }).format(localDay(day))
+  }).format(dayDate(day))
 }
 
 export function longDayLabel(day: string): string {
-  return intl(Intl.DateTimeFormat, { dateStyle: 'full' }).format(localDay(day))
+  return intl(Intl.DateTimeFormat, { dateStyle: 'full' }).format(dayDate(day))
 }
 
 /** A section's name: "LEC0101", or "TUT 2" when the code doesn't carry the type. */

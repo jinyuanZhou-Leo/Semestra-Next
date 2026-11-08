@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { CardSettings } from '@/app/extensions'
 
 /**
  * Settings of one hello note card. The host validates them with this schema before they reach the
@@ -11,3 +12,8 @@ export const helloNoteCardSchema = z.object({
 })
 
 export type HelloNoteCardSettings = z.infer<typeof helloNoteCardSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: helloNoteCardSchema,
+} satisfies CardSettings
