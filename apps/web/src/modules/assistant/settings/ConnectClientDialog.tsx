@@ -26,14 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  FieldSet,
-  FieldTitle,
-} from '@/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel, FieldSet, FieldTitle } from '@/ui/field'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { type ClientId, MCP_CLIENTS, mcpSetup, type McpClient } from './mcp-clients'
 
