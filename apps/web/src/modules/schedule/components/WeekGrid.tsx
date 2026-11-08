@@ -1,5 +1,5 @@
 import { TriangleAlert } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { firstDayOfWeek, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -19,6 +19,41 @@ export type GridItem = {
   conflict?: boolean
   muted?: boolean
   onClick?: () => void
+}
+
+/**
+ * A block: a button when it opens something, otherwise a plain box. `details` (only on compact
+ * grids, where the block hides the place and has no room for the time) shows on hover.
+ */
+function Block({
+  label,
+  onClick,
+  details,
+  children,
+  ...props
+}: {
+  label: string
+  onClick?: () => void
+  details?: ReactNode
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+  'data-testid'?: string
+}) {
+  const box = onClick ? (
+    <button type="button" aria-label={label} onClick={onClick} {...props}>
+      {children}
+    </button>
+  ) : (
+    <div {...props}>{children}</div>
+  )
+  if (!details) return box
+  return (
+    <Tooltip>
+      <TooltipTrigger render={box} />
+      <TooltipContent className="flex-col items-start gap-0.5">{details}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 export type GridDay = {
@@ -190,64 +225,60 @@ export function WeekGrid({
               ].filter(Boolean)
               const label = [...flags, item.title, item.subtitle, range].filter(Boolean).join(', ')
               return (
-                <Tooltip key={item.id}>
-                  <TooltipTrigger
-                    render={
-                      item.onClick ? (
-                        <button type="button" aria-label={label} onClick={item.onClick} />
-                      ) : (
-                        <div />
-                      )
-                    }
-                    data-testid="grid-item"
-                    className={cn(
-                      'absolute flex overflow-hidden rounded-md text-left leading-tight',
-                      item.onClick && 'cursor-pointer hover:brightness-95',
-                      item.muted && 'opacity-50',
-                    )}
-                    style={{
-                      top: top(item.start) + 1,
-                      height: Math.max(top(item.end) - top(item.start) - 2, 14),
-                      left: `calc(${(place.lane / place.lanes) * 100}% + 2px)`,
-                      width: `calc(${100 / place.lanes}% - 4px)`,
-                      backgroundColor: `color-mix(in oklab, ${item.color} 18%, var(--background))`,
-                    }}
-                  >
-                    {/* A straight-edged bar: the block's rounded corners clip it. */}
+                <Block
+                  key={item.id}
+                  label={label}
+                  onClick={item.onClick}
+                  details={
+                    compact ? (
+                      <>
+                        <span className="font-medium">{item.title}</span>
+                        {item.subtitle ? <span>{item.subtitle}</span> : null}
+                        <span className="tabular-nums">{range}</span>
+                        {flags.length > 0 ? <span>{flags.join(' · ')}</span> : null}
+                      </>
+                    ) : undefined
+                  }
+                  data-testid="grid-item"
+                  className={cn(
+                    'absolute flex overflow-hidden rounded-md text-left leading-tight',
+                    item.onClick && 'cursor-pointer hover:brightness-95',
+                    item.muted && 'opacity-50',
+                  )}
+                  style={{
+                    top: top(item.start) + 1,
+                    height: Math.max(top(item.end) - top(item.start) - 2, 14),
+                    left: `calc(${(place.lane / place.lanes) * 100}% + 2px)`,
+                    width: `calc(${100 / place.lanes}% - 4px)`,
+                    backgroundColor: `color-mix(in oklab, ${item.color} 18%, var(--background))`,
+                  }}
+                >
+                  {/* A straight-edged bar: the block's rounded corners clip it. */}
+                  <span
+                    aria-hidden
+                    className="w-1 shrink-0"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="min-w-0 flex-1 px-1 py-0.5">
                     <span
-                      aria-hidden
-                      className="w-1 shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span className="min-w-0 flex-1 px-1 py-0.5">
-                      <span
-                        className={cn(
-                          'flex items-center gap-1 font-medium',
-                          item.cancelled && 'line-through opacity-70',
-                        )}
-                      >
-                        {item.conflict ? (
-                          <TriangleAlert
-                            aria-label={m.schedule_conflict()}
-                            className="size-3 shrink-0 text-destructive"
-                          />
-                        ) : null}
-                        <span className="truncate">{item.title}</span>
-                      </span>
-                      {!compact && item.subtitle ? (
-                        <span className="block truncate text-muted-foreground">
-                          {item.subtitle}
-                        </span>
+                      className={cn(
+                        'flex items-center gap-1 font-medium',
+                        item.cancelled && 'line-through opacity-70',
+                      )}
+                    >
+                      {item.conflict ? (
+                        <TriangleAlert
+                          aria-label={m.schedule_conflict()}
+                          className="size-3 shrink-0 text-destructive"
+                        />
                       ) : null}
+                      <span className="truncate">{item.title}</span>
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="flex-col items-start gap-0.5">
-                    <span className="font-medium">{item.title}</span>
-                    {item.subtitle ? <span>{item.subtitle}</span> : null}
-                    <span className="tabular-nums">{range}</span>
-                    {flags.length > 0 ? <span>{flags.join(' · ')}</span> : null}
-                  </TooltipContent>
-                </Tooltip>
+                    {!compact && item.subtitle ? (
+                      <span className="block truncate text-muted-foreground">{item.subtitle}</span>
+                    ) : null}
+                  </span>
+                </Block>
               )
             })}
           </div>
