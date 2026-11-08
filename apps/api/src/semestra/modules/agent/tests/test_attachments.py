@@ -219,6 +219,9 @@ async def test_unsent_attachments_are_removed_after_a_day(app: FastAPI, chat: Ch
                 created_at=clock.now,
             )
         )
+        row = await ctx.db.get(AgentAttachment, sent["id"])
+        assert row is not None
+        row.sent_at = clock.now  # what sending the message does
         await ctx.db.commit()
 
     clock.advance(hours=23)

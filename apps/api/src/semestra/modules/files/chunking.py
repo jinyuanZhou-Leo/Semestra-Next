@@ -10,9 +10,13 @@ import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 
-CHUNKER_VERSION = "1"
-TARGET_TOKENS = 600
-OVERLAP_TOKENS = 80
+from semestra.modules.ai.local_embedding import MAX_TOKENS as EMBEDDING_TOKENS
+
+CHUNKER_VERSION = "2"
+OVERLAP_TOKENS = 60
+# A chunk fits whole in a local embedding model's input: with the overlap, a paragraph that runs
+# past the target and the section titles in front (`embeddings.embedding_text`).
+TARGET_TOKENS = EMBEDDING_TOKENS - OVERLAP_TOKENS - 100
 MAX_PAGE_SPAN = 3
 # A new heading starts a new chunk only when the current one is at least this big.
 MIN_SECTION_TOKENS = 120

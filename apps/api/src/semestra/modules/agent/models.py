@@ -104,6 +104,8 @@ class AgentAttachment(Base, OwnedMixin):
     size: Mapped[int] = mapped_column(Integer)
     file_item_id: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column()
+    # When a message first carried it; unsent uploads (null) are removed after a day.
+    sent_at: Mapped[datetime | None] = mapped_column(default=None)
     # Read on upload with M07's parser (`attachments.py`): the detected kind (pdf, docx, ics,
     # image, ...), the number of pages stored in `agent_attachment_pages`, or why it failed.
     doc_kind: Mapped[str | None] = mapped_column(String, default=None)

@@ -40,8 +40,16 @@ class _Model:
 
 
 def _load(folder: str, wanted: str, thread_count: int) -> _Model:
+    """`wanted`: "cpu", "cuda", or "auto" (CUDA when ONNX Runtime has it). There is no Core ML
+    (Mac GPU) option: on an M3 (2026-11-04) ONNX Runtime split e5-small into 38 Core ML
+    partitions and inference took tens of gigabytes of swap until it was killed, while the CPU
+    embeds about 22 chunks a second with the int8 model."""
     import onnxruntime  # pyright: ignore[reportMissingImports]
     from tokenizers import Tokenizer  # pyright: ignore[reportMissingImports]
+
+    if wanted == "auto":
+        available = onnxruntime.get_available_providers()
+        wanted = "cuda" if _PROVIDERS["cuda"] in available else "cpu"
 
     path = Path(folder)
     spec = json.loads((path / "semestra.json").read_text())

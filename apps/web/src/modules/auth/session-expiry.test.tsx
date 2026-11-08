@@ -2,7 +2,7 @@ import { accountSessionList } from '@semestra/api-client'
 import { act, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
-import { postWithProgress } from '@/app/api'
+import { fetchWithReauth, postWithProgress } from '@/app/api'
 import { isReauthPending, setSignedIn, settleReauth } from '@/app/session-expiry'
 import { API, apiError, renderWithQuery, server, user } from '@/test-utils'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
@@ -66,6 +66,24 @@ test('an upload with progress is sent again after re-login too', async () => {
   act(() => settleReauth(true))
 
   expect(await result).toEqual({ items: [] })
+  expect(calls).toBe(2)
+})
+
+test('a request outside the generated client (an assistant stream) is sent again too', async () => {
+  let calls = 0
+  server.use(
+    http.post(`${API}/agent/sessions/s1/messages`, () => {
+      calls += 1
+      return calls === 1 ? unauthorized() : new HttpResponse('event: done\ndata: {}\n\n')
+    }),
+  )
+  setSignedIn(true)
+
+  const result = fetchWithReauth(`${API}/agent/sessions/s1/messages`, { method: 'POST' })
+  await waitFor(() => expect(isReauthPending()).toBe(true))
+  act(() => settleReauth(true))
+
+  expect((await result).status).toBe(200)
   expect(calls).toBe(2)
 })
 

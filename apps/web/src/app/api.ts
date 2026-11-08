@@ -47,8 +47,8 @@ function withCsrf(request: Request): Request {
   return request
 }
 
-/** The CSRF header for requests made outside the generated client (an SSE POST). */
-export function csrfHeaders(): Record<string, string> {
+/** The CSRF header for requests made outside the generated client. */
+function csrfHeaders(): Record<string, string> {
   const token = readCookie(CSRF_COOKIE)
   return token ? { [CSRF_HEADER]: token } : {}
 }
@@ -94,6 +94,28 @@ client.interceptors.response.use(async (response, request) => {
   if (!backup || !(await reauthenticated(response.status, request.url, body))) return response
   return fetch(withCsrf(backup), { credentials: 'include' })
 })
+
+/**
+ * `fetch` with credentials for requests made outside the generated client (the assistant's
+ * event streams): a non-GET request carries the CSRF header, and a request refused because the
+ * session lapsed is sent once more after the user signs back in.
+ */
+export async function fetchWithReauth(url: string, init: RequestInit = {}): Promise<Response> {
+  const send = () =>
+    fetch(url, {
+      ...init,
+      credentials: 'include',
+      // Read on each try: signing in again sets a new token.
+      headers: { ...init.headers, ...(init.method && init.method !== 'GET' ? csrfHeaders() : {}) },
+    })
+  const first = await send()
+  if (first.status !== 401) return first
+  const body = (await first
+    .clone()
+    .json()
+    .catch(() => null)) as ErrorBody
+  return (await reauthenticated(first.status, url, body)) ? send() : first
+}
 
 client.interceptors.error.use((error, response) => toApiError(error, response?.status ?? 0))
 

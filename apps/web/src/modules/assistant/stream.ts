@@ -1,6 +1,6 @@
 import type { AgentProposalOut, MemoryOut } from '@semestra/api-client'
 import { EventSourceParserStream } from 'eventsource-parser/stream'
-import { csrfHeaders, toApiError } from '@/app/api'
+import { fetchWithReauth, toApiError } from '@/app/api'
 import { apiUrl } from '@/lib/api-extras'
 
 /** One value a write changes (M12 §3.5); `count`: how many there are in all when `after` (or
@@ -140,10 +140,9 @@ export async function streamAgent(
   onId: (id: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(apiUrl(path), {
+  const response = await fetchWithReauth(apiUrl(path), {
     method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...csrfHeaders() },
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(body),
     signal,
   })
@@ -162,8 +161,7 @@ export async function followAgent(
   onId: (id: string) => void,
   signal?: AbortSignal,
 ): Promise<boolean> {
-  const response = await fetch(apiUrl(`/agent/sessions/${sessionId}/events`), {
-    credentials: 'include',
+  const response = await fetchWithReauth(apiUrl(`/agent/sessions/${sessionId}/events`), {
     headers: {
       Accept: 'text/event-stream',
       ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),

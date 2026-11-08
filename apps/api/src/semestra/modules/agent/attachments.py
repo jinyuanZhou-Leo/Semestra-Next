@@ -14,7 +14,7 @@ from typing import Self
 
 import anyio.to_thread
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import exists, func, select
+from sqlalchemy import select
 
 from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
@@ -22,7 +22,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import periodic
 from semestra.core.storage import get_storage
 from semestra.modules.agent import service
-from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentMessage
+from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import service as files
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
 from semestra.modules.files.parse.detect import Detected
@@ -167,17 +167,11 @@ async def open_original(ctx: Ctx, attachment_id: str) -> tuple[AgentAttachment, 
 
 @periodic("agent.attachments.cleanup", every=timedelta(hours=1))
 async def cleanup_unsent(ctx: Ctx) -> None:
-    blocks = func.json_each(AgentMessage.content).table_valued("value")
-    referenced = (
-        select(1)
-        .select_from(AgentMessage)
-        .join(blocks, func.json_extract(blocks.c.value, "$.attachment_id") == AgentAttachment.id)
-        .where(AgentMessage.session_id == AgentAttachment.session_id)
-    )
     rows = (
         await ctx.db.scalars(
             select(AgentAttachment).where(
-                AgentAttachment.created_at < ctx.now - UNSENT_RETENTION, ~exists(referenced)
+                AgentAttachment.sent_at.is_(None),
+                AgentAttachment.created_at < ctx.now - UNSENT_RETENTION,
             )
         )
     ).all()

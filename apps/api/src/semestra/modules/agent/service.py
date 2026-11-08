@@ -564,12 +564,7 @@ async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
         raise not_found("attachment", attachment_id)
-    sent = any(
-        block.get("attachment_id") == row.id
-        for msg in await messages(ctx, row.session_id)
-        for block in msg.content
-    )
-    if sent:
+    if row.sent_at is not None:
         raise AppError("agent.attachment_in_use", 409)
     key = row.storage_key
     storage = get_storage(ctx)

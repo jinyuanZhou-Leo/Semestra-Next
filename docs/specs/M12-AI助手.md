@@ -229,3 +229,4 @@ agent_preferences
   - 记忆整理失败：失败时什么都不写（以前会用调用前读到的 `state` 覆盖并发写入）；`ai.output_invalid`、`ai.context_too_long` 这类重试也不会变的错误直接跳过这一段，服务商不可达等暂时性错误下一轮重读同样的内容，由 `LOOKBACK`（7 天）兜底。
   - 扫描页图片改用 M07 的 `render_isolated`（子进程，带时间和内存上限）；渲染失败的页写明"无法显示"，结果同样缓存，每次请求一致。缓存命中的页在任何 await 之前取出。
   - tool call id 不改写：id 由服务商给出，同一会话里可能重复（Kimi K2 按回答编号 `functions.add:0`）。配对与 Pydantic AI 一致：结果只回答它之前最近的、还没有结果的同 id 调用；`history.open_calls` 只看最后一条回答之后的结果，卡片按"所属回答 + call id"找（`history.open_proposals`），读回截断结果取最新的一条；前端 `transcript.pairCalls` 同样配对。同一条回答里两个调用同 id 不区分。
+- **全仓审查修复**（2026-11-08）：`agent_attachments.sent_at`（迁移 `0040`，按已有消息回填）在消息第一次带上附件时写入，每小时的未发送附件清理只查 `sent_at IS NULL`，删除附件时也据此判断是否已发送，不再扫描全部消息；`POST /agent/attachments` 用 `limit_upload` 边收边数；流式请求（发送、决定、重新生成、跟随回合）经 `app/api.ts` 的 `fetchWithReauth`，会话过期时和生成客户端一样弹出重新登录、成功后重发；历史列表里重命名、置顶只把返回的会话写进该会话详情的缓存并失效列表，不再重拉所有会话（正在流式输出的回答不会丢）。

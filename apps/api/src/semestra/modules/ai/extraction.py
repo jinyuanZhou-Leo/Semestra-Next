@@ -246,13 +246,15 @@ def _segments(texts: Sequence[PageText], images: Sequence[Image], budget: int) -
                 segments.append(current)
                 current = _Segment()
             current.pages.append(piece)
+    # A scanned page keeps its page number, so its evidence points at the page; other images
+    # are numbered in order.
     for index, image in enumerate(images, start=1):
         if current.images and (
             len(current.images) >= IMAGES_PER_SEGMENT or current.tokens() + IMAGE_TOKENS > budget
         ):
             segments.append(current)
             current = _Segment()
-        current.images.append((index, image))
+        current.images.append((image.page or index, image))
     if current.pages or current.images:
         segments.append(current)
     return segments
@@ -315,7 +317,7 @@ def _messages(
         body = "\n\n".join(f"[page {p.page}]\n{p.text}" for p in segment.pages)
         parts.append(Text(wrap_untrusted(body, label)))
     for number, image in segment.images:
-        parts.append(Text(f"[image {number}]"))
+        parts.append(Text(f"[page {number}]" if image.page else f"[image {number}]"))
         parts.append(image)
     return [Message.system(system), Message("user", parts)]
 

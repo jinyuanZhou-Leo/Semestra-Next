@@ -35,6 +35,8 @@ class Text:
 class Image:
     data: bytes
     mime: str  # image/png, image/jpeg, image/webp, image/gif
+    # The document page it shows (a scanned page among text pages), for `extract`'s evidence.
+    page: int | None = None
 
 
 @dataclass(frozen=True)

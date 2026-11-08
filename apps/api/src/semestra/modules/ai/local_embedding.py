@@ -13,6 +13,7 @@ without it is not a model yet.
 """
 
 import contextlib
+import importlib.metadata
 import importlib.util
 import json
 import os
@@ -81,7 +82,7 @@ PRESETS: dict[str, Preset] = {
     ),
 }
 DEFAULT = "multilingual-e5-small"
-# Chunks are far shorter than any model's limit; longer input only costs time.
+# The longest input given to a model (longer input only costs time); M07 sizes its chunks to fit.
 MAX_TOKENS = 512
 
 # Files a model may need besides the ONNX graph; only those present are fetched.
@@ -236,9 +237,21 @@ def _api() -> Any:  # huggingface_hub is optional
 
 
 def _gpu_device(settings: Settings) -> bool:
-    from semestra.modules.ai.local_embedding_runtime import device
+    """Whether models run on CUDA: as configured, or on "auto" when ONNX Runtime's GPU build
+    (the `local-cuda` extra) is installed, as its child process decides. Read from the package
+    metadata, so the API process does not load ONNX Runtime."""
+    if settings.local_embedding_device != "auto":
+        return settings.local_embedding_device == "cuda"
+    return _gpu_build()
 
-    return device(settings.local_embedding_device) != "cpu"
+
+@cache
+def _gpu_build() -> bool:
+    try:
+        importlib.metadata.distribution("onnxruntime-gpu")
+    except importlib.metadata.PackageNotFoundError:
+        return False
+    return True
 
 
 def plan(settings: Settings, model: str) -> _Plan:

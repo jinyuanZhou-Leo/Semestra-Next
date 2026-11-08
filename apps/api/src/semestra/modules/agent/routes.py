@@ -176,6 +176,7 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         att = owned.get(att_id)
         if att is None:
             raise not_found()
+        att.sent_at = att.sent_at or ctx.now
         blocks.append(
             {
                 "type": "image_ref" if att.kind == "image" else "file_ref",

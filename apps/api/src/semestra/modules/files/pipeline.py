@@ -15,11 +15,11 @@ import anyio.to_thread
 import structlog
 from sqlalchemy import ColumnElement, func, select, update
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.core.jobs import CoreJob, JobCancelled, JobCtx
+from semestra.core.jobs import CoreJob, JobCancelled, JobCtx, enqueue
 from semestra.core.storage import Storage
 from semestra.modules import ai
 from semestra.modules.files import chunking, indexing, service
@@ -40,7 +40,7 @@ from semestra.modules.files.parse.isolated import (
     render_isolated,
 )
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
-from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
+from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
 log = structlog.get_logger()
 
@@ -284,12 +284,33 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
     await ctx.check_cancelled()
 
     # --- vectors -------------------------------------------------------------------------
-    space = await _embed(ctx, work, chunk_refs)
+    embedded = await _embed(ctx, work, chunk_refs)
+    space = embedded[0] if embedded else None
     await ctx.check_cancelled()
 
     # --- switch to the new document ------------------------------------------------------
     await _activate(ctx, work, space, detected.mime, len(parsed.pages))
+    if embedded is not None:
+        await _rebuild_if_model_changed(ctx, *embedded)
     return len(parsed.pages)
+
+
+async def _rebuild_if_model_changed(ctx: JobCtx, space: str, dim: int) -> None:
+    """The user changed their embedding model while this document was embedded: the rebuild that
+    the change started skipped it (it was not active yet), so it is rebuilt now."""
+    try:
+        kind, model = await ai.embedding_model(ctx)
+    except AppError:
+        return  # no model any more: nothing to rebuild with
+    if fingerprint(kind, model, dim) == space:
+        return
+    from semestra.modules.files.jobs import ReindexPayload  # the jobs import this module
+
+    async def rebuild(user_ctx: Ctx) -> None:
+        payload = ReindexPayload(retry=True)
+        await enqueue(user_ctx, "files.reindex_vectors", payload, dedupe_key="reindex")
+
+    await run_as_system(ctx.state, ctx.user_id, rebuild)
 
 
 async def _once(data: bytes):
@@ -418,9 +439,10 @@ async def _ocr(
 
 async def _embed(
     ctx: JobCtx, work: _Work, refs: Sequence[tuple[str, list[str], str]]
-) -> str | None:
-    """Embeds the new chunks. Without an embedding model, or if it fails, the document is still
-    searchable by keyword and a later reindex adds the vectors."""
+) -> tuple[str, int] | None:
+    """Embeds the new chunks; returns their space and dimensions. Without an embedding model, or
+    if it fails, the document is still searchable by keyword and a later reindex adds the
+    vectors."""
     store = get_vector_store()
     if not refs or not await ai.available(ctx, "embedding"):
         # A local model still to download: fetched in its own job, which then adds the vectors.
@@ -433,6 +455,7 @@ async def _embed(
             return None
     batches = [refs[i : i + BATCH_SIZE] for i in range(0, len(refs), BATCH_SIZE)]
     space: str | None = None
+    dim = 0
     try:
         for number, batch in enumerate(batches):
             await ctx.check_cancelled()
@@ -451,7 +474,7 @@ async def _embed(
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
         return None
-    return space
+    return (space, dim) if space is not None else None
 
 
 async def _store_vectors(

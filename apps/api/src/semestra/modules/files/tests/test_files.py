@@ -8,6 +8,7 @@ import pytest
 
 from semestra.core.config import Settings
 from semestra.modules.files.tests.conftest import (
+    DIM,
     SYLLABUS,
     FakeAi,
     Fx,
@@ -620,6 +621,39 @@ async def test_semantic_search_within_files_and_repeated_queries(
     assert fake_ai.embed_calls == []  # the query was embedded by the first search
 
 
+async def test_a_query_the_search_stopped_waiting_for_is_kept(
+    fx: Fx, fake_ai: FakeAi, monkeypatch: pytest.MonkeyPatch
+):
+    import asyncio
+
+    from semestra.modules import ai
+    from semestra.modules.files import embeddings
+
+    fake_ai.enabled.add("embedding")
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    embed, ready, queries = ai.embed, asyncio.Event(), []
+
+    async def slow_query(ctx: Any, texts: list[str], **options: Any) -> Any:
+        if options.get("query"):
+            queries.append(texts)
+            await ready.wait()  # a local model still loading, say
+        return await embed(ctx, texts, **options)
+
+    monkeypatch.setattr(ai, "embed", slow_query)
+    monkeypatch.setattr(embeddings, "QUERY_SECONDS", 0.05)
+    first = await fx.search("grading midterm", mode="semantic")
+    again = await fx.search("grading midterm", mode="semantic")
+    assert (first["mode_used"], again["mode_used"]) == ("keyword", "keyword")
+    ready.set()
+    for _ in range(100):
+        await asyncio.sleep(0.01)
+        if (await fx.search("grading midterm", mode="semantic"))["mode_used"] == "semantic":
+            break
+    else:
+        raise AssertionError("the query's vector never arrived")
+    assert len(queries) == 1  # embedded once, by the first search
+
+
 async def test_search_rebuilds_vectors_left_in_an_old_space(fx: Fx, fake_ai: FakeAi):
     fake_ai.enabled.add("embedding")
     await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
@@ -965,6 +999,21 @@ async def test_reindex_skips_documents_already_in_the_current_space(fx: Fx, fake
     )
     await fx.run_jobs()
     assert fake_ai.embed_calls == [["semestra"]]  # only the probe
+
+
+async def test_a_document_embedded_while_the_model_changed_is_rebuilt(fx: Fx, fake_ai: FakeAi):
+    from semestra.modules.files.vectors import fingerprint, get_vector_store
+
+    fake_ai.enabled.add("embedding")
+
+    def switch(fake: FakeAi) -> None:  # the user picks another model while the file is embedded
+        fake.model, fake.after_embed = "embed-2", None
+
+    fake_ai.after_embed = switch
+    await fx.upload_ready("syllabus.pdf", make_pdf(SYLLABUS))
+    store = get_vector_store()
+    async with fx.app.state.session_factory() as db:
+        assert await store.spaces(db) == [fingerprint("fake", "embed-2", DIM)]
 
 
 async def test_reindex_starts_over_when_the_model_changes_midway(fx: Fx, fake_ai: FakeAi):

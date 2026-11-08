@@ -150,7 +150,9 @@ async def read_upload(
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return texts, [ai.Image(png, "image/png") for png in pngs]
+    return texts, [
+        ai.Image(png, "image/png", page=index + 1) for index, png in zip(scans, pngs, strict=True)
+    ]
 
 
 async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Image]:

@@ -170,3 +170,5 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
   - 流式请求只把流本身抛出的异常映射成 M06 错误（`SemestraModel.request_stream` 包住 Pydantic AI 构造事件迭代器的 `_get_event_iterator`，在取消保护与请求时限之内）；调用方在 `async with` 块里的代码（Sem 存增量、Pydantic AI 校验输出）抛的异常原样传出，用量照记，不算服务商故障。
   - 服务商健康（`last_error_code`/`last_checked_at`）只在结果变化或距上次写入超过 `runtime.HEALTH_REFRESH`（15 分钟）时写库，写入不改 `updated_at`（它是模型列表缓存的键），且不会覆盖更晚的检查结果；测试服务商或换密钥后 `forget_provider` 让下一次调用重新写入。
   - 本机 embedding 子进程对单个请求的失败（模型加载不了、某批推理出错）只回 `("error", 原因, 已加载的模型)`，父进程只让这次调用失败（`ai.local_model_failed`），不重启子进程；只有超时、EOF、OSError 才重启。已加载模型列表以子进程回报为准。
+  - 本机 embedding 的 `auto` 设备在子进程里决定（主进程不再为此加载 onnxruntime；下载时选哪个 ONNX 文件看是否装了 `onnxruntime-gpu`）；空闲回收线程常驻，不会因竞态漏掉新起的子进程。
+  - `Image.page`：混排 PDF 的扫描页带原始页码，`extract` 标成 `[page N]`，出处指向正确的页；其他图片仍是 `[image N]`。

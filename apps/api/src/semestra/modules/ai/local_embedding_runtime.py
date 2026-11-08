@@ -20,7 +20,6 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Sequence
-from functools import cache
 from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from pathlib import Path
@@ -37,34 +36,12 @@ from semestra.core.errors import AppError
 log = structlog.get_logger(__name__)
 
 type Kind = Literal["query", "passage"]
-type Device = Literal["cpu", "cuda"]
 
 # Seconds a model may take to load (from disk; downloads happen before), and per batch. The
 # batch limit only catches a stuck child: Qwen3 in fp16 takes ~11 s a batch on an M3 and may be
 # ten times slower on a small VPS, and a timeout kills the child (so the next batch reloads).
 LOAD_SECONDS = 300
 BATCH_SECONDS = 600
-_PROVIDERS: dict[Device, str] = {"cuda": "CUDAExecutionProvider", "cpu": "CPUExecutionProvider"}
-
-
-@cache
-def _available_providers() -> tuple[str, ...]:
-    try:
-        import onnxruntime  # pyright: ignore[reportMissingImports]
-    except ImportError:
-        return ()
-    return tuple(onnxruntime.get_available_providers())
-
-
-def device(setting: str) -> Device:
-    """The device a model runs on: the one configured, or CUDA when ONNX Runtime has it.
-
-    There is no Core ML (Mac GPU) option: on an M3 (2026-11-04) ONNX Runtime split e5-small into
-    38 Core ML partitions and inference took tens of gigabytes of swap until it was killed, while
-    the CPU embeds about 22 chunks a second with the int8 model."""
-    if setting in ("cpu", "cuda"):
-        return setting  # pyright: ignore[reportReturnType]
-    return "cuda" if _PROVIDERS["cuda"] in _available_providers() else "cpu"
 
 
 def threads(setting: int) -> int:
@@ -130,15 +107,15 @@ class _Runtime:
         self._loaded = []
 
     def _reap(self) -> None:
+        # Runs as long as the API does: one that ended with its process could miss the next one,
+        # started while it was ending.
         while True:
             time.sleep(min(30.0, self._idle_seconds / 2))
             with self._lock:
-                if self._process is None:
-                    return
-                if time.monotonic() - self._last_used > self._idle_seconds:
+                idle = time.monotonic() - self._last_used > self._idle_seconds
+                if self._process is not None and idle:
                     log.info("local_embedding_idle_exit")
                     self._stop()
-                    return
 
     def _ask(self, conn: Connection, message: tuple[object, ...], seconds: float) -> object:
         conn.send(message)
@@ -200,7 +177,7 @@ class _Runtime:
             load = (
                 "load",
                 str(folder),
-                device(settings.local_embedding_device),
+                settings.local_embedding_device,  # "auto" is decided in the child
                 threads(settings.local_embedding_threads),
                 keep,
             )
