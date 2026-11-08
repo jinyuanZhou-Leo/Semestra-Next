@@ -87,15 +87,21 @@ export function useFilesUsage() {
   return useQuery(filesUsageGetOptions())
 }
 
-function operationId(queryKey: readonly unknown[]): string {
-  // oxlint-disable-next-line no-underscore-dangle -- hey-api's query key field
-  return String((queryKey[0] as { _id?: unknown } | undefined)?._id ?? '')
-}
+type FilesKey = { _id?: unknown; path?: { course_id?: unknown } }
 
-/** Refetch everything the files module shows, after a change made from this tab. */
-export function invalidateFiles(queryClient: QueryClient) {
+/**
+ * Refetch what a change to one course's files made from this tab can affect: that course's
+ * list, and the file, search and storage queries (other courses' lists stay).
+ */
+export function invalidateFiles(queryClient: QueryClient, courseId: string) {
   return queryClient.invalidateQueries({
-    predicate: (query) => operationId(query.queryKey).startsWith('files'),
+    predicate: (query) => {
+      const key = query.queryKey[0] as FilesKey | undefined
+      // oxlint-disable-next-line no-underscore-dangle -- hey-api's query key field
+      const id = String(key?._id ?? '')
+      if (id === 'filesItemList') return key?.path?.course_id === courseId
+      return id.startsWith('files')
+    },
   })
 }
 

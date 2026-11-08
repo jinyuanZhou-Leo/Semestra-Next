@@ -70,6 +70,7 @@ export function SuggestionChips({
     }),
     // Deadlines and grades change without an event for this list.
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
   // Holds the row's height while loading, so the input does not jump.
   if (!data) return <div className="h-8" aria-hidden />

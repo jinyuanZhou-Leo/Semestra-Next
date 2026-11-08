@@ -165,4 +165,6 @@ export default defineModule({
       (data) => (data.namespace === 'grading' ? ['gradingSummaryTerm'] : []),
     ],
   },
+  // Every grading change this tab makes refreshes the grading queries itself (`invalidateGrading`).
+  realtimeSkipOwn: GRADING_EVENTS.filter((event) => event.startsWith('grading.')),
 })

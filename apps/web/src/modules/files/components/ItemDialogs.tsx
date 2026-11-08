@@ -26,7 +26,10 @@ export type ItemAction =
 
 function useFilesMutation<T>(options: T) {
   const queryClient = useQueryClient()
-  return { ...options, onSuccess: () => invalidateFiles(queryClient) }
+  return {
+    ...options,
+    onSuccess: (saved: { course_id: string }) => invalidateFiles(queryClient, saved.course_id),
+  }
 }
 
 function DeleteDialog({

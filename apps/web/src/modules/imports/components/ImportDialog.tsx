@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
-import { invalidateAfterCommit, storeSession, useImportSession } from '../queries'
+import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
 import type { ImportOutcome, ImportRequest } from '../types'
 import { ExtractionDone, SessionView } from './SessionView'
@@ -101,7 +101,6 @@ export function ImportDialog({
     }
     onClose({ session: detail })
     toast.success(m.imports_saved({ count: savedCount(detail) }))
-    await invalidateAfterCommit(queryClient)
   }
 
   return (

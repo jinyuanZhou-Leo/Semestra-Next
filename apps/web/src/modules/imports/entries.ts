@@ -1,5 +1,4 @@
 import { importsSessionCommit } from '@semestra/api-client'
-import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
   CourseDraft,
@@ -19,19 +18,12 @@ import type { CourseData, ImportOutcome, ImportRequest, ImportSourceKind } from 
  * opens the import dialog through `openImport` and resolves when the user closes it.
  */
 
-let queryClient: QueryClient | null = null
-
-/** The import host hands over the app's query client, for writes made after the dialog closed. */
-export function setImportQueryClient(client: QueryClient | null) {
-  queryClient = client
-}
-
 type Extras = { importSessionId: string; importItemId: string }
 
 /**
  * After an import that saves at once when nothing needs a decision (M08 §5, e.g. assignments
- * picked on Canvas): either it was saved, so everything refetches and a toast says so, or the
- * review opens. Resolves when that is done.
+ * picked on Canvas): either it was saved (its writes' events refetch what they changed) and a
+ * toast says so, or the review opens. Resolves when that is done.
  */
 export async function reviewIfNeeded({
   programId,
@@ -48,7 +40,6 @@ export async function reviewIfNeeded({
 }): Promise<ImportOutcome> {
   if (!committed)
     return openImport({ programId, mode: 'direct', source: 'session', sessionId, title })
-  await queryClient?.invalidateQueries()
   toast.success(saved())
   return null
 }
@@ -122,7 +113,6 @@ export function wizardImportSource({
         })
         failed += data.failed
       }
-      await queryClient?.invalidateQueries()
       if (failed > 0) toast.error(m.imports_commit_partial({ failed }))
     },
   }

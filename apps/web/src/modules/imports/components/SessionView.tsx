@@ -25,7 +25,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { issueSummary } from '../labels'
-import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
+import { settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
 import { useWorthKeeping } from './worth-keeping'
@@ -176,7 +176,6 @@ export function SessionView({
     try {
       const result = await commit.mutateAsync({ path: { session_id: session.id }, body })
       storeSession(queryClient, result.session)
-      await invalidateAfterCommit(queryClient)
       if (result.failed > 0) {
         toast.error(m.imports_commit_partial({ failed: result.failed }))
       } else {

@@ -370,6 +370,7 @@ def _endpoint_for(cap: Capability, reg: Registry) -> Callable[..., Awaitable[Any
         if body is not None:
             # Keep explicit nulls: for PATCH-style inputs "set to null" differs from "absent".
             raw.update({k: getattr(body, k) for k in body.model_fields_set})
+        ctx.origin_module = cap.name.split(".", 1)[0]
         out = await reg.invoke(ctx, cap.name, raw, "http")
         await ctx.db.commit()
         await run_after_commit(ctx)

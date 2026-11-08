@@ -188,13 +188,12 @@ export function emptyDetail(session: AgentSessionDetail['session']): AgentSessio
 
 /**
  * The conversation query for every component that shows it: they share one cache entry, and
- * streamed events are applied to it, so none may refetch it on its own while a turn runs.
+ * streamed events are applied to it.
  */
 export function sessionQueryOptions(sessionId: string | null) {
   return {
     ...agentSessionGetOptions({ path: { id: sessionId ?? '' } }),
     enabled: sessionId !== null,
-    refetchOnWindowFocus: false,
   }
 }
 
@@ -223,10 +222,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   const [clientKey] = useState(newClientKey)
   const sending = useRef(false)
 
-  const detail = useQuery({
-    ...sessionQueryOptions(sessionId),
-    refetchOnWindowFocus: !busy,
-  })
+  const detail = useQuery(sessionQueryOptions(sessionId))
 
   /**
    * Runs one streaming request; false when it failed before the turn started. `onCompaction`

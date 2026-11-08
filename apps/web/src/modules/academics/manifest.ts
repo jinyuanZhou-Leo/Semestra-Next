@@ -185,4 +185,6 @@ export default defineModule({
   ],
   uiPrefPrefixes: ['academics.', 'onboarding.'],
   realtimeInvalidations: Object.fromEntries(EVENTS.map((event) => [event, ACADEMICS_QUERIES])),
+  // Every change this tab makes to Programs, terms or courses calls `invalidateAcademics`.
+  realtimeSkipOwn: EVENTS,
 })

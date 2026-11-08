@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'react'
 import { eventsStreamUrl } from '@/lib/api-extras'
 import { CLIENT_ID } from './api'
 import type { InvalidationTarget, QueryMatch } from './extensions'
-import { mergeInvalidations, mergeSkipOwn, useModules } from './registry'
+import { mergeInvalidations, useModules } from './registry'
 
 /**
  * Live updates (M00 §4.7): the API pushes `{type, data, origin?}` over SSE when the user's data
@@ -102,10 +102,15 @@ function invalidate(queryClient: QueryClient, pending: Pending) {
   )
 }
 
+type Invalidations = Readonly<Record<string, readonly InvalidationTarget[]>>
+
 export type RealtimeConfig = {
-  invalidations: Readonly<Record<string, readonly InvalidationTarget[]>>
-  /** Event types skipped when this tab caused them (`ModuleManifest.realtimeSkipOwn`). */
-  skipOwn?: ReadonlySet<string>
+  invalidations: Invalidations
+  /**
+   * What events this tab caused refetch (`origin` is this tab): `invalidations` without the
+   * modules' `realtimeSkipOwn` entries. Defaults to `invalidations`.
+   */
+  own?: Invalidations
 }
 
 /**
@@ -141,10 +146,9 @@ export function connectRealtime(
     } else {
       if (message.type === JOB_PROGRESS)
         applyJobProgress(queryClient, message.data as JobProgressEvent)
-      const { invalidations, skipOwn } = read()
-      const targets = invalidations[message.type]
+      const { invalidations, own = invalidations } = read()
+      const targets = (message.origin === CLIENT_ID ? own : invalidations)[message.type]
       if (!targets?.length) return
-      if (message.origin === CLIENT_ID && skipOwn?.has(message.type)) return
       collect(pending, targets, (message.data ?? {}) as Record<string, unknown>)
     }
     timer ??= setTimeout(flush, COALESCE_MS)
@@ -161,7 +165,10 @@ export function useRealtime() {
   const modules = useModules()
   const config = useRef<RealtimeConfig>({ invalidations: {} })
   useEffect(() => {
-    config.current = { invalidations: mergeInvalidations(modules), skipOwn: mergeSkipOwn(modules) }
+    config.current = {
+      invalidations: mergeInvalidations(modules),
+      own: mergeInvalidations(modules, { own: true }),
+    }
   }, [modules])
   // One connection for the session: installing a plugin only changes what events refetch.
   useEffect(() => connectRealtime(queryClient, () => config.current), [queryClient])

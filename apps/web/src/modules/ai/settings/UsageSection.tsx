@@ -423,6 +423,7 @@ export function UsageSection() {
     }),
     // Every chat adds usage without an event, so opening this page asks again.
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     placeholderData: keepPreviousData,
   })
   const detail = useQuery({
@@ -431,6 +432,7 @@ export function UsageSection() {
     }),
     enabled: selection !== null,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     placeholderData: keepPreviousData,
   })
 

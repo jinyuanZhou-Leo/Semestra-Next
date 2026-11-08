@@ -39,7 +39,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 // (M13 §7). The quota covers what modules store (`core.storage.get`): course files, Sem
 // attachments, uploads waiting in an import. Nothing here pushes an event, so it asks again on open.
 
-const FRESH = { refetchOnMount: 'always' } as const
+const FRESH = { refetchOnMount: 'always', refetchOnWindowFocus: true } as const
 
 /** Storage modules in the order they are drawn; others (none today) follow under their id. */
 const MODULES: Record<string, { label: () => string; color: string }> = {

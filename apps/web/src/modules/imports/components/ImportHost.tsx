@@ -1,7 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { type ComponentProps, Suspense, useEffect } from 'react'
+import { type ComponentProps, Suspense } from 'react'
 import { preloadable } from '@/app/extensions'
-import { setImportQueryClient } from '../entries'
 import { finishImport, useOpenImport } from '../launcher'
 import type { ImportDialog as Dialog } from './ImportDialog'
 
@@ -12,12 +10,7 @@ const ImportDialog = preloadable<ComponentProps<typeof Dialog>>(() =>
 
 /** Renders the import dialog an import source opened (an app-wide overlay, see `launcher.ts`). */
 export function ImportHost() {
-  const queryClient = useQueryClient()
   const open = useOpenImport()
-  useEffect(() => {
-    setImportQueryClient(queryClient)
-    return () => setImportQueryClient(null)
-  }, [queryClient])
   if (!open) return null
   return (
     <Suspense fallback={null}>

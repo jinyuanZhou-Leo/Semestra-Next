@@ -125,5 +125,12 @@ export default defineModule({
     ...Object.fromEntries(
       LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
     ),
+    // An import committed: what the course reports as new, and its assignments' "imported as".
+    'lms.course.imports_recorded': [
+      (data) => [
+        ...LMS_STATE_QUERIES,
+        { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
+      ],
+    ],
   },
 })

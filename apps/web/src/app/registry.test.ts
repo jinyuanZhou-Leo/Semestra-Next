@@ -2,7 +2,7 @@ import { lazy } from 'react'
 import { expect, test, vi } from 'vitest'
 import { layoutsBoardGetOptions, pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { QueryClient } from '@tanstack/react-query'
-import { builtInModules, installedModules, preloadPage } from './registry'
+import { builtInModules, installedModules, mergeInvalidations, preloadPage } from './registry'
 import { preloadable } from './extensions'
 import type { ModuleManifest } from './extensions'
 
@@ -188,4 +188,17 @@ test('preloadPage waits until the page code has loaded', async () => {
   finish()
   await loading
   expect(done).toBe(true)
+})
+
+test("a module skipping its own echo still leaves other modules' refetches", () => {
+  const modules = [
+    {
+      id: 'a',
+      realtimeInvalidations: { 'a.changed': ['aGet'] },
+      realtimeSkipOwn: ['a.changed'],
+    },
+    { id: 'b', realtimeInvalidations: { 'a.changed': ['bGet'] } },
+  ] as unknown as ModuleManifest[]
+  expect(mergeInvalidations(modules)).toEqual({ 'a.changed': ['aGet', 'bGet'] })
+  expect(mergeInvalidations(modules, { own: true })).toEqual({ 'a.changed': ['bGet'] })
 })

@@ -343,16 +343,26 @@ export type CalendarSourceContribution = {
   ) => void
   /**
    * Items can be checked off: a checkbox on the item and in its details (status `done` when
-   * finished). Resolves once saved.
+   * finished). Resolves once saved; the source refreshes its own queries, since the change's
+   * event is an echo of this tab (M00 §4.7).
    */
-  complete?: (occurrence: Occurrence, completed: boolean) => Promise<unknown>
+  complete?: (
+    occurrence: Occurrence,
+    completed: boolean,
+    queryClient: QueryClient,
+  ) => Promise<unknown>
   /**
    * Items can be dragged to another day or time (`time` null: all day). An item it returns false
-   * for stays put, e.g. a task whose date follows an assessment. Resolves once saved.
+   * for stays put, e.g. a task whose date follows an assessment. Resolves once saved, with the
+   * source's queries refreshed as for `complete`.
    */
   reschedule?: {
     allowed: (occurrence: Occurrence) => boolean
-    save: (occurrence: Occurrence, due: { date: string; time: string | null }) => Promise<unknown>
+    save: (
+      occurrence: Occurrence,
+      due: { date: string; time: string | null },
+      queryClient: QueryClient,
+    ) => Promise<unknown>
   }
   /** Items can be created from the calendar: a choice next to "event" in its new dialog. */
   create?: { label: Message; form: Preloadable<CalendarCreateProps> }

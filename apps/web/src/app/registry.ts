@@ -282,14 +282,20 @@ export function useExtensions<T>(point: string): T[] {
   return useModules().flatMap((m) => (m.extensions?.[point] ?? []) as readonly T[])
 }
 
+/**
+ * Every module's `realtimeInvalidations`, merged by event type. With `own`, the result is for
+ * events this tab caused: each module's `realtimeSkipOwn` types are left out of its own entries,
+ * so one module opting out does not stop another from refetching.
+ */
 export function mergeInvalidations(
   modules: readonly ModuleManifest[],
-  base: Readonly<Record<string, readonly InvalidationTarget[]>> = {},
+  { own = false }: { own?: boolean } = {},
 ): Record<string, InvalidationTarget[]> {
   const merged: Record<string, InvalidationTarget[]> = {}
-  for (const map of [base, ...modules.map((m) => m.realtimeInvalidations ?? {})]) {
-    for (const [type, prefixes] of Object.entries(map)) {
-      merged[type] = [...(merged[type] ?? []), ...prefixes]
+  for (const module of modules) {
+    const skipped = new Set(own ? (module.realtimeSkipOwn ?? []) : [])
+    for (const [type, targets] of Object.entries(module.realtimeInvalidations ?? {})) {
+      if (!skipped.has(type)) merged[type] = [...(merged[type] ?? []), ...targets]
     }
   }
   return merged
@@ -301,8 +307,4 @@ const HOST_UI_PREF_PREFIXES = ['layout.', 'commands.']
 /** What the signed-in layout prefetches: the host's prefixes and every module's own. */
 export function uiPrefPrefixes(modules: readonly ModuleManifest[] = builtInModules): string[] {
   return [...new Set([...HOST_UI_PREF_PREFIXES, ...modules.flatMap((m) => m.uiPrefPrefixes ?? [])])]
-}
-
-export function mergeSkipOwn(modules: readonly ModuleManifest[]): Set<string> {
-  return new Set(modules.flatMap((m) => m.realtimeSkipOwn ?? []))
 }
