@@ -235,12 +235,19 @@ class SectionTime(MeetingTime):
 
 class SectionSaveInput(SectionFields):
     """The app's section editor: the section with all its times in one change. Times with a
-    meeting_id update it, the others are added, and the section's meetings left out go."""
+    meeting_id update it, the others are added, and the section's meetings left out go. A code
+    another section already has fails, or with `merge` joins that section."""
 
     course_id: Id = Field(description="Course id")
     section_id: Id | None = Field(default=None, description="The section edited; null adds one")
     weeks: SectionWeeks = Field(default_factory=SectionWeeks, description="Weeks of all times")
     times: list[SectionTime] = Field(min_length=1, max_length=20, description="Its weekly times")
+    merge: bool = Field(
+        default=False,
+        description="When another section of the course has the code in the term: move the times "
+        "into it (they take its weeks) and delete this section, instead of failing with "
+        "schedule.section_exists",
+    )
 
 
 class MeetingCreateInput(MeetingTime):

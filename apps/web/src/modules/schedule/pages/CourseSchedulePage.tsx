@@ -130,7 +130,7 @@ function TermSchedule({
   const eventEdit = useDialogTarget<OneOffEvent | 'new'>()
   const exceptionAdd = useDialogTarget<true>()
   const sectionAdd = useDialogTarget<true>()
-  const sectionEdit = useDialogTarget<{ section: Section; withNewTime: boolean }>()
+  const sectionEdit = useDialogTarget<Section>()
   const sectionDelete = useDialogTarget<Section>()
   const removeSection = useMutation({
     ...scheduleSectionDeleteMutation(),
@@ -265,7 +265,7 @@ function TermSchedule({
               onToggle={toggle}
               onKeepOnly={keepOnly}
               onEdit={(section, meeting) => editing.show({ section, meeting })}
-              onEditSection={(section, withNewTime) => sectionEdit.show({ section, withNewTime })}
+              onEditSection={sectionEdit.show}
               onDeleteSection={sectionDelete.show}
             />
           </>
@@ -361,19 +361,20 @@ function TermSchedule({
           programId={programId}
           courseId={course.id}
           termId={termId}
+          sections={sections}
           typeCode={types[0]?.code ?? 'LEC'}
           {...sectionAdd.props}
         />
       ) : null}
       {sectionEdit.target ? (
         <SectionDialog
-          key={sectionEdit.target.section.id}
+          key={sectionEdit.target.id}
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.target.section.type_code}
-          section={sectionEdit.target.section}
-          withNewTime={sectionEdit.target.withNewTime}
+          sections={sections}
+          typeCode={sectionEdit.target.type_code}
+          section={sectionEdit.target}
           {...sectionEdit.props}
         />
       ) : null}

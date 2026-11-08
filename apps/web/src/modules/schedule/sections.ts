@@ -21,3 +21,20 @@ export function weeksText(s: Section): string {
     ? `${m.schedule_recurrence_biweekly()} (${m.schedule_week_number({ number: s.anchor_week })}) · ${range}`
     : range
 }
+
+/**
+ * The code a new section of `type` most likely has: the next number after the type's sections
+ * ("LEC0101", "LEC0102" → "LEC0103"), keeping their prefix and width; "LEC0101" for the first.
+ */
+export function nextSectionCode(type: string, sections: readonly Section[]): string {
+  let best: { prefix: string; digits: string; n: number } | undefined
+  for (const s of sections) {
+    if (s.type_code !== type) continue
+    const match = /^(.*?)(\d+)$/.exec(s.section_code)
+    if (!match) continue
+    const n = Number(match[2])
+    if (!best || n > best.n) best = { prefix: match[1]!, digits: match[2]!, n }
+  }
+  if (!best) return `${type}0101`
+  return `${best.prefix}${String(best.n + 1).padStart(best.digits.length, '0')}`
+}

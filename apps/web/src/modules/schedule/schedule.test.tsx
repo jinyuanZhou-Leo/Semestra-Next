@@ -706,7 +706,8 @@ test('a new section is saved with all its times in one request', async () => {
   await screen.findByRole('button', { name: 'Actions for LEC0101' }, { timeout: 10_000 })
   await userEvent.click(screen.getByRole('button', { name: 'Add section' }))
   const dialog = await screen.findByRole('dialog', { name: 'Add section' })
-  await userEvent.type(within(dialog).getByLabelText('Section'), 'LEC0201')
+  // The code starts as the type's next one after LEC0101.
+  expect(within(dialog).getByLabelText('Section')).toHaveValue('LEC0102')
   // The second time starts from the first: the next day, same hours.
   await userEvent.click(within(dialog).getByRole('button', { name: 'Add a time' }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
@@ -719,7 +720,7 @@ test('a new section is saved with all its times in one request', async () => {
     weeks: unknown
     times: Array<{ meeting_id: string | null; weekday: number }>
   }
-  expect([body.section_id, body.section_code, body.type_code]).toEqual([null, 'LEC0201', 'LEC'])
+  expect([body.section_id, body.section_code, body.type_code]).toEqual([null, 'LEC0102', 'LEC'])
   // Weeks stay hidden on "Whole term": every week, breaks skipped.
   expect(body.weeks).toEqual({
     recurrence: 'weekly',
@@ -732,4 +733,40 @@ test('a new section is saved with all its times in one request', async () => {
     [null, 1],
     [null, 2],
   ])
+})
+
+test("editing a section into another section's code merges it after a confirmation", async () => {
+  const other = {
+    ...section,
+    id: 's2',
+    section_code: 'LEC0102',
+    meetings: [{ ...meeting, id: 'm2', section_id: 's2', weekday: 2 }],
+  }
+  server.use(
+    http.get(`${API}/courses/:id/sections`, () => HttpResponse.json({ items: [section, other] })),
+    http.put(`${API}/courses/:id/sections`, async ({ request }) => {
+      log.requests.push({
+        method: 'PUT',
+        path: new URL(request.url).pathname,
+        body: await request.json(),
+      })
+      return HttpResponse.json(section)
+    }),
+  )
+  mount('/p/p1/c/c1/schedule')
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Actions for LEC0102' }, { timeout: 10_000 }),
+  )
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit section' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Edit section' })
+  const code = within(dialog).getByLabelText('Section')
+  await userEvent.clear(code)
+  await userEvent.type(code, 'LEC0101')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Merge into LEC0101' }))
+  const confirm = await screen.findByRole('alertdialog', { name: 'Merge into LEC0101?' })
+  const saves = () => log.requests.filter((r) => r.path === '/courses/c1/sections')
+  expect(saves()).toHaveLength(0)
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Merge into LEC0101' }))
+  await waitFor(() => expect(saves()).toHaveLength(1))
+  expect(saves()[0]!.body).toMatchObject({ section_id: 's2', section_code: 'LEC0101', merge: true })
 })

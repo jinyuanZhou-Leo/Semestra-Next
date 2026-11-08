@@ -1079,3 +1079,77 @@ async def test_section_save_replaces_its_meetings_in_one_change(api: Api):
     await api.call("DELETE", f"/sections/{section['id']}")
     listed = (await api.call("GET", f"/courses/{course_id}/sections"))["items"]
     assert [s["id"] for s in listed] == [added["id"]]
+
+
+async def test_section_save_into_a_taken_code_fails_or_merges(api: Api):
+    _, term_id, course_id = await api.setup()
+    target = await api.section(course_id, term_id, section_code="LEC0101", instructor="")
+    source = await api.section(
+        course_id,
+        term_id,
+        section_code="LEC0102",
+        instructor="Korst",
+        recurrence="biweekly",
+        anchor_week=2,
+        start_week=2,
+        start_time="13:00",
+        end_time="14:00",
+    )
+    tue = source["meetings"][0]
+    url = f"/courses/{course_id}/sections"
+    body = {
+        "section_id": source["id"],
+        "term_id": term_id,
+        "section_code": "LEC0101",
+        "type_code": "LEC",
+        "instructor": "Korst",
+        "weeks": {"recurrence": "biweekly", "anchor_week": 2, "start_week": 2},
+        "times": [
+            {
+                "meeting_id": tue["id"],
+                "weekday": tue["weekday"],
+                "start_time": "13:00",
+                "end_time": "14:00",
+            },
+            {"weekday": 5, "start_time": "13:00", "end_time": "14:00"},
+        ],
+    }
+    # Renaming into a code another section has is refused (not a failed write) ...
+    err = await api.call("PUT", url, 409, json=body)
+    assert err["error"]["code"] == "schedule.section_exists"
+    # ... or, asked to, joins it: the times take its weeks, the emptied section goes.
+    merged = await api.call("PUT", url, json={**body, "merge": True})
+    assert merged["id"] == target["id"]
+    assert (merged["recurrence"], merged["instructor"]) == ("weekly", "Korst")
+    assert tue["id"] in {m["id"] for m in merged["meetings"]}
+    assert len(merged["meetings"]) == 3
+    listed = (await api.call("GET", url))["items"]
+    assert [s["id"] for s in listed] == [target["id"]]
+
+
+async def test_merging_a_duplicated_section_does_not_double_its_times(api: Api):
+    _, term_id, course_id = await api.setup()
+    target = await api.section(course_id, term_id, section_code="LEC0101")
+    copy = await api.section(course_id, term_id, section_code="LEC0102")
+    mt = copy["meetings"][0]
+    merged = await api.call(
+        "PUT",
+        f"/courses/{course_id}/sections",
+        json={
+            "section_id": copy["id"],
+            "term_id": term_id,
+            "section_code": "LEC0101",
+            "type_code": "LEC",
+            "merge": True,
+            "times": [
+                {
+                    "meeting_id": mt["id"],
+                    "weekday": mt["weekday"],
+                    "start_time": mt["start_time"],
+                    "end_time": mt["end_time"],
+                    "location": mt["location"],
+                }
+            ],
+        },
+    )
+    assert [m["id"] for m in merged["meetings"]] == [m["id"] for m in target["meetings"]]

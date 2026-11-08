@@ -2,7 +2,7 @@ import type { Section } from '@semestra/api-client'
 import { scheduleSectionSaveMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper, useTable } from '@tanstack/react-table'
-import { Clock2, Plus, Trash2 } from 'lucide-react'
+import { Clock2, Merge, Plus, Trash2 } from 'lucide-react'
 import { createContext, type FormEvent, use, useId, useState } from 'react'
 import {
   ActionRow,
@@ -11,9 +11,11 @@ import {
   SettingsGroup,
   settingsTableFeatures,
 } from '@/app/settings'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toastError } from '@/lib/errors'
 import { TIME_INPUT } from '@/lib/time-input'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import {
   Dialog,
@@ -38,7 +40,7 @@ import { Switch } from '@/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
-import { wholeTerm } from '../sections'
+import { nextSectionCode, wholeTerm } from '../sections'
 import { weekdayName } from '../time'
 
 /** A time row; `id` is the meeting it edits, absent for a new one. */
@@ -269,7 +271,7 @@ export function SectionDialog({
   termId,
   typeCode,
   section,
-  withNewTime = false,
+  sections,
   open,
   onOpenChangeComplete,
   onOpenChange,
@@ -280,8 +282,8 @@ export function SectionDialog({
   typeCode: string
   /** The section when editing it. */
   section?: Section
-  /** Opens with a new time after the section's own ("Add a time" of a section). */
-  withNewTime?: boolean
+  /** The course's sections in the term: a code one of them has merges into it. */
+  sections: readonly Section[]
   open: boolean
   /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
   onOpenChangeComplete?: (open: boolean) => void
@@ -292,11 +294,13 @@ export function SectionDialog({
   const types = useEventTypes(programId).data?.items ?? []
   const editing = section !== undefined
   const [type, setType] = useState(section?.type_code ?? typeCode)
-  const [code, setCode] = useState(section?.section_code ?? '')
+  // A new section starts with the type's next code; it follows the type until it is edited.
+  const [code, setCode] = useState(section?.section_code ?? nextSectionCode(typeCode, sections))
+  const [codeEdited, setCodeEdited] = useState(editing)
   const [instructor, setInstructor] = useState(section?.instructor ?? '')
   const [times, setTimes] = useState<Time[]>(() => {
     if (!section) return [nextTime([])]
-    const own = section.meetings.map((mt, key) => ({
+    return section.meetings.map((mt, key) => ({
       key,
       id: mt.id,
       weekday: String(mt.weekday),
@@ -304,7 +308,6 @@ export function SectionDialog({
       end: mt.end_time.slice(0, 5),
       location: mt.location ?? '',
     }))
-    return withNewTime ? [...own, nextTime(own)] : own
   })
   const [mode, setMode] = useState<WeeksMode>(section && !wholeTerm(section) ? 'custom' : 'term')
   const [recurrence, setRecurrence] = useState<'weekly' | 'biweekly'>(
@@ -325,6 +328,13 @@ export function SectionDialog({
     onSuccess: () => onOpenChange(false),
   })
 
+  const trimmed = code.trim()
+  const target = trimmed
+    ? sections.find(
+        (s) => s.id !== section?.id && s.type_code === type && s.section_code === trimmed,
+      )
+    : undefined
+
   const start = int(startWeek)
   const end = int(endWeek)
   const weeksInvalid =
@@ -334,7 +344,8 @@ export function SectionDialog({
   )
 
   const weeks = () => {
-    if (mode === 'term') {
+    // Merged times take the other section's weeks, so the hidden fields are not sent.
+    if (mode === 'term' || target) {
       return {
         recurrence: 'weekly' as const,
         anchor_week: null,
@@ -352,17 +363,28 @@ export function SectionDialog({
     }
   }
 
+  // Merging deletes this section, so it is confirmed first (M00 §4.8).
+  const [confirmMerge, setConfirmMerge] = useState(false)
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setTouched(true)
-    if (weeksInvalid || badTimes.size > 0) return
+    // Merged times take the other section's weeks; this dialog's weeks are not used then.
+    if ((weeksInvalid && !target) || badTimes.size > 0) return
+    if (target) setConfirmMerge(true)
+    else send()
+  }
+
+  const send = () =>
     save.mutate({
       path: { course_id: courseId },
       body: {
         section_id: section?.id ?? null,
         term_id: section?.term_id ?? termId,
         type_code: type,
-        section_code: code.trim(),
+        section_code: trimmed,
+        // A code another section has: the times join it (confirmed in the dialog).
+        merge: target !== undefined,
         instructor: instructor.trim() || null,
         weeks: weeks(),
         times: times.map((t) => ({
@@ -374,7 +396,6 @@ export function SectionDialog({
         })),
       },
     })
-  }
 
   const timesState: TimesState = {
     invalid: touched ? badTimes : new Set(),
@@ -411,7 +432,11 @@ export function SectionDialog({
                 <Select
                   value={type}
                   items={typeItems}
-                  onValueChange={(next) => next && setType(next)}
+                  onValueChange={(next) => {
+                    if (!next) return
+                    setType(next)
+                    if (!codeEdited) setCode(nextSectionCode(next, sections))
+                  }}
                 >
                   <SelectTrigger id={`${fid}-type`} className="w-full">
                     <SelectValue />
@@ -433,7 +458,10 @@ export function SectionDialog({
                   id={`${fid}-code`}
                   placeholder={`${type}0101`}
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    setCode(e.target.value)
+                    setCodeEdited(true)
+                  }}
                 />
               </Field>
               <Field>
@@ -445,6 +473,16 @@ export function SectionDialog({
                 />
               </Field>
             </div>
+
+            {target ? (
+              <Alert className="animate-in fade-in slide-in-from-top-1 duration-200">
+                <Merge aria-hidden />
+                <AlertTitle>{m.schedule_section_merge_title({ section: trimmed })}</AlertTitle>
+                <AlertDescription>
+                  {m.schedule_section_merge_description({ section: trimmed })}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
             <section aria-labelledby={`${fid}-times`} className="space-y-3">
               <h3 id={`${fid}-times`} className="text-sm font-medium">
@@ -460,99 +498,102 @@ export function SectionDialog({
               ) : null}
             </section>
 
-            <SettingsGroup>
-              <SettingRow label={m.schedule_weeks()}>
-                {(labelId) => (
-                  <ChoiceControl<WeeksMode>
-                    labelId={labelId}
-                    value={mode}
-                    onChange={setMode}
-                    options={modes}
-                  />
-                )}
-              </SettingRow>
-              {mode === 'custom'
-                ? [
-                    <SettingRow
-                      key="recurrence"
-                      label={m.schedule_recurrence()}
-                      className="animate-in fade-in slide-in-from-top-1 duration-200"
-                    >
-                      {(labelId) => (
-                        <div className="flex items-center gap-2">
-                          {recurrence === 'biweekly' ? (
-                            <Input
-                              type="number"
-                              min={1}
-                              aria-label={m.schedule_anchor_week()}
-                              className="w-20"
-                              value={anchorWeek}
-                              onChange={(e) => setAnchorWeek(e.target.value)}
+            {/* Merged times take the other section's weeks, so there is nothing to set here. */}
+            {target ? null : (
+              <SettingsGroup>
+                <SettingRow label={m.schedule_weeks()}>
+                  {(labelId) => (
+                    <ChoiceControl<WeeksMode>
+                      labelId={labelId}
+                      value={mode}
+                      onChange={setMode}
+                      options={modes}
+                    />
+                  )}
+                </SettingRow>
+                {mode === 'custom'
+                  ? [
+                      <SettingRow
+                        key="recurrence"
+                        label={m.schedule_recurrence()}
+                        className="animate-in fade-in slide-in-from-top-1 duration-200"
+                      >
+                        {(labelId) => (
+                          <div className="flex items-center gap-2">
+                            {recurrence === 'biweekly' ? (
+                              <Input
+                                type="number"
+                                min={1}
+                                aria-label={m.schedule_anchor_week()}
+                                className="w-20"
+                                value={anchorWeek}
+                                onChange={(e) => setAnchorWeek(e.target.value)}
+                              />
+                            ) : null}
+                            <ChoiceControl<'weekly' | 'biweekly'>
+                              labelId={labelId}
+                              value={recurrence}
+                              onChange={setRecurrence}
+                              options={[
+                                { value: 'weekly', label: m.schedule_recurrence_weekly() },
+                                { value: 'biweekly', label: m.schedule_recurrence_biweekly() },
+                              ]}
                             />
-                          ) : null}
-                          <ChoiceControl<'weekly' | 'biweekly'>
-                            labelId={labelId}
-                            value={recurrence}
-                            onChange={setRecurrence}
-                            options={[
-                              { value: 'weekly', label: m.schedule_recurrence_weekly() },
-                              { value: 'biweekly', label: m.schedule_recurrence_biweekly() },
-                            ]}
+                          </div>
+                        )}
+                      </SettingRow>,
+                      <SettingRow
+                        key="range"
+                        label={m.schedule_weeks_span()}
+                        description={
+                          touched && weeksInvalid ? (
+                            <span className="text-destructive">
+                              {m.error_schedule_week_range_invalid()}
+                            </span>
+                          ) : undefined
+                        }
+                        className="animate-in fade-in slide-in-from-top-1 duration-200"
+                      >
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Input
+                            type="number"
+                            min={1}
+                            aria-label={m.schedule_start_week()}
+                            aria-invalid={(touched && weeksInvalid) || undefined}
+                            className="w-20"
+                            value={startWeek}
+                            onChange={(e) => setStartWeek(e.target.value)}
+                          />
+                          –
+                          <Input
+                            type="number"
+                            min={1}
+                            aria-label={m.schedule_end_week()}
+                            aria-invalid={(touched && weeksInvalid) || undefined}
+                            placeholder={m.schedule_end_week_placeholder()}
+                            className="w-24"
+                            value={endWeek}
+                            onChange={(e) => setEndWeek(e.target.value)}
                           />
                         </div>
-                      )}
-                    </SettingRow>,
-                    <SettingRow
-                      key="range"
-                      label={m.schedule_weeks_span()}
-                      description={
-                        touched && weeksInvalid ? (
-                          <span className="text-destructive">
-                            {m.error_schedule_week_range_invalid()}
-                          </span>
-                        ) : undefined
-                      }
-                      className="animate-in fade-in slide-in-from-top-1 duration-200"
-                    >
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Input
-                          type="number"
-                          min={1}
-                          aria-label={m.schedule_start_week()}
-                          aria-invalid={(touched && weeksInvalid) || undefined}
-                          className="w-20"
-                          value={startWeek}
-                          onChange={(e) => setStartWeek(e.target.value)}
-                        />
-                        –
-                        <Input
-                          type="number"
-                          min={1}
-                          aria-label={m.schedule_end_week()}
-                          aria-invalid={(touched && weeksInvalid) || undefined}
-                          placeholder={m.schedule_end_week_placeholder()}
-                          className="w-24"
-                          value={endWeek}
-                          onChange={(e) => setEndWeek(e.target.value)}
-                        />
-                      </div>
-                    </SettingRow>,
-                    <SettingRow
-                      key="breaks"
-                      label={m.schedule_skip_breaks()}
-                      className="animate-in fade-in slide-in-from-top-1 duration-200"
-                    >
-                      {(labelId) => (
-                        <Switch
-                          aria-labelledby={labelId}
-                          checked={skipBreaks}
-                          onCheckedChange={setSkipBreaks}
-                        />
-                      )}
-                    </SettingRow>,
-                  ]
-                : null}
-            </SettingsGroup>
+                      </SettingRow>,
+                      <SettingRow
+                        key="breaks"
+                        label={m.schedule_skip_breaks()}
+                        className="animate-in fade-in slide-in-from-top-1 duration-200"
+                      >
+                        {(labelId) => (
+                          <Switch
+                            aria-labelledby={labelId}
+                            checked={skipBreaks}
+                            onCheckedChange={setSkipBreaks}
+                          />
+                        )}
+                      </SettingRow>,
+                    ]
+                  : null}
+              </SettingsGroup>
+            )}
           </div>
 
           <DialogFooter>
@@ -562,11 +603,24 @@ export function SectionDialog({
               {m.common_cancel()}
             </DialogClose>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? m.common_saving() : m.common_save()}
+              {save.isPending
+                ? m.common_saving()
+                : target
+                  ? m.schedule_section_merge({ section: trimmed })
+                  : m.common_save()}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+      <ConfirmDialog
+        open={confirmMerge && target !== undefined}
+        onOpenChange={setConfirmMerge}
+        title={m.schedule_section_merge_confirm_title({ section: trimmed })}
+        description={m.schedule_section_merge_description({ section: trimmed })}
+        confirmLabel={m.schedule_section_merge({ section: trimmed })}
+        pending={save.isPending}
+        onConfirm={send}
+      />
     </Dialog>
   )
 }

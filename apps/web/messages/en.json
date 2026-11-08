@@ -1181,8 +1181,6 @@
   "schedule_section_time_remove": "Remove this time",
   "schedule_section_times": "Class times",
   "schedule_section_new_title": "Add section",
-  "schedule_enable_meeting": "Show the {day} {time} class in the calendar",
-  "schedule_section_add_time": "Add a time",
   "schedule_section_delete_description": "All its meetings are removed from the schedule and the calendar.",
   "schedule_section_delete_title": "Delete {section}?",
   "schedule_section_delete": "Delete section",
@@ -3083,5 +3081,12 @@
   "settings_notifications_daily_digest_option_8": "8:00 AM",
   "settings_notifications_daily_digest_option_9": "9:00 AM",
   "settings_notifications_daily_digest_option_10": "10:00 AM",
-  "notifications_category_off": "Off"
+  "notifications_category_off": "Off",
+  "schedule_section_merge_title": "{section} already exists",
+  "schedule_section_merge_description": "Saving moves these times into {section}. They take its weeks; this section is removed.",
+  "schedule_section_merge": "Merge into {section}",
+  "schedule_section_add_time": "Add a time",
+  "schedule_section_merge_confirm_title": "Merge into {section}?",
+  "schedule_meeting_hide": "Hide in calendar",
+  "schedule_meeting_show": "Show in calendar"
 }

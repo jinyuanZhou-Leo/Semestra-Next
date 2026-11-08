@@ -8752,6 +8752,12 @@ export type SectionSaveInputBody = {
      * Its weekly times
      */
     times: Array<SectionTime>;
+    /**
+     * Merge
+     *
+     * When another section of the course has the code in the term: move the times into it (they take its weeks) and delete this section, instead of failing with schedule.section_exists
+     */
+    merge?: boolean;
 };
 
 /**
