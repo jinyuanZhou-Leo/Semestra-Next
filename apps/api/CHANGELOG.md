@@ -1,5 +1,85 @@
 # @semestra/api
 
+## 2.0.0-beta.0
+
+### Major Changes
+
+- 29d2459: <!-- area: api -->
+  <!-- en -->
+  Schedule endpoints and MCP tools are organized by section: weekly times are listed and added through schedule.section.*, and integrations that used schedule.meeting.list or schedule.meeting.create_many need updating.
+  <!-- zh -->
+  课表接口与 MCP 工具改为以教学班为单位：上课时间通过 schedule.section.* 列出和添加，使用 schedule.meeting.list 或 schedule.meeting.create_many 的集成需要更新。
+
+### Minor Changes
+
+- 08d582e: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Every assessment with a due date has a to-do that follows it and is finished when the assessment is graded; the calendar shows each deadline once.
+  <!-- zh -->
+  每个有截止日期的考核都有一个跟随它的待办，出分后自动完成；日历中每个截止日期只显示一次。
+- 56d3ac2: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab combines assignments, quizzes and grades into one list; grades already on Canvas come along when importing to the gradebook.
+  <!-- zh -->
+  Canvas 页签把作业、测验和成绩合并为一个列表；导入到成绩簿时会带上 Canvas 上已有的成绩。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  A notification points out new Canvas assignments, with one click to import or ignore them.
+  <!-- zh -->
+  Canvas 上有新作业时会弹出通知，可一键导入或忽略。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  Importing Canvas assignments puts those worth points in the gradebook and the rest in to-dos, and saves right away unless something needs checking; a to-do can be added to the gradebook later.
+  <!-- zh -->
+  导入 Canvas 作业时，有分值的进入成绩簿，其余成为待办；没有需要确认的内容时直接保存。只是待办的作业之后也可以加入成绩簿。
+- 969865c: <!-- area: canvas -->
+  <!-- en -->
+  To-dos of imported assignments are checked off once Canvas shows them submitted; this can be turned off in the integration settings.
+  <!-- zh -->
+  导入的作业在 Canvas 上显示已提交后，对应待办自动完成；可在集成设置中关闭。
+- 01a43ea: <!-- area: grades -->
+  <!-- en -->
+  Redesigned the grades page: filter and search assessments, see a forecast chart for the remaining work, and pick a target GPA from your scale. Forecasts now appear as soon as anything is graded.
+  <!-- zh -->
+  重新设计成绩页：考核可筛选与搜索，预测卡片用图表展示剩余考核，目标 GPA 从换算表中选择；只要有成绩录入就会给出预测。
+- ee1cb26: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review is one table by course, with problems marked where they occur and weight totals that include the gradebook. Closing the dialog keeps the import, and opening the same import again picks it up.
+  <!-- zh -->
+  导入审核改为按课程分组的表格，问题标在对应位置，权重合计包含成绩簿里已有的考核。关闭对话框不会丢弃导入，再次打开同一导入即可继续。
+- d65890a: <!-- area: data -->
+  <!-- en -->
+  Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+  <!-- zh -->
+  自部署服务器可在设置 → 数据中查看、下载和删除本地 OCR 与搜索模型。
+- aba17fc: <!-- area: data -->
+  <!-- improved -->
+  <!-- en -->
+  Backups made with 1.x can be restored.
+  <!-- zh -->
+  可以恢复 1.x 导出的备份。
+- 1529763: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Suggested questions in new conversations now come from your deadlines, classes and grades, and can be personalized by the light-task model (can be turned off in settings).
+  <!-- zh -->
+  新对话的推荐问题改为根据你的截止、课程和成绩生成，并可由轻量任务模型个性化改写（可在设置中关闭）。
+- 9e622fd: <!-- area: notifications -->
+  <!-- en -->
+  System notifications: reminders before classes, events and due to-dos, a daily summary, and alerts for imports, Sem approvals and new sign-ins, with quiet hours.
+  <!-- zh -->
+  新增系统通知：上课、事件和待办截止前提醒，每日摘要，以及导入、Sem 等待确认和新登录通知，支持免打扰时段。
+
+### Patch Changes
+
+- 7e697ec: <!-- area: canvas -->
+  <!-- en -->
+  Links and images in Canvas pages and announcements now open on Canvas instead of a "Page not found" screen.
+  <!-- zh -->
+  Canvas 页面与公告中的链接和图片现在指向 Canvas，不再打开“页面不存在”。
+
 ## 1.15.0
 
 ### Minor Changes

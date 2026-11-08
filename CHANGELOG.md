@@ -3,6 +3,50 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.0 (2026-11-08)
+
+### New
+
+- **Sem:** Sem can ask you a question with a few options when it needs your choice, and its questions and change approvals now appear in place of the input box.
+- **Sem:** Sem's page lists your conversations in a column beside the open one, like the Tasks page; the sidebar no longer shows recent chats.
+- **Grades:** The gradebook has a To-do column for checking off assessments, and an assessment's to-do shows its weight and score with a link back to the gradebook.
+- **Grades:** Redesigned the grades page: filter and search assessments, see a forecast chart for the remaining work, and pick a target GPA from your scale. Forecasts now appear as soon as anything is graded.
+- **Calendar:** To-dos appear in the calendar: check them off in place, drag them to another day, and create a to-do or an event from New.
+- **Notifications:** Notifications for new Canvas grades, assignment changes and announcements, and a daily reminder for habits.
+- **Notifications:** System notifications: reminders before classes, events and due to-dos, a daily summary, and alerts for imports, Sem approvals and new sign-ins, with quiet hours.
+- **Files:** Select several files and folders to move or delete them together, pick a destination from the folder tree, or drag them onto a folder.
+- **Canvas:** The Canvas tab combines assignments, quizzes and grades into one list; grades already on Canvas come along when importing to the gradebook.
+- **Canvas:** A notification points out new Canvas assignments, with one click to import or ignore them.
+- **Canvas:** Importing Canvas assignments puts those worth points in the gradebook and the rest in to-dos, and saves right away unless something needs checking; a to-do can be added to the gradebook later.
+- **Canvas:** To-dos of imported assignments are checked off once Canvas shows them submitted; this can be turned off in the integration settings.
+- **Data:** Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+- **API & MCP:** Schedule endpoints and MCP tools are organized by section: weekly times are listed and added through schedule.section.*, and integrations that used schedule.meeting.list or schedule.meeting.create_many need updating.
+
+### Improved
+
+- **General:** Tables now add entries from a button beside their heading instead of a row at the bottom.
+- **Sem:** Suggested questions in new conversations now come from your deadlines, classes and grades, and can be personalized by the light-task model (can be turned off in settings).
+- **Grades:** Every assessment with a due date has a to-do that follows it and is finished when the assessment is graded; the calendar shows each deadline once.
+- **Calendar:** Canvas events in the calendar carry a Canvas mark and open in Canvas from their details.
+- **Calendar:** A course's schedule lists one row per section, expandable to its times; the section dialog edits times in a table and shows set weeks only when needed.
+- **Calendar:** Weeks are now set per section, so all times of a section always run in the same weeks.
+- **Tasks:** New tasks are created in the list with due date, priority, course and flag set as you add them, from the New task button on the Tasks page, on Today and list cards, and on phones.
+- **Tasks:** Tasks now expand into place when added and collapse smoothly when completed, deleted or moved, on computers and phones.
+- **Import:** The import review is one table by course, with problems marked where they occur and weight totals that include the gradebook. Closing the dialog keeps the import, and opening the same import again picks it up.
+- **Settings:** Settings are easier to find: the top level is now called Global, and groups use the same names for programs, terms and courses.
+- **Data:** Backups made with 1.x can be restored.
+
+### Fixed
+
+- **General:** Addresses that don't exist now show a friendly not-found page with a way back home.
+- **General:** Unified the look of file drop areas across imports, backup restore, files and Sem; backup restore now says why a file was refused.
+- **Grades:** Past-due assessments without a grade are no longer marked overdue; the upcoming card lists only deadlines still ahead.
+- **Tasks:** The new task row is spaced from the task above it.
+- **Notifications:** Classes, events and to-dos moved to a new time are reminded again at the new time.
+- **Files:** Course files and Canvas files open in the same preview, with actions at the bottom; a failed import shows a short message instead of a full-size error.
+- **Canvas:** Links and images in Canvas pages and announcements now open on Canvas instead of a "Page not found" screen.
+- **Canvas:** The Canvas assignments table now says in words whether each assignment is in the gradebook, in to-dos or not added, with a link to it.
+
 ## 1.15.0 (2026-11-06)
 
 ### New
