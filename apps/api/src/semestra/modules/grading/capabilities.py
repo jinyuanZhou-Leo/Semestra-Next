@@ -18,8 +18,6 @@ from semestra.modules.grading.schemas import (
     AssessmentCreateManyResult,
     AssessmentFindInput,
     AssessmentListInput,
-    AssessmentOrder,
-    AssessmentOrderInput,
     AssessmentPage,
     AssessmentRef,
     AssessmentUpdateInput,
@@ -349,19 +347,6 @@ grading.assessment.find.""",
 async def assessment_delete(ctx: Ctx, inp: AssessmentRef) -> Deleted:
     await service.delete_assessment(ctx, inp.assessment_id)
     return Deleted()
-
-
-@capability(
-    name="grading.assessment.reorder",
-    summary="Set the order of a course's assessments.",
-    description="Assessments not listed keep their order after the listed ones.",
-    effect="write",
-    expose=("http",),  # only the UI reorders
-    http=Http("PUT", "/courses/{course_id}/assessment-order"),
-    tags=TAGS,
-)
-async def assessment_reorder(ctx: Ctx, inp: AssessmentOrderInput) -> AssessmentOrder:
-    return await service.reorder_assessments(ctx, inp.course_id, inp.assessment_ids)
 
 
 @capability(

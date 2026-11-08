@@ -16,9 +16,10 @@ and the model's abilities: the same attachment renders the same way each time (p
 import contextlib
 import re
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
-from typing import TYPE_CHECKING
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import anyio.to_thread
@@ -36,6 +37,7 @@ from semestra.modules.files.parse import ParseError
 from semestra.modules.files.parse.isolated import render_isolated
 
 if TYPE_CHECKING:
+    from semestra.modules.imports.dates import TermDates
     from semestra.modules.imports.ics import IcsCourse, IcsEvent, IcsResult
 
 log = structlog.get_logger()
@@ -51,7 +53,7 @@ _CACHE_MAX = 32
 _images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
 # Rendered calendars by (attachment id, time zone); None when the file could not be read. The
 # text is kept, not the parsed events: it is all the assistant reads, and much smaller.
-_calendars: OrderedDict[tuple[str, str], Calendar | None] = OrderedDict()
+_calendars: OrderedDict[tuple[str, str, tuple[date, date]], Calendar | None] = OrderedDict()
 SUMMARY_COURSES = 40
 EVENTS_PER_PAGE = 100
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -223,13 +225,14 @@ async def calendar(ctx: Ctx, att: AgentAttachment) -> Calendar | None:
     hold thousands of events."""
     from semestra.modules.imports.ics import parse_ics
 
-    tz = await _timezone(ctx, att)
-    key = (att.id, tz)
+    tz, terms = await _frame(ctx, att)
+    span = (min(t.start for t in terms), max(t.end for t in terms))
+    key = (att.id, tz, span)
     if key not in _calendars:
         data = await service.read_attachment(ctx, att)
         try:
-            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz))
-            _calendars[key] = Calendar(_summary_text(att, result), calendar_pages(result))
+            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz, span))
+            _calendars[key] = Calendar(_summary_text(att, result), calendar_pages(result, terms))
         except AppError:
             _calendars[key] = None
         while len(_calendars) > _CACHE_MAX:
@@ -246,8 +249,7 @@ async def _calendar_summary(ctx: Ctx, att: AgentAttachment) -> str:
 
 
 def _course_days(course: IcsCourse) -> list[date]:
-    days = [m.first_date for m in course.meetings]
-    days += [m.last_date for m in course.meetings if m.last_date]
+    days = [d for m in course.meetings for d in (m.dates[0], m.dates[-1])]
     days += [e.day for e in course.events]
     return days
 
@@ -292,25 +294,36 @@ def _count(n: int, noun: str) -> str:
     return f"{n} {noun}" + ("" if n == 1 else "s")
 
 
-def _course_pages(course: IcsCourse) -> list[str]:
+def _course_pages(course: IcsCourse, terms: Sequence[TermDates]) -> list[str]:
     """The course's meetings and its first `EVENTS_PER_PAGE` single events, then the rest of its
-    events on pages of their own, so that no page outgrows what `agent.attachment.read` returns."""
+    events on pages of their own, so that no page outgrows what `agent.attachment.read` returns.
+    A meeting's rhythm and days without class are the importer's (`dates.rhythm`, per term)."""
+    from semestra.modules.imports import dates
+
     head = course.code or course.title
     title = f"## {head}" + (f" ({course.title})" if course.title != head else "")
     lines = [title]
     if course.meetings:
         lines.append("Weekly meetings:")
     for m in course.meetings:
-        until = f"{m.first_date} to {m.last_date}" if m.last_date else f"from {m.first_date}"
+        first, last = m.dates[0], m.dates[-1]
+        rhythms = [
+            dates.rhythm(held, m.weekday, term)
+            for term in terms
+            if (held := [d for d in m.dates if term.contains(d)])
+        ]
         parts = [
             m.section_code or m.type_code,
             f"{_DAYS[m.weekday - 1]} {_time_span(m.start_time, m.end_time)}",
-            m.recurrence,
-            until,
+            f"{first} to {last}",
+            f"{len(m.dates)} classes" if len(m.dates) != 1 else "1 class",
         ]
+        if any(r.recurrence == "biweekly" for r in rhythms):
+            parts.append("every other week")
         parts += [x for x in (m.location, m.instructor) if x]
-        if m.exceptions:
-            parts.append("no class on " + ", ".join(map(str, m.exceptions)))
+        missing = sorted(d for r in rhythms for d in r.cancelled)
+        if missing:
+            parts.append("no class on " + ", ".join(map(str, missing)))
         lines.append("- " + " · ".join(parts))
     chunks = [
         course.events[i : i + EVENTS_PER_PAGE]
@@ -326,27 +339,47 @@ def _course_pages(course: IcsCourse) -> list[str]:
     return pages
 
 
-def calendar_pages(result: IcsResult) -> list[str]:
+def calendar_pages(result: IcsResult, terms: Sequence[TermDates]) -> list[str]:
     """The calendar as pages for `agent.attachment.read`: one per course (more for a course with
     many single events), then the events without a course, `EVENTS_PER_PAGE` at a time. Times are
     the Program's local wall-clock time."""
-    pages = [page for c in result.courses for page in _course_pages(c)]
+    pages = [page for c in result.courses for page in _course_pages(c, terms)]
     for i in range(0, len(result.events), EVENTS_PER_PAGE):
         chunk = result.events[i : i + EVENTS_PER_PAGE]
         pages.append("\n".join(["## Events without a course", *map(_event_line, chunk)]))
     return pages
 
 
-async def _timezone(ctx: Ctx, att: AgentAttachment) -> str:
-    """The conversation's Program's time zone: the meetings' weekdays and dates depend on it."""
+async def _frame(ctx: Ctx, att: AgentAttachment) -> tuple[str, list[TermDates]]:
+    """The conversation's Program's time zone (the meetings' weekdays and dates depend on it)
+    and the dates to read: its terms (with their weeks and breaks, as the importer sees them),
+    else a year either side of today as one plain term (a calendar app's export reaches back
+    years)."""
+    from semestra.modules.imports.dates import TermDates, TermWeekSpan
+    from semestra.modules.imports.service.context import term_dates_of
+
     program_id = await ctx.db.scalar(
         select(AgentSession.program_id).where(AgentSession.id == att.session_id)
     )
-    tz = None
+    tz: str | None = None
+    terms: list[Any] = []
     if program_id is not None:
         with contextlib.suppress(AppError):
             tz = (await academics.get_program_row(ctx, program_id)).timezone
+            terms = await academics.program_terms(ctx, program_id)
     try:
-        return str(ZoneInfo(tz)) if tz else "UTC"
+        zone = str(ZoneInfo(tz)) if tz else "UTC"
     except ZoneInfoNotFoundError, ValueError:
-        return "UTC"
+        zone = "UTC"
+    if terms:
+        return zone, [await term_dates_of(ctx, t) for t in terms]
+    today = ctx.now.astimezone(ZoneInfo(zone)).date()
+    start, end = today - timedelta(days=365), today + timedelta(days=365)
+    monday = start - timedelta(days=start.weekday())
+    weeks = [
+        TermWeekSpan(n + 1, day, day + timedelta(days=6))
+        for n, day in enumerate(
+            monday + timedelta(weeks=i) for i in range((end - monday).days // 7 + 1)
+        )
+    ]
+    return zone, [TermDates(start, end, weeks)]

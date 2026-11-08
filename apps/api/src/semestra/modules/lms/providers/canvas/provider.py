@@ -6,6 +6,7 @@ follow redirects here, hop by hop, only to the instance itself or Canvas's file 
 each hop's address before connecting.
 """
 
+import asyncio
 import ipaddress
 import re
 import socket
@@ -127,6 +128,10 @@ def _creds(creds: BaseModel) -> CanvasCredentials:
 
 def _token(creds: BaseModel) -> str:
     return _creds(creds).access_token.get_secret_value()
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat()
 
 
 def _text(value: Any) -> str | None:
@@ -512,8 +517,10 @@ class CanvasProvider:
             chunk = ids[i : i + CONTEXT_CODES_PER_REQUEST]
             params = [
                 *(("context_codes[]", f"course_{c}") for c in chunk),
-                ("start_date", start.date().isoformat()),
-                ("end_date", (now + timedelta(days=1)).date().isoformat()),
+                # Full UTC times: a bare date is midnight in the user's Canvas time zone, which
+                # would leave out what was posted between `since` and that midnight.
+                ("start_date", _utc_iso(start)),
+                ("end_date", _utc_iso(now + timedelta(days=1))),
             ]
             for r in await self._list(io, cfg, creds, "/announcements", params):
                 # `context_code` says which course; a request for one course needs no telling.
@@ -541,15 +548,17 @@ class CanvasProvider:
     async def assignments(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
-        course = await self._get(io, cfg, creds, f"/courses/{quote(course_id)}")
-        weighted = bool(cast(dict[str, Any], course).get("apply_assignment_group_weights"))
-        groups = await self._list(
-            io,
-            cfg,
-            creds,
-            f"/courses/{quote(course_id)}/assignment_groups",
-            [("include[]", "assignments"), ("include[]", "submission")],
+        course, groups = await asyncio.gather(
+            self._get(io, cfg, creds, f"/courses/{quote(course_id)}"),
+            self._list(
+                io,
+                cfg,
+                creds,
+                f"/courses/{quote(course_id)}/assignment_groups",
+                [("include[]", "assignments"), ("include[]", "submission")],
+            ),
         )
+        weighted = bool(cast(dict[str, Any], course).get("apply_assignment_group_weights"))
         out: list[Assignment] = []
         for group in groups:
             for a in cast(list[dict[str, Any]], group.get("assignments") or []):
@@ -951,8 +960,8 @@ class CanvasProvider:
             chunk = ids[i : i + CONTEXT_CODES_PER_REQUEST]
             params: list[tuple[str, Any]] = [
                 ("type", "event"),
-                ("start_date", start.astimezone(UTC).isoformat()),
-                ("end_date", end.astimezone(UTC).isoformat()),
+                ("start_date", _utc_iso(start)),
+                ("end_date", _utc_iso(end)),
                 *(("context_codes[]", f"course_{c}") for c in chunk),
             ]
             for r in await self._list(io, cfg, creds, "/calendar_events", params):
@@ -977,4 +986,5 @@ class CanvasProvider:
             start_at=start,
             end_at=r.get("end_at"),
             all_day=bool(r.get("all_day")),
+            all_day_date=r.get("all_day_date") if r.get("all_day") else None,
         )

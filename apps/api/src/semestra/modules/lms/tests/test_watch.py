@@ -35,15 +35,19 @@ async def test_each_change_is_reported_once_and_the_first_look_is_quiet(
         clock.advance(minutes=10)  # past the read cache
         found: list[watch.CourseNews] = []
         links: list[str] = []
+        posted: dict[str, list[watch.NewAnnouncement] | None] = {}
+        as_of = clock.now
 
         async def courses(ctx: Ctx) -> None:
             links.extend(await watch.watched_links(ctx))
+            if announcements:
+                posted.update(await watch.new_announcements(ctx, links, as_of))
 
         await run_as_system(app.state, user_id, courses)
         for link_id in links:
 
             async def run(ctx: Ctx, link_id: str = link_id) -> None:
-                news = await watch.course_news(ctx, link_id, announcements=announcements)
+                news = await watch.course_news(ctx, link_id, posted.get(link_id, []), as_of)
                 if news is not None:
                     found.append(news)
 
@@ -85,6 +89,12 @@ async def test_each_change_is_reported_once_and_the_first_look_is_quiet(
     # After days without a look (the server was off), what changed meanwhile is only recorded.
     labs[0] = labs[0].model_copy(update={"name": "Lab 1 (final)"})
     clock.advance(days=3)
+    assert await look() == []
+    labs[2] = labs[2].model_copy(update={"name": "Midterm (room B)"})
+    assert await look() == [{"graded": [], "changed": ["Midterm (room B)"], "announcements": []}]
+
+    # A value changed back and then changed again is news again.
+    labs[2] = labs[2].model_copy(update={"name": "Midterm"})
     assert await look() == []
     labs[2] = labs[2].model_copy(update={"name": "Midterm (room B)"})
     assert await look() == [{"graded": [], "changed": ["Midterm (room B)"], "announcements": []}]

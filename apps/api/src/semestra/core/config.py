@@ -58,7 +58,6 @@ class Settings(BaseSettings):
     # the Canvas mobile app's OAuth client, for a refresh token that does not expire (M09 §2.3).
     lms_canvas_sign_in: bool = False
 
-    storage_backend: Literal["local"] = "local"
     storage_local_root: Path = Path("./data/storage")
     user_storage_quota_bytes: int = 52_428_800
     # Largest single file a user may upload (M07 §4).

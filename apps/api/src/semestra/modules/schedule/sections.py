@@ -1,6 +1,7 @@
 """Class sections of a course in a term (LEC0101): type, code, instructor and the weeks that all of
 the section's weekly times run in (M04 §2)."""
 
+from collections import Counter
 from collections.abc import Sequence
 from typing import Any
 
@@ -206,6 +207,16 @@ async def create_sections(
             for nm in item.meetings
             if nm.source_ref is not None and (nm.source_kind, nm.source_ref) in by_source
         }
+
+    # One reference names one time: two in a call would silently write one over the other.
+    refs = Counter(
+        (nm.source_kind, nm.source_ref)
+        for item in items
+        for nm in item.meetings
+        if nm.source_ref is not None
+    )
+    if duplicate := next((ref for ref, n in refs.items() if n > 1), None):
+        raise AppError("schedule.duplicate_source_ref", 422, source_ref=duplicate[1])
 
     # Times sent in this call for one code with the same weeks count together, so a repeated
     # import of a whole section can send each of its times as its own item.

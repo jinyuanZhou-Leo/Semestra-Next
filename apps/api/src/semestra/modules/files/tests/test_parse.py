@@ -320,6 +320,24 @@ async def test_page_images_render_in_a_child_process():
     assert len(first) == 3  # at most the pages there are
 
 
+async def test_local_ocr_child_renders_its_own_pages():
+    # Runs the real session (the file tests replace it): it renders pages in its child and
+    # counts once against the child limit. Without the OCR engine (as here) the read fails
+    # with a parse error, which the pipeline turns into skipped pages.
+    from semestra.modules.files.parse.isolated import ocr_session
+
+    async def read_all(session: Any) -> None:
+        async with aclosing(session.read([0, 1], page_limit=60)) as pages:
+            async for _ in pages:
+                pass
+
+    data = make_pdf(["one", "two"], scanned={0, 1})
+    async with ocr_session("PP-OCRv6_tiny", data, pdf=True, load_limit=60) as session:
+        with pytest.raises(ParseError) as failed:
+            await read_all(session)
+    assert failed.value.code == "files.parse_failed"
+
+
 def _killed(conn: object) -> None:
     del conn
     os.kill(os.getpid(), signal.SIGKILL)  # what the memory limit or a crash in C code does

@@ -478,19 +478,10 @@ async def test_categories(api: Api):
     )  # fmt: skip
 
 
-async def test_reordering_and_deleting_assessments(api: Api):
+async def test_deleting_assessments(api: Api):
     _, course = await one_course(api)
     cid = course["id"]
     ids = [(await api.assessment(cid, f"A{n}", 10))["id"] for n in range(3)]
-    out = await api.call(
-        "PUT", f"/courses/{cid}/assessment-order", json={"assessment_ids": [ids[2]]}
-    )
-    assert out["assessment_ids"] == [ids[2], ids[0], ids[1]]
-    listed = await api.call("GET", f"/courses/{cid}/assessments")
-    assert [i["id"] for i in listed["items"]] == [ids[2], ids[0], ids[1]]
-    await api.call(
-        "PUT", f"/courses/{cid}/assessment-order", 404, json={"assessment_ids": ["nope"]}
-    )
     await api.call("DELETE", f"/assessments/{ids[0]}")
     await api.call("DELETE", f"/assessments/{ids[0]}", 404)
 
@@ -746,7 +737,6 @@ async def test_other_peoples_data_is_not_found(
         ("POST", f"/courses/{cid}/assessments:batch", {"json": {"assessments": [{"title": "x"}]}}),
         ("PATCH", f"/assessments/{a['id']}", {"json": {"score_percentage": 1}}),
         ("DELETE", f"/assessments/{a['id']}", {}),
-        ("PUT", f"/courses/{cid}/assessment-order", {"json": {"assessment_ids": []}}),
         ("POST", f"/courses/{cid}/gradebook:simulate", {"json": {}}),
         ("POST", f"/courses/{cid}/gradebook:suggest", {"json": {}}),
         ("GET", f"/terms/{term_id}/grade-summary", {}),
@@ -982,5 +972,6 @@ async def test_a_batch_is_one_event_and_the_calendar_hears_only_what_it_shows(
     created = [e for e in pushed if e["type"] == "grading.assessment.created"]
     assert len(created) == 1
     assert created[0]["data"]["assessment_ids"] == [a["id"] for a in out["created"]]
-    # Through the tasks: one per new task, then the title; the weight is not on the calendar.
-    assert sum(e["type"] == "calendar.changed" for e in pushed) == 4
+    # Through the tasks: once for the batch (the event is coalesced), then the title; the
+    # weight is not on the calendar.
+    assert sum(e["type"] == "calendar.changed" for e in pushed) == 2

@@ -1,11 +1,12 @@
 """Lists and tasks (M05). Capabilities, subscribers and the auto-task sync call into here."""
 
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Select, and_, case, delete, func, or_, select, true, update
+from sqlalchemy import Select, and_, case, delete, func, or_, select, true, tuple_, update
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
@@ -13,7 +14,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.modules.academics import rules as academic_rules
 from semestra.modules.academics import service as academics
-from semestra.modules.academics.models import AcademicsProgram
+from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.settings import service as settings_service
 from semestra.modules.tasks import rules
 from semestra.modules.tasks.models import TasksItem, TasksList
@@ -312,22 +313,43 @@ async def _next_position(
     return rules.position_between(top, None)
 
 
+@dataclass(frozen=True)
+class TermLookup:
+    """A Program's terms and which of them some courses run in, loaded once for a batch."""
+
+    terms: Sequence[AcademicsTerm]
+    course_terms: dict[str, set[str]]
+    today: date
+
+    def infer(self, course_id: str, due: date | None) -> str | None:
+        """The course's term that contains the due date, else the one running today, else its
+        earliest term (M05 §3). Year-long tasks therefore follow their due date."""
+        own = self.course_terms.get(course_id, set())
+        terms = [t for t in self.terms if t.id in own]
+        if not terms:
+            return None
+        for day in (due, self.today):
+            if day is not None:
+                for term in terms:
+                    if term.start_date <= day <= term.end_date:
+                        return term.id
+        return terms[0].id
+
+
+async def term_lookup(ctx: Ctx, program: AcademicsProgram, course_ids: Iterable[str]) -> TermLookup:
+    rows = await academics.courses_by_id(ctx, list(dict.fromkeys(course_ids)))
+    courses = await academics.courses_out(ctx, program, rows)
+    return TermLookup(
+        terms=await academics.program_terms(ctx, program.id),
+        course_terms={c.id: set(c.term_ids) for c in courses},
+        today=academics.program_today(ctx, program),
+    )
+
+
 async def infer_term(
     ctx: Ctx, program: AcademicsProgram, course_id: str, due: date | None
 ) -> str | None:
-    """The course's term that contains the due date, else the one running today, else its
-    earliest term (M05 §3). Year-long tasks therefore follow their due date."""
-    course = await academics.course_out(ctx, await academics.get_course_row(ctx, course_id))
-    terms = [t for t in await academics.program_terms(ctx, program.id) if t.id in course.term_ids]
-    if not terms:
-        return None
-    today = academics.program_today(ctx, program)
-    for day in (due, today):
-        if day is not None:
-            for term in terms:
-                if term.start_date <= day <= term.end_date:
-                    return term.id
-    return terms[0].id
+    return (await term_lookup(ctx, program, [course_id])).infer(course_id, due)
 
 
 async def _check_refs(
@@ -367,23 +389,19 @@ async def create_task_row(
     *,
     default_priority: str,
     completed_at: datetime | None = None,
-    terms: dict[tuple[str, date | None], str | None] | None = None,
+    terms: TermLookup | None = None,
 ) -> TasksItem:
     """Validates and inserts one task (no events). Shared by the capabilities and auto tasks.
-    `terms` caches inferred terms by (course, due date) across a batch."""
+    A batch passes `terms` loaded once for all its courses."""
     _check_due(fields.due_date, fields.due_time)
     list_row = await _check_refs(
         ctx, program, term_id=fields.term_id, course_id=fields.course_id, list_id=fields.list_id
     )
     term_id = fields.term_id
     if term_id is None and fields.course_id is not None:
-        key = (fields.course_id, fields.due_date)
-        if terms is not None and key in terms:
-            term_id = terms[key]
-        else:
-            term_id = await infer_term(ctx, program, fields.course_id, fields.due_date)
-            if terms is not None:
-                terms[key] = term_id
+        if terms is None:
+            terms = await term_lookup(ctx, program, [fields.course_id])
+        term_id = terms.infer(fields.course_id, fields.due_date)
     if term_id is None and list_row is not None:
         term_id = list_row.term_id
     row = TasksItem(
@@ -452,14 +470,24 @@ async def create_task(ctx: Ctx, program_id: str, fields: TaskFields) -> Task:
     return task_out(row, _now_local(ctx, program))
 
 
-async def existing_by_source(ctx: Ctx, source_kind: str, source_ref: str) -> TasksItem | None:
-    return await ctx.db.scalar(
+async def existing_by_source(
+    ctx: Ctx, keys: Iterable[tuple[str, str]]
+) -> dict[tuple[str, str], TasksItem]:
+    """The ctx user's tasks with these (source kind, source ref) pairs, in one query."""
+    wanted = set(keys)
+    if not wanted:
+        return {}
+    rows = await ctx.db.scalars(
         select(TasksItem).where(
             TasksItem.user_id == ctx.user_id,
-            TasksItem.source_kind == source_kind,
-            TasksItem.source_ref == source_ref,
+            tuple_(TasksItem.source_kind, TasksItem.source_ref).in_(wanted),
         )
     )
+    return {
+        (r.source_kind, r.source_ref): r
+        for r in rows
+        if r.source_kind is not None and r.source_ref is not None
+    }
 
 
 async def create_tasks(
@@ -471,20 +499,25 @@ async def create_tasks(
     now_local = _now_local(ctx, program)
     created: list[TasksItem] = []
     skipped: list[TaskSkipped] = []
-    seen: dict[tuple[str, str], str] = {}
-    terms: dict[tuple[str, date | None], str | None] = {}
+    seen = {
+        key: row.id
+        for key, row in (
+            await existing_by_source(
+                ctx, ((f.source_kind, f.source_ref) for f in items if f.source_ref is not None)
+            )
+        ).items()
+    }
+    terms = await term_lookup(ctx, program, (f.course_id for f in items if f.course_id))
     for index, fields in enumerate(items):
-        if fields.source_ref is not None:
-            key = (fields.source_kind, fields.source_ref)
-            existing = seen.get(key) or getattr(await existing_by_source(ctx, *key), "id", None)
-            if existing is not None:
-                skipped.append(TaskSkipped(index=index, task_id=existing))
-                continue
+        key = (fields.source_kind, fields.source_ref) if fields.source_ref is not None else None
+        if key is not None and key in seen:
+            skipped.append(TaskSkipped(index=index, task_id=seen[key]))
+            continue
         row = await create_task_row(
             ctx, program, fields, default_priority=defaults.default_priority, terms=terms
         )
-        if fields.source_ref is not None:
-            seen[(fields.source_kind, fields.source_ref)] = row.id
+        if key is not None:
+            seen[key] = row.id
         created.append(row)
     for row in created:
         await announce_item(ctx, "created", row, calendar=row.due_date is not None)
@@ -616,9 +649,11 @@ async def complete_open(
             or_(TasksItem.id.in_(task_ids), TasksItem.assessment_id.in_(assessment_ids)),
         )
     )
-    for row in list(rows):
+    rows = list(rows)
+    for row in rows:
         row.completed_at = row.updated_at = ctx.now
-        await ctx.db.flush()
+    await ctx.db.flush()
+    for row in rows:
         await announce_item(
             ctx, "completed", row, calendar=row.due_date is not None, changed=["completed_at"]
         )
@@ -780,24 +815,6 @@ def _program_query[S: Select[Any]](
     if list_id is not None:
         stmt = stmt.where(TasksItem.list_id == list_id)
     return stmt
-
-
-def _in_view(row: TasksItem, view: View, today: date) -> bool:
-    done = row.completed_at is not None
-    match view:
-        case "completed":
-            return done
-        case "today":
-            return not done and row.due_date is not None and row.due_date <= today
-        case "scheduled":
-            return not done and row.due_date is not None
-        case "inbox":
-            return not done and row.list_id is None
-        case "flagged":
-            return not done and row.flagged
-        case "all":
-            return not done
-    return False  # pragma: no cover
 
 
 def _view_where(view: View, today: date, *, open_: bool, done: bool) -> Any:

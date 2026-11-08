@@ -27,7 +27,6 @@ from semestra.modules.grading.schemas import (
     AssessmentFields,
     AssessmentFindInput,
     AssessmentListInput,
-    AssessmentOrder,
     AssessmentPage,
     AssessmentRef,
     AssessmentUpdateInput,
@@ -36,7 +35,7 @@ from semestra.modules.grading.schemas import (
     UpcomingAssessments,
     UpcomingInput,
 )
-from semestra.modules.grading.service.categories import announce_course, get_category
+from semestra.modules.grading.service.categories import get_category
 from semestra.modules.grading.service.common import program_courses, reject_nulls
 from semestra.modules.grading.service.courses import course_and_program, ensure_course_setup
 
@@ -99,10 +98,20 @@ async def counted_weights(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, list
     return {cid: [r.weight for r in found if not r.dropped] for cid, found in rows.items()}
 
 
-async def find_assessment_row(ctx: Ctx, assessment_id: str) -> models.GradingAssessment | None:
-    """The ctx user's assessment, or None (for other modules: M05 keeps its tasks in sync)."""
-    row = await ctx.db.get(models.GradingAssessment, assessment_id)
-    return row if row is not None and row.user_id == ctx.user_id else None
+async def find_assessment_rows(
+    ctx: Ctx, assessment_ids: Sequence[str]
+) -> dict[str, models.GradingAssessment]:
+    """The ctx user's assessments with these ids, in one query; missing ones are left out (for
+    other modules: M05 keeps its tasks in sync)."""
+    if not assessment_ids:
+        return {}
+    rows = await ctx.db.scalars(
+        select(models.GradingAssessment).where(
+            models.GradingAssessment.user_id == ctx.user_id,
+            models.GradingAssessment.id.in_(assessment_ids),
+        )
+    )
+    return {r.id: r for r in rows}
 
 
 async def _get_assessment(ctx: Ctx, assessment_id: str) -> models.GradingAssessment:
@@ -443,23 +452,6 @@ async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
         "grading.assessment.deleted",
         {**data, "changed": []},
     )
-
-
-async def reorder_assessments(
-    ctx: Ctx, course_id: str, assessment_ids: Sequence[str]
-) -> AssessmentOrder:
-    await academics.get_course_row(ctx, course_id)
-    rows = (await assessment_rows(ctx, [course_id]))[course_id]
-    by_id = {r.id: r for r in rows}
-    if any(i not in by_id for i in assessment_ids):
-        raise not_found()
-    ordered = [by_id[i] for i in dict.fromkeys(assessment_ids)]
-    ordered += [r for r in rows if r.id not in {o.id for o in ordered}]
-    for position, row in enumerate(ordered):
-        row.position = position
-    await ctx.db.flush()
-    await announce_course(ctx, course_id)
-    return AssessmentOrder(course_id=course_id, assessment_ids=[r.id for r in ordered])
 
 
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:

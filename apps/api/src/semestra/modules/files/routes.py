@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
-from semestra.core.storage import CHUNK_SIZE, get_storage, remaining_quota
+from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
@@ -46,27 +46,24 @@ async def upload(
         raise AppError("common.validation", 422, errors=[{"loc": ["files"], "code": "count"}])
     folder = folder_id or None
     await service.check_upload_target(ctx, course_id, folder)
-    storage = get_storage(ctx)
     staged: list[service.StagedFile] = []
     try:
         # Every file is in storage before the first row is written, so the database's write
         # lock is held only for the inserts, not while the bytes arrive.
-        budget = await remaining_quota(ctx)
         for file in files:
+            reserved = sum(f.stored.size for f in staged)
             staged.append(
                 await service.stage_file(
-                    ctx, filename=file.filename, stream=_read(file), budget=budget
+                    ctx, filename=file.filename, stream=_read(file), reserved=reserved
                 )
             )
-            if budget is not None:
-                budget -= staged[-1].stored.size
         rows = await service.add_staged_files(ctx, course_id, folder, staged)
         result = UploadResult(items=await service.item_outs(ctx, rows))
         await ctx.db.commit()
     except BaseException:
         await ctx.db.rollback()
         for file in staged:
-            await storage.delete(file.stored.key)
+            await get_storage(ctx).delete(file.stored.key)
         raise
     await run_after_commit(ctx)
     return result

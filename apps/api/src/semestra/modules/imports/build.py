@@ -3,7 +3,7 @@ need from the database (existing courses, assessments, event types, term dates) 
 
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, time
 from typing import Any
@@ -250,23 +250,36 @@ def _iso(value: date | time | None) -> str | None:
 
 
 def term_ref_for(
-    day: date | None, ctx: BuildContext, terms: Sequence[tuple[str, date, date]]
+    day: date | None, ctx: BuildContext, terms: Mapping[str, dates.TermDates]
 ) -> str | None:
     """`term:<id>` of the existing term a date falls in when the target has no term of its own
     (course target); None = the target term."""
     if ctx.target_kind in ("term", "term_wizard") or day is None:
         return None
-    for term_id, start, end in terms:
-        if start <= day <= end:
+    for term_id, span in terms.items():
+        if span.contains(day):
             return f"term:{term_id}"
     return None
 
 
+def ics_terms(
+    ctx: BuildContext, program_terms: Mapping[str, dates.TermDates]
+) -> dict[str, dates.TermDates]:
+    """The terms an ICS import places classes in, by id: the target term (the wizard's dates
+    before the term exists, under the key "") or, into a course, every term of the Program."""
+    if ctx.target_kind in ("term", "term_wizard"):
+        return {"": ctx.term} if ctx.term is not None else {}
+    return dict(program_terms)
+
+
 def from_ics(
-    result: IcsResult, ctx: BuildContext, terms: Sequence[tuple[str, date, date]]
+    result: IcsResult, ctx: BuildContext, terms: Mapping[str, dates.TermDates]
 ) -> list[NewItem]:
     """ICS courses and events (M08 §4.1): a course whose code the Program already has keeps
-    the existing course (its duplicate course item is rejected) and only gets the meetings."""
+    the existing course (its duplicate course item is rejected) and only gets the meetings.
+    A meeting becomes one item per term it is held in (a full-year class goes to fall and
+    winter), each with the term's own rhythm and cancelled days (`dates.rhythm`); days in no
+    term are left out. `terms` comes from `ics_terms`."""
     builder = Builder(ctx)
     for course in result.courses:
         # Into one course: the file's other courses are shown, switched off.
@@ -276,26 +289,37 @@ def from_ics(
             patch_existing=False,
         )
         for m in course.meetings:
-            builder.add(
-                "meeting",
-                {
-                    "course_ref": ref,
-                    "term_ref": term_ref_for(m.first_date, ctx, terms),
-                    "section_code": m.section_code,
-                    "type_code": type_code(m.type_code, ctx.type_codes),
-                    "weekday": m.weekday,
-                    "start_time": _iso(m.start_time),
-                    "end_time": _iso(m.end_time),
-                    "recurrence": m.recurrence,
-                    "first_date": _iso(m.first_date),
-                    "last_date": _iso(m.last_date),
-                    "location": (m.location or None) and m.location[:200],
-                    "instructor": m.instructor,
-                    "source_ref": m.source_ref[:500],
-                    "exceptions": [_iso(d) for d in m.exceptions],
-                },
-                decision=decision,
-            )
+            for term_id, span in terms.items():
+                held = [d for d in m.dates if span.contains(d)]
+                if not held:
+                    continue
+                r = dates.rhythm(held, m.weekday, span)
+                into = term_id if term_id and ctx.target_kind == "course" else None
+                builder.add(
+                    "meeting",
+                    {
+                        "course_ref": ref,
+                        "term_ref": f"term:{into}" if into else None,
+                        "section_code": m.section_code,
+                        "type_code": type_code(m.type_code, ctx.type_codes),
+                        "weekday": m.weekday,
+                        "start_time": _iso(m.start_time),
+                        "end_time": _iso(m.end_time),
+                        "recurrence": r.recurrence,
+                        "first_date": _iso(r.first),
+                        "last_date": _iso(r.last),
+                        "location": (m.location or None) and m.location[:200],
+                        "instructor": m.instructor,
+                        # One class in two terms is two meetings, each referenced by its term
+                        # (an id, not dates the user may still move). A term or wizard import
+                        # has one term, so the class's own reference is enough.
+                        "source_ref": (f"{m.source_ref}@{term_id}" if term_id else m.source_ref)[
+                            :500
+                        ],
+                        "exceptions": [_iso(d) for d in r.cancelled],
+                    },
+                    decision=decision,
+                )
         for e in course.events:
             builder.add("event", _ics_event(e, ref, ctx, terms), decision=decision)
     if ctx.target_kind != "course":  # events of no course don't belong to one course
@@ -305,7 +329,7 @@ def from_ics(
 
 
 def _ics_event(
-    e: Any, ref: str | None, ctx: BuildContext, terms: Sequence[tuple[str, date, date]]
+    e: Any, ref: str | None, ctx: BuildContext, terms: Mapping[str, dates.TermDates]
 ) -> dict[str, Any]:
     return {
         "course_ref": ref,

@@ -31,7 +31,7 @@ class TasksList(Base, OwnedMixin, TimestampMixin):
         String, ForeignKey("academics_programs.id", ondelete="CASCADE")
     )
     term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("academics_terms.id", ondelete="CASCADE"), default=None
+        String, ForeignKey("academics_terms.id", ondelete="CASCADE"), default=None, index=True
     )
     name: Mapped[str] = mapped_column(String)
     color: Mapped[str | None] = mapped_column(String, default=None)
@@ -65,10 +65,10 @@ class TasksItem(Base, OwnedMixin, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str] = mapped_column(
-        String, ForeignKey("academics_programs.id", ondelete="CASCADE")
+        String, ForeignKey("academics_programs.id", ondelete="CASCADE"), index=True
     )
     term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("academics_terms.id", ondelete="SET NULL"), default=None
+        String, ForeignKey("academics_terms.id", ondelete="SET NULL"), default=None, index=True
     )
     course_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("academics_courses.id", ondelete="SET NULL"), default=None

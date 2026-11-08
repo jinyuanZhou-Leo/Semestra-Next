@@ -137,7 +137,7 @@ class ScheduleEvent(Base, OwnedMixin, TimestampMixin):
         String, ForeignKey("academics_programs.id", ondelete="CASCADE")
     )
     term_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("academics_terms.id", ondelete="CASCADE"), default=None
+        String, ForeignKey("academics_terms.id", ondelete="CASCADE"), default=None, index=True
     )
     course_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("academics_courses.id", ondelete="CASCADE"), default=None, index=True

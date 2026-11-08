@@ -24,9 +24,7 @@ async def _on_assessment(ctx: Ctx, event: Event) -> None:
     data = event.data
     # A batch create sends one event with every id.
     ids = data.get("assessment_ids") or [data.get("assessment_id")]
-    for assessment_id in ids:
-        if isinstance(assessment_id, str):
-            await auto.sync(ctx, assessment_id)
+    await auto.sync(ctx, [i for i in ids if isinstance(i, str)])
 
 
 @events.subscribe("grading.assessment.deleting", in_transaction=True)

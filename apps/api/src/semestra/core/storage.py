@@ -1,16 +1,32 @@
 """File storage (M00 §3.9).
 
 Modules store bytes through `get_storage(ctx)` under keys from `user_key(user_id, module)` and keep
-their own metadata rows. Uploads are streamed: `put(..., max_bytes=...)` counts while writing and
-aborts with `common.quota_exceeded` as soon as the limit is passed. Each module that stores files
-registers a usage counter with `@storage_usage_provider("<module>")`; the user quota is the sum.
+their own metadata rows. Each module that stores files registers a usage counter with
+`@storage_usage_provider("<module>")`; the user quota is the sum.
+
+A user upload goes through the same three steps everywhere:
+
+1. `stage(ctx, key, stream, ...)` streams it into storage, cut off above the per-file cap or the
+   quota left, before any database write (so no SQLite write lock is held while bytes arrive);
+2. the caller inserts its row(s) inside `discard_on_error(ctx, keys)` and calls `charge(ctx)`,
+   which counts the quota again under the write lock the insert took, so racing uploads cannot
+   both pass;
+3. objects a transaction stops referring to go with `delete_after_commit(ctx, keys)`.
 """
 
 import hashlib
 import re
 import shutil
 import uuid
-from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+)
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -169,12 +185,113 @@ async def usage(ctx: Ctx) -> StorageUsage:
     )
 
 
+def _quota_error(current: StorageUsage) -> AppError:
+    return AppError(
+        "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
+    )
+
+
 async def remaining_quota(ctx: Ctx) -> int | None:
     """Bytes the user may still store (None = unlimited); use it to bound `max_bytes`."""
     current = await usage(ctx)
     if current.quota_bytes == 0:
         return None
     return max(0, current.quota_bytes - current.used_bytes)
+
+
+# --- uploads --------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Staged:
+    """An upload already in storage and not yet in the database. `data` holds its bytes when
+    `stage(..., keep=True)` (for type detection or parsing); otherwise it is empty."""
+
+    stored: StoredObject
+    data: bytes
+
+    @property
+    def key(self) -> str:
+        return self.stored.key
+
+
+async def stage(
+    ctx: Ctx,
+    key: str,
+    stream: AsyncIterable[bytes],
+    *,
+    cap: int,
+    too_large: AppError,
+    quota: bool = True,
+    reserved: int = 0,
+    keep: bool = False,
+    content_type: str = "application/octet-stream",
+) -> Staged:
+    """Streams an upload into storage under `key`, refused with `too_large` above `cap` bytes,
+    or with `common.quota_exceeded` above the quota left when `quota` is set (`reserved`: bytes
+    this request already staged). Writes nothing to the database; the caller inserts its row
+    with `discard_on_error` and then calls `charge`."""
+    current = await usage(ctx) if quota else None
+    budget = None
+    if current is not None and current.quota_bytes > 0:
+        budget = max(0, current.quota_bytes - current.used_bytes - reserved)
+        if budget == 0:
+            raise _quota_error(current)
+    limit = cap if budget is None else min(cap, budget)
+    seen = bytearray()
+
+    async def kept() -> AsyncIterator[bytes]:
+        async for chunk in stream:
+            seen.extend(chunk)
+            yield chunk
+
+    try:
+        stored = await get_storage(ctx).put(
+            key, kept() if keep else stream, content_type, max_bytes=limit
+        )
+    except AppError as exc:
+        if exc.code != "common.quota_exceeded":
+            raise
+        if current is None or budget is None or cap <= budget:
+            raise too_large from None
+        raise _quota_error(current) from None
+    return Staged(stored, bytes(seen))
+
+
+async def charge(ctx: Ctx) -> None:
+    """Checks the quota with the caller's new rows counted. The insert took SQLite's write
+    lock, so two uploads racing for the last free bytes are decided one after the other."""
+    await ctx.db.flush()
+    current = await usage(ctx)
+    if current.quota_bytes > 0 and current.used_bytes > current.quota_bytes:
+        raise _quota_error(current)
+
+
+@asynccontextmanager
+async def discard_on_error(ctx: Ctx, keys: Iterable[str]) -> AsyncGenerator[None]:
+    """Deletes staged objects if the block fails, so a refused upload leaves nothing behind."""
+    try:
+        yield
+    except BaseException:
+        storage = get_storage(ctx)
+        for key in keys:
+            await storage.delete(key)
+        raise
+
+
+def delete_after_commit(ctx: Ctx, keys: Iterable[str | None]) -> None:
+    """Deletes objects once the transaction has committed, so a rollback never loses one
+    (`None` keys, rows without an object, are skipped)."""
+    pending = [key for key in keys if key]
+    if not pending:
+        return
+    storage = get_storage(ctx)
+
+    async def remove() -> None:
+        for key in pending:
+            await storage.delete(key)
+
+    ctx.after_commit.append(remove)
 
 
 @capability(

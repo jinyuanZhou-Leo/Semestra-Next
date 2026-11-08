@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
-from semestra.core.storage import get_storage
+from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.imports import build, dates, deps
 from semestra.modules.imports.models import ImportsItem, ImportsSession
@@ -21,7 +21,7 @@ from semestra.modules.imports.schemas import (
 from semestra.modules.imports.service.context import revalidate, target_of, term_dates_of
 from semestra.modules.imports.service.create import event_data
 from semestra.modules.imports.service.rows import detail, for_agent, get_session_row, session_items
-from semestra.modules.imports.service.uploads import after_commit_delete, session_uploads
+from semestra.modules.imports.service.uploads import session_uploads
 from semestra.modules.imports.states import CLOSED, can_move, move
 
 log = structlog.get_logger()
@@ -65,10 +65,13 @@ class _Commit:
         self.term_id: str | None = self.target.term_id
         self.categories: dict[str, dict[str, str]] = {}  # course id → key → category id
         self.terms: dict[str, Any] = {}
+        self.course_terms: dict[str, list[str]] = {}  # course id → its term ids
         self.pending: list[ImportsItem] = []  # the items this pass writes, in order
         # Meeting item id → (its meeting as written, whether it was created), for the items of
         # a section written together.
         self.placed: dict[str, tuple[dict[str, Any], bool]] = {}
+        # Meeting item id → its course and section entry, worked out once per commit.
+        self.entries: dict[str, tuple[str, dict[str, Any]]] = {}
 
     def written(self, item_id: str) -> str | None:
         item = self.by_id.get(item_id)
@@ -91,10 +94,12 @@ class _Commit:
             return ref.removeprefix("term:")
         course_terms: list[str] | None = None
         if course_id is not None:
-            course = await academics.course_out(
-                self.ctx, await academics.get_course_row(self.ctx, course_id)
-            )
-            course_terms = list(course.term_ids)
+            if course_id not in self.course_terms:
+                course = await academics.course_out(
+                    self.ctx, await academics.get_course_row(self.ctx, course_id)
+                )
+                self.course_terms[course_id] = list(course.term_ids)
+            course_terms = self.course_terms[course_id]
         spans = {t: await self.term_dates(t) for t in course_terms or []}
         found = dates.pick_term(self.term_id, course_terms, day, spans)
         if found is None:
@@ -262,18 +267,24 @@ async def _section_entry(c: _Commit, item: ImportsItem) -> tuple[str, dict[str, 
     return course_id, section
 
 
+async def _entry(c: _Commit, item: ImportsItem) -> tuple[str, dict[str, Any]]:
+    if item.id not in c.entries:
+        c.entries[item.id] = await _section_entry(c, item)
+    return c.entries[item.id]
+
+
 async def _place_section(c: _Commit, item: ImportsItem) -> None:
     """Writes the meeting item with the other items of its section in this pass, in one call,
     so a repeated import of a whole section whose weeks changed keeps it one section. When that
     call fails, each item is written on its own and keeps its own error."""
-    course_id, entry = await _section_entry(c, item)
+    course_id, entry = await _entry(c, item)
     group = [(item, entry)]
     if entry["section_code"]:
         for other in c.pending:
             if other.type != "meeting" or other.id == item.id or other.id in c.placed:
                 continue
             try:
-                other_course, other_entry = await _section_entry(c, other)
+                other_course, other_entry = await _entry(c, other)
             except AppError:
                 continue  # fails on its own turn
             if other_course == course_id and all(
@@ -645,5 +656,5 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
                 if ref.get("upload_id") == upload.id:
                     ref["warning_code"] = "import.upload_not_filed"
             continue
-        after_commit_delete(ctx, [key])
+        delete_after_commit(ctx, [key])
     row.source_refs = refs

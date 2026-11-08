@@ -141,15 +141,24 @@ def _render_child(
         conn.close()
 
 
-def _ocr_child(conn: Connection, model: str) -> None:
-    """Local OCR (M06 `local_ocr`) of the page images it is sent, a list at a time, until
-    `None`; each list is answered page by page and closed with `None`. The engine loads once
-    here, so its memory goes when the child ends and a crash takes only the child down."""
+def _ocr_child(conn: Connection, model: str, data: bytes, pdf: bool) -> None:
+    """Local OCR (M06 `local_ocr`) of the document's pages it is sent, a list of indexes at a
+    time, until `None`; each page is rendered and read here, answered as it is done, and each
+    list is closed with `None`. A page that does not render is left out. The engine loads once
+    here, so its memory goes when the child ends and a crash takes only the child down. There is
+    no address-space limit (the engine needs gigabytes); the per-page deadline still applies."""
+    renderer: PageRenderer | None = None
     try:
         from semestra.modules.ai import local_ocr
 
-        while (pngs := conn.recv()) is not None:
-            for index, png in enumerate(pngs):
+        renderer = PageRenderer(data, pdf=pdf)
+        while (pages := conn.recv()) is not None:
+            for index, page in enumerate(pages):
+                try:
+                    png = renderer.ocr_image(page)
+                except Exception:
+                    traceback.print_exc()
+                    continue
                 conn.send(Recognized(index, local_ocr.recognize(model, png)))
             conn.send(None)
     except EOFError:
@@ -160,22 +169,25 @@ def _ocr_child(conn: Connection, model: str) -> None:
         traceback.print_exc()
         conn.send(_Failed("files.parse_failed", {}))
     finally:
+        if renderer is not None:
+            renderer.close()
         conn.close()
 
 
 class OcrSession:
-    """One local OCR child for a whole document (`ocr_session`): the engine loads once, and
-    pages are sent to it in batches as they are rendered."""
+    """One local OCR child for a whole document (`ocr_session`): it renders the pages itself
+    and loads the engine once; the parent asks for pages in batches."""
 
     def __init__(self, conn: Connection, process: BaseProcess, load_limit: float) -> None:
         self._conn = conn
         self._process = process
         self._first_limit = load_limit  # what the first page may take on top of `page_limit`
 
-    async def read(self, pngs: Sequence[bytes], *, page_limit: float) -> AsyncGenerator[Recognized]:
-        """Text of each page image, in order. Raises `ParseError` when the child fails or a page
+    async def read(self, pages: Sequence[int], *, page_limit: float) -> AsyncGenerator[Recognized]:
+        """Text of the pages, in order; `Recognized.index` is the position in `pages`, and a
+        page that did not render is missing. Raises `ParseError` when the child fails or a page
         runs out of time (the session cannot be used after that)."""
-        await anyio.to_thread.run_sync(self._conn.send, list(pngs))
+        await anyio.to_thread.run_sync(self._conn.send, list(pages))
         deadline = time.monotonic() + self._first_limit + page_limit
         self._first_limit = 0
         while True:
@@ -200,12 +212,16 @@ class OcrSession:
 
 
 @asynccontextmanager
-async def ocr_session(model: str, *, load_limit: float) -> AsyncGenerator[OcrSession]:
-    """A local OCR child for one document; one at a time on the server (each holds a gigabyte
-    or more). The first page gets `load_limit` more to load the model."""
+async def ocr_session(
+    model: str, data: bytes, *, pdf: bool, load_limit: float
+) -> AsyncGenerator[OcrSession]:
+    """A local OCR child for one document (a PDF, or an image when not `pdf`); one at a time on
+    the server (each holds a gigabyte or more), and it counts as one of the `MAX_CHILDREN`. The
+    first page gets `load_limit` more to load the model."""
     async with _ocr_limiter(), _limiter():
         ours, theirs = multiprocessing.Pipe()
-        process = _context().Process(target=_ocr_child, args=(theirs, model), daemon=True)
+        args = (theirs, model, data, pdf)
+        process = _context().Process(target=_ocr_child, args=args, daemon=True)
         await anyio.to_thread.run_sync(process.start)
         theirs.close()
         try:

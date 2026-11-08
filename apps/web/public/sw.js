@@ -1,6 +1,9 @@
-// Semestra's service worker (M18 §7): shows Web Push notifications and opens the page they point
-// to. It handles nothing else (no fetch handler, no cache), so deploys and the app's own reload
-// after a missing chunk are unaffected.
+// Semestra's service worker (M18 §7): shows Web Push notifications, opens the page they point to
+// and hands a replaced subscription to the API. It handles nothing else (no fetch handler, no
+// cache), so deploys and the app's own reload after a missing chunk are unaffected.
+
+// Where the API is (the page registers the worker with `?api=`; empty when it is this origin).
+const API = new URL(self.location.href).searchParams.get('api') ?? ''
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
@@ -56,4 +59,41 @@ async function open(url) {
     return
   }
   await self.clients.openWindow(url)
+}
+
+// A push service may replace the subscription at any time, while no tab is open: without this
+// the device would stop getting notifications until the app is opened again. The old
+// subscription's endpoint and secret stand for the device (the worker has no CSRF token).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(renew(event.oldSubscription, event.newSubscription))
+})
+
+async function renew(old, current) {
+  if (!old) return // the next start of the app sends the subscription again
+  const sub =
+    current ??
+    (await self.registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: old.options.applicationServerKey,
+    }))
+  const keys = sub.toJSON().keys ?? {}
+  await fetch(`${API}/notifications/devices/renew`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      old_endpoint: old.endpoint,
+      old_auth: base64url(old.getKey('auth')),
+      endpoint: sub.endpoint,
+      p256dh: keys.p256dh ?? '',
+      auth: keys.auth ?? '',
+    }),
+  })
+}
+
+function base64url(buffer) {
+  const bytes = new Uint8Array(buffer ?? new ArrayBuffer(0))
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/, '')
 }

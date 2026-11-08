@@ -70,7 +70,7 @@ class AuthEmailChallenge(Base):
     purpose: Mapped[str] = mapped_column(String)  # 'continue' | 'reset_password' | 'change_email'
     # Only for 'change_email': the signed-in user who asked for the change.
     user_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("auth_users.id", ondelete="CASCADE"), default=None
+        String, ForeignKey("auth_users.id", ondelete="CASCADE"), default=None, index=True
     )
     code_hash: Mapped[str] = mapped_column(String)
     attempts: Mapped[int] = mapped_column(Integer, default=0)

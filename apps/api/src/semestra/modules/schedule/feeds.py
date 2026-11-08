@@ -36,6 +36,9 @@ from semestra.modules.schedule.schemas import (
 from semestra.modules.schedule.sources import calendar_query
 
 # What each feed option includes (M04 §2 `schedule_feeds.sources`).
+# A fetch is recorded at most this often (`mark_fetched`).
+FETCHED_EVERY = timedelta(hours=1)
+
 FEED_SOURCES: dict[str, tuple[str, ...]] = {
     "schedule": ("schedule.meetings", "schedule.events"),
     "tasks": ("tasks.due",),
@@ -180,5 +183,11 @@ async def feed_occurrences(
         program, day - timedelta(days=365), day + timedelta(days=183), None, None, max_days=600
     )
     names = [n for s in feed.sources for n in FEED_SOURCES.get(s, ())]
-    feed.last_fetched_at = ctx.now
     return program, await collect(ctx, q, names)
+
+
+def mark_fetched(ctx: Ctx, feed: ScheduleFeed) -> None:
+    """Records that a calendar app fetched the feed, at most once an hour: apps poll every few
+    minutes, and each write would wait for SQLite's one writer."""
+    if feed.last_fetched_at is None or feed.last_fetched_at <= ctx.now - FETCHED_EVERY:
+        feed.last_fetched_at = ctx.now
