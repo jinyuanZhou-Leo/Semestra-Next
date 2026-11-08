@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { useDeleteTargets } from '../actions'
-import { type Target, filesInside, targetName } from '../folders'
+import { type Target, filesInside, folderTree, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
 import { MoveDialog } from './MoveDialog'
 import { NameDialog } from './NameDialog'
@@ -30,12 +30,14 @@ function useFilesMutation<T>(options: T) {
 }
 
 function DeleteDialog({
+  courseId,
   targets,
   folders,
   items,
   onClose,
   onDone,
 }: {
+  courseId: string
   targets: Target[]
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
@@ -43,9 +45,10 @@ function DeleteDialog({
   onDone?: () => void
 }) {
   const remove = useDeleteTargets()
+  const tree = folderTree(folders)
   const only = targets.length === 1 ? targets[0] : undefined
   const fileCount = targets.reduce(
-    (sum, t) => sum + (t.type === 'folder' ? filesInside(t.folder.id, folders, items) : 1),
+    (sum, t) => sum + (t.type === 'folder' ? filesInside(t.folder.id, tree, items) : 1),
     0,
   )
   const description = !only
@@ -71,12 +74,15 @@ function DeleteDialog({
       pending={remove.isPending}
       extra={remove.error ? <FieldError>{errorMessage(remove.error)}</FieldError> : null}
       onConfirm={() =>
-        remove.mutate(targets, {
-          onSuccess: () => {
-            onDone?.()
-            onClose()
+        remove.mutate(
+          { courseId, targets },
+          {
+            onSuccess: () => {
+              onDone?.()
+              onClose()
+            },
           },
-        })
+        )
       }
     />
   )
@@ -122,6 +128,7 @@ export function ItemDialogs({
   if (action.kind === 'delete')
     return (
       <DeleteDialog
+        courseId={courseId}
         targets={action.targets}
         folders={folders}
         items={items}

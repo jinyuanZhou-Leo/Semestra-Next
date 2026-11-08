@@ -28,6 +28,7 @@ from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
     CourseUsage,
+    EntriesDeleteInput,
     FilesItemList,
     FilesItemListInput,
     FilesUsageBreakdown,
@@ -708,6 +709,118 @@ async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
     await ctx.db.flush()
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
     return await item_out(ctx, row)
+
+
+# --- several at once (the file page's selection) -------------------------------------------
+
+
+async def _course_items(ctx: Ctx, course_id: str, item_ids: Sequence[str]) -> list[FilesItem]:
+    """The course's items with these ids; any id that is not one of them is not found."""
+    ids = list(dict.fromkeys(item_ids))
+    if not ids:
+        return []
+    rows = list(
+        (
+            await ctx.db.scalars(
+                select(FilesItem).where(
+                    FilesItem.user_id == ctx.user_id,
+                    FilesItem.course_id == course_id,
+                    FilesItem.id.in_(ids),
+                )
+            )
+        ).all()
+    )
+    found = {r.id for r in rows}
+    for item_id in ids:
+        if item_id not in found:
+            raise not_found("item", item_id)
+    return rows
+
+
+async def move_entries(
+    ctx: Ctx,
+    course_id: str,
+    item_ids: Sequence[str],
+    folder_ids: Sequence[str],
+    to_folder_id: str | None,
+) -> int:
+    """Moves files and folders of one course into `to_folder_id` (None = its top level). All in
+    the request's transaction: if one cannot move (a name taken, too deep), none do."""
+    await academics.get_course_row(ctx, course_id)
+    await _folder_for(ctx, course_id, to_folder_id)
+    items = await _course_items(ctx, course_id, item_ids)
+    folder_ids = list(dict.fromkeys(folder_ids))
+    for folder_id in folder_ids:
+        await get_folder(ctx, folder_id, course_id)
+        await update_folder(ctx, folder_id, {"parent_id"}, None, to_folder_id)
+    for row in items:
+        row.folder_id = to_folder_id
+        row.updated_at = ctx.now
+    await ctx.db.flush()
+    for row in items:
+        await events.publish(
+            ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
+    return len(items) + len(folder_ids)
+
+
+async def _entries_to_delete(
+    ctx: Ctx, course_id: str, item_ids: Sequence[str], folder_ids: Sequence[str]
+) -> tuple[list[FilesFolder], set[str], list[FilesItem]]:
+    """(the chosen folders, every folder that goes, every item that goes): a chosen folder takes
+    its subfolders and files with it, even ones that were chosen as well."""
+    await academics.get_course_row(ctx, course_id)
+    folders = await _course_folders(ctx, course_id)
+    by_id = {f.id: f for f in folders}
+    chosen: list[FilesFolder] = []
+    for folder_id in dict.fromkeys(folder_ids):
+        if folder_id not in by_id:
+            raise not_found("folder", folder_id)
+        chosen.append(by_id[folder_id])
+    tree: set[str] = set()
+    for folder in chosen:
+        tree |= {folder.id} | _descendants(folder.id, folders)
+    items = await _course_items(ctx, course_id, item_ids)
+    if tree:
+        items += list(
+            (
+                await ctx.db.scalars(
+                    select(FilesItem).where(
+                        FilesItem.user_id == ctx.user_id, FilesItem.folder_id.in_(tree)
+                    )
+                )
+            ).all()
+        )
+    unique = list({row.id: row for row in items}.values())
+    return chosen, tree, unique
+
+
+async def preview_entries_delete(ctx: Ctx, inp: EntriesDeleteInput) -> dict[str, Any]:
+    chosen, tree, items = await _entries_to_delete(ctx, inp.course_id, inp.item_ids, inp.folder_ids)
+    names = sorted((i.display_name for i in items), key=str.lower)
+    changes: list[dict[str, Any]] = []
+    if names:
+        changes.append({"field": "files", "before": names[:10], "after": None, "count": len(names)})
+    if tree:
+        changes.append({"field": "folders", "before": len(tree), "after": None})
+    picked = set(inp.item_ids)
+    targets = [f.name for f in chosen] + [i.display_name for i in items if i.id in picked]
+    target = ", ".join(targets[:3]) + (" …" if len(targets) > 3 else "")
+    return {"target": target, "changes": changes}
+
+
+async def delete_entries(
+    ctx: Ctx, course_id: str, item_ids: Sequence[str], folder_ids: Sequence[str]
+) -> None:
+    """Deletes files and folders (with everything in them) of one course, all or none."""
+    chosen, tree, items = await _entries_to_delete(ctx, course_id, item_ids, folder_ids)
+    await purge_items(ctx, items)
+    if tree:
+        await ctx.db.execute(delete(FilesFolder).where(FilesFolder.id.in_(tree)))
+    for folder in chosen:
+        await events.publish(
+            ctx, "files.folder.deleted", {"folder_id": folder.id, "course_id": course_id}
+        )
 
 
 # --- removal --------------------------------------------------------------------------------

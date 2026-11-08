@@ -1485,6 +1485,8 @@
   "capability_files_folder_create_title": "Create a folder",
   "capability_files_folder_delete_title": "Delete a folder",
   "capability_files_item_delete_title": "Delete a file",
+  "capability_files_entry_move_many_title": "Move files",
+  "capability_files_entry_delete_many_title": "Delete files",
   "capability_files_item_get_title": "Read a file's details",
   "capability_files_item_update_title": "Update a file",
   "capability_files_link_create_title": "Save a link",

@@ -22,9 +22,11 @@ import { useMoveTargets } from '../actions'
 import {
   MAX_FOLDER_DEPTH,
   type Target,
+  type FolderTree,
   canMoveInto,
-  childrenOf,
+  canMoveIntoNewFolder,
   depthOf,
+  folderTree,
   pathTo,
   targetName,
   targetParent,
@@ -39,7 +41,7 @@ const EXPAND_ALL_UP_TO = 40
 const INDENT_REM = 1.25
 
 type TreeState = {
-  children: Map<string | null, FolderOut[]>
+  children: FolderTree['children']
   /** Folders shown while searching (matches and the folders above them); null = all. */
   visible: Set<string> | null
   expanded: Set<string>
@@ -145,11 +147,12 @@ function TreeNode({
 }
 
 /** Folders whose name contains `needle`, with every folder above them. */
-function matching(folders: readonly FolderOut[], needle: string): Set<string> {
+function matching(tree: FolderTree, needle: string): Set<string> {
   const visible = new Set<string>()
-  for (const folder of folders) {
+  for (const folder of tree.byId.values()) {
     if (!folder.name.toLowerCase().includes(needle)) continue
-    for (const step of pathTo(folder.id, folders)) visible.add(step.id)
+    visible.add(folder.id)
+    for (const id of tree.ancestors.get(folder.id) ?? []) visible.add(id)
   }
   return visible
 }
@@ -178,6 +181,7 @@ export function MoveDialog({
     ...filesFolderCreateMutation(),
     onSuccess: () => invalidateFiles(queryClient),
   })
+  const tree = folderTree(folders)
   const [selected, setSelected] = useState<string | null | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [naming, setNaming] = useState(false)
@@ -185,12 +189,16 @@ export function MoveDialog({
   const [expanded, setExpandedIds] = useState<Set<string>>(() =>
     folders.length <= EXPAND_ALL_UP_TO
       ? new Set(folders.map((f) => f.id))
-      : new Set(pathTo(targets[0] ? targetParent(targets[0]) : null, folders).map((f) => f.id)),
+      : new Set(pathTo(targets[0] ? targetParent(targets[0]) : null, tree).map((f) => f.id)),
   )
   const needle = search.trim().toLowerCase()
-  const visible = needle ? matching(folders, needle) : null
+  const visible = needle ? matching(tree, needle) : null
+  // Worked out once per render: every row asks while it draws.
+  const pickable = new Set<string | null>(
+    [null, ...tree.byId.keys()].filter((id) => canMoveInto(targets, id, tree)),
+  )
   const state: TreeState = {
-    children: childrenOf(folders),
+    children: tree.children,
     visible,
     expanded,
     setExpanded: (id, open) =>
@@ -202,12 +210,12 @@ export function MoveDialog({
       }),
     selected,
     select: setSelected,
-    canPick: (id) => canMoveInto(targets, id, folders),
+    canPick: (id) => pickable.has(id),
   }
   const topLevel = (state.children.get(null) ?? []).filter((f) => !visible || visible.has(f.id))
   // A new folder goes inside the picked one (or the top level), if that is not already deepest.
   const newFolderParent = selected ?? null
-  const canCreate = depthOf(newFolderParent, folders) < MAX_FOLDER_DEPTH
+  const canCreate = depthOf(newFolderParent, tree) < MAX_FOLDER_DEPTH
   const title =
     targets.length === 1 && targets[0]
       ? m.files_move_title({ name: targetName(targets[0]) })
@@ -274,11 +282,11 @@ export function MoveDialog({
                 {m.common_cancel()}
               </DialogClose>
               <Button
-                disabled={selected === undefined || pending}
+                disabled={selected === undefined || !pickable.has(selected) || pending}
                 onClick={() => {
                   if (selected === undefined) return
                   move.mutate(
-                    { targets, folderId: selected },
+                    { courseId, targets, folderId: selected },
                     {
                       onSuccess: () => {
                         onDone?.()
@@ -314,7 +322,8 @@ export function MoveDialog({
                 onSuccess: (folder) => {
                   if (newFolderParent) state.setExpanded(newFolderParent, true)
                   setSearch('')
-                  setSelected(folder.id)
+                  // Only when what is being moved can go in it (a folder may be too deep).
+                  if (canMoveIntoNewFolder(targets, newFolderParent, tree)) setSelected(folder.id)
                   setNaming(false)
                 },
               },

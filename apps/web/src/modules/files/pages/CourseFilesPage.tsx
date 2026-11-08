@@ -160,7 +160,12 @@ export function CourseFiles({
   const empty = list.items.length === 0 && list.folders.length === 0
 
   return (
-    <FileDragArea folders={list.folders} selected={selected} onMoved={clearSelection}>
+    <FileDragArea
+      courseId={courseId}
+      folders={list.folders}
+      selected={selected}
+      onMoved={clearSelection}
+    >
       <div className="relative flex flex-col gap-3">
         <div className="flex min-h-9 flex-wrap items-center gap-2">
           {selecting ? (

@@ -1485,6 +1485,8 @@
   "capability_files_folder_create_title": "新建文件夹",
   "capability_files_folder_delete_title": "删除文件夹",
   "capability_files_item_delete_title": "删除文件",
+  "capability_files_entry_move_many_title": "移动文件",
+  "capability_files_entry_delete_many_title": "删除文件",
   "capability_files_item_get_title": "读取文件信息",
   "capability_files_item_update_title": "更新文件",
   "capability_files_link_create_title": "保存链接",

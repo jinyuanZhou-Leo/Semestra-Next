@@ -241,6 +241,22 @@
       "plugin_id": null
     },
     {
+      "name": "files__entry__delete_many",
+      "capability": "files.entry.delete_many",
+      "module": "files",
+      "effect": "destructive",
+      "summary": "Delete several files, links and folders of a course permanently.",
+      "plugin_id": null
+    },
+    {
+      "name": "files__entry__move_many",
+      "capability": "files.entry.move_many",
+      "module": "files",
+      "effect": "write",
+      "summary": "Move several files, links and folders of a course into one folder.",
+      "plugin_id": null
+    },
+    {
       "name": "files__folder__create",
       "capability": "files.folder.create",
       "module": "files",

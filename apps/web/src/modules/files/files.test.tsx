@@ -9,7 +9,7 @@ import type { Scope } from '@/app/extensions'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { highlightHtml, searchTerms, snippetParts } from './highlight'
 import { Citation } from './components/Citation'
-import { type Target, canMoveInto } from './folders'
+import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
 import CourseFilesPage from './pages/CourseFilesPage'
 import { findDuplicates, planUpload } from './upload'
 
@@ -361,21 +361,25 @@ test('a folder cannot move into itself, below itself, or deeper than three level
     makeFolder('c', 'C', 'b'),
     makeFolder('d', 'D'),
   ]
+  const tree = folderTree(folders)
   const a: Target = { type: 'folder', folder: folders[0]! }
   const d: Target = { type: 'folder', folder: folders[3]! }
   const file: Target = { type: 'item', item: item({ folder_id: 'a' }) }
-  expect(canMoveInto([a], 'a', folders)).toBe(false)
-  expect(canMoveInto([a], 'b', folders)).toBe(false)
-  expect(canMoveInto([a], 'd', folders)).toBe(false) // A › B › C would sit four deep
-  expect(canMoveInto([d], 'b', folders)).toBe(true)
-  expect(canMoveInto([d], 'c', folders)).toBe(false)
+  expect(canMoveInto([a], 'a', tree)).toBe(false)
+  expect(canMoveInto([a], 'b', tree)).toBe(false)
+  expect(canMoveInto([a], 'd', tree)).toBe(false) // A › B › C would sit four deep
+  expect(canMoveInto([d], 'b', tree)).toBe(true)
+  expect(canMoveInto([d], 'c', tree)).toBe(false)
   // Already there: nothing to do, unless something else in the move is elsewhere.
-  expect(canMoveInto([file], 'a', folders)).toBe(false)
-  expect(canMoveInto([file, d], 'a', folders)).toBe(true)
+  expect(canMoveInto([file], 'a', tree)).toBe(false)
+  expect(canMoveInto([file, d], 'a', tree)).toBe(true)
+  // A new folder in D would be at depth 2, too deep for A (height 3) but fine for files.
+  expect(canMoveIntoNewFolder([a], 'd', tree)).toBe(false)
+  expect(canMoveIntoNewFolder([file], 'd', tree)).toBe(true)
 })
 
 test('selected files move together to a folder picked in the tree', async () => {
-  const moved: { id: string; body: unknown }[] = []
+  const moves: unknown[] = []
   server.use(
     http.get(`${API}/courses/c1/files`, () =>
       HttpResponse.json({
@@ -384,9 +388,9 @@ test('selected files move together to a folder picked in the tree', async () => 
         next_cursor: null,
       }),
     ),
-    http.patch(`${API}/files/:id`, async ({ params, request }) => {
-      moved.push({ id: String(params.id), body: await request.json() })
-      return HttpResponse.json(items.find((i) => i.id === params.id))
+    http.post(`${API}/courses/c1/files\\:move`, async ({ request }) => {
+      moves.push(await request.json())
+      return HttpResponse.json({ moved: 2 })
     }),
   )
   const user = userEvent.setup()
@@ -404,8 +408,10 @@ test('selected files move together to a folder picked in the tree', async () => 
   await user.click(within(dialog).getByRole('button', { name: 'Slides' }))
   await user.click(here)
 
-  await waitFor(() => expect(moved).toHaveLength(2))
-  expect(moved.map((m) => m.body)).toEqual([{ folder_id: 'f2' }, { folder_id: 'f2' }])
+  // One request, so either both move or neither does.
+  await waitFor(() =>
+    expect(moves).toEqual([{ item_ids: ['i1', 'l1'], folder_ids: [], to_folder_id: 'f2' }]),
+  )
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
 })

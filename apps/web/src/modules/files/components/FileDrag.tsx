@@ -8,7 +8,6 @@ import {
   type Modifier,
   PointerSensor,
   pointerWithin,
-  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
@@ -20,7 +19,7 @@ import { type ReactNode, createContext, use, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { useMoveTargets } from '../actions'
-import { type Target, canMoveInto, targetKey, targetName } from '../folders'
+import { type Target, canMoveInto, folderTree, targetKey, targetName } from '../folders'
 
 type DropData = { folderId: string | null; name: string }
 
@@ -42,11 +41,13 @@ const MODIFIERS = [besidePointer]
  * them there (M07 §6.1). Dragging a selected entry takes the whole selection with it.
  */
 export function FileDragArea({
+  courseId,
   folders,
   selected,
   onMoved,
   children,
 }: {
+  courseId: string
   folders: readonly FolderOut[]
   /** The selected entries, in the order shown. */
   selected: readonly Target[]
@@ -58,6 +59,13 @@ export function FileDragArea({
   const move = useMoveTargets()
   const [dragged, setDragged] = useState<Target[]>([])
   const [over, setOver] = useState<DropData | null>(null)
+  // Where the picked-up entries may go, worked out once per drag rather than per drop target.
+  const tree = folderTree(folders)
+  const allowed = new Set<string | null>(
+    dragged.length > 0
+      ? [null, ...tree.byId.keys()].filter((id) => canMoveInto(dragged, id, tree))
+      : [],
+  )
 
   const start = ({ active }: DragStartEvent) => {
     const target = active.data.current?.target as Target | undefined
@@ -70,8 +78,11 @@ export function FileDragArea({
     const targets = dragged
     setDragged([])
     setOver(null)
-    if (!data || !canMoveInto(targets, data.folderId, folders)) return
-    move.mutate({ targets, folderId: data.folderId }, { onSuccess: onMoved, onError: toastError })
+    if (!data || !allowed.has(data.folderId)) return
+    move.mutate(
+      { courseId, targets, folderId: data.folderId },
+      { onSuccess: onMoved, onError: toastError },
+    )
   }
   const what =
     dragged.length === 1 && dragged[0]
@@ -92,7 +103,7 @@ export function FileDragArea({
         setOver(null)
       }}
     >
-      <DraggedContext value={{ dragged, folders }}>{children}</DraggedContext>
+      <DraggedContext value={{ dragged, allowed }}>{children}</DraggedContext>
       <DragOverlay modifiers={MODIFIERS} dropAnimation={null}>
         {dragged.length > 0 ? (
           <div className="flex w-max max-w-80 items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
@@ -107,9 +118,12 @@ export function FileDragArea({
   )
 }
 
-const DraggedContext = createContext<{ dragged: Target[]; folders: readonly FolderOut[] }>({
+const DraggedContext = createContext<{
+  dragged: Target[]
+  allowed: ReadonlySet<string | null>
+}>({
   dragged: [],
-  folders: [],
+  allowed: new Set(),
 })
 
 /** A file or folder row/tile that can be picked up. */
@@ -131,13 +145,11 @@ export function useDragSource(target: Target) {
  * move is allowed.
  */
 export function useDropFolder(folderId: string | null, name: string, place: string) {
-  const { dragged, folders } = use(DraggedContext)
-  const { active } = useDndContext()
-  const allowed = dragged.length > 0 && canMoveInto(dragged, folderId, folders)
+  const allowed = use(DraggedContext).allowed.has(folderId)
   const { setNodeRef, isOver } = useDroppable({
     id: `${place}:${folderId ?? 'top'}`,
     data: { folderId, name } satisfies DropData,
     disabled: !allowed,
   })
-  return { attach: setNodeRef, over: Boolean(active) && isOver && allowed }
+  return { attach: setNodeRef, over: isOver && allowed }
 }
