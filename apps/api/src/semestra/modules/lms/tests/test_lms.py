@@ -180,6 +180,9 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     page = await api.call("GET", f"/courses/{course}/lms/pages/intro")
     assert "<iframe" not in page["html"]
     assert '<h1 style="color:#123">' in page["html"]  # layout-changing properties dropped
+    # Relative addresses point at the platform, as they do there, not at the app.
+    assert 'href="https://fake/courses/101/pages/cover.html"' in page["html"]
+    assert 'src="https://fake/images/logo.png"' in page["html"]
 
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/announcements")

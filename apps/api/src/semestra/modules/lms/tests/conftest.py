@@ -106,6 +106,9 @@ class FakeProvider:
         token = cast(FakeCredentials, creds).token.get_secret_value()
         return {"token": f"{token[:2]}…"}
 
+    def web_base(self, cfg: BaseModel) -> str:
+        return "https://fake/"
+
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
         if "/pages/" in url:
             return InternalRef(kind="page", ref=url.rsplit("/", 1)[-1])
@@ -202,8 +205,10 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
         return PageDetail(external_id="p1", ref=page_ref, title="Intro",
+                          web_url=f"https://fake/courses/{course_id}/pages/{page_ref}",
                           html="<h1 style='color:#123;position:fixed'>Intro</h1>"
-                               "<iframe src='x'></iframe>")  # fmt: skip
+                               "<iframe src='x'></iframe><a href=cover.html>Cover</a>"
+                               "<img src='/images/logo.png' alt=''>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
         return [Quiz(external_id="q1", title="Quiz 1")]

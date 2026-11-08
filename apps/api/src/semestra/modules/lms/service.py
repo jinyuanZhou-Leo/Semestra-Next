@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin
 
 import structlog
 from cryptography.fernet import InvalidToken
@@ -452,8 +453,11 @@ class Bound:
     def rewrite(self, url: str) -> Any:
         return self.provider.rewrite_internal_link(self.cfg, url)
 
-    def clean(self, raw: str | None) -> str | None:
-        return html.clean(raw, self.rewrite)
+    def clean(self, raw: str | None, web_url: str | None = None) -> str | None:
+        """Cleans HTML of an item; its relative links resolve against `web_url`, the item's own
+        address on the platform, like they do there."""
+        base = urljoin(self.provider.web_base(self.cfg), web_url or "")
+        return html.clean(raw, base=base, rewrite=self.rewrite)
 
 
 async def bound(ctx: Ctx, row: LmsConnection) -> Bound:
