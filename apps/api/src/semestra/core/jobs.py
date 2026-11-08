@@ -665,7 +665,6 @@ class JobRunner:
 
     async def _run_handler(self, job: CoreJob) -> CoreJob | None:
         handler = _handlers.get(job.kind)
-        now: datetime = self.state.now()
 
         def end() -> dict[str, Any]:
             # When the job ended, not when it started: the status bar times "done" from it.
@@ -727,7 +726,8 @@ class JobRunner:
                     return await self._update(job.id, {"status": "failed", **error, **end()})
                 retry = {
                     "status": "pending",
-                    "run_after": now + _backoff(job.attempts),
+                    # From the failure, not the start: a long run still waits its backoff.
+                    "run_after": self.state.now() + _backoff(job.attempts),
                     "lease_owner": None,
                     "lease_expires_at": None,
                 }

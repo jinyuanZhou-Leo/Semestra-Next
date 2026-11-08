@@ -4,7 +4,7 @@
 from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import SessionStatus
 
-_NEXT: dict[SessionStatus, frozenset[SessionStatus]] = {
+_NEXT: dict[str, frozenset[SessionStatus]] = {
     # `imports.extract` reads the sources. A course file M07 is still processing sends it to
     # `waiting_files` until the file is done.
     "extracting": frozenset({"waiting_files", "ready", "up_to_date", "failed", "discarded"}),
@@ -31,7 +31,7 @@ class InvalidTransition(RuntimeError):
 
 
 def can_move(current: str, to: SessionStatus) -> bool:
-    return to in _NEXT.get(current, frozenset())  # pyright: ignore[reportArgumentType]
+    return to in _NEXT.get(current, frozenset())
 
 
 def move(row: ImportsSession, to: SessionStatus) -> None:
