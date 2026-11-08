@@ -1,5 +1,5 @@
 import { client } from '@semestra/api-client'
-import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
+import { lmsCourseLinkGetOptions, lmsCourseLinkListOptions } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { toastError } from '@/lib/errors'
@@ -14,9 +14,14 @@ export function courseLinkOptions(courseId: string) {
   return { ...lmsCourseLinkGetOptions({ path: { course_id: courseId } }), staleTime: 60_000 }
 }
 
+/** Every course link of a Program: one request tells which courses have a Canvas page. */
+export function programLinksOptions(programId: string) {
+  return { ...lmsCourseLinkListOptions({ path: { program_id: programId } }), staleTime: 60_000 }
+}
+
 /**
  * "Open in Canvas" from the command palette: the linked course's home on the platform. The link
- * is usually cached already (the Canvas page's availability check loads it).
+ * is fetched when needed.
  */
 export async function openLinkedCourse(queryClient: QueryClient, courseId: string) {
   try {

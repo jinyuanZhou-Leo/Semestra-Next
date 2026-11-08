@@ -57,6 +57,7 @@ from semestra.modules.lms.schemas.io import (
     ConnectionUpdateInput,
     ConnectionValidateInput,
     CourseLink,
+    CourseLinkList,
     CourseLinkState,
     ExternalCourse,
     ExternalCourseList,
@@ -767,6 +768,18 @@ async def program_links(ctx: Ctx, program_id: str) -> list[LmsCourseLink]:
             )
         )
     )
+
+
+async def link_list(ctx: Ctx, program_id: str) -> CourseLinkList:
+    await academics.get_program_row(ctx, program_id)
+    rows = (
+        await ctx.db.execute(
+            select(LmsCourseLink, LmsConnection.provider)
+            .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+            .where(LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.program_id == program_id)
+        )
+    ).all()
+    return CourseLinkList(items=[link_out(link, provider) for link, provider in rows])
 
 
 async def external_courses(

@@ -259,15 +259,12 @@ function PageStatus() {
 }
 
 test.each([
-  ['a Canvas link', { course_id: 'c1', link: LINK, program_connection_id: 'k1' }, 'available'],
-  ['no link', { course_id: 'c1', link: null, program_connection_id: 'k1' }, 'unavailable'],
-  [
-    'a link to another platform',
-    { course_id: 'c1', link: { ...LINK, provider: 'moodle' }, program_connection_id: 'k1' },
-    'unavailable',
-  ],
-])('the Canvas page with %s is %s', async (_, state, expected) => {
-  server.use(http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json(state)))
+  ['a Canvas link', [LINK], 'available'],
+  ['no link', [], 'unavailable'],
+  ['a link to another platform', [{ ...LINK, provider: 'moodle' }], 'unavailable'],
+  ['a link of another course only', [{ ...LINK, course_id: 'c2' }], 'unavailable'],
+])('the Canvas page with %s is %s', async (_, items, expected) => {
+  server.use(http.get(`${API}/programs/p1/lms-links`, () => HttpResponse.json({ items })))
   renderWithQuery(
     <ModuleRegistry value={[canvasTab]}>
       <PageStatus />

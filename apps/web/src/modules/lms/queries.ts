@@ -10,6 +10,7 @@ export const LMS_STATE_QUERIES = [
   'lmsProgramBindingGet',
   'lmsCourseList',
   'lmsCourseLinkGet',
+  'lmsCourseLinkList',
   'lmsCourseCheckUpdates',
   'lmsCourseOverview',
   'lmsTermNewAssignments',

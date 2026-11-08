@@ -2915,6 +2915,16 @@ export type CourseLink = {
 };
 
 /**
+ * CourseLinkList
+ */
+export type CourseLinkList = {
+    /**
+     * Items
+     */
+    items: Array<CourseLink>;
+};
+
+/**
  * CourseLinkState
  */
 export type CourseLinkState = {
@@ -14619,6 +14629,12 @@ export type CoreJobListData = {
          * Page size.
          */
         limit?: number;
+        /**
+         * With Active
+         *
+         * Also every pending or running job however old (first page only), so a list of the newest jobs never misses one still in progress.
+         */
+        with_active?: boolean;
     };
     url: '/jobs';
 };
@@ -17272,6 +17288,38 @@ export type LmsCourseLinkSetResponses = {
 };
 
 export type LmsCourseLinkSetResponse = LmsCourseLinkSetResponses[keyof LmsCourseLinkSetResponses];
+
+export type LmsCourseLinkListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms-links';
+};
+
+export type LmsCourseLinkListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseLinkListError = LmsCourseLinkListErrors[keyof LmsCourseLinkListErrors];
+
+export type LmsCourseLinkListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CourseLinkList;
+};
+
+export type LmsCourseLinkListResponse = LmsCourseLinkListResponses[keyof LmsCourseLinkListResponses];
 
 export type LmsCourseLinkSyncData = {
     body?: never;

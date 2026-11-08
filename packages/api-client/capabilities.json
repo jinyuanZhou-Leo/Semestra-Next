@@ -657,6 +657,14 @@
       "plugin_id": null
     },
     {
+      "name": "lms__course__link__list",
+      "capability": "lms.course.link.list",
+      "module": "lms",
+      "effect": "read",
+      "summary": "Every LMS course link in a Program.",
+      "plugin_id": null
+    },
+    {
       "name": "lms__course__link__set",
       "capability": "lms.course.link.set",
       "module": "lms",

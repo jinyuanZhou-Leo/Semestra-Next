@@ -109,6 +109,8 @@ async def test_binding_and_link_rules(api: Api):
     state = await api.link(course_a, "101")
     assert state["link"]["external_name"] == "Computer Fundamentals"
     assert state["link"]["connection_id"] == conn
+    links = await api.call("GET", f"/programs/{program_id}/lms-links")
+    assert [(li["course_id"], li["provider"]) for li in links["items"]] == [(course_a, "fake")]
     # One external course, one course of the Program.
     err = await api.link(course_b, "101", 409)
     assert err["error"] == {
