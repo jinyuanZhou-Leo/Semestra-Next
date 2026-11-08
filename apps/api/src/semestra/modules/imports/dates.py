@@ -94,13 +94,19 @@ def weekday_of(text: str) -> int | None:
     return None
 
 
+def near_term(day: date, term: TermDates) -> bool:
+    """Whether a syllabus date can belong to the term: from two weeks before it starts (a
+    first reading) to a month after it ends (the final exam)."""
+    return term.start - timedelta(days=14) <= day <= term.end + timedelta(days=31)
+
+
 def _in_term(month: int, day: int, term: TermDates) -> date | None:
     for year in (term.start.year, term.end.year, term.start.year + 1):
         try:
             candidate = date(year, month, day)
         except ValueError:
             continue
-        if term.start - timedelta(days=14) <= candidate <= term.end + timedelta(days=31):
+        if near_term(candidate, term):
             return candidate
     return None
 

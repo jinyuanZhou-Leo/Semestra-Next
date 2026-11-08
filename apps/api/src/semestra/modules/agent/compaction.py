@@ -2,9 +2,10 @@
 window, the turns before the last `KEEP_USER_TURNS` are made smaller. First their tool results
 are cleared (no model call: most of what fills a long conversation is what read tools returned,
 and outside text such as files and Canvas pages arrives that way); when that is not enough, those
-turns are summarized by the chat model. Only the request changes; the stored history stays as
-it is. What was cleared and the summary are kept in the session and reused until the next
-compaction. The user can also compact on demand (`compact_now`)."""
+turns are summarized by the chat model. A request still too large after that clears the read
+results of the recent turns as well, all but the last step's. Only the request changes; the
+stored history stays as it is. What was cleared and the summary are kept in the session and
+reused until the next compaction. The user can also compact on demand (`compact_now`)."""
 
 import asyncio
 from collections.abc import Awaitable, Sequence
@@ -72,8 +73,28 @@ async def compact(
         smaller = await _smaller(turn, messages, KEEP_USER_TURNS, tokens, focus=None)
         if not isinstance(smaller, str):
             messages, tokens = smaller
+    if tokens > COMPACT_RATIO * window and not turn.cancel.is_set():
+        messages, tokens = _clear_recent(turn, messages, tokens)
     turn.memo["context"] = _usage(messages, tokens, window, overhead)
     return messages
+
+
+def _clear_recent(
+    turn: Compacting, messages: list[ModelMessage], tokens: int
+) -> tuple[list[ModelMessage], int]:
+    """Still too large after the older turns (a turn that read many big results): the read
+    results of the recent turns are cleared too, except those of the last step, which the model
+    has not seen yet."""
+    rows = turn.rows
+    head = messages[:-1]
+    last = next((r for r in map(rows.row_id, reversed(head)) if r), None)
+    cleared = _cleared(rows, head)
+    saved = history.estimate_tokens(head) - history.estimate_tokens(cleared)
+    if not saved:
+        return messages, tokens
+    if last is not None:
+        turn.memo["cleared_until"] = last
+    return [*cleared, messages[-1]], tokens - saved
 
 
 def _usage(

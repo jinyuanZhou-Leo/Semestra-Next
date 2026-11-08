@@ -43,6 +43,7 @@ type Column = 'name' | 'when' | 'weight' | 'result'
 /** The cell an issue is marked on; the rest go on the name. */
 const ISSUE_COLUMN: Record<string, Column> = {
   'import.date_unresolved': 'when',
+  'import.date_outside_term': 'when',
   'import.term_unresolved': 'when',
   'import.outside_term': 'when',
   'import.no_teaching_weeks': 'when',

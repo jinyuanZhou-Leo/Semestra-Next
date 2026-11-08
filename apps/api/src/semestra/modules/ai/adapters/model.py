@@ -14,12 +14,12 @@ usage log live in one place:
 """
 
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, cast
 
-from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.messages import ModelMessage, ModelResponse, ModelResponseStreamEvent
 from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
@@ -176,17 +176,45 @@ class SemestraModel(WrapperModel):
             except AppError as exc:
                 self._record(started, None, exc)
                 raise
+            failure = _StreamFailure()
+            _map_stream_errors(stream, self.model_name, failure)
             try:
                 yield stream
-            except AppError as exc:
-                self._record(started, None, exc)
-                raise
-            except Exception as exc:  # the provider failed mid-stream: not retried
-                error = map_error(exc, self.model_name)
-                self._record(started, None, error)
-                raise error from None
-            except BaseException:  # the task was cancelled (the client went away)
-                self._record(started, None, AppError("ai.cancelled", 499))
+            except BaseException as exc:
+                if exc is failure.error:  # the provider failed mid-stream: not retried
+                    self._record(started, None, failure.error)
+                elif isinstance(exc, Exception):
+                    # The caller's own code (storing deltas, Pydantic AI checking the output)
+                    # raised: not the provider's fault. What was used so far still counts.
+                    self._record(started, stream.get(), None)
+                else:  # the task was cancelled (the client went away)
+                    self._record(started, None, AppError("ai.cancelled", 499))
                 raise
         # Also reached when the consumer stopped reading early: what was used so far.
         self._record(started, stream.get(), None)
+
+
+@dataclass
+class _StreamFailure:
+    error: AppError | None = None
+
+
+def _map_stream_errors(stream: StreamedResponse, model: str, failure: _StreamFailure) -> None:
+    """Turns what the stream itself raises while it is read into an M06 error, kept in `failure`
+    so `request_stream` can tell it from an exception in the caller's code around the stream.
+    The events are wrapped where Pydantic AI builds them (`__aiter__` calls
+    `_get_event_iterator` on first use), under its cancel guard and request deadline. A stream
+    torn down by `cancel()` keeps its own errors, which that guard expects."""
+    events = stream._get_event_iterator  # pyright: ignore[reportPrivateUsage]
+
+    async def mapped() -> AsyncIterator[ModelResponseStreamEvent]:
+        try:
+            async for event in events():
+                yield event
+        except Exception as exc:
+            if stream.cancelled:
+                raise
+            failure.error = map_error(exc, model)
+            raise failure.error from None
+
+    stream._get_event_iterator = mapped  # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue]

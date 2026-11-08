@@ -166,3 +166,10 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
   - 按端点限并发（`adapters/limits.py`，Pydantic AI 的 `ConcurrencyLimiter`，每个 app 一组，存在 `AiRuntime`）：每次请求（含 embedding，流式请求占到流结束）先取一个名额，上限是服务商的 `max_concurrency`（`ai_providers` 新列，编辑服务商对话框“高级”里设置，1–32），没设为 4；任务里的请求最多用上限减一个名额（上限为 1 时不留），给 Sem、搜索等交互请求留一个。全实例服务商只在设了 `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` 时限制（所有用户共用，默认不限）。等名额时任务显示 `ai.provider_busy`。重试的退避期间让出名额。
   - 限流等待按调用方区分（`base.retry_delay`）：任务里（`jobs.in_job()`）的 `ai.rate_limited` 最多重试 10 次、每次最多等 90 s、合计最多 5 分钟，等待期间任务显示 `ai.rate_limited` 和预计继续的时间；交互请求（Sem、搜索）仍是 3 次、每次最多 30 s。M07 的 OCR 仍把 `ai.rate_limited` 当作停止码：到这里时已经等了几分钟，多半是按天的额度。
   - `embed(retry=False)` 只请求一次（搜索查询用）。本机 embedding 子进程最多保留 `local_embedding_max_loaded`（默认 2）个模型（LRU），父进程让已加载模型的文档批次先走，减少不同用户不同模型之间的来回加载。
+- **全仓审查修复**（2026-11-08）：
+  - 流式请求只把流本身抛出的异常映射成 M06 错误（`SemestraModel.request_stream` 包住 Pydantic AI 构造事件迭代器的 `_get_event_iterator`，在取消保护与请求时限之内）；调用方在 `async with` 块里的代码（Sem 存增量、Pydantic AI 校验输出）抛的异常原样传出，用量照记，不算服务商故障。
+  - 服务商健康（`last_error_code`/`last_checked_at`）只在结果变化或距上次写入超过 `runtime.HEALTH_REFRESH`（15 分钟）时写库，写入不改 `updated_at`（它是模型列表缓存的键），且不会覆盖更晚的检查结果；测试服务商或换密钥后 `forget_provider` 让下一次调用重新写入。
+  - 本机 embedding 子进程对单个请求的失败（模型加载不了、某批推理出错）只回 `("error", 原因, 已加载的模型)`，父进程只让这次调用失败（`ai.local_model_failed`），不重启子进程；只有超时、EOF、OSError 才重启。已加载模型列表以子进程回报为准。
+  - 本机 embedding 的 `auto` 设备在子进程里决定（主进程不再为此加载 onnxruntime；下载时选哪个 ONNX 文件看是否装了 `onnxruntime-gpu`）；空闲回收线程常驻，不会因竞态漏掉新起的子进程。
+  - `Image.page`：混排 PDF 的扫描页带原始页码，`extract` 标成 `[page N]`，出处指向正确的页；其他图片仍是 `[image N]`。`verify_evidence` 收到分段里图片的页码（`image_pages`），出处落在这些页上就保留（扫描页可能也有一行文字层，原来会被当成“找不到”删掉）。
+  - 健康写入最终没写进库时（数据库一直忙）清掉内存里的记录，下一次同样的结果会再写。

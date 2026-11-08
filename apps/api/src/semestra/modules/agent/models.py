@@ -20,7 +20,7 @@ class AgentSession(Base, OwnedMixin):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str | None] = mapped_column(String, default=None)
     title: Mapped[str | None] = mapped_column(String, default=None)
-    # The page scope the session was started from: {program_id, term_id?, course_id?}.
+    # The page scope the session was started from: {program_id, term_id?}.
     scope: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     pinned: Mapped[bool] = mapped_column(default=False)
     # A temporary chat neither reads nor writes memories (M12 记忆).
@@ -104,6 +104,8 @@ class AgentAttachment(Base, OwnedMixin):
     size: Mapped[int] = mapped_column(Integer)
     file_item_id: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column()
+    # When a message first carried it; unsent uploads (null) are removed after a day.
+    sent_at: Mapped[datetime | None] = mapped_column(default=None)
     # Read on upload with M07's parser (`attachments.py`): the detected kind (pdf, docx, ics,
     # image, ...), the number of pages stored in `agent_attachment_pages`, or why it failed.
     doc_kind: Mapped[str | None] = mapped_column(String, default=None)

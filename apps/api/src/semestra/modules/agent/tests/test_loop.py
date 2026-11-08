@@ -161,16 +161,6 @@ async def test_a_blank_name_is_left_out(agent: Agent, model: FakeModel):
     assert "name" not in _work(model)
 
 
-async def test_old_course_scopes_still_work(agent: Agent, model: FakeModel):
-    program, course, _ = await agent.course_with_lab()
-    session = await agent.session({"program_id": program["id"], "course_id": course["id"]})
-    model.then(say("Hi"))
-    await agent.send(session["id"], "hello")
-    work = _work(model)
-    assert f"course_id {course['id']}" in work
-    assert "APS105H1" in work
-
-
 async def test_the_prompt_prefix_is_stable_across_turns(
     agent: Agent, model: FakeModel, clock: Clock
 ):
@@ -1392,6 +1382,28 @@ async def test_compaction_summarizes_old_turns(app: FastAPI, agent: Agent, model
     assert "question 0" not in model.last_text()
 
 
+async def test_the_summary_is_kept_when_the_next_request_fails(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    session = await agent.session()
+    for i in range(3):
+        model.then(say(f"answer {i} " + "x" * 400))
+        await agent.send(session["id"], f"question {i} " + "y" * 400)
+    model.context_window = 10_000
+    await report_input_tokens(app, session["id"], 7_500)
+
+    async def failing(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[str]:
+        raise AppError("ai.rate_limited", 429)
+        yield ""
+
+    model.model = FunctionModel(stream_function=failing, model_name=model.name)
+    events = await agent.send(session["id"], "question 3")
+    assert events_named(events, "error")[0]["code"] == "ai.rate_limited"
+    async with agent_ctx(app.state, await _me(agent), scope=None) as ctx:
+        state = (await service.get_session_row(ctx, session["id"])).state
+    assert state["summary"] == "Lab score"
+
+
 async def test_the_summary_still_applies_after_switching_models(
     app: FastAPI, agent: Agent, model: FakeModel
 ):
@@ -1494,6 +1506,35 @@ async def test_compaction_clears_old_tool_results_first(
     model.then(say("again"))
     await agent.send(session_id, "question 4")
     assert INJECTED not in model.last_text()
+
+
+async def test_a_turn_that_reads_too_much_clears_its_own_earlier_results(
+    agent: Agent, model: FakeModel, monkeypatch: pytest.MonkeyPatch
+):
+    """No older turns to compact: the turn's earlier reads are cleared, not the latest one."""
+    _big_search(monkeypatch, 8_000)
+    program = await agent.program()
+    session = await agent.session()
+    # The fake model counts words, so each long one-word result is only estimated (about 2,000
+    # tokens) while it is the newest.
+    model.context_window = 2_500
+    search = "files.document.search"
+    model.then(
+        _found(search),
+        call(search, {"program_id": program["id"], "query": "notes"}),
+        call(search, {"program_id": program["id"], "query": "slides"}),
+        say("Read them."),
+    )
+    await agent.send(session["id"], "read my notes and slides")
+    returned = [
+        p.content
+        for m in model.requests[-1][0]
+        if isinstance(m, ModelRequest)
+        for p in m.parts
+        if isinstance(p, ToolReturnPart) and p.tool_name == "files__document__search"
+    ]
+    assert returned[0] == compaction.CLEARED
+    assert returned[1] != compaction.CLEARED
 
 
 async def test_clearing_keeps_what_writes_returned(

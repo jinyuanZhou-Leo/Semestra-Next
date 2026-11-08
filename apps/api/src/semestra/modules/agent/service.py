@@ -60,11 +60,11 @@ def session_out(row: AgentSession) -> AgentSessionOut:
 def scope_ref(row: AgentSession) -> ScopeRef | None:
     if not row.scope:
         return None
-    return ScopeRef(row.scope["program_id"], row.scope.get("term_id"), row.scope.get("course_id"))
+    return ScopeRef(row.scope["program_id"], row.scope.get("term_id"))
 
 
 async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
-    """The scope must be the user's own Program, term and course."""
+    """The scope must be the user's own Program and term."""
     if scope is None:
         return
     from semestra.modules.academics import service as academics
@@ -73,10 +73,6 @@ async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
     if scope.term_id:
         term = await academics.get_term_row(ctx, scope.term_id)
         if term.program_id != scope.program_id:
-            raise not_found()
-    if scope.course_id:
-        course = await academics.get_course_row(ctx, scope.course_id)
-        if course.program_id != scope.program_id:
             raise not_found()
 
 
@@ -555,12 +551,7 @@ async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
         raise not_found("attachment", attachment_id)
-    sent = any(
-        block.get("attachment_id") == row.id
-        for msg in await messages(ctx, row.session_id)
-        for block in msg.content
-    )
-    if sent:
+    if row.sent_at is not None:
         raise AppError("agent.attachment_in_use", 409)
     await ctx.db.delete(row)
     delete_after_commit(ctx, [row.storage_key])

@@ -4093,24 +4093,6 @@
               "title": "Term Id"
             },
             "description": "Term it works in, if any."
-          },
-          {
-            "name": "course_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Course of older conversations; new ones work in a Program or a term.",
-              "title": "Course Id"
-            },
-            "description": "Course of older conversations; new ones work in a Program or a term."
           }
         ],
         "responses": {
@@ -17060,18 +17042,6 @@
             ],
             "title": "Term Id",
             "description": "Term it works in, if any."
-          },
-          "course_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Course Id",
-            "description": "Course of older conversations; new ones work in a Program or a term."
           }
         },
         "type": "object",
@@ -32501,7 +32471,7 @@
               }
             ],
             "title": "Term Id",
-            "description": "Term (kind term, or course's term; with term_wizard, the existing term the courses are added to, for its real weeks)"
+            "description": "Term (kind term, or course's term: without it, the course's current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)"
           },
           "course_id": {
             "anyOf": [

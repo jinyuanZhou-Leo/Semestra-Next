@@ -14,6 +14,7 @@ from semestra.core.jobs import enqueue
 from semestra.core.storage import get_storage
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
+from semestra.modules.academics.models import AcademicsCourse, AcademicsProgram
 from semestra.modules.imports import build, deps
 from semestra.modules.imports.ics import parse_ics
 from semestra.modules.imports.models import ImportsItem, ImportsSession, ImportsUpload
@@ -39,7 +40,10 @@ from semestra.modules.imports.states import CLOSED, move
 AI_PURPOSE = {"syllabus": "extraction", "text": "extraction", "timetable_image": "vision"}
 
 
-async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> SessionTarget:
+async def _check_target(
+    ctx: Ctx, program: AcademicsProgram, target: SessionTarget
+) -> SessionTarget:
+    program_id = program.id
     if target.kind == "term_wizard" and ctx.delegated:
         # The new-term wizard in the app creates the term and its courses before the commit;
         # an assistant or MCP client cannot finish such an import.
@@ -58,9 +62,22 @@ async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> Ses
         course = await academics.get_course_row(ctx, target.course_id)
         if course.program_id != program_id:
             raise not_found("course", target.course_id)
+        if target.term_id is None:
+            target = target.model_copy(update={"term_id": await _course_term(ctx, program, course)})
     if target.kind != "term_wizard":
         target = target.model_copy(update={"start_date": None, "end_date": None})
     return target
+
+
+async def _course_term(ctx: Ctx, program: AcademicsProgram, course: AcademicsCourse) -> str | None:
+    """The term a course import reads its dates against ("Week 5", "Oct 3"): the course's term
+    that has not ended yet (a full-year course's current or next one), else its last."""
+    terms = [
+        await academics.get_term_row(ctx, t)
+        for t in (await academics.course_out(ctx, course)).term_ids
+    ]
+    today = academics.program_today(ctx, program)
+    return next((t.id for t in terms if t.end_date >= today), terms[-1].id if terms else None)
 
 
 async def _claim_uploads(
@@ -104,8 +121,8 @@ async def create_session(
 ) -> ImportSessionDetail:
     """`module_meta`: what the calling module (M09) keeps with the session for its commit hook;
     only code calling this function can set it, never a capability's input."""
-    await academics.get_program_row(ctx, inp.program_id)
-    target = await _check_target(ctx, inp.program_id, inp.target)
+    program = await academics.get_program_row(ctx, inp.program_id)
+    target = await _check_target(ctx, program, inp.target)
     kind = inp.source_kind
     files = [*inp.upload_ids, *inp.attachment_ids]
     if kind in ("ics", "timetable_image") and not files:

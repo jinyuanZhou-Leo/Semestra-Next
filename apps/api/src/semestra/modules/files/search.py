@@ -234,7 +234,11 @@ async def _semantic(
                     FilesItem.active_document_id == FilesChunk.document_id,
                 ),
             )
-            .where(FilesChunk.user_id == ctx.user_id, FilesChunk.item_id.in_(item_ids))
+            .where(
+                FilesChunk.user_id == ctx.user_id,
+                FilesChunk.course_id.in_(course_ids),
+                FilesChunk.item_id.in_(item_ids),
+            )
         )
         hits = await store.nearest_of(
             ctx.db, space, user_id=ctx.user_id, vector=vector, chunk_ids=list(chunk_ids), k=k

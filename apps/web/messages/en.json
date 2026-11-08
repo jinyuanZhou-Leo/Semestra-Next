@@ -2184,6 +2184,7 @@
   "error_import_weight_missing": "No weight: it doesn't count toward the course grade",
   "error_import_duplicate_assessment": "An assessment with this title already exists",
   "error_import_date_unresolved": "Couldn't work out the date “{text}”",
+  "error_import_date_outside_term": "This date is far outside the term",
   "error_import_term_unresolved": "Couldn't tell which term this belongs to",
   "error_import_outside_term": "These dates are outside the term",
   "error_import_ics_truncated": "{filename} has more dates than can be read at once, so only the earliest ones were imported",

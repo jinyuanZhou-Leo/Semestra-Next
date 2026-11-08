@@ -232,6 +232,7 @@ async def update_provider(ctx: Ctx, inp: ProviderUpdateInput) -> Provider:
         await _check(ctx, endpoint_for(ctx.settings, row))
         row.last_checked_at = ctx.now
         row.last_error_code = None
+        runtime(ctx.state).forget_provider(row.id)
     row.updated_at = ctx.now
     await events.publish(ctx, "ai.provider.updated", {"provider_id": row.id})
     await _publish_changes(ctx, before)
@@ -273,6 +274,7 @@ async def test_provider(ctx: Ctx, provider_id: str) -> ProviderCheck:
         error = exc.code
     row.last_checked_at = ctx.now
     row.last_error_code = error
+    runtime(ctx.state).forget_provider(row.id)
     return ProviderCheck(ok=error is None, error_code=error, checked_at=ctx.now)
 
 

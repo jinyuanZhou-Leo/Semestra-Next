@@ -98,6 +98,7 @@ export const errorMessages = {
   error_habit_range_invalid: m.error_habit_range_invalid,
   error_hello_note_too_long: m.error_hello_note_too_long,
   error_import_course_ref_missing: m.error_import_course_ref_missing,
+  error_import_date_outside_term: m.error_import_date_outside_term,
   error_import_date_unresolved: m.error_import_date_unresolved,
   error_import_duplicate_assessment: m.error_import_duplicate_assessment,
   error_import_duplicate_course: m.error_import_duplicate_course,

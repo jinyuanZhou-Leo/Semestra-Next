@@ -6,7 +6,8 @@ loaded in one long-lived process instead of a process per call: a query then tak
 not the seconds a model takes to load. The process starts on first use, keeps up to
 `local_embedding_max_loaded` models (users who picked different models take turns without
 reloading), and exits after `local_embedding_idle_seconds` without a request. A crash or a call that
-runs out of time ends it; the next call starts a fresh one.
+runs out of time ends it; the next call starts a fresh one. A model that fails to load or embed
+fails only that call: the process, and the models other users have loaded, stay.
 
 Requests are served one at a time; a search query waits at most for the batch in progress.
 Among documents, batches for a model already loaded go before those that would load another, so
@@ -19,7 +20,6 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Sequence
-from functools import cache
 from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from pathlib import Path
@@ -36,34 +36,12 @@ from semestra.core.errors import AppError
 log = structlog.get_logger(__name__)
 
 type Kind = Literal["query", "passage"]
-type Device = Literal["cpu", "cuda"]
 
 # Seconds a model may take to load (from disk; downloads happen before), and per batch. The
 # batch limit only catches a stuck child: Qwen3 in fp16 takes ~11 s a batch on an M3 and may be
 # ten times slower on a small VPS, and a timeout kills the child (so the next batch reloads).
 LOAD_SECONDS = 300
 BATCH_SECONDS = 600
-_PROVIDERS: dict[Device, str] = {"cuda": "CUDAExecutionProvider", "cpu": "CPUExecutionProvider"}
-
-
-@cache
-def _available_providers() -> tuple[str, ...]:
-    try:
-        import onnxruntime  # pyright: ignore[reportMissingImports]
-    except ImportError:
-        return ()
-    return tuple(onnxruntime.get_available_providers())
-
-
-def device(setting: str) -> Device:
-    """The device a model runs on: the one configured, or CUDA when ONNX Runtime has it.
-
-    There is no Core ML (Mac GPU) option: on an M3 (2026-11-04) ONNX Runtime split e5-small into
-    38 Core ML partitions and inference took tens of gigabytes of swap until it was killed, while
-    the CPU embeds about 22 chunks a second with the int8 model."""
-    if setting in ("cpu", "cuda"):
-        return setting  # pyright: ignore[reportReturnType]
-    return "cuda" if _PROVIDERS["cuda"] in _available_providers() else "cpu"
 
 
 def threads(setting: int) -> int:
@@ -71,6 +49,14 @@ def threads(setting: int) -> int:
 
 
 # --- in the API process -----------------------------------------------------------------------
+
+
+class _ChildError(Exception):
+    """The child answered with an error; it is still running, with `loaded` models."""
+
+    def __init__(self, reason: str, loaded: list[str]) -> None:
+        super().__init__(reason)
+        self.loaded = loaded
 
 
 class _Runtime:
@@ -121,24 +107,27 @@ class _Runtime:
         self._loaded = []
 
     def _reap(self) -> None:
+        # Runs as long as the API does: one that ended with its process could miss the next one,
+        # started while it was ending.
         while True:
             time.sleep(min(30.0, self._idle_seconds / 2))
             with self._lock:
-                if self._process is None:
-                    return
-                if time.monotonic() - self._last_used > self._idle_seconds:
+                idle = time.monotonic() - self._last_used > self._idle_seconds
+                if self._process is not None and idle:
                     log.info("local_embedding_idle_exit")
                     self._stop()
-                    return
 
     def _ask(self, conn: Connection, message: tuple[object, ...], seconds: float) -> object:
         conn.send(message)
         if not conn.poll(seconds):
             raise TimeoutError
-        status, value = conn.recv()
-        if status != "ok":
-            raise RuntimeError(value)
-        return value
+        match conn.recv():
+            case ("ok", value):
+                return value
+            case ("error", str(reason), list(loaded)):
+                raise _ChildError(reason, loaded)  # pyright: ignore[reportUnknownArgumentType]
+            case other:
+                raise OSError(f"unexpected answer {other!r}")
 
     def embed(
         self, folder: Path, settings: Settings, texts: list[str], kind: Kind
@@ -188,18 +177,22 @@ class _Runtime:
             load = (
                 "load",
                 str(folder),
-                device(settings.local_embedding_device),
+                settings.local_embedding_device,  # "auto" is decided in the child
                 threads(settings.local_embedding_threads),
                 keep,
             )
-            self._ask(conn, load, LOAD_SECONDS)
-            others = [f for f in self._loaded if f != str(folder)]
-            self._loaded = [*(others[-(keep - 1) :] if keep > 1 else []), str(folder)]
+            loaded = self._ask(conn, load, LOAD_SECONDS)
+            assert isinstance(loaded, tuple)
+            self._loaded = list(loaded[1])  # pyright: ignore[reportUnknownArgumentType]
             vectors = self._ask(conn, ("embed", texts, kind), BATCH_SECONDS)
         except TimeoutError:
             self._stop()
             raise AppError("ai.timeout", 504) from None
-        except (EOFError, OSError, RuntimeError) as exc:
+        except _ChildError as exc:  # this model or batch failed; the child is fine
+            log.warning("local_embedding_failed", error=str(exc), model=folder.name)
+            self._loaded = exc.loaded
+            raise AppError("ai.local_model_failed", 500) from exc
+        except (EOFError, OSError) as exc:
             log.warning("local_embedding_failed", error=repr(exc))
             self._stop()
             raise AppError("ai.local_model_failed", 500) from exc

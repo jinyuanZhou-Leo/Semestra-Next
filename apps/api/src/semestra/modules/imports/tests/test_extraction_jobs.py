@@ -11,16 +11,18 @@ from semestra.core.errors import AppError
 from semestra.core.events import Event, events
 from semestra.modules import ai
 from semestra.modules.files.models import FilesItem
-from semestra.modules.imports import extraction, jobs
+from semestra.modules.imports import extraction
+from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.tests.test_imports import SYLLABUS, Api
 
 
 class ModelCalls(list[str]):
-    """Each extraction call; error codes in `failures` make the next calls fail."""
+    """Each extraction call; error codes (or exceptions) in `failures` make the next calls
+    fail."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.failures: list[str] = []
+        self.failures: list[str | Exception] = []
 
 
 @pytest.fixture
@@ -33,12 +35,12 @@ def model_calls(monkeypatch: pytest.MonkeyPatch) -> ModelCalls:
     async def run_extract(ctx: Any, purpose: str, schema: Any, **kwargs: Any) -> Any:
         calls.append(purpose)
         if calls.failures:
-            raise AppError(calls.failures.pop(0), 504)
+            failure = calls.failures.pop(0)
+            raise failure if isinstance(failure, Exception) else AppError(failure, 504)
         return ai.Extraction(value=schema.model_validate(SYLLABUS))
 
     monkeypatch.setattr(ai, "available", available)
     monkeypatch.setattr(extraction, "run_extract", run_extract)
-    monkeypatch.setattr(jobs, "SOURCE_RETRY_SECONDS", 0)
     return calls
 
 
@@ -93,29 +95,39 @@ async def test_a_course_file_still_processing_is_waited_for(
     assert len(model_calls) == 1
 
 
-async def test_a_passing_model_error_is_tried_again_for_that_file(
-    app: FastAPI, api: Api, model_calls: ModelCalls, run_jobs
+async def test_a_job_that_runs_again_does_not_read_its_files_again(
+    app: FastAPI, api: Api, model_calls: ModelCalls, run_jobs, clock
 ):
     program_id = await api.program()
     term_id = await api.term(program_id)
     course = await api.course(program_id, term_id)
-    upload = (
-        await api.call(
-            "POST",
-            "/imports/uploads",
-            files={"file": ("s.txt", b"APS105 Midterm 30%", "text/plain")},
-        )
-    )["id"]
-    model_calls.failures.append("ai.provider_unreachable")
+    uploads = [
+        (
+            await api.call(
+                "POST",
+                "/imports/uploads",
+                files={"file": (f"s{n}.txt", b"APS105 Midterm 30%", "text/plain")},
+            )
+        )["id"]
+        for n in range(2)
+    ]
+    model_calls.failures.extend(["ai.request_rejected", RuntimeError("crash")])
     session = await api.create(
         program_id, source_kind="syllabus",
         target={"kind": "course", "course_id": course["id"], "term_id": term_id},
-        upload_ids=[upload],
+        upload_ids=uploads,
     )  # fmt: skip
+    await run_jobs()  # the second file crashes the job; the first one's failure is kept
+    clock.advance(minutes=10)
     await run_jobs()
     done = await api.call("GET", f"/imports/{session['id']}")
     assert done["status"] == "ready"
-    assert len(model_calls) == 2
+    assert [r["status"] for r in done["source_refs"]] == ["failed", "done"]
+    assert len(model_calls) == 3  # the first file once, the second twice
+    async with system_ctx(app.state) as ctx:
+        row = await ctx.db.get(ImportsSession, session["id"])
+        assert row is not None
+        assert row.readings == {}  # kept only while extracting
 
 
 async def test_a_category_weight_is_shared_by_its_assessments(
@@ -259,3 +271,59 @@ async def test_a_file_ready_before_the_wait_was_saved_still_starts_the_session(
     done = await api.call("GET", f"/imports/{session['id']}")
     assert done["status"] == "ready"
     assert len(model_calls) == 1
+
+
+async def test_a_gradebook_import_reads_dates_in_the_course_term_and_finds_earlier_ones(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    from semestra.modules.imports.tests.test_imports import by_type, ev
+
+    answer = {
+        "course": {"code": ev("APS105H1"), "title": ev("Computer Fundamentals")},
+        "grading": {
+            "assessments": [
+                {"title": ev("Lab 1"), "weight": ev(40), "due_text": ev("Week 3, Friday")},
+                # The model guessed the year of a date the syllabus gave without one.
+                {"title": ev("Quiz"), "weight": ev(30), "due_text": ev("March 9"),
+                 "due_date": ev("2025-03-09")},
+                {"title": ev("Essay"), "weight": ev(30), "due_date": ev("2027-01-15")},
+            ]
+        },
+        "important_dates": [
+            {"title": ev("Drop deadline"), "date_text": ev("March 10"), "kind": ev("deadline")},
+            {"title": ev("Problem set"), "date_text": ev("Week 4, Friday"), "kind": ev("deadline")},
+            {"title": ev("Problem set"), "date_text": ev("Week 6, Friday"), "kind": ev("deadline")},
+            {"title": ev("Open house"), "date_text": ev("Week 2, Monday")},
+        ],
+    }  # fmt: skip
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    course = await api.course(program_id, term_id)
+
+    async def import_once() -> dict[str, Any]:
+        fake_ai.append(answer)
+        upload = await api.upload("s.txt", b"APS105", "text/plain")
+        # As the gradebook starts it: the course only, no term.
+        session = await api.create(
+            program_id, source_kind="syllabus",
+            target={"kind": "course", "course_id": course["id"]}, upload_ids=[upload],
+        )  # fmt: skip
+        await run_jobs()
+        return await api.call("GET", f"/imports/{session['id']}")
+
+    first = await import_once()
+    due = {a["data"]["title"]: a["data"].get("due_date") for a in by_type(first, "assessment")}
+    assert due == {"Lab 1": "2026-01-23", "Quiz": "2026-03-09", "Essay": "2027-01-15"}
+    (essay,) = [a for a in by_type(first, "assessment") if a["data"]["title"] == "Essay"]
+    assert [i["code"] for i in essay["issues"]] == ["import.date_outside_term"]
+    assert by_type(first, "event")[0]["data"]["date"] == "2026-01-12"
+    await api.commit(first["id"])
+
+    second = await import_once()
+    await api.commit(second["id"])
+    second = await api.call("GET", f"/imports/{second['id']}")
+    tasks = by_type(second, "task")
+    assert len(tasks) == 3  # the two problem sets are told apart
+    assert all(t["result"]["reused"] is True for t in tasks)
+    assert len({t["result"]["created_id"] for t in tasks}) == 3
+    assert by_type(second, "event")[0]["result"].get("updated_id")

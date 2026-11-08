@@ -105,6 +105,20 @@ def test_quotes_are_checked_ignoring_whitespace_and_pages_are_fixed():
     ]
 
 
+def test_a_quote_from_a_scanned_page_with_a_line_of_text_is_kept():
+    # Page 2 is a scan whose title line also has a text layer; the quote is from the image.
+    pages = [PAGES[0], PageText(2, "Assessment")]
+    value = Syllabus.model_validate(
+        {
+            "course_code": ev("APS105H1", 1, "APS105H1"),
+            "instructor": ev("", None, ""),
+            "assessments": [{"name": ev("Midterm", 2, "Midterm exam"), "weight": ev(30, 2, "30%")}],
+        }
+    )
+    assert verify_evidence(value, pages, image_pages={2}) == []
+    assert value.assessments[0].weight.evidence == Evidence(page=2, quote="30%")
+
+
 async def test_extract_wraps_the_document_and_verifies(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("anthropic")

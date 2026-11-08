@@ -48,7 +48,7 @@ function session(overrides: Partial<AgentSessionOut> = {}): AgentSessionOut {
     id: 's1',
     title: null,
     program_id: 'p1',
-    scope: { program_id: 'p1', term_id: null, course_id: null },
+    scope: { program_id: 'p1', term_id: null },
     pinned: false,
     temporary: false,
     created_at: NOW,
@@ -208,9 +208,7 @@ function Host({
   )
 }
 
-function renderConversation(
-  pageScope: AgentScope = { program_id: 'p1', term_id: 't2', course_id: 'c1' },
-) {
+function renderConversation(pageScope: AgentScope = { program_id: 'p1', term_id: 't2' }) {
   let created: string | null = null
   const view = renderWithRouter(
     <Host
@@ -730,7 +728,7 @@ test('a question is answered by picking an option, then shows with its answer', 
 
 test('/ picks a skill and @ refers to a course, which works in its term', async () => {
   srv.reply = () => sse([])
-  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  renderConversation({ program_id: 'p1', term_id: null })
   const input = await messageInput()
   await userEvent.type(input, '/gr')
   await userEvent.click(await screen.findByRole('option', { name: /Record grades/ }))
@@ -748,13 +746,13 @@ test('/ picks a skill and @ refers to a course, which works in its term', async 
     skill: 'record-grades',
     text: ' for @MAT188H1 ',
     references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
-    scope: { program_id: 'p1', term_id: 't2', course_id: null },
+    scope: { program_id: 'p1', term_id: 't2' },
   })
 })
 
 test('Chinese punctuation opens the menus, and @ works right after Chinese text', async () => {
   srv.reply = () => sse([])
-  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  renderConversation({ program_id: 'p1', term_id: null })
   const input = await messageInput()
   // Input methods type `、` for `/` in their Chinese punctuation mode.
   await userEvent.type(input, '、gr')
@@ -769,7 +767,7 @@ test('Chinese punctuation opens the menus, and @ works right after Chinese text'
 })
 
 test('pasted mentions from elsewhere stay text, and a pasted skill becomes text', async () => {
-  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  renderConversation({ program_id: 'p1', term_id: null })
   const input = await messageInput()
   await userEvent.click(input)
   const html =
@@ -795,7 +793,7 @@ test('pasted mentions from elsewhere stay text, and a pasted skill becomes text'
 
 test('the scope menu offers the whole program and the terms, the current one first', async () => {
   srv.reply = () => sse([])
-  renderConversation({ program_id: 'p1', term_id: null, course_id: null })
+  renderConversation({ program_id: 'p1', term_id: null })
   await userEvent.click(await screen.findByRole('button', { name: /^Working in: / }))
   const items = await screen.findAllByRole('menuitemradio')
   expect(items.map((item) => item.textContent)).toEqual([
@@ -809,7 +807,7 @@ test('the scope menu offers the whole program and the terms, the current one fir
 
   await userEvent.type(await messageInput(), 'hi{Enter}')
   await waitFor(() => expect(srv.sent).toHaveLength(1))
-  expect(srv.sent[0]?.body.scope).toEqual({ program_id: 'p1', term_id: 't1', course_id: null })
+  expect(srv.sent[0]?.body.scope).toEqual({ program_id: 'p1', term_id: 't1' })
 })
 
 test('on a course page the assistant works in the course’s term', async () => {
@@ -820,20 +818,6 @@ test('on a course page the assistant works in the course’s term', async () => 
   renderWithRouter(<Probe />)
   // The year-long course runs in both terms; the current one wins.
   expect(await screen.findByText('t2')).toBeInTheDocument()
-})
-
-test('an older conversation scoped to a course checks the course’s term', async () => {
-  srv.detail.session = session({ scope: { program_id: 'p1', term_id: null, course_id: 'c2' } })
-  renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
-  await userEvent.click(await screen.findByRole('button', { name: /^Working in: MAT188H1/ }))
-  expect(await screen.findByRole('menuitemradio', { name: /Winter 2026/ })).toHaveAttribute(
-    'aria-checked',
-    'true',
-  )
-  expect(screen.getByRole('menuitemradio', { name: 'Whole program' })).toHaveAttribute(
-    'aria-checked',
-    'false',
-  )
 })
 
 test('editing a message sends the new text and drops what came after it', async () => {
@@ -1102,11 +1086,11 @@ test('an edit keeps the skill and attachments and forgets later proposals', () =
 })
 
 test('a suggestion in an empty existing conversation keeps its scope', async () => {
-  srv.detail.session = session({ scope: { program_id: 'p1', term_id: null, course_id: 'c2' } })
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't1' } })
   renderWithRouter(
     <Conversation
       sessionId="s1"
-      pageScope={{ program_id: 'p1', term_id: 't2', course_id: 'c1' }}
+      pageScope={{ program_id: 'p1', term_id: 't2' }}
       onCreated={() => {}}
     />,
   )
@@ -1131,7 +1115,7 @@ test('a suggestion about a course sends the course as a reference', async () => 
       }),
     ),
   )
-  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2' } })
   renderWithRouter(<Conversation sessionId="s1" pageScope={null} onCreated={() => {}} />)
   await userEvent.click(
     await screen.findByRole('button', {
@@ -1500,7 +1484,7 @@ test('an attachment of a sent message can be saved to a course of the term', asy
       return HttpResponse.json({ id: 'fi1', course_id: 'c2', display_name: 'notes.txt' })
     }),
   )
-  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2' } })
   srv.detail.messages = [
     msg('u1', 'user', [
       { type: 'text', text: 'Keep this' },
@@ -1524,7 +1508,7 @@ test('an attachment saved before shows where it went and opens the saved file', 
       HttpResponse.json({ id: 'fi1', course_id: 'c2', display_name: 'notes.txt', kind: 'file' }),
     ),
   )
-  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2', course_id: null } })
+  srv.detail.session = session({ scope: { program_id: 'p1', term_id: 't2' } })
   srv.detail.attachments = [
     {
       id: 'f1',

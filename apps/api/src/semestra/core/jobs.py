@@ -354,8 +354,8 @@ async def _on_failure(ctx: Ctx, job: CoreJob) -> None:
     """The handler's `on_failure` for a job that has ended failed or cancelled, in `ctx`'s
     transaction."""
     handler = _handlers.get(job.kind)
-    if handler is None or handler.on_failure is None or job.status == "succeeded":
-        return
+    if handler is None or handler.on_failure is None or job.status not in ("failed", "cancelled"):
+        return  # succeeded, or pending again after a crash it will be retried from
     try:
         payload = handler.payload_model.model_validate(job.payload)
     except ValidationError:

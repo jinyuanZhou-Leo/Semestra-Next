@@ -1,6 +1,5 @@
 import type { AgentScope } from '@semestra/api-client'
 import { ChevronDown, FolderOpen } from 'lucide-react'
-import { courseTermId } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -33,17 +32,9 @@ export function ScopeChip({
 }) {
   const program = scope?.program_id ?? programId
   const label = useScopeLabel(scope)
-  const { terms, courses } = useProgramEntities(program)
+  const { terms } = useProgramEntities(program)
   const name = scope ? (label ?? '…') : m.assistant_scope_none()
-  const oldCourse = scope?.course_id ? courses.find((c) => c.id === scope.course_id) : undefined
-  // Older conversations may name a course (some without its term): they check its term.
-  const value =
-    scope?.term_id ??
-    (oldCourse
-      ? courseTermId(oldCourse, terms, undefined)
-      : scope && !scope.course_id
-        ? PROGRAM
-        : '')
+  const value = scope ? (scope.term_id ?? PROGRAM) : ''
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

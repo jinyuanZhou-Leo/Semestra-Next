@@ -2184,6 +2184,7 @@
   "error_import_weight_missing": "没有权重，不计入课程成绩",
   "error_import_duplicate_assessment": "已有同名考核",
   "error_import_date_unresolved": "无法确定日期“{text}”",
+  "error_import_date_outside_term": "日期远在学期之外",
   "error_import_term_unresolved": "无法确定属于哪个学期",
   "error_import_outside_term": "日期不在该学期范围内",
   "error_import_ics_truncated": "{filename} 中的日程太多，只读取了最早的一部分",

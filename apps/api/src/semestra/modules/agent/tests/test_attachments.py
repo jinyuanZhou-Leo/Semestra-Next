@@ -14,7 +14,7 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
 from semestra.modules.agent import attachment_context, service
-from semestra.modules.agent.models import AgentAttachment, AgentMessage, AgentSession
+from semestra.modules.agent.models import AgentAttachment, AgentSession
 from semestra.modules.agent.tests.conftest import Agent as ConversationAgent
 from semestra.modules.agent.tests.conftest import FakeModel, call, say
 from semestra.modules.files.parse import ParseError
@@ -205,36 +205,36 @@ async def test_creating_a_conversation_twice_with_one_key_returns_it(chat: Chat)
     assert len(listed["items"]) == 2
 
 
-async def test_unsent_attachments_are_removed_after_a_day(app: FastAPI, chat: Chat, clock: Clock):
-    session_id = await session_of(chat, await chat.program())
-    sent = await chat.attach(session_id, "sent.txt", b"kept", "text/plain")
-    unsent = await chat.attach(session_id, "unsent.txt", b"dropped", "text/plain")
-    async with system_ctx(app.state, chat.user_id) as ctx:
-        ctx.db.add(
-            AgentMessage(
-                user_id=chat.user_id,
-                session_id=session_id,
-                role="user",
-                content=[{"type": "file_ref", "attachment_id": sent["id"], "name": "sent.txt"}],
-                created_at=clock.now,
-            )
+async def test_unsent_attachments_are_removed_after_a_day(
+    app: FastAPI, agent: ConversationAgent, model: FakeModel, clock: Clock
+):
+    session_id = (await agent.session())["id"]
+
+    async def attach(name: str, data: bytes) -> str:
+        files = {"file": (name, data, "text/plain")}
+        r = await agent.call(
+            "POST", "/agent/attachments", data={"session_id": session_id}, files=files
         )
-        await ctx.db.commit()
+        return r["id"]
+
+    sent, unsent = await attach("sent.txt", b"kept"), await attach("unsent.txt", b"dropped")
+    model.then(say("Read it."))
+    await agent.send(session_id, "look", attachment_ids=[sent])
 
     clock.advance(hours=23)
     await run_periodic(app.state, "agent.attachments.cleanup")
     ids = {
-        a["id"] for a in (await chat.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
+        a["id"] for a in (await agent.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
     }
-    assert ids == {sent["id"], unsent["id"]}
+    assert ids == {sent, unsent}
 
     clock.advance(hours=2)
     await run_periodic(app.state, "agent.attachments.cleanup")
     ids = {
-        a["id"] for a in (await chat.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
+        a["id"] for a in (await agent.call("GET", f"/agent/sessions/{session_id}"))["attachments"]
     }
-    assert ids == {sent["id"]}
-    usage = await chat.call("GET", "/storage/usage")
+    assert ids == {sent}
+    usage = await agent.call("GET", "/storage/usage")
     assert usage["by_module"]["agent"] == len(b"kept")
 
 

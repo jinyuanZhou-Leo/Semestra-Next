@@ -15,11 +15,11 @@ import anyio.to_thread
 import structlog
 from sqlalchemy import ColumnElement, func, select, update
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.core.jobs import CoreJob, JobCancelled, JobCtx
+from semestra.core.jobs import CoreJob, JobCancelled, JobCtx, enqueue
 from semestra.core.storage import Storage
 from semestra.modules import ai
 from semestra.modules.files import chunking, indexing, service
@@ -40,7 +40,7 @@ from semestra.modules.files.parse.isolated import (
     render_isolated,
 )
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
-from semestra.modules.files.vectors import VectorRow, VectorStore, get_vector_store
+from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
 log = structlog.get_logger()
 
@@ -284,12 +284,33 @@ async def _run(ctx: JobCtx, work: _Work) -> int:
     await ctx.check_cancelled()
 
     # --- vectors -------------------------------------------------------------------------
-    space = await _embed(ctx, work, chunk_refs)
+    embedded = await _embed(ctx, work, chunk_refs)
+    space = embedded[0] if embedded else None
     await ctx.check_cancelled()
 
     # --- switch to the new document ------------------------------------------------------
     await _activate(ctx, work, space, detected.mime, len(parsed.pages))
+    if embedded is not None:
+        await _rebuild_if_model_changed(ctx, *embedded)
     return len(parsed.pages)
+
+
+async def _rebuild_if_model_changed(ctx: JobCtx, space: str, dim: int) -> None:
+    """The user changed their embedding model while this document was embedded: the rebuild that
+    the change started skipped it (it was not active yet), so it is rebuilt now."""
+    try:
+        kind, model = await ai.embedding_model(ctx)
+    except AppError:
+        return  # no model any more: nothing to rebuild with
+    if fingerprint(kind, model, dim) == space:
+        return
+    from semestra.modules.files.jobs import ReindexPayload  # the jobs import this module
+
+    async def rebuild(user_ctx: Ctx) -> None:
+        payload = ReindexPayload(retry=True)
+        await enqueue(user_ctx, "files.reindex_vectors", payload, dedupe_key="reindex")
+
+    await run_as_system(ctx.state, ctx.user_id, rebuild)
 
 
 async def _once(data: bytes):
@@ -418,9 +439,10 @@ async def _ocr(
 
 async def _embed(
     ctx: JobCtx, work: _Work, refs: Sequence[tuple[str, list[str], str]]
-) -> str | None:
-    """Embeds the new chunks. Without an embedding model, or if it fails, the document is still
-    searchable by keyword and a later reindex adds the vectors."""
+) -> tuple[str, int] | None:
+    """Embeds the new chunks; returns their space and dimensions. Without an embedding model, or
+    if it fails, the document is still searchable by keyword and a later reindex adds the
+    vectors."""
     store = get_vector_store()
     if not refs or not await ai.available(ctx, "embedding"):
         # A local model still to download: fetched in its own job, which then adds the vectors.
@@ -433,6 +455,7 @@ async def _embed(
             return None
     batches = [refs[i : i + BATCH_SIZE] for i in range(0, len(refs), BATCH_SIZE)]
     space: str | None = None
+    dim = 0
     try:
         for number, batch in enumerate(batches):
             await ctx.check_cancelled()
@@ -451,7 +474,7 @@ async def _embed(
                 await store.delete(db, [r[0] for r in refs], space)
                 await db.commit()
         return None
-    return space
+    return (space, dim) if space is not None else None
 
 
 async def _store_vectors(
@@ -582,33 +605,49 @@ async def _count_failure(ctx: JobCtx, item_id: str) -> None:
         await db.commit()
 
 
-async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
+async def _stale(ctx: JobCtx, space: str, *, retry: bool) -> list[tuple[str, str, str]]:
+    """(item, course, active document) of the user's documents without vectors in `space`."""
     async with ctx.state.session_factory() as db:
-        candidates = list(
-            (
-                await db.execute(
-                    select(
-                        FilesItem.id,
-                        FilesItem.course_id,
-                        FilesItem.active_document_id,
-                        FilesIndexState.vector_fingerprint,
-                        FilesIndexState.vector_document_id,
-                    )
-                    .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
-                    .where(
-                        FilesItem.user_id == ctx.user_id,
-                        FilesItem.active_document_id.is_not(None),
-                        *([retries_left()] if retry else []),
-                    )
-                    .order_by(FilesItem.id)
+        candidates = (
+            await db.execute(
+                select(
+                    FilesItem.id,
+                    FilesItem.course_id,
+                    FilesItem.active_document_id,
+                    FilesIndexState.vector_fingerprint,
+                    FilesIndexState.vector_document_id,
                 )
-            ).all()
-        )
-    stale = [
+                .outerjoin(FilesIndexState, FilesIndexState.item_id == FilesItem.id)
+                .where(
+                    FilesItem.user_id == ctx.user_id,
+                    FilesItem.active_document_id.is_not(None),
+                    *([retries_left()] if retry else []),
+                )
+                .order_by(FilesItem.id)
+            )
+        ).all()
+    return [
         (item_id, course_id, document_id)
         for item_id, course_id, document_id, old_space, old_document in candidates
         if not (old_space == space and old_document == document_id)
     ]
+
+
+async def _reindex_into(ctx: JobCtx, store: VectorStore, space: str, *, retry: bool) -> int:
+    """Embeds the stale documents, then looks again until none is left: a document that became
+    active meanwhile (its own embedding raced a model change, and enqueueing the rebuild joined
+    this job) is not left in the old space. Each document is tried once per run."""
+    done = 0
+    tried: set[tuple[str, str]] = set()
+    while stale := [s for s in await _stale(ctx, space, retry=retry) if (s[0], s[2]) not in tried]:
+        tried.update((item_id, document_id) for item_id, _, document_id in stale)
+        done += await _embed_stale(ctx, store, space, stale)
+    return done
+
+
+async def _embed_stale(
+    ctx: JobCtx, store: VectorStore, space: str, stale: list[tuple[str, str, str]]
+) -> int:
     done = 0
     for number, (item_id, course_id, document_id) in enumerate(stale):
         await ctx.check_cancelled()

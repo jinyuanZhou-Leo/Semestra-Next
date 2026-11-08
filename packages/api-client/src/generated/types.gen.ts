@@ -238,12 +238,6 @@ export type AgentScope = {
      * Term it works in, if any.
      */
     term_id?: string | null;
-    /**
-     * Course Id
-     *
-     * Course of older conversations; new ones work in a Program or a term.
-     */
-    course_id?: string | null;
 };
 
 /**
@@ -9097,7 +9091,7 @@ export type SessionTarget = {
     /**
      * Term Id
      *
-     * Term (kind term, or course's term; with term_wizard, the existing term the courses are added to, for its real weeks)
+     * Term (kind term, or course's term: without it, the course's current or next term; with term_wizard, the existing term the courses are added to, for its real weeks)
      */
     term_id?: string | null;
     /**
@@ -13996,12 +13990,6 @@ export type AgentSuggestionListData = {
          * Term it works in, if any.
          */
         term_id?: string | null;
-        /**
-         * Course Id
-         *
-         * Course of older conversations; new ones work in a Program or a term.
-         */
-        course_id?: string | null;
     };
     url: '/agent/suggestions';
 };

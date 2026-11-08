@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import OperationalError
 from starlette.datastructures import State
 
@@ -24,6 +24,8 @@ log = structlog.get_logger()
 
 WRITE_ATTEMPTS = 3
 MODELS_CACHE_TTL = timedelta(hours=1)
+# How often an unchanged provider health is written again, so "last checked" stays roughly true.
+HEALTH_REFRESH = timedelta(minutes=15)
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,9 @@ class AiRuntime:
         # learnt from a refusal (`calls.embed`).
         self.embed_batch: dict[tuple[str, str | None], int] = {}
         self._limiters = Limiters()
+        # provider id → the health `mark_provider` last decided to write (error code, checked at,
+        # and a token telling that decision from an equal earlier one).
+        self._health: dict[str, tuple[str | None, datetime, object]] = {}
 
     def gate(self, ep: Endpoint) -> Gate:
         """A slot of the endpoint's limit of requests at a time, for each request to it."""
@@ -48,17 +53,18 @@ class AiRuntime:
             return no_gate  # the instance provider, unless the server set a limit
         return self._limiters.gate(ep.base_url, ep.provider_id, ep.max_concurrency)
 
-    def _spawn(self, state: State, write: Any) -> None:
+    def _spawn(self, state: State, write: Any, gave_up: Any = None) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # e.g. a stream garbage-collected after the loop stopped
             log.warning("ai_bookkeeping_skipped")
             return
-        task = loop.create_task(self._write(state, write))
+        task = loop.create_task(self._write(state, write, gave_up))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _write(self, state: State, write: Any) -> None:
+    async def _write(self, state: State, write: Any, gave_up: Any = None) -> None:
+        """Runs `write` in its own session; `gave_up()` when it could not be saved."""
         for attempt in range(WRITE_ATTEMPTS):
             try:
                 async with state.session_factory() as db:
@@ -68,11 +74,13 @@ class AiRuntime:
             except OperationalError:  # database locked: the caller still holds the write lock
                 if attempt == WRITE_ATTEMPTS - 1:
                     log.warning("ai_bookkeeping_write_failed")
-                    return
+                    break
                 await asyncio.sleep(0.5 * (attempt + 1))
             except Exception:
                 log.exception("ai_bookkeeping_write_failed")
-                return
+                break
+        if gave_up is not None:
+            gave_up()
 
     def record_usage(self, state: State, event: AiUsageEvent) -> None:
         async def write(db: Any) -> None:
@@ -83,17 +91,53 @@ class AiRuntime:
     def mark_provider(
         self, state: State, provider_id: str, *, error_code: str | None, checked_at: datetime
     ) -> None:
-        """Remembers the outcome of the last call for the provider card (`ai.invalid_key`, ...)."""
+        """Remembers the outcome of calls for the provider card (`ai.invalid_key`, ...). Written
+        only when it changes (or every `HEALTH_REFRESH`), not on every call, and without touching
+        `updated_at` (which keys the model list cache). The writes run in the background in no
+        set order, so one that a later outcome has replaced is skipped, and none replaces a check
+        written later (a test of the provider)."""
+        last = self._health.get(provider_id)
+        if last is not None and last[0] == error_code and checked_at - last[1] < HEALTH_REFRESH:
+            return
+        token = object()
+        self._health[provider_id] = (error_code, checked_at, token)
+
+        def replaced() -> bool:
+            latest = self._health.get(provider_id)
+            return latest is not None and latest[2] is not token
 
         async def write(db: Any) -> None:
+            if replaced():
+                return
             await db.execute(
                 update(AiProvider)
-                .where(AiProvider.id == provider_id)
-                .values(last_error_code=error_code, last_checked_at=checked_at)
+                .where(
+                    AiProvider.id == provider_id,
+                    or_(
+                        AiProvider.last_checked_at.is_(None),
+                        AiProvider.last_checked_at <= checked_at,
+                    ),
+                )
+                .values(
+                    last_error_code=error_code,
+                    last_checked_at=checked_at,
+                    updated_at=AiProvider.updated_at,  # not a change of the provider's settings
+                )
                 .execution_options(synchronize_session=False)
             )
+            if replaced():  # while it waited for the write lock: the later outcome stands
+                await db.rollback()
 
-        self._spawn(state, write)
+        def gave_up() -> None:
+            if not replaced():  # not saved: the next call with the same outcome writes it
+                self._health.pop(provider_id, None)
+
+        self._spawn(state, write, gave_up)
+
+    def forget_provider(self, provider_id: str) -> None:
+        """The provider's health was written elsewhere (a test, a new key): the next call writes
+        its outcome again."""
+        self._health.pop(provider_id, None)
 
     async def drain(self) -> None:
         # Unfinished ones only, as in `core.events.drain`: gathering finished tasks never yields.

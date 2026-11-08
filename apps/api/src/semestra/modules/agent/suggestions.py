@@ -91,32 +91,24 @@ class _Scope:
     term_id: str | None
     course_ids: frozenset[str]
     labels: dict[str, str]
-    level: Literal["program", "term", "course"]
+    level: Literal["program", "term"]
 
     def covers(self, course_id: str | None) -> bool:
         """A Program covers all its items; a term its courses' and those of no course (a
-        personal task); a course its own."""
-        if self.level == "program":
-            return True
-        return course_id in self.course_ids if course_id else self.level == "term"
+        personal task)."""
+        return self.level == "program" or course_id is None or course_id in self.course_ids
 
 
-async def _scope(ctx: Ctx, program_id: str, term_id: str | None, course_id: str | None) -> _Scope:
-    """The courses a scope covers: one course, a term's, or the current term's for a Program."""
+async def _scope(ctx: Ctx, program_id: str, term_id: str | None) -> _Scope:
+    """The courses a scope covers: a term's, or the current term's for a Program."""
     program = await academics.get_program_row(ctx, program_id)
-    level = "course" if course_id is not None else "term" if term_id is not None else "program"
+    level = "term" if term_id is not None else "program"
     if level == "program":
         term = academic_rules.current_term(
             await academics.program_terms(ctx, program.id), academics.program_today(ctx, program)
         )
         term_id = term.id if term else None
-    courses = (
-        [c for c in await program_courses(ctx, program.id) if c.id == course_id]
-        if course_id is not None
-        else await program_courses(ctx, program.id, term_id)
-        if term_id is not None
-        else []
-    )
+    courses = await program_courses(ctx, program.id, term_id) if term_id is not None else []
     return _Scope(
         program_id=program.id,
         term_id=term_id,
@@ -159,13 +151,11 @@ async def facts(ctx: Ctx, scope: _Scope) -> list[Fact]:
         and (o.end_at or o.start_at) > ctx.now
     ]
     if classes:
-        course = classes[0].course_id if scope.level == "course" else None
         out.append(
             Fact(
                 f"classes_today:{today.day.isoformat()}",
                 "classes_today",
                 {"count": str(len(classes))},
-                course,
             )
         )
     counts = await scored_counts(ctx, sorted(scope.course_ids))
@@ -229,7 +219,7 @@ async def _row(ctx: Ctx, program_id: str) -> AgentSuggestions | None:
 
 
 async def list_suggestions(ctx: Ctx, inp: AgentScope) -> SuggestionList:
-    scope = await _scope(ctx, inp.program_id, inp.term_id, inp.course_id)
+    scope = await _scope(ctx, inp.program_id, inp.term_id)
     found = await facts(ctx, scope)
     worded: list[dict[str, str | None]] = []
     if await _ai_on(ctx):
@@ -317,7 +307,7 @@ async def _rewrite(state: State, user_id: str, program_id: str, locale: str) -> 
     previous wording, if in that language, until the next attempt 12 hours later."""
     items: list[dict[str, str | None]] | None = None
     async with agent_ctx(state, user_id, scope=None) as ctx:
-        scope = await _scope(ctx, program_id, None, None)
+        scope = await _scope(ctx, program_id, None)
         found = (await facts(ctx, scope))[:MAX_FACTS]
         titles = list(
             await ctx.db.scalars(

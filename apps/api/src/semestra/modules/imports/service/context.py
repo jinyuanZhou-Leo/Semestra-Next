@@ -145,7 +145,7 @@ async def _validation_context(
         existing_assessments=await _existing_assessments(ctx, course_ids),
         existing_weights=await grading.counted_weights(ctx, course_ids),
         course_term_counts={c: len(t) for c, t in course_terms.items()},
-        target_weeks=term.weeks if term else None,
+        target_term=term,
         course_terms=course_terms,
         terms=terms,
     )

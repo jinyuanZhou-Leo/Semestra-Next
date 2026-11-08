@@ -4,6 +4,7 @@ The model only reads; everything that interprets its answer (dates, weights, cat
 courses, duplicates) is deterministic code in `from_syllabus` / `from_timetable`.
 """
 
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import date, time
 from typing import Any, Literal
@@ -301,6 +302,14 @@ def _syllabus_categories(
     return category_refs
 
 
+def _source_ref(normalized: str, seen: Counter[str]) -> str:
+    """`syllabus:<title>`, numbered from the second item of the same title in one syllabus
+    ("Quiz", "Quiz#2"), so each is told apart and a second import of it matches each again."""
+    seen[normalized] += 1
+    count = seen[normalized]
+    return f"syllabus:{normalized}"[:190] + (f"#{count}" if count > 1 else "")
+
+
 def _syllabus_assessments(
     ext: SyllabusExtraction,
     ctx: BuildContext,
@@ -312,6 +321,7 @@ def _syllabus_assessments(
 ) -> set[str]:
     """Adds the assessments; returns their normalized titles."""
     titles: set[str] = set()
+    refs: Counter[str] = Counter()
     for a in ext.grading.assessments:
         name = _text(a.title)
         if not name:
@@ -331,15 +341,17 @@ def _syllabus_assessments(
         due_text = _text(a.due_text)
         if due_text:
             fields.put("due_text", a.due_text, due_text[:200])
-        due = a.due_date.value or dates.resolve(due_text, ctx.term)
-        if due is not None:
-            fields.put("due_date", a.due_date if a.due_date.value else a.due_text, due)
+        # The syllabus's own words first (the year that puts "Oct 3" in the term), the model's
+        # reading of them only when they do not pin a date down.
+        due = dates.resolve(due_text, ctx.term)
+        if due is not None or a.due_date.value is not None:
+            fields.put("due_date", a.due_text if due else a.due_date, due or a.due_date.value)
             if a.due_time.value is not None:
                 fields.put("due_time", a.due_time)
         if note := _text(a.notes):
             fields.data["note"] = note[:2000]
         normalized = norm_title(name)
-        fields.data["source_ref"] = f"syllabus:{normalized}"[:200]
+        fields.data["source_ref"] = _source_ref(normalized, refs)
         titles.add(normalized)
         builder.add(
             "assessment",
@@ -389,21 +401,26 @@ def _syllabus_dates(
 ) -> None:
     """Important dates: deadlines become tasks, "no class" days cancel meetings, the rest are
     events. One already added as an assessment is skipped."""
+    refs: Counter[str] = Counter()
     for d in ext.important_dates:
         name = _text(d.title)
         if not name or norm_title(name) in titles:
             continue  # already an assessment
         fields = _Fields(source)
         fields.put("title", d.title, name[:200])
+        # Tasks are kept apart per user and events per Program, so the commit adds the course.
+        fields.data["source_ref"] = _source_ref(norm_title(name), refs)
         date_text = _text(d.date_text)
         if date_text:
             fields.put("date_text", d.date_text, date_text[:200])
-        day = d.date.value or dates.resolve(date_text, ctx.term)
+        resolved = dates.resolve(date_text, ctx.term)
+        day = resolved or d.date.value
+        said = d.date_text if resolved else d.date  # where the date comes from
         kind = d.kind.value or "other"
         if kind == "deadline":
             fields.data["course_ref"] = ref
             if day is not None:
-                fields.put("due_date", d.date if d.date.value else d.date_text, day)
+                fields.put("due_date", said, day)
             # A task calls it due_text; its source and certainty move with it.
             if "date_text" in fields.data:
                 fields.data["due_text"] = fields.data.pop("date_text")
@@ -419,7 +436,7 @@ def _syllabus_dates(
         if kind == "exam" and "EXAM" in {c.upper() for c in ctx.type_codes}:
             fields.data["type_code"] = "EXAM"
         if day is not None:
-            fields.put("date", d.date if d.date.value else d.date_text, day)
+            fields.put("date", said, day)
         builder.add("event", fields.data, evidence=fields.evidence, confidence=fields.confidence)
 
 

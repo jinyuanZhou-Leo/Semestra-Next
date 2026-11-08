@@ -27,6 +27,9 @@ class ImportsSession(Base, OwnedMixin, TimestampMixin):
     # [{upload_id?, file_item_id?, filename?, lms_course_id?, status, error_code?}]
     source_refs: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     source_meta: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # While extracting: file index → the model's reading of it or the error it ended with, kept
+    # so a job that runs again does not pay for files read already (`jobs.extract`).
+    readings: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # Pasted text (source `text`); cleared on commit or discard.
     text: Mapped[str | None] = mapped_column(String, default=None)
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

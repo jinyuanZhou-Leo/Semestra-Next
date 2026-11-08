@@ -117,6 +117,17 @@ async def with_on_failure(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+crashed_once: set[str] = set()
+
+
+@job_handler("test.retried_with_on_failure", max_attempts=2, on_failure=record_failure)
+async def retried_with_on_failure(ctx: JobCtx, payload: Payload) -> Result:
+    if payload.name not in crashed_once:
+        crashed_once.add(payload.name)
+        raise RuntimeError("crash")
+    return Result()
+
+
 async def start(app: FastAPI, user_id: str, kind: str, **kwargs: Any) -> str:
     async with system_ctx(app.state, user_id) as ctx:
         job = await enqueue(ctx, kind, Payload(name=kwargs.pop("name", kind)), **kwargs)
@@ -423,6 +434,13 @@ async def test_on_failure_runs_however_the_job_ends(
     assert (await get(app, again)).status == "running"
     clock.advance(seconds=61)
     await app.state.jobs.run_until_idle()
+    # Crashes once and succeeds when retried: no call.
+    retried = await start(app, user.id, "test.retried_with_on_failure", name="crashes once")
+    await app.state.jobs.run_until_idle()
+    assert (await get(app, retried)).status == "pending"
+    clock.advance(minutes=1)
+    await app.state.jobs.run_until_idle()
+    assert (await get(app, retried)).status == "succeeded"
 
     assert failures == [
         ("fails", "failed", "test.bad_input"),

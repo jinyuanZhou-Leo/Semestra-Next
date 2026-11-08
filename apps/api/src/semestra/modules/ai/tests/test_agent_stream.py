@@ -17,6 +17,7 @@ from semestra.core.errors import AppError
 from semestra.modules import ai as m06
 from semestra.modules.ai.adapters import model as adapter_model
 from semestra.modules.ai.llm import Message
+from semestra.modules.ai.models import AiProvider
 from semestra.modules.ai.tests.conftest import ANTHROPIC, Ai, models_ok
 from semestra.modules.ai.tests.test_calls import usage_rows
 from semestra.modules.ai.tests.test_compatible_kinds import RESPONSES, responses_provider
@@ -137,6 +138,36 @@ async def test_a_cancelled_stream_is_recorded(ai: Ai, app: FastAPI, mock: respx.
     await ai.drain()
     [row] = await usage_rows(app)
     assert (row.status, row.error_code) == ("error", "ai.cancelled")
+
+
+async def test_an_error_in_the_callers_code_is_not_the_providers(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
+    # E.g. the assistant failing to store a delta: raised as is, and the provider stays healthy.
+    models_ok(mock)
+    provider = await ai.provider("anthropic")
+    mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=sse([START, *TEXT, *END]))
+
+    async def fail_while_reading() -> None:
+        async with (
+            ai.ctx() as ctx,
+            m06.agent_model(ctx) as model,
+            model_request_stream(
+                model.model, PROMPT, model_request_parameters=ModelRequestParameters()
+            ) as stream,
+        ):
+            async for _ in stream:
+                raise ValueError("ours")
+
+    with pytest.raises(ValueError, match="ours"):
+        await fail_while_reading()
+    await ai.drain()
+    [row] = await usage_rows(app)
+    assert (row.status, row.input_tokens) == ("ok", 9)
+    async with app.state.session_factory() as db:
+        row = await db.get(AiProvider, provider["id"])
+        assert row is not None
+        assert row.last_error_code is None
 
 
 def responses_events(text: str) -> list[dict[str, Any]]:

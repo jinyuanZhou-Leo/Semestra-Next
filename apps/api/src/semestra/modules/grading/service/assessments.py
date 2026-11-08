@@ -513,19 +513,15 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
             term_id = await _current_term_id(ctx, program)
             current |= {c.id for c in all_courses if term_id in c.term_ids}
     rows_by_course = await assessment_rows(ctx, list(names))
-    focus = scope.course_id if scope else None  # conversations from before scopes stopped at terms
     scored: list[tuple[float, models.GradingAssessment]] = []
     for course_id, rows in rows_by_course.items():
         for row in rows:
             score = title_score(inp.query, row.title)
             if score >= 0.35:
-                boost = (0.1 if course_id == focus else 0.0) + (
-                    0.05 if course_id in current else 0.0
-                )
-                scored.append((score + boost, row))
+                scored.append((score + (0.05 if course_id in current else 0.0), row))
     # Ties: the current term first, then the deadline nearest to now, past or future: a deadline
     # that just passed beats one months away, which suits "the midterm" asked about either side
-    # of it; the score boosts above already keep an old term's same-named assessment below.
+    # of it; the current-term boost above already keeps an old term's same-named assessment below.
     scored.sort(
         key=lambda pair: (
             -pair[0],

@@ -10,10 +10,6 @@ ProposalStatus = Literal["pending", "executing", "rejected", "executed", "failed
 class AgentScope(BaseModel):
     program_id: str = Field(description="Program the assistant works in.")
     term_id: str | None = Field(default=None, description="Term it works in, if any.")
-    course_id: str | None = Field(
-        default=None,
-        description="Course of older conversations; new ones work in a Program or a term.",
-    )
 
 
 class AgentSessionOut(BaseModel):

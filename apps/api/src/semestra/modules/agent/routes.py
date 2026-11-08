@@ -17,10 +17,12 @@ from sse_starlette import EventSourceResponse
 from starlette.datastructures import State
 
 from semestra.core.capability import registry
+from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import CHUNK_SIZE, charge, discard_on_error, stage, user_key
+from semestra.core.uploads import limit_upload
 from semestra.modules.agent import attachments, decisions, loop, service, skills, store
 from semestra.modules.agent.models import (
     AgentAttachment,
@@ -43,6 +45,19 @@ from semestra.modules.files.parse import detect
 router = APIRouter(tags=["agent"])
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+def _attachment_limit(settings: Settings) -> tuple[int, AppError]:
+    """Checked while the body arrives; the route checks the file itself exactly."""
+    del settings
+    return MAX_ATTACHMENT_BYTES, _too_large()
+
+
+def _too_large() -> AppError:
+    return AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
+
+
+limit_upload("/agent/attachments", _attachment_limit)
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 PING_SECONDS = 15
 
@@ -160,6 +175,7 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         att = owned.get(att_id)
         if att is None:
             raise not_found()
+        att.sent_at = att.sent_at or ctx.now
         blocks.append(
             {
                 "type": "image_ref" if att.kind == "image" else "file_ref",
@@ -354,7 +370,7 @@ async def upload_attachment(
         user_key(ctx.user_id, "agent"),
         _read(file),
         cap=MAX_ATTACHMENT_BYTES,
-        too_large=AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES),
+        too_large=_too_large(),
         keep=True,
     )
     async with discard_on_error(ctx, [staged.key]):
