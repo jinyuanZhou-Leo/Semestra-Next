@@ -35,6 +35,7 @@ LmsFeature = Literal[
     "calendar",
     "submissions",
     "folders",
+    "discussions",
     "mark_read",
 ]
 ALL_FEATURES: frozenset[LmsFeature] = frozenset(
@@ -52,6 +53,7 @@ ALL_FEATURES: frozenset[LmsFeature] = frozenset(
         "calendar",
         "submissions",
         "folders",
+        "discussions",
         "mark_read",
     )
 )
@@ -241,6 +243,9 @@ class InternalRef(BaseModel):
 
     kind: Literal["page", "assignment", "quiz", "file", "module", "announcement", "discussion"]
     ref: str
+    course: str | None = Field(
+        default=None, description="The platform course the link is in, when the link says"
+    )
 
 
 class Completion(BaseModel):
@@ -309,6 +314,33 @@ class PageDetail(PageSummary):
     html: Html = None
     locked: bool = False
     lock_explanation: LockText = None
+
+
+class Discussion(Dto):
+    """A discussion topic (Canvas: announcements are topics too, read as `discussion`)."""
+
+    title: str
+    html: Html = None
+    author: str | None = None
+    posted_at: datetime | None = None
+    last_reply_at: datetime | None = None
+    reply_count: int = 0
+    locked: bool = False
+    lock_explanation: LockText = None
+
+
+class DiscussionEntry(BaseModel):
+    author: str | None = None
+    html: Html = None
+    created_at: datetime | None = None
+    depth: int = Field(default=0, description="0 for a reply to the topic, 1 for a reply to it…")
+
+
+class DiscussionDetail(Discussion):
+    entries: list[DiscussionEntry] = Field(
+        default_factory=list, description="Replies in thread order, the first ones only"
+    )
+    entries_truncated: bool = False
 
 
 class Quiz(Dto):

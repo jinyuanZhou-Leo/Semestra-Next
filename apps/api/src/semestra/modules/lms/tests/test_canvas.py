@@ -112,8 +112,8 @@ async def test_reads_map_canvas_payloads(settings: Settings, io: Io, mock: respx
     assert a.due_at == datetime(2026, 2, 7, 4, 59, tzinfo=UTC)
     items = await p.module_items(io, cfg, creds, "101", "3")
     assert [i.target.model_dump() if i.target else None for i in items] == [
-        {"kind": "page", "ref": "intro"},
-        {"kind": "file", "ref": "77"},
+        {"kind": "page", "ref": "intro", "course": None},
+        {"kind": "file", "ref": "77", "course": None},
     ]
     [total] = await p.grade_totals(io, cfg, creds, "101")
     assert (total.kind, total.name, total.score) == ("total", "Course total", 90)
@@ -162,7 +162,7 @@ BEARER = {"www-authenticate": 'Bearer realm="canvas-lms"'}
         (403, {"x-rate-limit-remaining": "0.0"}, "403 Forbidden (Rate Limit Exceeded)",
          "lms.rate_limited"),
         (403, {}, "403 Forbidden (Rate Limit Exceeded)", "lms.rate_limited"),
-        (404, {}, "", "common.not_found"),
+        (404, {}, "", "lms.not_found"),
         (429, {"retry-after": "30"}, "", "lms.rate_limited"),
         (500, {}, "", "lms.unreachable"),
         (302, {"location": "/login"}, "", "lms.invalid_config"),
@@ -499,7 +499,7 @@ async def test_folders_stay_in_the_course(settings: Settings, io: Io, mock: resp
     # A folder of another course is not found under this one.
     with pytest.raises(AppError) as exc:
         await p.folder(io, cfg, creds, "101", "99")
-    assert exc.value.code == "common.not_found"
+    assert exc.value.code == "lms.not_found"
     [found] = await p.search_files(io, cfg, creds, "101", "week")
     assert found.name == "Week 1.pptx"
 

@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, BeforeValidator, Field, SecretStr
 
 from semestra.core.capability import HTTP_ONLY
 from semestra.modules.academics.schemas import Id
@@ -23,6 +23,15 @@ from semestra.modules.lms.schemas.dto import (
 )
 
 ExternalId = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+def _ref_id(kind: str) -> BeforeValidator:
+    """Takes an item's ref (`assignment:12`, M09 §8) as well as its bare external id."""
+    return BeforeValidator(lambda v: v.removeprefix(f"{kind}:") if isinstance(v, str) else v)
+
+
+AssignmentId = Annotated[ExternalId, _ref_id("assignment")]
+FileId = Annotated[ExternalId, _ref_id("file")]
 
 # --- providers ------------------------------------------------------------------------------
 
@@ -314,6 +323,7 @@ class ImportTarget(BaseModel):
 
 
 class AssignmentOut(Assignment):
+    ref: str = Field(default="", description="For lms.content.read: its text, score and feedback")
     imported_as: ImportTarget | None = Field(
         description="What it was imported as (an assessment, which has its to-do, or a to-do); "
         "null while not imported"
@@ -328,6 +338,20 @@ AssignmentField = Literal[
 
 
 class AssignmentsInput(CourseReadInput):
+    status: Literal["upcoming", "missing", "graded"] | None = Field(
+        default=None,
+        description="Only those due later and not handed in (upcoming), past due and not handed "
+        "in (missing), or graded",
+    )
+    due_after: datetime | None = Field(
+        default=None, description="Only those due after this (no offset: the Program's time)"
+    )
+    due_before: datetime | None = Field(
+        default=None, description="Only those due before this (no offset: the Program's time)"
+    )
+    include_total: bool = Field(
+        default=False, description="Also the course total as the LMS shows it (`totals`)"
+    )
     fields: list[AssignmentField] | None = Field(
         default=None,
         description=f"{_FIELDS}; default name, due_at, points, group_name, submission, "
@@ -339,6 +363,10 @@ class AssignmentList(BaseModel):
     items: list[AssignmentOut]
     new_ids: list[str] = Field(
         description="`external_id` of the new assignments: not imported and due later"
+    )
+    totals: list[GradeItem] = Field(
+        default_factory=list,
+        description="The course total as the LMS shows it, with `include_total`",
     )
     truncated: bool
 
@@ -387,8 +415,12 @@ class PageList(BaseModel):
     truncated: bool
 
 
+# A page's ref is its url slug, made from its title (up to 255 characters, more once escaped).
+PageRef = Annotated[str, Field(min_length=1, max_length=600)]
+
+
 class PageGetInput(CourseReadInput):
-    ref: ExternalId = Field(
+    ref: PageRef = Field(
         description="Page ref from lms.page.list, or `@front` for the course's front page"
     )
 
@@ -422,18 +454,15 @@ class QuizList(BaseModel):
     truncated: bool
 
 
-FILE_ID = (
-    "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of "
-    "a file from lms.folder.get / lms.file.search"
-)
+FILE_ID = "The file's ref (`file:<id>`) or external id"
 
 
 class FileInput(CourseReadInput):
-    file_id: ExternalId = Field(description=FILE_ID)
+    file_id: FileId = Field(description=FILE_ID)
 
 
 class SubmissionInput(CourseReadInput):
-    assignment_id: ExternalId = Field(
+    assignment_id: AssignmentId = Field(
         description="External assignment id (`external_id` of lms.assignment.list)"
     )
 
@@ -475,7 +504,7 @@ class AnnouncementRead(BaseModel):
 
 class FileSaveInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
-    file_id: ExternalId = Field(description=FILE_ID)
+    file_id: FileId = Field(description=FILE_ID)
     folder_id: Id | None = Field(default=None, description="Course folder, default root")
 
 
@@ -523,10 +552,18 @@ class CoursesImportInput(BaseModel):
 
 class AssignmentsImportInput(BaseModel):
     course_id: Id = Field(description="Course id (must be linked)")
-    external_ids: list[ExternalId] = Field(
+    external_ids: list[AssignmentId] = Field(
         min_length=1,
         max_length=200,
-        description="Assignments (`external_id` of lms.assignment.list)",
+        description="Assignments (`ref` or `external_id` of lms.assignment.list)",
+    )
+
+
+class AssignmentImportInput(AssignmentsImportInput):
+    into: Literal["auto", "gradebook"] = Field(
+        default="auto",
+        description="auto: new assignments worth points become assessments, the others to-dos. "
+        "gradebook: assignments already imported as to-dos move into the gradebook",
     )
 
 

@@ -9,6 +9,8 @@ tools = [
   "files.document.outline",
   "files.item.list",
   "academics.course.find",
+  "lms.content.search",
+  "lms.content.read",
 ]
 +++
 
@@ -24,9 +26,14 @@ queries too.
 the sentence it supports. Cite only passages you got from `files.document.search` or pages from
 `files.document.read`, with the id given there.
 
+**The LMS too.** A course whose `sources` (academics.course.find) include `lms` also has
+material on its LMS (Canvas) that may not be in its files. When the files do not answer, search
+there with `lms.content.search` and read a hit with `lms.content.read`; cite such an answer by
+naming the LMS item (its title and link), not with `[[cite:…]]`.
+
 **Say what is missing.**
-- No results: say the uploaded files do not seem to mention it; do not answer from general
-  knowledge as if it came from the course.
+- No results anywhere: say the course's files (and its LMS, when linked) do not seem to mention
+  it; do not answer from general knowledge as if it came from the course.
 - `pending_items` (still being processed) or `unreadable_items` (could not be read): name those
   files and say the answer may be incomplete.
 

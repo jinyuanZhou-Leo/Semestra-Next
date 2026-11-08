@@ -1007,6 +1007,24 @@ export type Assignment = {
 };
 
 /**
+ * AssignmentImportInputBody
+ */
+export type AssignmentImportInputBody = {
+    /**
+     * External Ids
+     *
+     * Assignments (`ref` or `external_id` of lms.assignment.list)
+     */
+    external_ids: Array<string>;
+    /**
+     * Into
+     *
+     * auto: new assignments worth points become assessments, the others to-dos. gradebook: assignments already imported as to-dos move into the gradebook
+     */
+    into?: 'auto' | 'gradebook';
+};
+
+/**
  * AssignmentOut
  */
 export type AssignmentOut = {
@@ -1096,6 +1114,12 @@ export type AssignmentOut = {
      */
     rubric?: Array<RubricCriterion>;
     /**
+     * Ref
+     *
+     * For lms.content.read: its text, score and feedback
+     */
+    ref?: string;
+    /**
      * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
     imported_as: ImportTarget | null;
@@ -1175,7 +1199,7 @@ export type AssignmentsImportInputBody = {
     /**
      * External Ids
      *
-     * Assignments (`external_id` of lms.assignment.list)
+     * Assignments (`ref` or `external_id` of lms.assignment.list)
      */
     external_ids: Array<string>;
 };
@@ -2929,7 +2953,7 @@ export type CourseOverview = {
     /**
      * Features
      */
-    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'mark_read'>;
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'discussions' | 'mark_read'>;
     course: LmsCourse;
     /**
      * Navigation
@@ -5461,6 +5485,12 @@ export type InternalRef = {
      * Ref
      */
     ref: string;
+    /**
+     * Course
+     *
+     * The platform course the link is in, when the link says
+     */
+    course?: string | null;
 };
 
 /**
@@ -5771,6 +5801,138 @@ export type LinkUpdateInputBody = {
 };
 
 /**
+ * LmsActivityItem
+ */
+export type LmsActivityItem = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     *
+     * The course's code or title
+     */
+    course: string;
+    /**
+     * Kind
+     *
+     * change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)
+     */
+    kind: 'announcement' | 'grade' | 'assignment' | 'change';
+    /**
+     * Ref
+     */
+    ref?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     *
+     * When it happened (posted, graded)
+     */
+    at?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+};
+
+/**
+ * LmsActivityList
+ */
+export type LmsActivityList = {
+    /**
+     * Since
+     */
+    since: string;
+    /**
+     * Items
+     *
+     * Newest first
+     */
+    items: Array<LmsActivityItem>;
+    /**
+     * Skipped
+     */
+    skipped?: Array<LmsSkipped>;
+    /**
+     * Truncated
+     */
+    truncated?: boolean;
+};
+
+/**
+ * LmsContentDetail
+ */
+export type LmsContentDetail = {
+    /**
+     * Ref
+     */
+    ref: string;
+    /**
+     * Kind
+     */
+    kind: 'page' | 'announcement' | 'assignment' | 'quiz' | 'discussion' | 'file' | 'syllabus' | 'link';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Url
+     *
+     * Opens it on the LMS
+     */
+    url?: string | null;
+    /**
+     * Date
+     *
+     * Posted or last changed
+     */
+    date?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Points
+     *
+     * Points possible
+     */
+    points?: number | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     */
+    lock_explanation?: string | null;
+    /**
+     * Text
+     *
+     * Markdown. A link `lms:<ref>` opens with lms.content.read; other links are ordinary addresses
+     */
+    text: string;
+    /**
+     * Next Offset
+     *
+     * The text goes on: call again with this offset
+     */
+    next_offset?: number | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
  * LmsCourse
  */
 export type LmsCourse = {
@@ -5820,6 +5982,258 @@ export type LmsCourse = {
      * Is Current
      */
     is_current?: boolean;
+};
+
+/**
+ * LmsCourseOutline
+ */
+export type LmsCourseOutline = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Term
+     */
+    term?: string | null;
+    /**
+     * Provider Name
+     */
+    provider_name: string;
+    /**
+     * Open Areas
+     *
+     * Areas of the course open to the user (pages, files, quizzes...); hidden ones are left out, their items may still be in the modules. Null: not known
+     */
+    open_areas: Array<string> | null;
+    /**
+     * External Tabs
+     *
+     * Tools the course links in its menu (recordings, forums...): links only
+     */
+    external_tabs?: Array<LmsOutlineTab>;
+    /**
+     * Modules
+     */
+    modules: Array<LmsOutlineModule>;
+    /**
+     * Other Pages
+     *
+     * Pages that are in no module
+     */
+    other_pages?: Array<LmsOutlinePage>;
+    /**
+     * Next Cursor
+     *
+     * More modules follow: call again with this cursor
+     */
+    next_cursor?: string | null;
+    /**
+     * Skipped
+     *
+     * What could not be read, and why
+     */
+    skipped?: Array<LmsSkipped>;
+};
+
+/**
+ * LmsOutlineItem
+ */
+export type LmsOutlineItem = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Kind
+     *
+     * page, assignment, quiz, file, discussion, external_url, external_tool or subheader
+     */
+    kind: string;
+    /**
+     * Ref
+     *
+     * Read it with lms.content.read
+     */
+    ref?: string | null;
+    /**
+     * Url
+     *
+     * Where an external link or tool leads; such items can't be read, give the user the link
+     */
+    url?: string | null;
+    /**
+     * Indent
+     */
+    indent?: number;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Points
+     */
+    points?: number | null;
+    /**
+     * Locked
+     */
+    locked?: boolean;
+    /**
+     * Lock Explanation
+     */
+    lock_explanation?: string | null;
+    /**
+     * Completed
+     *
+     * Whether the user did what the module asks (null: nothing)
+     */
+    completed?: boolean | null;
+};
+
+/**
+ * LmsOutlineModule
+ */
+export type LmsOutlineModule = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * State
+     *
+     * locked, unlocked, started or completed
+     */
+    state?: string | null;
+    /**
+     * Unlock At
+     */
+    unlock_at?: string | null;
+    /**
+     * Items
+     */
+    items: Array<LmsOutlineItem>;
+};
+
+/**
+ * LmsOutlinePage
+ */
+export type LmsOutlinePage = {
+    /**
+     * Ref
+     */
+    ref: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Front Page
+     */
+    front_page?: boolean;
+};
+
+/**
+ * LmsOutlineTab
+ */
+export type LmsOutlineTab = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Url
+     */
+    url?: string | null;
+};
+
+/**
+ * LmsSearchHit
+ */
+export type LmsSearchHit = {
+    /**
+     * Ref
+     *
+     * Read it with lms.content.read (null for a link)
+     */
+    ref: string | null;
+    /**
+     * Kind
+     */
+    kind: 'page' | 'announcement' | 'assignment' | 'quiz' | 'discussion' | 'file' | 'syllabus' | 'link';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Where
+     *
+     * The module or area it is in
+     */
+    where?: string | null;
+    /**
+     * Snippet
+     *
+     * The text around the match, as Markdown
+     */
+    snippet: string;
+    /**
+     * Url
+     *
+     * Its address (a link's target)
+     */
+    url?: string | null;
+    /**
+     * Date
+     *
+     * Posted, due or last changed
+     */
+    date?: string | null;
+};
+
+/**
+ * LmsSearchResults
+ */
+export type LmsSearchResults = {
+    /**
+     * Hits
+     *
+     * Best match first
+     */
+    hits: Array<LmsSearchHit>;
+    /**
+     * Skipped
+     *
+     * What could not be searched, and why
+     */
+    skipped?: Array<LmsSkipped>;
+};
+
+/**
+ * LmsSkipped
+ */
+export type LmsSkipped = {
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Reason
+     *
+     * hidden (the instructor hid it), failed, or limit
+     */
+    reason: string;
 };
 
 /**
@@ -7877,7 +8291,7 @@ export type ProviderInfo = {
     /**
      * Features
      */
-    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'mark_read'>;
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'discussions' | 'mark_read'>;
     /**
      * Config Schema
      *
@@ -11589,6 +12003,12 @@ export type SemestraModulesLmsSchemasIoAssignmentList = {
      * `external_id` of the new assignments: not imported and due later
      */
     new_ids: Array<string>;
+    /**
+     * Totals
+     *
+     * The course total as the LMS shows it, with `include_total`
+     */
+    totals?: Array<GradeItem>;
     /**
      * Truncated
      */
@@ -16790,6 +17210,56 @@ export type LayoutsTemplateSaveFromBoardResponses = {
 
 export type LayoutsTemplateSaveFromBoardResponse = LayoutsTemplateSaveFromBoardResponses[keyof LayoutsTemplateSaveFromBoardResponses];
 
+export type LmsActivityListData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Course Id
+         *
+         * One course (linked to the LMS)
+         */
+        course_id?: string | null;
+        /**
+         * Term Id
+         *
+         * Or every linked course of a term
+         */
+        term_id?: string | null;
+        /**
+         * Since
+         *
+         * Default: 7 days ago (no offset: the Program's time)
+         */
+        since?: string | null;
+        /**
+         * Refresh
+         *
+         * Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there
+         */
+        refresh?: boolean;
+    };
+    url: '/me/lms/activity';
+};
+
+export type LmsActivityListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsActivityListError = LmsActivityListErrors[keyof LmsActivityListErrors];
+
+export type LmsActivityListResponses = {
+    /**
+     * Successful Response
+     */
+    200: LmsActivityList;
+};
+
+export type LmsActivityListResponse = LmsActivityListResponses[keyof LmsActivityListResponses];
+
 export type LmsAnnouncementListData = {
     body?: never;
     path: {
@@ -16912,7 +17382,7 @@ export type LmsAssignmentAddToGradebookResponses = {
 export type LmsAssignmentAddToGradebookResponse = LmsAssignmentAddToGradebookResponses[keyof LmsAssignmentAddToGradebookResponses];
 
 export type LmsAssignmentImportData = {
-    body: AssignmentsImportInputBody;
+    body: AssignmentImportInputBody;
     path: {
         /**
          * Course Id
@@ -16961,6 +17431,30 @@ export type LmsAssignmentListData = {
          */
         refresh?: boolean;
         /**
+         * Status
+         *
+         * Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded
+         */
+        status?: 'upcoming' | 'missing' | 'graded' | null;
+        /**
+         * Due After
+         *
+         * Only those due after this (no offset: the Program's time)
+         */
+        due_after?: string | null;
+        /**
+         * Due Before
+         *
+         * Only those due before this (no offset: the Program's time)
+         */
+        due_before?: string | null;
+        /**
+         * Include Total
+         *
+         * Also the course total as the LMS shows it (`totals`)
+         */
+        include_total?: boolean;
+        /**
          * Fields
          *
          * Agent/MCP only: return just these fields of each item (and its external_id); default name, due_at, points, group_name, submission, imported_as. `markdown` (or `html`) is the body, as Markdown
@@ -16987,6 +17481,38 @@ export type LmsAssignmentListResponses = {
 };
 
 export type LmsAssignmentListResponse = LmsAssignmentListResponses[keyof LmsAssignmentListResponses];
+
+export type LmsChangeImportData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/updates:review';
+};
+
+export type LmsChangeImportErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsChangeImportError = LmsChangeImportErrors[keyof LmsChangeImportErrors];
+
+export type LmsChangeImportResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsChangeImportResponse = LmsChangeImportResponses[keyof LmsChangeImportResponses];
 
 export type LmsConnectionListData = {
     body?: never;
@@ -17158,6 +17684,120 @@ export type LmsConnectionValidateResponses = {
 };
 
 export type LmsConnectionValidateResponse = LmsConnectionValidateResponses[keyof LmsConnectionValidateResponses];
+
+export type LmsContentReadData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (linked to the LMS)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Ref
+         *
+         * A ref exactly as an lms tool returned it (`page:…`, `assignment:…`, `file:…`…), or from a `lms:<ref>` link in a text
+         */
+        ref?: string | null;
+        /**
+         * Url
+         *
+         * Or the item's address on the LMS
+         */
+        url?: string | null;
+        /**
+         * Offset
+         *
+         * Where to go on in a long text: `next_offset`
+         */
+        offset?: number;
+        /**
+         * Refresh
+         *
+         * Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/content';
+};
+
+export type LmsContentReadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsContentReadError = LmsContentReadErrors[keyof LmsContentReadErrors];
+
+export type LmsContentReadResponses = {
+    /**
+     * Successful Response
+     */
+    200: LmsContentDetail;
+};
+
+export type LmsContentReadResponse = LmsContentReadResponses[keyof LmsContentReadResponses];
+
+export type LmsContentSearchData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (linked to the LMS)
+         */
+        course_id: string;
+    };
+    query: {
+        /**
+         * Query
+         *
+         * Words to find, in the language of the course (titles and full text are searched; try other words before giving up)
+         */
+        query: string;
+        /**
+         * Kinds
+         *
+         * Only these kinds of content (default: all)
+         */
+        kinds?: Array<'page' | 'announcement' | 'assignment' | 'quiz' | 'discussion' | 'file' | 'syllabus' | 'link'> | null;
+        /**
+         * Limit
+         *
+         * Hits to return at most
+         */
+        limit?: number;
+        /**
+         * Refresh
+         *
+         * Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/search';
+};
+
+export type LmsContentSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsContentSearchError = LmsContentSearchErrors[keyof LmsContentSearchErrors];
+
+export type LmsContentSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: LmsSearchResults;
+};
+
+export type LmsContentSearchResponse = LmsContentSearchResponses[keyof LmsContentSearchResponses];
 
 export type LmsCourseCheckUpdatesData = {
     body?: never;
@@ -17467,6 +18107,51 @@ export type LmsCourseListResponses = {
 
 export type LmsCourseListResponse = LmsCourseListResponses[keyof LmsCourseListResponses];
 
+export type LmsCourseOutlineData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (linked to the LMS)
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Cursor
+         *
+         * `next_cursor` of the previous call
+         */
+        cursor?: string | null;
+        /**
+         * Refresh
+         *
+         * Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there
+         */
+        refresh?: boolean;
+    };
+    url: '/courses/{course_id}/lms/outline';
+};
+
+export type LmsCourseOutlineErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsCourseOutlineError = LmsCourseOutlineErrors[keyof LmsCourseOutlineErrors];
+
+export type LmsCourseOutlineResponses = {
+    /**
+     * Successful Response
+     */
+    200: LmsCourseOutline;
+};
+
+export type LmsCourseOutlineResponse = LmsCourseOutlineResponses[keyof LmsCourseOutlineResponses];
+
 export type LmsCourseOverviewData = {
     body?: never;
     path: {
@@ -17505,38 +18190,6 @@ export type LmsCourseOverviewResponses = {
 };
 
 export type LmsCourseOverviewResponse = LmsCourseOverviewResponses[keyof LmsCourseOverviewResponses];
-
-export type LmsCourseQueueUpdatesData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms/updates:review';
-};
-
-export type LmsCourseQueueUpdatesErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsCourseQueueUpdatesError = LmsCourseQueueUpdatesErrors[keyof LmsCourseQueueUpdatesErrors];
-
-export type LmsCourseQueueUpdatesResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportStarted;
-};
-
-export type LmsCourseQueueUpdatesResponse = LmsCourseQueueUpdatesResponses[keyof LmsCourseQueueUpdatesResponses];
 
 export type LmsCourseRefreshData = {
     body?: never;
@@ -17582,7 +18235,7 @@ export type LmsFileGetData = {
         /**
          * File Id
          *
-         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
+         * The file's ref (`file:<id>`) or external id
          */
         file_id: string;
     };
@@ -17627,7 +18280,7 @@ export type LmsFilePreviewData = {
         /**
          * File Id
          *
-         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
+         * The file's ref (`file:<id>`) or external id
          */
         file_id: string;
     };
@@ -17672,7 +18325,7 @@ export type LmsFileSaveToCourseData = {
         /**
          * File Id
          *
-         * External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search
+         * The file's ref (`file:<id>`) or external id
          */
         file_id: string;
     };

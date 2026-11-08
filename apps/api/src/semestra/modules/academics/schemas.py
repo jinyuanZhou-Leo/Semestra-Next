@@ -373,6 +373,11 @@ class CourseCandidate(BaseModel):
     alias: str | None
     term_ids: list[str]
     score: float = Field(description="Match quality from 0 to 1")
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Where else the course's material is, besides its files here: `lms` when it "
+        "is linked to its course on the LMS (Canvas)",
+    )
 
 
 class CourseCandidates(BaseModel):

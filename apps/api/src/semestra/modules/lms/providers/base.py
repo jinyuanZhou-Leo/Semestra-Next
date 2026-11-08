@@ -18,6 +18,8 @@ from semestra.modules.lms.schemas.dto import (
     Announcement,
     Assignment,
     ConnectionSummary,
+    Discussion,
+    DiscussionDetail,
     FileMeta,
     FolderListing,
     GradeItem,
@@ -115,12 +117,24 @@ class LmsProvider(Protocol):
     async def page(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, page_ref: str
     ) -> PageDetail:
-        """`page_ref` may be `FRONT_PAGE_REF`: the front page (`common.not_found` if none)."""
+        """`page_ref` may be `FRONT_PAGE_REF`: the front page (`lms.not_found` if none)."""
         ...
 
     async def quizzes(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Quiz]: ...
+    async def discussions(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[Discussion]:
+        """The course's discussion topics, announcements left out (feature `discussions`)."""
+        ...
+
+    async def discussion(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, topic_id: str
+    ) -> DiscussionDetail:
+        """One topic with its first replies; an announcement's id works too."""
+        ...
+
     async def syllabus(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> RichText: ...
@@ -143,7 +157,7 @@ class LmsProvider(Protocol):
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, folder_id: str | None
     ) -> FolderListing:
         """A folder of the course's files, the root for None (feature `folders`); a folder of
-        another course is `common.not_found`."""
+        another course is `lms.not_found`."""
         ...
 
     async def search_files(

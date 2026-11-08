@@ -9488,6 +9488,122 @@
         }
       }
     },
+    "/me/lms/activity": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and changed imported ones.",
+        "description": "Newest first, the last 7 days unless `since`. A `change` is an imported\nassignment that changed on the LMS (due date, points, a grade the gradebook lacks): put the\nchanges up for the user's review with lms.change.import. Read an item in full with\nlms.content.read.",
+        "operationId": "lmsActivityList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One course (linked to the LMS)",
+              "title": "Course Id"
+            },
+            "description": "One course (linked to the LMS)"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Or every linked course of a term",
+              "title": "Term Id"
+            },
+            "description": "Or every linked course of a term"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: 7 days ago (no offset: the Program's time)",
+              "title": "Since"
+            },
+            "description": "Default: 7 days ago (no offset: the Program's time)"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmsActivityList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms/announcements": {
       "get": {
         "tags": [
@@ -9501,9 +9617,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -9675,7 +9788,7 @@
           "lms"
         ],
         "summary": "Move imported LMS assignments that have no gradebook entry into the gradebook.",
-        "description": "For assignments whose `imported_as.kind` is task in lms.assignment.list: each\nbecomes an assessment and keeps its to-do. Saved at once when nothing needs a decision\n(`committed`); otherwise commit it after the review (imports.session.commit).",
+        "description": "The app's button; the assistant uses lms.assignment.import with `into`\ngradebook.",
         "operationId": "lmsAssignmentAddToGradebook",
         "security": [
           {
@@ -9683,9 +9796,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -9741,7 +9851,7 @@
           "lms"
         ],
         "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
-        "description": "Assignments worth points become assessments (each gets its task), the others\ntasks; ones imported before are left out. Saved at once when nothing needs a decision\n(`committed`); otherwise the user reviews it, then commit it like any import\n(imports.session.commit).",
+        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. Saved at once when nothing needs a decision\n(`committed`); otherwise the user reviews it, then commit it like any import\n(imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "security": [
           {
@@ -9772,7 +9882,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AssignmentsImportInputBody"
+                "$ref": "#/components/schemas/AssignmentImportInputBody"
               }
             }
           }
@@ -9806,8 +9916,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Assignments of a linked course on Canvas or another LMS, marked when imported.",
-        "description": "To add them to the gradebook or tasks use lms.assignment.import (and\nlms.assignment.add_to_gradebook for ones imported as tasks), never the gradebook or task\ncapabilities directly.",
+        "summary": "Assignments and graded quizzes of a linked course on the LMS (Canvas), with the user's scores and the course total, marked when imported.",
+        "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `status`\nor due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
           {
@@ -9843,6 +9953,79 @@
               "title": "Refresh"
             },
             "description": "Skip the 5-minute cache and ask again"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "upcoming",
+                    "missing",
+                    "graded"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded",
+              "title": "Status"
+            },
+            "description": "Only those due later and not handed in (upcoming), past due and not handed in (missing), or graded"
+          },
+          {
+            "name": "due_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only those due after this (no offset: the Program's time)",
+              "title": "Due After"
+            },
+            "description": "Only those due after this (no offset: the Program's time)"
+          },
+          {
+            "name": "due_before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only those due before this (no offset: the Program's time)",
+              "title": "Due Before"
+            },
+            "description": "Only those due before this (no offset: the Program's time)"
+          },
+          {
+            "name": "include_total",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also the course total as the LMS shows it (`totals`)",
+              "default": false,
+              "title": "Include Total"
+            },
+            "description": "Also the course total as the LMS shows it (`totals`)"
           },
           {
             "name": "fields",
@@ -9895,6 +10078,62 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/semestra__modules__lms__schemas__io__AssignmentList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/updates:review": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Import what changed on the LMS for a course's imported assignments (due dates, points, weights, new grades), for the user's review.",
+        "description": "The changes are the `change` items of lms.activity.list. Creates an import of\nthem and changes nothing itself: they are written when the import is committed\n(imports.session.commit) after the user reviewed it; the result's count says how many.\nNothing changed: import.no_content.",
+        "operationId": "lmsChangeImport",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStarted"
                 }
               }
             }
@@ -10226,14 +10465,14 @@
         ]
       }
     },
-    "/courses/{course_id}/lms/updates": {
+    "/courses/{course_id}/lms/content": {
       "get": {
         "tags": [
           "lms"
         ],
-        "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
-        "description": "A `score` change is a grade the gradebook does not have yet. Put them up for\nthe user's review with lms.course.queue_updates.",
-        "operationId": "lmsCourseCheckUpdates",
+        "summary": "Read one item of a course on the LMS (Canvas) in full, as Markdown.",
+        "description": "Takes a `ref` from any lms tool (a page, announcement with its replies,\nassignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's\ntext, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call\nagain with `next_offset`. Links in the text written `lms:<ref>` open with this tool.",
+        "operationId": "lmsContentRead",
         "security": [
           {
             "sessionCookie": []
@@ -10243,6 +10482,243 @@
           },
           {
             "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (linked to the LMS)",
+              "title": "Course Id"
+            },
+            "description": "Course id (linked to the LMS)"
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 600
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A ref exactly as an lms tool returned it (`page:…`, `assignment:…`, `file:…`…), or from a `lms:<ref>` link in a text",
+              "title": "Ref"
+            },
+            "description": "A ref exactly as an lms tool returned it (`page:…`, `assignment:…`, `file:…`…), or from a `lms:<ref>` link in a text"
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Or the item's address on the LMS",
+              "title": "Url"
+            },
+            "description": "Or the item's address on the LMS"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Where to go on in a long text: `next_offset`",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Where to go on in a long text: `next_offset`"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmsContentDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/search": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Search everything in a course on the LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
+        "description": "Use first when looking for something in the course's LMS (a link, a date, a\npolicy, where the slides are). Words are matched, not meanings: search in the course's\nlanguage and try other words before concluding it is not there. Each hit has a `ref` for\nlms.content.read and a snippet; `skipped` says what could not be searched (an area the\ninstructor hid, a limit).",
+        "operationId": "lmsContentSearch",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (linked to the LMS)",
+              "title": "Course Id"
+            },
+            "description": "Course id (linked to the LMS)"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Words to find, in the language of the course (titles and full text are searched; try other words before giving up)",
+              "title": "Query"
+            },
+            "description": "Words to find, in the language of the course (titles and full text are searched; try other words before giving up)"
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "page",
+                      "announcement",
+                      "assignment",
+                      "quiz",
+                      "discussion",
+                      "file",
+                      "syllabus",
+                      "link"
+                    ],
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these kinds of content (default: all)",
+              "title": "Kinds"
+            },
+            "description": "Only these kinds of content (default: all)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Hits to return at most",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Hits to return at most"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmsSearchResults"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/lms/updates": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
+        "description": "A `score` change is a grade the gradebook does not have yet. Put them up for\nthe user's review with lms.change.import.",
+        "operationId": "lmsCourseCheckUpdates",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
           }
         ],
         "parameters": [
@@ -10374,9 +10850,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10428,9 +10901,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10474,7 +10944,7 @@
           "lms"
         ],
         "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
-        "description": "Uses the Program's bound connection (lms.program_not_configured without one).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
+        "description": "Pick the course from lms.course.list. Uses the Program's bound connection\n(lms.program_not_configured without one: the user connects one in settings).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
         "operationId": "lmsCourseLinkSet",
         "security": [
           {
@@ -10546,9 +11016,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10612,9 +11079,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10668,9 +11132,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10716,7 +11177,7 @@
           "lms"
         ],
         "summary": "The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
-        "description": "Current-term courses by default; `include_past` for all of them.",
+        "description": "Current-term courses by default; `include_past` for all of them. To link one\nto a course here: lms.course.link.set; to create courses from them: lms.course.import.",
         "operationId": "lmsCourseList",
         "security": [
           {
@@ -10790,6 +11251,92 @@
         }
       }
     },
+    "/courses/{course_id}/lms/outline": {
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "A course on the LMS (Canvas) at a glance: its modules with every item, in order.",
+        "description": "Each item has a `ref` to read it with lms.content.read (external links and\ntools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas\nof the course open to the user; the instructor may hide some (pages, files...), and their items\nare then reachable only through the modules. Pages in no module are in `other_pages`. Use it to\nsee what a course has; to find something specific, lms.content.search is faster.",
+        "operationId": "lmsCourseOutline",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id (linked to the LMS)",
+              "title": "Course Id"
+            },
+            "description": "Course id (linked to the LMS)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous call",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the previous call"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Ask the LMS again instead of using what was read in the last minutes; only when the user says something just changed there"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LmsCourseOutline"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/courses/{course_id}/lms": {
       "get": {
         "tags": [
@@ -10804,9 +11351,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -10841,62 +11385,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CourseOverview"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/lms/updates:review": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Put the LMS changes of imported assignments up for review.",
-        "description": "Creates an import of the changes and changes nothing itself: they are written\nwhen the import is committed (imports.session.commit) after the user reviewed it.",
-        "operationId": "lmsCourseQueueUpdates",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportStarted"
                 }
               }
             }
@@ -10981,9 +11469,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11004,10 +11489,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
+              "description": "The file's ref (`file:<id>`) or external id",
               "title": "File Id"
             },
-            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
+            "description": "The file's ref (`file:<id>`) or external id"
           },
           {
             "name": "refresh",
@@ -11060,9 +11545,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11083,10 +11565,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
+              "description": "The file's ref (`file:<id>`) or external id",
               "title": "File Id"
             },
-            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
+            "description": "The file's ref (`file:<id>`) or external id"
           },
           {
             "name": "refresh",
@@ -11130,8 +11612,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Save a file of a linked course into the course's files.",
-        "description": "It is then processed like an upload and can be searched and extracted.",
+        "summary": "Save a file of a linked course on the LMS into the course's files.",
+        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted.",
         "operationId": "lmsFileSaveToCourse",
         "security": [
           {
@@ -11162,10 +11644,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search",
+              "description": "The file's ref (`file:<id>`) or external id",
               "title": "File Id"
             },
-            "description": "External file id: `target.ref` of a file in lms.module_item.list, or `external_id` of a file from lms.folder.get / lms.file.search"
+            "description": "The file's ref (`file:<id>`) or external id"
           }
         ],
         "requestBody": {
@@ -11216,9 +11698,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11295,9 +11774,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11383,9 +11859,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11451,9 +11924,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11519,9 +11989,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11597,9 +12064,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11676,9 +12140,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11744,9 +12205,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11798,9 +12256,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11852,9 +12307,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -11940,9 +12392,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ]
       }
@@ -11961,9 +12410,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -12066,9 +12512,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -12145,9 +12588,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -18673,6 +19113,37 @@
         ],
         "title": "Assignment"
       },
+      "AssignmentImportInputBody": {
+        "properties": {
+          "external_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "External Ids",
+            "description": "Assignments (`ref` or `external_id` of lms.assignment.list)"
+          },
+          "into": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "gradebook"
+            ],
+            "title": "Into",
+            "description": "auto: new assignments worth points become assessments, the others to-dos. gradebook: assignments already imported as to-dos move into the gradebook",
+            "default": "auto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_ids"
+        ],
+        "title": "AssignmentImportInputBody"
+      },
       "AssignmentOut": {
         "properties": {
           "external_id": {
@@ -18868,6 +19339,12 @@
             "type": "array",
             "title": "Rubric"
           },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
+            "description": "For lms.content.read: its text, score and feedback",
+            "default": ""
+          },
           "imported_as": {
             "anyOf": [
               {
@@ -19018,7 +19495,7 @@
             "maxItems": 200,
             "minItems": 1,
             "title": "External Ids",
-            "description": "Assignments (`external_id` of lms.assignment.list)"
+            "description": "Assignments (`ref` or `external_id` of lms.assignment.list)"
           }
         },
         "type": "object",
@@ -21910,6 +22387,7 @@
                 "calendar",
                 "submissions",
                 "folders",
+                "discussions",
                 "mark_read"
               ]
             },
@@ -26225,6 +26703,18 @@
           "ref": {
             "type": "string",
             "title": "Ref"
+          },
+          "course": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course",
+            "description": "The platform course the link is in, when the link says"
           }
         },
         "type": "object",
@@ -26816,6 +27306,251 @@
         ],
         "title": "LinkUpdateInputBody"
       },
+      "LmsActivityItem": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course": {
+            "type": "string",
+            "title": "Course",
+            "description": "The course's code or title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "announcement",
+              "grade",
+              "assignment",
+              "change"
+            ],
+            "title": "Kind",
+            "description": "change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "When it happened (posted, graded)"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "course",
+          "kind",
+          "title"
+        ],
+        "title": "LmsActivityItem"
+      },
+      "LmsActivityList": {
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LmsActivityItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Newest first"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LmsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "items"
+        ],
+        "title": "LmsActivityList"
+      },
+      "LmsContentDetail": {
+        "properties": {
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "page",
+              "announcement",
+              "assignment",
+              "quiz",
+              "discussion",
+              "file",
+              "syllabus",
+              "link"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Opens it on the LMS"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Posted or last changed"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points",
+            "description": "Points possible"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Markdown. A link `lms:<ref>` opens with lms.content.read; other links are ordinary addresses"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset",
+            "description": "The text goes on: call again with this offset"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ref",
+          "kind",
+          "title",
+          "text"
+        ],
+        "title": "LmsContentDetail"
+      },
       "LmsCourse": {
         "properties": {
           "external_id": {
@@ -26920,6 +27655,442 @@
           "name"
         ],
         "title": "LmsCourse"
+      },
+      "LmsCourseOutline": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "term": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Term"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "open_areas": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Areas",
+            "description": "Areas of the course open to the user (pages, files, quizzes...); hidden ones are left out, their items may still be in the modules. Null: not known"
+          },
+          "external_tabs": {
+            "items": {
+              "$ref": "#/components/schemas/LmsOutlineTab"
+            },
+            "type": "array",
+            "title": "External Tabs",
+            "description": "Tools the course links in its menu (recordings, forums...): links only"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/LmsOutlineModule"
+            },
+            "type": "array",
+            "title": "Modules"
+          },
+          "other_pages": {
+            "items": {
+              "$ref": "#/components/schemas/LmsOutlinePage"
+            },
+            "type": "array",
+            "title": "Other Pages",
+            "description": "Pages that are in no module"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "More modules follow: call again with this cursor"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LmsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "What could not be read, and why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "name",
+          "provider_name",
+          "open_areas",
+          "modules"
+        ],
+        "title": "LmsCourseOutline"
+      },
+      "LmsOutlineItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "page, assignment, quiz, file, discussion, external_url, external_tool or subheader"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref",
+            "description": "Read it with lms.content.read"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Where an external link or tool leads; such items can't be read, give the user the link"
+          },
+          "indent": {
+            "type": "integer",
+            "title": "Indent",
+            "default": 0
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
+          },
+          "lock_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lock Explanation"
+          },
+          "completed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed",
+            "description": "Whether the user did what the module asks (null: nothing)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "kind"
+        ],
+        "title": "LmsOutlineItem"
+      },
+      "LmsOutlineModule": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "locked, unlocked, started or completed"
+          },
+          "unlock_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock At"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LmsOutlineItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "items"
+        ],
+        "title": "LmsOutlineModule"
+      },
+      "LmsOutlinePage": {
+        "properties": {
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "front_page": {
+            "type": "boolean",
+            "title": "Front Page",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "ref",
+          "title"
+        ],
+        "title": "LmsOutlinePage"
+      },
+      "LmsOutlineTab": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "LmsOutlineTab"
+      },
+      "LmsSearchHit": {
+        "properties": {
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref",
+            "description": "Read it with lms.content.read (null for a link)"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "page",
+              "announcement",
+              "assignment",
+              "quiz",
+              "discussion",
+              "file",
+              "syllabus",
+              "link"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Where",
+            "description": "The module or area it is in"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "description": "The text around the match, as Markdown"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Its address (a link's target)"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Posted, due or last changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ref",
+          "kind",
+          "title",
+          "snippet"
+        ],
+        "title": "LmsSearchHit"
+      },
+      "LmsSearchResults": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/LmsSearchHit"
+            },
+            "type": "array",
+            "title": "Hits",
+            "description": "Best match first"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/LmsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "description": "What could not be searched, and why"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "title": "LmsSearchResults"
+      },
+      "LmsSkipped": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "hidden (the instructor hid it), failed, or limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "reason"
+        ],
+        "title": "LmsSkipped"
       },
       "LocalModelDeleteInputBody": {
         "properties": {
@@ -30576,6 +31747,7 @@
                 "calendar",
                 "submissions",
                 "folders",
+                "discussions",
                 "mark_read"
               ]
             },
@@ -36875,6 +38047,14 @@
             "type": "array",
             "title": "New Ids",
             "description": "`external_id` of the new assignments: not imported and due later"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/GradeItem"
+            },
+            "type": "array",
+            "title": "Totals",
+            "description": "The course total as the LMS shows it, with `include_total`"
           },
           "truncated": {
             "type": "boolean",

@@ -15,6 +15,7 @@ from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
 from semestra.modules.lms import imports, reads, service
 from semestra.modules.lms.schemas.io import (
+    AssignmentImportInput,
     AssignmentsImportInput,
     BindingSetInput,
     CourseRef,
@@ -171,7 +172,12 @@ async def preview_course_import(ctx: Ctx, inp: CoursesImportInput) -> dict[str, 
     return {"target": target, "changes": [_counted("lms_courses", names, len(names) + unknown)]}
 
 
-async def preview_assignment_import(ctx: Ctx, inp: AssignmentsImportInput) -> dict[str, Any]:
+async def preview_assignment_import(
+    ctx: Ctx, inp: AssignmentImportInput | AssignmentsImportInput
+) -> dict[str, Any]:
+    """`into` gradebook moves assignments imported as to-dos: counted like the app's button."""
+    if isinstance(inp, AssignmentImportInput) and inp.into == "gradebook":
+        return await preview_add_to_gradebook(ctx, inp)
     target = await _course(ctx, inp.course_id)
     link = await service.link_row(ctx, inp.course_id)
     done = await reads.imported_targets(ctx, link.id) if link is not None else {}

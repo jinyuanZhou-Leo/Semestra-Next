@@ -31,7 +31,8 @@ def _search(*queries: str) -> list[str]:
 async def test_search_ranks_tools_by_what_the_words_mean(agent: Agent):
     del agent  # registers the modules
     assert "tasks__item__create" in _search("create task", "add todo")[:3]
-    assert _search("canvas announcements")[0] == "lms__announcement__list"
+    assert _search("canvas announcements")[0] == "lms__activity__list"
+    assert _search("search canvas")[0] == "lms__content__search"
     # Stemming: "tasks" and "completed" find "task" and "complete".
     assert _search("completed tasks")[0] == "tasks__item__complete"
     assert _search("clash", "overlap")[0] == "schedule__conflict__list"
@@ -165,8 +166,8 @@ async def test_mcp_clients_are_not_told_about_a_program_they_are_not_in(agent: A
 async def test_untrusted_results_say_so_in_the_description(agent: Agent):
     del agent
     flagged = {c.name for c in registry.list("agent") if c.untrusted}
-    assert {"lms.quiz.list", "files.document.search", "agent.attachment.read"} <= flagged
-    assert tools.UNTRUSTED_NOTE in tools.description(registry.get("lms.quiz.list"))
+    assert {"lms.content.read", "files.document.search", "agent.attachment.read"} <= flagged
+    assert tools.UNTRUSTED_NOTE in tools.description(registry.get("lms.content.read"))
     assert tools.UNTRUSTED_NOTE not in tools.description(registry.get("tasks.item.create"))
 
 
