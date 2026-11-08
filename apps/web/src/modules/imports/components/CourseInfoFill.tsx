@@ -41,6 +41,7 @@ import { SOURCES, readableCourseFile } from '../sources'
 import type { FileImportRequest } from '../types'
 import { PatchEditor } from './ItemEditor'
 import { uploadAndCreate } from './SourcePicker'
+import { isReading } from '../status'
 
 /** What the upload picker offers: the syllabus source's types and extensions. */
 const ACCEPT = Object.entries(SOURCES.syllabus.accept ?? {})
@@ -82,7 +83,7 @@ export function CourseInfoFill({
   const [pickerOpen, setPickerOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
   const session = useImportSession(sessionId).data
-  const job = useJob(session?.status === 'extracting' ? session.job_id : null)
+  const job = useJob(isReading(session) ? session?.job_id : null)
   const commit = useMutation({ ...importsSessionCommitMutation(), onError: toastError })
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
   const files = syllabusCandidates(useCourseFiles(courseId).data?.items ?? [])
@@ -143,21 +144,18 @@ export function CourseInfoFill({
     onApplied()
   }
 
-  const extracting = starting || session?.status === 'extracting'
+  const extracting = starting || isReading(session)
   const patch =
     session?.status === 'ready' ? session.items.find((i) => i.type === 'course_patch') : undefined
   let note: string | null = null
   let failed = Boolean(startError)
   if (startError) note = startError
-  else if (session?.status === 'ready' && !patch) note = m.imports_up_to_date()
+  else if (session?.status === 'up_to_date') note = m.imports_up_to_date()
   else if (session?.status === 'failed') {
-    if (session.error_code === 'import.no_changes') note = m.imports_up_to_date()
-    else {
-      failed = true
-      note = errorMessage({
-        error: { code: session.error_code ?? 'import.no_content', params: {} },
-      })
-    }
+    failed = true
+    note = errorMessage({
+      error: { code: session.error_code ?? 'import.no_content', params: {} },
+    })
   }
 
   const picker = (
