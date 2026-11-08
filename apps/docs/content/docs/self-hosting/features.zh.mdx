@@ -42,3 +42,4 @@ docker compose exec ollama ollama pull nomic-embed-text
 
 compose 文件设置了 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`，用户可以添加内网地址（`192.168.x.x`、`10.x.x.x`）上的 Ollama 或
 Canvas。公网服务器上有你不信任的用户时，请设为 `false`：服务器将拒绝访问内网和回环地址。
+链路本地和云主机元数据地址（`169.254.169.254` 等）无论怎样设置都会被拒绝。

@@ -1,4 +1,4 @@
-import type { ImportSessionDetail, Upload } from '@semestra/api-client'
+import type { ImportSessionDetail, SourceOptions, Upload } from '@semestra/api-client'
 import { importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -43,7 +43,7 @@ export async function uploadAndCreate(
   files: File[],
   fileItemIds: string[],
   text: string | null,
-  sourceMeta: Record<string, unknown>,
+  sourceMeta: SourceOptions,
   signal: AbortSignal,
   onUploaded: (bytes: number, count: number) => void,
 ) {

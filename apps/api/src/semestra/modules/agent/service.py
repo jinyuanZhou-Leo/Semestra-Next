@@ -653,6 +653,13 @@ async def get_preferences(ctx: Ctx) -> AgentPreferencesOut:
     )
 
 
+async def check_token_call(ctx: Ctx, cap: Capability) -> None:
+    """The registry's token gate: delete actions need the user's "allow MCP clients to delete"
+    preference, on `/mcp` and on REST routes alike."""
+    if cap.effect == "destructive" and not (await get_preferences(ctx)).mcp_allow_destructive:
+        raise AppError("auth.token_scope", 403, required="destructive")
+
+
 def _auto_approvable(name: str) -> bool:
     cap = capability(name)
     return cap is not None and "agent" in cap.expose and cap.effect == "write"

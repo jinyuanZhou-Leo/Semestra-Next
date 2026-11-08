@@ -418,8 +418,8 @@ _APP_SOURCES = {"lms"}
 
 def _caller_source(ctx: Ctx, fields: TaskFields, loc: list[str | int]) -> TaskFields:
     """The source kind an assistant or MCP client may give: agent by default, never one the app
-    manages itself. HTTP (the app, imports) keeps what it sends."""
-    if ctx.surface == "http":
+    manages itself. The user (the app, imports) keeps what it sends."""
+    if not ctx.delegated:
         return fields
     if "source_kind" not in fields.model_fields_set:
         return fields.model_copy(update={"source_kind": "agent"})

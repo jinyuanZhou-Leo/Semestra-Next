@@ -55,6 +55,7 @@ async def _with_ctx(state: State, ident: McpIdentity, fn: Callable[[Ctx], Any]) 
 
 
 async def _tools_for(ctx: Ctx, ident: McpIdentity) -> list[Capability]:
+    """The tools to list: what `Registry.invoke` would let this token call."""
     caps = await registry.available(ctx, "mcp")
     prefs = await service.get_preferences(ctx)
     out: list[Capability] = []
@@ -129,14 +130,8 @@ def _text(payload: Any, *, error: bool = False) -> types.CallToolResult:
 async def _call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
     state, ident = _identity(ctx)
     name = tools.capability_name(params.name)
-
-    async def allowed(c: Ctx) -> bool:
-        return any(cap.name == name for cap in await _tools_for(c, ident))
-
-    if not await _with_ctx(state, ident, allowed):
-        return _text(
-            {"error": {"code": "auth.token_scope", "params": {"tool": params.name}}}, error=True
-        )
+    # `Registry.invoke` enforces what a token may call (scope, plugins, the delete preference),
+    # the same as on REST routes; `_tools_for` only decides which tools to show.
     auth = AuthInfo(kind="pat", token_id=ident.token_id, scopes=ident.scopes)
     result = await outcome.invoke(
         state, ident.user_id, None, name, dict(params.arguments or {}), surface="mcp", auth=auth

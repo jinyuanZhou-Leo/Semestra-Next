@@ -15,17 +15,18 @@ description: 公网服务器，由内置的 Caddy 提供 HTTPS，不需要别的
 </Step>
 <Step>
 
-### 在 `.env` 里设置四项
+### 在 `.env` 里设置五项
 
 ```bash title=".env"
 COMPOSE_PROFILES=https
 SEMESTRA_DOMAIN=semestra.example.com
 SEMESTRA_PUBLIC_URL=https://semestra.example.com
 SEMESTRA_BIND=127.0.0.1
+SEMESTRA_TRUSTED_PROXY_HOPS=1
 ```
 
 `COMPOSE_PROFILES=https` 让每条 `docker compose` 命令都带上内置的 Caddy。`SEMESTRA_BIND=127.0.0.1` 让 8000
-端口不对公网开放，只能经 Caddy 访问。
+端口不对公网开放，只能经 Caddy 访问。`SEMESTRA_TRUSTED_PROXY_HOPS=1` 读取 Caddy 转发的客户端地址，登录限流和登录设备列表都用它。
 
 </Step>
 <Step>

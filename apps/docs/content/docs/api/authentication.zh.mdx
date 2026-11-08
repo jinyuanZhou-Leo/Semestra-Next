@@ -20,6 +20,7 @@ OpenAPI schema 声明了三种认证方式，每个接口都列出了它接受�
 - **权限**：`read`，或 `read` + `write`。只读令牌只能调用读取类操作。
 - **范围**：API 令牌可用于 `/mcp`，以及对 MCP 开放的能力的 HTTP 接口，即[接口参考](/docs/api/reference/academics)中标有 `personalAccessToken` 的接口。
   账户、AI 服务商、令牌和数据导出等接口会以 `auth.token_scope` 拒绝。
+- **与 MCP 相同的限制**：通过 HTTP 调用时，令牌仍是代你操作的客户端。删除类操作需要打开**删除数据**（见 [MCP](/docs/mcp)），否则返回 `auth.token_scope`；只能由你本人修改的设置（Canvas 写入、Sem 的记忆）会以 `settings.user_only` 拒绝。
 - **有效期**：永不过期，或 30、90、365 天后过期。在同一页面可以吊销令牌。
 
 ```bash

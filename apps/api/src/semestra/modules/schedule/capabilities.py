@@ -156,7 +156,7 @@ For today alone prefer calendar.today.get. Each class carries its term week in m
 )
 async def calendar_occurrences(ctx: Ctx, inp: OccurrencesInput) -> Occurrences:
     # The app pages by view; the assistant and MCP clients ask for whole terms.
-    wide = ctx.actor in ("agent", "mcp")
+    wide = ctx.delegated
     max_days = common.EXPORT_MAX_RANGE_DAYS if wide else common.MAX_RANGE_DAYS
     return await sources.occurrences(ctx, inp, max_days=max_days)
 

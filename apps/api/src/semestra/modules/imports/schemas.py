@@ -401,6 +401,21 @@ class Upload(BaseModel):
 # --- inputs ---------------------------------------------------------------------------------
 
 
+class SourceOptions(BaseModel):
+    """What the caller chooses about a new session. Anything else in a session's `source_meta`
+    is written by the module that created it (M09's course links) and never comes from here."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    only: Literal["course_info"] | None = Field(
+        default=None, description="course_info keeps just the field changes of the target course"
+    )
+    keep_files: bool = Field(
+        default=True,
+        description="false does not save an uploaded syllabus to the course files",
+    )
+
+
 class SessionCreateInput(BaseModel):
     program_id: Id = Field(description="Program id")
     source_kind: SourceKind = Field(
@@ -427,13 +442,8 @@ class SessionCreateInput(BaseModel):
     text: Annotated[str, Field(max_length=100_000)] | None = Field(
         default=None, description="Only for source_kind `text`: text the user pasted"
     )
-    source_meta: dict[str, Any] = Field(
-        default_factory=dict,
-        description=(
-            "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps "
-            "just the field changes of the target course; {keep_files: false} does not save an "
-            "uploaded syllabus to the course files"
-        ),
+    source_meta: SourceOptions = Field(
+        default_factory=SourceOptions, description="Options for this import"
     )
 
 

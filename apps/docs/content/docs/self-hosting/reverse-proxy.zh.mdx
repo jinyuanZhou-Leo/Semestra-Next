@@ -6,12 +6,15 @@ description: 服务器上已经运行 nginx、Caddy 或 Traefik。Semestra 监�
 <Steps>
 <Step>
 
-### 在 `.env` 里设置两项
+### 在 `.env` 里设置三项
 
 ```bash title=".env"
 SEMESTRA_PUBLIC_URL=https://semestra.example.com
 SEMESTRA_BIND=127.0.0.1
+SEMESTRA_TRUSTED_PROXY_HOPS=1
 ```
+
+`SEMESTRA_TRUSTED_PROXY_HOPS` 是 Semestra 前面会追加 `X-Forwarded-For` 的代理层数；你的代理前面还有 CDN 时设为 2。
 
 不带 `https` profile 启动：
 
@@ -75,5 +78,5 @@ semestra.example.com {
 </Step>
 </Steps>
 
-代理在另一台机器上时，把 `SEMESTRA_BIND` 设为它连接的地址，并在防火墙里只放行那台机器。Semestra 信任来自任何地址的
-`X-Forwarded-*` 头，所以 8000 端口不能让其他人访问到。
+代理在另一台机器上时，把 `SEMESTRA_BIND` 设为它连接的地址，并在防火墙里只放行那台机器。能直接连到 8000
+端口的人可以自己填写 `X-Forwarded-For`，所以它不能让其他人访问到。

@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
-from semestra.core.http import is_public_address
+from semestra.core.http import egress_allowed
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers.base import Io
 from semestra.modules.lms.providers.canvas import sign_in
@@ -262,9 +262,8 @@ async def _resolve(host: str, port: int) -> list[str]:
 
 
 async def _check_host(settings: Settings, url: str) -> None:
-    """The address a redirect points at must be public (safe_client checks again on connect)."""
-    if settings.allow_private_egress:
-        return
+    """The address a redirect points at must be one `safe_client` may dial (it checks again on
+    connect)."""
     parts = urlsplit(url)
     host = parts.hostname
     if not host:
@@ -278,7 +277,8 @@ async def _check_host(settings: Settings, url: str) -> None:
         except ValueError:  # malformed or out of range
             raise lms_error("lms.blocked_address") from None
         addresses = await _resolve(host, port or 443)
-    if not addresses or not all(is_public_address(a) for a in addresses):
+    allowed = (egress_allowed(a, allow_private=settings.allow_private_egress) for a in addresses)
+    if not addresses or not all(allowed):
         raise lms_error("lms.blocked_address")
 
 

@@ -30,7 +30,7 @@ These are read by `docker-compose.yml` itself.
 | `SEMESTRA_REFRESH_TOKEN_TTL_DAYS`     | `60`    | Refresh token lifetime for native clients                                  |
 | `SEMESTRA_NOTIFY_NEW_SIGN_IN`         | `false` | Email the user when a new session signs in                                 |
 | `SEMESTRA_GOOGLE_CLIENT_ID`           | (empty) | Google sign-in. Empty hides the Google button                              |
-| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | Reverse proxies in front of the API; the client IP is read from `X-Forwarded-For` that many hops from the right |
+| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | Reverse proxies in front of the API; the client IP is read from `X-Forwarded-For` that many hops from the right. The only source of the client IP: set `1` behind the bundled Caddy |
 | `SEMESTRA_COOKIE_SECURE`              | (unset) | Unset means Secure cookies when the public URL is `https`                  |
 
 Email settings are on [Email](./email.mdx).
@@ -48,7 +48,7 @@ Email settings are on [Email](./email.mdx).
 
 | Variable                        | Default (self-hosted) | Meaning                                                                                       |
 | ------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
-| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_      | Lets the server call private and loopback addresses: a LAN Ollama, an on-premises Canvas, plain-http Canvas. Outside the compose file the default is `false` |
+| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_      | Lets the server call private and loopback addresses: a LAN Ollama, an on-premises Canvas, plain-http Canvas. Link-local and cloud metadata addresses stay blocked. Outside the compose file the default is `false` |
 
 With `false`, requests to user-chosen hosts are refused when the host resolves to a private,
 loopback or link-local address: AI base URLs with `common.egress_blocked`, Canvas addresses with

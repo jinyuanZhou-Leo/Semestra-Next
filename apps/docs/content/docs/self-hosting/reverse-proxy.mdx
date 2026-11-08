@@ -6,12 +6,16 @@ description: The server already runs nginx, Caddy or Traefik. Semestra listens o
 <Steps>
 <Step>
 
-### Set two values in `.env`
+### Set three values in `.env`
 
 ```bash title=".env"
 SEMESTRA_PUBLIC_URL=https://semestra.example.com
 SEMESTRA_BIND=127.0.0.1
+SEMESTRA_TRUSTED_PROXY_HOPS=1
 ```
+
+`SEMESTRA_TRUSTED_PROXY_HOPS` is the number of proxies in front of Semestra that append to
+`X-Forwarded-For`; use 2 if a CDN sits in front of your proxy.
 
 Start it without the `https` profile:
 
@@ -77,5 +81,5 @@ semestra.example.com {
 </Steps>
 
 If the proxy runs on another machine, set `SEMESTRA_BIND` to the address it connects to and allow
-only that machine through the firewall. Semestra trusts `X-Forwarded-*` headers from any address,
-so port 8000 must not be reachable by anyone else.
+only that machine through the firewall. Anyone who reaches port 8000 directly could write their own
+`X-Forwarded-For`, so it must not be reachable by anyone else.

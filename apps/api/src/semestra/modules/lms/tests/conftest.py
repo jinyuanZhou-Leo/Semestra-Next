@@ -14,6 +14,7 @@ from semestra.core.config import Settings
 from semestra.core.errors import AppError
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
+from semestra.modules.lms.providers.canvas import provider as canvas_module
 from semestra.modules.lms.schemas.dto import (
     ALL_FEATURES,
     Announcement,
@@ -280,6 +281,17 @@ class FakeProvider:
     ) -> list[LmsCalendarEvent]:
         self.calls.append(("calendar_events", sorted(course_ids)))
         return [e for e in self.events if e.external_course_id in course_ids]
+
+
+@pytest.fixture(autouse=True)
+def _dns(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every host name the Canvas provider checks resolves to a public address (no DNS in
+    tests)."""
+
+    async def resolve(host: str, port: int) -> list[str]:
+        return ["93.184.216.34"]
+
+    monkeypatch.setattr(canvas_module, "_resolve", resolve)
 
 
 @pytest.fixture
