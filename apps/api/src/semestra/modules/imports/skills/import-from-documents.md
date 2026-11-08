@@ -36,9 +36,9 @@ tools one by one.
    documents, `timetable_image` for a screenshot of a timetable, `text` only for text the user
    pasted. Mixed files: one import per kind. `ai.not_configured`: tell the user AI needs a model
    in the settings; ICS files work without one.
-3. **Wait until it is ready.** AI sources start as `extracting`: call `imports.session.get` once
-   with `wait_seconds` (up to 25). If it is still extracting after that, tell the user it is
-   still reading and stop. `failed` with `import.no_content`: the document had nothing usable;
+3. **Wait until it is ready.** AI sources start as `extracting` (`waiting_files` while course
+   files are still being processed): call `imports.session.get` once with `wait_seconds` (up to
+   25). If it is still not ready after that, tell the user it is still reading and stop. `failed` with `import.no_content`: the document had nothing usable;
    say so. A `source_refs` entry with `status: failed` means that one file could not be read;
    name it.
 4. **Summarise.** Tell the user what was found per course (assessments with weights, class

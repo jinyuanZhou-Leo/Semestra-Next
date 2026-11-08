@@ -22,6 +22,7 @@ from semestra.modules.imports.service.context import revalidate, target_of, term
 from semestra.modules.imports.service.create import event_data
 from semestra.modules.imports.service.rows import detail, for_agent, get_session_row, session_items
 from semestra.modules.imports.service.uploads import after_commit_delete, session_uploads
+from semestra.modules.imports.states import CLOSED, can_move, move
 
 log = structlog.get_logger()
 
@@ -456,10 +457,10 @@ def _builtin_categories() -> list[dict[str, str]]:
 
 async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[str, int]]:
     row = await get_session_row(ctx, inp.session_id)
-    if row.status in ("discarded", "committing"):
-        raise AppError("import.session_closed", 409, state=row.status)
-    if row.status in ("extracting", "failed"):
-        raise AppError("import.session_not_ready", 409, state=row.status)
+    if not can_move(row.status, "committing"):
+        closed = row.status in (*CLOSED, "committing")
+        code = "import.session_closed" if closed else "import.session_not_ready"
+        raise AppError(code, 409, state=row.status)
     await _claim(ctx, row)
     items = await session_items(ctx, row.id)
     c = _Commit(ctx, row, items)
@@ -470,7 +471,7 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         await hook(ctx, row, created)
     await _file_uploads(ctx, row, c)
 
-    row.status = "committed"
+    move(row, "committed")
     row.committed_at = row.committed_at or ctx.now
     row.text = None
     await revalidate(ctx, row, items)
@@ -515,7 +516,7 @@ async def _claim(ctx: Ctx, row: ImportsSession) -> None:
         # Same status, newer version: an item was edited while this commit was sent. Nothing
         # was written; sending it again commits what the session holds now.
         raise AppError("import.session_changed", 409)
-    row.status = "committing"
+    move(row, "committing")
     row.updated_at = ctx.now
 
 

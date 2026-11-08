@@ -9,10 +9,11 @@ from sqlalchemy import select
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.core.jobs import JOB_PROGRESS, JobCtx, enqueue, job_handler
+from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler
 from semestra.modules import ai
 from semestra.modules.imports import build, deps, extraction, service
 from semestra.modules.imports.models import ImportsSession, ImportsUpload
+from semestra.modules.imports.states import move
 
 
 class ExtractPayload(BaseModel):
@@ -102,7 +103,21 @@ async def _extract_source(
         raise AppError("import.no_content", 422)
 
 
-@job_handler("imports.extract", stages=STAGES, max_attempts=6)
+async def _extract_failed(ctx: Ctx, payload: ExtractPayload, job: CoreJob) -> None:
+    """The job crashed for good or was cancelled: the session is failed, not left extracting."""
+    row = await ctx.db.get(ImportsSession, payload.session_id)
+    if row is None or row.job_id != job.id or row.status != "extracting":
+        return
+    move(row, "failed")
+    row.error_code = "import.extraction_failed"
+    row.job_id = None
+    row.updated_at = ctx.now
+    await events.publish(
+        ctx, "imports.session.failed", service.event_data(row), user_id=row.user_id
+    )
+
+
+@job_handler("imports.extract", stages=STAGES, max_attempts=6, on_failure=_extract_failed)
 async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
     row = await ctx.db.get(ImportsSession, payload.session_id)
     if row is None or row.status != "extracting":
@@ -119,6 +134,7 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
         for ref in refs:
             ref["status"] = "waiting" if ref.get("file_item_id") in waiting else "pending"
         row.source_refs = refs
+        move(row, "waiting_files")
         row.job_id = None
         row.updated_at = ctx.now
         # A file that became ready between the check above and this commit sent its event while
@@ -166,15 +182,13 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
                 item.decision = "reject"
     if builder.items:
         await service.add_items(ctx, row, builder.items)
-        row.status = "ready"
+        move(row, "ready")
+    elif course_info and failed == 0:
+        move(row, "up_to_date")  # read fine; the course is up to date
     else:
-        row.status = "failed"
+        move(row, "failed")
         codes = {r.get("error_code") for r in refs}
-        if course_info and failed == 0:
-            row.error_code = "import.no_changes"  # read fine; the course is up to date
-        else:
-            row.error_code = codes.pop() if len(codes) == 1 else "import.no_content"
-            row.error_code = row.error_code or "import.no_content"
+        row.error_code = (codes.pop() if len(codes) == 1 else None) or "import.no_content"
         await service.revalidate(ctx, row, [])
     row.job_id = None
     row.updated_at = ctx.now
@@ -184,28 +198,6 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
         program_id=row.program_id,
         items=len(builder.items),
         failed_sources=failed,
-    )
-
-
-@events.subscribe(JOB_PROGRESS)
-async def on_job_progress(ctx: Ctx, event: Event) -> None:
-    """A job that crashed for good (or was cancelled) leaves its session failed, not stuck."""
-    data = event.data
-    if data.get("kind") != "imports.extract" or data.get("status") not in ("failed", "cancelled"):
-        return
-    row = await ctx.db.scalar(
-        select(ImportsSession).where(
-            ImportsSession.job_id == data["job_id"], ImportsSession.status == "extracting"
-        )
-    )
-    if row is None:
-        return
-    row.status = "failed"
-    row.error_code = "import.extraction_failed"
-    row.job_id = None
-    row.updated_at = ctx.now
-    await events.publish(
-        ctx, "imports.session.failed", service.event_data(row), user_id=row.user_id
     )
 
 
@@ -219,9 +211,7 @@ async def on_course_file_done(ctx: Ctx, event: Event) -> None:
         return
     rows = await ctx.db.scalars(
         select(ImportsSession).where(
-            ImportsSession.user_id == ctx.user_id,
-            ImportsSession.status == "extracting",
-            ImportsSession.job_id.is_(None),
+            ImportsSession.user_id == ctx.user_id, ImportsSession.status == "waiting_files"
         )
     )
     for row in rows:
@@ -234,6 +224,7 @@ async def _restart(ctx: Ctx, row: ImportsSession) -> None:
     job = await enqueue(
         ctx, "imports.extract", ExtractPayload(session_id=row.id), dedupe_key=f"extract:{row.id}"
     )
+    move(row, "extracting")
     row.job_id = job.id
     row.updated_at = ctx.now
 
@@ -241,7 +232,7 @@ async def _restart(ctx: Ctx, row: ImportsSession) -> None:
 async def _recheck(ctx: Ctx, session_id: str) -> None:
     """Restarts a waiting session whose course files are all done by now."""
     row = await ctx.db.get(ImportsSession, session_id)
-    if row is None or row.status != "extracting" or row.job_id is not None:
+    if row is None or row.status != "waiting_files":
         return
     for ref in row.source_refs:
         if ref.get("status") == "waiting" and not await deps.course_file_ready(
