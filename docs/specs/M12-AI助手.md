@@ -106,7 +106,7 @@ agent_preferences
 ## 5. MCP 服务端
 - 使用官方 `mcp` Python SDK 的 Streamable HTTP 传输，挂载在 FastAPI `/mcp`。
 - 认证：`Authorization: Bearer spat_…`（M01 PAT）；不接受 Cookie。
-- **tools**：`registry.list(expose='mcp', user)`，PAT 作用域为 `read` 时只列出 read 工具；工具名同 3.2 规则。write 工具在 MCP 下直接执行（外部客户端自带确认机制），destructive 工具需要 PAT 同时具备 `write` 作用域且在设置中开启"允许 MCP 执行删除类操作"（`agent_preferences.mcp_allow_destructive`，默认关闭）。
+- **tools**：`registry.list(expose='mcp', user)`，PAT 作用域为 `read` 时只列出 read 工具；工具名同 3.2 规则。write 工具在 MCP 下直接执行（外部客户端自带确认机制），destructive 工具需要 PAT 同时具备 `write` 作用域且在设置中开启"允许 MCP 执行删除类操作"（`agent_preferences.mcp_allow_destructive`，默认关闭）。这条由 agent 模块用 `registry.set_token_gate` 注册，在 `registry.invoke` 里对令牌的每次调用检查（令牌直接调 REST 接口也一样）；MCP 的工具列表只是按同样的规则过滤显示。
 - **prompts**：每个 skill 作为一个 MCP prompt（name = skill name，内容为 skill 正文）。
 - **resources**：`semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}` 只读概要。
 - 调用同样记录 `ctx.actor='mcp'`，并通过 SSE 推送事件让网页实时刷新。

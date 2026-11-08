@@ -40,7 +40,7 @@ AI_PURPOSE = {"syllabus": "extraction", "text": "extraction", "timetable_image":
 
 
 async def _check_target(ctx: Ctx, program_id: str, target: SessionTarget) -> SessionTarget:
-    if target.kind == "term_wizard" and ctx.actor in ("agent", "mcp"):
+    if target.kind == "term_wizard" and ctx.delegated:
         # The new-term wizard in the app creates the term and its courses before the commit;
         # an assistant or MCP client cannot finish such an import.
         raise AppError(
@@ -99,7 +99,11 @@ async def read_upload_bytes(ctx: Ctx, upload: ImportsUpload) -> bytes:
     return b"".join([chunk async for chunk in get_storage(ctx).open(upload.storage_key)])
 
 
-async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDetail:
+async def create_session(
+    ctx: Ctx, inp: SessionCreateInput, *, module_meta: dict[str, Any] | None = None
+) -> ImportSessionDetail:
+    """`module_meta`: what the calling module (M09) keeps with the session for its commit hook;
+    only code calling this function can set it, never a capability's input."""
     await academics.get_program_row(ctx, inp.program_id)
     target = await _check_target(ctx, inp.program_id, inp.target)
     kind = inp.source_kind
@@ -126,7 +130,7 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
         target=target.model_dump(mode="json"),
         status="extracting",  # read below (ICS, nothing to read) or by `imports.extract`
         source_refs=[],
-        source_meta=inp.source_meta,
+        source_meta={**inp.source_meta.model_dump(exclude_defaults=True), **(module_meta or {})},
         text=inp.text if kind == "text" else None,
         summary={},
         created_at=ctx.now,

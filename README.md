@@ -177,7 +177,7 @@ Most features are a module on both sides: `academics`, `grading`, `schedule`, `t
 
 ## Roadmap
 
-- **Single-user mode for self-hosting** (planned): with `SEMESTRA_SINGLE_USER=true`, the first visitor creates an admin account with email and password, then sign-up closes. The variable is reserved in `deploy/.env.example` but does nothing yet.
+- **Single-user mode for self-hosting** (planned): with `SEMESTRA_SINGLE_USER=true`, the first visitor creates an admin account with email and password, then sign-up closes.
 
 ## Documentation
 

@@ -323,7 +323,6 @@ async def test_opening_a_file_renews_a_refused_token(
     api: Api, app, mock: respx.MockRouter, settings: Settings, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(settings, "lms_canvas_sign_in", True)
-    monkeypatch.setattr(settings, "allow_private_egress", True)  # no DNS for the example host
     mock.post(f"{CANVAS}/login/oauth2/token").mock(
         return_value=Response(200, json={"access_token": "new-access", "expires_in": 3600})
     )

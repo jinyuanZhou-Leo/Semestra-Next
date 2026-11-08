@@ -60,16 +60,18 @@ def main(argv: list[str] | None = None) -> None:
                 host=args.host,
                 port=args.port,
                 reload=True,
+                proxy_headers=False,
             )
         case "serve":
-            # Behind Caddy in Docker: uvicorn trusts X-Forwarded-* only from FORWARDED_ALLOW_IPS
-            # (loopback by default), which the compose files set for the private network.
+            # The client address is read from X-Forwarded-For only by `client_ip`, as many hops as
+            # SEMESTRA_TRUSTED_PROXY_HOPS says; uvicorn's own rewriting (on by default, trusting
+            # FORWARDED_ALLOW_IPS) stays off so there is one rule to configure.
             uvicorn.run(
                 "semestra.main:create_app",
                 factory=True,
                 host=args.host,
                 port=args.port,
-                proxy_headers=True,
+                proxy_headers=False,
             )
         case "backup":
             from pathlib import Path

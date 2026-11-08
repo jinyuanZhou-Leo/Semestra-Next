@@ -4,7 +4,9 @@
 addresses. The check runs where the connection is opened, on the address actually dialled, so a
 hostname cannot resolve to a public address for the check and a private one for the connection.
 Redirects are not followed (a redirect could point anywhere) and proxy environment variables are
-ignored. `SEMESTRA_ALLOW_PRIVATE_EGRESS=true` lifts the address check for self-hosting.
+ignored. `SEMESTRA_ALLOW_PRIVATE_EGRESS=true` lets a self-hosted instance reach its own network
+(a local Ollama, a school's Canvas on the LAN); link-local and cloud metadata addresses stay
+blocked either way.
 """
 
 import asyncio
@@ -24,16 +26,41 @@ from semestra.core.errors import AppError
 DEFAULT_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 
 
-def is_public_address(address: str) -> bool:
+# Never reachable, whatever the policy: link-local (where every cloud's metadata service lives)
+# and the metadata addresses outside it (AWS over IPv6, Alibaba Cloud).
+_ALWAYS_BLOCKED = tuple(
+    ipaddress.ip_network(n)
+    for n in ("169.254.0.0/16", "fe80::/10", "fd00:ec2::254/128", "100.100.100.200/32")
+)
+# NAT64 (RFC 6052): the IPv4 address a translator would dial is in the last 32 bits.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+
+
+def _target(address: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """The address a connection to `address` ends up at: IPv4-mapped and NAT64 addresses are
+    their embedded IPv4 address."""
     ip = ipaddress.ip_address(address.split("%")[0])
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    return ip.is_global and not ip.is_multicast
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return ip.ipv4_mapped
+        if ip in _NAT64:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return ip
+
+
+def egress_allowed(address: str, *, allow_private: bool = False) -> bool:
+    """Whether outbound requests may dial `address`: public addresses only, or with
+    `allow_private` also the instance's own network (loopback, LAN, ULA, CGNAT)."""
+    ip = _target(address)
+    if ip.is_multicast or ip.is_unspecified or any(ip in n for n in _ALWAYS_BLOCKED):
+        return False
+    return allow_private or ip.is_global
 
 
 class _GuardedBackend(httpcore.AsyncNetworkBackend):
-    def __init__(self, inner: httpcore.AsyncNetworkBackend) -> None:
+    def __init__(self, inner: httpcore.AsyncNetworkBackend, *, allow_private: bool) -> None:
         self._inner = inner
+        self._allow_private = allow_private
 
     async def connect_tcp(
         self,
@@ -48,7 +75,8 @@ class _GuardedBackend(httpcore.AsyncNetworkBackend):
         except OSError as exc:
             raise httpcore.ConnectError(str(exc)) from exc
         addresses = list(dict.fromkeys(str(info[4][0]) for info in infos))
-        if not addresses or not all(is_public_address(a) for a in addresses):
+        allowed = (egress_allowed(a, allow_private=self._allow_private) for a in addresses)
+        if not addresses or not all(allowed):
             raise AppError("common.egress_blocked", 400, host=host)
         error: Exception = httpcore.ConnectError(f"cannot connect to {host}")
         for address in addresses:
@@ -79,9 +107,10 @@ POOL_LIMITS = httpx.Limits(max_connections=100, max_keepalive_connections=20, ke
 
 def _new_transport(settings: Settings) -> httpx.AsyncHTTPTransport:
     transport = httpx.AsyncHTTPTransport(trust_env=False, limits=POOL_LIMITS)
-    if not settings.allow_private_egress:
-        pool: Any = transport._pool  # pyright: ignore[reportPrivateUsage]
-        pool._network_backend = _GuardedBackend(pool._network_backend)
+    pool: Any = transport._pool  # pyright: ignore[reportPrivateUsage]
+    pool._network_backend = _GuardedBackend(
+        pool._network_backend, allow_private=settings.allow_private_egress
+    )
     return transport
 
 

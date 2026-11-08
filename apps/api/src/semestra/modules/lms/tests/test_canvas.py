@@ -22,16 +22,6 @@ from semestra.modules.lms.tests.provider_contract import check_provider
 API = f"{CANVAS}/api/v1"
 
 
-@pytest.fixture(autouse=True)
-def _dns(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every host name resolves to a public address (no DNS in tests)."""
-
-    async def resolve(host: str, port: int) -> list[str]:
-        return ["93.184.216.34"]
-
-    monkeypatch.setattr(canvas_module, "_resolve", resolve)
-
-
 @pytest.fixture
 async def io(settings: Settings) -> AsyncIterator[Io]:
     async with safe_client(settings) as client:
