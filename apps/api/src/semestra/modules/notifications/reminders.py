@@ -172,7 +172,9 @@ async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
             rows.append(
                 {
                     "program_id": program.id,
-                    "key": f"{item.id}:{lead}",
+                    # The start is part of the key: a class moved to another time is
+                    # reminded again at the new one.
+                    "key": f"{item.id}:{item.start_at.isoformat()}:{lead}",
                     "kind": item.kind,
                     "fire_at": fire_at,
                     "expires_at": item.start_at,
@@ -351,7 +353,9 @@ async def _send_for(state: State, user_id: str, ids: list[str]) -> None:
             message = await _message(ctx, row)
             if message is not None:
                 await service.deliver(ctx, message)
-        await ctx.db.commit()
+            # Each push's cleanup (gone devices) is committed before the next push waits on a
+            # push service, so no write is held meanwhile.
+            await ctx.db.commit()
 
 
 @periodic("notifications.reminders.send", every=timedelta(minutes=1))

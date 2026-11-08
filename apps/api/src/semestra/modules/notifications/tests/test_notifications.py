@@ -160,7 +160,7 @@ async def test_a_task_reminder_is_sent_once_at_its_lead_time(
     )
     pid = program["id"]
     # 2026-01-15 07:00 in Toronto; due 10:00 there, the default reminder is an hour before.
-    await call(
+    lab = await call(
         client,
         "POST",
         f"/programs/{pid}/tasks",
@@ -198,6 +198,13 @@ async def test_a_task_reminder_is_sent_once_at_its_lead_time(
     clock.advance(minutes=1)
     await reminders.send_due(app.state)
     assert len(received(push, browser)) == 1
+
+    # Moved to a later time, it is reminded again before the new one.
+    await call(client, "PATCH", f"/tasks/{lab['id']}", json={"due_time": "12:00:00"})
+    await drain(app.state)
+    clock.advance(hours=2)  # 11:01:30
+    await reminders.send_due(app.state)
+    assert [m["body"] for m in received(push, browser)] == ["10:00 AM", "12:00 PM"]
 
 
 async def test_settings_and_quiet_hours_decide_what_is_planned_and_sent(
