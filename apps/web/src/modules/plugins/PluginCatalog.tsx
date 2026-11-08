@@ -22,6 +22,7 @@ import type { ModuleManifest } from '@/app/extensions'
 import { useAllModules } from '@/app/registry'
 import { PluginSettingsSections, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -43,7 +44,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/ui/field'
-import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Separator } from '@/ui/separator'
 import { Spinner } from '@/ui/spinner'
@@ -324,10 +325,8 @@ export default function PluginCatalog() {
   const { pending, install, uninstall } = usePluginActions()
   const [search, setSearch] = useState('')
   const [show, setShow] = useState<Show>('all')
-  const [openId, setOpenId] = useState<string | null>(null)
-  // The entry stays after the confirmation closes so its title doesn't blank while it fades out.
-  const [removing, setRemoving] = useState<Entry | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  const details = useDialogTarget<string>()
+  const removing = useDialogTarget<Entry>()
   const [purge, setPurge] = useState(false)
 
   const entries = data.items.map((plugin) => toEntry(plugin, modules))
@@ -335,21 +334,20 @@ export default function PluginCatalog() {
   const plugins = entries.filter((e) => e.plugin.kind === 'plugin')
   const visible = plugins.filter((e) => matches(e, query) && (show === 'all' || e.plugin.installed))
   const core = entries.filter((e) => e.plugin.kind === 'core' && matches(e, query))
-  const open = plugins.find((e) => e.plugin.id === openId)
+  const open = plugins.find((e) => e.plugin.id === details.target)
   const filtered = query !== '' || show !== 'all'
   // "Installed" with nothing installed is a state of the account, not a search without results.
   const noneInstalled =
     show === 'installed' && query === '' && !plugins.some((e) => e.plugin.installed)
-  const removingPending = removing != null && pending.includes(removing.plugin.id)
+  const removingPending = removing.target != null && pending.includes(removing.target.plugin.id)
 
   const actionsFor = (entry: Entry): ActionProps => ({
     entry,
     pending: pending.includes(entry.plugin.id),
     onInstall: () => void install(entry),
     onUninstall: () => {
-      setRemoving(entry)
       setPurge(false)
-      setConfirming(true)
+      removing.show(entry)
     },
   })
 
@@ -357,9 +355,8 @@ export default function PluginCatalog() {
   // confirmation even before focus has moved into it.
   const confirm = (
     <ConfirmDialog
-      open={confirming}
-      onOpenChange={setConfirming}
-      title={removing ? m.plugins_uninstall_title({ name: removing.name }) : ''}
+      {...removing.props}
+      title={removing.target ? m.plugins_uninstall_title({ name: removing.target.name }) : ''}
       description={m.plugins_uninstall_description()}
       extra={
         <Field orientation="horizontal" className="items-start">
@@ -375,9 +372,10 @@ export default function PluginCatalog() {
       confirmLabel={purge ? m.plugins_uninstall_and_purge() : m.plugins_uninstall()}
       pending={removingPending}
       onConfirm={() => {
-        if (!removing) return
-        void uninstall(removing, purge).then((done) => {
-          if (done) setConfirming(false)
+        const entry = removing.target
+        if (!entry) return
+        void uninstall(entry, purge).then((done) => {
+          if (done) removing.close()
         })
       }}
     />
@@ -388,20 +386,18 @@ export default function PluginCatalog() {
       {/* The section above already says "Plugins": the marketplace goes without a heading. */}
       <section aria-label={m.plugins_available()} className="@container space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-48 flex-1">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
+          <InputGroup className="min-w-48 flex-1">
+            <InputGroupInput
               type="search"
               aria-label={m.plugins_search()}
               placeholder={m.plugins_search()}
-              className="pl-9"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </div>
+            <InputGroupAddon>
+              <Search aria-hidden />
+            </InputGroupAddon>
+          </InputGroup>
           <div className="flex h-9 items-center">
             <ChoiceControl<Show>
               label={m.plugins_filter_label()}
@@ -420,7 +416,7 @@ export default function PluginCatalog() {
               <PluginCard
                 key={entry.plugin.id}
                 {...actionsFor(entry)}
-                onOpen={() => setOpenId(entry.plugin.id)}
+                onOpen={() => details.show(entry.plugin.id)}
               />
             ))}
           </ul>
@@ -485,7 +481,7 @@ export default function PluginCatalog() {
           </SettingsGroup>
         </SettingsBlock>
       ) : null}
-      <Dialog open={open != null} onOpenChange={(next) => !next && setOpenId(null)}>
+      <Dialog {...details.props}>
         <DialogContent className="flex max-h-[min(44rem,calc(100svh-2rem))] flex-col sm:max-w-xl">
           {open ? <PluginDetails {...actionsFor(open)} /> : null}
           {open ? confirm : null}

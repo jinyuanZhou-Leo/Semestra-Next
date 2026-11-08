@@ -17,7 +17,6 @@ import {
 } from '@/paraglide/runtime'
 
 export type AppLocale = 'en' | 'zh-CN'
-
 /** Set when someone picks a language while signed out; written to their account at sign-in. */
 const CHOSEN_KEY = 'semestra.locale-chosen'
 

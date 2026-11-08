@@ -13,6 +13,7 @@ import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursesOfTerm, useCourses } from '@/modules/academics/queries'
 import { formatDateTime } from '@/lib/format'
@@ -303,7 +304,7 @@ function CourseFolders({
   openCourse: (courseId: string) => void
 }) {
   const [search, setSearch] = useState('')
-  const [preview, setPreview] = useState<PreviewTarget | null>(null)
+  const preview = useDialogTarget<PreviewTarget>()
   const [over, setOver] = useState<string | null>(null)
   const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
   const link = useExternalLink()
@@ -320,7 +321,7 @@ function CourseFolders({
   const searching = needle.length > 0
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
-    else setPreview({ itemId: item.id })
+    else preview.show({ itemId: item.id })
   }
   const handlers: FolderHandlers = {
     open: openCourse,
@@ -396,7 +397,7 @@ function CourseFolders({
             }}
             onOpenItem={open}
             onOpenHit={(hit) =>
-              setPreview({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
+              preview.show({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
             }
             onClear={() => setSearch('')}
           />
@@ -424,7 +425,7 @@ function CourseFolders({
       ) : null}
 
       {link.dialog}
-      <PreviewDialog target={preview} onClose={() => setPreview(null)} />
+      <PreviewDialog target={preview.target} {...preview.props} />
     </div>
   )
 }

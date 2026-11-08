@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { JobProgress } from '@/components/JobProgress'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { useJob } from '@/hooks/use-job'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { formatBytes } from '@/lib/format'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -262,11 +263,11 @@ function PurposeRow({
   const title = PURPOSE_TITLES[purpose]()
   const [query, setQuery] = useState('')
   // A new embedding model waiting for confirmation, with how many files it would re-embed.
-  const [confirm, setConfirm] = useState<{ option: ModelOption; files: number } | null>(null)
+  const confirm = useDialogTarget<{ option: ModelOption; files: number }>()
   const update = useMutation({
     ...aiAssignmentUpdateMutation(),
     onSuccess: () => {
-      setConfirm(null)
+      confirm.close()
       return invalidateAi(queryClient)
     },
     onError: toastError,
@@ -411,7 +412,7 @@ function PurposeRow({
         return
       }
       if (files > 0) {
-        setConfirm({ option: next, files })
+        confirm.show({ option: next, files })
         return
       }
     }
@@ -534,13 +535,12 @@ function PurposeRow({
         </ComboboxContent>
       </Combobox>
       <ConfirmDialog
-        open={confirm !== null}
-        onOpenChange={(open) => !open && setConfirm(null)}
+        {...confirm.props}
         title={m.ai_models_reembed_title()}
-        description={m.ai_models_reembed_description({ count: confirm?.files ?? 0 })}
+        description={m.ai_models_reembed_description({ count: confirm.target?.files ?? 0 })}
         confirmLabel={m.ai_models_reembed_confirm()}
         pending={update.isPending}
-        onConfirm={() => confirm && save(confirm.option)}
+        onConfirm={() => confirm.target && save(confirm.target.option)}
       />
     </SettingRow>
   )

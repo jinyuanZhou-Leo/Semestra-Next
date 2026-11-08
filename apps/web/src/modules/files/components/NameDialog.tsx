@@ -15,6 +15,7 @@ import { Input } from '@/ui/input'
 /** A name (and for links, an address) for a new or renamed file, folder or link. */
 export function NameDialog({
   open,
+  onOpenChangeComplete,
   title,
   label,
   initial,
@@ -26,6 +27,8 @@ export function NameDialog({
   extraField,
 }: {
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   title: string
   label: string
   initial: string
@@ -49,7 +52,11 @@ export function NameDialog({
     onSubmit(value.trim(), extra.trim())
   }
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && !pending && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !next && !pending && onClose()}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

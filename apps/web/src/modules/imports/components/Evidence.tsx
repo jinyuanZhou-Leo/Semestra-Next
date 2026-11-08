@@ -1,7 +1,7 @@
 import type { Evidence as EvidenceData } from '@semestra/api-client'
 import { ExternalLink, Quote } from 'lucide-react'
-import { useState } from 'react'
 import { apiUrl } from '@/lib/api-extras'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { cn } from '@/lib/utils'
 import { PreviewDialog, type PreviewTarget } from '@/modules/files/components/PreviewDialog'
 import { m } from '@/paraglide/messages'
@@ -34,14 +34,14 @@ export function ConfidenceDot({ confidence }: { confidence?: Confidence }) {
   )
 }
 
-/** Link to the uploaded file, at the page for PDFs (course files open in the M07 preview). */
+/** Link to the uploaded file, at the page for PDFs (course files open in the M07 preview.target). */
 export function sourceUrl(evidence: EvidenceData): string | null {
   if (!evidence.upload_id) return null
   const page = evidence.page ? `#page=${evidence.page}` : ''
   return `${apiUrl(`/imports/uploads/${evidence.upload_id}/content`)}${page}`
 }
 
-/** The quote's lines, highlighted in the preview (a PDF's text comes a line at a time). */
+/** The quote's lines, highlighted in the preview.target (a PDF's text comes a line at a time). */
 function quoteTerms(quote: string): string[] {
   return quote
     .split('\n')
@@ -51,10 +51,10 @@ function quoteTerms(quote: string): string[] {
 
 /**
  * "Where this came from": the page and quote the value was read from (M08 §6.2). A course file
- * opens in the M07 preview at that page with the quote highlighted; an upload opens as is.
+ * opens in the M07 preview.target at that page with the quote highlighted; an upload opens as is.
  */
 export function EvidenceButton({ evidence, field }: { evidence?: EvidenceData; field: string }) {
-  const [preview, setPreview] = useState<PreviewTarget | null>(null)
+  const preview = useDialogTarget<PreviewTarget>()
   if (!evidence?.quote) return null
   const url = sourceUrl(evidence)
   const fileItemId = evidence.file_item_id
@@ -68,7 +68,7 @@ export function EvidenceButton({ evidence, field }: { evidence?: EvidenceData; f
         onPreview={
           fileItemId
             ? () =>
-                setPreview({
+                preview.show({
                   itemId: fileItemId,
                   page: evidence.page ?? undefined,
                   terms: quoteTerms(evidence.quote ?? ''),
@@ -76,7 +76,7 @@ export function EvidenceButton({ evidence, field }: { evidence?: EvidenceData; f
             : undefined
         }
       />
-      {fileItemId ? <PreviewDialog target={preview} onClose={() => setPreview(null)} /> : null}
+      {fileItemId ? <PreviewDialog target={preview.target} {...preview.props} /> : null}
     </>
   )
 }

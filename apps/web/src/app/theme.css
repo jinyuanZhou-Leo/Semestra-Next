@@ -32,6 +32,7 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -86,6 +87,7 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --success: oklch(0.6 0.13 155);
+  --success-foreground: oklch(0.985 0 0);
   --warning: oklch(0.7 0.15 70);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -126,6 +128,7 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --success: oklch(0.74 0.14 155);
+  --success-foreground: oklch(0.205 0 0);
   --warning: oklch(0.8 0.14 75);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -478,15 +481,15 @@
 @keyframes ai-action-success-surface {
   0% {
     transform: scale(0.985);
-    box-shadow: 0 0 0 0 rgb(5 150 105 / 0.22);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--success) 22%, transparent);
   }
   48% {
     transform: scale(1.015);
-    box-shadow: 0 0 0 4px rgb(5 150 105 / 0.09);
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--success) 9%, transparent);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgb(5 150 105 / 0);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--success) 0%, transparent);
   }
 }
 

@@ -14,6 +14,8 @@ import {
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Called when opening or closing has finished: clear what it was about here (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   title: string
   description: ReactNode
   confirmLabel: string
@@ -32,6 +34,7 @@ type Props = {
 export function ConfirmDialog({
   open,
   onOpenChange,
+  onOpenChangeComplete,
   title,
   description,
   confirmLabel,
@@ -41,7 +44,11 @@ export function ConfirmDialog({
   onConfirm,
 }: Props) {
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+      onOpenChangeComplete={onOpenChangeComplete}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

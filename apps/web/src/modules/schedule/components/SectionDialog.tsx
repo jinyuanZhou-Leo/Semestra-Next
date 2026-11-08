@@ -271,6 +271,7 @@ export function SectionDialog({
   section,
   withNewTime = false,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   programId: string
@@ -282,6 +283,8 @@ export function SectionDialog({
   /** Opens with a new time after the section's own ("Add a time" of a section). */
   withNewTime?: boolean
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
@@ -389,7 +392,11 @@ export function SectionDialog({
   ]
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !save.isPending && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !save.isPending && onOpenChange(next)}
+    >
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>

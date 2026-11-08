@@ -123,7 +123,6 @@ function SessionEntry({
       <SidebarMenuButton
         isActive={active}
         aria-current={active ? 'true' : undefined}
-        title={title}
         onClick={onSelect}
       >
         <span className="min-w-0 flex-1 truncate text-left">

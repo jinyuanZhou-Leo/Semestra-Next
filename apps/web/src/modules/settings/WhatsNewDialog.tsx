@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings'
-import { useMotionPreference } from '@/app/theme'
+import { useReducedMotion } from '@/app/theme'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -41,12 +41,8 @@ function themeColors(): string[] | undefined {
   return colors
 }
 
-/**
- * A short burst from both sides. The app's motion setting wins; when it follows the system,
- * canvas-confetti skips the burst if the system asks for reduced motion.
- */
-async function fireConfetti(motion: 'always' | 'never' | 'user', cancelled: () => boolean) {
-  if (motion === 'always') return
+/** A short burst from both sides; none when motion is reduced (`useReducedMotion`). */
+async function fireConfetti(cancelled: () => boolean) {
   const { default: confetti } = await import('canvas-confetti')
   if (cancelled()) return
   const burst = {
@@ -57,7 +53,6 @@ async function fireConfetti(motion: 'always' | 'never' | 'user', cancelled: () =
     colors: themeColors(),
     // Above the dialog (z-50); the canvas never takes clicks.
     zIndex: 100,
-    disableForReducedMotion: motion === 'user',
   }
   void confetti({ ...burst, angle: 60, origin: { x: 0, y: 0.7 } })
   void confetti({ ...burst, angle: 120, origin: { x: 1, y: 0.7 } })
@@ -65,15 +60,16 @@ async function fireConfetti(motion: 'always' | 'never' | 'user', cancelled: () =
 
 /** Fires once, when the dialog opens. */
 function useConfetti() {
-  const motion = useMotionPreference()
-  const [initialMotion] = useState(motion)
+  const reduced = useReducedMotion()
+  const [initiallyReduced] = useState(reduced)
   useEffect(() => {
+    if (initiallyReduced) return
     let cancelled = false
-    void fireConfetti(initialMotion, () => cancelled)
+    void fireConfetti(() => cancelled)
     return () => {
       cancelled = true
     }
-  }, [initialMotion])
+  }, [initiallyReduced])
 }
 
 /** "What's new in Semestra 1.2": the notes of the versions this account has not seen. */

@@ -41,6 +41,7 @@ import {
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
 import { daysBetween, plusDays, weekStartOf } from '@/lib/day'
 
@@ -303,14 +304,17 @@ type CellProps = CellContext<typeof features, LabeledRow>
 const KeyCell = ({ row }: CellProps) => <span className="font-medium">{row.original.label}</span>
 
 const TokensCell = ({ row }: CellProps) => (
-  <span
-    title={m.ai_usage_tokens_split({
-      input: formatCount(row.original.input_tokens),
-      output: formatCount(row.original.output_tokens),
-    })}
-  >
-    {formatCount(row.original.input_tokens + row.original.output_tokens)}
-  </span>
+  <Tooltip>
+    <TooltipTrigger render={<span />}>
+      {formatCount(row.original.input_tokens + row.original.output_tokens)}
+    </TooltipTrigger>
+    <TooltipContent>
+      {m.ai_usage_tokens_split({
+        input: formatCount(row.original.input_tokens),
+        output: formatCount(row.original.output_tokens),
+      })}
+    </TooltipContent>
+  </Tooltip>
 )
 
 const columns = column.columns([
@@ -472,12 +476,16 @@ export function UsageSection() {
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{m.ai_usage_cache_hit_rate()}</dt>
-                <dd
-                  className="text-lg font-semibold tabular-nums"
-                  title={m.ai_usage_cache_hit_rate_hint()}
-                >
-                  {chatCacheRate(summary)}
-                </dd>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<dd className="w-fit text-lg font-semibold tabular-nums" />}
+                  >
+                    {chatCacheRate(summary)}
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-64">
+                    {m.ai_usage_cache_hit_rate_hint()}
+                  </TooltipContent>
+                </Tooltip>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">{m.ai_usage_cost_estimate()}</dt>

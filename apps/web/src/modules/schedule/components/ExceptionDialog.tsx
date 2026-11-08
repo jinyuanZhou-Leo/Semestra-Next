@@ -155,6 +155,7 @@ export function ExceptionDialog({
   today,
   times,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   programId: string
@@ -165,6 +166,8 @@ export function ExceptionDialog({
   /** The times that can be picked: the switched-on ones, in the tables' order. */
   times: SectionTime[]
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
@@ -242,7 +245,11 @@ export function ExceptionDialog({
   }))
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !save.isPending && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !save.isPending && onOpenChange(next)}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.schedule_exception_add()}</DialogTitle>

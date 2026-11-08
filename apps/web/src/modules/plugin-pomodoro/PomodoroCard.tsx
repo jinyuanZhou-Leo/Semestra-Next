@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { Ring } from '../plugin-kit/Ring'
+import { Ring } from '@/components/Ring'
 import { useCardSettings } from '../plugin-kit/useCardSettings'
 import { formatSpan } from '../plugin-kit/duration'
 import type { PomodoroSettings } from './schema'
@@ -98,12 +98,13 @@ export default function PomodoroCard({
     return (
       <div className="flex h-full flex-col items-center justify-between gap-1">
         <p className="text-xs text-muted-foreground">{modeLabel(state.mode)}</p>
-        <output
+        <span
+          role="timer"
           aria-label={`${modeLabel(state.mode)} ${clock}`}
           className="font-heading text-4xl font-semibold tabular-nums"
         >
           {clock}
-        </output>
+        </span>
         {controls}
       </div>
     )
@@ -113,7 +114,8 @@ export default function PomodoroCard({
     <div className="flex h-full flex-col gap-3">
       <div className="flex min-h-0 flex-1 items-center gap-4">
         <Ring ratio={ratio} color={phaseColor} className="h-full max-h-32" strokeWidth={7}>
-          <output
+          <span
+            role="timer"
             aria-label={`${modeLabel(state.mode)} ${clock}`}
             className={cn(
               'font-heading font-semibold tabular-nums',
@@ -121,7 +123,7 @@ export default function PomodoroCard({
             )}
           >
             {clock}
-          </output>
+          </span>
         </Ring>
         <div className="flex min-w-0 flex-col gap-2">
           <p className="text-sm font-medium">{modeLabel(state.mode)}</p>

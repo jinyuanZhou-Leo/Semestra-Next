@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { areConsecutive } from '../settings/CourseSettings'
+import { NEXT_TERM, rangeOf, rangeTerms, spanFrom } from '../term-range'
 import { course, term } from '../test-data'
 import { continuationCandidates, suggestTermName } from './draft'
 
@@ -24,9 +24,23 @@ test('year-long courses of the previous term wait to be continued', () => {
   expect(continuationCandidates([], [waiting], '2026-01-06')).toEqual([])
 })
 
-test('a year-long course needs neighbouring terms', () => {
+test('a course spans one run of terms', () => {
   const summer = term({ id: 'summer', start_date: '2026-05-10', end_date: '2026-08-14' })
-  expect(areConsecutive([fall, winter, summer], ['winter', 'fall'])).toBe(true)
-  expect(areConsecutive([fall, winter, summer], ['fall', 'summer'])).toBe(false)
-  expect(areConsecutive([fall, winter, summer], [])).toBe(false)
+  const all = [fall, winter, summer]
+  expect(rangeOf(all, ['winter', 'fall'], 2)).toEqual({
+    start: 'fall',
+    end: 'winter',
+    spanning: true,
+  })
+  expect(rangeOf(all, ['summer'], 2)).toEqual({ start: 'summer', end: NEXT_TERM, spanning: true })
+  expect(spanFrom(all, 'winter', 'fall')).toEqual({ start: 'winter', end: 'summer' })
+  expect(spanFrom(all, 'summer', 'fall')).toEqual({ start: 'summer', end: NEXT_TERM })
+  expect(rangeTerms(all, { start: 'fall', end: 'summer' })).toEqual({
+    term_ids: ['fall', 'winter', 'summer'],
+    planned_terms: 3,
+  })
+  expect(rangeTerms(all, { start: 'summer', end: NEXT_TERM })).toEqual({
+    term_ids: ['summer'],
+    planned_terms: 2,
+  })
 })

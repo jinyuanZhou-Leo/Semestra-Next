@@ -83,9 +83,7 @@ export default function NextCard({ scope }: CardProps) {
       {next.location ? (
         <span className="mt-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           <MapPin aria-hidden className="size-3 shrink-0" />
-          <span className="truncate" title={next.location}>
-            {next.location}
-          </span>
+          <span className="truncate">{next.location}</span>
         </span>
       ) : null}
     </button>

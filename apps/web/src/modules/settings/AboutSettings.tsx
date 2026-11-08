@@ -5,6 +5,7 @@ import { formatDate, formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion'
+import { Button } from '@/ui/button'
 import { compareVersions, loadRelease, releaseVersions } from './release-notes'
 import { ReleaseNotes } from './ReleaseNotes'
 
@@ -12,9 +13,6 @@ export const REPOSITORY_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
 
 /** Versions listed under "Earlier versions"; the docs changelog has all of them. */
 const EARLIER_VERSIONS = 5
-
-const LINK =
-  'inline-flex items-center gap-1.5 text-sm text-primary underline-offset-4 hover:underline'
 
 export default function AboutSettings() {
   const versions = releaseVersions()
@@ -56,20 +54,30 @@ export default function AboutSettings() {
           labelId="about-docs"
           description={m.settings_about_docs_note()}
         >
-          <a href={docsHome} target="_blank" rel="noreferrer noopener" className={LINK}>
+          <Button
+            variant="link"
+            nativeButton={false}
+            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+            render={<a href={docsHome} target="_blank" rel="noreferrer noopener" />}
+          >
             {m.settings_about_docs_link()}
-            <ExternalLink aria-hidden className="size-3.5" />
-          </a>
+            <ExternalLink aria-hidden />
+          </Button>
         </SettingRow>
         <SettingRow
           label={m.settings_about_source()}
           labelId="about-source"
           description={m.settings_about_license_note()}
         >
-          <a href={REPOSITORY_URL} target="_blank" rel="noreferrer noopener" className={LINK}>
+          <Button
+            variant="link"
+            nativeButton={false}
+            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+            render={<a href={REPOSITORY_URL} target="_blank" rel="noreferrer noopener" />}
+          >
             GitHub
-            <ExternalLink aria-hidden className="size-3.5" />
-          </a>
+            <ExternalLink aria-hidden />
+          </Button>
         </SettingRow>
       </SettingsGroup>
 
@@ -83,15 +91,16 @@ export default function AboutSettings() {
         <SettingsBlock
           title={m.settings_about_earlier()}
           action={
-            <a
-              href={docsUrl('changelog')}
-              target="_blank"
-              rel="noreferrer noopener"
-              className={LINK}
+            <Button
+              variant="link"
+              size="sm"
+              nativeButton={false}
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+              render={<a href={docsUrl('changelog')} target="_blank" rel="noreferrer noopener" />}
             >
               {m.settings_about_changelog()}
-              <ExternalLink aria-hidden className="size-3.5" />
-            </a>
+              <ExternalLink aria-hidden />
+            </Button>
           }
         >
           <Accordion>

@@ -67,14 +67,12 @@ export default function ProgramKpisCard({ scope }: CardProps) {
                   className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_3rem] items-center gap-3 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-muted/50"
                 >
                   <span className="truncate">{term.name}</span>
-                  <span className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    {term.gpa === null || data.hide_gpa ? null : (
-                      <span
-                        className="block h-full rounded-full bg-primary"
-                        style={{ width: `${(term.gpa / data.max_points) * 100}%` }}
-                      />
-                    )}
-                  </span>
+                  <Progress
+                    aria-hidden
+                    value={term.gpa === null || data.hide_gpa ? 0 : term.gpa}
+                    max={data.max_points}
+                    className="[&_[data-slot=progress-track]]:h-1.5"
+                  />
                   <span className="text-right font-medium tabular-nums">
                     {term.gpa === null ? (
                       <span className="text-xs font-normal text-muted-foreground">—</span>

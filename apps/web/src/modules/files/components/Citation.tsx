@@ -42,8 +42,9 @@ export function Citation({ id, terms }: { id: string; terms?: readonly string[] 
         </span>
       </Button>
       <PreviewDialog
-        target={open ? { itemId: parsed.itemId, page: parsed.from, terms } : null}
-        onClose={() => setOpen(false)}
+        target={{ itemId: parsed.itemId, page: parsed.from, terms }}
+        open={open}
+        onOpenChange={setOpen}
       />
     </>
   )

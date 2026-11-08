@@ -2,7 +2,7 @@ import type { ItemOut } from '@semestra/api-client'
 import { filesContentOptions, filesDocumentReadOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FileX, SquareArrowOutUpRight } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatBytes } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -18,12 +18,12 @@ import {
 import { Spinner } from '@/ui/spinner'
 import { fileKindName, previewKind } from '../kinds'
 import { contentUrl, useFileItem } from '../queries'
+import { LazyPdfViewer } from './LazyPdfViewer'
 import { Markdown } from './Markdown'
 import { FileIcon } from './FileIcon'
 import { PreviewShell } from './PreviewShell'
 
 // pdf.js is large; load it only when a PDF is opened.
-const PdfViewer = lazy(() => import('./PdfViewer').then((mod) => ({ default: mod.PdfViewer })))
 
 /** What to show: a file, optionally a page in it and words to highlight (a search hit). */
 export type PreviewTarget = { itemId: string; page?: number; terms?: readonly string[] }
@@ -141,7 +141,7 @@ function PreviewBody({ item, target }: { item: ItemOut; target: PreviewTarget })
           </div>
         }
       >
-        <PdfViewer url={contentUrl(item.id)} initialPage={target.page} terms={target.terms} />
+        <LazyPdfViewer url={contentUrl(item.id)} initialPage={target.page} terms={target.terms} />
       </Suspense>
     )
   }
@@ -162,21 +162,19 @@ function PreviewBody({ item, target }: { item: ItemOut; target: PreviewTarget })
 /** Preview of a file (M07 §6.1); `target` null closes it. */
 export function PreviewDialog({
   target,
-  onClose,
+  ...props
 }: {
   target: PreviewTarget | null
-  onClose: () => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onOpenChangeComplete?: (open: boolean) => void
 }) {
-  // Keep showing the last file while the dialog animates closed, so it does not go blank.
-  const [last, setLast] = useState(target)
-  if (target !== null && target !== last) setLast(target)
-  const shown = target ?? last
+  const shown = target
   const item = useFileItem(shown?.itemId)
   const data = item.data
   return (
     <PreviewShell
-      open={target !== null}
-      onClose={onClose}
+      {...props}
       title={data?.display_name ?? m.common_loading()}
       meta={
         data && data.kind === 'file'

@@ -82,12 +82,12 @@ test('the old All courses address opens the courses tab', async () => {
 test('the terms tab selects the current term and shows its courses', async () => {
   mount('/p/p1/academics')
   const list = await screen.findByRole('list', { name: 'Terms' })
-  const items = within(list).getAllByRole('listitem')
+  const items = within(list).getAllByRole('button')
   // Newest first, the current one marked and selected.
   expect(
-    items.map((li) => within(li).getAllByText(/Fall 2025|Winter 2026/)[0]?.textContent),
+    items.map((item) => within(item).getAllByText(/Fall 2025|Winter 2026/)[0]?.textContent),
   ).toEqual(['Winter 2026', 'Fall 2025'])
-  expect(within(items[0]!).getByRole('button', { current: true })).toBeInTheDocument()
+  expect(items[0]).toHaveAttribute('aria-current', 'true')
   await settle()
   expect(await screen.findByRole('link', { name: 'Linear Algebra' })).toBeInTheDocument()
   // The term column is gone: this view is about one term.

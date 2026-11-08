@@ -15,6 +15,7 @@ import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -92,8 +93,8 @@ export function CourseFiles({
   const [folderId, openFolder] = useState<string | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(new Set())
   const [search, setSearch] = useState('')
-  const [action, setAction] = useState<ItemAction | null>(null)
-  const [preview, setPreview] = useState<PreviewTarget | null>(null)
+  const action = useDialogTarget<ItemAction>()
+  const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 
   // The folder may have been deleted (here or in another tab).
@@ -155,7 +156,7 @@ export function CourseFiles({
 
   const open = (item: ItemOut) => {
     if (item.kind === 'link' && item.url) link.open(item.url)
-    else setPreview({ itemId: item.id })
+    else preview.show({ itemId: item.id })
   }
   const pickFiles = () => fileInput.current?.click()
   const empty = list.items.length === 0 && list.folders.length === 0
@@ -172,8 +173,8 @@ export function CourseFiles({
           {selecting ? (
             <SelectionBar
               count={selected.length}
-              onMove={() => setAction({ kind: 'move', targets: selected })}
-              onDelete={() => setAction({ kind: 'delete', targets: selected })}
+              onMove={() => action.show({ kind: 'move', targets: selected })}
+              onDelete={() => action.show({ kind: 'delete', targets: selected })}
               onClear={clearSelection}
             />
           ) : (
@@ -200,13 +201,13 @@ export function CourseFiles({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={() => setAction({ kind: 'new-folder', parentId: currentId })}
+                  onClick={() => action.show({ kind: 'new-folder', parentId: currentId })}
                 >
                   <FolderPlus aria-hidden />
                   {m.files_new_folder()}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setAction({ kind: 'new-link', folderId: currentId })}
+                  onClick={() => action.show({ kind: 'new-link', folderId: currentId })}
                 >
                   <Link2 aria-hidden />
                   {m.files_add_link()}
@@ -289,7 +290,7 @@ export function CourseFiles({
             pendingNames={(contentSearch.data?.pending_items ?? []).map((p) => p.display_name)}
             onOpenItem={open}
             onOpenHit={(hit) =>
-              setPreview({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
+              preview.show({ itemId: hit.item_id, page: hit.page_from, terms: searchTerms(query) })
             }
             onClear={() => setSearch('')}
           />
@@ -327,7 +328,7 @@ export function CourseFiles({
             handlers={{
               open,
               openFolder: setFolderId,
-              act: setAction,
+              act: action.show,
               programId,
               selection,
               drop: {
@@ -361,11 +362,13 @@ export function CourseFiles({
           courseId={courseId}
           folders={list.folders}
           items={list.items}
-          action={action}
-          onClose={() => setAction(null)}
+          action={action.target}
+          open={action.open}
+          onOpenChangeComplete={action.props.onOpenChangeComplete}
+          onClose={action.close}
           onDone={clearSelection}
         />
-        <PreviewDialog target={preview} onClose={() => setPreview(null)} />
+        <PreviewDialog target={preview.target} {...preview.props} />
       </div>
     </FileDragArea>
   )

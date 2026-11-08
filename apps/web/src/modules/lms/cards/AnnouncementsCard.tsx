@@ -6,13 +6,14 @@ import {
   lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { Megaphone } from 'lucide-react'
+import { CircleAlert, Megaphone } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertTitle } from '@/ui/alert'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
@@ -32,6 +33,14 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
   const rows = all.slice(0, LIMIT[size] ?? 8)
 
   if (loading && rows.length === 0) return <CardSkeleton />
+  if (failed && rows.length === 0) {
+    return (
+      <Alert variant="destructive">
+        <CircleAlert aria-hidden />
+        <AlertTitle>{m.common_load_failed()}</AlertTitle>
+      </Alert>
+    )
+  }
   if (rows.length === 0) {
     return (
       <Empty className="border-0 p-0">
@@ -40,11 +49,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
             <Megaphone aria-hidden />
           </EmptyMedia>
           <EmptyTitle>
-            {failed
-              ? m.common_load_failed()
-              : !linked
-                ? m.lms_announcements_unlinked()
-                : m.lms_announcements_empty()}
+            {linked ? m.lms_announcements_empty() : m.lms_announcements_unlinked()}
           </EmptyTitle>
         </EmptyHeader>
       </Empty>

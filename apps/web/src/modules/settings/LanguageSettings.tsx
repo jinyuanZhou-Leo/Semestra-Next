@@ -4,14 +4,6 @@ import { type AppLocale, useLocale } from '@/app/locale'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { m } from '@/paraglide/messages'
 import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
 
 type TimeFormat = 'auto' | '12h' | '24h'
 type WeekStart = '0' | '1' | '7'
@@ -59,28 +51,19 @@ function LanguageForm({
         labelId={`${id}-language`}
         htmlFor={`${id}-language-select`}
       >
-        <Select
+        {/* A select even with three options: more languages are to come. */}
+        <ChoiceControl
+          select
+          id={`${id}-language-select`}
+          labelId={`${id}-language`}
+          options={LANGUAGES.map((l) => ({ value: l.value, label: l.label() }))}
           value={prefs.locale ?? 'browser'}
-          items={LANGUAGES.map((l) => ({ value: l.value, label: l.label() }))}
-          onValueChange={(next) => {
+          onChange={(next) => {
             const locale = next === 'browser' ? null : (next as AppLocale)
             changeLocale(locale)
             update({ locale })
           }}
-        >
-          <SelectTrigger id={`${id}-language-select`} aria-labelledby={`${id}-language`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {LANGUAGES.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label()}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        />
       </SettingRow>
       <SettingRow label={m.settings_time_format_label()} labelId={`${id}-time`}>
         <ChoiceControl

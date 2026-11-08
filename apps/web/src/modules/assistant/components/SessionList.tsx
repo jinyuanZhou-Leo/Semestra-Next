@@ -19,6 +19,7 @@ import {
 import { useId, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -82,11 +83,10 @@ export function sessionTitle(session: Pick<AgentSessionOut, 'title'>): string {
 
 function RenameDialog({
   session,
+  open,
   onOpenChange,
-}: {
-  session: AgentSessionOut | null
-  onOpenChange: (open: boolean) => void
-}) {
+  onOpenChangeComplete,
+}: { session: AgentSessionOut | null } & DialogTargetProps) {
   const id = useId()
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(session?.title ?? '')
@@ -100,8 +100,9 @@ function RenameDialog({
   })
   return (
     <Dialog
-      open={session !== null}
+      open={open}
       onOpenChange={(next) => !update.isPending && onOpenChange(next)}
+      onOpenChangeComplete={onOpenChangeComplete}
     >
       <DialogContent className="sm:max-w-sm">
         <form
@@ -144,8 +145,8 @@ function RenameDialog({
 /** The rename, pin and delete actions on conversations, with their dialogs. */
 export function useSessionEditing(onDeleted?: (id: string) => void) {
   const queryClient = useQueryClient()
-  const [renaming, setRenaming] = useState<AgentSessionOut | null>(null)
-  const [deleting, setDeleting] = useState<AgentSessionOut | null>(null)
+  const renaming = useDialogTarget<AgentSessionOut>()
+  const deleting = useDialogTarget<AgentSessionOut>()
   const refresh = () => invalidateOperations(queryClient, ['agentSessionList', 'agentSessionGet'])
   const update = useMutation({
     ...agentSessionUpdateMutation(),
@@ -157,35 +158,34 @@ export function useSessionEditing(onDeleted?: (id: string) => void) {
     onSuccess: (_, variables) => {
       void refresh()
       onDeleted?.(variables.path.id)
-      setDeleting(null)
+      deleting.close()
     },
     onError: toastError,
   })
   const dialogs = (
     <>
       <RenameDialog
-        key={renaming?.id ?? 'none'}
-        session={renaming}
-        onOpenChange={(open) => !open && setRenaming(null)}
+        key={renaming.target?.id ?? 'none'}
+        session={renaming.target}
+        {...renaming.props}
       />
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        {...deleting.props}
         title={m.assistant_delete_title()}
         description={m.assistant_delete_description({
-          title: deleting ? sessionTitle(deleting) : '',
+          title: deleting.target ? sessionTitle(deleting.target) : '',
         })}
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
+        onConfirm={() => deleting.target && remove.mutate({ path: { id: deleting.target.id } })}
       />
     </>
   )
   return {
-    rename: setRenaming,
+    rename: renaming.show,
     togglePin: (session: AgentSessionOut) =>
       update.mutate({ path: { id: session.id }, body: { pinned: !session.pinned } }),
-    remove: setDeleting,
+    remove: deleting.show,
     dialogs,
   }
 }

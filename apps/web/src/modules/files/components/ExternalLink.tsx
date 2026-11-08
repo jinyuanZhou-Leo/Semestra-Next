@@ -1,5 +1,6 @@
 import { type ReactNode, useId, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { m } from '@/paraglide/messages'
 import {
   AlertDialog,
@@ -33,31 +34,28 @@ function openInNewTab(url: string) {
 export function useExternalLink(): { open: (url: string) => void; dialog: ReactNode } {
   const id = useId()
   const [trusted, setTrusted] = useUiPref<string[]>('files.trusted_domains', [])
-  const [pending, setPending] = useState<string | null>(null)
+  const pending = useDialogTarget<string>()
   const [remember, setRemember] = useState(false)
-  // The address stays in the dialog while it animates closed.
-  const [last, setLast] = useState(pending)
-  if (pending !== null && pending !== last) setLast(pending)
-  const shown = pending ?? last ?? ''
+  const shown = pending.target ?? ''
   const host = hostOf(shown)
 
   const open = (url: string) => {
     if (trusted.includes(hostOf(url))) openInNewTab(url)
     else {
       setRemember(false)
-      setPending(url)
+      pending.show(url)
     }
   }
   const confirm = () => {
-    if (!pending) return
-    const site = hostOf(pending)
+    if (!pending.target) return
+    const site = hostOf(pending.target)
     if (remember && !trusted.includes(site)) setTrusted([...trusted, site])
-    openInNewTab(pending)
-    setPending(null)
+    openInNewTab(pending.target)
+    pending.close()
   }
 
   const dialog = (
-    <AlertDialog open={pending !== null} onOpenChange={(next) => !next && setPending(null)}>
+    <AlertDialog {...pending.props}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{m.files_link_leave_title()}</AlertDialogTitle>

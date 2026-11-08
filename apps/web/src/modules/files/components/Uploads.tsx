@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { postWithProgress } from '@/app/api'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -58,11 +59,7 @@ export function useUploads(): Uploads {
   const queryClient = useQueryClient()
   const usage = useFilesUsage().data
   const [rows, setRows] = useState<Row[]>([])
-  const [duplicates, setDuplicates] = useState<{
-    all: File[]
-    dupes: File[]
-    target: UploadTarget
-  } | null>(null)
+  const duplicates = useDialogTarget<{ all: File[]; dupes: File[]; into: UploadTarget }>()
 
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
@@ -119,10 +116,10 @@ export function useUploads(): Uploads {
       .then((hashed) => {
         const dupes = findDuplicates(hashed, target.existing, target.folderId)
         if (dupes.size === 0) return send(plan.accepted, target)
-        setDuplicates({
+        duplicates.show({
           all: plan.accepted,
           dupes: plan.accepted.filter((f) => dupes.has(f)),
-          target,
+          into: target,
         })
       })
       .catch(() => send(plan.accepted, target))
@@ -197,19 +194,24 @@ export function useUploads(): Uploads {
 
   // Closing the question any way but "Upload anyway" skips the duplicates and keeps the rest.
   const skipDuplicates = () => {
-    if (!duplicates) return
-    const rest = duplicates.all.filter((f) => !duplicates.dupes.includes(f))
-    setDuplicates(null)
-    if (rest.length) void send(rest, duplicates.target)
+    const asked = duplicates.target
+    if (!duplicates.open || !asked) return
+    const rest = asked.all.filter((f) => !asked.dupes.includes(f))
+    duplicates.close()
+    if (rest.length) void send(rest, asked.into)
   }
   const dialog = (
-    <AlertDialog open={duplicates !== null} onOpenChange={(open) => !open && skipDuplicates()}>
+    <AlertDialog
+      open={duplicates.open}
+      onOpenChange={(open) => !open && skipDuplicates()}
+      onOpenChangeComplete={duplicates.props.onOpenChangeComplete}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{m.files_duplicate_title()}</AlertDialogTitle>
           <AlertDialogDescription>
             {m.files_duplicate_description({
-              names: (duplicates?.dupes ?? []).map((f) => f.name).join(', '),
+              names: (duplicates.target?.dupes ?? []).map((f) => f.name).join(', '),
             })}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -217,9 +219,10 @@ export function useUploads(): Uploads {
           <AlertDialogCancel>{m.files_duplicate_skip()}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
-              if (!duplicates) return
-              setDuplicates(null)
-              void send(duplicates.all, duplicates.target)
+              const asked = duplicates.target
+              if (!asked) return
+              duplicates.close()
+              void send(asked.all, asked.into)
             }}
           >
             {m.files_duplicate_upload_anyway()}

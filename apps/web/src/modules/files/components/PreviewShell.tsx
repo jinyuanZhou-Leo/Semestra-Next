@@ -14,14 +14,17 @@ import {
  */
 export function PreviewShell({
   open,
-  onClose,
+  onOpenChange,
+  onOpenChangeComplete,
   title,
   meta,
   footer,
   children,
 }: {
   open: boolean
-  onClose: () => void
+  onOpenChange: (open: boolean) => void
+  /** Forget the file once the dialog has closed (`useDialogTarget`), not before. */
+  onOpenChangeComplete?: (open: boolean) => void
   title: string
   meta?: string | null
   /** Buttons in the footer: secondary ones `outline`, the main one (download) last. */
@@ -29,7 +32,7 @@ export function PreviewShell({
   children: ReactNode
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
       <DialogContent className="flex h-[85vh] flex-col gap-3 sm:max-w-5xl">
         <DialogHeader className="pr-8">
           <DialogTitle className="truncate">{title}</DialogTitle>

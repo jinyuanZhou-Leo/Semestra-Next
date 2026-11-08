@@ -45,6 +45,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/ui/sidebar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '../color'
 import { DeleteTermDialog } from '../components/DeleteTermDialog'
 import { coursePath, termPath } from '../paths'
@@ -108,29 +109,35 @@ function TermCourses({
         const courseActive = pathname === courseHref || pathname.startsWith(`${courseHref}/`)
         return (
           <SidebarMenuSubItem key={course.id}>
-            <SidebarMenuSubButton
-              isActive={courseActive}
-              title={course.title}
-              render={
-                <HistoryLink
-                  href={coursePath(programId, course.id, tabOf(course.id), term.id)}
-                  aria-current={courseActive ? 'page' : undefined}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <SidebarMenuSubButton
+                    isActive={courseActive}
+                    render={
+                      <HistoryLink
+                        href={coursePath(programId, course.id, tabOf(course.id), term.id)}
+                        aria-current={courseActive ? 'page' : undefined}
+                      />
+                    }
+                  />
+                }
+              >
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: courseColor(course) }}
                 />
-              }
-            >
-              <span
-                aria-hidden
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: courseColor(course) }}
-              />
-              <span className="truncate">{courseLabel(course)}</span>
-              {course.term_ids.length > 1 ? (
-                <Repeat
-                  aria-label={m.academics_course_year_long()}
-                  className="ml-auto size-3 shrink-0"
-                />
-              ) : null}
-            </SidebarMenuSubButton>
+                <span className="truncate">{courseLabel(course)}</span>
+                {course.term_ids.length > 1 ? (
+                  <Repeat
+                    aria-label={m.academics_course_year_long()}
+                    className="ml-auto size-3 shrink-0"
+                  />
+                ) : null}
+              </TooltipTrigger>
+              <TooltipContent side="right">{course.title}</TooltipContent>
+            </Tooltip>
           </SidebarMenuSubItem>
         )
       })}

@@ -1,7 +1,8 @@
 import type { HabitStreakGet } from '@semestra/api-client'
-import { type ReactNode, useCallback, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { milestoneAt } from './grid'
@@ -18,7 +19,7 @@ export function useCheckinFlow(
   settings: HabitSettings,
   options: { toast: boolean; currentStreak: number | undefined; onMilestone?: () => void },
 ) {
-  const [removing, setRemoving] = useState<string | null>(null)
+  const removing = useDialogTarget<string>()
   const { toast: showToast, onMilestone, currentStreak } = options
   // The streak as it was when the button was pressed, to tell a crossing from a repeat.
   const before = useRef<number | undefined>(undefined)
@@ -43,24 +44,25 @@ export function useCheckinFlow(
   const press = (date: string, checked: boolean) => {
     if (toggle.isPending) return
     before.current = currentStreak
-    if (checked) setRemoving(date)
+    if (checked) removing.show(date)
     else toggle.mutate({ path: { instance_id: instanceId }, body: { date } })
   }
 
   const dialog: ReactNode = (
     <ConfirmDialog
-      open={removing !== null}
-      onOpenChange={(open) => !open && setRemoving(null)}
+      {...removing.props}
       title={m.habit_uncheck_title()}
-      description={m.habit_uncheck_description({ date: removing ? formatDate(removing) : '' })}
+      description={m.habit_uncheck_description({
+        date: removing.target ? formatDate(removing.target) : '',
+      })}
       confirmLabel={m.habit_uncheck_confirm()}
       pending={toggle.isPending}
       onConfirm={() => {
-        if (removing === null) return
+        if (removing.target === null) return
         before.current = currentStreak
         toggle.mutate(
-          { path: { instance_id: instanceId }, body: { date: removing } },
-          { onSettled: () => setRemoving(null) },
+          { path: { instance_id: instanceId }, body: { date: removing.target } },
+          { onSettled: () => removing.close() },
         )
       }}
     />

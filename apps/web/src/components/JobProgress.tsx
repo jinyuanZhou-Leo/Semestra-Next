@@ -7,7 +7,7 @@ import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Progress } from '@/ui/progress'
-import { ProgressRing } from './Progress'
+import { Ring } from './Ring'
 
 /**
  * Read-only progress of a background job (file rows, the status bar, review screens). Use
@@ -72,9 +72,11 @@ export function JobProgress({
   if (variant === 'ring') {
     return (
       <span className={cn('inline-flex items-center gap-1.5 text-xs', className)} title={text}>
-        <ProgressRing
-          value={value}
-          className={tone === 'error' ? 'text-destructive' : 'text-primary'}
+        <Ring
+          ratio={value / 100}
+          color="currentColor"
+          strokeWidth={10}
+          className={cn('size-5', tone === 'error' ? 'text-destructive' : 'text-primary')}
         />
         <span className="tabular-nums">{percent}</span>
         <span className="sr-only">{text}</span>

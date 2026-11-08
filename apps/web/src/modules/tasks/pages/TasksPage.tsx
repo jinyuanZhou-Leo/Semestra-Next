@@ -23,6 +23,7 @@ import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -137,7 +138,7 @@ export default function TasksPage({ scope }: PageProps) {
   const [newKey, setNewKey] = useState<number | null>(null)
   // Never reused: opening again while open (the click outside closes it first) remounts the row.
   const newCount = useRef(0)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const deleting = useDialogTarget<Task>()
   const [draggingId, setDraggingId] = useState<string | null>(null)
   // Set by the arrow keys only, so a list that changes under the selection does not scroll.
   const [scrollTo, setScrollTo] = useState<ScrollRequest | null>(null)
@@ -197,7 +198,7 @@ export default function TasksPage({ scope }: PageProps) {
     onStartEdit: startEditing,
     onStopEdit: stopEditing,
     onEdit: editDetails,
-    onDelete: setDeleteId,
+    onDelete: () => deleting.show(task),
     actions,
     hideCourse,
   })
@@ -247,7 +248,7 @@ export default function TasksPage({ scope }: PageProps) {
   useHotkey(
     'delete, backspace',
     () => {
-      if (selected) setDeleteId(selected.id)
+      if (selected) deleting.show(selected)
     },
     // An assessment's task goes only with its assessment.
     { enabled: selected?.assessment_id === null, ignoreEventWhen: outsideList },
@@ -500,16 +501,15 @@ export default function TasksPage({ scope }: PageProps) {
         />
       ) : null}
       <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(next) => !next && setDeleteId(null)}
+        {...deleting.props}
         title={m.tasks_delete_title()}
         description={m.tasks_delete_description({
-          title: items.find((t) => t.id === deleteId)?.title ?? '',
+          title: deleting.target?.title ?? '',
         })}
         confirmLabel={m.common_delete()}
         onConfirm={() => {
-          const id = deleteId
-          setDeleteId(null)
+          const id = deleting.target?.id
+          deleting.close()
           if (id) {
             if (id === selectedId) setSelectedId(null)
             if (id === detailId) setDetailId(null)

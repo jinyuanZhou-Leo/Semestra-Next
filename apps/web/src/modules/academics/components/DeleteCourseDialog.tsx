@@ -12,10 +12,13 @@ import { invalidateAcademics } from '../queries'
 export function DeleteCourseDialog({
   course,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   course: Pick<Course, 'id' | 'program_id' | 'alias' | 'code' | 'title'>
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
@@ -36,6 +39,7 @@ export function DeleteCourseDialog({
   return (
     <ConfirmDialog
       open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
       onOpenChange={onOpenChange}
       title={m.academics_course_delete_title({ name: courseLabel(course) })}
       description={`${m.academics_course_delete_description()} ${m.academics_cannot_undo()}`}

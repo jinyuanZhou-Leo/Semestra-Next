@@ -9,6 +9,13 @@ import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { HistoryLink } from '@/components/HistoryLink'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from '@/ui/breadcrumb'
 import { Button } from '@/ui/button'
 import {
   DropdownMenu,
@@ -88,25 +95,14 @@ function Crumb({
   menuLabel?: string
 }) {
   return (
-    <li className="flex min-w-0 items-center">
-      <HistoryLink
-        href={href}
-        className="truncate rounded-lg px-1.5 py-0.5 text-muted-foreground hover:bg-muted"
-      >
+    <BreadcrumbItem className="min-w-0 gap-0.5">
+      <BreadcrumbLink render={<HistoryLink href={href} />} className="truncate">
         {label}
-      </HistoryLink>
+      </BreadcrumbLink>
       {siblings && menuLabel ? (
         <SiblingMenu siblings={siblings} activeId={activeId} menuLabel={menuLabel} />
       ) : null}
-    </li>
-  )
-}
-
-function Separator() {
-  return (
-    <li aria-hidden className="px-0.5 text-muted-foreground/60">
-      /
-    </li>
+    </BreadcrumbItem>
   )
 }
 
@@ -186,13 +182,13 @@ export function ScopeHeader({
       }
       breadcrumb={
         course && term ? (
-          <nav aria-label={m.academics_breadcrumbs()}>
-            <ol className="-ml-1.5 flex min-w-0 flex-wrap items-center text-sm">
+          <Breadcrumb aria-label={m.academics_breadcrumbs()}>
+            <BreadcrumbList className="min-w-0 sm:gap-1.5">
               <Crumb
                 label={m.academics_nav_terms_and_courses()}
                 href={termsAndCoursesPath(program.id, { term: term.id })}
               />
-              <Separator />
+              <BreadcrumbSeparator />
               <Crumb
                 label={term.name}
                 href={termPath(program.id, term.id)}
@@ -200,8 +196,8 @@ export function ScopeHeader({
                 activeId={term.id}
                 menuLabel={m.academics_switch_term()}
               />
-            </ol>
-          </nav>
+            </BreadcrumbList>
+          </Breadcrumb>
         ) : null
       }
       subtitle={subtitle}

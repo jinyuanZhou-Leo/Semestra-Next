@@ -16,6 +16,7 @@ import {
  */
 export function DragChoiceDialog({
   open,
+  onOpenChangeComplete,
   allowAll,
   pending,
   onOnlyThis,
@@ -23,6 +24,7 @@ export function DragChoiceDialog({
   onCancel,
 }: {
   open: boolean
+  onOpenChangeComplete?: (open: boolean) => void
   /** False for a class that was already moved: only that one can change. */
   allowAll: boolean
   pending: boolean
@@ -31,7 +33,11 @@ export function DragChoiceDialog({
   onCancel: () => void
 }) {
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !next && !pending && onCancel()}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => !next && !pending && onCancel()}
+      onOpenChangeComplete={onOpenChangeComplete}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{m.schedule_drag_title()}</AlertDialogTitle>

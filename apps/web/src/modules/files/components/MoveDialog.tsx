@@ -3,6 +3,8 @@ import { filesFolderCreateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, Folder, FolderPlus, FolderRoot, Search } from 'lucide-react'
 import { useState } from 'react'
+import { COLLAPSE } from '@/lib/collapse'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -137,7 +139,7 @@ function TreeNode({
         </CollapsibleTrigger>
         <PickButton state={state} id={folder.id} name={folder.name} icon={Folder} />
       </div>
-      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+      <CollapsibleContent className={COLLAPSE}>
         {children.map((child) => (
           <TreeNode key={child.id} folder={child} depth={depth + 1} state={state} />
         ))}
@@ -167,10 +169,14 @@ export function MoveDialog({
   folders,
   onClose,
   onDone,
+  open,
+  onOpenChangeComplete,
 }: {
   courseId: string
   targets: Target[]
   folders: readonly FolderOut[]
+  open: boolean
+  onOpenChangeComplete: (open: boolean) => void
   onClose: () => void
   /** After the move went through. */
   onDone?: () => void
@@ -184,7 +190,7 @@ export function MoveDialog({
   const tree = folderTree(folders)
   const [selected, setSelected] = useState<string | null | undefined>(undefined)
   const [search, setSearch] = useState('')
-  const [naming, setNaming] = useState(false)
+  const naming = useDialogTarget<true>()
   // Open: the folders above where the targets are now, or everything in a small course.
   const [expanded, setExpandedIds] = useState<Set<string>>(() =>
     folders.length <= EXPAND_ALL_UP_TO
@@ -201,10 +207,10 @@ export function MoveDialog({
     children: tree.children,
     visible,
     expanded,
-    setExpanded: (id, open) =>
+    setExpanded: (id, expand) =>
       setExpandedIds((prev) => {
         const next = new Set(prev)
-        if (open) next.add(id)
+        if (expand) next.add(id)
         else next.delete(id)
         return next
       }),
@@ -224,7 +230,11 @@ export function MoveDialog({
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => !next && !pending && onClose()}
+        onOpenChangeComplete={onOpenChangeComplete}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -272,7 +282,7 @@ export function MoveDialog({
             <Button
               variant="outline"
               disabled={!canCreate || pending}
-              onClick={() => setNaming(true)}
+              onClick={() => naming.show(true)}
             >
               <FolderPlus aria-hidden />
               {m.files_new_folder()}
@@ -302,9 +312,10 @@ export function MoveDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {naming ? (
+      {naming.target ? (
         <NameDialog
-          open
+          open={naming.open}
+          onOpenChangeComplete={naming.props.onOpenChangeComplete}
           title={m.files_new_folder()}
           label={m.files_name()}
           initial=""
@@ -313,7 +324,7 @@ export function MoveDialog({
           error={createFolder.error ? errorMessage(createFolder.error) : null}
           onClose={() => {
             createFolder.reset()
-            setNaming(false)
+            naming.close()
           }}
           onSubmit={(name) =>
             createFolder.mutate(
@@ -324,7 +335,7 @@ export function MoveDialog({
                   setSearch('')
                   // Only when what is being moved can go in it (a folder may be too deep).
                   if (canMoveIntoNewFolder(targets, newFolderParent, tree)) setSelected(folder.id)
-                  setNaming(false)
+                  naming.close()
                 },
               },
             )

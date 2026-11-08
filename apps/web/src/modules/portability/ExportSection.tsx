@@ -6,16 +6,22 @@ import {
   portabilityExportStartMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createColumnHelper } from '@tanstack/react-table'
 import { Download } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
-import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
+import {
+  SettingRow,
+  SettingsBlock,
+  SettingsGroup,
+  SettingsTable,
+  settingsTableFeatures,
+} from '@/app/settings'
 import { JobProgress } from '@/components/JobProgress'
 import { useJob } from '@/hooks/use-job'
 import { toastError } from '@/lib/errors'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 
 /** Export everything to a backup file (M13 §7); the last few exports stay downloadable. */
@@ -70,11 +76,13 @@ export function ExportSection() {
           title={m.portability_export_recent()}
           description={m.portability_export_recent_desc()}
         >
-          <SettingsGroup>
-            {items.map((item) => (
-              <ExportRow key={item.id} item={item} />
-            ))}
-          </SettingsGroup>
+          <SettingsTable
+            label={m.portability_export_recent()}
+            data={items}
+            columns={columns}
+            getRowId={(item) => item.id}
+            columnClassName={COLUMN_CLASS}
+          />
         </SettingsBlock>
       ) : null}
     </div>
@@ -85,7 +93,7 @@ function downloadUrl(exportId: string): string {
   return `${client.getConfig().baseUrl ?? ''}/me/exports/${exportId}/download`
 }
 
-function ExportRow({ item }: { item: ExportOut }) {
+function ExportCell({ item }: { item: ExportOut }) {
   const queryClient = useQueryClient()
   const { status } = useJob(item.status === 'pending' ? item.job_id : null)
   // The list knows the file once the job is done; refetch it then.
@@ -101,43 +109,52 @@ function ExportRow({ item }: { item: ExportOut }) {
   ].filter(Boolean)
 
   return (
-    <Item>
-      <ItemContent className="min-w-0">
-        <ItemTitle>{formatDateTime(item.created_at)}</ItemTitle>
-        {item.status === 'pending' && item.job_id ? (
-          <JobProgress jobId={item.job_id} variant="inline" />
-        ) : item.status === 'failed' ? (
-          <ItemDescription className="text-destructive">
-            {m.portability_export_failed()}
-          </ItemDescription>
-        ) : (
-          <ItemDescription>
-            {[
-              ...details,
-              m.portability_export_expires({ time: formatDateTime(item.expires_at) }),
-            ].join(' · ')}
-          </ItemDescription>
-        )}
-      </ItemContent>
-      {item.status === 'ready' ? (
-        <ItemActions>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={
-              <a
-                href={downloadUrl(item.id)}
-                download
-                aria-label={m.portability_export_download()}
-              />
-            }
-          >
-            <Download />
-            {m.portability_export_download()}
-          </Button>
-        </ItemActions>
-      ) : null}
-    </Item>
+    <div className="min-w-0">
+      <div className="truncate font-medium">{formatDateTime(item.created_at)}</div>
+      {item.status === 'pending' && item.job_id ? (
+        <JobProgress jobId={item.job_id} variant="inline" className="block truncate" />
+      ) : item.status === 'failed' ? (
+        <div className="truncate text-xs text-destructive">{m.portability_export_failed()}</div>
+      ) : (
+        <div className="truncate text-xs text-muted-foreground">
+          {[
+            ...details,
+            m.portability_export_expires({ time: formatDateTime(item.expires_at) }),
+          ].join(' · ')}
+        </div>
+      )}
+    </div>
   )
 }
+
+function DownloadCell({ item }: { item: ExportOut }) {
+  if (item.status !== 'ready') return null
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      nativeButton={false}
+      render={
+        <a href={downloadUrl(item.id)} download aria-label={m.portability_export_download()} />
+      }
+    >
+      <Download aria-hidden />
+      {m.portability_export_download()}
+    </Button>
+  )
+}
+
+const column = createColumnHelper<typeof settingsTableFeatures, ExportOut>()
+const columns = column.columns([
+  column.display({
+    id: 'export',
+    header: () => m.portability_export_recent(),
+    cell: ({ row }) => <ExportCell item={row.original} />,
+  }),
+  column.display({
+    id: 'download',
+    header: () => <span className="sr-only">{m.portability_export_download()}</span>,
+    cell: ({ row }) => <DownloadCell item={row.original} />,
+  }),
+])
+const COLUMN_CLASS = { export: 'w-full max-w-0', download: 'text-right' }

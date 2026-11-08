@@ -2,8 +2,9 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A progress ring with content in the middle (counter, habit ring, pomodoro). `ratio` is 0–1,
- * `color` any CSS color (use a token, e.g. `var(--primary)` or `habitColor(...)`).
+ * A progress ring, optionally with content in the middle (counter, habit ring, pomodoro, job
+ * progress, `AiAction`). `ratio` is 0–1, `color` any CSS color (a token, e.g. `var(--primary)`,
+ * `currentColor` or `habitColor(...)`).
  */
 export function Ring({
   ratio,
