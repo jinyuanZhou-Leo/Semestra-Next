@@ -10,8 +10,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { COLLAPSE } from '@/lib/collapse'
 import { toastError } from '@/lib/errors'
-import { cn } from '@/lib/utils'
+
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
 import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
@@ -254,12 +255,7 @@ function Form({
           return (
             <Collapsible key={field.key} open={Boolean(own.value)}>
               {own.element}
-              <CollapsibleContent
-                className={cn(
-                  'h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out',
-                  'data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none',
-                )}
-              >
+              <CollapsibleContent className={COLLAPSE}>
                 {under.map((other) => (
                   <div key={other.key}>
                     <ItemSeparator className="my-0" />

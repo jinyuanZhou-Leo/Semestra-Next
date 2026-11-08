@@ -99,7 +99,7 @@ export function ExceptionsTable({
 }: {
   exceptions: ExceptionRow[]
   busy: boolean
-  /** Opens the cancel-or-move dialog; without it the table has no add row. */
+  /** Puts the class back as scheduled. */
   onRestore: (meeting: Meeting, exc: MeetingException) => void
 }) {
   return (

@@ -113,18 +113,24 @@ export function ShareDialog({
   kind,
   onKindChange,
   open,
+  onOpenChangeComplete,
   onOpenChange,
   ...props
 }: ShareProps & {
   kind: ShareKind
   onKindChange: (kind: ShareKind) => void
   open: boolean
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const [busy, setBusy] = useState(false)
   const close = () => onOpenChange(false)
   return (
-    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !busy && onOpenChange(next)}
+    >
       <DialogContent className={kind === 'image' ? 'sm:max-w-6xl' : 'sm:max-w-xl'}>
         <DialogHeader>
           <DialogTitle>{TITLES[kind]()}</DialogTitle>

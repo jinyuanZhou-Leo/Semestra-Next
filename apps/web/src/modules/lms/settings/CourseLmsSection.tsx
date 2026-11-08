@@ -18,6 +18,7 @@ import type { SettingsSectionProps } from '@/app/extensions'
 import { RowMenu, SettingRow, SettingsGroup, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/lib/now'
@@ -25,7 +26,6 @@ import { m } from '@/paraglide/messages'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import {
   Combobox,
   ComboboxCollection,
@@ -364,9 +364,9 @@ function CoursePicker({
   const queryClient = useQueryClient()
   const pastId = useId()
   const [past, setPast] = useState(false)
-  const [replacing, setReplacing] = useState<ExternalCourse | null>(null)
+  const replacing = useDialogTarget<ExternalCourse>()
   const course = useQuery(academicsCourseGetOptions({ path: { course_id: courseId } }))
-  // Keeps the list while "Include past courses" refetches, so the list does not jump.
+  // Keeps the list while "Show past courses" refetches, so the list does not jump.
   const courses = useQuery({
     ...lmsCourseListOptions({ path: { program_id: programId }, query: { include_past: past } }),
     placeholderData: keepPreviousData,
@@ -375,12 +375,12 @@ function CoursePicker({
   const link = useMutation({
     ...lmsCourseLinkSetMutation(),
     onSuccess: async () => {
-      setReplacing(null)
+      replacing.close()
       await invalidateLms(queryClient, { courseId })
       toast.success(m.lms_course_linked())
       onDone()
     },
-    onError: (err) => (setReplacing(null), toastError(err)),
+    onError: (err) => (replacing.close(), toastError(err)),
   })
   const submit = (chosen: ExternalCourse) =>
     link.mutate({
@@ -423,7 +423,7 @@ function CoursePicker({
                         // Typing on the closed trigger also selects (typeahead): only a press
                         // on an item (click or Enter) links.
                         if (!chosen || details.reason !== 'item-press') return
-                        if (current) setReplacing(chosen)
+                        if (current) replacing.show(chosen)
                         else submit(chosen)
                       }}
                       itemToStringLabel={(c: ExternalCourse) => `${c.code ?? ''} ${c.name}`}
@@ -471,12 +471,12 @@ function CoursePicker({
                           )}
                         </ComboboxList>
                         <Field orientation="horizontal" className="border-t px-3 py-2">
-                          <Checkbox id={pastId} checked={past} onCheckedChange={setPast} />
+                          <Switch size="sm" id={pastId} checked={past} onCheckedChange={setPast} />
                           <FieldLabel
                             htmlFor={pastId}
                             className="text-xs font-normal text-muted-foreground"
                           >
-                            {m.lms_course_include_past()}
+                            {m.lms_show_past()}
                           </FieldLabel>
                         </Field>
                       </ComboboxContent>
@@ -486,13 +486,12 @@ function CoursePicker({
               </SettingRow>
             </SettingsGroup>
             <ConfirmDialog
-              open={replacing !== null}
-              onOpenChange={(open) => (open ? undefined : setReplacing(null))}
+              {...replacing.props}
               title={m.lms_course_change_title()}
               description={m.lms_course_change_desc()}
               confirmLabel={m.lms_course_change()}
               pending={link.isPending}
-              onConfirm={() => (replacing ? submit(replacing) : undefined)}
+              onConfirm={() => (replacing.target ? submit(replacing.target) : undefined)}
             />
           </>
         )

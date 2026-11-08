@@ -63,7 +63,7 @@ function serve() {
   return puts
 }
 
-const minInputs = () => screen.getAllByRole('textbox', { name: /: min$/ })
+const minInputs = () => screen.getAllByRole('textbox', { name: /: From \(%\)$/ })
 
 test('the preset picker shows the table in use and switches it after a confirmation', async () => {
   const puts = serve()
@@ -104,7 +104,7 @@ test('an edited table shows as Custom, apart from the blank-table preset, and pi
 
   const picker = await screen.findByRole('combobox', { name: 'Preset' })
   await waitFor(() => expect(picker).toHaveTextContent('US letter grades (4.0)'))
-  const top = screen.getByRole('textbox', { name: 'Band 2: min' })
+  const top = screen.getByRole('textbox', { name: 'Band 2: From (%)' })
   // The same number typed differently is still the preset.
   await user.clear(top)
   await user.type(top, '93.0')
@@ -150,7 +150,7 @@ test('unsaved edits can be discarded back to the saved table, whatever it is', a
   await waitFor(() => expect(picker).toHaveTextContent('US letter grades (4.0)'))
   const discard = screen.getByRole('button', { name: 'Discard changes' })
   expect(discard).toBeDisabled()
-  const top = screen.getByRole('textbox', { name: 'Band 2: min' })
+  const top = screen.getByRole('textbox', { name: 'Band 2: From (%)' })
   await user.clear(top)
   await user.type(top, '90')
   await user.click(discard)

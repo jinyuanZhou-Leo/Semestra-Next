@@ -46,20 +46,6 @@ export function termsForScope(terms: readonly Term[]): Term[] {
   )
 }
 
-export function sameScope(a: AgentScope | null | undefined, b: AgentScope | null | undefined) {
-  return (
-    (a?.program_id ?? null) === (b?.program_id ?? null) &&
-    (a?.term_id ?? null) === (b?.term_id ?? null) &&
-    (a?.course_id ?? null) === (b?.course_id ?? null)
-  )
-}
-
-export type ScopeKind = 'program' | 'term' | 'course'
-
-export function scopeKind(scope: AgentScope): ScopeKind {
-  return scope.course_id ? 'course' : scope.term_id ? 'term' : 'program'
-}
-
 function useProgramData(programId: string | undefined) {
   return useQuery({
     ...academicsProgramGetOptions({ path: { program_id: programId ?? '' } }),

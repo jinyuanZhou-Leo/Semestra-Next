@@ -1,23 +1,16 @@
 import { Search, X } from 'lucide-react'
-import { Fragment, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { SettingRow, SettingsBlock, SettingsGroup, SettingsNote } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { getLocale } from '@/paraglide/runtime'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemSeparator,
-  ItemTitle,
-} from '@/ui/item'
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxItem, ComboboxList } from '@/ui/combobox'
+import { InputGroupAddon } from '@/ui/input-group'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { MAX_ZONES, type WorldClockSettings } from './schema'
-import { searchZones, zoneLabel } from '@/lib/zones'
+import { searchZones, type ZoneOption, zoneLabel } from '@/lib/zones'
 
 type Props = { value: WorldClockSettings; onChange: (value: WorldClockSettings) => void }
 
@@ -56,19 +49,45 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
             )),
             <Item key="search">
               <ItemContent>
-                <InputGroup data-disabled={full || undefined}>
-                  <InputGroupInput
+                {/* Picking a city adds it and empties the search for the next one. */}
+                <Combobox<ZoneOption>
+                  items={results}
+                  filter={null}
+                  value={null}
+                  inputValue={query}
+                  onInputValueChange={setQuery}
+                  onValueChange={(zone) => {
+                    if (!zone) return
+                    onChange({ ...value, zones: [...value.zones, zone.tz] })
+                    setQuery('')
+                  }}
+                  itemToStringLabel={(zone) => zone.label}
+                  isItemEqualToValue={(a, b) => a.tz === b.tz && a.label === b.label}
+                  disabled={full}
+                >
+                  <ComboboxInput
+                    showTrigger={false}
+                    className="w-full"
                     aria-label={m.world_clock_settings_search_label()}
                     placeholder={m.world_clock_settings_search_placeholder()}
                     disabled={full}
                     aria-describedby={full ? `${id}-search-hint` : undefined}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                  <InputGroupAddon>
-                    <Search aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
+                  >
+                    <InputGroupAddon>
+                      <Search aria-hidden />
+                    </InputGroupAddon>
+                  </ComboboxInput>
+                  <ComboboxContent>
+                    <ComboboxList aria-label={m.world_clock_settings_results()}>
+                      {(zone: ZoneOption) => (
+                        <ComboboxItem key={`${zone.tz}|${zone.label}`} value={zone}>
+                          {zone.label}
+                          <span className="ml-auto text-xs text-muted-foreground">{zone.tz}</span>
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
               </ItemContent>
             </Item>,
           ]}
@@ -77,40 +96,6 @@ export default function WorldClockSettingsForm({ value, onChange }: Props) {
           <SettingsNote>
             <span id={`${id}-search-hint`}>{m.world_clock_settings_full({ max: MAX_ZONES })}</span>
           </SettingsNote>
-        ) : null}
-        {results.length > 0 ? (
-          <ItemGroup
-            aria-label={m.world_clock_settings_results()}
-            className="gap-0 overflow-hidden rounded-2xl border"
-          >
-            {results.map((zone, index) => (
-              <Fragment key={`${zone.tz}|${zone.label}`}>
-                {index > 0 ? <ItemSeparator className="my-0" /> : null}
-                <li>
-                  <Item
-                    size="xs"
-                    className="w-full rounded-none text-left hover:bg-muted"
-                    render={(props) => (
-                      <button type="button" {...props}>
-                        {props.children}
-                      </button>
-                    )}
-                    onClick={() => {
-                      onChange({ ...value, zones: [...value.zones, zone.tz] })
-                      setQuery('')
-                    }}
-                  >
-                    <ItemContent>
-                      <ItemTitle>{zone.label}</ItemTitle>
-                    </ItemContent>
-                    <ItemActions>
-                      <ItemDescription className="text-xs">{zone.tz}</ItemDescription>
-                    </ItemActions>
-                  </Item>
-                </li>
-              </Fragment>
-            ))}
-          </ItemGroup>
         ) : null}
       </SettingsBlock>
       <SettingsGroup>

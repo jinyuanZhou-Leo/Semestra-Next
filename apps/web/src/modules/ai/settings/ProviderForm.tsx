@@ -10,6 +10,7 @@ import { useId, useState, type ComponentType, type FormEvent } from 'react'
 import { ChoiceControl } from '@/app/settings'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import type { AiPurpose } from '@/hooks/use-ai-status'
+import { COLLAPSE } from '@/lib/collapse'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { cn } from '@/lib/utils'
@@ -379,7 +380,7 @@ function ProviderForm({
                   {[hostOf(baseUrl), model.trim()].filter(Boolean).join(' · ')}
                 </span>
               </CollapsibleTrigger>
-              <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+              <CollapsibleContent className={COLLAPSE}>
                 {/* The left rule ties the fields to the trigger; padding keeps focus rings visible. */}
                 <FieldGroup className="mt-3 ml-1.5 w-auto border-l-2 py-1 pr-1 pl-4">
                   {endpointFields}

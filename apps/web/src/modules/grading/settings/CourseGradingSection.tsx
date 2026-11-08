@@ -24,6 +24,7 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -235,7 +236,7 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
   const [adding, setAdding] = useState(false)
   // A fresh dialog (empty name) each time it opens.
   const [addKey, setAddKey] = useState(0)
-  const [removing, setRemoving] = useState<AssessmentCategory | null>(null)
+  const removing = useDialogTarget<AssessmentCategory>()
   const refresh = () => invalidateGrading(queryClient)
   const create = useMutation({
     ...gradingCategoryCreateMutation(),
@@ -259,14 +260,14 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
     ...gradingCategoryDeleteMutation(),
     onError: toastError,
     onSuccess: async () => {
-      setRemoving(null)
+      removing.close()
       await refresh()
     },
   })
   const categories = gradebook.categories.toSorted((a, b) => a.position - b.position)
   const handlers: CategoryHandlers = {
     update: (category, body) => update.mutate({ path: { category_id: category.id }, body }),
-    onRemove: setRemoving,
+    onRemove: removing.show,
   }
   return (
     <SettingsBlock
@@ -313,15 +314,16 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
         }
       />
       <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
+        {...removing.props}
         title={m.grading_category_remove()}
         description={m.grading_category_remove_confirm({
-          name: removing ? categoryName(removing) : '',
+          name: removing.target ? categoryName(removing.target) : '',
         })}
         confirmLabel={m.grading_category_remove()}
         pending={remove.isPending}
-        onConfirm={() => removing && remove.mutate({ path: { category_id: removing.id } })}
+        onConfirm={() =>
+          removing.target && remove.mutate({ path: { category_id: removing.target.id } })
+        }
       />
     </SettingsBlock>
   )

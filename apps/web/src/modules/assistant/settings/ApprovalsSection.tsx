@@ -19,7 +19,6 @@ import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
-import { Item, ItemActions, ItemContent, ItemTitle } from '@/ui/item'
 import { Switch } from '@/ui/switch'
 import { capabilityTitle } from '../labels'
 import { type ToolGroup, useToolGroups, useUpdatePreferences } from './shared'
@@ -147,18 +146,15 @@ function ToolsDialog({
         <div className="-mx-6 max-h-[60vh] overflow-y-auto px-6">
           <SettingsGroup>
             {(group?.tools ?? []).map((tool) => (
-              <Item key={tool.name} size="sm">
-                <ItemContent className="min-w-0">
-                  <ItemTitle>{capabilityTitle(tool.name)}</ItemTitle>
-                </ItemContent>
-                <ItemActions>
+              <SettingRow key={tool.name} size="sm" label={capabilityTitle(tool.name)}>
+                {(labelId) => (
                   <Switch
-                    aria-label={capabilityTitle(tool.name)}
+                    aria-labelledby={labelId}
                     checked={chosen.has(tool.name)}
                     onCheckedChange={(on) => setTools([tool], on)}
                   />
-                </ItemActions>
-              </Item>
+                )}
+              </SettingRow>
             ))}
           </SettingsGroup>
         </div>

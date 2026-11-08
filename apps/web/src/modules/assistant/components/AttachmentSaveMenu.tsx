@@ -101,8 +101,9 @@ export function AttachmentSaveMenu({
         </DropdownMenuContent>
       </DropdownMenu>
       <PreviewDialog
-        target={preview && fileItemId ? { itemId: fileItemId } : null}
-        onClose={() => setPreview(false)}
+        target={fileItemId ? { itemId: fileItemId } : null}
+        open={preview}
+        onOpenChange={setPreview}
       />
     </AttachmentActions>
   )

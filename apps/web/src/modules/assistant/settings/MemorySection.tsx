@@ -19,6 +19,7 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -207,8 +208,8 @@ export function MemorySection() {
 function MemoryTable({ items }: { items: MemoryOut[] }) {
   const queryClient = useQueryClient()
   const refresh = () => invalidateOperations(queryClient, MEMORY_QUERIES)
-  const [editing, setEditing] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<MemoryOut | null>(null)
+  const editing = useDialogTarget<string>()
+  const deleting = useDialogTarget<MemoryOut>()
   const update = useMutation({
     ...agentMemoryUpdateMutation(),
     onError: toastError,
@@ -218,16 +219,16 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
     ...agentMemoryDeleteMutation(),
     onError: toastError,
     onSettled: async () => {
-      setDeleting(null)
+      deleting.close()
       await refresh()
     },
   })
   const handlers: RowHandlers = {
     patch: (memory, body) => update.mutate({ path: { id: memory.id }, body }),
-    onEdit: (memory) => setEditing(memory.id),
-    onDelete: setDeleting,
+    onEdit: (memory) => editing.show(memory.id),
+    onDelete: deleting.show,
   }
-  const open = items.find((memory) => memory.id === editing) ?? null
+  const open = items.find((memory) => memory.id === editing.target) ?? null
   return (
     <>
       <RowContext value={handlers}>
@@ -239,7 +240,7 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
           columnClassName={COLUMN_CLASS}
         />
       </RowContext>
-      <Dialog open={open !== null} onOpenChange={(next) => !next && setEditing(null)}>
+      <Dialog {...editing.props}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{m.assistant_memory_edit()}</DialogTitle>
@@ -250,20 +251,19 @@ function MemoryTable({ items }: { items: MemoryOut[] }) {
               key={open.id}
               memory={open}
               memories={items}
-              onOpen={(memory) => setEditing(memory.id)}
-              onSaved={() => setEditing(null)}
+              onOpen={(memory) => editing.show(memory.id)}
+              onSaved={editing.close}
             />
           ) : null}
         </DialogContent>
       </Dialog>
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(next) => !next && setDeleting(null)}
+        {...deleting.props}
         title={m.assistant_memory_delete()}
-        description={deleting?.description ?? ''}
+        description={deleting.target?.description ?? ''}
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
+        onConfirm={() => deleting.target && remove.mutate({ path: { id: deleting.target.id } })}
       />
     </>
   )

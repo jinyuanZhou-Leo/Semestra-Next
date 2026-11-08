@@ -76,8 +76,8 @@ test('cities are added by searching and limited to three', async () => {
       onChange={(v) => changes.push(v)}
     />,
   )
-  await user.type(screen.getByRole('textbox', { name: 'Add a city' }), 'tokyo')
-  await user.click(screen.getByRole('button', { name: /Tokyo/ }))
+  await user.type(screen.getByRole('combobox', { name: 'Add a city' }), 'tokyo')
+  await user.click(await screen.findByRole('option', { name: /Tokyo/ }))
   expect(changes.at(-1)).toMatchObject({ zones: ['Asia/Tokyo'] })
 
   rerender(
@@ -86,7 +86,7 @@ test('cities are added by searching and limited to three', async () => {
       onChange={(v) => changes.push(v)}
     />,
   )
-  expect(screen.getByRole('textbox', { name: 'Add a city' })).toBeDisabled()
+  expect(screen.getByRole('combobox', { name: 'Add a city' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
   expect(changes.at(-1)).toMatchObject({ zones: ['UTC', 'Europe/Paris'] })
 })

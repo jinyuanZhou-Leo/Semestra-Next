@@ -24,6 +24,7 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { NewCategoryDialog } from './NewCategoryDialog'
@@ -32,7 +33,6 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Switch } from '@/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { CategoryColorSelect } from '../components/CategoryColorSelect'
 import { presetOptions } from '../presets'
 import { invalidateGrading, useGradingScale, useScalePresets } from '../queries'
@@ -166,6 +166,73 @@ const toRows = (bands: readonly ScaleBand[]): BandRow[] =>
       letter: b.letter ?? '',
     }))
 
+/** A row of the conversion table with its position; rows are edited in place and have no id. */
+type BandLine = { index: number; row: BandRow }
+type BandField = keyof BandRow
+
+const BandsContext = createContext<{
+  edit: (index: number, patch: Partial<BandRow>) => void
+  remove: (index: number) => void
+} | null>(null)
+
+function useBands() {
+  const state = use(BandsContext)
+  if (!state) throw new Error('band cells must render inside the conversion table')
+  return state
+}
+
+const BAND_FIELDS: Record<BandField, { header: () => string }> = {
+  min: { header: () => m.grading_band_min() },
+  max: { header: () => m.grading_band_max() },
+  points: { header: () => m.grading_band_points() },
+  letter: { header: () => m.grading_band_letter() },
+}
+
+function BandInput({ line, field }: { line: BandLine; field: BandField }) {
+  const { edit } = useBands()
+  return (
+    <Input
+      aria-label={`${m.grading_band()} ${line.index + 1}: ${BAND_FIELDS[field].header()}`}
+      inputMode={field === 'letter' ? 'text' : 'decimal'}
+      value={line.row[field]}
+      maxLength={field === 'letter' ? 8 : undefined}
+      onChange={(event) => edit(line.index, { [field]: event.target.value })}
+      className="h-8 w-24 tabular-nums"
+    />
+  )
+}
+
+function BandRemove({ line }: { line: BandLine }) {
+  const { remove } = useBands()
+  return (
+    <Button
+      variant="destructive"
+      size="icon-sm"
+      aria-label={`${m.grading_band_remove()} ${line.index + 1}`}
+      onClick={() => remove(line.index)}
+    >
+      <Trash2 aria-hidden />
+    </Button>
+  )
+}
+
+const bandColumn = createColumnHelper<typeof settingsTableFeatures, BandLine>()
+const bandColumns = bandColumn.columns([
+  ...(Object.keys(BAND_FIELDS) as BandField[]).map((field) =>
+    bandColumn.display({
+      id: field,
+      header: BAND_FIELDS[field].header,
+      cell: ({ row }) => <BandInput line={row.original} field={field} />,
+    }),
+  ),
+  bandColumn.display({
+    id: 'remove',
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
+    cell: ({ row }) => <BandRemove line={row.original} />,
+  }),
+])
+const BAND_COLUMN_CLASS = { remove: 'w-14' }
+
 /** Whether two tables convert the same, however their numbers were typed. */
 const sameTable = (
   a: { bands: readonly ScaleBand[]; max_points: number },
@@ -190,7 +257,7 @@ function BandEditor({ scale }: { scale: GradingScale }) {
   const queryClient = useQueryClient()
   const presets = useScalePresets().data?.items
   const [rows, setRows] = useState(() => toRows(scale.bands))
-  const [removingBand, setRemovingBand] = useState<number | null>(null)
+  const removingBand = useDialogTarget<number>()
   const [maxPoints, setMaxPoints] = useState(String(scale.max_points))
   const [switching, setSwitching] = useState<ScalePreset | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -253,57 +320,15 @@ function BandEditor({ scale }: { scale: GradingScale }) {
               ))
           : null}
       </div>
-      <div className="rounded-2xl border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              {[
-                m.grading_band_min(),
-                m.grading_band_max(),
-                m.grading_band_points(),
-                m.grading_band_letter(),
-              ].map((label) => (
-                <TableHead key={label} className="h-10 text-xs text-muted-foreground">
-                  {label}
-                </TableHead>
-              ))}
-              <TableHead className="w-10">
-                <span className="sr-only">{m.grading_actions()}</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row, i) => (
-              // Rows have no identity of their own; they are edited in place.
-              // oxlint-disable-next-line react/no-array-index-key
-              <TableRow key={i}>
-                {(['min', 'max', 'points', 'letter'] as const).map((field) => (
-                  <TableCell key={field} className="py-1">
-                    <Input
-                      aria-label={`${m.grading_band()} ${i + 1}: ${field}`}
-                      inputMode={field === 'letter' ? 'text' : 'decimal'}
-                      value={row[field]}
-                      maxLength={field === 'letter' ? 8 : undefined}
-                      onChange={(event) => edit(i, { [field]: event.target.value })}
-                      className="h-8 w-24 tabular-nums"
-                    />
-                  </TableCell>
-                ))}
-                <TableCell className="py-1">
-                  <Button
-                    variant="destructive"
-                    size="icon-sm"
-                    aria-label={`${m.grading_band_remove()} ${i + 1}`}
-                    onClick={() => setRemovingBand(i)}
-                  >
-                    <Trash2 aria-hidden />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <BandsContext value={{ edit, remove: removingBand.show }}>
+        <SettingsTable
+          label={m.grading_scale()}
+          data={rows.map((row, index) => ({ index, row }))}
+          columns={bandColumns}
+          getRowId={(line) => String(line.index)}
+          columnClassName={BAND_COLUMN_CLASS}
+        />
+      </BandsContext>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
@@ -373,14 +398,13 @@ function BandEditor({ scale }: { scale: GradingScale }) {
         />
       </div>
       <ConfirmDialog
-        open={removingBand !== null}
-        onOpenChange={(open) => !open && setRemovingBand(null)}
+        {...removingBand.props}
         title={m.grading_band_remove()}
         description={m.grading_band_remove_confirm()}
         confirmLabel={m.grading_band_remove()}
         onConfirm={() => {
-          setRows(rows.filter((_, index) => index !== removingBand))
-          setRemovingBand(null)
+          setRows(rows.filter((_, index) => index !== removingBand.target))
+          removingBand.close()
         }}
       />
       <ConfirmDialog
@@ -513,7 +537,7 @@ function DefaultCategories({
   const [adding, setAdding] = useState(false)
   // A fresh dialog (empty name) each time it opens.
   const [addKey, setAddKey] = useState(0)
-  const [removing, setRemoving] = useState<CategoryTemplate | null>(null)
+  const removing = useDialogTarget<CategoryTemplate>()
   const apply = (next: CategoryTemplate[]) => {
     setItems(next)
     if (next.every((t) => t.name.trim() !== '')) onChange(next)
@@ -532,7 +556,7 @@ function DefaultCategories({
   }
   const handlers: TemplateHandlers = {
     edit: (key, patch) => apply(items.map((t) => (t.key === key ? { ...t, ...patch } : t))),
-    onRemove: setRemoving,
+    onRemove: removing.show,
   }
   return (
     <SettingsBlock
@@ -567,14 +591,15 @@ function DefaultCategories({
       </TemplateContext>
       <NewCategoryDialog key={addKey} open={adding} onOpenChange={setAdding} onSubmit={add} />
       <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
+        {...removing.props}
         title={m.grading_category_remove()}
-        description={m.grading_default_category_remove_confirm({ name: removing?.name ?? '' })}
+        description={m.grading_default_category_remove_confirm({
+          name: removing.target?.name ?? '',
+        })}
         confirmLabel={m.grading_category_remove()}
         onConfirm={() => {
-          apply(items.filter((t) => t.key !== removing?.key))
-          setRemoving(null)
+          apply(items.filter((t) => t.key !== removing.target?.key))
+          removing.close()
         }}
       />
     </SettingsBlock>

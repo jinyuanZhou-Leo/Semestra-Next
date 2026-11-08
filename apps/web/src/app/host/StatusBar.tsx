@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Progress } from '@/ui/progress'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/ui/sidebar'
 import { Spinner } from '@/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import type { JobKindContribution, StatusItem, StatusItemContribution } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
 import { useUiPref } from '../ui-pref'
@@ -169,16 +170,22 @@ function JobRow({
       </ItemContent>
       {ACTIVE.has(job.status) ? (
         <ItemActions>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={m.status_job_cancel({ name: title })}
-            title={m.status_job_cancel({ name: title })}
-            disabled={job.cancel_requested}
-            onClick={() => void cancel()}
-          >
-            <X aria-hidden />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={m.status_job_cancel({ name: title })}
+                  disabled={job.cancel_requested}
+                  onClick={() => void cancel()}
+                />
+              }
+            >
+              <X aria-hidden />
+            </TooltipTrigger>
+            <TooltipContent>{m.status_job_cancel({ name: title })}</TooltipContent>
+          </Tooltip>
         </ItemActions>
       ) : null}
       <ItemFooter className="block">

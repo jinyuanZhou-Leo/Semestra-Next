@@ -14,8 +14,6 @@ export const COLOR_TOKENS = [
   'subject-11',
 ] as const
 
-export type ColorToken = (typeof COLOR_TOKENS)[number]
-
 const TOKEN = /^(primary|success|subject-(1[0-2]|[1-9]))$/
 
 /** Any color token the plugins use: `primary`, `success` or a subject palette slot. */

@@ -1,7 +1,8 @@
 import { Clock2 } from 'lucide-react'
 import { useId } from 'react'
 import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
-import { cn } from '@/lib/utils'
+import { COLLAPSE } from '@/lib/collapse'
+
 import { TIME_INPUT } from '@/lib/time-input'
 import { useDeviceState } from '@/modules/notifications/push'
 import { m } from '@/paraglide/messages'
@@ -89,7 +90,6 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
                     key={token}
                     value={token}
                     aria-label={COLOR_NAMES[token]()}
-                    title={COLOR_NAMES[token]()}
                     className="size-7"
                     color={colorVar(token)}
                     checkColor="var(--background)"
@@ -102,39 +102,41 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
       </SettingsGroup>
       <SettingsGroup>
         {[
-          <SettingRow key="goal" label={m.habit_settings_goal_label()}>
-            {(labelId) => (
-              <ChoiceControl
-                labelId={labelId}
-                options={[
-                  { value: 'daily', label: m.habit_settings_goal_option_daily() },
-                  { value: 'weekly', label: m.habit_settings_goal_option_weekly() },
-                ]}
-                value={value.goal}
-                onChange={(goal) => set({ goal })}
-              />
-            )}
-          </SettingRow>,
-          value.goal === 'weekly' ? (
-            <SettingRow
-              key="target"
-              label={m.habit_settings_weekly_target_label()}
-              htmlFor={`${id}-target-input`}
-            >
-              <Input
-                id={`${id}-target-input`}
-                type="number"
-                min={1}
-                max={7}
-                value={value.weekly_target}
-                onChange={(event) => {
-                  const n = Math.trunc(Number(event.target.value))
-                  if (n >= 1 && n <= 7) set({ weekly_target: n })
-                }}
-                className="w-28"
-              />
+          <Collapsible key="goal" open={value.goal === 'weekly'}>
+            <SettingRow label={m.habit_settings_goal_label()}>
+              {(labelId) => (
+                <ChoiceControl
+                  labelId={labelId}
+                  options={[
+                    { value: 'daily', label: m.habit_settings_goal_option_daily() },
+                    { value: 'weekly', label: m.habit_settings_goal_option_weekly() },
+                  ]}
+                  value={value.goal}
+                  onChange={(goal) => set({ goal })}
+                />
+              )}
             </SettingRow>
-          ) : null,
+            <CollapsibleContent className={COLLAPSE}>
+              <ItemSeparator className="my-0" />
+              <SettingRow
+                label={m.habit_settings_weekly_target_label()}
+                htmlFor={`${id}-target-input`}
+              >
+                <Input
+                  id={`${id}-target-input`}
+                  type="number"
+                  min={1}
+                  max={7}
+                  value={value.weekly_target}
+                  onChange={(event) => {
+                    const n = Math.trunc(Number(event.target.value))
+                    if (n >= 1 && n <= 7) set({ weekly_target: n })
+                  }}
+                  className="w-28"
+                />
+              </SettingRow>
+            </CollapsibleContent>
+          </Collapsible>,
           <SettingRow
             key="toast"
             label={m.habit_settings_show_toast_label()}
@@ -165,12 +167,7 @@ export default function HabitSettingsForm({ value, onChange }: Props) {
                 />
               )}
             </SettingRow>
-            <CollapsibleContent
-              className={cn(
-                'h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out',
-                'data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none',
-              )}
-            >
+            <CollapsibleContent className={COLLAPSE}>
               <ItemSeparator className="my-0" />
               <SettingRow label={m.habit_settings_remind_at_label()} htmlFor={`${id}-remind-at`}>
                 <InputGroup className="w-32">

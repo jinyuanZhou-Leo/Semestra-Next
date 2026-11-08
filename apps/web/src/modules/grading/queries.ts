@@ -1,5 +1,4 @@
 import {
-  gradingCourseSummaryListOptions,
   gradingGradebookGetOptions,
   gradingScaleGetOptions,
   gradingScaleListPresetsOptions,
@@ -38,13 +37,6 @@ export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
 export function useProgramGrades(programId: string) {
   return useQuery({
     ...gradingSummaryProgramOptions({ path: { program_id: programId } }),
-  })
-}
-
-/** Every course's grade in a Program, for the all-courses columns. */
-export function useCourseGrades(programId: string) {
-  return useQuery({
-    ...gradingCourseSummaryListOptions({ path: { program_id: programId } }),
   })
 }
 

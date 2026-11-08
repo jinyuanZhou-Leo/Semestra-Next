@@ -18,6 +18,7 @@ export type ListDialogValue = { name: string; termLevel: boolean }
 /** Create or rename a list. `canChooseLevel` offers "this term" / "all terms" when creating. */
 export function ListDialog({
   open,
+  onOpenChangeComplete,
   onOpenChange,
   title,
   initialName = '',
@@ -26,6 +27,8 @@ export function ListDialog({
   onSubmit,
 }: {
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
   title: string
   initialName?: string
@@ -50,7 +53,11 @@ export function ListDialog({
     if (ok) onOpenChange(false)
   }
   return (
-    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !busy && onOpenChange(next)}
+    >
       <DialogContent className="sm:max-w-sm">
         <form
           className="space-y-4"

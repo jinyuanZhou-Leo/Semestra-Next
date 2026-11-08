@@ -11,7 +11,9 @@ import { Ban, KeyRound, Plus } from 'lucide-react'
 import { createContext, use, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -319,63 +321,58 @@ export function TokensSection() {
   const tokens = useQuery(accountTokenListOptions())
   const [creating, setCreating] = useState(false)
   const [created, setCreated] = useState<TokenCreated | null>(null)
-  const [revoking, setRevoking] = useState<{ id: string; name: string } | null>(null)
+  const revoking = useDialogTarget<{ id: string; name: string }>()
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
   const revoke = useMutation({
     ...accountTokenRevokeMutation(),
     onSuccess: () => {
-      setRevoking(null)
+      revoking.close()
       void refresh()
     },
-    onError: (err) => (setRevoking(null), toastError(err)),
+    onError: (err) => (revoking.close(), toastError(err)),
   })
-
-  const items = tokens.data?.items ?? []
 
   return (
     <>
-      {tokens.isPending ? (
-        <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
-      ) : tokens.isError ? (
-        <div className="space-y-2">
-          <FieldError>{errorMessage(tokens.error)}</FieldError>
-          <Button variant="outline" size="sm" onClick={() => void tokens.refetch()}>
-            {m.common_retry()}
-          </Button>
-        </div>
-      ) : items.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <KeyRound aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{m.auth_account_tokens_empty()}</EmptyTitle>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus aria-hidden />
-              {m.auth_account_tokens_create()}
-            </Button>
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <RevokeContext value={(t) => setRevoking({ id: t.id, name: t.name })}>
-          <SectionAction>
-            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-              <Plus aria-hidden />
-              {m.auth_account_tokens_create()}
-            </Button>
-          </SectionAction>
-          <SettingsTable
-            label={m.auth_account_tokens_title()}
-            data={items}
-            columns={columns}
-            getRowId={(t) => t.id}
-            columnClassName={COLUMN_CLASS}
-          />
-        </RevokeContext>
-      )}
+      <AsyncBoundary
+        query={tokens}
+        isEmpty={(page) => page.items.length === 0}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <KeyRound aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.auth_account_tokens_empty()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <Plus aria-hidden />
+                {m.auth_account_tokens_create()}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        }
+      >
+        {(page) => (
+          <RevokeContext value={(t) => revoking.show({ id: t.id, name: t.name })}>
+            <SectionAction>
+              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+                <Plus aria-hidden />
+                {m.auth_account_tokens_create()}
+              </Button>
+            </SectionAction>
+            <SettingsTable
+              label={m.auth_account_tokens_title()}
+              data={page.items}
+              columns={columns}
+              getRowId={(t) => t.id}
+              columnClassName={COLUMN_CLASS}
+            />
+          </RevokeContext>
+        )}
+      </AsyncBoundary>
       <CreateTokenDialog
         open={creating}
         onOpenChange={setCreating}
@@ -387,13 +384,12 @@ export function TokensSection() {
       />
       <TokenCreatedDialog token={created} onClose={() => setCreated(null)} />
       <ConfirmDialog
-        open={revoking !== null}
-        onOpenChange={(open) => !open && setRevoking(null)}
+        {...revoking.props}
         title={m.auth_account_tokens_revoke_title()}
         description={m.auth_account_tokens_revoke_desc()}
         confirmLabel={m.auth_account_tokens_revoke()}
         pending={revoke.isPending}
-        onConfirm={() => revoking && revoke.mutate({ path: { id: revoking.id } })}
+        onConfirm={() => revoking.target && revoke.mutate({ path: { id: revoking.target.id } })}
       />
     </>
   )
