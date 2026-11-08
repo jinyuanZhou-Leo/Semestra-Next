@@ -3,6 +3,28 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.2 (2026-11-08)
+
+### New
+
+- **Sem:** Sem searches and reads everything in your Canvas courses, including page text, discussions and your teachers' feedback, and can tell you what is new across a term.
+
+### Improved
+
+- **Calendar:** The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.
+- **Account:** Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.
+- **API & MCP:** Connect Cursor, Claude Code, VS Code, Codex and other MCP clients from Settings in two steps, with the API token already filled in.
+
+### Fixed
+
+- **Sem:** Unsent messages and attachments in Sem are kept when you open settings, switch pages or close the panel, and Sem reopens the conversation you were in.
+- **Terms & courses:** The sidebar shows a course's full title on hover only when the row shows its alias or code.
+- **Grades:** The forecast chart shows each assessment's full name without overlapping, labels the hidden GPA, and the grade breakdown's tooltip no longer slides in on hover.
+- **Calendar:** Removed redundant hover tooltips from the calendar and timetable pages.
+- **Calendar:** Changing a section to a code that is already taken no longer fails with an unknown error.
+- **Calendar:** Expanding a section in the course schedule no longer shifts the table, and its times slide open smoothly.
+- **Canvas:** A part of a course the instructor hid in Canvas now says so instead of failing to load.
+
 ## 2.0.0-beta.1 (2026-11-08)
 
 ### New

@@ -1,5 +1,30 @@
 # @semestra/api
 
+## 2.0.0-beta.2
+
+### Minor Changes
+
+- a9eb8c8: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+  Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.
+  <!-- zh -->
+  敏感的账户操作改为就地确认身份（密码、邮箱验证码或 Google），不再需要退出重新登录。
+- e419fab: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.
+  <!-- zh -->
+  课程课表按教学班类型分组，新建时预填下一个编号，并可将教学班并入编号相同的已有教学班。
+
+### Patch Changes
+
+- e419fab: <!-- area: calendar -->
+  <!-- en -->
+  Changing a section to a code that is already taken no longer fails with an unknown error.
+  <!-- zh -->
+  把教学班改成已被使用的编号时不再提示未知错误。
+
 ## 2.0.0-beta.1
 
 ### Major Changes

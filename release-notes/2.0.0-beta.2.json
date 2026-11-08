@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0-beta.2",
+  "date": "2026-11-08",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "new",
+      "area": "sem",
+      "en": "Sem searches and reads everything in your Canvas courses, including page text, discussions and your teachers' feedback, and can tell you what is new across a term.",
+      "zh": "Sem 可以搜索和读取 Canvas 课程里的全部内容（包括页面正文、讨论和老师的评语），还能告诉你整个学期有哪些新动态。"
+    },
+    {
+      "kind": "improved",
+      "area": "calendar",
+      "en": "The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.",
+      "zh": "课程课表按教学班类型分组，新建时预填下一个编号，并可将教学班并入编号相同的已有教学班。"
+    },
+    {
+      "kind": "improved",
+      "area": "account",
+      "en": "Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.",
+      "zh": "敏感的账户操作改为就地确认身份（密码、邮箱验证码或 Google），不再需要退出重新登录。"
+    },
+    {
+      "kind": "improved",
+      "area": "api",
+      "en": "Connect Cursor, Claude Code, VS Code, Codex and other MCP clients from Settings in two steps, with the API token already filled in.",
+      "zh": "在设置中两步连接 Cursor、Claude Code、VS Code、Codex 等 MCP 客户端，API 令牌自动填好。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Unsent messages and attachments in Sem are kept when you open settings, switch pages or close the panel, and Sem reopens the conversation you were in.",
+      "zh": "打开设置、切换页面或关闭面板时，Sem 中未发送的内容和附件会保留，再次打开时回到原来的对话。"
+    },
+    {
+      "kind": "fixed",
+      "area": "courses",
+      "en": "The sidebar shows a course's full title on hover only when the row shows its alias or code.",
+      "zh": "侧边栏的课程行只在显示别名或代码时，才在悬停时显示完整课程名称。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "The forecast chart shows each assessment's full name without overlapping, labels the hidden GPA, and the grade breakdown's tooltip no longer slides in on hover.",
+      "zh": "成绩预测图完整显示每项考核的名称、不再重叠，隐藏的 GPA 有了标注，成绩构成的提示框悬停时也不再滑动。"
+    },
+    {
+      "kind": "fixed",
+      "area": "calendar",
+      "en": "Removed redundant hover tooltips from the calendar and timetable pages.",
+      "zh": "去掉了日历与课表页面上多余的悬停提示。"
+    },
+    {
+      "kind": "fixed",
+      "area": "calendar",
+      "en": "Changing a section to a code that is already taken no longer fails with an unknown error.",
+      "zh": "把教学班改成已被使用的编号时不再提示未知错误。"
+    },
+    {
+      "kind": "fixed",
+      "area": "calendar",
+      "en": "Expanding a section in the course schedule no longer shifts the table, and its times slide open smoothly.",
+      "zh": "展开课表中的教学班时表格不再跳动，上课时间平滑展开。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "A part of a course the instructor hid in Canvas now says so instead of failing to load.",
+      "zh": "老师在 Canvas 里隐藏的课程部分现在会直接说明，不再显示加载失败。"
+    }
+  ]
+}
