@@ -17,6 +17,7 @@ from starlette.datastructures import State
 
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
+from semestra.core.events import spawn
 from semestra.modules.academics import service as academics
 from semestra.modules.auth.models import AuthSession
 from semestra.modules.notifications import texts, webpush
@@ -77,14 +78,30 @@ async def has_devices(ctx: Ctx) -> bool:
     return await ctx.db.scalar(query) is not None
 
 
-async def register_device(ctx: Ctx, inp: DeviceIn) -> bool:
-    """Adds or refreshes this browser's subscription. True when it is the account's first."""
+def _check_subscription(inp: DeviceIn) -> None:
     if not webpush.is_push_endpoint(inp.endpoint):
         raise AppError("notifications.unsupported_push_service", 422)
     try:
         webpush.encrypt(webpush.Subscription(inp.endpoint, inp.p256dh, inp.auth), b"check")
     except Exception:
         raise AppError("notifications.invalid_subscription", 422) from None
+
+
+async def replace_subscription(ctx: Ctx, row: NotificationsDevice, inp: DeviceIn) -> None:
+    """The browser's push service replaced the device's subscription: the row (its account and
+    sign-in session) moves to the new one; a row the new endpoint already has gives way."""
+    _check_subscription(inp)
+    if inp.endpoint != row.endpoint:
+        await ctx.db.execute(
+            delete(NotificationsDevice).where(NotificationsDevice.endpoint == inp.endpoint)
+        )
+    row.endpoint, row.p256dh, row.auth = inp.endpoint, inp.p256dh, inp.auth
+    row.last_seen_at = ctx.now
+
+
+async def register_device(ctx: Ctx, inp: DeviceIn) -> bool:
+    """Adds or refreshes this browser's subscription. True when it is the account's first."""
+    _check_subscription(inp)
     first = not await has_devices(ctx)
     values = {
         "user_id": ctx.user_id,
@@ -198,11 +215,12 @@ async def deliver(ctx: Ctx, message: Message, *, exclude_session: str | None = N
 def notify_after_commit(
     ctx: Ctx, message: Message, *, user_id: str, exclude_session: str | None = None
 ) -> None:
-    """Sends once the caller's transaction has committed, in its own transaction, so that an
-    event subscriber never holds the database while push services answer."""
+    """Sends once the caller's transaction has committed, in its own transaction and in the
+    background: an event subscriber never holds the database while push services answer, and
+    the events after it (and their SSE messages) do not wait for them either."""
     state: State = ctx.state
 
-    async def run() -> None:
+    async def send() -> None:
         try:
             async with system_ctx(state, user_id) as own:
                 if own.user is None or not await allowed(own, message):
@@ -212,4 +230,7 @@ def notify_after_commit(
         except Exception:
             log.exception("notification_failed", kind=message.kind)
 
-    ctx.after_commit.append(run)
+    async def start() -> None:
+        spawn(state, send())
+
+    ctx.after_commit.append(start)

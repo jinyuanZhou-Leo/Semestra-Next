@@ -913,32 +913,6 @@ export type AssessmentFields = {
 };
 
 /**
- * AssessmentOrder
- */
-export type AssessmentOrder = {
-    /**
-     * Course Id
-     */
-    course_id: string;
-    /**
-     * Assessment Ids
-     */
-    assessment_ids: Array<string>;
-};
-
-/**
- * AssessmentOrderInputBody
- */
-export type AssessmentOrderInputBody = {
-    /**
-     * Assessment Ids
-     *
-     * Assessment ids in order
-     */
-    assessment_ids: Array<string>;
-};
-
-/**
  * AssessmentPage
  */
 export type AssessmentPage = {
@@ -15368,38 +15342,6 @@ export type GradingAssessmentUpdateResponses = {
 };
 
 export type GradingAssessmentUpdateResponse = GradingAssessmentUpdateResponses[keyof GradingAssessmentUpdateResponses];
-
-export type GradingAssessmentReorderData = {
-    body: AssessmentOrderInputBody;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/assessment-order';
-};
-
-export type GradingAssessmentReorderErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type GradingAssessmentReorderError = GradingAssessmentReorderErrors[keyof GradingAssessmentReorderErrors];
-
-export type GradingAssessmentReorderResponses = {
-    /**
-     * Successful Response
-     */
-    200: AssessmentOrder;
-};
-
-export type GradingAssessmentReorderResponse = GradingAssessmentReorderResponses[keyof GradingAssessmentReorderResponses];
 
 export type GradingAssessmentUpcomingData = {
     body?: never;

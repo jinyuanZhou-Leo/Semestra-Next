@@ -17,8 +17,8 @@ import contextlib
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import date
-from typing import TYPE_CHECKING
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import anyio.to_thread
@@ -51,7 +51,7 @@ _CACHE_MAX = 32
 _images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
 # Rendered calendars by (attachment id, time zone); None when the file could not be read. The
 # text is kept, not the parsed events: it is all the assistant reads, and much smaller.
-_calendars: OrderedDict[tuple[str, str], Calendar | None] = OrderedDict()
+_calendars: OrderedDict[tuple[str, str, tuple[date, date]], Calendar | None] = OrderedDict()
 SUMMARY_COURSES = 40
 EVENTS_PER_PAGE = 100
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -223,12 +223,12 @@ async def calendar(ctx: Ctx, att: AgentAttachment) -> Calendar | None:
     hold thousands of events."""
     from semestra.modules.imports.ics import parse_ics
 
-    tz = await _timezone(ctx, att)
-    key = (att.id, tz)
+    tz, span = await _frame(ctx, att)
+    key = (att.id, tz, span)
     if key not in _calendars:
         data = await service.read_attachment(ctx, att)
         try:
-            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz))
+            result = await anyio.to_thread.run_sync(lambda: parse_ics(data, tz, span))
             _calendars[key] = Calendar(_summary_text(att, result), calendar_pages(result))
         except AppError:
             _calendars[key] = None
@@ -246,8 +246,7 @@ async def _calendar_summary(ctx: Ctx, att: AgentAttachment) -> str:
 
 
 def _course_days(course: IcsCourse) -> list[date]:
-    days = [m.first_date for m in course.meetings]
-    days += [m.last_date for m in course.meetings if m.last_date]
+    days = [d for m in course.meetings for d in (m.dates[0], m.dates[-1])]
     days += [e.day for e in course.events]
     return days
 
@@ -301,16 +300,22 @@ def _course_pages(course: IcsCourse) -> list[str]:
     if course.meetings:
         lines.append("Weekly meetings:")
     for m in course.meetings:
-        until = f"{m.first_date} to {m.last_date}" if m.last_date else f"from {m.first_date}"
+        first, last = m.dates[0], m.dates[-1]
         parts = [
             m.section_code or m.type_code,
             f"{_DAYS[m.weekday - 1]} {_time_span(m.start_time, m.end_time)}",
-            m.recurrence,
-            until,
+            f"{first} to {last}",
+            f"{len(m.dates)} classes" if len(m.dates) != 1 else "1 class",
         ]
         parts += [x for x in (m.location, m.instructor) if x]
-        if m.exceptions:
-            parts.append("no class on " + ", ".join(map(str, m.exceptions)))
+        held = set(m.dates)
+        missing = [
+            d
+            for d in (first + timedelta(weeks=n) for n in range(1, (last - first).days // 7))
+            if d not in held
+        ]
+        if missing:
+            parts.append("no class on " + ", ".join(map(str, missing)))
         lines.append("- " + " · ".join(parts))
     chunks = [
         course.events[i : i + EVENTS_PER_PAGE]
@@ -337,16 +342,24 @@ def calendar_pages(result: IcsResult) -> list[str]:
     return pages
 
 
-async def _timezone(ctx: Ctx, att: AgentAttachment) -> str:
-    """The conversation's Program's time zone: the meetings' weekdays and dates depend on it."""
+async def _frame(ctx: Ctx, att: AgentAttachment) -> tuple[str, tuple[date, date]]:
+    """The conversation's Program's time zone (the meetings' weekdays and dates depend on it)
+    and the dates to read: its terms, else a year either side of today (a calendar app's
+    export reaches back years)."""
     program_id = await ctx.db.scalar(
         select(AgentSession.program_id).where(AgentSession.id == att.session_id)
     )
-    tz = None
+    tz: str | None = None
+    terms: list[Any] = []
     if program_id is not None:
         with contextlib.suppress(AppError):
             tz = (await academics.get_program_row(ctx, program_id)).timezone
+            terms = await academics.program_terms(ctx, program_id)
     try:
-        return str(ZoneInfo(tz)) if tz else "UTC"
+        zone = str(ZoneInfo(tz)) if tz else "UTC"
     except ZoneInfoNotFoundError, ValueError:
-        return "UTC"
+        zone = "UTC"
+    if terms:
+        return zone, (min(t.start_date for t in terms), max(t.end_date for t in terms))
+    today = ctx.now.astimezone(ZoneInfo(zone)).date()
+    return zone, (today - timedelta(days=365), today + timedelta(days=365))

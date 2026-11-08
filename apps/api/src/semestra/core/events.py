@@ -11,11 +11,18 @@ A few events must run *inside* the publisher's transaction instead, e.g. `academ
 lets other modules delete their rows together with the course. Those are subscribed with
 `in_transaction=True` and published with `publish_in_transaction`: the subscribers run at once
 with the publisher's ctx, and an exception aborts the whole operation.
+
+An event that only says "this changed" (`calendar.changed {program_id}`) is declared with
+`coalesce`: a transaction that publishes it many times (a batch of forty to-dos) dispatches it
+once per distinct data, so subscribers do their work once.
+
+Work that waits on the outside world after a commit (a push service) runs with `spawn`, so it
+holds up neither the response nor the dispatch of other events, and `drain` still waits for it.
 """
 
 import asyncio
 from collections import defaultdict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,6 +51,12 @@ class EventBus:
     def __init__(self) -> None:
         self._subscribers: defaultdict[str, list[Subscriber]] = defaultdict(list)
         self._in_transaction: defaultdict[str, list[Subscriber]] = defaultdict(list)
+        self._coalesced: set[str] = set()
+
+    def coalesce(self, event_type: str) -> None:
+        """Declares an idempotent event: within one transaction, publishing it again with the
+        same data adds nothing."""
+        self._coalesced.add(event_type)
 
     def subscribe(
         self, event_type: str, *, in_transaction: bool = False
@@ -74,6 +87,8 @@ class EventBus:
         # One dispatcher per transaction, so its events reach subscribers and SSE in order.
         for callback in ctx.after_commit:
             if isinstance(callback, _Dispatcher):
+                if event_type in self._coalesced and event in callback.events:
+                    return
                 callback.events.append(event)
                 return
         ctx.after_commit.append(_Dispatcher(self, ctx.state, [event]))
@@ -106,14 +121,19 @@ class _Dispatcher:
     events: list[Event]
 
     async def __call__(self) -> None:
-        task = asyncio.create_task(self._run())
-        pending = _pending(self.state)
-        pending.add(task)
-        task.add_done_callback(pending.discard)
+        spawn(self.state, self._run())
 
     async def _run(self) -> None:
         for event in self.events:
             await self.bus.dispatch(self.state, event)
+
+
+def spawn(state: State, work: Coroutine[Any, Any, None]) -> None:
+    """Runs `work` in the background, tracked so that `drain` waits for it."""
+    task = asyncio.create_task(work)
+    pending = _pending(state)
+    pending.add(task)
+    task.add_done_callback(pending.discard)
 
 
 def _pending(state: State) -> set[asyncio.Task[None]]:

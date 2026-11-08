@@ -11,6 +11,7 @@ from semestra.modules.notifications import (  # noqa: F401  (registers on import
     subscribers,
     watch,
 )
+from semestra.modules.notifications.routes import router
 from semestra.modules.notifications.settings import NotificationsSettings
 from semestra.modules.settings import register_settings
 
@@ -18,4 +19,4 @@ register_settings(namespace="notifications", schema=NotificationsSettings, level
 
 
 def register(app: FastAPI) -> None:
-    del app
+    app.include_router(router)

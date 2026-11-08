@@ -1,7 +1,7 @@
 """Provider-neutral data (M09 §2.1). Providers map their platform's payloads to these; HTML
 fields hold the provider's raw HTML until the module cleans it (`html.clean`)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -370,3 +370,6 @@ class LmsCalendarEvent(Dto):
     start_at: datetime
     end_at: datetime | None = None
     all_day: bool = False
+    # The day of an all-day event as the platform has it: `start_at` is midnight in the time
+    # zone of whoever made the event, which may be the day before in the Program's.
+    all_day_date: date | None = None

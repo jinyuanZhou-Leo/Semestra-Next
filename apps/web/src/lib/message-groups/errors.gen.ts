@@ -152,6 +152,7 @@ export const errorMessages = {
   error_portability_legacy_backup: m.error_portability_legacy_backup,
   error_portability_too_large: m.error_portability_too_large,
   error_portability_unsupported_version: m.error_portability_unsupported_version,
+  error_schedule_duplicate_source_ref: m.error_schedule_duplicate_source_ref,
   error_schedule_event_type_in_use: m.error_schedule_event_type_in_use,
   error_schedule_feed_revoked: m.error_schedule_feed_revoked,
   error_schedule_range_too_large: m.error_schedule_range_too_large,

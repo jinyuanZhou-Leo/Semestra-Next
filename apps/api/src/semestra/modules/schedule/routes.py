@@ -1,9 +1,11 @@
 """ICS download and the public subscription feed (M04 §4): files, not JSON, so plain routes."""
 
+import hashlib
+import json
 from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from semestra.core.context import Ctx, get_anonymous_ctx, get_ctx, run_after_commit
 from semestra.core.errors import not_found
@@ -19,6 +21,7 @@ router = APIRouter(tags=["schedule"])
 
 FEED_LIMIT = 60  # fetches per token and hour; calendar apps poll every 15 minutes or slower
 FEED_WINDOW = timedelta(hours=1)
+FEED_CACHE = "private, max-age=300"
 
 
 def _ics(body: bytes, filename: str, *, cache: str) -> Response:
@@ -63,9 +66,12 @@ async def export_ics(
 
 
 @router.get("/feeds/{token}.ics", include_in_schema=False)
-async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> Response:
+async def feed(
+    token: str, request: Request, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]
+) -> Response:
     """Public: the token is the credential. Rate limited per feed; unknown tokens are looked up
-    first so they cannot create limiter rows."""
+    first so they cannot create limiter rows. The ETag is a hash of the feed's occurrences, so
+    a calendar app that already has them gets 304 without the file being built."""
     row = await feeds.feed_by_token(ctx, token)
     await hit(
         ctx.db, ctx.settings, ctx.now, "schedule.feed", row.id, limit=FEED_LIMIT, window=FEED_WINDOW
@@ -75,7 +81,20 @@ async def feed(token: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> R
         raise not_found()
     ctx.user = user
     program, items = await feeds.feed_occurrences(ctx, row)
-    body = build_calendar(program.name, program.timezone, items, ctx.now)
+    feeds.mark_fetched(ctx, row)
     await ctx.db.commit()
     await run_after_commit(ctx)
-    return _ics(body, "semestra.ics", cache="private, max-age=300")
+    digest = hashlib.sha256(
+        json.dumps(
+            [program.name, program.timezone, [o.model_dump(mode="json") for o in items]],
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    etag = f'"{digest[:32]}"'
+    headers = {"ETag": etag, "Cache-Control": FEED_CACHE}
+    if etag in request.headers.get("if-none-match", ""):
+        return Response(status_code=304, headers=headers)
+    body = build_calendar(program.name, program.timezone, items, ctx.now)
+    response = _ics(body, "semestra.ics", cache=FEED_CACHE)
+    response.headers["ETag"] = etag
+    return response

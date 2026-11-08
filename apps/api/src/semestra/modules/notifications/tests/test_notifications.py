@@ -112,6 +112,28 @@ async def test_push_is_encrypted_for_the_browser_and_signed(
     }
 
 
+async def test_the_service_worker_hands_over_a_replaced_subscription(
+    app: FastAPI, client: AsyncClient, user: UserHandle, push: respx.MockRouter
+) -> None:
+    old, new = Browser(), Browser("https://fcm.googleapis.com/fcm/send/device-2")
+    await call(client, "POST", "/me/notifications/devices", json=old.subscription())
+    renewal = {
+        **new.subscription(),
+        "old_endpoint": old.endpoint,
+        "old_auth": old.subscription()["auth"],
+    }
+    anonymous = AsyncClient(transport=client._transport, base_url=str(client.base_url))  # pyright: ignore[reportPrivateUsage]
+    async with anonymous:
+        # Without the old subscription's secret it is not the device.
+        wrong = {**renewal, "old_auth": new.subscription()["auth"]}
+        assert (await anonymous.post("/notifications/devices/renew", json=wrong)).status_code == 404
+        r = await anonymous.post("/notifications/devices/renew", json=renewal)
+        assert r.status_code == 204, r.text
+    assert await call(client, "POST", "/me/notifications/test") == {"delivered": 1}
+    assert len(received(push, new)) == 1
+    assert received(push, old) == []
+
+
 async def test_only_browser_push_services_are_accepted(
     client: AsyncClient, user: UserHandle
 ) -> None:

@@ -313,16 +313,6 @@ class UpcomingAssessments(BaseModel):
     items: list[Assessment] = Field(description="Ungraded, with a deadline, soonest first")
 
 
-class AssessmentOrderInput(BaseModel):
-    course_id: Id = Field(description="Course id")
-    assessment_ids: list[Id] = Field(max_length=500, description="Assessment ids in order")
-
-
-class AssessmentOrder(BaseModel):
-    course_id: str
-    assessment_ids: list[str]
-
-
 class AssessmentRef(BaseModel):
     assessment_id: Id = Field(description="Assessment id")
 
