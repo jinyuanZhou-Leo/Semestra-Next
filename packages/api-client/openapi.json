@@ -2986,6 +2986,196 @@
         ]
       }
     },
+    "/account/reauth/email-start": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Email a code to confirm it is you.",
+        "description": "Sends a 6-digit code to the account's email address. Not available to agents.",
+        "operationId": "accountReauthEmailStart",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailStartResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth/email-verify": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Confirm it is you with the emailed code.",
+        "description": "Checks the code sent by account.reauth.email_start. Renews re-authentication for the current session. Not available to agents.",
+        "operationId": "accountReauthEmailVerify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthEmailVerifyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verified"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth/google": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Confirm it is you with the linked Google account.",
+        "description": "Checks a Google ID token for the account's linked Google sign-in. Renews re-authentication for the current session. Not available to agents.",
+        "operationId": "accountReauthGoogle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLinkInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verified"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth/password": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Confirm it is you with the account password.",
+        "description": "Checks the password. Renews re-authentication for the current session. Not available to agents.",
+        "operationId": "accountReauthPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthPasswordInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verified"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/account/sessions": {
       "get": {
         "tags": [
@@ -16662,19 +16852,6 @@
             "type": "boolean",
             "title": "Acknowledged",
             "description": "The user ticked that this cannot be undone."
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1024
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password",
-            "description": "Re-authentication when the last sign-in is older than 10 minutes."
           }
         },
         "type": "object",
@@ -22623,20 +22800,6 @@
             "type": "string",
             "title": "New Email",
             "description": "The new email address; a code is sent to it"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 256,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password",
-            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
@@ -30870,6 +31033,37 @@
         ],
         "title": "Ready"
       },
+      "ReauthEmailVerifyInputBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "title": "Code",
+            "description": "The 6-digit code from account.reauth.email_start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "ReauthEmailVerifyInputBody"
+      },
+      "ReauthPasswordInputBody": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password",
+            "description": "The account password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "ReauthPasswordInputBody"
+      },
       "RecommendedModel": {
         "properties": {
           "provider_id": {
@@ -35651,20 +35845,6 @@
             ],
             "title": "Expires In Days",
             "description": "Lifetime in days; omit for no expiry"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 256,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password",
-            "description": "Current password; needed unless the session signed in during the last 10 minutes"
           }
         },
         "type": "object",
@@ -36465,6 +36645,17 @@
           "values"
         ],
         "title": "ValuesUpdateInputBody"
+      },
+      "Verified": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Verified"
       },
       "WizardCourse": {
         "properties": {

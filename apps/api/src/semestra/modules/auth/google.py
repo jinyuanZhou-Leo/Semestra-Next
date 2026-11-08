@@ -2,6 +2,7 @@
 
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import httpx
@@ -20,6 +21,8 @@ class GoogleClaims:
     email: str
     name: str | None
     picture: str | None
+    # When Google issued the token (`iat`); re-authentication only accepts a fresh one.
+    issued_at: datetime | None = None
 
 
 class GoogleVerifier(Protocol):
@@ -60,7 +63,7 @@ class HttpGoogleVerifier:
                 algorithms=["RS256"],
                 audience=self._client_id,
                 issuer=ISSUERS,
-                options={"require": ["exp", "iss", "aud", "sub"]},
+                options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
         except (jwt.PyJWTError, httpx.HTTPError) as exc:
             raise invalid from exc
@@ -71,4 +74,5 @@ class HttpGoogleVerifier:
             email=str(claims["email"]).lower(),
             name=claims.get("name"),
             picture=claims.get("picture"),
+            issued_at=datetime.fromtimestamp(int(claims["iat"]), UTC),
         )

@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { ModuleRegistry } from '@/app/registry'
 import { SettingsSections } from '@/app/settings'
-import { API, renderWithRouter, server, user } from '@/test-utils'
+import { API, apiError, renderWithRouter, server, user } from '@/test-utils'
 import manifest from '../manifest'
 import { AuthContext } from '../useAuth'
 import { SignInMethodsSection } from './SignInMethodsSection'
@@ -111,7 +111,6 @@ test('creating a token reveals the plaintext once', async () => {
         name: 'Claude Desktop',
         scopes: ['read', 'write'],
         expires_in_days: 90,
-        password: null,
       })
       items.push(token)
       return HttpResponse.json({ ...token, scopes: ['read', 'write'], token: 'spat_SECRET' })
@@ -134,22 +133,22 @@ test('creating a token reveals the plaintext once', async () => {
   expect(screen.queryByText('spat_SECRET')).not.toBeInTheDocument() // only the prefix is listed
 })
 
-test('after the re-authentication window, creating a token asks for the password', async () => {
-  const bodies: unknown[] = []
+test('after the re-authentication window, the password confirms it and the token is created', async () => {
+  let verified = false
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
-    http.post(`${API}/account/tokens`, async ({ request }) => {
-      const body = (await request.json()) as { password: string | null }
-      bodies.push(body)
-      if (body.password !== 'hunter22hunter22') {
-        return HttpResponse.json(
-          { error: { code: 'auth.reauth_required', params: { password: true }, request_id: 'r' } },
-          { status: 403 },
-        )
-      }
-      return HttpResponse.json({ ...token, token: 'spat_SECRET' })
+    http.post(`${API}/account/reauth/password`, async ({ request }) => {
+      verified = ((await request.json()) as { password: string }).password === 'hunter22hunter22'
+      return verified
+        ? HttpResponse.json({ ok: true })
+        : HttpResponse.json(apiError('auth.wrong_password', 400).body, { status: 400 })
     }),
+    http.post(`${API}/account/tokens`, () =>
+      verified
+        ? HttpResponse.json({ ...token, token: 'spat_SECRET' })
+        : HttpResponse.json(apiError('auth.reauth_required', 403).body, { status: 403 }),
+    ),
   )
   mount(undefined, 'api-mcp')
 
@@ -159,44 +158,48 @@ test('after the re-authentication window, creating a token asks for the password
   await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
   const password = await within(form).findByLabelText('Password')
   expect(within(form).getByRole('button', { name: 'Create API token' })).toBeDisabled()
+  await userEvent.type(password, 'wrong{Enter}')
+  expect(await within(form).findByText('Incorrect password.')).toBeInTheDocument()
+  await userEvent.clear(password)
   await userEvent.type(password, 'hunter22hunter22')
-  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
+  await userEvent.click(within(form).getByRole('button', { name: 'Confirm' }))
 
+  // Confirming sends the creation again on its own.
   expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
-  expect(bodies).toMatchObject([{ password: null }, { password: 'hunter22hunter22' }])
 })
 
-test('after the re-authentication window, changing the email asks for the password', async () => {
-  const bodies: unknown[] = []
+test('after the re-authentication window, an emailed code confirms an email change', async () => {
+  let verified = false
+  const codes: unknown[] = []
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
-    http.post(`${API}/account/email/change-start`, async ({ request }) => {
-      const body = (await request.json()) as { password: string | null }
-      bodies.push(body)
-      if (body.password !== 'hunter22hunter22') {
-        return HttpResponse.json(
-          { error: { code: 'auth.reauth_required', params: { password: true }, request_id: 'r' } },
-          { status: 403 },
-        )
-      }
+    http.post(`${API}/account/reauth/email-start`, () =>
+      HttpResponse.json({ resend_in_seconds: 60, expires_in_seconds: 600 }),
+    ),
+    http.post(`${API}/account/reauth/email-verify`, async ({ request }) => {
+      codes.push(await request.json())
+      verified = true
       return HttpResponse.json({ ok: true })
     }),
+    http.post(`${API}/account/email/change-start`, () =>
+      verified
+        ? HttpResponse.json({ resend_in_seconds: 60, expires_in_seconds: 600 })
+        : HttpResponse.json(apiError('auth.reauth_required', 403).body, { status: 403 }),
+    ),
   )
   mount()
 
   await userEvent.click(await screen.findByRole('button', { name: 'Change email' }))
   const send = screen.getByRole('button', { name: 'Send code' })
-  expect(send).toBeDisabled()
   await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
   await userEvent.click(send)
-  const password = await screen.findByLabelText('Password')
-  expect(send).toBeDisabled()
-  await userEvent.type(password, 'hunter22hunter22')
-  await userEvent.click(send)
+  await userEvent.click(await screen.findByRole('button', { name: 'Use an email code instead' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send a code to ada@example.com' }))
+  await userEvent.type(await screen.findByLabelText('Verification code'), '123456')
 
   expect(await screen.findByText(/new@example\.com/)).toBeInTheDocument()
-  expect(bodies).toMatchObject([{ password: null }, { password: 'hunter22hunter22' }])
+  expect(codes).toEqual([{ code: '123456' }])
 })
 
 test('revoking a token asks for confirmation first', async () => {

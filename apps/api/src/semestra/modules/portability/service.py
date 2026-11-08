@@ -659,7 +659,7 @@ async def delete_account(ctx: Ctx, inp: AccountDeleteInput) -> JobOut:
         raise AppError("common.unauthenticated", 401)
     if not inp.acknowledged or not _matches(inp.confirmation, DELETE_ACCOUNT_PHRASES):
         raise AppError("portability.confirmation_mismatch", 400)
-    await auth.require_recent_auth(ctx, inp.password, scope="account_delete")
+    await auth.require_recent_auth(ctx)
     email = user.email
     user.deleted_at = ctx.now
     # Free the address at once: signing up again must not wait for (or collide with) the job.

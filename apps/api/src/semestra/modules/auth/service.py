@@ -43,11 +43,15 @@ CODE_TTL = timedelta(minutes=10)
 RESEND_INTERVAL = timedelta(seconds=60)
 REGISTRATION_TTL = timedelta(minutes=15)
 REAUTH_WINDOW = timedelta(minutes=10)
+# A Google ID token lives an hour and is not single-use: re-authenticating with one needs it to
+# have just been issued, so a leaked token (e.g. the one from signing in) cannot be replayed.
+REAUTH_GOOGLE_MAX_AGE = timedelta(minutes=5)
 EMAIL_START_PER_EMAIL = (10, timedelta(hours=1))
 EMAIL_START_PER_IP = (30, timedelta(hours=1))
 LOGIN_PER_EMAIL = (10, timedelta(minutes=15))
 LOGIN_PER_IP = (50, timedelta(minutes=15))
 CHANGE_EMAIL_PER_USER = (10, timedelta(hours=1))
+REAUTH_PASSWORD_PER_USER = (10, timedelta(minutes=15))
 # Code checks per address across all its codes. Each code allows only 5 guesses, but new codes
 # can be requested every few minutes, so without this cap a 6-digit code falls to slow guessing.
 CODE_CHECK_PER_EMAIL = (20, timedelta(hours=24))
@@ -55,6 +59,7 @@ CODE_CHECK_PER_EMAIL = (20, timedelta(hours=24))
 TOKEN_HINT_CHARS = 6
 
 Client = Literal["web", "native"]
+ChallengePurpose = Literal["continue", "reset_password", "change_email", "reauth"]
 
 
 @dataclass(frozen=True)
@@ -191,7 +196,7 @@ async def start_challenge(
     ctx: Ctx,
     *,
     email: str,
-    purpose: Literal["continue", "reset_password", "change_email"],
+    purpose: ChallengePurpose,
     meta: RequestMeta,
     user_id: str | None = None,
 ) -> EmailStartResult:
@@ -208,8 +213,9 @@ async def start_challenge(
         AuthEmailChallenge.purpose == purpose,
         AuthEmailChallenge.consumed_at.is_(None),
     )
-    if purpose == "change_email":
-        # Another account asking for the same target address must not touch this user's code.
+    if user_id is not None:
+        # Codes asked for by a signed-in user (`change_email`, `reauth`) are theirs alone:
+        # another account asking for the same address must not touch them.
         stmt = stmt.where(AuthEmailChallenge.user_id == user_id)
     live = (await db.execute(stmt.order_by(AuthEmailChallenge.last_sent_at.desc()))).scalars().all()
     if live and live[0].last_sent_at + RESEND_INTERVAL > ctx.now:
@@ -259,7 +265,7 @@ async def _check_code(
     ctx: Ctx,
     *,
     email: str,
-    purpose: Literal["continue", "reset_password", "change_email"],
+    purpose: ChallengePurpose,
     code: str,
     user_id: str | None = None,
 ) -> AuthEmailChallenge:
@@ -332,6 +338,7 @@ async def create_session(ctx: Ctx, user: AuthUser, client: Client, meta: Request
         user_agent=(meta.user_agent or "")[:512] or None,
         ip=meta.ip,
         created_at=ctx.now,
+        verified_at=ctx.now,
         last_used_at=ctx.now,
         expires_at=ctx.now + ttl,
     )
@@ -613,30 +620,84 @@ async def logout(ctx: Ctx) -> None:
         )
 
 
-async def require_recent_auth(ctx: Ctx, password: str | None, *, scope: str) -> None:
-    """Sensitive account actions need a sign-in in the last 10 minutes or the password.
+async def require_recent_auth(ctx: Ctx) -> None:
+    """Sensitive account actions need this session to have proved who is using it in the last
+    10 minutes: by signing in, or with one of the `reauth_*` checks below (M01 §4.5).
 
-    Raises `auth.reauth_required` (`password` says whether typing it would do) or
-    `auth.invalid_credentials`; password guesses are rate limited per user and `scope`.
+    Raises `auth.reauth_required`; the client then asks for the password, an emailed code or
+    Google right where the user is, and sends the action again.
     """
+    verified = ctx.auth.verified_at if ctx.auth else None
+    if verified is None or ctx.now - verified > REAUTH_WINDOW:
+        raise AppError("auth.reauth_required", 403)
+
+
+def _current_session_id(ctx: Ctx) -> str:
+    # Personal access tokens have no session to verify; they cannot reach these anyway.
+    if ctx.auth is None or ctx.auth.session_id is None:
+        raise AppError("auth.reauth_required", 403)
+    return ctx.auth.session_id
+
+
+async def _mark_verified(ctx: Ctx, session_id: str) -> None:
+    await ctx.db.execute(
+        update(AuthSession).where(AuthSession.id == session_id).values(verified_at=ctx.now)
+    )
+
+
+async def reauth_with_password(ctx: Ctx, password: str) -> None:
     user = _require_user(ctx)
-    created = ctx.auth.session_created_at if ctx.auth else None
-    if created is not None and ctx.now - created <= REAUTH_WINDOW:
-        return
-    if password and user.password_hash is not None:
-        await ratelimit.hit(
-            ctx.db,
-            ctx.settings,
-            ctx.now,
-            f"{scope}_user",
-            user.id,
-            limit=10,
-            window=timedelta(minutes=15),
+    session_id = _current_session_id(ctx)
+    count, window = REAUTH_PASSWORD_PER_USER
+    await ratelimit.hit(
+        ctx.db, ctx.settings, ctx.now, "reauth_password_user", user.id, limit=count, window=window
+    )
+    if not await crypto.verify_password(password, user.password_hash):
+        raise AppError("auth.wrong_password", 400)
+    await _mark_verified(ctx, session_id)
+
+
+async def reauth_email_start(ctx: Ctx) -> EmailStartResult:
+    """Emails a code to the account's own address; works for every account."""
+    user = _require_user(ctx)
+    _current_session_id(ctx)
+    meta = RequestMeta(ip=None, user_agent=None)
+    return await start_challenge(
+        ctx, email=user.email, purpose="reauth", meta=meta, user_id=user.id
+    )
+
+
+async def reauth_email_verify(ctx: Ctx, code: str) -> None:
+    user = _require_user(ctx)
+    session_id = _current_session_id(ctx)
+    challenge = await _check_code(
+        ctx, email=user.email, purpose="reauth", code=code, user_id=user.id
+    )
+    challenge.verified_at = challenge.consumed_at = ctx.now
+    await _mark_verified(ctx, session_id)
+
+
+async def reauth_with_google(ctx: Ctx, claims: GoogleClaims) -> None:
+    """The Google account must be the one linked to this user, not just any signed-in one."""
+    user = _require_user(ctx)
+    session_id = _current_session_id(ctx)
+    issued = claims.issued_at
+    if issued is None or not ctx.now - REAUTH_GOOGLE_MAX_AGE <= issued <= ctx.now + timedelta(
+        minutes=1
+    ):
+        raise AppError("auth.google_invalid_token", 401)
+    linked = (
+        await ctx.db.execute(
+            select(AuthIdentity.id).where(
+                AuthIdentity.user_id == user.id,
+                AuthIdentity.provider == "google",
+                AuthIdentity.subject == claims.subject,
+            )
         )
-        if await crypto.verify_password(password, user.password_hash):
-            return
-        raise AppError("auth.invalid_credentials", 401)
-    raise AppError("auth.reauth_required", 403, password=user.password_hash is not None)
+    ).scalar_one_or_none()
+    if linked is None:
+        raise AppError("auth.identity_mismatch", 403)
+    await _mark_verified(ctx, session_id)
 
 
 async def revoke_tokens(db: AsyncSession, user_id: str, now: datetime) -> None:
@@ -704,9 +765,7 @@ async def change_password(ctx: Ctx, current_password: str | None, new_password: 
         ):
             raise AppError("auth.invalid_credentials", 401)
     else:
-        created = ctx.auth.session_created_at if ctx.auth else None
-        if created is None or ctx.now - created > REAUTH_WINDOW:
-            raise AppError("auth.reauth_required", 403)
+        await require_recent_auth(ctx)
     crypto.validate_password(new_password, user.email)
     user.password_hash = await crypto.hash_password(new_password)
     await revoke_sessions(
@@ -718,11 +777,9 @@ async def change_password(ctx: Ctx, current_password: str | None, new_password: 
     return await user_out(ctx.db, user)
 
 
-async def change_email_start(
-    ctx: Ctx, new_email: str, meta: RequestMeta, password: str | None = None
-) -> EmailStartResult:
+async def change_email_start(ctx: Ctx, new_email: str, meta: RequestMeta) -> EmailStartResult:
     user = _require_user(ctx)
-    await require_recent_auth(ctx, password, scope="change_email")
+    await require_recent_auth(ctx)
     if new_email == user.email:
         raise AppError("auth.email_in_use", 409)
     if await user_by_email(ctx.db, new_email) is not None:
@@ -784,6 +841,8 @@ async def change_email_confirm(ctx: Ctx, code: str) -> UserOut:
 
 async def link_google(ctx: Ctx, claims: GoogleClaims) -> UserOut:
     user = _require_user(ctx)
+    # A new sign-in method is a way back into the account (and into `reauth_with_google`).
+    await require_recent_auth(ctx)
     identity = (
         await ctx.db.execute(
             select(AuthIdentity).where(
@@ -914,11 +973,10 @@ async def create_token(
     name: str,
     scopes: list[TokenScope],
     expires_in_days: int | None,
-    password: str | None = None,
 ) -> TokenCreated:
     user = _require_user(ctx)
     # A token outlives the session that made it: a stolen cookie must not be able to mint one.
-    await require_recent_auth(ctx, password, scope="token_create")
+    await require_recent_auth(ctx)
     plaintext = crypto.new_token(crypto.PAT_PREFIX)
     # `write` implies `read`; store the canonical set.
     canonical: list[TokenScope] = ["read", "write"] if "write" in scopes else ["read"]

@@ -55,8 +55,18 @@ class FakeGoogle:
     def __init__(self) -> None:
         self.tokens: dict[str, GoogleClaims] = {}
 
-    def add(self, token: str, *, subject: str, email: str, name: str | None = "G User") -> str:
-        self.tokens[token] = GoogleClaims(subject, email.lower(), name, "https://img/g.png")
+    def add(
+        self,
+        token: str,
+        *,
+        subject: str,
+        email: str,
+        name: str | None = "G User",
+        issued_at: datetime | None = None,
+    ) -> str:
+        self.tokens[token] = GoogleClaims(
+            subject, email.lower(), name, "https://img/g.png", issued_at
+        )
         return token
 
     async def verify(self, id_token: str) -> GoogleClaims:
