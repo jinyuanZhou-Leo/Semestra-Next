@@ -44,7 +44,7 @@ test('weekly meetings import from a calendar file into the course (M08)', async 
     buffer: timetable(),
   })
   await dialog.getByRole('button', { name: 'Read' }).click()
-  await dialog.getByRole('button', { name: /^Save \d+ items?$/ }).click()
+  await dialog.getByRole('button', { name: /^Import \d+ items?$/ }).click()
 
   await expect(page.getByRole('cell', { name: 'BA 1160' })).toBeVisible()
 })
