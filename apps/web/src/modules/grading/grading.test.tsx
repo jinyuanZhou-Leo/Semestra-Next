@@ -282,6 +282,8 @@ test('hide_gpa shows a mask until it is clicked', async () => {
   expect(screen.queryByText('3.70')).not.toBeInTheDocument()
   // The letter would give the GPA away, so it is masked with it.
   expect(screen.queryByText('A-')).not.toBeInTheDocument()
+  // Its choices are only thresholds then, so the target is a grade, not a GPA.
+  expect(screen.getByRole('combobox', { name: 'Target grade' })).toBeInTheDocument()
   await userEvent.click(mask)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
   expect(screen.getByText('A-')).toBeInTheDocument()

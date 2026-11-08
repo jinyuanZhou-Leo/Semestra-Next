@@ -108,13 +108,12 @@ export function CourseTarget({
     )
   const figures = planning ? planned : s
   const selectId = useId()
+  // With GPA hidden the choices are only thresholds, so the picker is named after the grade.
+  const label = scale.hide_gpa ? m.grading_target_grade() : m.grading_target_gpa()
   return (
-    <section
-      aria-label={m.grading_target_gpa()}
-      className="mt-3 space-y-2 border-t border-border pt-3"
-    >
+    <section aria-label={label} className="mt-3 space-y-2 border-t border-border pt-3">
       <Field>
-        <FieldLabel htmlFor={selectId}>{m.grading_target_gpa()}</FieldLabel>
+        <FieldLabel htmlFor={selectId}>{label}</FieldLabel>
         <Select value={String(s.target_points)} onValueChange={pick} items={items}>
           <SelectTrigger id={selectId} className="w-full">
             <SelectValue />
