@@ -3538,6 +3538,60 @@ export type EmailVerifyIn = {
 };
 
 /**
+ * EntriesDeleteInputBody
+ */
+export type EntriesDeleteInputBody = {
+    /**
+     * Item Ids
+     *
+     * Files and links to delete
+     */
+    item_ids?: Array<string>;
+    /**
+     * Folder Ids
+     *
+     * Folders to delete with everything inside them
+     */
+    folder_ids?: Array<string>;
+};
+
+/**
+ * EntriesMoveInputBody
+ */
+export type EntriesMoveInputBody = {
+    /**
+     * Item Ids
+     *
+     * Files and links to move
+     */
+    item_ids?: Array<string>;
+    /**
+     * Folder Ids
+     *
+     * Folders to move, with their contents
+     */
+    folder_ids?: Array<string>;
+    /**
+     * To Folder Id
+     *
+     * Folder to move them into; null moves them to the course root
+     */
+    to_folder_id: string | null;
+};
+
+/**
+ * EntriesMoved
+ */
+export type EntriesMoved = {
+    /**
+     * Moved
+     *
+     * Files, links and folders moved
+     */
+    moved: number;
+};
+
+/**
  * ErrorBody
  */
 export type ErrorBody = {
@@ -14720,6 +14774,70 @@ export type FilesDocumentSearchResponses = {
 };
 
 export type FilesDocumentSearchResponse = FilesDocumentSearchResponses[keyof FilesDocumentSearchResponses];
+
+export type FilesEntryDeleteManyData = {
+    body: EntriesDeleteInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:delete';
+};
+
+export type FilesEntryDeleteManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesEntryDeleteManyError = FilesEntryDeleteManyErrors[keyof FilesEntryDeleteManyErrors];
+
+export type FilesEntryDeleteManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesEntryDeleteManyResponse = FilesEntryDeleteManyResponses[keyof FilesEntryDeleteManyResponses];
+
+export type FilesEntryMoveManyData = {
+    body: EntriesMoveInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:move';
+};
+
+export type FilesEntryMoveManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesEntryMoveManyError = FilesEntryMoveManyErrors[keyof FilesEntryMoveManyErrors];
+
+export type FilesEntryMoveManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: EntriesMoved;
+};
+
+export type FilesEntryMoveManyResponse = FilesEntryMoveManyResponses[keyof FilesEntryMoveManyResponses];
 
 export type FilesFolderCreateData = {
     body: FolderCreateInputBody;

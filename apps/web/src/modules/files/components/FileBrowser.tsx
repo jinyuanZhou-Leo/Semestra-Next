@@ -39,6 +39,7 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,8 @@ import { DROP_TARGET, type DropTargets, dropTargetProps } from '../hooks'
 import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '../types'
+import { type Target, compareNames } from '../folders'
+import { useDragSource, useDropFolder } from './FileDrag'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
 import { VirtualBody } from './VirtualBody'
@@ -75,6 +78,18 @@ export type BrowserHandlers = {
   programId?: string
   /** Files dragged onto a folder go into it. */
   drop?: DropTargets
+  selection: Selection
+}
+
+/** The entries picked with their checkboxes, for moving or deleting together. */
+export type Selection = {
+  has: (target: Target) => boolean
+  toggle: (target: Target) => void
+  /** Every entry shown is selected (`'some'`: only part of them). */
+  all: boolean | 'some'
+  toggleAll: () => void
+  /** Something is selected: the grid shows every checkbox, not only on hover. */
+  active: boolean
 }
 
 const BrowserContext = createContext<BrowserHandlers | null>(null)
@@ -106,6 +121,35 @@ function NameCell({ row }: CellProps) {
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate">{item.display_name}</span>
     </button>
+  )
+}
+
+function SelectBox({ target, className }: { target: Target; className?: string }) {
+  const { selection } = useHandlers()
+  const name = target.type === 'item' ? target.item.display_name : target.folder.name
+  return (
+    <Checkbox
+      aria-label={m.files_select({ name })}
+      checked={selection.has(target)}
+      onCheckedChange={() => selection.toggle(target)}
+      className={className}
+    />
+  )
+}
+
+function SelectCell({ row }: CellProps) {
+  return <SelectBox target={{ type: 'item', item: row.original }} />
+}
+
+function SelectAllHeader() {
+  const { selection } = useHandlers()
+  return (
+    <Checkbox
+      aria-label={m.files_select_all()}
+      checked={selection.all === true}
+      indeterminate={selection.all === 'some'}
+      onCheckedChange={selection.toggleAll}
+    />
   )
 }
 
@@ -194,9 +238,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
           <Pencil aria-hidden />
           {m.files_rename()}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => act({ kind: 'move', item })}>
+        <DropdownMenuItem onClick={() => act({ kind: 'move', targets: [{ type: 'item', item }] })}>
           <FolderInput aria-hidden />
-          {m.files_move()}
+          {m.files_move_to()}
         </DropdownMenuItem>
         {item.kind === 'file' ? (
           <DropdownMenuItem
@@ -232,7 +276,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          onClick={() => act({ kind: 'delete', target: { type: 'item', item } })}
+          onClick={() => act({ kind: 'delete', targets: [{ type: 'item', item }] })}
         >
           <Trash2 aria-hidden />
           {m.common_delete()}
@@ -291,10 +335,16 @@ function FolderMenu({ folder }: { folder: FolderOut }) {
           <Pencil aria-hidden />
           {m.files_rename()}
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => act({ kind: 'move', targets: [{ type: 'folder', folder }] })}
+        >
+          <FolderInput aria-hidden />
+          {m.files_move_to()}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          onClick={() => act({ kind: 'delete', target: { type: 'folder', folder } })}
+          onClick={() => act({ kind: 'delete', targets: [{ type: 'folder', folder }] })}
         >
           <Trash2 aria-hidden />
           {m.common_delete()}
@@ -304,15 +354,17 @@ function FolderMenu({ folder }: { folder: FolderOut }) {
   )
 }
 
-function compareText(a: string, b: string) {
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-}
-
 const columns = column.columns([
+  column.display({
+    id: 'select',
+    header: SelectAllHeader,
+    cell: SelectCell,
+    enableSorting: false,
+  }),
   column.accessor((i) => i.display_name, {
     id: 'name',
     header: () => m.files_name(),
-    sortFn: (a, b) => compareText(a.original.display_name, b.original.display_name),
+    sortFn: (a, b) => compareNames(a.original.display_name, b.original.display_name),
     cell: NameCell,
   }),
   column.accessor((i) => i.size_bytes, {
@@ -324,7 +376,7 @@ const columns = column.columns([
   column.accessor((i) => i.updated_at, {
     id: 'updated',
     header: () => m.files_modified(),
-    sortFn: (a, b) => compareText(a.original.updated_at, b.original.updated_at),
+    sortFn: (a, b) => compareNames(a.original.updated_at, b.original.updated_at),
     cell: UpdatedCell,
   }),
   column.display({
@@ -350,7 +402,9 @@ const columns = column.columns([
 // The table is `table-fixed`, so these are the column widths; the name takes the rest. An icon
 // column fits its 32 px button between 8 px paddings, or the button pokes out of the table.
 const ICON_COLUMN = 'w-12 px-2'
+const SELECT_COLUMN = 'w-10 pr-0 pl-4'
 const WIDTHS: Record<string, string> = {
+  select: SELECT_COLUMN,
   size: 'w-24',
   updated: 'w-44',
   status: 'w-52',
@@ -443,23 +497,66 @@ export function ViewToggle() {
   )
 }
 
+/** Drag-and-drop for a folder: it can be picked up, and takes files (uploads) and entries. */
+function useFolderDnd(folder: FolderOut) {
+  const { drop } = useHandlers()
+  const target: Target = { type: 'folder', folder }
+  const source = useDragSource(target)
+  const into = useDropFolder(folder.id, folder.name, 'row')
+  return {
+    props: {
+      ...dropTargetProps(folder.id, drop),
+      ...source.listeners,
+      ref: (node: HTMLElement | null) => {
+        source.attach(node)
+        into.attach(node)
+      },
+      'data-drop-target': drop?.over === folder.id || into.over ? '' : undefined,
+    },
+    moving: source.moving,
+  }
+}
+
 function FolderTile({ folder }: { folder: FolderOut }) {
-  const { openFolder, drop } = useHandlers()
+  const { openFolder, selection } = useHandlers()
+  const dnd = useFolderDnd(folder)
+  const target: Target = { type: 'folder', folder }
+  const selected = selection.has(target)
   return (
     <div
-      {...dropTargetProps(folder.id, drop)}
+      {...dnd.props}
       className={cn(
-        'group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 hover:bg-muted/50',
+        'group relative flex h-14 items-center gap-2.5 rounded-xl border bg-card px-3 transition-[background-color,border-color,opacity] hover:bg-muted/50',
+        selected && 'border-primary bg-primary/5',
+        dnd.moving && 'opacity-50',
         DROP_TARGET,
         'data-drop-target:border-primary',
       )}
     >
+      {/* The checkbox takes the icon's place on hover or while selecting. */}
+      <div className="relative z-10 grid size-4 shrink-0 place-items-center">
+        <Folder
+          aria-hidden
+          className={cn(
+            'size-4 text-muted-foreground transition-opacity',
+            (selection.active || selected) && 'opacity-0',
+            'group-focus-within:opacity-0 group-hover:opacity-0',
+          )}
+        />
+        <SelectBox
+          target={target}
+          className={cn(
+            'absolute inset-0 transition-opacity',
+            !(selection.active || selected) &&
+              'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+          )}
+        />
+      </div>
       <button
         type="button"
         onClick={() => openFolder(folder.id)}
-        className="flex min-w-0 flex-1 items-center gap-2.5 text-left text-sm after:absolute after:inset-0"
+        className="flex min-w-0 flex-1 items-center text-left text-sm after:absolute after:inset-0"
       >
-        <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{folder.name}</span>
       </button>
       <div className="relative">
@@ -470,7 +567,10 @@ function FolderTile({ folder }: { folder: FolderOut }) {
 }
 
 function ItemTile({ item }: { item: ItemOut }) {
-  const { open } = useHandlers()
+  const { open, selection } = useHandlers()
+  const target: Target = { type: 'item', item }
+  const { attach, listeners, moving } = useDragSource(target)
+  const selected = selection.has(target)
   const [broken, setBroken] = useState(false)
   // Page images are only made for PDFs and images; anything else gets its icon.
   const kind = previewKind(item)
@@ -480,13 +580,30 @@ function ItemTile({ item }: { item: ItemOut }) {
     item.doc_status === 'ready' &&
     (item.page_count ?? 0) > 0
   return (
-    <div className="group relative flex flex-col overflow-hidden rounded-xl border bg-card">
+    <div
+      ref={attach}
+      {...listeners}
+      className={cn(
+        'group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-[border-color,box-shadow,opacity]',
+        selected && 'border-primary ring-1 ring-primary',
+        moving && 'opacity-50',
+      )}
+    >
+      <SelectBox
+        target={target}
+        className={cn(
+          'absolute top-2.5 left-2.5 z-10 bg-background shadow-sm transition-opacity',
+          !(selection.active || selected) &&
+            'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+        )}
+      />
       <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-muted/50">
         {thumbnail ? (
           <img
             src={pageImageUrl(item.id, 1)}
             alt=""
             loading="lazy"
+            draggable={false}
             onError={() => setBroken(true)}
             className="size-full object-cover object-top"
           />
@@ -526,13 +643,59 @@ function FileRow({
   measure?: (node: Element | null) => void
   index?: number
 }) {
+  const { selection } = useHandlers()
+  const target: Target = { type: 'item', item: row.original }
+  const source = useDragSource(target)
   return (
-    <TableRow ref={measure} data-index={index}>
+    <TableRow
+      ref={(node) => {
+        measure?.(node)
+        source.attach(node)
+      }}
+      {...source.listeners}
+      data-index={index}
+      data-state={selection.has(target) ? 'selected' : undefined}
+      className={cn('transition-[background-color,opacity]', source.moving && 'opacity-50')}
+    >
       {row.getAllCells().map((cell) => (
         <TableCell key={cell.id} className={cn('py-2', WIDTHS[cell.column.id])}>
           <FlexRender cell={cell} />
         </TableCell>
       ))}
+    </TableRow>
+  )
+}
+
+function FolderRow({ folder }: { folder: FolderOut }) {
+  const { openFolder, selection } = useHandlers()
+  const dnd = useFolderDnd(folder)
+  const target: Target = { type: 'folder', folder }
+  return (
+    <TableRow
+      {...dnd.props}
+      data-state={selection.has(target) ? 'selected' : undefined}
+      className={cn(
+        'transition-[background-color,opacity]',
+        dnd.moving && 'opacity-50',
+        DROP_TARGET,
+      )}
+    >
+      <TableCell className={cn('py-2', SELECT_COLUMN)}>
+        <SelectBox target={target} />
+      </TableCell>
+      <TableCell className="py-2" colSpan={columnCount - 2}>
+        <button
+          type="button"
+          onClick={() => openFolder(folder.id)}
+          className="flex max-w-full items-center gap-2.5 font-medium hover:underline"
+        >
+          <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{folder.name}</span>
+        </button>
+      </TableCell>
+      <TableCell className={cn('py-2', ICON_COLUMN)}>
+        <FolderMenu folder={folder} />
+      </TableCell>
     </TableRow>
   )
 }
@@ -566,7 +729,7 @@ export function FileBrowser({
     onSortingChange: (updater) =>
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
   })
-  const sortedFolders = folders.toSorted((a, b) => compareText(a.name, b.name))
+  const sortedFolders = folders.toSorted((a, b) => compareNames(a.name, b.name))
   // Pinned files stay on top whatever the sort.
   const rows = table
     .getRowModel()
@@ -640,25 +803,7 @@ export function FileBrowser({
           </TableHeader>
           <TableBody>
             {sortedFolders.map((folder) => (
-              <TableRow
-                key={folder.id}
-                {...dropTargetProps(folder.id, handlers.drop)}
-                className={DROP_TARGET}
-              >
-                <TableCell className="py-2" colSpan={columnCount - 1}>
-                  <button
-                    type="button"
-                    onClick={() => handlers.openFolder(folder.id)}
-                    className="flex max-w-full items-center gap-2.5 font-medium hover:underline"
-                  >
-                    <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{folder.name}</span>
-                  </button>
-                </TableCell>
-                <TableCell className={cn('py-2', ICON_COLUMN)}>
-                  <FolderMenu folder={folder} />
-                </TableCell>
-              </TableRow>
+              <FolderRow key={folder.id} folder={folder} />
             ))}
             {rows.length < VIRTUAL_FROM
               ? rows.map((row) => <FileRow key={row.id} row={row} />)
