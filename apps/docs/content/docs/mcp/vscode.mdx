@@ -1,0 +1,58 @@
+---
+title: VS Code
+description: Use Semestra from GitHub Copilot agent mode in VS Code.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **VS Code**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. The next step shows the config with your token filled in. Copy it into the file named there.
+
+The token is created for VS Code and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+1. Open the Command Palette and run **MCP: Open User Configuration** (every workspace). For one workspace, use `.vscode/mcp.json` instead.
+2. Add `semestra` under `servers`:
+
+```json
+{
+  "servers": {
+    "semestra": {
+      "type": "http",
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+3. Click **Start** above the server in the file.
+
+To keep the token out of the file, let VS Code ask for it once and store it securely:
+
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "semestra-token", "description": "Semestra API token", "password": true }
+  ],
+  "servers": {
+    "semestra": {
+      "type": "http",
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:semestra-token}" }
+    }
+  }
+}
+```
+
+## Check the connection
+
+Open Chat in **Agent** mode and click the tools button. **semestra** and its tools should be listed. **MCP: List Servers** shows its status and output.
+
+## Disconnect
+
+Delete the entry, or run **MCP: List Servers** and choose **Remove**. Revoking its API token under **API tokens** also cuts it off right away.

@@ -1,0 +1,32 @@
+---
+title: Cline
+description: Connect the Cline extension.
+---
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+In Cline, click the **MCP Servers** icon, open **Configure**, then **Configure MCP Servers**. This opens `cline_mcp_settings.json`. Add:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "type": "streamableHttp",
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+`"type": "streamableHttp"` is required; without it Cline assumes the older SSE transport.
+
+## Check the connection
+
+**semestra** shows a green dot in the MCP Servers list, with its tools.
+
+## Disconnect
+
+Delete the entry, or remove it in the MCP Servers list. Revoking its API token under **API tokens** also cuts it off right away.

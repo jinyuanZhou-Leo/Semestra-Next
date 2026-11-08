@@ -30,7 +30,6 @@ import { panel } from './store'
 import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
-import { mcpConfig } from './settings/McpSection'
 import { MemorySection } from './settings/MemorySection'
 import { usePageScope } from './scope'
 import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
@@ -1180,17 +1179,6 @@ test('history groups pinned first, then by day', () => {
     ['week', ['c']],
     ['earlier', ['e']],
   ])
-})
-
-test('MCP setups carry the address and the token', () => {
-  const url = 'https://api.example.com/mcp'
-  expect(mcpConfig('claude-code', url, 'spat_x')).toContain(
-    'claude mcp add --transport http semestra https://api.example.com/mcp',
-  )
-  expect(JSON.parse(mcpConfig('cursor', url, 'spat_x'))).toEqual({
-    mcpServers: { semestra: { url, headers: { Authorization: 'Bearer spat_x' } } },
-  })
-  expect(mcpConfig('claude-desktop', url, 'spat_x')).toContain('mcp-remote')
 })
 
 test('Sem changes ask every time, by module or all auto-approved', async () => {

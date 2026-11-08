@@ -1,0 +1,29 @@
+---
+title: Zed
+description: 在 Zed 的 Agent 面板中使用 Semestra。
+---
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+打开 Zed 设置文件（`zed: open settings file`），在 `context_servers` 下加入：
+
+```json
+{
+  "context_servers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+## 检查连接
+
+在 Agent 面板设置中，**semestra** 应显示绿点。
+
+## 断开
+
+删除该项。 在 **API 令牌** 中撤销对应令牌也会立即断开。

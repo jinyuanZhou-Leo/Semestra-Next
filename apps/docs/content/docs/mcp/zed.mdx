@@ -1,0 +1,29 @@
+---
+title: Zed
+description: Use Semestra in Zed's agent panel.
+---
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Open your Zed settings (`zed: open settings file`) and add under `context_servers`:
+
+```json
+{
+  "context_servers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+## Check the connection
+
+In the Agent panel settings, **semestra** should have a green dot.
+
+## Disconnect
+
+Delete the entry. Revoking its API token under **API tokens** also cuts it off right away.

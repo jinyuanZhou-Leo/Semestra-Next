@@ -1,0 +1,39 @@
+---
+title: LM Studio
+description: Install Semestra in LM Studio with one click.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **LM Studio**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. Click **Open in LM Studio**. LM Studio opens and asks you to confirm the install.
+
+The token is created for LM Studio and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+In LM Studio, open the **Program** tab in the right sidebar, choose **Install → Edit mcp.json** (`~/.lmstudio/mcp.json`) and add:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+LM Studio 0.3.17 or later is required. Use a model that supports tool calls.
+
+## Check the connection
+
+In the chat, the **semestra** toggle appears under integrations. Turn it on and ask a question; LM Studio asks before each tool call.
+
+## Disconnect
+
+Delete the entry from `mcp.json`. Revoking its API token under **API tokens** also cuts it off right away.

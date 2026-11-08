@@ -1,4 +1,4 @@
-import { client, type TokenCreated, type TokenOut } from '@semestra/api-client'
+import type { TokenCreated, TokenOut } from '@semestra/api-client'
 import {
   accountTokenCreateMutation,
   accountTokenListOptions,
@@ -35,31 +35,6 @@ import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
-
-/** Snippet for Claude Desktop and other MCP clients (remote server through `mcp-remote`). */
-export function mcpConfig(token: string, apiOrigin: string): string {
-  return JSON.stringify(
-    {
-      mcpServers: {
-        semestra: {
-          command: 'npx',
-          args: [
-            '-y',
-            'mcp-remote',
-            `${apiOrigin.replace(/\/$/, '')}/mcp`,
-            '--header',
-            // No space after the colon: mcp-remote's documented form, safe from argument
-            // splitting on Windows (the same as the MCP settings page).
-            'Authorization:${AUTH_HEADER}',
-          ],
-          env: { AUTH_HEADER: `Bearer ${token}` },
-        },
-      },
-    },
-    null,
-    2,
-  )
-}
 
 async function copy(text: string) {
   try {
@@ -207,23 +182,9 @@ function TokenCreatedDialog({
             >
               {token.token}
             </code>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => void copy(token.token)}>
-                {m.auth_account_tokens_copy_token()}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                // Same-origin builds have an empty base URL; MCP clients need an absolute one.
-                onClick={() =>
-                  void copy(
-                    mcpConfig(token.token, client.getConfig().baseUrl || window.location.origin),
-                  )
-                }
-              >
-                {m.auth_account_tokens_copy_mcp()}
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={() => void copy(token.token)}>
+              {m.auth_account_tokens_copy_token()}
+            </Button>
           </div>
         ) : null}
         <DialogFooter>

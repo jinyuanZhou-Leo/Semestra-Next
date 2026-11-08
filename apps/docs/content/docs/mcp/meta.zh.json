@@ -1,1 +1,1 @@
-{ "title": "MCP", "icon": "Plug", "pages": ["index", "tools"] }
+{ "title": "MCP", "icon": "Plug", "pages": ["index", "claude-code", "claude-desktop", "cursor", "vscode", "lm-studio", "gemini-cli", "codex", "devin", "cline", "zed", "other", "tools"] }

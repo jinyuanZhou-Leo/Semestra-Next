@@ -1,0 +1,44 @@
+---
+title: Gemini CLI
+description: 用一条命令把 Semestra 加进 Gemini CLI。
+---
+
+## 在 Semestra 中连接
+
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+2. 选择 **Gemini CLI**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
+3. 下一步显示已填好令牌的命令，复制后在终端运行。
+
+令牌以 Gemini CLI 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+在终端运行：
+
+```bash
+gemini mcp add --scope user --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+`--scope user` 会写进 `~/.gemini/settings.json`，在任何目录都能用。不加时写进当前目录的 `.gemini/settings.json`，不要把其中的令牌提交进仓库。也可以直接编辑文件，注意键名是 `httpUrl`：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "httpUrl": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+## 检查连接
+
+在 Gemini CLI 中输入 `/mcp`，**semestra** 应显示已连接并列出工具。
+
+## 断开
+
+`gemini mcp remove semestra` 在 **API 令牌** 中撤销对应令牌也会立即断开。

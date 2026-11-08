@@ -1,0 +1,32 @@
+---
+title: Cline
+description: 连接 Cline 扩展。
+---
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+在 Cline 中点 **MCP Servers** 图标，打开 **Configure**，再点 **Configure MCP Servers**，会打开 `cline_mcp_settings.json`。加入：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "type": "streamableHttp",
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+必须写 `"type": "streamableHttp"`，否则 Cline 会按旧的 SSE 方式连接。
+
+## 检查连接
+
+MCP Servers 列表中 **semestra** 显示绿点并列出工具。
+
+## 断开
+
+删除该项，或在 MCP Servers 列表中移除。 在 **API 令牌** 中撤销对应令牌也会立即断开。

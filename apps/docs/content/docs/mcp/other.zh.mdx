@@ -1,0 +1,40 @@
+---
+title: 其他客户端
+description: 连接任何支持 Streamable HTTP 和自定义请求头的 MCP 客户端。
+---
+
+只要客户端能通过 **Streamable HTTP** 连接远程 MCP 服务器并发送自定义请求头，就可以使用 Semestra。
+
+## 在 Semestra 中连接
+
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+2. 选择 **其他客户端**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
+3. 把地址和令牌填进客户端。
+
+## 填写什么
+
+| 字段 | 值 |
+| --- | --- |
+| 传输方式 | Streamable HTTP（有时写作“HTTP”，不是 SSE） |
+| URL | **MCP 服务** 中显示的地址，例如 `https://semestra.example.com/mcp` |
+| 请求头 | `Authorization: Bearer <token>` |
+
+多数客户端接受类似下面的 JSON，顶层键名和 URL 字段名因客户端而异：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+只能启动本机（stdio）服务器的客户端，可以像 [Claude Desktop](./claude-desktop.mdx) 那样通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 连接。
+
+## 暂时无法连接的客户端
+
+- **ChatGPT** 只支持用 OAuth 或不认证的方式连接 MCP 服务器，无法使用 API 令牌。
+- **Claude 自定义连接器**（claude.ai 与 Claude Desktop 的 设置 → 连接器）同样使用 OAuth 登录。在 Claude Desktop 中请改用[配置文件](./claude-desktop.mdx)。
