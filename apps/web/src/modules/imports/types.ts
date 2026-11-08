@@ -122,17 +122,3 @@ export type FileImportRequest = Extract<ImportRequest, { source: ImportSourceKin
 
 /** null when the user closed the dialog without finishing. */
 export type ImportOutcome = { session: ImportSessionDetail } | null
-
-export function dataOf<T>(item: ImportItem): T {
-  return item.data as T
-}
-
-/** `item:<id>` / `course:<id>` → the id, and which kind it is. */
-export function parseRef(
-  ref: string | undefined,
-): { kind: 'item' | 'course' | 'key'; id: string } | null {
-  if (!ref) return null
-  const [kind, ...rest] = ref.split(':')
-  if (kind !== 'item' && kind !== 'course' && kind !== 'key') return null
-  return { kind, id: rest.join(':') }
-}

@@ -21,19 +21,6 @@ export function wall(local: Date): string {
   return format(local, WALL)
 }
 
-/** A browser-local `Date` holding a wall-clock time of `tz` → the UTC instant (ISO). */
-export function fromWall(local: Date, tz: string): string {
-  return new TZDate(
-    local.getFullYear(),
-    local.getMonth(),
-    local.getDate(),
-    local.getHours(),
-    local.getMinutes(),
-    local.getSeconds(),
-    tz,
-  ).toISOString()
-}
-
 /** The calendar day of an instant in `tz`, as `yyyy-MM-dd`. */
 export function wallDate(iso: string, tz: string): string {
   return format(new TZDate(iso, tz), 'yyyy-MM-dd')
@@ -69,13 +56,6 @@ export function weekdayName(weekday: number, width: 'long' | 'short' = 'long'): 
 /** ISO weekday (1 = Monday … 7 = Sunday) of a `Date`. */
 export function isoWeekday(local: Date): number {
   return local.getDay() === 0 ? 7 : local.getDay()
-}
-
-/** Formats a wall-clock time string ("10:00" or "10:00:00") as a time of day. */
-export function timeLabel(value: string): string {
-  return intl(Intl.DateTimeFormat, { timeStyle: 'short' }).format(
-    new Date(`1970-01-01T${value.length === 5 ? `${value}:00` : value}`),
-  )
 }
 
 /** The first day of the week that contains `day`; `first` is 1 (Monday) or 7 (Sunday). */
