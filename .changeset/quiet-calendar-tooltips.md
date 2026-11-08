@@ -4,6 +4,6 @@
 
 <!-- area: calendar -->
 <!-- en -->
-Removed redundant hover tooltips from the timetable and calendar events.
+Removed redundant hover tooltips from the calendar and timetable pages.
 <!-- zh -->
-去掉了课表与日历事件上多余的悬停提示。
+去掉了日历与课表页面上多余的悬停提示。

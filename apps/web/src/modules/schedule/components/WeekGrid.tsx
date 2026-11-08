@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { firstDayOfWeek, formatTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { weekdayName } from '../time'
 
 /** One block on the grid; times are minutes after midnight in the Program's time zone. */
@@ -20,26 +21,38 @@ export type GridItem = {
   onClick?: () => void
 }
 
-/** A block: a button when it opens something, otherwise a plain box. */
+/**
+ * A block: a button when it opens something, otherwise a plain box. `details` (only on compact
+ * grids, where the block hides the place and has no room for the time) shows on hover.
+ */
 function Block({
   label,
   onClick,
+  details,
   children,
   ...props
 }: {
   label: string
   onClick?: () => void
+  details?: ReactNode
   children: ReactNode
   className?: string
   style?: CSSProperties
   'data-testid'?: string
 }) {
-  return onClick ? (
+  const box = onClick ? (
     <button type="button" aria-label={label} onClick={onClick} {...props}>
       {children}
     </button>
   ) : (
     <div {...props}>{children}</div>
+  )
+  if (!details) return box
+  return (
+    <Tooltip>
+      <TooltipTrigger render={box} />
+      <TooltipContent className="flex-col items-start gap-0.5">{details}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -216,6 +229,16 @@ export function WeekGrid({
                   key={item.id}
                   label={label}
                   onClick={item.onClick}
+                  details={
+                    compact ? (
+                      <>
+                        <span className="font-medium">{item.title}</span>
+                        {item.subtitle ? <span>{item.subtitle}</span> : null}
+                        <span className="tabular-nums">{range}</span>
+                        {flags.length > 0 ? <span>{flags.join(' · ')}</span> : null}
+                      </>
+                    ) : undefined
+                  }
                   data-testid="grid-item"
                   className={cn(
                     'absolute flex overflow-hidden rounded-md text-left leading-tight',
