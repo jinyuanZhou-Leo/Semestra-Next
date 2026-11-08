@@ -160,20 +160,20 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     from semestra.modules.files import pipeline
     from semestra.modules.files.parse.isolated import Recognized
 
-    pages: list[tuple[str, bytes]] = []
+    pages: list[tuple[str, int]] = []
     fetched: list[str] = []
 
     class Session:
         def __init__(self, model: str) -> None:
             self.model = model
 
-        async def read(self, pngs: list[bytes], **limits: float):
-            for index, png in enumerate(pngs):
-                pages.append((self.model, png))
+        async def read(self, numbers: list[int], **limits: float):
+            for index, number in enumerate(numbers):
+                pages.append((self.model, number))
                 yield Recognized(index, "Photosynthesis\nturns light into sugar")
 
     @asynccontextmanager
-    async def ocr_session(model: str, **limits: float):
+    async def ocr_session(model: str, data: bytes, **options: Any):
         assert local_ocr.downloaded(model)
         yield Session(model)
 
