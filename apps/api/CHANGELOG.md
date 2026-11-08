@@ -1,5 +1,103 @@
 # @semestra/api
 
+## 2.0.0-beta.1
+
+### Major Changes
+
+- 475d435: <!-- area: self-hosting -->
+  <!-- en -->
+  Behind the bundled Caddy or another reverse proxy, set SEMESTRA_TRUSTED_PROXY_HOPS=1 so sign-in limits see the real client address; FORWARDED_ALLOW_IPS is no longer used.
+  <!-- zh -->
+  使用内置 Caddy 或其他反向代理时，请设置 SEMESTRA_TRUSTED_PROXY_HOPS=1，登录限流才能识别真实的客户端地址；不再使用 FORWARDED_ALLOW_IPS。
+
+### Patch Changes
+
+- cc73b39: <!-- area: self-hosting -->
+  <!-- en -->
+  Lower memory use with local embedding, and faster repeated searches and attachment cleanup.
+  <!-- zh -->
+  降低本机 embedding 的内存占用，加快重复搜索与附件清理。
+- 3abc029: <!-- area: ai -->
+  <!-- en -->
+  AI providers are no longer marked unreachable by errors unrelated to the provider, and model lists load faster.
+  <!-- zh -->
+  AI 服务商不再因与其无关的错误被标为无法连接，模型列表加载更快。
+- 61e922d: <!-- area: api -->
+  <!-- en -->
+  Added an endpoint that lists all course links of a program, and an option to include active jobs when listing jobs.
+  <!-- zh -->
+  新增列出学业项目全部课程关联的接口；列出任务时可附带进行中的任务。
+- 1626ed9: <!-- area: general -->
+  <!-- en -->
+  Deleting terms, programs, folders and Sem conversations is faster, and uploading a backup no longer holds up other changes.
+  <!-- zh -->
+  删除学期、学业项目、文件夹和 Sem 对话更快，上传备份时不再阻塞其他修改。
+- cc73b39: <!-- area: files -->
+  <!-- en -->
+  Files that finish processing while you switch search models are indexed again with the new model.
+  <!-- zh -->
+  切换搜索模型时正在处理的文件，处理完成后会用新模型重新建立索引。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Importing the same syllabus again no longer duplicates its deadline tasks and calendar events.
+  <!-- zh -->
+  再次导入同一份课程大纲不再重复创建截止待办和日历事件。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  An interrupted import resumes without reading files it already read, avoiding repeat AI charges.
+  <!-- zh -->
+  中断的导入恢复后不再重新读取已读过的文件，避免重复的 AI 费用。
+- cc73b39: <!-- area: imports -->
+  <!-- en -->
+  Sources quoted from scanned pages of an imported document now point to the right page.
+  <!-- zh -->
+  导入文档中引自扫描页的出处现在指向正确的页码。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+  <!-- zh -->
+  导入到课程时可正确解析“第 5 周周五”“10 月 3 日”等大纲日期，远在学期之外的日期会在审核时标出。
+- 3abc029: <!-- area: self-hosting -->
+  <!-- en -->
+  A local embedding model that fails no longer interrupts search and indexing for other users of the server.
+  <!-- zh -->
+  某个本机 embedding 模型出错时，不再影响同一服务器上其他用户的搜索与索引。
+- aee046d: <!-- area: files -->
+  <!-- en -->
+  Fixed scanned files failing to process with on-server OCR.
+  <!-- zh -->
+  修复使用本机 OCR 时扫描文件处理失败的问题。
+- f042585: <!-- area: files -->
+  <!-- en -->
+  Searching selected files now stays within the current term or course.
+  <!-- zh -->
+  在指定文件中搜索时，结果不再超出当前学期或课程。
+- 475d435: <!-- area: self-hosting -->
+  <!-- en -->
+  Link-local and cloud metadata addresses are now always blocked for outbound requests, even when private network access is allowed.
+  <!-- zh -->
+  出站请求始终拒绝链路本地和云主机元数据地址，即使允许访问内网也是如此。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+  <!-- zh -->
+  Sem 在请求失败后仍保留对话摘要，更好地处理大量阅读的长回合，重命名或置顶对话时不再丢失正在生成的回答。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Older conversations started on a course page now work in that course's term.
+  <!-- zh -->
+  在课程页开始的旧对话改为在该课程所在学期中工作。
+- 475d435: <!-- area: api -->
+  <!-- en -->
+  API tokens follow the same limits on REST endpoints as over MCP: deleting needs the "Delete data" permission, and settings only you may change stay protected.
+  <!-- zh -->
+  API 令牌调用 REST 接口时与 MCP 遵守相同的限制：删除需要开启“删除数据”权限，只能由你本人修改的设置不会被令牌改动。
+- 1626ed9: <!-- area: files -->
+  <!-- en -->
+  Storage quota is enforced the same way for course files, import uploads and Sem attachments, including uploads made at the same time.
+  <!-- zh -->
+  课程文件、导入上传和 Sem 附件统一按存储配额检查，同时上传也不会超出配额。
+
 ## 2.0.0-beta.0
 
 ### Major Changes

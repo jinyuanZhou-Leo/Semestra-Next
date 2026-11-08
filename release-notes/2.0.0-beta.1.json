@@ -1,0 +1,241 @@
+{
+  "version": "2.0.0-beta.1",
+  "date": "2026-11-08",
+  "level": "major",
+  "items": [
+    {
+      "kind": "new",
+      "area": "api",
+      "en": "The unused endpoint for reordering assessments (PUT /courses/{course_id}/assessment-order) has been removed.",
+      "zh": "移除了未使用的考核排序接口（PUT /courses/{course_id}/assessment-order）。"
+    },
+    {
+      "kind": "new",
+      "area": "self-hosting",
+      "en": "Behind the bundled Caddy or another reverse proxy, set SEMESTRA_TRUSTED_PROXY_HOPS=1 so sign-in limits see the real client address; FORWARDED_ALLOW_IPS is no longer used.",
+      "zh": "使用内置 Caddy 或其他反向代理时，请设置 SEMESTRA_TRUSTED_PROXY_HOPS=1，登录限流才能识别真实的客户端地址；不再使用 FORWARDED_ALLOW_IPS。"
+    },
+    {
+      "kind": "improved",
+      "area": "courses",
+      "en": "A year-long course's terms are now chosen as a start and end term, and instructors are listed in their own table in course settings.",
+      "zh": "跨学期课程改为选择开始与结束学期，课程设置中的授课教师改为独立表格。"
+    },
+    {
+      "kind": "improved",
+      "area": "imports",
+      "en": "Calendar files are read by term: full calendar app exports work, classes spanning two terms are added to each, and every-other-week classes across a reading week are recognized.",
+      "zh": "日历文件按学期读取：支持日历应用的完整导出，跨两个学期的课会分别加入各学期，隔周课跨阅读周也能正确识别。"
+    },
+    {
+      "kind": "improved",
+      "area": "settings",
+      "en": "API tokens, the MCP server and client permissions now share one API & MCP page; Integrations is renamed Learning platforms.",
+      "zh": "API 令牌、MCP 服务与客户端权限合并到「API 与 MCP」一页，「集成」更名为「学习平台」。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Faster imports and updates involving many assessments or to-dos, and lighter calendar subscription refreshes.",
+      "zh": "批量导入与更新考核、待办更快，日历订阅刷新的开销更小。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Deleting terms, programs, folders and Sem conversations is faster, and uploading a backup no longer holds up other changes.",
+      "zh": "删除学期、学业项目、文件夹和 Sem 对话更快，上传备份时不再阻塞其他修改。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Dialogs keep their content while closing, expanding sections animate, and loading and error states look the same across the app.",
+      "zh": "对话框关闭时内容不再提前消失，展开区域带过渡动画，各处的加载与出错状态保持一致。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Fewer repeated requests after saving changes and when returning to the app.",
+      "zh": "保存修改后和切回应用时不再重复请求数据。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Faster first load: less code is downloaded before the first page appears.",
+      "zh": "首屏下载的代码更少，打开更快。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "An approved change that is still being applied no longer briefly shows as failed in another tab.",
+      "zh": "已批准、仍在执行的修改不再在其他标签页中短暂显示为失败。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.",
+      "zh": "Sem 在请求失败后仍保留对话摘要，更好地处理大量阅读的长回合，重命名或置顶对话时不再丢失正在生成的回答。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Older conversations started on a course page now work in that course's term.",
+      "zh": "在课程页开始的旧对话改为在该课程所在学期中工作。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "When your session expires during a conversation, Sem asks you to sign in again and then continues.",
+      "zh": "对话中登录过期时，Sem 会请你重新登录，然后继续。"
+    },
+    {
+      "kind": "fixed",
+      "area": "tasks",
+      "en": "The tasks page opens the last viewed list without loading other lists first.",
+      "zh": "待办页直接打开上次查看的列表，不再先加载其他列表。"
+    },
+    {
+      "kind": "fixed",
+      "area": "notifications",
+      "en": "Turning notifications on or off for this device no longer shifts the settings layout.",
+      "zh": "开关本设备通知时，设置页布局不再跳动。"
+    },
+    {
+      "kind": "fixed",
+      "area": "notifications",
+      "en": "Reminders now follow changes to term dates, breaks and the program time zone right away, and keep arriving after the browser renews its subscription.",
+      "zh": "修改学期日期、假期或学业项目时区后提醒立即更新；浏览器更新推送订阅后通知不再中断。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Files that finish processing while you switch search models are indexed again with the new model.",
+      "zh": "切换搜索模型时正在处理的文件，处理完成后会用新模型重新建立索引。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Files whose processing was stopped or interrupted no longer stay in processing; they show why and can be processed again.",
+      "zh": "处理被停止或中断的文件不再一直显示处理中，会显示原因并可重新处理。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Fixed scanned files failing to process with on-server OCR.",
+      "zh": "修复使用本机 OCR 时扫描文件处理失败的问题。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Uploading or processing files in one course no longer reloads the file lists of other courses.",
+      "zh": "上传或处理某门课的文件时，不再重新加载其他课程的文件列表。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Searching selected files now stays within the current term or course.",
+      "zh": "在指定文件中搜索时，结果不再超出当前学期或课程。"
+    },
+    {
+      "kind": "fixed",
+      "area": "files",
+      "en": "Storage quota is enforced the same way for course files, import uploads and Sem attachments, including uploads made at the same time.",
+      "zh": "课程文件、导入上传和 Sem 附件统一按存储配额检查，同时上传也不会超出配额。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Fixed a calendar file import dropping a class whose time changed partway through the term.",
+      "zh": "修复导入日历文件时，学期中途改时间的课只保留一个时间的问题。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Importing the same syllabus again no longer duplicates its deadline tasks and calendar events.",
+      "zh": "再次导入同一份课程大纲不再重复创建截止待办和日历事件。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "An interrupted import resumes without reading files it already read, avoiding repeat AI charges.",
+      "zh": "中断的导入恢复后不再重新读取已读过的文件，避免重复的 AI 费用。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Sources quoted from scanned pages of an imported document now point to the right page.",
+      "zh": "导入文档中引自扫描页的出处现在指向正确的页码。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Syllabus dates such as \"Week 5, Friday\" or \"Oct 3\" now resolve when importing into a course, and dates far outside the term are flagged for review.",
+      "zh": "导入到课程时可正确解析“第 5 周周五”“10 月 3 日”等大纲日期，远在学期之外的日期会在审核时标出。"
+    },
+    {
+      "kind": "fixed",
+      "area": "imports",
+      "en": "Imports show when they are waiting for course files, and an import that found the course already up to date is no longer listed as failed.",
+      "zh": "导入在等待课程文件处理时会显示出来，课程信息已是最新的导入不再在导入历史中显示为失败。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Fixed missed announcement notifications, all-day events landing on the previous day, and repeated assignment changes not being notified again.",
+      "zh": "修复部分公告不通知、全天事件显示在前一天，以及作业再次改动时不再通知的问题。"
+    },
+    {
+      "kind": "fixed",
+      "area": "ai",
+      "en": "AI providers are no longer marked unreachable by errors unrelated to the provider, and model lists load faster.",
+      "zh": "AI 服务商不再因与其无关的错误被标为无法连接，模型列表加载更快。"
+    },
+    {
+      "kind": "fixed",
+      "area": "settings",
+      "en": "Reduce motion now applies to all animations, including progress bars and card effects.",
+      "zh": "“减少动画”现在对所有动画生效，包括进度条和卡片动效。"
+    },
+    {
+      "kind": "fixed",
+      "area": "data",
+      "en": "Stopping a backup export or restore no longer reports an error; a stopped restore can be started again.",
+      "zh": "停止导出或恢复备份不再显示出错，停止的恢复可以重新开始。"
+    },
+    {
+      "kind": "fixed",
+      "area": "api",
+      "en": "Import sessions report the waiting_files and up_to_date states, and Sem's approval cards report executing.",
+      "zh": "导入会话新增 waiting_files 与 up_to_date 状态，Sem 的确认卡片新增 executing 状态。"
+    },
+    {
+      "kind": "fixed",
+      "area": "api",
+      "en": "Added an endpoint that lists all course links of a program, and an option to include active jobs when listing jobs.",
+      "zh": "新增列出学业项目全部课程关联的接口；列出任务时可附带进行中的任务。"
+    },
+    {
+      "kind": "fixed",
+      "area": "api",
+      "en": "API tokens follow the same limits on REST endpoints as over MCP: deleting needs the \"Delete data\" permission, and settings only you may change stay protected.",
+      "zh": "API 令牌调用 REST 接口时与 MCP 遵守相同的限制：删除需要开启“删除数据”权限，只能由你本人修改的设置不会被令牌改动。"
+    },
+    {
+      "kind": "fixed",
+      "area": "self-hosting",
+      "en": "Lower memory use with local embedding, and faster repeated searches and attachment cleanup.",
+      "zh": "降低本机 embedding 的内存占用，加快重复搜索与附件清理。"
+    },
+    {
+      "kind": "fixed",
+      "area": "self-hosting",
+      "en": "A local embedding model that fails no longer interrupts search and indexing for other users of the server.",
+      "zh": "某个本机 embedding 模型出错时，不再影响同一服务器上其他用户的搜索与索引。"
+    },
+    {
+      "kind": "fixed",
+      "area": "self-hosting",
+      "en": "Link-local and cloud metadata addresses are now always blocked for outbound requests, even when private network access is allowed.",
+      "zh": "出站请求始终拒绝链路本地和云主机元数据地址，即使允许访问内网也是如此。"
+    }
+  ]
+}

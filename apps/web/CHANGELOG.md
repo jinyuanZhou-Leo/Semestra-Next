@@ -1,5 +1,140 @@
 # @semestra/web
 
+## 2.0.0-beta.1
+
+### Major Changes
+
+- 85173ea: <!-- area: api -->
+  <!-- en -->
+  The unused endpoint for reordering assessments (PUT /courses/{course_id}/assessment-order) has been removed.
+  <!-- zh -->
+  移除了未使用的考核排序接口（PUT /courses/{course_id}/assessment-order）。
+
+### Minor Changes
+
+- 3358bb5: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  A year-long course's terms are now chosen as a start and end term, and instructors are listed in their own table in course settings.
+  <!-- zh -->
+  跨学期课程改为选择开始与结束学期，课程设置中的授课教师改为独立表格。
+- 85173ea: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Calendar files are read by term: full calendar app exports work, classes spanning two terms are added to each, and every-other-week classes across a reading week are recognized.
+  <!-- zh -->
+  日历文件按学期读取：支持日历应用的完整导出，跨两个学期的课会分别加入各学期，隔周课跨阅读周也能正确识别。
+- 66b0206: <!-- area: settings -->
+  <!-- improved -->
+  <!-- en -->
+  API tokens, the MCP server and client permissions now share one API & MCP page; Integrations is renamed Learning platforms.
+  <!-- zh -->
+  API 令牌、MCP 服务与客户端权限合并到「API 与 MCP」一页，「集成」更名为「学习平台」。
+
+### Patch Changes
+
+- d95d08c: <!-- area: api -->
+  <!-- en -->
+  Import sessions report the waiting_files and up_to_date states, and Sem's approval cards report executing.
+  <!-- zh -->
+  导入会话新增 waiting_files 与 up_to_date 状态，Sem 的确认卡片新增 executing 状态。
+- e80a1c2: <!-- area: data -->
+  <!-- en -->
+  Stopping a backup export or restore no longer reports an error; a stopped restore can be started again.
+  <!-- zh -->
+  停止导出或恢复备份不再显示出错，停止的恢复可以重新开始。
+- 85173ea: <!-- area: general -->
+  <!-- en -->
+  Faster imports and updates involving many assessments or to-dos, and lighter calendar subscription refreshes.
+  <!-- zh -->
+  批量导入与更新考核、待办更快，日历订阅刷新的开销更小。
+- 85173ea: <!-- area: canvas -->
+  <!-- en -->
+  Fixed missed announcement notifications, all-day events landing on the previous day, and repeated assignment changes not being notified again.
+  <!-- zh -->
+  修复部分公告不通知、全天事件显示在前一天，以及作业再次改动时不再通知的问题。
+- d95d08c: <!-- area: files -->
+  <!-- en -->
+  Files whose processing was stopped or interrupted no longer stay in processing; they show why and can be processed again.
+  <!-- zh -->
+  处理被停止或中断的文件不再一直显示处理中，会显示原因并可重新处理。
+- 85173ea: <!-- area: imports -->
+  <!-- en -->
+  Fixed a calendar file import dropping a class whose time changed partway through the term.
+  <!-- zh -->
+  修复导入日历文件时，学期中途改时间的课只保留一个时间的问题。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+  <!-- zh -->
+  导入到课程时可正确解析“第 5 周周五”“10 月 3 日”等大纲日期，远在学期之外的日期会在审核时标出。
+- d95d08c: <!-- area: imports -->
+  <!-- en -->
+  Imports show when they are waiting for course files, and an import that found the course already up to date is no longer listed as failed.
+  <!-- zh -->
+  导入在等待课程文件处理时会显示出来，课程信息已是最新的导入不再在导入历史中显示为失败。
+- 3358bb5: <!-- area: general -->
+  <!-- en -->
+  Dialogs keep their content while closing, expanding sections animate, and loading and error states look the same across the app.
+  <!-- zh -->
+  对话框关闭时内容不再提前消失，展开区域带过渡动画，各处的加载与出错状态保持一致。
+- 66b0206: <!-- area: notifications -->
+  <!-- en -->
+  Turning notifications on or off for this device no longer shifts the settings layout.
+  <!-- zh -->
+  开关本设备通知时，设置页布局不再跳动。
+- 61e922d: <!-- area: general -->
+  <!-- en -->
+  Fewer repeated requests after saving changes and when returning to the app.
+  <!-- zh -->
+  保存修改后和切回应用时不再重复请求数据。
+- 61e922d: <!-- area: files -->
+  <!-- en -->
+  Uploading or processing files in one course no longer reloads the file lists of other courses.
+  <!-- zh -->
+  上传或处理某门课的文件时，不再重新加载其他课程的文件列表。
+- 61e922d: <!-- area: general -->
+  <!-- en -->
+  Faster first load: less code is downloaded before the first page appears.
+  <!-- zh -->
+  首屏下载的代码更少，打开更快。
+- 61e922d: <!-- area: tasks -->
+  <!-- en -->
+  The tasks page opens the last viewed list without loading other lists first.
+  <!-- zh -->
+  待办页直接打开上次查看的列表，不再先加载其他列表。
+- 61e922d: <!-- area: settings -->
+  <!-- en -->
+  Reduce motion now applies to all animations, including progress bars and card effects.
+  <!-- zh -->
+  “减少动画”现在对所有动画生效，包括进度条和卡片动效。
+- 85173ea: <!-- area: notifications -->
+  <!-- en -->
+  Reminders now follow changes to term dates, breaks and the program time zone right away, and keep arriving after the browser renews its subscription.
+  <!-- zh -->
+  修改学期日期、假期或学业项目时区后提醒立即更新；浏览器更新推送订阅后通知不再中断。
+- d95d08c: <!-- area: sem -->
+  <!-- en -->
+  An approved change that is still being applied no longer briefly shows as failed in another tab.
+  <!-- zh -->
+  已批准、仍在执行的修改不再在其他标签页中短暂显示为失败。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+  <!-- zh -->
+  Sem 在请求失败后仍保留对话摘要，更好地处理大量阅读的长回合，重命名或置顶对话时不再丢失正在生成的回答。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Older conversations started on a course page now work in that course's term.
+  <!-- zh -->
+  在课程页开始的旧对话改为在该课程所在学期中工作。
+- cc73b39: <!-- area: sem -->
+  <!-- en -->
+  When your session expires during a conversation, Sem asks you to sign in again and then continues.
+  <!-- zh -->
+  对话中登录过期时，Sem 会请你重新登录，然后继续。
+- @semestra/api-client@2.0.0-beta.1
+
 ## 2.0.0-beta.0
 
 ### Minor Changes
