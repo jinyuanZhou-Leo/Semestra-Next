@@ -255,11 +255,13 @@ test('deletes the account after the sentence and the tick, then leaves', async (
   const bodies: unknown[] = []
   server.use(
     http.get(`${API}/me/exports`, () => HttpResponse.json({ items: [] })),
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
+    http.post(`${API}/account/reauth/password`, () => HttpResponse.json({ ok: true })),
     http.post(`${API}/me\\:delete`, async ({ request }) => {
       bodies.push(await request.json())
       attempts += 1
       if (attempts === 1) {
-        const { status, body } = apiError('auth.reauth_required', 403, { password: true })
+        const { status, body } = apiError('auth.reauth_required', 403)
         return HttpResponse.json(body, { status })
       }
       return HttpResponse.json(job({ kind: 'portability.account_delete' }))
@@ -275,17 +277,12 @@ test('deletes the account after the sentence and the tick, then leaves', async (
   await userEvent.click(within(dialog).getByRole('checkbox'))
   await userEvent.click(confirm)
 
-  // The last sign-in is too old: the password is asked for.
+  // The last sign-in is too old: confirming with the password sends the deletion again.
   const password = await within(dialog).findByLabelText('Password')
-  await userEvent.type(password, 'secret')
-  await userEvent.click(confirm)
+  await userEvent.type(password, 'secret{Enter}')
 
   await waitFor(() =>
     expect(signOut).toHaveBeenCalledWith({ to: '/account-deleted', flush: false }),
   )
-  expect(bodies[1]).toEqual({
-    confirmation: 'delete my account',
-    acknowledged: true,
-    password: 'secret',
-  })
+  expect(bodies[1]).toEqual({ confirmation: 'delete my account', acknowledged: true })
 })

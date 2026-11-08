@@ -56,6 +56,8 @@ class AuthSession(Base):
     user_agent: Mapped[str | None] = mapped_column(String, default=None)
     ip: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    # Last sign-in or re-authentication; sensitive actions need it to be recent (M01 §4.5).
+    verified_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     last_used_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
@@ -67,8 +69,10 @@ class AuthEmailChallenge(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     email: Mapped[str] = mapped_column(String)
-    purpose: Mapped[str] = mapped_column(String)  # 'continue' | 'reset_password' | 'change_email'
-    # Only for 'change_email': the signed-in user who asked for the change.
+    purpose: Mapped[str] = mapped_column(
+        String
+    )  # 'continue' | 'reset_password' | 'change_email' | 'reauth'
+    # For 'change_email' and 'reauth': the signed-in user who asked for the code.
     user_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("auth_users.id", ondelete="CASCADE"), default=None, index=True
     )
