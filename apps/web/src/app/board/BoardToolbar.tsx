@@ -12,7 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { runHostAction, useHasHostAction } from '../commands/bus'
 import { formatHotkey } from '../hotkeys'
-import { useMediaQuery } from './media'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
 /**
  * The board's edit controls, driven through the host actions the board registers (see

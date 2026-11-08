@@ -208,7 +208,7 @@ function JobsLine() {
   const [held, setHeld] = useState<readonly string[]>([])
   const kinds = useModules().flatMap((module) => module.jobKinds ?? [])
   const all = mergeJobs(recent, running, pending)
-  const now = useNow((at) =>
+  const now = useNow(500, (at) =>
     all.some((job) => job.status === 'succeeded' && finishedAgo(job, at) < DONE_VISIBLE_MS),
   )
   const shown = visibleJobs(all, seen, now)

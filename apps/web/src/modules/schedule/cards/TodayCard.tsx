@@ -7,7 +7,7 @@ import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { OccurrenceRow } from '../components/OccurrenceRow'
 import { countdown } from '../countdown'
-import { useNow } from '@/lib/now'
+import { useNow } from '@/hooks/use-now'
 import { useOpenOccurrence } from '../open'
 import { useToday } from '../queries'
 

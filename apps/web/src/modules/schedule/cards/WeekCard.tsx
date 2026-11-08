@@ -1,7 +1,7 @@
 import { CalendarDays } from 'lucide-react'
 import { useState } from 'react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
-import { useElementHeight } from '@/app/board/media'
+import { useElementHeight } from '@/hooks/use-element-size'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'

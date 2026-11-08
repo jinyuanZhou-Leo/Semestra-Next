@@ -207,10 +207,17 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
 
   useEffect(() => {
     if (state.status !== 'running' || state.endsAt === null) return
+    // Checked four times a second so a phase ends on time, but the clock shows whole seconds:
+    // the card renders only when the second shown changes.
+    let shown = -1
     const tick = () => {
       const t = Date.now()
-      setNow(t)
       const current = latest.current
+      const second = Math.ceil(Math.max(0, (current.state.endsAt ?? t) - t) / 1000)
+      if (second !== shown) {
+        shown = second
+        setNow(t)
+      }
       if (!isFinished(current.state, t)) return
       finishPhase({
         instanceId,
@@ -241,14 +248,16 @@ export function usePomodoro(instanceId: string, programId: string, settings: Pom
   const remaining = remainingAt(state, now, config)
 
   // The tab title shows the clock while this card's timer runs.
+  const title =
+    state.status === 'running' ? `${formatClock(remaining)} · ${modeLabel(state.mode)}` : null
   useEffect(() => {
-    if (state.status !== 'running') return
+    if (title === null) return
     const original = document.title
-    document.title = `${formatClock(remainingAt(state, now, config))} · ${modeLabel(state.mode)}`
+    document.title = title
     return () => {
       document.title = original
     }
-  })
+  }, [title])
 
   return {
     state,

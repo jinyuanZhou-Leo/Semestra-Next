@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useReducedMotion } from '@/app/theme'
 import {
   clampProgress,
   PROGRESS_CREEP_BUDGET,
@@ -9,14 +10,11 @@ const PROGRESS_TICK_MS = 100
 const PROGRESS_CATCH_UP_RATIO = 0.2
 const PROGRESS_MIN_CATCH_UP_STEP = 0.2
 
-function prefersReducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
 /** The progress to display while `running`: catches up smoothly and creeps during stalls. */
 export function useSmoothedProgress(actualProgress: number, running: boolean): number {
   const actual = clampProgress(actualProgress)
-  const animate = running && !prefersReducedMotion()
+  const reduced = useReducedMotion()
+  const animate = running && !reduced
   const [displayProgress, setDisplayProgress] = useState(actual)
 
   useEffect(() => {

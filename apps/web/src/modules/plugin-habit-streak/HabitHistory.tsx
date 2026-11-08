@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useElementWidth } from '@/app/board/media'
+import { useElementWidth } from '@/hooks/use-element-size'
 import { formatDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'

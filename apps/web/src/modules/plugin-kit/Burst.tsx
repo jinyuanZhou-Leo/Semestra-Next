@@ -1,19 +1,15 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { motion } from 'motion/react'
 import { useEffect } from 'react'
+import { useReducedMotion } from '@/app/theme'
 
 const PARTICLES = 14
-
-function reducedMotion(prefers: boolean | null) {
-  return prefers || document.documentElement.getAttribute('data-reduce-motion') === 'on'
-}
 
 /**
  * A short burst of dots from the middle of the parent (habit milestones). Does nothing when the
  * user asked for reduced motion. The parent must be `relative`.
  */
 export function Burst({ color, onDone }: { color: string; onDone?: () => void }) {
-  const prefers = useReducedMotion()
-  const skip = reducedMotion(prefers)
+  const skip = useReducedMotion()
   useEffect(() => {
     if (!skip) return
     onDone?.()

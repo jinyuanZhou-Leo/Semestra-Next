@@ -1,7 +1,7 @@
-import { AnimatePresence, LazyMotion, domAnimation, useReducedMotion } from 'motion/react'
+import { AnimatePresence, LazyMotion, domAnimation } from 'motion/react'
 import * as motionM from 'motion/react-m'
 import { type ReactNode, createContext, useContext } from 'react'
-import { useMotionPreference } from '@/app/theme'
+import { useReducedMotion } from '@/app/theme'
 
 /** A task row that opens and closes as it comes and goes (`useRowPresence`). */
 export const MotionLi = motionM.li
@@ -24,9 +24,7 @@ const DURATION = 0.24
  * (M05 §5.1). Rows already there when the list first shows do not animate.
  */
 export function TaskListPresence({ exit, children }: { exit?: ExitContext; children: ReactNode }) {
-  const preference = useMotionPreference()
-  const system = useReducedMotion()
-  const reduced = preference === 'always' || (preference === 'user' && Boolean(system))
+  const reduced = useReducedMotion()
   return (
     <LazyMotion features={domAnimation} strict>
       <ReducedMotion value={reduced}>

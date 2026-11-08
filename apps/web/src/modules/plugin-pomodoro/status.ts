@@ -1,7 +1,8 @@
 import { Timer } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { StatusItem } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
+import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
 import {
   ACTIVE_KEY,
@@ -24,13 +25,8 @@ export function usePomodoroStatus(): StatusItem | null {
     INITIAL_STATE,
   )
   const { mutate: recordSession } = useRecordSession()
-  const [now, setNow] = useState(() => Date.now())
   const running = state.status === 'running'
-  useEffect(() => {
-    if (!running) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [running])
+  const now = useNow(1000, () => running)
 
   // The status line stays mounted on every page, so it also ends a phase that runs out while the
   // card is not on screen (the card handles it itself when it is; each end is handled once).

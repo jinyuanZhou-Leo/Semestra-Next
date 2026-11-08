@@ -63,7 +63,7 @@ import {
   span,
 } from './layout'
 import { boardOptions, boardRef, type BoardRef, useBoard } from './queries'
-import { useElementWidth } from './media'
+import { useElementWidth } from '@/hooks/use-element-size'
 import { loadCardSettings } from './settings'
 
 /** Row height and gap of the grid in px. */
