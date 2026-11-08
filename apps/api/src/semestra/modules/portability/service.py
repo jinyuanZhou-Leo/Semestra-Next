@@ -582,20 +582,28 @@ async def _import_room(ctx: Ctx, *, replacing: bool) -> int:
 
 
 async def _fail(ctx: JobCtx, staged: _StagedFiles | None) -> None:
-    """Undoes a failed import's writes and copied files; `mark_failed` records why."""
+    """Undoes a failed import's writes and copied files; `job_stopped` records why."""
     await ctx.db.rollback()
     if staged is not None:
         await staged.discard()
 
 
-async def mark_failed(ctx: Ctx, archive_id: str, job: CoreJob) -> None:
+async def job_stopped(ctx: Ctx, archive_id: str, job: CoreJob) -> None:
     """An export or import job ended failed or cancelled (in its handler, cancelled before it
-    ran, or its worker died): the archive says so instead of staying pending or importing."""
+    ran, or its worker died), so the archive does not stay pending or importing. Failed: it says
+    why. Cancelled: an export made nothing and goes; an import was rolled back and can start
+    again."""
     row = await ctx.db.get(PortabilityArchive, archive_id)
     if row is None or row.job_id != job.id or row.status not in ("pending", "importing"):
         return
-    row.status = "failed"
-    row.error_code = job.error_code or "common.internal"
+    if job.status != "cancelled":
+        row.status = "failed"
+        row.error_code = job.error_code or "common.internal"
+    elif row.kind == "export":
+        await ctx.db.delete(row)
+    else:
+        row.status = "uploaded"
+        row.error_code = None
 
 
 async def discard_import(ctx: Ctx, archive_id: str) -> None:

@@ -100,15 +100,19 @@ async def waits(ctx: JobCtx, payload: Payload) -> Result:
 
 
 failures: list[tuple[str, str, str | None]] = []
+broken_once: set[str] = set()
 
 
 async def record_failure(ctx: Any, payload: Payload, job: CoreJob) -> None:
+    if payload.name in broken_once:
+        broken_once.discard(payload.name)
+        raise RuntimeError("database is locked")
     failures.append((payload.name, job.status, job.error_code))
 
 
 @job_handler("test.with_on_failure", max_attempts=1, on_failure=record_failure)
 async def with_on_failure(ctx: JobCtx, payload: Payload) -> Result:
-    if payload.name == "fails":
+    if payload.name.startswith("fails"):
         raise AppError("test.bad_input", 422)
     return Result()
 
@@ -408,9 +412,18 @@ async def test_on_failure_runs_however_the_job_ends(
     # Succeeds: no call.
     await start(app, user.id, "test.with_on_failure", name="ok")
     await app.state.jobs.run_until_idle()
+    # Its `on_failure` fails: the job's end is not saved either, so the sweep ends it later.
+    broken_once.add("fails again")
+    again = await start(app, user.id, "test.with_on_failure", name="fails again")
+    with pytest.raises(RuntimeError):
+        await app.state.jobs.run_until_idle()
+    assert (await get(app, again)).status == "running"
+    clock.advance(seconds=61)
+    await app.state.jobs.run_until_idle()
 
     assert failures == [
         ("fails", "failed", "test.bad_input"),
         ("cancelled", "cancelled", None),
         ("died", "failed", "core.job_lease_expired"),
+        ("fails again", "failed", "core.job_lease_expired"),
     ]

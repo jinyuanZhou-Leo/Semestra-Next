@@ -14,18 +14,18 @@ from semestra.modules.portability.schemas import (
 )
 
 
-async def _export_failed(ctx: Ctx, payload: ExportJobInput, job: CoreJob) -> None:
-    await service.mark_failed(ctx, payload.archive_id, job)
+async def _export_stopped(ctx: Ctx, payload: ExportJobInput, job: CoreJob) -> None:
+    await service.job_stopped(ctx, payload.archive_id, job)
 
 
-async def _import_failed(ctx: Ctx, payload: ImportJobInput, job: CoreJob) -> None:
-    await service.mark_failed(ctx, payload.archive_id, job)
+async def _import_stopped(ctx: Ctx, payload: ImportJobInput, job: CoreJob) -> None:
+    await service.job_stopped(ctx, payload.archive_id, job)
 
 
 @job_handler(
     "portability.export",
     stages=[("collecting", 70), ("saving", 30)],
-    on_failure=_export_failed,
+    on_failure=_export_stopped,
 )
 async def export(ctx: JobCtx, payload: ExportJobInput) -> ExportJobResult:
     size = await service.build_export(ctx, payload.archive_id)
@@ -37,7 +37,7 @@ async def export(ctx: JobCtx, payload: ExportJobInput) -> ExportJobResult:
     "portability.import",
     max_attempts=1,
     stages=[("reading", 10), ("copying", 50), ("importing", 40)],
-    on_failure=_import_failed,
+    on_failure=_import_stopped,
 )
 async def import_(ctx: JobCtx, payload: ImportJobInput) -> ImportJobResult:
     options = ImportOptions(

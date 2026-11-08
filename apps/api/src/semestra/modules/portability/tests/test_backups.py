@@ -796,6 +796,26 @@ async def test_an_import_whose_worker_died_fails_and_can_be_discarded(
     assert (await client.delete(f"/me/imports/{upload_id}")).status_code == 200
 
 
+async def test_a_stopped_export_goes_and_a_stopped_restore_can_start_again(
+    client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+) -> None:
+    user = await make_user()
+    await login_as(client, user)
+    archive = await _export(client, run_jobs)
+    upload_id = (await _upload(client, archive)).json()["id"]
+
+    export = (await client.post("/me/exports", json={"include_files": False})).json()
+    assert (await client.post(f"/jobs/{export['job_id']}/cancel")).status_code == 200
+    assert export["id"] not in [e["id"] for e in (await client.get("/me/exports")).json()["items"]]
+
+    started = (await client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})).json()
+    assert (await client.post(f"/jobs/{started['job_id']}/cancel")).status_code == 200
+    current = (await client.get(f"/me/imports/{upload_id}")).json()
+    assert (current["status"], current["error_code"]) == ("uploaded", None)
+    again = await client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})
+    assert again.json()["status"] == "importing"
+
+
 async def test_upload_over_the_limit_is_refused(
     app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ) -> None:
