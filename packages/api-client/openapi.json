@@ -6745,69 +6745,6 @@
         }
       }
     },
-    "/courses/{course_id}/assessment-order": {
-      "put": {
-        "tags": [
-          "grading"
-        ],
-        "summary": "Set the order of a course's assessments.",
-        "description": "Assessments not listed keep their order after the listed ones.",
-        "operationId": "gradingAssessmentReorder",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssessmentOrderInputBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentOrder"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/programs/{program_id}/upcoming-assessments": {
       "get": {
         "tags": [
@@ -18346,47 +18283,6 @@
         ],
         "title": "AssessmentFields",
         "description": "Fields shared by the creation inputs."
-      },
-      "AssessmentOrder": {
-        "properties": {
-          "course_id": {
-            "type": "string",
-            "title": "Course Id"
-          },
-          "assessment_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Assessment Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_id",
-          "assessment_ids"
-        ],
-        "title": "AssessmentOrder"
-      },
-      "AssessmentOrderInputBody": {
-        "properties": {
-          "assessment_ids": {
-            "items": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 1
-            },
-            "type": "array",
-            "maxItems": 500,
-            "title": "Assessment Ids",
-            "description": "Assessment ids in order"
-          }
-        },
-        "type": "object",
-        "required": [
-          "assessment_ids"
-        ],
-        "title": "AssessmentOrderInputBody"
       },
       "AssessmentPage": {
         "properties": {

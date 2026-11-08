@@ -176,8 +176,12 @@ both languages).
   it is still worth sending (`None` sends nothing). Devices, quiet hours and sending are the
   notifications module's; the texts go in `notifications/texts/{en,zh-CN}.json`. When the
   plugin's own settings change, call `reminders.plan(ctx, [program_id])` to plan again.
-- Migrations follow the single Alembic chain: import your `models` in `migrations/env.py`, run
+- Migrations follow the single Alembic chain: put your tables in a module named `models` (Alembic
+  finds every `semestra.modules.*.models` on its own), index every foreign key column, run
   `alembic revision --autogenerate`, and check the result.
+- Files a user uploads go through `semestra.core.storage`: `stage` streams them into storage
+  within the size limit and the quota left, before any database write; insert your row inside
+  `discard_on_error` and call `charge` after it; remove objects with `delete_after_commit`.
 
 ### 4.4 Export and import adapter
 

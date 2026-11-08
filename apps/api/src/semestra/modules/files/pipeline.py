@@ -361,13 +361,11 @@ async def _ocr(
         parsed.pages[index].markdown = text.strip()
         read_pages += 1
 
-    async def read_locally(
-        session: OcrSession, batch: list[int], pngs: list[bytes], done: int
-    ) -> None:
+    async def read_locally(session: OcrSession, batch: list[int], done: int) -> None:
         nonlocal read_pages, stopped
         page_limit = ctx.settings.local_ocr_page_timeout_seconds
         try:
-            async with aclosing(session.read(pngs, page_limit=page_limit)) as pages:
+            async with aclosing(session.read(batch, page_limit=page_limit)) as pages:
                 async for page in pages:
                     parsed.pages[batch[page.index]].markdown = page.text.strip()
                     read_pages += 1
@@ -380,9 +378,10 @@ async def _ocr(
             stopped = True
 
     size = OCR_BATCH if local is None else LOCAL_OCR_BATCH
-    # Local OCR keeps one child, and its loaded engine, for the whole document.
+    # Local OCR keeps one child, which renders the pages and keeps its engine loaded, for the
+    # whole document.
     session_cm = (
-        ocr_session(local, load_limit=LOCAL_OCR_LOAD_SECONDS)
+        ocr_session(local, data, pdf=kind == "pdf", load_limit=LOCAL_OCR_LOAD_SECONDS)
         if local is not None
         else nullcontext(None)
     )
@@ -393,6 +392,9 @@ async def _ocr(
             await ctx.check_cancelled()
             await ctx.stage("ocr", current=start, total=len(needed))
             batch = needed[start : start + size]
+            if session is not None:
+                await read_locally(session, batch, start)
+                continue
             try:
                 pngs = await render_isolated(
                     data,
@@ -403,9 +405,6 @@ async def _ocr(
                 )
             except ParseError as exc:
                 log.warning("files_ocr_render_failed", code=exc.code)
-                continue
-            if session is not None:
-                await read_locally(session, batch, pngs, start)
                 continue
             async with anyio.create_task_group() as group:
                 for index, png in zip(batch, pngs, strict=False):

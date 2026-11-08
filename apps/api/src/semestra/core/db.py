@@ -110,3 +110,18 @@ def make_engine(settings: Settings | None = None) -> AsyncEngine:
 
 def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+def import_all_models() -> None:
+    """Import every `models` module under `semestra.modules` (and the core job table) so
+    `Base.metadata` holds all tables: Alembic autogenerate, `alembic check` and metadata tests
+    rely on it. Module templates are skipped."""
+    import importlib
+    import pkgutil
+
+    import semestra.modules
+
+    importlib.import_module("semestra.core.jobs")
+    for info in pkgutil.walk_packages(semestra.modules.__path__, "semestra.modules."):
+        if info.name.endswith(".models") and "._template" not in info.name:
+            importlib.import_module(info.name)

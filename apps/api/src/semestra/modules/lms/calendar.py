@@ -7,8 +7,9 @@ Courses with sync off are left out. An unreachable LMS leaves its events out ins
 the calendar.
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import structlog
 
@@ -23,6 +24,7 @@ from semestra.modules.schedule.calendar import (
     OccurrenceRef,
     calendar_source,
 )
+from semestra.modules.schedule.rules import local_midnight
 
 log = structlog.get_logger()
 SOURCE = "lms.events"
@@ -45,6 +47,7 @@ async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
         return []
     if q.term_id is not None:
         links = [li for li in links if q.term_id in courses[li.course_id].term_ids]
+    zone = ZoneInfo(program.timezone)
     by_connection: dict[str, list[Any]] = {}
     for link in links:
         by_connection.setdefault(link.connection_id, []).append(link)
@@ -77,13 +80,22 @@ async def lms_events(ctx: Ctx, q: OccurrenceQuery) -> list[Occurrence]:
             link = by_external.get(e["external_course_id"])
             if link is None:
                 continue
-            occurrence = _occurrence(e, link, courses[link.course_id])
+            occurrence = _occurrence(e, link, courses[link.course_id], zone)
             if q.range_start <= occurrence.start_at < q.range_end:
                 out.append(occurrence)
     return out
 
 
-def _occurrence(e: dict[str, Any], link: Any, course: Any) -> Occurrence:
+def _occurrence(e: dict[str, Any], link: Any, course: Any, zone: ZoneInfo) -> Occurrence:
+    day = e.get("all_day_date")
+    if e.get("all_day") and day:
+        # The platform's day, at midnight in the Program's time zone (as every all-day item).
+        first = date.fromisoformat(day)
+        e = {
+            **e,
+            "start_at": local_midnight(first, zone),
+            "end_at": local_midnight(first + timedelta(days=1), zone),
+        }
     occ = Occurrence.model_validate(
         {
             "id": f"{SOURCE}:{link.id}:{e['external_id']}",

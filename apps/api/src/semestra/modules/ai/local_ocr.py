@@ -2,8 +2,8 @@
 
 Only self-hosted installs have it (`uv sync --extra ocr`, or the `-ocr` image). Inference runs on
 the CPU, so the same code serves Linux containers and a Mac running the API natively. It runs in a
-parse child process (`files.parse.isolated.ocr_isolated`), which loads the engine once per document
-and reads its pages one at a time.
+parse child process (`files.parse.isolated.ocr_session`), which renders a document's pages, loads
+the engine once and reads the pages one at a time.
 
 Models are not part of the install: each is downloaded the first time it is needed (`download`),
 into PaddleX's cache (`PADDLE_PDX_CACHE_HOME`, under `/data` in the image), and shared by every

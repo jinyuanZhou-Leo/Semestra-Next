@@ -160,20 +160,20 @@ async def test_local_ocr_reads_scanned_pages_without_a_model(
     from semestra.modules.files import pipeline
     from semestra.modules.files.parse.isolated import Recognized
 
-    pages: list[tuple[str, bytes]] = []
+    pages: list[tuple[str, int]] = []
     fetched: list[str] = []
 
     class Session:
         def __init__(self, model: str) -> None:
             self.model = model
 
-        async def read(self, pngs: list[bytes], **limits: float):
-            for index, png in enumerate(pngs):
-                pages.append((self.model, png))
+        async def read(self, numbers: list[int], **limits: float):
+            for index, number in enumerate(numbers):
+                pages.append((self.model, number))
                 yield Recognized(index, "Photosynthesis\nturns light into sugar")
 
     @asynccontextmanager
-    async def ocr_session(model: str, **limits: float):
+    async def ocr_session(model: str, data: bytes, **options: Any):
         assert local_ocr.downloaded(model)
         yield Session(model)
 
@@ -877,7 +877,7 @@ async def test_short_terms_count_next_to_long_ones(fx: Fx):
 async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings: Settings):
     from semestra.core.context import Ctx
     from semestra.core.errors import AppError
-    from semestra.core.storage import remaining_quota, usage
+    from semestra.core.storage import usage
     from semestra.modules.auth.models import AuthUser
     from semestra.modules.files import service
 
@@ -904,9 +904,7 @@ async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings
         settings.user_storage_quota_bytes = (await usage(ctxs[0])).used_bytes + 100
         # Both check the quota before either has written: each sees 100 bytes free.
         staged = [
-            await service.stage_file(
-                ctx, filename=f"{n}.txt", stream=chunks(), budget=await remaining_quota(ctx)
-            )
+            await service.stage_file(ctx, filename=f"{n}.txt", stream=chunks())
             for n, ctx in enumerate(ctxs)
         ]
         await service.add_staged_files(ctxs[0], fx.course_id, None, [staged[0]])

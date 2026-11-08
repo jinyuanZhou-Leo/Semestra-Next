@@ -109,7 +109,6 @@ grading_assessments
 | `grading.assessment.create_many` | write | POST /courses/{course_id}/assessments:batch | 导入用，按 `source_kind+source_ref` 去重（已存在则跳过并在结果中列出） |
 | `grading.assessment.update` | write | PATCH /assessments/{assessment_id} | 记录分数主要用这个 |
 | `grading.assessment.delete` | destructive | DELETE /assessments/{assessment_id} | |
-| `grading.assessment.reorder` | write | PUT /courses/{course_id}/assessment-order | |
 | `grading.assessment.find` | read | （agent/mcp） | 按课程 + 标题模糊查找（"Lab 3"、"期中"），跨课程查找时按 scope 优先 |
 | `grading.simulate.course` | read | POST /courses/{course_id}/gradebook:simulate | 输入 what-if 分数表与目标，返回摘要；计划模式每次改动调用（前端 200ms 防抖） |
 | `grading.score.suggest` | read | POST /courses/{course_id}/gradebook:suggest | 第 3 节第 7 条 |

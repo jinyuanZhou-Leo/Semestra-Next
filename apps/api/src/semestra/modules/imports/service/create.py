@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
+import anyio.to_thread
 from pydantic import ValidationError
 
 from semestra.core.context import Ctx
@@ -24,7 +25,7 @@ from semestra.modules.imports.schemas import (
     SessionCreateInput,
     SessionTarget,
 )
-from semestra.modules.imports.service.context import build_context, revalidate
+from semestra.modules.imports.service.context import build_context, revalidate, term_dates_of
 from semestra.modules.imports.service.rows import (
     AGENT_PAGE,
     detail,
@@ -163,13 +164,20 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
 async def _ics_items(ctx: Ctx, row: ImportsSession, uploads: Sequence[ImportsUpload]) -> None:
     program = await academics.get_program_row(ctx, row.program_id)
     context = await build_context(ctx, row)
-    terms = [
-        (t.id, t.start_date, t.end_date) for t in await academics.program_terms(ctx, row.program_id)
-    ]
+    program_terms = {
+        t.id: await term_dates_of(ctx, t)
+        for t in await academics.program_terms(ctx, row.program_id)
+    }
+    terms = build.ics_terms(context, program_terms)
+    if not terms:
+        raise AppError("import.term_unresolved", 422)
+    # Only the dates of these terms are read: a calendar app's export reaches back years.
+    span = (min(t.start for t in terms.values()), max(t.end for t in terms.values()))
     new: list[NewItem] = []
     refs = list(row.source_refs)
     for index, upload in enumerate(uploads):
-        result = parse_ics(await read_upload_bytes(ctx, upload), program.timezone)
+        data = await read_upload_bytes(ctx, upload)
+        result = await anyio.to_thread.run_sync(parse_ics, data, program.timezone, span)
         new += build.from_ics(result, context, terms)
         refs[index] = {**refs[index], "status": "done"}
         if result.truncated:
