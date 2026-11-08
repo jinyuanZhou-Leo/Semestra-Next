@@ -3,7 +3,6 @@ import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { School } from 'lucide-react'
 import { m } from '@/paraglide/messages'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useProviderName, useProviderUis } from '../providers'
 
 function useProvider(programId: string) {
@@ -20,13 +19,10 @@ export function CalendarMark({ programId }: { programId: string }) {
   const { name, ui } = useProvider(programId)
   const Logo = ui?.logo ?? School
   return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
-        <Logo aria-hidden className="size-3" />
-        <span className="sr-only">{name}</span>
-      </TooltipTrigger>
-      <TooltipContent>{name}</TooltipContent>
-    </Tooltip>
+    <span className="inline-flex shrink-0">
+      <Logo aria-hidden className="size-3" />
+      <span className="sr-only">{name}</span>
+    </span>
   )
 }
 

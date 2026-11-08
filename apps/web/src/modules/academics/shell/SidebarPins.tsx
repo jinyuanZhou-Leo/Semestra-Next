@@ -107,37 +107,45 @@ function TermCourses({
       {(courses ?? []).map((course) => {
         const courseHref = coursePath(programId, course.id)
         const courseActive = pathname === courseHref || pathname.startsWith(`${courseHref}/`)
+        const label = courseLabel(course)
+        const buttonProps = {
+          isActive: courseActive,
+          render: (
+            <HistoryLink
+              href={coursePath(programId, course.id, tabOf(course.id), term.id)}
+              aria-current={courseActive ? 'page' : undefined}
+            />
+          ),
+        }
+        const face = (
+          <>
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: courseColor(course) }}
+            />
+            <span className="truncate">{label}</span>
+            {course.term_ids.length > 1 ? (
+              <Repeat
+                aria-label={m.academics_course_year_long()}
+                className="ml-auto size-3 shrink-0"
+              />
+            ) : null}
+          </>
+        )
         return (
           <SidebarMenuSubItem key={course.id}>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <SidebarMenuSubButton
-                    isActive={courseActive}
-                    render={
-                      <HistoryLink
-                        href={coursePath(programId, course.id, tabOf(course.id), term.id)}
-                        aria-current={courseActive ? 'page' : undefined}
-                      />
-                    }
-                  />
-                }
-              >
-                <span
-                  aria-hidden
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: courseColor(course) }}
-                />
-                <span className="truncate">{courseLabel(course)}</span>
-                {course.term_ids.length > 1 ? (
-                  <Repeat
-                    aria-label={m.academics_course_year_long()}
-                    className="ml-auto size-3 shrink-0"
-                  />
-                ) : null}
-              </TooltipTrigger>
-              <TooltipContent side="right">{course.title}</TooltipContent>
-            </Tooltip>
+            {/* The full title on hover, only when the row shows an alias or code instead. */}
+            {label === course.title ? (
+              <SidebarMenuSubButton {...buttonProps}>{face}</SidebarMenuSubButton>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger render={<SidebarMenuSubButton {...buttonProps} />}>
+                  {face}
+                </TooltipTrigger>
+                <TooltipContent side="right">{course.title}</TooltipContent>
+              </Tooltip>
+            )}
           </SidebarMenuSubItem>
         )
       })}
