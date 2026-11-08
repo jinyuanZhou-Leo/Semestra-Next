@@ -5,13 +5,14 @@ import {
   lmsProviderListOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { Suspense, useId, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { DialogClose, DialogFooter } from '@/ui/dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
+import { Spinner } from '@/ui/spinner'
 import { useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
 import type { LmsFormStep } from '../types'
@@ -149,20 +150,23 @@ export function ConnectionForm({
     <form onSubmit={(e) => void submit(e)} noValidate>
       <fieldset disabled={pending}>
         {Form ? (
-          <Form
-            config={config}
-            credentials={credentials}
-            onConfig={setConfig}
-            onCredentials={setCredentials}
-            signIn={signIn}
-            onSignIn={setSignIn}
-            signInEnabled={signInEnabled}
-            editing={editing}
-            hints={connection?.credentials_hint ?? {}}
-            kind={kind}
-            saveError={saveError}
-            frame={frame}
-          />
+          // Preloaded by the connections section; this only shows if the code is still on its way.
+          <Suspense fallback={<Spinner className="mx-auto my-6" />}>
+            <Form
+              config={config}
+              credentials={credentials}
+              onConfig={setConfig}
+              onCredentials={setCredentials}
+              signIn={signIn}
+              onSignIn={setSignIn}
+              signInEnabled={signInEnabled}
+              editing={editing}
+              hints={connection?.credentials_hint ?? {}}
+              kind={kind}
+              saveError={saveError}
+              frame={frame}
+            />
+          </Suspense>
         ) : (
           frame(null)
         )}

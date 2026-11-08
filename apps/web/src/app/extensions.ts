@@ -118,18 +118,11 @@ export type CardContribution = {
   // oxlint-disable-next-line no-explicit-any
   component: Lazy<CardProps<any>>
   /**
-   * Per-instance settings, edited from the card's gear button: `component` if given, else a
-   * form generated from `schema` (texts `settings_card_<card id>_<field>_label|_description`,
-   * dots and dashes as underscores). `fields` hides fields the card itself writes (a counter's
-   * value) or orders them. The schema's JSON Schema is exported to the backend for validation.
-   * `component` also gets the board's `scope`.
+   * Per-instance settings, edited from the card's gear button (see `CardSettings`). Loaded on
+   * demand like the card's code, usually `() => import('./schema')` with the spec as the file's
+   * default export, so schemas (and zod) stay out of the first load.
    */
-  settings?: {
-    schema: ZodType
-    // oxlint-disable-next-line no-explicit-any
-    component?: ComponentType<{ value: any; onChange: (value: any) => void; scope?: Scope }>
-    fields?: FieldOverrides
-  }
+  settings?: () => Promise<{ default: CardSettings }>
   multiple: boolean
   /**
    * Starts the card's main data along with its code when a page shows the board it is on, so it
@@ -155,6 +148,20 @@ export type CardContribution = {
   // oxlint-disable-next-line no-explicit-any
   headerActions?: ComponentType<CardProps<any>>
   description?: Message
+}
+
+/**
+ * A card's settings: `component` if given, else a form generated from `schema` (texts
+ * `settings_card_<card id>_<field>_label|_description`, dots and dashes as underscores). `fields`
+ * hides fields the card itself writes (a counter's value) or orders them. The schema's JSON Schema
+ * is exported to the backend for validation. `component` also gets the board's `scope`; make it
+ * `preloadable()` so the form's code loads only when the dialog opens.
+ */
+export type CardSettings = {
+  schema: ZodType
+  // oxlint-disable-next-line no-explicit-any
+  component?: ComponentType<{ value: any; onChange: (value: any) => void; scope?: Scope }>
+  fields?: FieldOverrides
 }
 
 /** A card of a module's default layout; `size` falls back to the card's `defaultSize`. */
@@ -287,8 +294,11 @@ export type AssistantContribution = {
   open: (ctx: CommandContext, question?: string) => void
   /** Whether the panel is open (for `useSyncExternalStore`), e.g. to highlight its entry. */
   panel: { subscribe: (listener: () => void) => () => void; isOpen: () => boolean }
-  /** Wraps the app shell's content and docks the panel beside it (M12 §6.1). */
-  Dock: ComponentType<{ children: ReactNode }>
+  /**
+   * Wraps the app shell's content and docks the panel beside it (M12 §6.1). The Program route
+   * preloads it with the shell.
+   */
+  Dock: Lazy<{ children: ReactNode }>
   /** The assistant on a phone (M17): a tab after the pages' tabs, at the full page's addresses. */
   mobile?: Lazy<{ programId: string; sessionId: string | null }>
 }

@@ -1,7 +1,6 @@
 import { StickyNote } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { stickySettingsSchema } from './schema'
 
 /** M14 §4 便签: a Markdown note stored in the card's settings. */
 export default defineModule({
@@ -19,10 +18,7 @@ export default defineModule({
       sizes: ['s', 'm', 'l', 'xl'],
       defaultSize: 'm',
       component: preloadable(() => import('./StickyNoteCard')),
-      settings: {
-        schema: stickySettingsSchema,
-        component: preloadable(() => import('./StickySettingsForm')),
-      },
+      settings: () => import('./schema'),
       multiple: true,
     },
   ],

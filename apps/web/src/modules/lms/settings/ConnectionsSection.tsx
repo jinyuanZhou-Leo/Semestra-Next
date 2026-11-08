@@ -8,8 +8,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { ChevronRight, Link2, Pencil, PlugZap, Plus, Trash2 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { createContext, use, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { preload } from '@/app/extensions'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { BrandTile } from '@/components/BrandLogo'
@@ -287,6 +288,11 @@ export function ConnectionsSection() {
   }
   // Fetched with the list, so the platform step opens with its rows already there.
   useQuery(lmsProviderListOptions())
+  // Likewise the platforms' forms, which load on demand (`LmsProviderUi.ConfigForm`).
+  const uis = useProviderUis()
+  useEffect(() => {
+    for (const ui of uis.values()) void preload(ui.ConfigForm)
+  })
   const [editing, setEditing] = useState<Connection | null>(null)
   const [deleting, setDeleting] = useState<Connection | null>(null)
   const check = useMutation({

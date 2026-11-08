@@ -1,8 +1,6 @@
 import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
 import { defineModule, preloadable, type QueryKeyPrefix } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { QuickOpenPicker } from './cards/QuickOpenPicker'
-import { quickOpenSchema } from './cards/quick-open'
 import { prefetchFilesPage } from './queries'
 
 const LISTS = ['filesItemList', 'filesItemGet'] as const
@@ -58,7 +56,7 @@ export default defineModule({
       component: preloadable(() => import('./cards/QuickOpenCard')),
       keepTitleWhenSmall: true,
       multiple: true,
-      settings: { schema: quickOpenSchema, component: QuickOpenPicker },
+      settings: () => import('./cards/quick-open'),
     },
     {
       id: 'files.recent',

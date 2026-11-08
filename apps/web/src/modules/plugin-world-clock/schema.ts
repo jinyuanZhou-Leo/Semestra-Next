@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type CardSettings, preloadable } from '@/app/extensions'
 import { isValidZone } from '@/lib/zones'
 
 export const MAX_ZONES = 3
@@ -15,3 +16,9 @@ export const worldClockSettingsSchema = z.object({
 })
 
 export type WorldClockSettings = z.infer<typeof worldClockSettingsSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: worldClockSettingsSchema,
+  component: preloadable(() => import('./WorldClockSettingsForm')),
+} satisfies CardSettings

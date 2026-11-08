@@ -8,8 +8,8 @@ import { builtInModules } from './registry'
 const FILE = path.resolve('../api/src/semestra/modules/plugins/web_manifest.json')
 
 // `pnpm --filter @semestra/web manifest:export` rewrites the file instead of comparing.
-test('the backend copy of the module manifests is up to date', () => {
-  const current = `${JSON.stringify(exportManifests(builtInModules), null, 2)}\n`
+test('the backend copy of the module manifests is up to date', async () => {
+  const current = `${JSON.stringify(await exportManifests(builtInModules), null, 2)}\n`
   if (process.env.UPDATE_MANIFEST) writeFileSync(FILE, current)
   expect(readFileSync(FILE, 'utf8'), 'run `pnpm --filter @semestra/web manifest:export`').toBe(
     current,

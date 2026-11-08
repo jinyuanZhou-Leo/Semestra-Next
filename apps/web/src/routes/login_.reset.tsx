@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { z } from 'zod'
 import { AuthLayout } from '@/modules/auth/components/AuthLayout'
 import { ResetPasswordFlow } from '@/modules/auth/components/ResetPasswordFlow'
 
 export const Route = createFileRoute('/login_/reset')({
-  validateSearch: z.object({ email: z.string().optional() }),
+  validateSearch: (search: Record<string, unknown>): { email?: string } => ({
+    email: typeof search.email === 'string' ? search.email : undefined,
+  }),
   component: ResetPage,
 })
 

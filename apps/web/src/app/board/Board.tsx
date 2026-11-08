@@ -64,6 +64,7 @@ import {
 } from './layout'
 import { boardOptions, boardRef, type BoardRef, useBoard } from './queries'
 import { useElementWidth } from './media'
+import { loadCardSettings } from './settings'
 
 /** Row height and gap of the grid in px. */
 const ROW = 160
@@ -330,8 +331,10 @@ function BoardView({
    * saved away if it is removed again before then.
    */
   async function create(card: CardContribution, size: CardSize): Promise<DraftCard | undefined> {
-    const settings = card.settings?.schema.safeParse({})
     setCreating((n) => n + 1)
+    const settings = await loadCardSettings(card)
+      .then((spec) => spec?.schema.safeParse({}))
+      .catch(() => undefined)
     return layoutsCardAdd({
       path: ref,
       body: {

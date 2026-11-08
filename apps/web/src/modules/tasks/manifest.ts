@@ -4,7 +4,6 @@ import { coursePath, termPath } from '@/modules/academics/paths'
 import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
-import { listCardSettingsSchema } from './cards/schema'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
 import AssessmentTaskCell from './components/AssessmentTaskCell'
 import { CalendarOpenLabel } from './components/CalendarOpenLabel'
@@ -59,10 +58,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'm',
       component: preloadable(() => import('./cards/ListCard')),
-      settings: {
-        schema: listCardSettingsSchema,
-        component: preloadable(() => import('./cards/ListCardSettings')),
-      },
+      settings: () => import('./cards/schema'),
       multiple: true,
       headerActions: NewTaskButton,
     },

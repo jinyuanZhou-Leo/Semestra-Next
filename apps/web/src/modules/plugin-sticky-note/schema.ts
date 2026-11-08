@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { type CardSettings, preloadable } from '@/app/extensions'
 
 export const NOTE_MAX_CHARS = 10_000
 
@@ -18,3 +19,9 @@ export const stickySettingsSchema = z.object({
 })
 
 export type StickySettings = z.infer<typeof stickySettingsSchema>
+
+/** The card's settings (`CardContribution.settings`), loaded with the card. */
+export default {
+  schema: stickySettingsSchema,
+  component: preloadable(() => import('./StickySettingsForm')),
+} satisfies CardSettings

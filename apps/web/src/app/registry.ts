@@ -10,6 +10,7 @@ import {
   useMemo,
 } from 'react'
 import { isPhone } from './mobile/phone'
+import { loadCardSettings } from './board/settings'
 import academics from '@/modules/academics/manifest'
 import ai from '@/modules/ai/manifest'
 import assistant from '@/modules/assistant/manifest'
@@ -133,6 +134,7 @@ function preloadBoardCards(
         for (const card of module.cards ?? []) {
           if (!shown.has(card.id) || !card.scopes.includes(ref.scope_type)) continue
           void preload(card.component)
+          void loadCardSettings(card).catch(() => undefined)
           if (!hovered) card.prefetch?.(scope, queryClient, { modules })
         }
       }

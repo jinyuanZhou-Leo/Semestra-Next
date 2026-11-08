@@ -2,7 +2,6 @@ import { Hash } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import CounterHeaderActions from './CounterHeaderActions'
-import { counterSettingsSchema } from './schema'
 
 /** M14 §1 计数器: a counter card with a range, a step and an optional ring. */
 export default defineModule({
@@ -20,10 +19,7 @@ export default defineModule({
       sizes: ['s', 'm'],
       defaultSize: 's',
       component: preloadable(() => import('./CounterCard')),
-      settings: {
-        schema: counterSettingsSchema,
-        component: preloadable(() => import('./CounterSettingsForm')),
-      },
+      settings: () => import('./schema'),
       multiple: true,
       headerActions: CounterHeaderActions,
     },
