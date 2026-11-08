@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { FileText, NotebookPen } from 'lucide-react'
+import { useEffect } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
 import { defineModule } from '@/app/extensions'
 import { ModuleRegistry } from '@/app/registry'
@@ -64,6 +65,17 @@ const lists = defineModule({
 })
 
 const openAssistant = vi.fn<() => void>()
+// The conversation the fake page shows, which the Sem tab goes back to.
+let semSession: string | null = null
+const semListeners = new Set<() => void>()
+
+function SemOnAPhone({ sessionId }: { sessionId: string | null }) {
+  useEffect(() => {
+    semSession = sessionId
+    for (const listener of semListeners) listener()
+  }, [sessionId])
+  return <p>Sem on a phone: {sessionId ?? 'new'}</p>
+}
 
 /** An assistant with a full page and a side panel. */
 const assistant = defineModule({
@@ -75,8 +87,15 @@ const assistant = defineModule({
   assistant: {
     open: openAssistant,
     panel: { subscribe: () => () => {}, isOpen: () => false },
+    page: {
+      subscribe: (listener) => {
+        semListeners.add(listener)
+        return () => void semListeners.delete(listener)
+      },
+      sessionId: () => semSession,
+    },
     Dock: ({ children }) => <>{children}</>,
-    mobile: ({ sessionId }) => <p>Sem on a phone: {sessionId ?? 'new'}</p>,
+    mobile: SemOnAPhone,
   },
 })
 

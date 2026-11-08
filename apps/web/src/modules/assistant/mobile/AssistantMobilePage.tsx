@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { History, SquarePen } from 'lucide-react'
 import { useState } from 'react'
 import { m } from '@/paraglide/messages'
@@ -7,6 +7,7 @@ import { Button } from '@/ui/button'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/ui/drawer'
 import { Conversation } from '../components/Conversation'
 import { SessionList, sessionTitle } from '../components/SessionList'
+import { usePageConversation } from '../page-conversation'
 import { programScope } from '../scope'
 import { sessionQueryOptions } from '../use-chat'
 
@@ -28,12 +29,7 @@ export default function AssistantMobilePage({
       params: { programId, sessionId: id ?? undefined },
       replace,
     })
-  // A new conversation gets its URL once created and keeps its component (and the answer being
-  // written); every other visit, "New conversation" included, starts a new one.
-  // oxlint-disable-next-line no-underscore-dangle -- the router's name for an entry's key
-  const entry = useLocation({ select: (l) => String(l.state.__TSR_key ?? '') })
-  const [created, setCreated] = useState({ id: null as string | null, key: '' })
-  const key = sessionId && sessionId === created.id ? created.key : (sessionId ?? `new-${entry}`)
+  const conversation = usePageConversation(sessionId)
   const [historyOpen, setHistoryOpen] = useState(false)
   const session = useQuery(sessionQueryOptions(sessionId)).data?.session
   const title = session ? sessionTitle(session) : m.assistant_name()
@@ -63,11 +59,11 @@ export default function AssistantMobilePage({
       </header>
       <div className="flex min-h-0 flex-1 flex-col">
         <Conversation
-          key={key}
+          key={conversation.key}
           sessionId={sessionId}
           pageScope={programScope(programId)}
           onCreated={(id) => {
-            setCreated({ id, key })
+            conversation.created(id)
             open(id, true)
           }}
         />

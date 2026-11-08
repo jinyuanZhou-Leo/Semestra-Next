@@ -1,7 +1,12 @@
 import { Link, Navigate, useMatch } from '@tanstack/react-router'
 import { Ellipsis, MessageCircle, MonitorSmartphone } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { type PageContribution, type Scope, preload } from '@/app/extensions'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import {
+  type AssistantContribution,
+  type PageContribution,
+  type Scope,
+  preload,
+} from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { usePreferences } from '@/app/preferences'
 import { useModules, usePageStatuses } from '@/app/registry'
@@ -30,6 +35,8 @@ function usePhonePages(scope: Scope): { pages: PageContribution[]; tabs: PageCon
   return { pages, tabs }
 }
 
+const NO_PAGE: AssistantContribution['page'] = { subscribe: () => () => {}, sessionId: () => null }
+
 /**
  * The signed-in app on a phone (M17): one page at a time over a tab bar. Only Program pages with
  * a phone version (`PageContribution.mobile`) and the assistant (`AssistantContribution.mobile`)
@@ -44,13 +51,13 @@ export default function MobileShell({ programId }: { programId: string }) {
     from: '/_authed/p/$programId/assistant/{-$sessionId}',
     shouldThrow: false,
   })
-  const Assistant = useModules().find((module) => module.assistant?.mobile)?.assistant?.mobile
+  const assistant = useModules().find((module) => module.assistant?.mobile)?.assistant
+  const Assistant = assistant?.mobile
   // Opening Sem from the tab bar does not wait for its code.
   useEffect(() => (Assistant ? whenSettled(() => void preload(Assistant)) : undefined), [Assistant])
   // The Sem tab goes back to the conversation last open, like the other tabs keep their place.
-  const [lastSession, setLastSession] = useState<string | undefined>()
-  const openSession = assistantMatch?.params.sessionId
-  if (assistantMatch && openSession !== lastSession) setLastSession(openSession)
+  const semPage = assistant?.page ?? NO_PAGE
+  const lastSession = useSyncExternalStore(semPage.subscribe, semPage.sessionId) ?? undefined
   const startPage = usePreferences().data?.start_page
   const pageId = pageMatch?.params.page
   const home = tabs[0]

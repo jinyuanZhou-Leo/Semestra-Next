@@ -1,7 +1,7 @@
 import { Bookmark, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { panel } from './store'
+import { assistantPage, panel } from './store'
 
 const settings = () => import('./settings/sections')
 
@@ -19,16 +19,16 @@ export default defineModule({
   assistant: {
     open: (ctx, question) => {
       if (question) return panel.open(question)
-      const page = panel.page()
-      if (!page) return panel.toggle()
+      if (!assistantPage.isOpen()) return panel.toggle()
       // On the full page the panel is not shown: the conversation moves to it, and the user goes
       // back to where they came from.
-      panel.moveHere(page.sessionId, page.temporary, panel.pageDraft())
+      panel.moveHere(assistantPage.sessionId())
       ctx.navigate(
         panel.returnTo() ?? scopePath({ kind: 'program', programId: ctx.programId ?? '' }, 'today'),
       )
     },
     panel: { subscribe: panel.subscribe, isOpen: () => panel.get().open },
+    page: { subscribe: assistantPage.subscribe, sessionId: assistantPage.sessionId },
     Dock: preloadable(() =>
       import('./components/AssistantDock').then((mod) => ({ default: mod.AssistantDock })),
     ),

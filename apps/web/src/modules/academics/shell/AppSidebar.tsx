@@ -191,7 +191,7 @@ function AccountMenu() {
 }
 
 /**
- * The assistant (M12): the row opens its full page; the small button on its right, shown on hover
+ * The assistant (M12): the row opens its full page at the conversation it showed last; the small button on its right, shown on hover
  * or while the panel is open, opens or closes the side panel (also `Cmd/Ctrl + J`). Past
  * conversations are listed on the page itself. The interface tour points at the row.
  */
@@ -205,6 +205,8 @@ function AssistantNavItem({
   active: boolean
 }) {
   const open = useSyncExternalStore(assistant.panel.subscribe, assistant.panel.isOpen)
+  // The row goes back to the conversation the page showed last.
+  const resume = useSyncExternalStore(assistant.page.subscribe, assistant.page.sessionId)
   const ctx = useCommandContext()
   const label = m.academics_nav_assistant()
   const panelLabel = active
@@ -220,7 +222,7 @@ function AssistantNavItem({
         isActive={active}
         render={
           <HistoryLink
-            href={`${programPath(programId)}/assistant`}
+            href={`${programPath(programId)}/assistant${resume ? `/${resume}` : ''}`}
             aria-current={active ? 'page' : undefined}
           />
         }
