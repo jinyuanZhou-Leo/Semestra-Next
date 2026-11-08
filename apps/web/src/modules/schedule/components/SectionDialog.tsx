@@ -344,7 +344,8 @@ export function SectionDialog({
   )
 
   const weeks = () => {
-    if (mode === 'term') {
+    // Merged times take the other section's weeks, so the hidden fields are not sent.
+    if (mode === 'term' || target) {
       return {
         recurrence: 'weekly' as const,
         anchor_week: null,

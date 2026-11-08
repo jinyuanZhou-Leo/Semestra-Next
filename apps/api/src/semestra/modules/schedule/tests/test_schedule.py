@@ -1125,3 +1125,31 @@ async def test_section_save_into_a_taken_code_fails_or_merges(api: Api):
     assert len(merged["meetings"]) == 3
     listed = (await api.call("GET", url))["items"]
     assert [s["id"] for s in listed] == [target["id"]]
+
+
+async def test_merging_a_duplicated_section_does_not_double_its_times(api: Api):
+    _, term_id, course_id = await api.setup()
+    target = await api.section(course_id, term_id, section_code="LEC0101")
+    copy = await api.section(course_id, term_id, section_code="LEC0102")
+    mt = copy["meetings"][0]
+    merged = await api.call(
+        "PUT",
+        f"/courses/{course_id}/sections",
+        json={
+            "section_id": copy["id"],
+            "term_id": term_id,
+            "section_code": "LEC0101",
+            "type_code": "LEC",
+            "merge": True,
+            "times": [
+                {
+                    "meeting_id": mt["id"],
+                    "weekday": mt["weekday"],
+                    "start_time": mt["start_time"],
+                    "end_time": mt["end_time"],
+                    "location": mt["location"],
+                }
+            ],
+        },
+    )
+    assert [m["id"] for m in merged["meetings"]] == [m["id"] for m in target["meetings"]]

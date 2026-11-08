@@ -490,7 +490,13 @@ async def _merge_into(
     existing = (await meetings_of(ctx, [source.id]))[source.id] if source else []
     by_id = {m.id: m for m in existing}
     own = (await meetings_of(ctx, [target.id]))[target.id]
-    kept, _, _ = _write_times(ctx, target, inp, by_id, any(m.enabled for m in own))
+    # A time the target already has (same day, hours and room) is not added twice: merging a
+    # duplicated section would otherwise show each class twice. Its old row goes below.
+    same = {(m.weekday, m.start_time, m.end_time, m.location) for m in own}
+    times = [t for t in inp.times if (t.weekday, t.start_time, t.end_time, t.location) not in same]
+    kept, _, _ = _write_times(
+        ctx, target, inp.model_copy(update={"times": times}), by_id, any(m.enabled for m in own)
+    )
     keep_ids = {m.id for m in kept}
     await delete_meetings(ctx, [m.id for m in existing if m.id not in keep_ids])
     if not target.instructor and inp.instructor:
