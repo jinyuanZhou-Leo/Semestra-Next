@@ -30,7 +30,7 @@ agent_attachments
 agent_preferences
   user_id (PK), auto_approve JSON [capability name, 如 "tasks.item.create"], mcp_allow_destructive (bool, 默认 false), updated_at
 ```
-- LangGraph checkpoint 使用 `langgraph-checkpoint-sqlite`，存在独立文件 `DATA_DIR/agent_checkpoints.sqlite`（避免与主库锁竞争），按 session_id 作为 thread_id。删除会话时同时删除 checkpoint。
+- 对话状态只存在主库：助手消息的 `model_parts` 原样回放（见实现说明），没有单独的 checkpoint 文件。
 - 附件计入存储配额（M00 配额登记）。
 
 ## 3. 运行时

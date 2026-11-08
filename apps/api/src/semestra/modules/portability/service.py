@@ -18,10 +18,16 @@ from starlette.datastructures import State
 from semestra import __version__
 from semestra.core.config import Settings
 from semestra.core.context import Ctx
-from semestra.core.db import Base
+from semestra.core.db import Base, new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue
-from semestra.core.storage import get_storage, remaining_quota
+from semestra.core.storage import (
+    delete_after_commit,
+    discard_on_error,
+    get_storage,
+    remaining_quota,
+    stage,
+)
 from semestra.core.uploads import limit_upload
 from semestra.modules.auth import ratelimit
 from semestra.modules.auth import service as auth
@@ -240,13 +246,11 @@ async def _drop_old_exports(ctx: Ctx) -> None:
 
 
 async def _delete_archives(ctx: Ctx, rows: Iterable[PortabilityArchive]) -> None:
-    storage = get_storage(ctx)
+    rows = list(rows)
     for old in rows:
-        if old.storage_key:
-            key = old.storage_key
-            ctx.after_commit.append(lambda key=key: storage.delete(key))
         await ctx.db.delete(old)
     await ctx.db.flush()
+    delete_after_commit(ctx, [old.storage_key for old in rows])
 
 
 async def export_download(ctx: Ctx, archive_id: str) -> tuple[AsyncIterator[bytes], str, int]:
@@ -300,15 +304,21 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
             preview = await _preview(ctx, reader)
         finally:
             reader.close()
-        row = PortabilityArchive(
-            user_id=ctx.user_id,
-            kind="import",
-            status="uploaded",
-            preview=preview.model_dump(mode="json"),
-            size_bytes=size,
-            created_at=ctx.now,
-            expires_at=ctx.now + UPLOAD_TTL,
+        # The copy into storage happens before the first write, so no write lock is held while
+        # it runs; backups are not counted against the quota (the import checks the files).
+        archive_id = new_id()
+        staged = await stage(
+            ctx,
+            _storage_key(ctx.user_id, archive_id),
+            _file_chunks(path),
+            cap=limit,
+            too_large=AppError("portability.too_large", 413, limit_bytes=limit),
+            quota=False,
+            content_type="application/zip",
         )
+    finally:
+        await anyio.Path(path).unlink(missing_ok=True)
+    async with discard_on_error(ctx, [staged.key]):
         earlier = await ctx.db.scalars(
             select(PortabilityArchive).where(
                 PortabilityArchive.user_id == ctx.user_id,
@@ -317,15 +327,19 @@ async def upload(ctx: Ctx, file: UploadFile) -> ImportOut:
             )
         )
         await _delete_archives(ctx, earlier.all())
+        row = PortabilityArchive(
+            id=archive_id,
+            user_id=ctx.user_id,
+            kind="import",
+            status="uploaded",
+            preview=preview.model_dump(mode="json"),
+            size_bytes=size,
+            storage_key=staged.key,
+            created_at=ctx.now,
+            expires_at=ctx.now + UPLOAD_TTL,
+        )
         ctx.db.add(row)
         await ctx.db.flush()
-        stored = await get_storage(ctx).put(
-            _storage_key(ctx.user_id, row.id), _file_chunks(path), "application/zip"
-        )
-        row.storage_key = stored.key
-        await ctx.db.flush()
-    finally:
-        await anyio.Path(path).unlink(missing_ok=True)
     return _import_out(row)
 
 
@@ -561,9 +575,8 @@ async def run_import(ctx: JobCtx, archive_id: str, options: ImportOptions) -> No
 
     row.status = "imported"
     row.report = ImportReportOut(imported=imported, skipped=skipped).model_dump(mode="json")
-    key, row.storage_key = row.storage_key, None
-    storage = get_storage(ctx)
-    ctx.after_commit.append(lambda: storage.delete(key))
+    delete_after_commit(ctx, [row.storage_key])
+    row.storage_key = None
     assert staged is not None
     ctx.after_commit.append(staged.discard_unclaimed)
     await ctx.db.flush()
@@ -610,12 +623,9 @@ async def discard_import(ctx: Ctx, archive_id: str) -> None:
     row = await _own_import(ctx, archive_id)
     if row.status == "importing":
         raise AppError("portability.import_running", 409)
-    key = row.storage_key
     await ctx.db.delete(row)
     await ctx.db.flush()
-    if key:
-        storage = get_storage(ctx)
-        ctx.after_commit.append(lambda: storage.delete(key))
+    delete_after_commit(ctx, [row.storage_key])
 
 
 # --- counts ---------------------------------------------------------------------------------

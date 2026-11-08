@@ -9,7 +9,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.core.storage import get_storage, user_key
+from semestra.core.storage import delete_after_commit, get_storage, user_key
 from semestra.core.uploads import limit_upload
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -61,8 +61,7 @@ def storage_key(avatar_url: str | None) -> str | None:
 def discard_after_commit(ctx: Ctx, avatar_url: str | None) -> None:
     """Delete a replaced avatar's file only once the row no longer points at it."""
     if key := storage_key(avatar_url):
-        storage = get_storage(ctx)
-        ctx.after_commit.append(lambda: storage.delete(key))
+        delete_after_commit(ctx, [key])
 
 
 async def store(ctx: Ctx, user_id: str, raw: bytes) -> str:

@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 
 from semestra.core.context import Ctx
 from semestra.core.events import Event, events
-from semestra.core.storage import get_storage, storage_usage_provider
+from semestra.core.storage import delete_after_commit, storage_usage_provider
 from semestra.modules.imports.models import ImportsSession, ImportsUpload
 
 
@@ -16,16 +16,9 @@ async def on_program_deleting(ctx: Ctx, event: Event) -> None:
             .where(ImportsSession.program_id == event.data["program_id"])
         )
     ).all()
-    keys = [r.storage_key for r in rows]
     for row in rows:
         await ctx.db.delete(row)
-    storage = get_storage(ctx)
-
-    async def _remove() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(_remove)
+    delete_after_commit(ctx, [r.storage_key for r in rows])
 
 
 @storage_usage_provider("imports")

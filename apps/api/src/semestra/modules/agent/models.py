@@ -71,7 +71,7 @@ class AgentProposal(Base, OwnedMixin):
         String, ForeignKey("agent_sessions.id", ondelete="CASCADE")
     )
     message_id: Mapped[str] = mapped_column(
-        String, ForeignKey("agent_messages.id", ondelete="CASCADE")
+        String, ForeignKey("agent_messages.id", ondelete="CASCADE"), index=True
     )
     call_id: Mapped[str] = mapped_column(String)
     capability: Mapped[str] = mapped_column(String)
@@ -158,7 +158,7 @@ class AgentMemory(Base, OwnedMixin):
     body: Mapped[str] = mapped_column(String, default="")
     # The conversation it came from; kept when that conversation is deleted.
     source_session_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("agent_sessions.id", ondelete="SET NULL"), default=None
+        String, ForeignKey("agent_sessions.id", ondelete="SET NULL"), default=None, index=True
     )
     created_at: Mapped[datetime] = mapped_column()
     updated_at: Mapped[datetime] = mapped_column()
@@ -175,7 +175,7 @@ class AgentSuggestions(Base, OwnedMixin):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str] = mapped_column(
-        String, ForeignKey("academics_programs.id", ondelete="CASCADE")
+        String, ForeignKey("academics_programs.id", ondelete="CASCADE"), index=True
     )
     locale: Mapped[str] = mapped_column(String)
     # [{key, course_id, text}]: `key` names the fact a question is about (null: from history).

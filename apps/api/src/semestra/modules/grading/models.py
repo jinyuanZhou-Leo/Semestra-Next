@@ -77,7 +77,7 @@ class GradingAssessment(Base, OwnedMixin, TimestampMixin):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     course_id: Mapped[str] = mapped_column(String, index=True)
     category_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("grading_categories.id", ondelete="SET NULL"), default=None
+        String, ForeignKey("grading_categories.id", ondelete="SET NULL"), default=None, index=True
     )
     title: Mapped[str] = mapped_column(String)
     due_at: Mapped[datetime | None] = mapped_column(default=None)

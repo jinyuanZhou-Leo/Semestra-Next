@@ -7,10 +7,10 @@ Each of them starts the turn as a background generation (`AgentRuntime.start`) a
 a client that goes away does not stop the turn, and `GET /agent/sessions/{id}/events` follows it
 again, after `Last-Event-ID` or from its start."""
 
-import asyncio
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
+import anyio
 from fastapi import APIRouter, Depends, Form, Header, Request, Response, UploadFile
 from sqlalchemy import delete
 from sse_starlette import EventSourceResponse
@@ -20,7 +20,7 @@ from semestra.core.capability import registry
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
-from semestra.core.storage import get_storage, remaining_quota, user_key
+from semestra.core.storage import CHUNK_SIZE, charge, discard_on_error, stage, user_key
 from semestra.modules.agent import attachments, decisions, loop, service, skills, store
 from semestra.modules.agent.models import (
     AgentAttachment,
@@ -41,7 +41,6 @@ from semestra.modules.agent.schemas import (
 from semestra.modules.files.parse import detect
 
 router = APIRouter(tags=["agent"])
-_upload_locks: dict[str, asyncio.Lock] = {}
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
@@ -333,6 +332,11 @@ async def _drop_last_answer(ctx: Ctx, session: AgentSession, message_id: str) ->
     await ctx.db.commit()
 
 
+async def _read(file: UploadFile) -> AsyncIterator[bytes]:
+    while chunk := await file.read(CHUNK_SIZE):
+        yield chunk
+
+
 @router.post(
     "/agent/attachments",
     operation_id="agentAttachmentUpload",
@@ -345,47 +349,39 @@ async def upload_attachment(
     ctx: Annotated[Ctx, Depends(get_ctx)],
 ) -> AgentAttachmentOut:
     session = await service.get_session_row(ctx, session_id)
-    data = await file.read(MAX_ATTACHMENT_BYTES + 1)
-    if len(data) > MAX_ATTACHMENT_BYTES:
-        raise AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
-    # The type comes from the content, not the browser's claim (Windows often sends
-    # application/octet-stream for .ics and .md).
-    name = file.filename or "file"
-    detected = detect(data, name)
-    if detected.mime in IMAGE_TYPES:
-        kind = "image"
-    elif detected.kind in attachments.DOCUMENT_KINDS:
-        kind = "file"
-    else:
-        raise AppError("agent.attachment_unsupported", 415, mime=detected.mime)
-    # A cheap quota check before the (up to a minute) parse; checked again under the lock.
-    left = await remaining_quota(ctx)
-    if left is not None and len(data) > left:
-        raise AppError("common.quota_exceeded", 413, limit_bytes=left)
-    reading = await attachments.read_upload(ctx, data, detected)
-    # One upload at a time per user, so parallel uploads cannot each pass the quota check.
-    async with _upload_locks.setdefault(ctx.user_id, asyncio.Lock()):
-        left = await remaining_quota(ctx)
-        if left is not None and len(data) > left:
-            raise AppError("common.quota_exceeded", 413, limit_bytes=left)
-
-        async def chunks() -> AsyncIterator[bytes]:
-            yield data
-
-        key = user_key(ctx.user_id, "agent")
-        stored = await get_storage(ctx).put(key, chunks(), detected.mime)
+    staged = await stage(
+        ctx,
+        user_key(ctx.user_id, "agent"),
+        _read(file),
+        cap=MAX_ATTACHMENT_BYTES,
+        too_large=AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES),
+        keep=True,
+    )
+    async with discard_on_error(ctx, [staged.key]):
+        # The type comes from the content, not the browser's claim (Windows often sends
+        # application/octet-stream for .ics and .md).
+        name = file.filename or "file"
+        detected = await anyio.to_thread.run_sync(detect, staged.data, name)
+        if detected.mime in IMAGE_TYPES:
+            kind = "image"
+        elif detected.kind in attachments.DOCUMENT_KINDS:
+            kind = "file"
+        else:
+            raise AppError("agent.attachment_unsupported", 415, mime=detected.mime)
+        reading = await attachments.read_upload(ctx, staged.data, detected)
         row = AgentAttachment(
             id=new_id(),
             user_id=ctx.user_id,
             session_id=session.id,
             kind=kind,
             name=name[:200],
-            storage_key=stored.key,
+            storage_key=staged.key,
             mime=detected.mime,
-            size=stored.size,
+            size=staged.stored.size,
             created_at=ctx.now,
         )
         ctx.db.add(row)
         attachments.store_reading(ctx, row, reading)
+        await charge(ctx)
         await ctx.db.commit()
     return service.attachment_out(row)
