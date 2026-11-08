@@ -1,0 +1,33 @@
+---
+title: Claude Code
+description: 用一条命令把 Semestra 加进 Claude Code。
+---
+
+## 在 Semestra 中连接
+
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+2. 选择 **Claude Code**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
+3. 下一步显示已填好令牌的命令，复制后在终端运行。
+
+令牌以 Claude Code 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+在终端运行：
+
+```bash
+claude mcp add --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+默认只对当前项目生效。加 `--scope user` 可在所有项目中使用；`--scope project` 会写进项目的 `.mcp.json`（不要把令牌提交进仓库）。
+
+## 检查连接
+
+在 Claude Code 中输入 `/mcp`，**semestra** 应显示为已连接。在终端里也可以用 `claude mcp list` 查看。
+
+## 断开
+
+`claude mcp remove semestra` 在 **API 令牌** 中撤销对应令牌也会立即断开。

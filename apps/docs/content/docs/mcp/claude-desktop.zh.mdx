@@ -1,0 +1,51 @@
+---
+title: Claude Desktop
+description: 通过 mcp-remote 连接 Claude Desktop。
+---
+
+## 在 Semestra 中连接
+
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+2. 选择 **Claude Desktop**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
+3. 下一步显示已填好令牌的配置，复制到其中注明的文件里。
+
+令牌以 Claude Desktop 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+Claude Desktop 的配置文件只能启动本机服务器，所以通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 连接 Semestra，需要已安装 [Node.js](https://nodejs.org) 18 或更高版本。
+
+1. 在 Claude Desktop 中打开 **设置 → 开发者 → 编辑配置**，它会打开 `claude_desktop_config.json`：
+   - macOS：`~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows：`%APPDATA%\Claude\claude_desktop_config.json`
+2. 在 `mcpServers` 下加入 `semestra`（与已有的服务器并列）：
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://semestra.example.com/mcp", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <token>" }
+    }
+  }
+}
+```
+
+3. 保存文件，完全退出 Claude Desktop 后重新打开。
+
+令牌放在 `env` 里，请求头的冒号后不加空格，这样在 Windows 上参数不会被拆开。
+
+## 检查连接
+
+点输入框下方的工具按钮，列表里应出现 **semestra** 及其工具。没有出现时，到 **设置 → 开发者** 查看错误日志。
+
+## 说明
+
+**自定义连接器**（设置 → 连接器 → 添加自定义连接器）从 Anthropic 的服务器发起连接并使用 OAuth 登录。Semestra 使用 API 令牌，所以请用上面的配置文件。
+
+## 断开
+
+从配置文件删除 `semestra` 一项并重启。 在 **API 令牌** 中撤销对应令牌也会立即断开。

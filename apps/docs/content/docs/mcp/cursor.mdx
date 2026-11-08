@@ -1,0 +1,39 @@
+---
+title: Cursor
+description: Install Semestra in Cursor with one click.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Cursor**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. Click **Open in Cursor**. Cursor shows the server and asks you to confirm; choose **Install**.
+
+The token is created for Cursor and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Add `semestra` to `~/.cursor/mcp.json` (every project) or `.cursor/mcp.json` in a project:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+You can also open **Cursor Settings → Tools & MCP → New MCP Server**, which opens the same file.
+
+## Check the connection
+
+In **Cursor Settings → Tools & MCP**, **semestra** should have a green dot and list its tools. Ask in Agent mode, for example "What classes do I have tomorrow?"
+
+## Disconnect
+
+Turn it off or delete it in **Tools & MCP**. Revoking its API token under **API tokens** also cuts it off right away.

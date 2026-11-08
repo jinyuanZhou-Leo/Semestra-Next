@@ -8,7 +8,6 @@ import { API, renderWithRouter, server, user } from '@/test-utils'
 import manifest from '../manifest'
 import { AuthContext } from '../useAuth'
 import { SignInMethodsSection } from './SignInMethodsSection'
-import { mcpConfig } from './TokensSection'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -102,7 +101,7 @@ test('lists devices and signs one out after confirmation', async () => {
   )
 })
 
-test('creating a token reveals the plaintext once, with copy and MCP config', async () => {
+test('creating a token reveals the plaintext once', async () => {
   const items: (typeof token)[] = []
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
@@ -128,7 +127,6 @@ test('creating a token reveals the plaintext once, with copy and MCP config', as
   await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
 
   expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
-  expect(screen.getByRole('button', { name: 'Copy MCP config' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Done' }))
 
   await waitFor(() => expect(screen.queryByTestId('new-token')).not.toBeInTheDocument())
@@ -237,15 +235,6 @@ test('setting a name saves the profile', async () => {
   await userEvent.type(name, 'Ada L.')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   await waitFor(() => expect(saved).toHaveBeenCalledWith({ display_name: 'Ada L.' }))
-})
-
-test('mcpConfig points Claude Desktop at the API and passes the token via env', () => {
-  const parsed = JSON.parse(mcpConfig('spat_x', 'https://api.example.com/'))
-  const entry = parsed.mcpServers.semestra
-  expect(entry.args).toContain('https://api.example.com/mcp')
-  expect(entry.args).toContain('Authorization:${AUTH_HEADER}')
-  expect(entry.env.AUTH_HEADER).toBe('Bearer spat_x')
-  expect(JSON.stringify(entry.args)).not.toContain('spat_x')
 })
 
 const googleIdentity = {

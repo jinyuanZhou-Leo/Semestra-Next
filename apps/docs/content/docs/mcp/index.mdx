@@ -1,76 +1,38 @@
 ---
 title: Connect an MCP client
-description: Use Semestra from Claude Desktop, Claude Code, Cursor or any MCP client.
+description: Use Semestra from Claude, Cursor, VS Code, Codex and other MCP clients.
 ---
 
 Semestra runs an [MCP](https://modelcontextprotocol.io) server, so an AI client outside the app
 can read your schedule, grades and tasks, and change them when you allow it. It offers the same
 operations as the in-app assistant Sem.
 
-- **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Global settings → **API & MCP → MCP server** shows the exact address
+- **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Global settings → **AI → API & MCP → MCP server** shows the exact address
 - **Transport**: Streamable HTTP (stateless, JSON responses)
 - **Authentication**: `Authorization: Bearer spat_…` with an API token. Session cookies are not accepted
 
-## 1. Create an API token
+## Connect a client
 
-Global settings → **API & MCP → API tokens** → create a token. Choose:
+The quickest way: in global settings → **AI → API & MCP**, click **Connect a client** next to **MCP server**, then choose the client and its access. Semestra creates an API token named after the client and gives you an install link, command or config with the token already filled in, so you never copy the token by hand.
+
+| Client | How |
+| --- | --- |
+| [Cursor](./cursor.mdx), [LM Studio](./lm-studio.mdx) | Open with one click |
+| [Claude Code](./claude-code.mdx), [Gemini CLI](./gemini-cli.mdx) | Run one command |
+| [VS Code](./vscode.mdx), [Claude Desktop](./claude-desktop.mdx), [Codex](./codex.mdx), [Devin Desktop (formerly Windsurf)](./devin.mdx) | Paste a config |
+| [Cline](./cline.mdx), [Zed](./zed.mdx) | Set up by hand |
+| [Other clients](./other.mdx) | Enter the address and token |
+
+Each client's page covers setting it up by hand, where its config file lives and how to check the connection.
+
+### API tokens
+
+To set a client up by hand, create a token first: global settings → **AI → API & MCP → API tokens** → Create API token. Choose:
 
 - **Access**: _Read only_ or _Read and write_.
 - **Expiry**: never, 30, 90 or 365 days.
 
-The token is shown once. Copy it, or press **Copy MCP config** for a ready-made Claude Desktop
-snippet. You can revoke a token at any time; deleting your account revokes all of them.
-
-## 2. Add Semestra to your client
-
-Replace `<token>` and the address with your own.
-
-<Tabs items={['Claude Code', 'Claude Desktop', 'Cursor']}>
-<Tab value="Claude Code">
-
-```bash
-claude mcp add --transport http semestra https://semestra.example.com/mcp \
-  --header "Authorization: Bearer <token>"
-```
-
-</Tab>
-<Tab value="Claude Desktop">
-
-Claude Desktop connects to remote servers through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote).
-In `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "semestra": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://semestra.example.com/mcp", "--header", "Authorization:${AUTH_HEADER}"],
-      "env": { "AUTH_HEADER": "Bearer <token>" }
-    }
-  }
-}
-```
-
-</Tab>
-<Tab value="Cursor">
-
-In `.cursor/mcp.json` or the global `~/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "semestra": {
-      "url": "https://semestra.example.com/mcp",
-      "headers": { "Authorization": "Bearer <token>" }
-    }
-  }
-}
-```
-
-</Tab>
-</Tabs>
-
-Then ask something like "What classes do I have tomorrow?"
+The token is shown once. Give each client its own token and revoke it under **API tokens** to disconnect that client; deleting your account revokes all of them.
 
 ## What a client may do
 
@@ -82,7 +44,7 @@ Then ask something like "What classes do I have tomorrow?"
 
 - **Write tools run immediately.** Unlike Sem, which shows a confirmation card, Semestra relies on
   the client's own approval prompt for MCP calls.
-- **Delete data** is off by default. Turn it on in global settings → **API & MCP**, under
+- **Delete data** is off by default. Turn it on in global settings → **AI → API & MCP**, under
   **Client permissions**. It applies to the token everywhere, including the REST endpoints.
 - Tools of a plugin appear only while that plugin is installed on your account.
 - Changes made over MCP appear in open browser tabs right away.

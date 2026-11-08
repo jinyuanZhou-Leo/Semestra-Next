@@ -1,0 +1,51 @@
+---
+title: Claude Desktop
+description: Connect Claude Desktop through mcp-remote.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Claude Desktop**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. The next step shows the config with your token filled in. Copy it into the file named there.
+
+The token is created for Claude Desktop and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Claude Desktop's config file only starts local servers, so it reaches Semestra through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs [Node.js](https://nodejs.org) 18 or later.
+
+1. In Claude Desktop, open **Settings → Developer → Edit Config**. This opens `claude_desktop_config.json`:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+2. Add `semestra` under `mcpServers` (next to any servers already there):
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://semestra.example.com/mcp", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <token>" }
+    }
+  }
+}
+```
+
+3. Save the file and quit Claude Desktop completely, then open it again.
+
+The token sits in `env` and the header is written without a space after the colon, so Windows does not split the argument.
+
+## Check the connection
+
+Click the tools (sliders) button under the message box. **semestra** should be listed with its tools. If it is missing, check **Settings → Developer** for the error log.
+
+## Notes
+
+**Custom connectors** (Settings → Connectors → Add custom connector) connect from Anthropic's servers and sign in with OAuth. Semestra uses API tokens, so use the config file above instead.
+
+## Disconnect
+
+Delete the `semestra` entry from the config file and restart. Revoking its API token under **API tokens** also cuts it off right away.

@@ -1,0 +1,33 @@
+---
+title: Claude Code
+description: Add Semestra to Claude Code with one command.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Claude Code**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. The next step shows the command with your token filled in. Copy it and run it in a terminal.
+
+The token is created for Claude Code and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Run this in a terminal:
+
+```bash
+claude mcp add --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+By default the server is added for the current project only. Add `--scope user` to use it in every project, or `--scope project` to write it to the project's `.mcp.json` (do not commit a token).
+
+## Check the connection
+
+In Claude Code, type `/mcp`. **semestra** should show as connected. `claude mcp list` shows the same from a terminal.
+
+## Disconnect
+
+`claude mcp remove semestra` Revoking its API token under **API tokens** also cuts it off right away.

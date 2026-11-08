@@ -1,0 +1,38 @@
+---
+title: Devin Desktop (Windsurf)
+description: Connect Devin Desktop, formerly Windsurf.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Devin Desktop**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. The next step shows the config with your token filled in. Copy it into the file named there.
+
+The token is created for Devin Desktop and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Add `semestra` to `~/.config/devin/mcp_config.json` (Windows: `%APPDATA%\devin\mcp_config.json`), or `.devin/mcp_config.json` in a project:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "transport": "http",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+## Check the connection
+
+Restart Devin Desktop. **semestra** and its tools should appear in the MCP server list.
+
+## Disconnect
+
+Delete the entry and restart. Revoking its API token under **API tokens** also cuts it off right away.

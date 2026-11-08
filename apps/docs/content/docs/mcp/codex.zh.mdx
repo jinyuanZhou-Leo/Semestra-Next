@@ -1,0 +1,40 @@
+---
+title: Codex
+description: 把 Semestra 加进 Codex CLI 和 IDE 扩展。
+---
+
+## 在 Semestra 中连接
+
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+2. 选择 **Codex**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
+3. 下一步显示已填好令牌的配置，复制到其中注明的文件里。
+
+令牌以 Codex 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+
+## 手动设置
+
+先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+
+Codex 读取 `~/.codex/config.toml`（CLI 与 IDE 扩展共用）。加入：
+
+```toml
+[mcp_servers.semestra]
+url = "https://semestra.example.com/mcp"
+http_headers = { Authorization = "Bearer <token>" }
+```
+
+不想把令牌写进文件时，改为从环境变量读取，并在 shell 配置里设置 `SEMESTRA_TOKEN`：
+
+```toml
+[mcp_servers.semestra]
+url = "https://semestra.example.com/mcp"
+bearer_token_env_var = "SEMESTRA_TOKEN"
+```
+
+## 检查连接
+
+重启 Codex 后输入 `/mcp`，应列出 **semestra** 及其工具。
+
+## 断开
+
+删除 `[mcp_servers.semestra]` 一节。 在 **API 令牌** 中撤销对应令牌也会立即断开。

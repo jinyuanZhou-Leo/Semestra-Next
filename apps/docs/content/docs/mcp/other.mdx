@@ -1,0 +1,40 @@
+---
+title: Other clients
+description: Connect any MCP client that supports Streamable HTTP and custom headers.
+---
+
+Any client that can reach a remote MCP server over **Streamable HTTP** and send a custom header can use Semestra.
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Other client**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. Copy the address and the token into your client.
+
+## What to enter
+
+| Field | Value |
+| --- | --- |
+| Transport | Streamable HTTP (sometimes called "HTTP"; not SSE) |
+| URL | The address under **MCP server**, e.g. `https://semestra.example.com/mcp` |
+| Header | `Authorization: Bearer <token>` |
+
+Most clients take a JSON entry like this one; the top-level key and the URL field name vary by client:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "url": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+A client that can only start local (stdio) servers can connect through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), as shown for [Claude Desktop](./claude-desktop.mdx).
+
+## Clients that cannot connect yet
+
+- **ChatGPT** connects to MCP servers only with OAuth or without authentication, so it cannot use an API token.
+- **Claude custom connectors** (claude.ai and Claude Desktop under Settings → Connectors) also sign in with OAuth. In Claude Desktop, use the [config file](./claude-desktop.mdx) instead.

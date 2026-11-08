@@ -1,0 +1,44 @@
+---
+title: Gemini CLI
+description: Add Semestra to Gemini CLI with one command.
+---
+
+## Connect from Semestra
+
+1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+2. Choose **Gemini CLI**, pick **Read only** or **Read and write**, and click **Create token and continue**.
+3. The next step shows the command with your token filled in. Copy it and run it in a terminal.
+
+The token is created for Gemini CLI and shown only in that window. To disconnect, revoke it under **API tokens**.
+
+## Set it up by hand
+
+Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Run this in a terminal:
+
+```bash
+gemini mcp add --transport http semestra https://semestra.example.com/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+By default it goes into the project's `.gemini/settings.json`; add `--scope user` for `~/.gemini/settings.json`. Editing the file by hand works too. Note the key is `httpUrl`:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "httpUrl": "https://semestra.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+## Check the connection
+
+In Gemini CLI, type `/mcp`. **semestra** should be connected with its tools listed.
+
+## Disconnect
+
+`gemini mcp remove semestra` Revoking its API token under **API tokens** also cuts it off right away.
