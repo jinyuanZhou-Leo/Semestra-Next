@@ -156,7 +156,9 @@ class LmsProvider(Protocol):
         course_ids: Sequence[str],
         start: datetime,
         end: datetime,
-    ) -> list[LmsCalendarEvent]: ...
+    ) -> list[LmsCalendarEvent]:
+        """Calendar events of the courses (feature `calendar`), not assignments."""
+        ...
 
 
 @runtime_checkable

@@ -246,7 +246,7 @@ async def category_reorder(ctx: Ctx, inp: CategoryOrderInput) -> CategoryList:
 @capability(
     name="grading.assessment.list",
     summary="List a course's assessments with deadline, weight and score.",
-    description="""Use to see what is graded, still pending or overdue in a course. To locate one
+    description="""Use to see what is graded or still pending in a course. To locate one
 assessment the user named in words ("Lab 3", "the midterm"), prefer grading.assessment.find.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/assessments"),

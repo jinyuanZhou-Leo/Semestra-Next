@@ -1,5 +1,6 @@
 import type { Task, TaskList } from '@semestra/api-client'
 import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { CalendarClock, CircleCheck, CircleDashed, Flag, ListTodo, Sun } from 'lucide-react'
 import type { Message } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -75,3 +76,14 @@ export function groupLists(lists: readonly TaskList[], termIds: readonly string[
     .map((termId) => ({ termId, lists: sorted.filter((l) => l.term_id === termId) }))
     .filter((group) => group.lists.length > 0)
 }
+
+/**
+ * A block in a task's details from another module (M03: the assessment it belongs to; M09: the
+ * assignment it came from). It renders nothing for tasks it has nothing to say about.
+ */
+export type TaskDetailSection = {
+  id: string
+  Component: ComponentType<{ task: Task; onClose: () => void }>
+}
+
+export const TASK_DETAIL_SECTIONS = 'tasks.detailSections'

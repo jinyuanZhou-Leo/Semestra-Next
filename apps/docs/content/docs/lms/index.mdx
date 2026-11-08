@@ -5,8 +5,8 @@ description: Link Semestra to your Canvas account, a program and its courses.
 
 Semestra connects to learning platforms through providers. Canvas is the only provider today.
 A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
-unless you turn on global settings → **Integrations → Changes on the platform**; for now that
-only marks an announcement read on Canvas when you open it in Semestra.
+unless you turn on **Allow changes on the platform** under global settings → **Integrations →
+Sync**; for now that only marks an announcement read on Canvas when you open it in Semestra.
 
 There are three levels, each set up once:
 
@@ -97,7 +97,7 @@ can be linked to only one course per program, and a year-long course has a singl
 place refreshes the course's details from Canvas, links a different course or unlinks it.
 
 Each link has a **Calendar and assignment changes** switch. When it is off, the course's Canvas
-deadlines leave the calendar and assignment changes are no longer detected; the Canvas tab and
+calendar events leave the calendar and assignment changes are no longer detected; the Canvas tab and
 Sem can still read the course.
 
 ## What you get from a link
@@ -110,8 +110,14 @@ Sem can still read the course.
   default; **Canvas style** keeps their colors and layout from Canvas (except styles from the
   school's theme files). The menu next to the title switches for the moment; the default is under
   **Settings → Plugins → Canvas tab**.
-- **Calendar**: assignment due dates and Canvas calendar events of courses with **Calendar and
-  assignment changes** on appear in the term calendar. Assignments you already imported are not shown twice.
+- **Calendar**: Canvas calendar events of courses with **Calendar and assignment changes** on
+  appear in the term calendar with a Canvas mark, and their details offer **Open in Canvas**.
+  Assignments appear once you import them, as to-dos.
+- **To-dos that follow submissions**: when an imported assignment shows as submitted in Canvas,
+  its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
+  assignment is checked off once, so a to-do you uncheck stays open. Semestra checks about
+  every hour, for assignments due in the past two weeks or later. Turn it off under
+  global settings → **Integrations → Sync**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can read the same data (see [MCP tools](/docs/mcp/tools)).
 

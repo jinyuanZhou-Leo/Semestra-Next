@@ -173,7 +173,7 @@
       "capability": "calendar.occurrence.list",
       "module": "calendar",
       "effect": "read",
-      "summary": "Everything on the calendar in a date range: classes, events, deadlines, tasks.",
+      "summary": "Everything on the calendar in a date range: classes, events and tasks.",
       "plugin_id": null
     },
     {
@@ -181,7 +181,7 @@
       "capability": "calendar.today.get",
       "module": "calendar",
       "effect": "read",
-      "summary": "Today in a Program: classes and events, deadlines of the next 7 days, due tasks.",
+      "summary": "Today in a Program: classes and events, tasks due in the next 7 days.",
       "plugin_id": null
     },
     {
@@ -585,11 +585,19 @@
       "plugin_id": null
     },
     {
+      "name": "lms__assignment__add_to_gradebook",
+      "capability": "lms.assignment.add_to_gradebook",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Move imported LMS assignments that have no gradebook entry into the gradebook.",
+      "plugin_id": null
+    },
+    {
       "name": "lms__assignment__import",
       "capability": "lms.assignment.import",
       "module": "lms",
       "effect": "write",
-      "summary": "Start importing assignments of a linked course as assessments or tasks.",
+      "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
       "plugin_id": null
     },
     {

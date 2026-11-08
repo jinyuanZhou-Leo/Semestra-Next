@@ -182,13 +182,21 @@ async def preview_assignment_import(ctx: Ctx, inp: AssignmentsImportInput) -> di
     else:
         names = [str(a["name"]) for a in imports.new_assignments(listed, ids, done)]
         total = len(names)
-    return {
-        "target": target,
-        "changes": [
-            _counted("lms_assignments", names, total),
-            {"field": "as_kind", "after": inp.as_kind},
-        ],
-    }
+    return {"target": target, "changes": [_counted("lms_assignments", names, total)]}
+
+
+async def preview_add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> dict[str, Any]:
+    target = await _course(ctx, inp.course_id)
+    link = await service.link_row(ctx, inp.course_id)
+    done = await reads.imported_targets(ctx, link.id) if link is not None else {}
+    ids = list(dict.fromkeys(inp.external_ids))
+    listed = await _cached_assignments(ctx, inp.course_id)
+    if listed is None:
+        names, total = [], sum(1 for i in ids if done.get(i, {}).get("kind") == "task")
+    else:
+        names = [str(a["name"]) for a in imports.to_gradebook(listed, ids, done)]
+        total = len(names)
+    return {"target": target, "changes": [_counted("lms_assignments", names, total)]}
 
 
 async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:

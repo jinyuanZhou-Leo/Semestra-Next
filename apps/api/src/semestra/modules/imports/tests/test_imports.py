@@ -303,6 +303,10 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     program_id = await api.program()
     term_id = await api.term(program_id)
     course = await api.course(program_id, term_id, title="APS 105")
+    # Already in the gradebook: counted in the course's weight total.
+    await api.call(
+        "POST", f"/courses/{course['id']}/assessments", json={"title": "Quiz 0", "weight": 5}
+    )
     session = await api.create(
         program_id, source_kind="text",
         target={"kind": "course", "course_id": course["id"], "term_id": term_id},
@@ -334,9 +338,10 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert assessments["Lab 2"]["data"]["category_ref"] == f"item:{cats[0]['id']}"
     assert assessments["Midterm"]["data"]["category_ref"] == "key:exam"
     assert "import.date_unresolved" in issue_codes(assessments["Lab 2"])
-    # 10 + 10 + 5 + 25 + 35 = 85: flagged on the first assessment (the course already exists).
-    weights = [i for a in assessments.values() for i in a["issues"] if i["code"].endswith("100")]
-    assert weights == [{"code": "import.weights_not_100", "params": {"total": 85.0}}]
+    # 5 already in the gradebook + 10 + 10 + 5 + 25 + 35: the course's total, not an issue.
+    assert session["summary"]["weights"] == [
+        {"course_ref": f"course:{course['id']}", "total": 90.0, "existing": 1, "ok": False}
+    ]
     # Important dates: an assessment twin is dropped, a deadline becomes a task.
     assert [t["data"]["title"] for t in by_type(session, "task")] == ["Drop deadline"]
     assert by_type(session, "task")[0]["data"]["due_date"] == "2026-03-09"
@@ -389,7 +394,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert done["failed"] == 0, [i["result"] for i in done["session"]["items"] if i["result"]]
     book = await api.call("GET", f"/courses/{course['id']}/gradebook")
     titles = sorted(a["title"] for a in book["assessments"])
-    assert titles == ["Final exam", "Journal", "Lab 1", "Lab 2", "Midterm"]
+    assert titles == ["Final exam", "Journal", "Lab 1", "Lab 2", "Midterm", "Quiz 0"]
     keys = {c["key"] for c in book["categories"]}
     assert {"lab", "exam", "reflection-journal"} <= keys
     lab_id = next(c["id"] for c in book["categories"] if c["key"] == "lab")
@@ -421,7 +426,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     again = await api.commit(second["id"])
     assert again["failed"] == 0
     book = await api.call("GET", f"/courses/{course['id']}/gradebook")
-    assert len(book["assessments"]) == 5
+    assert len(book["assessments"]) == 6  # with Quiz 0
     meetings = (await api.call("GET", f"/courses/{course['id']}/meetings"))["items"]
     assert len(meetings) == 2
 

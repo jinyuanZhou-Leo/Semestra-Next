@@ -135,7 +135,7 @@ function RowEditor({
         className="block w-full bg-transparent p-0 text-base font-medium outline-none"
         value={title}
         maxLength={300}
-        readOnly={task.source_kind === 'assessment'}
+        readOnly={task.assessment_id !== null}
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => keys(event, true)}
       />
@@ -157,7 +157,7 @@ function RowEditor({
           today={today}
           hideCourse={hideCourse}
           overdue={task.overdue && task.completed_at === null}
-          managed={task.source_kind === 'assessment'}
+          managed={task.assessment_id !== null}
           onChange={(body) => void actions.update(task.id, body)}
         />
       </div>
@@ -187,7 +187,7 @@ function CourseTag({
     </>
   )
   // An assessment's task stays in the assessment's course.
-  if (task.source_kind === 'assessment') {
+  if (task.assessment_id !== null) {
     return (
       <Badge variant="outline" className="max-w-40 shrink-0 border-0 bg-muted/70">
         {dot}
@@ -498,13 +498,18 @@ function RowMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            <Trash2 aria-hidden />
-            {m.common_delete()}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+        {/* An assessment's task goes only with its assessment. */}
+        {task.assessment_id === null ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                <Trash2 aria-hidden />
+                {m.common_delete()}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )

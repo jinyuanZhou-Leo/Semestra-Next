@@ -12,7 +12,7 @@ const COURSE = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
 
 const canPreload = (part: unknown) => typeof part !== 'object' || part === null || 'preload' in part
 
-test('every lazy page, card and settings section of a built-in module can preload', () => {
+test('every lazy page, card, settings section and calendar form of a built-in module can preload', () => {
   const plain = builtInModules.flatMap((module) => [
     ...(module.pages ?? []).flatMap((page) =>
       [page.component, page.mobile?.component]
@@ -27,6 +27,9 @@ test('every lazy page, card and settings section of a built-in module can preloa
     ...(module.settingsSections ?? [])
       .filter((section) => section.component !== undefined && !canPreload(section.component))
       .map((section) => `${module.id}:${section.id}`),
+    ...(module.calendarSources ?? [])
+      .filter((source) => source.create && !canPreload(source.create.form))
+      .map((source) => `${module.id}:${source.source}`),
   ])
   expect(plain).toEqual([])
 })

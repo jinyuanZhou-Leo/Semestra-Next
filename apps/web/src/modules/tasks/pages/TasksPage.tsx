@@ -239,7 +239,8 @@ export default function TasksPage({ scope }: PageProps) {
     () => {
       if (selected) setDeleteId(selected.id)
     },
-    { enabled: selected !== null, ignoreEventWhen: outsideList },
+    // An assessment's task goes only with its assessment.
+    { enabled: selected?.assessment_id === null, ignoreEventWhen: outsideList },
   )
 
   const place = newTaskPlace(selection, {

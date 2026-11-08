@@ -9,12 +9,16 @@ import { ImportDialog } from './components/ImportDialog'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
 import { errorMessage } from '@/lib/errors'
-import { itemDetail } from './labels'
+import { itemWhen } from './labels'
 import { finishImport, openImport } from './launcher'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => {
   server.use(
+    // No unfinished import to resume (tests override it).
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
     // The upload size limit, and the reading job once a session starts (tests override both).
     http.get(`${API}/files-usage`, () =>
       HttpResponse.json({
@@ -100,25 +104,34 @@ function courses() {
   )
 }
 
-test('the review groups items by course, marks problems and filters to them', async () => {
+test('the review groups items by course, marks problems on their cell and opens an item in place', async () => {
   server.use(courses())
   renderWithRouter(
     <SessionView
-      session={session({ summary: { issues: { 'import.date_unresolved': 1 } } })}
+      session={session({
+        summary: {
+          issues: { 'import.date_unresolved': 1 },
+          weights: [{ course_ref: 'course:c1', total: 105, existing: 1, ok: false }],
+        },
+      })}
       mode="direct"
       onDone={() => {}}
     />,
   )
   expect(await screen.findByText('1 dates to check')).toBeInTheDocument()
-  expect(await screen.findByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
-  // The first item is selected: its issue and the evidence of its title are shown.
-  // Once on the row (its tooltip text) and once in the editor.
+  expect(await screen.findByText('MAT137Y1 · Calculus')).toBeInTheDocument()
+  // The total counts what the gradebook already has, said on hover.
+  expect(screen.getByText(/Weights total 105%/)).toHaveTextContent(
+    'Includes 1 already in the gradebook',
+  )
+  // The undated midterm is marked on its date cell.
+  const midterm = screen.getByText('Midterm').closest('tr')!
+  expect(within(midterm).getByText("Couldn't work out the date “Week 7”")).toBeInTheDocument()
+
+  await userEvent.click(midterm)
+  expect(midterm).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getAllByText("Couldn't work out the date “Week 7”")).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Where Title came from' })).toBeInTheDocument()
-
-  await userEvent.click(screen.getByRole('switch', { name: 'Only items with problems' }))
-  expect(screen.queryByText('Final exam')).toBeNull()
-  expect(screen.getAllByText('Midterm').length).toBeGreaterThan(0)
 })
 
 test('saving commits the accepted items and reports what was written', async () => {
@@ -137,13 +150,13 @@ test('saving commits the accepted items and reports what was written', async () 
   )
   const onDone = vi.fn<(session: ImportSessionDetail | null) => void>()
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={onDone} />)
-  await userEvent.click(await screen.findByRole('button', { name: 'Save 2 items' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Import 2 items' }))
   await waitFor(() => expect(onDone).toHaveBeenCalled())
   expect(commit).toHaveBeenCalledWith({})
   expect(onDone.mock.calls[0]?.[0]).toMatchObject({ status: 'committed' })
 })
 
-test('turning an item off rejects it', async () => {
+test('unticking an item rejects it', async () => {
   server.use(courses())
   const update = vi.fn<(body: unknown) => void>()
   server.use(
@@ -153,14 +166,13 @@ test('turning an item off rejects it', async () => {
     }),
   )
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
-  const group = await screen.findByRole('region', { name: 'MAT137Y1 · Calculus' })
-  await userEvent.click(within(group).getByRole('switch', { name: 'Import Final exam' }))
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Import Final exam' }))
   await waitFor(() =>
     expect(update).toHaveBeenCalledWith({ decision: 'reject', only_touched: true }),
   )
 })
 
-test('discarding asks first', async () => {
+test('discarding a reading by AI asks first, then ends the import', async () => {
   server.use(courses())
   const discard = vi.fn<() => void>()
   server.use(
@@ -172,9 +184,9 @@ test('discarding asks first', async () => {
   const onDone = vi.fn<(session: ImportSessionDetail | null) => void>()
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={onDone} />)
   await userEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+  const confirm = await screen.findByRole('alertdialog')
   expect(discard).not.toHaveBeenCalled()
-  const dialog = await screen.findByRole('alertdialog')
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
   await waitFor(() => expect(onDone).toHaveBeenCalledWith(null))
   expect(discard).toHaveBeenCalled()
 })
@@ -254,10 +266,11 @@ test('an edit is saved on blur and the commit waits for it', async () => {
     }),
   )
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
+  await userEvent.click(await screen.findByText('Midterm'))
   const weight = await screen.findByLabelText('Weight (%)')
   await userEvent.clear(weight)
   await userEvent.type(weight, '35')
-  await userEvent.click(screen.getByRole('button', { name: 'Save 2 items' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Import 2 items' }))
   await waitFor(() =>
     expect(calls).toEqual(['patch {"data":{"weight":35},"only_touched":true}', 'commit']),
   )
@@ -276,7 +289,7 @@ test('a meeting shows how many of its dates are cancelled', () => {
       exceptions: ['2026-10-12', '2026-10-26'],
     },
   })
-  expect(itemDetail(meeting)).toBe('10:00–11:00 · BA 1180 · 2 cancelled dates')
+  expect(itemWhen(meeting)).toBe('10:00–11:00 · 2 cancelled dates')
 })
 
 // The upload goes through XMLHttpRequest, which jsdom treats as cross-origin to the API.
@@ -601,6 +614,7 @@ test('edits are saved one after another and merged into the session', async () =
     }),
   )
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
+  await userEvent.click(await screen.findByText('Midterm'))
   const weight = await screen.findByLabelText('Weight (%)')
   await userEvent.clear(weight)
   await userEvent.type(weight, '35')
@@ -610,7 +624,7 @@ test('edits are saved one after another and merged into the session', async () =
   await userEvent.tab()
   release()
   await waitFor(() => expect(order).toEqual(['start 35', 'end 35', 'start 40', 'end 40']))
-  expect(screen.getByRole('region', { name: 'MAT137Y1 · Calculus' })).toBeInTheDocument()
+  expect(screen.getByText('Final exam')).toBeInTheDocument()
 })
 
 function courseFile(id: string, name: string, created: string) {
@@ -730,4 +744,38 @@ test('reading course info from settings applies only the ticked fields', async (
   await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
   await waitFor(() => expect(onApplied).toHaveBeenCalled())
   expect(commit).toHaveBeenCalledWith({})
+})
+
+test('opening the same import again resumes the one left unfinished', async () => {
+  server.use(
+    courses(),
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({
+        items: [
+          // Another course's import, then this one's.
+          {
+            ...session({ id: 's2', target: { kind: 'course', course_id: 'c2' } }),
+            items: undefined,
+          },
+          { ...session(), items: undefined },
+        ],
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json(session())),
+  )
+  renderWithRouter(
+    <ImportDialog
+      request={{
+        programId: 'p1',
+        source: 'syllabus',
+        target: { kind: 'course', course_id: 'c1' },
+        mode: 'direct',
+      }}
+      onClose={() => {}}
+    />,
+  )
+  // Straight to its review, not the file picker.
+  expect(await screen.findByText('Final exam')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Read' })).toBeNull()
 })

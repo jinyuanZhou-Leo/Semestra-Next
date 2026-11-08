@@ -88,6 +88,7 @@ export const capabilityMessages = {
   capability_layouts_card_remove_title: m.capability_layouts_card_remove_title,
   capability_lms_announcement_list_title: m.capability_lms_announcement_list_title,
   capability_lms_announcement_mark_read_title: m.capability_lms_announcement_mark_read_title,
+  capability_lms_assignment_add_to_gradebook_title: m.capability_lms_assignment_add_to_gradebook_title,
   capability_lms_assignment_import_title: m.capability_lms_assignment_import_title,
   capability_lms_assignment_list_title: m.capability_lms_assignment_list_title,
   capability_lms_course_check_updates_title: m.capability_lms_course_check_updates_title,

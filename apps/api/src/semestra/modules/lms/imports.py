@@ -1,9 +1,11 @@
 """Imports from the LMS through M08 (M09 §4, §5): courses, assignments, syllabus and updates.
 
-Everything goes into an M08 session the user reviews; nothing is written before the commit.
-What the commit needs to know about the LMS (which external course a course item is, which
-assignment an assessment came from) is kept in the session's `source_meta.lms.items`, keyed
-by item id. The commit hook writes course links and imported refs in the commit's transaction.
+Everything goes through an M08 session; nothing is written before its commit. Assignments the
+user picked are committed at once when nothing needs a decision (`commit_if_clean`); the rest
+waits for the user's review. What the commit needs to know about the LMS (which external course
+a course item is, which assignment an assessment came from) is kept in the session's
+`source_meta.lms.items`, keyed by item id. The commit hook writes course links and imported refs
+in the commit's transaction.
 """
 
 import re
@@ -81,15 +83,41 @@ async def _fill(
     if not new:
         raise AppError("import.no_content", 422)
     items = await imports.add_items(ctx, row, new)
-    lms_items = {
-        item.id: by_key[n.key] for item, n in zip(items, new, strict=True) if n.key in by_key
-    }
+    ids = {n.key: item.id for item, n in zip(items, new, strict=True) if n.key}
     meta = dict(row.source_meta)
-    meta["lms"] = {**meta.get("lms", {}), "items": lms_items}
+    lms = dict(meta.get("lms", {}))
+    # Added to what a resumed session already holds.
+    lms["items"] = {**lms.get("items", {}), **{ids[k]: v for k, v in by_key.items() if k in ids}}
+    if "groups" in lms:  # Canvas group id -> its category item, for the next resume
+        lms["groups"] = {g: ids.get(ref, ref) for g, ref in lms["groups"].items()}
+    meta["lms"] = lms
     row.source_meta = meta
-    row.source_refs = refs
+    row.source_refs = [*row.source_refs, *refs][:50]
     await ctx.db.flush()
     return ImportStarted(session_id=row.id, program_id=row.program_id, count=len(items))
+
+
+async def _unfinished(ctx: Ctx, link_id: str, course_id: str) -> ImportsSession | None:
+    """The course's assignment import still waiting for review: importing again resumes it
+    (M08 §6.2), so an import the user closed is never left behind next to a new one."""
+    rows = await ctx.db.scalars(
+        select(ImportsSession)
+        .where(
+            ImportsSession.user_id == ctx.user_id,
+            ImportsSession.source_kind == "lms",
+            ImportsSession.status == "ready",
+        )
+        .order_by(ImportsSession.created_at.desc())
+    )
+    for row in rows:
+        lms = row.source_meta.get("lms") or {}
+        if (
+            lms.get("kind") == "assignments"
+            and lms.get("link_id") == link_id
+            and row.target.get("course_id") == course_id
+        ):
+            return row
+    return None
 
 
 # --- courses --------------------------------------------------------------------------------
@@ -184,6 +212,11 @@ def _weights(assignments: list[dict[str, Any]]) -> dict[str, float]:
     return out
 
 
+def worth_points(a: dict[str, Any]) -> bool:
+    """An assignment worth points goes into the gradebook; one worth none is only a to-do."""
+    return bool(a.get("points")) and float(a["points"]) > 0
+
+
 def new_assignments(
     listed: dict[str, dict[str, Any]], external_ids: list[str], done: Collection[str]
 ) -> list[dict[str, Any]]:
@@ -192,45 +225,94 @@ def new_assignments(
     return [listed[i] for i in dict.fromkeys(external_ids) if i in listed and i not in done]
 
 
+def to_gradebook(
+    listed: dict[str, dict[str, Any]], external_ids: list[str], done: dict[str, dict[str, str]]
+) -> list[dict[str, Any]]:
+    """The requested assignments "Add to gradebook" moves: still on the LMS and imported as a
+    to-do only."""
+    return [
+        listed[i]
+        for i in dict.fromkeys(external_ids)
+        if i in listed and done.get(i, {}).get("kind") == "task"
+    ]
+
+
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
-    link, b = await service.require_link(ctx, inp.course_id)
+    """The one import of assignments (M09 §4): those worth points become assessments (each with
+    its to-do, M05), the others to-dos. Saved at once unless something needs a decision."""
+    return await _import(ctx, inp.course_id, inp.external_ids, gradebook=False)
+
+
+async def add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
+    """Assignments imported as to-dos go into the gradebook: an assessment each, which takes the
+    to-do over (M05), and the import record moves to it."""
+    return await _import(ctx, inp.course_id, inp.external_ids, gradebook=True)
+
+
+async def _import(
+    ctx: Ctx, course_id: str, external_ids: list[str], *, gradebook: bool
+) -> ImportStarted:
+    link, b = await service.require_link(ctx, course_id)
     service.require_feature(b, "assignments")
-    data, _ = await reads.raw_assignments(ctx, inp.course_id, refresh=True)
+    data, _ = await reads.raw_assignments(ctx, course_id, refresh=True)
     by_id = {a["external_id"]: a for a in data}
     done = await reads.imported_targets(ctx, link.id)
+    picked = (
+        [(a, "assessment") for a in to_gradebook(by_id, external_ids, done)]
+        if gradebook
+        else [
+            (a, "assessment" if worth_points(a) else "task")
+            for a in new_assignments(by_id, external_ids, done)
+        ]
+    )
+    if not picked:
+        raise AppError("import.no_content", 422)
+    row = await _unfinished(ctx, link.id, course_id)
+    if row is not None:
+        lms = row.source_meta.get("lms") or {}
+        have = {str(v["external_id"]) for v in (lms.get("items") or {}).values()}
+        picked = [(a, kind) for a, kind in picked if str(a["external_id"]) not in have]
+        if not picked:  # nothing new: back to its review
+            return ImportStarted(session_id=row.id, program_id=row.program_id, count=0)
+    else:
+        row = await _session(
+            ctx,
+            link.program_id,
+            SessionTarget(kind="course", course_id=course_id),
+            {
+                "provider": b.row.provider,
+                "connection_id": b.row.id,
+                "lms": {"kind": "assignments", "link_id": link.id, "groups": {}},
+            },
+        )
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
     weights = _weights(data)
-    row = await _session(
-        ctx,
-        link.program_id,
-        SessionTarget(kind="course", course_id=inp.course_id),
-        {
-            "provider": b.row.provider,
-            "connection_id": b.row.id,
-            "lms": {"kind": "assignments", "link_id": link.id},
-        },
-    )
-    course_ref = f"course:{inp.course_id}"
+    course_ref = f"course:{course_id}"
     new: list[NewItem] = []
     refs: list[dict[str, Any]] = []
     by_key: dict[str, dict[str, Any]] = {}
-    groups: dict[str, str] = {}  # Canvas group id -> category item key
-    slugs: set[str] = set()
-    for a in new_assignments(by_id, inp.external_ids, done):
+    # Canvas group id -> its category: an item key here, or the id of one a resumed session has.
+    groups: dict[str, str] = dict((row.source_meta.get("lms") or {}).get("groups") or {})
+    slugs = {
+        str(i.data.get("key"))
+        for i in await imports.session_items(ctx, row.id)
+        if i.type == "category"
+    }
+    for a, kind in picked:
         external_id = str(a["external_id"])
         due_date, due_time = _local(a.get("due_at"), tz)
         ref = source_ref(b.row.id, external_id)
         note = a.get("web_url")
         key = f"a{len(new)}"
-        if inp.as_kind == "assessment":
+        if kind == "assessment":
             item: dict[str, Any] = {"course_ref": course_ref, "title": a["name"][:200]}
             group = a.get("group_name")
             if group:
                 # Canvas groups are told apart by id: two groups may share a name or a slug.
                 group_key = str(a.get("group_id") or group)
                 if group_key not in groups:
-                    groups[group_key] = f"g{len(groups)}"
+                    groups[group_key] = f"g{len(new)}"
                     slug = _slug(group)
                     if slug in slugs:
                         slug = f"{slug[:20].strip('-')}-{_slug(group_key)}"[:32].strip("-")
@@ -274,17 +356,18 @@ async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportSta
         by_key[key] = {
             "external_id": external_id,
             "link_id": link.id,
-            # An assessment carries the platform's grade. An assignment imported as a task
-            # (and switched in the review) carries none, so its grade is offered as an update.
-            "snapshot": {
-                **snapshot(a, weights.get(external_id)),
-                **({} if inp.as_kind == "assessment" else {"score": None}),
-            },
+            "snapshot": snapshot(a, weights.get(external_id)),
         }
         refs.append(
             {"lms_course_id": link.external_course_id, "filename": a["name"], "status": "done"}
         )
-    return await _fill(ctx, row, new, refs[:50], by_key)
+    lms = dict(row.source_meta.get("lms") or {})
+    row.source_meta = {**row.source_meta, "lms": {**lms, "groups": groups}}
+    started = await _fill(ctx, row, new, refs[:50], by_key)
+    counts = await imports.commit_if_clean(ctx, row)
+    if counts is None:
+        return started
+    return started.model_copy(update={"committed": True, "failed": counts["failed"]})
 
 
 def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
@@ -620,7 +703,9 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         target_id = created.get(item_id)
         if target_id is None or item.type not in ("assessment", "task"):
             continue
-        # Looked up across kinds: an assignment is imported once, as an assessment or a task.
+        # What the import record compares later: a to-do has no grade to offer (an item may
+        # have been switched in the review).
+        snap = {**info["snapshot"], **({} if item.type == "assessment" else {"score": None})}
         exists = await ctx.db.scalar(
             select(LmsImportedRef).where(
                 LmsImportedRef.link_id == link.id,
@@ -628,24 +713,28 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                 LmsImportedRef.external_id == info["external_id"],
             )
         )
-        if exists is not None and exists.target_kind != item.type:
-            # Another session imported it as the other kind meanwhile: roll this commit back.
-            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
-        if exists is not None:
-            exists.target_id = target_id
-            continue
-        ctx.db.add(
-            LmsImportedRef(
-                user_id=row.user_id,
-                link_id=link.id,
-                external_kind="assignment",
-                external_id=info["external_id"],
-                target_kind=item.type,
-                target_id=target_id,
-                snapshot=info["snapshot"],
-                imported_at=ctx.now,
+        if exists is None:
+            ctx.db.add(
+                LmsImportedRef(
+                    user_id=row.user_id,
+                    link_id=link.id,
+                    external_kind="assignment",
+                    external_id=info["external_id"],
+                    target_kind=item.type,
+                    target_id=target_id,
+                    snapshot=snap,
+                    imported_at=ctx.now,
+                )
             )
-        )
+        elif exists.target_kind == "task" and item.type == "assessment":
+            # Added to the gradebook: the assessment took the to-do over (M05), and the one
+            # Semestra object of this assignment is now the assessment.
+            exists.target_kind, exists.target_id, exists.snapshot = item.type, target_id, snap
+        elif exists.target_kind == item.type:
+            exists.target_id = target_id  # imported again meanwhile: the same object
+        else:
+            # Another session put it into the gradebook meanwhile: roll this commit back.
+            raise lms_error("lms.assignment_already_imported", title=item.data.get("title", ""))
     await ctx.db.flush()
 
 

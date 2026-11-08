@@ -8,7 +8,7 @@ Results are rounded to `PRECISION` decimals only when they leave this module's p
 types; intermediate arithmetic uses full precision.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
 from math import ceil, floor
@@ -186,9 +186,15 @@ class CourseCalc:
     categories: tuple[CategoryCalc, ...] = ()
 
 
+def weights_add_up(weights: Iterable[float]) -> tuple[float, bool]:
+    """What a course's weights add up to, and whether that is 100 (within the tolerance)."""
+    total = sum(weights)
+    return total, abs(total - 100) <= WEIGHT_TOLERANCE
+
+
 def weight_status(items: Sequence[Item]) -> tuple[float, float, bool]:
-    total = sum(i.weight for i in items if not i.dropped)
-    return total, 100 - total, abs(total - 100) <= WEIGHT_TOLERANCE
+    total, ok = weights_add_up(i.weight for i in items if not i.dropped)
+    return total, 100 - total, ok
 
 
 def _weighted_mean(items: Sequence[Item]) -> float | None:

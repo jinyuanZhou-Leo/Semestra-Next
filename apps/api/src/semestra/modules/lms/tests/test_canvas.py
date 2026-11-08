@@ -309,12 +309,12 @@ async def test_calendar_batches_context_codes(settings: Settings, io: Io, mock: 
     ids = [str(i) for i in range(12)]
     start, end = datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 2, 1, tzinfo=UTC)
     await p.calendar_events(io, cfg, creds, ids, start, end)
-    # 12 courses → 2 batches x (events + assignments).
-    assert route.call_count == 4
+    # 12 courses → 2 batches of calendar events (assignments are not fetched).
+    assert route.call_count == 2
     first = route.calls[0].request.url
     assert first.params.get_list("context_codes[]")[:2] == ["course_0", "course_1"]
     assert len(first.params.get_list("context_codes[]")) == 10
-    assert {c.request.url.params["type"] for c in route.calls} == {"event", "assignment"}
+    assert {c.request.url.params["type"] for c in route.calls} == {"event"}
 
 
 @pytest.mark.parametrize(

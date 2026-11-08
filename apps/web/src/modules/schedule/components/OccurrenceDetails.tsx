@@ -7,6 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import {
   CalendarX2,
+  CircleCheck,
+  Circle,
   ExternalLink,
   MapPin,
   Pencil,
@@ -17,7 +19,6 @@ import {
 import type { ReactNode } from 'react'
 import { useCalendarSources } from '@/app/registry'
 import { toastError } from '@/lib/errors'
-import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -50,6 +51,7 @@ export function OccurrenceDetails({
   onMove,
   onEditMeeting,
   onEditEvent,
+  onToggle,
 }: {
   occurrence: Occurrence
   timezone: string
@@ -60,6 +62,8 @@ export function OccurrenceDetails({
   onMove: (o: Occurrence) => void
   onEditMeeting: (o: Occurrence) => void
   onEditEvent: (o: Occurrence) => void
+  /** The item can be checked off (its source has `complete`). */
+  onToggle?: (completed: boolean) => void
 }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -83,6 +87,38 @@ export function OccurrenceDetails({
   const busy = cancel.isPending || restore.isPending
   const conflicts = o.meta?.conflicts_with?.length ?? 0
 
+  const badges = [
+    o.type_code ? (
+      <Badge key="type" variant="outline">
+        {o.type_code}
+      </Badge>
+    ) : null,
+    o.meta?.section_code ? (
+      <Badge key="section" variant="outline">
+        {o.meta.section_code}
+      </Badge>
+    ) : null,
+    o.status === 'cancelled' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_cancelled()}
+      </Badge>
+    ) : null,
+    o.status === 'moved' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_moved()}
+      </Badge>
+    ) : null,
+    o.status === 'done' ? (
+      <Badge key="status" variant="secondary">
+        {m.schedule_status_done()}
+      </Badge>
+    ) : null,
+    o.status === 'overdue' ? (
+      <Badge key="status" variant="destructive">
+        {m.schedule_status_overdue()}
+      </Badge>
+    ) : null,
+  ].filter((badge) => badge !== null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -101,25 +137,9 @@ export function OccurrenceDetails({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {source ? <Badge variant="outline">{source.label()}</Badge> : null}
-            {o.type_code ? <Badge variant="outline">{o.type_code}</Badge> : null}
-            {o.meta?.section_code ? <Badge variant="outline">{o.meta.section_code}</Badge> : null}
-            {o.status === 'cancelled' ? (
-              <Badge variant="secondary">{m.schedule_status_cancelled()}</Badge>
-            ) : null}
-            {o.status === 'moved' ? (
-              <Badge variant="secondary">{m.schedule_status_moved()}</Badge>
-            ) : null}
-            {o.status === 'overdue' ? (
-              <Badge variant="destructive">{m.schedule_status_overdue()}</Badge>
-            ) : null}
-          </div>
-          {course ? (
-            <p className="font-medium">
-              {courseLabel(course)} · {course.title}
-            </p>
-          ) : null}
+          {badges.length > 0 ? <div className="flex flex-wrap gap-1.5">{badges}</div> : null}
+          {/* Titles start with the course code already: the line gives its name. */}
+          {course ? <p className="font-medium">{course.title}</p> : null}
           {o.location ? <Line icon={MapPin}>{o.location}</Line> : null}
           {o.meta?.instructor ? <Line icon={User}>{o.meta.instructor}</Line> : null}
           {conflicts > 0 ? (
@@ -144,6 +164,12 @@ export function OccurrenceDetails({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          {onToggle ? (
+            <Button variant="outline" size="sm" onClick={() => onToggle(o.status !== 'done')}>
+              {o.status === 'done' ? <Circle aria-hidden /> : <CircleCheck aria-hidden />}
+              {o.status === 'done' ? m.schedule_mark_not_done() : m.schedule_mark_done()}
+            </Button>
+          ) : null}
           {isMeeting(o) && meetingId && originalDate ? (
             o.status === 'cancelled' || o.status === 'moved' ? (
               <Button
@@ -201,8 +227,12 @@ export function OccurrenceDetails({
                 source.onOpen?.(o, (to) => router.history.push(to), { programId })
               }}
             >
-              <ExternalLink aria-hidden />
-              {m.schedule_open_source()}
+              {source.openIcon ? <source.openIcon aria-hidden /> : <ExternalLink aria-hidden />}
+              {source.OpenLabel ? (
+                <source.OpenLabel programId={programId} occurrence={o} />
+              ) : (
+                m.schedule_open_source()
+              )}
             </Button>
           ) : null}
         </div>

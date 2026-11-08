@@ -1,4 +1,4 @@
-import type { AssessmentCreateInputBody } from '@semestra/api-client'
+import type { Assessment, AssessmentCreateInputBody } from '@semestra/api-client'
 import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -44,3 +44,15 @@ export type CourseGradesBanner = {
 }
 
 export const COURSE_GRADES_BANNERS = 'grading.courseGradesBanners'
+
+/**
+ * A column of the gradebook from another module (M05's to-do column), before the row menu. Its
+ * cell loads what it shows itself: rows that read the same query share one request.
+ */
+export type AssessmentColumn = {
+  id: string
+  header: Message
+  Cell: ComponentType<{ assessment: Assessment; programId: string }>
+}
+
+export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'

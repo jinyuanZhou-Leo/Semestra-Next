@@ -59,8 +59,12 @@ export function itemTitle(item: ImportItem): string {
   }
 }
 
-/** The line under the title: when, how much. */
-export function itemDetail(item: ImportItem): string {
+function dateTime(date: string | undefined, time: string | undefined): string {
+  return date ? [formatDate(date), hm(time)].filter(Boolean).join(' ') : ''
+}
+
+/** The review's "when" cell: a due date, a meeting's hours, an event's day. */
+export function itemWhen(item: ImportItem): string {
   const data = item.data as Record<string, unknown>
   switch (item.type) {
     case 'meeting': {
@@ -68,35 +72,22 @@ export function itemDetail(item: ImportItem): string {
       const cancelled = mt.exceptions?.length
         ? m.imports_meeting_cancelled({ count: mt.exceptions.length })
         : null
-      return [`${hm(mt.start_time)}–${hm(mt.end_time)}`, mt.location, cancelled]
-        .filter(Boolean)
-        .join(' · ')
+      return [`${hm(mt.start_time)}–${hm(mt.end_time)}`, cancelled].filter(Boolean).join(' · ')
     }
-    case 'assessment': {
-      const a = data as AssessmentData
-      const when = a.due_date ? formatDate(a.due_date) : a.due_text
-      const score =
-        a.points_earned != null && a.points_possible != null
-          ? `${String(a.points_earned)} / ${String(a.points_possible)}`
-          : null
-      return [a.weight != null ? `${a.weight}%` : null, when, score].filter(Boolean).join(' · ')
-    }
-    case 'category': {
-      const c = data as CategoryData
-      return c.weight_total != null ? `${c.weight_total}%` : ''
+    case 'assessment':
+    case 'task': {
+      const a = data as AssessmentData | TaskData
+      return dateTime(a.due_date, a.due_time)
     }
     case 'event': {
       const e = data as EventData
-      return e.date ? formatDate(e.date) : (e.date_text ?? '')
-    }
-    case 'task': {
-      const t = data as TaskData
-      return t.due_date ? formatDate(t.due_date) : (t.due_text ?? '')
+      return dateTime(e.date, e.all_day ? undefined : e.start_time)
     }
     case 'course': {
       const c = data as CourseData
       return (c.planned_terms ?? 1) > 1 ? m.imports_year_long() : ''
     }
+    case 'course_patch':
     case 'assessment_patch':
     case 'task_patch':
       return m.imports_patch_title({ count: Object.keys((data.changes as object) ?? {}).length })
@@ -105,16 +96,22 @@ export function itemDetail(item: ImportItem): string {
   }
 }
 
+/** The review's weight cell: an assessment's share of the grade, a category's total. */
+export function itemWeight(item: ImportItem): number | null {
+  if (item.type === 'assessment') return (item.data as AssessmentData).weight ?? null
+  if (item.type === 'category') return (item.data as CategoryData).weight_total ?? null
+  return null
+}
+
 const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
   'import.date_unresolved': m.imports_issue_dates,
-  'import.weights_not_100': m.imports_issue_weights,
-  'import.category_weight_mismatch': m.imports_issue_weights,
   'import.duplicate_course': m.imports_issue_duplicates,
   'import.duplicate_assessment': m.imports_issue_duplicates,
   'import.term_unresolved': m.imports_issue_terms,
   'import.outside_term': m.imports_issue_weeks,
   'import.no_teaching_weeks': m.imports_issue_weeks,
   'import.course_ref_missing': m.imports_issue_refs,
+  'import.weight_missing': m.imports_issue_weights_missing,
 }
 
 /** "3 dates to check · weights don't add up" for the accepted items, or null without issues. */

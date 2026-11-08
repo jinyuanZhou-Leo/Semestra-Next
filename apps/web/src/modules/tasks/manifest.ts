@@ -1,9 +1,13 @@
-import { ListChecks, ListTodo, Sun } from 'lucide-react'
+import { ArrowRight, ListChecks, ListTodo, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
+import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import NewTaskButton from './cards/NewTaskButton'
 import { listCardSettingsSchema } from './cards/schema'
+import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
+import AssessmentTaskCell from './components/AssessmentTaskCell'
+import { CalendarOpenLabel } from './components/CalendarOpenLabel'
 import { prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
@@ -11,7 +15,8 @@ const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 
 /**
  * M05 待办: task lists and tasks per Program, smart lists, a tasks page for every term and course,
- * three board cards, the `tasks.due` calendar source and tasks generated from assessments.
+ * three board cards, the `tasks.due` calendar source (check off, drag and create from the calendar)
+ * and the task of every dated assessment.
  */
 export default defineModule({
   id: 'tasks',
@@ -92,14 +97,34 @@ export default defineModule({
       label: m.tasks_calendar_source,
       icon: ListChecks,
       defaultVisible: true,
+      OpenLabel: CalendarOpenLabel,
+      openIcon: ArrowRight,
       onOpen: (occurrence, navigate, { programId }) => {
-        if (occurrence.course_id) navigate(coursePath(programId, occurrence.course_id, 'tasks'))
+        // An assessment's task opens its row in the course's gradebook.
+        const assessment = occurrence.meta?.assessment_id
+        if (occurrence.course_id && assessment)
+          navigate(
+            `${coursePath(programId, occurrence.course_id, 'grades')}?assessment=${encodeURIComponent(assessment)}`,
+          )
+        else if (occurrence.course_id)
+          navigate(coursePath(programId, occurrence.course_id, 'tasks'))
         else if (occurrence.meta?.term_id)
           navigate(termPath(programId, occurrence.meta?.term_id, 'tasks'))
         else navigate(`/p/${programId}/tasks`)
       },
+      complete: completeFromCalendar,
+      reschedule: rescheduleFromCalendar,
+      create: {
+        label: m.tasks_calendar_create,
+        form: preloadable(() => import('./components/CalendarTaskForm')),
+      },
     },
   ],
+  extensions: {
+    [ASSESSMENT_COLUMNS]: [
+      { id: 'tasks.todo', header: m.tasks_assessment_column, Cell: AssessmentTaskCell },
+    ] satisfies AssessmentColumn[],
+  },
   uiPrefPrefixes: ['tasks.'],
   realtimeInvalidations: Object.fromEntries([
     ...[

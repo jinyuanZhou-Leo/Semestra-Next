@@ -305,12 +305,15 @@ class TermAnnouncementList(BaseModel):
 
 
 class ImportTarget(BaseModel):
-    kind: Literal["assessment", "task", "event"]
+    kind: Literal["assessment", "task"]
     id: str
 
 
 class AssignmentOut(Assignment):
-    imported_as: list[ImportTarget] = Field(description="Where it was imported to, if anywhere")
+    imported_as: ImportTarget | None = Field(
+        description="What it was imported as (an assessment, which has its to-do, or a to-do); "
+        "null while not imported"
+    )
 
 
 AssignmentField = Literal[
@@ -330,7 +333,30 @@ class AssignmentsInput(CourseReadInput):
 
 class AssignmentList(BaseModel):
     items: list[AssignmentOut]
+    new_ids: list[str] = Field(
+        description="`external_id` of the new assignments: not imported and due later"
+    )
     truncated: bool
+
+
+class NewAssignments(BaseModel):
+    course_id: str
+    external_ids: list[str] = Field(description="Not imported and due later, soonest first")
+    names: list[str] = Field(description="Their names, in the same order")
+
+
+class NewAssignmentList(BaseModel):
+    items: list[NewAssignments] = Field(description="Per linked course with new assignments")
+    total: int
+    unread: list[str] = Field(
+        default_factory=list,
+        description="Synced linked courses whose assignments are not cached: read them with "
+        "lms.assignment.list (its `new_ids`)",
+    )
+
+
+class TermNewAssignmentsInput(BaseModel):
+    term_id: Id = Field(description="Term id")
 
 
 class GradeList(BaseModel):
@@ -460,7 +486,14 @@ class SavedFile(BaseModel):
 class ImportStarted(BaseModel):
     session_id: str
     program_id: str
-    count: int = Field(description="Items put up for review")
+    count: int = Field(description="Items in the import")
+    committed: bool = Field(
+        default=False,
+        description="Saved at once (nothing needed a decision); otherwise it waits for review",
+    )
+    failed: int = Field(
+        default=0, description="Items that could not be saved, when committed (see the import)"
+    )
 
 
 class CoursesImportInput(BaseModel):
@@ -489,10 +522,7 @@ class AssignmentsImportInput(BaseModel):
     external_ids: list[ExternalId] = Field(
         min_length=1,
         max_length=200,
-        description="Assignments to import (`external_id` of lms.assignment.list)",
-    )
-    as_kind: Literal["assessment", "task"] = Field(
-        default="assessment", description="Default type; switchable per item in the review"
+        description="Assignments (`external_id` of lms.assignment.list)",
     )
 
 

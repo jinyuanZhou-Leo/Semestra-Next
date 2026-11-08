@@ -343,10 +343,7 @@ async def _preview(ctx: Ctx, reader: ArchiveReader) -> ImportPreview:
         if adapter is None:
             unknown.append(module)
             continue
-        if schema_version > adapter.schema_version:
-            raise AppError(
-                "portability.unsupported_version", 400, version=f"{module} {schema_version}"
-            )
+        adapter.check_version(schema_version)
         if payload is not None:
             try:
                 counts[module] = await adapter.preview(payload)
@@ -529,13 +526,7 @@ async def run_import(
         try:
             ordered = [a for a in adapters() if reader.manifest.modules.get(a.module) is not None]
             for adapter in ordered:
-                version_in_archive = reader.manifest.modules[adapter.module]
-                if version_in_archive > adapter.schema_version:
-                    raise AppError(
-                        "portability.unsupported_version",
-                        400,
-                        version=f"{adapter.module} {version_in_archive}",
-                    )
+                adapter.check_version(reader.manifest.modules[adapter.module])
             staged = _StagedFiles(
                 ctx, reader, await _import_room(ctx, replacing=options.mode == "replace")
             )

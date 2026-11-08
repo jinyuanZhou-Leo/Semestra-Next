@@ -669,7 +669,7 @@ export type Assessment = {
     /**
      * Status
      */
-    status: 'graded' | 'pending' | 'overdue';
+    status: 'graded' | 'pending';
     /**
      * Created At
      */
@@ -1134,11 +1134,9 @@ export type AssignmentOut = {
      */
     rubric?: Array<RubricCriterion>;
     /**
-     * Imported As
-     *
-     * Where it was imported to, if anywhere
+     * What it was imported as (an assessment, which has its to-do, or a to-do); null while not imported
      */
-    imported_as: Array<ImportTarget>;
+    imported_as: ImportTarget | null;
 };
 
 /**
@@ -1215,15 +1213,9 @@ export type AssignmentsImportInputBody = {
     /**
      * External Ids
      *
-     * Assignments to import (`external_id` of lms.assignment.list)
+     * Assignments (`external_id` of lms.assignment.list)
      */
     external_ids: Array<string>;
-    /**
-     * As Kind
-     *
-     * Default type; switchable per item in the review
-     */
-    as_kind?: 'assessment' | 'task';
 };
 
 /**
@@ -1873,6 +1865,36 @@ export type CategoryUpdateInputBody = {
      * Archived categories are hidden from pickers
      */
     archived?: boolean | null;
+};
+
+/**
+ * CategoryWeights
+ */
+export type CategoryWeights = {
+    /**
+     * Item Id
+     *
+     * The category item
+     */
+    item_id: string;
+    /**
+     * Expected
+     *
+     * The total the category states, in %
+     */
+    expected: number;
+    /**
+     * Total
+     *
+     * What its accepted assessments add up to, in %
+     */
+    total: number;
+    /**
+     * Ok
+     *
+     * The two agree
+     */
+    ok: boolean;
 };
 
 /**
@@ -3192,6 +3214,36 @@ export type CourseUsage = {
 };
 
 /**
+ * CourseWeights
+ */
+export type CourseWeights = {
+    /**
+     * Course Ref
+     *
+     * `course:<id>` or `item:<course item id>`
+     */
+    course_ref: string;
+    /**
+     * Total
+     *
+     * Weights of the course's assessments once imported, in %
+     */
+    total: number;
+    /**
+     * Existing
+     *
+     * How many of them are in the gradebook already
+     */
+    existing: number;
+    /**
+     * Ok
+     *
+     * The total is 100
+     */
+    ok: boolean;
+};
+
+/**
  * CoursesImportInputBody
  */
 export type CoursesImportInputBody = {
@@ -4055,7 +4107,7 @@ export type Feed = {
     /**
      * Sources
      */
-    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources: Array<'schedule' | 'tasks' | 'lms'>;
     /**
      * Created At
      */
@@ -4079,7 +4131,7 @@ export type FeedCreateInputBody = {
      *
      * What the feed contains
      */
-    sources?: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources?: Array<'schedule' | 'tasks' | 'lms'>;
 };
 
 /**
@@ -4101,7 +4153,7 @@ export type FeedUpdateInputBody = {
      *
      * What the feed contains
      */
-    sources: Array<'schedule' | 'assessments' | 'tasks' | 'lms'>;
+    sources: Array<'schedule' | 'tasks' | 'lms'>;
 };
 
 /**
@@ -5256,9 +5308,21 @@ export type ImportStarted = {
     /**
      * Count
      *
-     * Items put up for review
+     * Items in the import
      */
     count: number;
+    /**
+     * Committed
+     *
+     * Saved at once (nothing needed a decision); otherwise it waits for review
+     */
+    committed?: boolean;
+    /**
+     * Failed
+     *
+     * Items that could not be saved, when committed (see the import)
+     */
+    failed?: number;
 };
 
 /**
@@ -5268,7 +5332,7 @@ export type ImportTarget = {
     /**
      * Kind
      */
-    kind: 'assessment' | 'task' | 'event';
+    kind: 'assessment' | 'task';
     /**
      * Id
      */
@@ -6695,6 +6759,50 @@ export type NavUpdateInputBody = {
 };
 
 /**
+ * NewAssignmentList
+ */
+export type NewAssignmentList = {
+    /**
+     * Items
+     *
+     * Per linked course with new assignments
+     */
+    items: Array<NewAssignments>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Unread
+     *
+     * Synced linked courses whose assignments are not cached: read them with lms.assignment.list (its `new_ids`)
+     */
+    unread?: Array<string>;
+};
+
+/**
+ * NewAssignments
+ */
+export type NewAssignments = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * External Ids
+     *
+     * Not imported and due later, soonest first
+     */
+    external_ids: Array<string>;
+    /**
+     * Names
+     *
+     * Their names, in the same order
+     */
+    names: Array<string>;
+};
+
+/**
  * Note
  */
 export type Note = {
@@ -6759,7 +6867,7 @@ export type Occurrence = {
     /**
      * Kind
      */
-    kind: 'class' | 'event' | 'deadline' | 'task';
+    kind: 'class' | 'event' | 'task';
     /**
      * Title
      */
@@ -6862,6 +6970,12 @@ export type OccurrenceMeta = {
      * Link to the item elsewhere (e.g. the LMS)
      */
     url?: string | null;
+    /**
+     * Assessment Id
+     *
+     * For a task that stands for an assessment: that assessment
+     */
+    assessment_id?: string | null;
     /**
      * Updated At
      *
@@ -8871,6 +8985,18 @@ export type SessionSummary = {
         [key: string]: number;
     };
     /**
+     * Weights
+     *
+     * Per course with assessments here: what its weights add up to with them
+     */
+    weights?: Array<CourseWeights>;
+    /**
+     * Category Weights
+     *
+     * Per new category: what its assessments here add up to
+     */
+    category_weights?: Array<CategoryWeights>;
+    /**
      * Created
      */
     created?: number;
@@ -9532,11 +9658,17 @@ export type Task = {
     /**
      * Source Kind
      */
-    source_kind: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual' | null;
+    source_kind: 'lms' | 'syllabus' | 'agent' | 'manual' | null;
     /**
      * Source Ref
      */
     source_ref: string | null;
+    /**
+     * Assessment Id
+     *
+     * The gradebook assessment this task stands for: its title, due date and course follow the assessment, and it is deleted with it
+     */
+    assessment_id: string | null;
     /**
      * Created At
      */
@@ -9706,9 +9838,9 @@ export type TaskCreateInputBody = {
     /**
      * Source Kind
      *
-     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; lms tasks are made by the app itself
      */
-    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    source_kind?: 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
      * Source Ref
      *
@@ -9814,9 +9946,9 @@ export type TaskFields = {
     /**
      * Source Kind
      *
-     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; assessment and lms tasks are made by the app itself
+     * Where the task came from. The assistant may only use agent (its default), syllabus or manual; lms tasks are made by the app itself
      */
-    source_kind?: 'assessment' | 'lms' | 'syllabus' | 'agent' | 'manual';
+    source_kind?: 'lms' | 'syllabus' | 'agent' | 'manual';
     /**
      * Source Ref
      *
@@ -10635,7 +10767,7 @@ export type Today = {
     /**
      * Upcoming
      *
-     * Deadlines and due tasks in the next 7 days
+     * Tasks due in the next 7 days
      */
     upcoming: Array<Occurrence>;
     /**
@@ -11328,6 +11460,12 @@ export type SemestraModulesLmsSchemasIoAssignmentList = {
      * Items
      */
     items: Array<AssignmentOut>;
+    /**
+     * New Ids
+     *
+     * `external_id` of the new assignments: not imported and due later
+     */
+    new_ids: Array<string>;
     /**
      * Truncated
      */
@@ -14208,7 +14346,7 @@ export type CalendarOccurrenceListData = {
         /**
          * Sources
          *
-         * Sources to include, e.g. ['schedule.meetings', 'grading.assessments']; all by default
+         * Sources to include, e.g. ['schedule.meetings', 'tasks.due']; all by default
          */
         sources?: Array<string> | null;
         /**
@@ -14226,9 +14364,9 @@ export type CalendarOccurrenceListData = {
         /**
          * Kinds
          *
-         * Only these kinds: class, event, deadline, task; all by default
+         * Only these kinds: class, event, task; all by default
          */
-        kinds?: Array<'class' | 'event' | 'deadline' | 'task'> | null;
+        kinds?: Array<'class' | 'event' | 'task'> | null;
     };
     url: '/programs/{program_id}/calendar';
 };
@@ -14890,9 +15028,9 @@ export type GradingAssessmentListData = {
         /**
          * Status
          *
-         * graded, pending (no score yet) or overdue (pending, past due)
+         * graded, or pending (no score yet)
          */
-        status?: 'graded' | 'pending' | 'overdue' | null;
+        status?: 'graded' | 'pending' | null;
         /**
          * Fields
          *
@@ -16486,6 +16624,38 @@ export type LmsAnnouncementMarkReadResponses = {
 
 export type LmsAnnouncementMarkReadResponse = LmsAnnouncementMarkReadResponses[keyof LmsAnnouncementMarkReadResponses];
 
+export type LmsAssignmentAddToGradebookData = {
+    body: AssignmentsImportInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id (must be linked)
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/lms/imports:gradebook';
+};
+
+export type LmsAssignmentAddToGradebookErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentAddToGradebookError = LmsAssignmentAddToGradebookErrors[keyof LmsAssignmentAddToGradebookErrors];
+
+export type LmsAssignmentAddToGradebookResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportStarted;
+};
+
+export type LmsAssignmentAddToGradebookResponse = LmsAssignmentAddToGradebookResponses[keyof LmsAssignmentAddToGradebookResponses];
+
 export type LmsAssignmentImportData = {
     body: AssignmentsImportInputBody;
     path: {
@@ -17858,6 +18028,38 @@ export type LmsTermAnnouncementListResponses = {
 };
 
 export type LmsTermAnnouncementListResponse = LmsTermAnnouncementListResponses[keyof LmsTermAnnouncementListResponses];
+
+export type LmsTermNewAssignmentsData = {
+    body?: never;
+    path: {
+        /**
+         * Term Id
+         *
+         * Term id
+         */
+        term_id: string;
+    };
+    query?: never;
+    url: '/terms/{term_id}/lms/new-assignments';
+};
+
+export type LmsTermNewAssignmentsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsTermNewAssignmentsError = LmsTermNewAssignmentsErrors[keyof LmsTermNewAssignmentsErrors];
+
+export type LmsTermNewAssignmentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: NewAssignmentList;
+};
+
+export type LmsTermNewAssignmentsResponse = LmsTermNewAssignmentsResponses[keyof LmsTermNewAssignmentsResponses];
 
 export type PluginsCatalogListData = {
     body?: never;
@@ -19606,7 +19808,7 @@ export type TasksItemQueryData = {
          *
          * Agent/MCP only: return just these fields of each task (and its id)
          */
-        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'program_id' | 'term_id' | 'course_id' | 'list_id' | 'title' | 'notes' | 'due_date' | 'due_time' | 'priority' | 'flagged' | 'completed_at' | 'overdue' | 'position' | 'source_kind' | 'source_ref' | 'assessment_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *

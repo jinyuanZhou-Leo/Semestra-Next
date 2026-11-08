@@ -38,7 +38,6 @@ from semestra.modules.schedule.sources import calendar_query
 # What each feed option includes (M04 §2 `schedule_feeds.sources`).
 FEED_SOURCES: dict[str, tuple[str, ...]] = {
     "schedule": ("schedule.meetings", "schedule.events"),
-    "assessments": ("grading.assessments",),
     "tasks": ("tasks.due",),
     "lms": ("lms.events",),
 }

@@ -9,7 +9,7 @@ import { SOURCE_KIND_LABELS } from '../labels'
 
 /**
  * An import session on its own page (M08 §6.2), opened from the import history or the status
- * bar: the same view as the dialog, for picking up a review later.
+ * bar: the same view as the dialog, for a past import or one still open in a closed tab.
  */
 export function ImportSessionPage({
   programId,

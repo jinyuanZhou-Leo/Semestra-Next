@@ -45,14 +45,21 @@ class TasksItem(Base, OwnedMixin, TimestampMixin):
         Index("ix_tasks_items_program", "user_id", "program_id"),
         Index("ix_tasks_items_course", "course_id"),
         Index("ix_tasks_items_list", "list_id"),
-        # Imports and auto tasks must never create the same source twice.
+        # An LMS import never creates the same platform item twice.
         Index(
             "uq_tasks_items_source",
             "user_id",
             "source_kind",
             "source_ref",
             unique=True,
-            sqlite_where=text("source_kind IN ('assessment', 'lms')"),
+            sqlite_where=text("source_kind = 'lms'"),
+        ),
+        # A dated assessment has exactly one task (M05 §3).
+        Index(
+            "uq_tasks_items_assessment",
+            "assessment_id",
+            unique=True,
+            sqlite_where=text("assessment_id IS NOT NULL"),
         ),
     )
 
@@ -80,3 +87,8 @@ class TasksItem(Base, OwnedMixin, TimestampMixin):
     position: Mapped[float] = mapped_column(Float, default=0.0)
     source_kind: Mapped[str | None] = mapped_column(String, default=None)
     source_ref: Mapped[str | None] = mapped_column(String, default=None)
+    # The assessment this task stands for: title, due date and course follow it (auto.py), and
+    # the task goes with it.
+    assessment_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("grading_assessments.id", ondelete="CASCADE"), default=None
+    )

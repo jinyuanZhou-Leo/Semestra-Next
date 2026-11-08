@@ -21,17 +21,14 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Field, FieldLabel } from '@/ui/field'
-import { Label } from '@/ui/label'
-import { ChoiceControl } from '@/app/settings/choice'
-import { type AssignmentImportKind, startAssignmentImport } from './assignments'
+import { startAssignmentImport } from './assignments'
 import { ProgramUnbound, startedSession } from './CoursePicker'
 import { useProviderName } from '../providers'
 
-type Kind = AssignmentImportKind
-
 /**
- * "Import assignments from LMS" (M09 §7.2): tick assignments, choose whether they start as
- * assessments or tasks, then the M08 review, where each item can still switch.
+ * "Import assignments from LMS" (M09 §7.2): tick assignments and import them, the ones worth
+ * points into the gradebook (with their to-dos), the others as to-dos. Saved at once unless
+ * something needs a decision; then the dialog shows the review.
  */
 export function AssignmentPicker({
   courseId,
@@ -83,7 +80,6 @@ function AssignmentList({
   onStarted: (session: ImportSessionDetail) => void
 }) {
   const id = useId()
-  const [kind, setKind] = useState<Kind>('assessment')
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
@@ -93,7 +89,7 @@ function AssignmentList({
   const start = () => {
     setStarting(true)
     setStartError(null)
-    startAssignmentImport(courseId, [...picked], kind)
+    startAssignmentImport(courseId, [...picked])
       .then(startedSession)
       .then(onStarted, (error: unknown) => {
         setStartError(errorMessage(error))
@@ -103,18 +99,6 @@ function AssignmentList({
 
   return (
     <>
-      <div className="flex items-center gap-3">
-        <Label id={`${id}-kind`}>{m.lms_import_as()}</Label>
-        <ChoiceControl<Kind>
-          labelId={`${id}-kind`}
-          value={kind}
-          onChange={setKind}
-          options={[
-            { value: 'assessment', label: m.imports_type_assessment() },
-            { value: 'task', label: m.imports_type_task() },
-          ]}
-        />
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <AsyncBoundary
           query={assignments}
@@ -134,7 +118,7 @@ function AssignmentList({
             <ul>
               {data.items.map((a) => {
                 const box = `${id}-${a.external_id}`
-                const imported = a.imported_as.length > 0
+                const imported = a.imported_as != null
                 const detail = [
                   a.group_name,
                   a.due_at ? formatDateTime(a.due_at) : m.lms_no_due_date(),
@@ -184,7 +168,7 @@ function AssignmentList({
       <DialogFooter>
         <AiAction
           state={starting ? 'running' : startError ? 'error' : 'idle'}
-          label={m.lms_import_review({ count: picked.size })}
+          label={m.lms_import_count({ count: picked.size })}
           error={startError}
           disabled={picked.size === 0}
           className="w-56"

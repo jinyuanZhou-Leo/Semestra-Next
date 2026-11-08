@@ -1,10 +1,13 @@
 import type { Assessment } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
 
-/** Which assessments the gradebook lists: all, the scored ones, the ones still to come, or late. */
-export type AssessmentFilter = 'all' | 'graded' | 'pending' | 'overdue'
+/**
+ * Which assessments the gradebook lists: all, the scored ones, or the ones without a score yet.
+ * A past one without a score is waiting for its grade; a missed deadline is the to-do's to show.
+ */
+export type AssessmentFilter = 'all' | 'graded' | 'pending'
 
-export const FILTERS: readonly AssessmentFilter[] = ['all', 'graded', 'pending', 'overdue']
+export const FILTERS: readonly AssessmentFilter[] = ['all', 'graded', 'pending']
 
 export function filterLabel(filter: AssessmentFilter): string {
   switch (filter) {
@@ -14,16 +17,11 @@ export function filterLabel(filter: AssessmentFilter): string {
       return m.grading_filter_graded()
     case 'pending':
       return m.grading_filter_pending()
-    case 'overdue':
-      return m.grading_filter_overdue()
   }
 }
 
-/** "Pending" includes overdue items: neither has a score yet. */
 export function matchesFilter(a: Assessment, filter: AssessmentFilter, search: string): boolean {
   const query = search.trim().toLocaleLowerCase()
   if (query && !a.title.toLocaleLowerCase().includes(query)) return false
-  if (filter === 'all') return true
-  if (filter === 'pending') return a.status !== 'graded'
-  return a.status === filter
+  return filter === 'all' || a.status === filter
 }

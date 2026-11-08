@@ -13,12 +13,12 @@
 - **从 LMS 批量导入课程**（旧 `import_program_courses`）：名称取外部课程名，别名取课程代码，分类从课程代码推断，学分取默认值，可选择目标学期；导入时同时建立课程关联。
 - **读取接口**：导航、公告、作业、成绩、单元及条目、文件（元数据与内容）、页面、测验、syllabus。这些接口与平台无关，Canvas Tab 插件和 Agent 都使用它们。
 - **作业导入为成绩簿考核**（一次性导入）。
-- **学期日历叠加**：开启同步的已关联课程，其作业截止时间与 LMS 日历事件显示在日历中（旧 event-core 的 LMS 日历源；按 provider 批量请求，Canvas 使用 context codes）。
+- **学期日历叠加**：开启同步的已关联课程，其 LMS 日历事件（不是作业）显示在日历中（按 provider 批量请求，Canvas 使用 context codes）。作业要导入才进日历：导入后成为考核（有截止日期就有待办）或待办，日历经 `tasks.due` 显示。
 - 设置界面：连接管理（Provider 选择、Provider 专属表单与 logo），课程设置中的关联管理，Program 设置中的连接绑定。
 - 出站请求防 SSRF；凭证加密存储并带版本号。
 
 新增：
-- 作业可以导入为**考核**或**待办**，在审核时切换。
+- 一个“导入”：有分值的作业成为**考核**（有截止日期就带待办），没有分值的成为**待办**；没有冲突时直接保存，有冲突才进 M08 审核（审核里仍可切换类型）。只成为待办的作业可以“加入成绩簿”，待办保留。
 - LMS 文件可以"保存到课程文件"，进入 M07 文档管线，之后可被检索和抽取。
 - LMS syllabus 一键交给 M08 智能抽取。
 - 导入后检测更新：截止时间或分值变化时提示"有 N 项更新"。
@@ -70,7 +70,7 @@ class LmsProvider(Protocol):
 - **凭证两种形态**：① 手填个人访问令牌（`access_token`，默认，托管版与自托管都可用）；② 自托管开启 `SEMESTRA_LMS_CANVAS_SIGN_IN` 后，可在学校登录页完成 SSO/MFA，把回调地址粘回应用（`sign_in.py`）。后者借用 Canvas 官方移动端 OAuth 客户端（`sso.canvaslms.com/api/v1/mobile_verify.json`），换到的 refresh token 长期有效，access token 临近过期或 401 时自动续期；续期后的凭证在请求提交后用单独短事务写回（与读缓存一样，不在读请求事务里写库）。关闭开关后不再续期：已有连接在 access token 过期后变为 `lms.invalid_credentials`，用户改填令牌；删除或更换这类连接时仍会尽力撤销（必要时用 refresh token 换一次 access token）。文件预览和下载与其它读取一样，遇 401 续期后重试一次。`credentials_hint` 为 `{method: "sign_in"}` 或令牌掩码。只允许 https（`lms.sign_in_https_required`）：换码和续期都会发送 client secret 与 refresh token。删除或更换凭证时，提交后尽力向 Canvas 撤销旧令牌：撤销需要有效的 access token，所以过期时先续期，遇 401 再续期重试一次；refresh token 已失效说明用户已在 Canvas 上移除，不算失败；其它失败只记日志。未验证：按 Canvas 开源代码，开发者密钥开了 `force_token_reuse` 时重新登录不返回 refresh token，换码以 `lms.sign_in_failed`（`no_token`）失败，旧连接不受影响（可删除后重连）；开了 `replace_tokens` 时登录会废掉同一密钥下的其它令牌，包括手机 App 的。移动端密钥是否开启这两项无法从外部确认。
 - 所有请求都通过 `core.http.safe_client()`。文件下载跟随的重定向只允许同源或 Canvas 文件 CDN，每一跳都要在解析后检查不是私网地址。
 - `navigation` 映射 Canvas tabs：`home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus`、`files`、`discussions` 映射为对应的内置类型，`type=external` 映射为 `external`，其它映射为 `unknown`。
-- `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，同时获取 `type=event` 与 `type=assignment`。
+- `calendar_events` 用 `context_codes[]=course_<id>` 批量请求，只取 `type=event`（作业不进日历叠加）。
 - 错误映射：带 `WWW-Authenticate` 的 401 → `lms.invalid_credentials`；不带的 401（已登录但某个页面或文件被锁）和普通 403 → `lms.forbidden`；403 且正文含 `Rate Limit Exceeded` 或 `X-Rate-Limit-Remaining` 已降到 0 → `lms.rate_limited`（Canvas 默认用 403 限流，站点开启后才用 429；没有 `Retry-After`，按 60 秒）；429 → `lms.rate_limited`（带 `retry_after`）；404 → `common.not_found`；网络错误或超时 → `lms.unreachable`；私网地址 → `lms.blocked_address`；学校登录未开启 → `lms.sign_in_disabled`；Canvas 不认识该校 → `lms.sign_in_unavailable`；学校登录用了 http 地址 → `lms.sign_in_https_required`；粘贴的回调无授权码/已过期 → `lms.sign_in_failed`。
 
 ### 2.4 读缓存
@@ -98,8 +98,8 @@ lms_course_links
 
 lms_imported_refs                    # 已导入的作业/事件，用于去重和更新检测
   id, user_id, link_id, external_kind ('assignment'|'calendar_event'), external_id,
-  target_kind ('assessment'|'task'|'event'), target_id, imported_at
-  UNIQUE(link_id, external_kind, external_id, target_kind)
+  target_kind ('assessment'|'task'|'event'), target_id, imported_at, snapshot, submitted_at?
+  UNIQUE(link_id, external_kind, external_id)   # 一个外部项只对应一个 Semestra 对象
 
 lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ```
@@ -114,8 +114,9 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - 浏览类数据（公告、单元、页面等）实时读取，有缓存。
   - **课程同步**（`lms.course.link.sync`，旧 `sync_course_link`）只刷新关联本身的外部元数据（代码、名称、学期、web_url），不修改课程本身。
   - 作业导入是一次性的。之后 `lms.course.check_updates` 对比 `lms_imported_refs.snapshot`，如果截止时间、分值、权重、名称或成绩变化，在成绩页和 Canvas Tab 显示"有 N 项更新"。用户确认后生成一个 M08 session，其 items 为更新类 item，审核后才写入。
-  - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。已导入为考核或待办的作业不重复显示。
-- `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测；读取接口和 Canvas Tab 仍然可用。
+  - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
+  - 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、更新检测、导入，以及每小时的 `lms.complete_submitted` 定时任务，它只读还有未提交导入作业的同步课程，走 5 分钟缓存）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
+- `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
 - 定时任务 `lms.refresh_status`（每 6 小时）：验证所有连接是否仍然有效，失效时标记为 error 并通过 SSE 发出 `lms.connection.status_changed`。
 
 ## 5. Capabilities
@@ -137,7 +138,8 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.course.link.delete` | write | DELETE /courses/{id}/lms-link | |
 | `lms.course.overview` | read | GET /courses/{id}/lms | 课程信息、导航、default_view、provider、功能标志 |
 | `lms.announcement.list` | read | GET /courses/{id}/lms/announcements | |
-| `lms.assignment.list` | read | GET /courses/{id}/lms/assignments | 每项标记已导入及导入目标 |
+| `lms.assignment.list` | read | GET /courses/{id}/lms/assignments | 每项的 `imported_as`（`{kind: assessment\|task, id}` 或空）；`new_ids`：未导入且未过截止的作业，按截止排序 |
+| `lms.term.new_assignments` | read | GET /terms/{id}/lms/new-assignments | 学期内各关联课程的新作业（`items[{course_id, external_ids, names}]`、`total`）；只开放 HTTP，供今天页提示 |
 | `lms.grade.list` | read | GET /courses/{id}/lms/grades | |
 | `lms.module.list` / `lms.module_item.list` | read | GET /courses/{id}/lms/modules[/{module_id}/items] | |
 | `lms.page.list` / `lms.page.get` | read | GET /courses/{id}/lms/pages[/{ref}] | 返回清洗后的 HTML |
@@ -147,7 +149,8 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | 文件内容代理 | — | GET /courses/{id}/lms/files/{file_id}/content | `routes.py`，流式代理，用于预览和下载 |
 | `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，`source_ref={provider, connection_id, file_id}` |
 | `lms.course.import` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
-| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session（默认类型为考核；assignment group → 分类；权重按 group weight 推算，无法推算时留空由用户填写） |
+| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 分类；权重按 group weight 推算，无法推算时留空），没有分值的成为待办；`imports.commit_if_clean` 没有冲突就直接提交（返回 `committed`、`failed`），否则留给审核 |
+| `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
 | `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
 | `lms.course.queue_updates` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session |
@@ -169,17 +172,22 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ## 7. 前端
 ### 7.1 设置
 - **账户设置 → 集成 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 凭证失效 / 缺少凭证 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；Canvas 表单：自托管开启学校登录时先选「学校账号 / API 令牌」（编辑时直接进入连接所用的方式，返回可重选）。令牌路径是一个表单：实例地址、访问令牌 + 获取令牌的 3 步说明（第 1 步链接到 `https://<地址>/profile/settings`）。学校账号路径先显示风险提示（是否使用由用户自行决定，本应用不承担后果；已有学校登录的连接重新登录时不再显示），确认后分 3 步，每步只做一件事：① 填地址，继续时取登录链接（错误显示在这一步）；② 点真实链接打开登录页（请求之后再 `window.open` 会被浏览器拦截），在学校页面完成 SSO/MFA，最后停在 `sso.canvaslms.com/canvas/login?code=…`（手机 App 才拦截这个地址，浏览器里是 404 页面，属正常，文案要说明）；③ 粘贴回调地址、填名称、保存。编辑已有的学校登录时先显示地址和名称，可直接保存，也可“重新登录”进入这 3 步。分步由 `ConfigForm` 通过 `frame(fields, step)` 声明，表单外框仍在 `ConnectionForm`。最后验证并保存。手机上使用抽屉。
+- **账户设置 → 集成 → 同步**：命名空间 `lms` 自动生成的表单：“作业提交后完成待办”（`complete_submitted`）与“允许在平台上做修改”（`allow_writes`）。
 - **Program 设置 → LMS**：选择绑定的连接；已有关联时禁用更换，并说明原因和关联数量。
 - **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：已关联时显示一行（provider 图标块、外部代码与名称、学期与连接名、状态 Badge + 相对时间、"在平台中打开"图标按钮、⋯ 菜单："刷新课程信息"（即 `lms.course.link.sync`，只刷新外部课程元数据）/ 更换课程… / 解除关联…），下方是"日历与作业变化"开关（即 `sync_enabled`）；关联出错时显示 Alert，令牌/权限类错误给"打开 LMS 连接"，其余给"重试"。未关联时是一个可搜索的 Combobox，选中即关联（只认点击/回车选中，触发器上的键入联想不算），课程代码匹配的排在"建议"组，其余按学期分组，已被其它课程关联的项禁用并注明是哪门课程，底部 Checkbox"包括往期课程"；更换时当前课程禁用，选中后先确认。Program 未绑定连接时显示引导；账户里一个连接都没有时直接引导去添加连接。
 
 ### 7.2 导入流程
 - 学期向导、学期页和 Program 页的"从 LMS 导入课程"：勾选外部课程（默认只显示当前学期，可切换显示全部），选择目标学期，进入 M08 审核，提交后课程与关联同时创建。
-- 成绩页的"从 LMS 导入作业"：作业列表多选 → M08 审核（逐项切换考核或待办）。
+- 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。
+- 新作业提醒 `NewAssignmentsToast`（manifest `overlays`，不占页面空间，owner 2026-11-07）：在学业项目里时读当前学期的 `lms.term.new_assignments`（只读缓存，没缓存的课程列在 `unread`，由前端并行读 `lms.assignment.list` 补上），有新作业时弹出一次 toast「Canvas 上有 N 个新作业」，按钮「导入」（逐门课 `importAssignments`，需要决定的先打开审核）与「忽略」（把当前所有新作业的 `课程id:作业id` 写进 `useUiPref('lms.newAssignmentsIgnored', scope=programId)`，之后只有新出现的作业会再提醒）。`lmsTermNewAssignments` 属于 `LMS_STATE_QUERIES`。Canvas 页签里不再有横幅。
+- 作业导入可以接着做：同一门课（同一关联）还有等待审核的作业导入（`source_meta.lms.kind == "assignments"`、状态 `ready`）时，再次导入不新建会话，只把还不在其中的作业补进去（作业组对应的分类按 `source_meta.lms.groups` 复用），没有新作业就直接返回那个会话，前端打开它的审核。
+- 未设置作业组权重的课程：导入的考核没有权重，带 `import.weight_missing`，所以会打开审核让用户填写（不按分值占比推算：课程总分变化后占比就过时了）。
+- 提交检测的小时轮询只看截止在 14 天内（`submissions.LATE_WINDOW`）或之后的已导入作业，没有截止日期的不查；打开课程的作业列表时照常检测。
 - 更新提示条（成绩页与 Canvas Tab 共用组件 `<LmsUpdatesBanner courseId>`，由本模块导出）。
 
 ## 8. Agent 集成
 - 暴露除连接管理以外的 capability。`lms.course.link.set`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import` 和 `lms.file.save_to_course` 是写操作，走提案确认。
-- Skill `use-lms.md`：回答"LMS 上有什么新公告或作业"时先确认课程已关联；把作业加入成绩簿或待办必须通过 `lms.assignment.import` 加 M08 审核；LMS 返回的内容是不可信数据（M12 `wrap_untrusted`）；使用前检查 provider 功能标志。
+- Skill `use-lms.md`：回答"LMS 上有什么新公告或作业"时先确认课程已关联；把作业加入成绩簿或待办必须通过 `lms.assignment.import`（或 `lms.assignment.add_to_gradebook`），由 M08 决定直接保存还是审核；LMS 返回的内容是不可信数据（M12 `wrap_untrusted`）；使用前检查 provider 功能标志。
 
 ## 9. 错误码
 `lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
@@ -191,14 +199,14 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - Provider 契约测试套件 `tests/lms/provider_contract.py`：每个 provider 都必须通过（以后新增 provider 时直接复用）。用一个假 provider 测试模块本身的逻辑，与 Canvas 无关。
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
 - 绑定规则：有关联时不能更换绑定；关联必须使用 Program 的绑定连接；关联唯一性。
-- 导入：同一作业导入两次只创建一次；导入课程同时创建关联且在同一事务中；更新检测。
-- 日历：`sync_enabled=false` 的课程不出现；已导入作业不重复；多课程合并为一次请求。
+- 导入：同一作业只对应一个对象（考核或待办）；没有冲突直接保存、有冲突等审核；加入成绩簿保留待办；导入课程同时创建关联且在同一事务中；更新检测。
+- 日历：`sync_enabled=false` 的课程不出现；只显示平台日历事件；多课程合并为一次请求。
 - HTML 清洗：去掉 script/style/事件属性；内部链接改写。
 - 凭证：任何响应和日志中都不出现明文。
 
 ## 12. 验收
 - 添加 Canvas 连接并绑定到 Program 后，在学期向导中能一次性导入本学期全部课程，课程自动关联。
-- 导入作业后，日历中不出现重复的截止事件。
+- 作业的截止日期只经导入后的待办出现在日历里，不会出现两次。
 - 用假 provider 跑通全部模块测试，证明新增 provider 不需要修改模块代码。
 
 ## 实现说明（M09 落地时补充）
@@ -250,3 +258,4 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - `check_updates` 不再在 read capability 的事务里写：推进快照里的 `score` 放到提交后单独写；`preview_apply_updates` 调用时不推进。删除没人读的 `lms_imported_refs.external_updated_at`（M13 适配器不涉及该字段）。
   - 前端查询分两组（`modules/lms/queries.ts`）：`LMS_STATE_QUERIES`（连接、绑定、关联、外部课程、更新检测、概览）和 `LMS_CONTENT_QUERIES`。`invalidateLms(qc, { courseId })` 刷状态组和这门课的内容，`{ all: true }`（改连接）刷全部；SSE 的连接事件刷全部，其余 LMS 事件只刷状态组。立即同步、更新提示条不再调用无参数的 `invalidateQueries()`。
   - 作业导入的发起共用 `lms/import/assignments.ts`（`startAssignmentImport`、`reviewAssignmentImport`），成绩簿的选择器和 Canvas Tab 都用它。
+- 课程作业打通第 3 步（2026-11-07，PR #255，迁移 0035）：① 导入记录一对一：唯一键改为 `(link_id, external_kind, external_id)`（迁移删掉同一作业多余的非考核记录）；提交钩子在作业已导入为待办、这次成为考核时把记录改指向考核，已是考核而这次是待办（并发）时以 `lms.assignment_already_imported` 回滚。② `lms.assignment.import` 不再有 `as_kind`，按分值决定；`ImportStarted` 增加 `committed`、`failed`。③ 新增 `lms.assignment.add_to_gradebook`、`lms.term.new_assignments`，`lms.assignment.list` 增加 `new_ids`。④ 日历源 `lms.events` 在前端贡献 `Mark`（平台 logo）与 `OpenLabel`（"在 Canvas 中打开"）。

@@ -7,11 +7,11 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from semestra.modules.grading.engine import weights_add_up
 from semestra.modules.imports.build import norm_title
 from semestra.modules.imports.dates import TermDates, TermWeekSpan, meeting_weeks, pick_term
 from semestra.modules.imports.models import ImportsItem
 
-WEIGHT_TOLERANCE = 0.01
 CATEGORY_TOLERANCE = 0.5
 
 
@@ -21,6 +21,8 @@ class ValidationContext:
     target_term_id: str | None
     # Existing course id → normalised titles of its assessments.
     existing_assessments: dict[str, set[str]] = field(default_factory=lambda: {})
+    # Existing course id → weights of its counted assessments (from the gradebook, M03).
+    existing_weights: dict[str, list[float]] = field(default_factory=lambda: {})
     # Existing course id → how many terms it has.
     course_term_counts: dict[str, int] = field(default_factory=lambda: {})
     # Weeks of the target term (or wizard dates); None when the target has no single term.
@@ -77,17 +79,23 @@ def _meeting_term_weeks(
     return span.weeks if span is not None else ctx.target_weeks
 
 
-def validate(items: Sequence[ImportsItem], ctx: ValidationContext) -> None:
-    """Sets `issues` on every item."""
+def validate(
+    items: Sequence[ImportsItem], ctx: ValidationContext
+) -> dict[str, list[dict[str, Any]]]:
+    """Sets `issues` on every item; returns the weight totals of each course and category
+    (`weights`, `category_weights` of the session summary)."""
     by_id = {i.id: i for i in items}
     issues = {i.id: _item_issues(i, by_id, ctx) for i in items}
     groups: defaultdict[str, list[ImportsItem]] = defaultdict(list)
     for item in items:
         if item.type == "assessment" and item.decision != "reject":
             groups[str(item.data.get("course_ref", ""))].append(item)
-    _weight_issues(items, groups, by_id, issues)
     for item in items:
         item.issues = issues[item.id]
+    return {
+        "weights": weight_totals(groups, ctx),
+        "category_weights": category_totals(items, groups),
+    }
 
 
 def _ref_missing(item: ImportsItem, by_id: dict[str, ImportsItem]) -> bool:
@@ -100,7 +108,7 @@ def _ref_missing(item: ImportsItem, by_id: dict[str, ImportsItem]) -> bool:
 def _item_issues(
     item: ImportsItem, by_id: dict[str, ImportsItem], ctx: ValidationContext
 ) -> list[dict[str, Any]]:
-    """The problems of one item on its own (the weight totals look at several)."""
+    """The problems of one item on its own (category totals look at several)."""
     data = item.data
     found: list[dict[str, Any]] = []
     if item.type == "course" and data.get("existing_course_id"):
@@ -110,6 +118,9 @@ def _item_issues(
     ):
         found.append(_issue("import.course_ref_missing"))
     if item.type == "assessment":
+        # Without a weight the assessment counts for nothing in the course grade.
+        if data.get("weight") is None:
+            found.append(_issue("import.weight_missing"))
         if data.get("due_text") and not data.get("due_date"):
             found.append(_issue("import.date_unresolved", text=data["due_text"]))
         ref = str(data.get("course_ref", ""))
@@ -153,21 +164,33 @@ def _meeting_issues(
     return found
 
 
-def _weight_issues(
-    items: Sequence[ImportsItem],
-    groups: dict[str, list[ImportsItem]],
-    by_id: dict[str, ImportsItem],
-    issues: dict[str, list[dict[str, Any]]],
-) -> None:
-    """Weights of a course's assessments should add up to 100; categories to their stated
-    total. `groups` holds the assessments that are not rejected, by course ref."""
+def weight_totals(
+    groups: Mapping[str, Sequence[ImportsItem]], ctx: ValidationContext
+) -> list[dict[str, Any]]:
+    """What each course's weights add up to once the import is in: the gradebook's counted
+    assessments plus the accepted ones here (M03 adds them up). Shown on the course in the
+    review, not as an issue: an import often brings only part of a course's assessments."""
+    out: list[dict[str, Any]] = []
     for ref, members in groups.items():
-        total = round(sum(float(m.data.get("weight") or 0) for m in members), 2)
-        if round(abs(total - 100), 2) <= WEIGHT_TOLERANCE:
-            continue
-        owner = by_id.get(ref.removeprefix("item:")) if ref.startswith("item:") else None
-        holder = owner if owner is not None else members[0]
-        issues[holder.id].append(_issue("import.weights_not_100", total=total))
+        course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
+        existing = ctx.existing_weights.get(course_id, []) if course_id else []
+        total, ok = weights_add_up(
+            [*existing, *(float(m.data.get("weight") or 0) for m in members)]
+        )
+        out.append(
+            {"course_ref": ref, "total": round(total, 2), "existing": len(existing), "ok": ok}
+        )
+    return out
+
+
+def category_totals(
+    items: Sequence[ImportsItem], groups: Mapping[str, Sequence[ImportsItem]]
+) -> list[dict[str, Any]]:
+    """What the assessments of each new category add up to, next to the total the category
+    states. Shown on the category, not as an issue: Canvas splits a group's weight over all its
+    assignments, so importing some of them leaves the rest for later. `groups` holds the
+    assessments that are not rejected, by course ref."""
+    out: list[dict[str, Any]] = []
     for item in items:
         if item.type != "category" or item.data.get("weight_total") is None:
             continue
@@ -181,11 +204,18 @@ def _weight_issues(
             ),
             2,
         )
+        if not total:
+            continue
         expected = float(item.data["weight_total"])
-        if total and abs(total - expected) > CATEGORY_TOLERANCE:
-            issues[item.id].append(
-                _issue("import.category_weight_mismatch", expected=expected, total=total)
-            )
+        out.append(
+            {
+                "item_id": item.id,
+                "expected": expected,
+                "total": total,
+                "ok": abs(total - expected) <= CATEGORY_TOLERANCE,
+            }
+        )
+    return out
 
 
 def summarize(items: Sequence[ImportsItem]) -> dict[str, Any]:

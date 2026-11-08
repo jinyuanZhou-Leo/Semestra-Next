@@ -12,26 +12,23 @@ import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
-import { issueText, itemTitle, TYPE_LABELS } from '../labels'
+import { issueText } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
 import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
 type Values = Record<string, unknown>
 
-/** The selected item of the review (M08 §6.2 right side): its issues and its fields. */
+/**
+ * An item opened in the review table (M08 §6.2), whose row names it: an assessment or to-do can
+ * switch between the two, then its issues and its fields.
+ */
 export function ItemEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground">{TYPE_LABELS[item.type]()}</p>
-          <h3 className="font-heading text-base font-medium">{itemTitle(item)}</h3>
-        </div>
-        {editable && (item.type === 'assessment' || item.type === 'task') ? (
-          <TypeSwitch item={item} />
-        ) : null}
-      </div>
+      {editable && (item.type === 'assessment' || item.type === 'task') ? (
+        <TypeSwitch item={item} />
+      ) : null}
       {item.result?.error_code ? (
         <p className="flex gap-2 text-sm text-destructive">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />

@@ -948,38 +948,32 @@ class CanvasProvider:
         ids = list(dict.fromkeys(course_ids))
         for i in range(0, len(ids), CONTEXT_CODES_PER_REQUEST):
             chunk = ids[i : i + CONTEXT_CODES_PER_REQUEST]
-            for kind in ("event", "assignment"):
-                params: list[tuple[str, Any]] = [
-                    ("type", kind),
-                    ("start_date", start.astimezone(UTC).isoformat()),
-                    ("end_date", end.astimezone(UTC).isoformat()),
-                    *(("context_codes[]", f"course_{c}") for c in chunk),
-                ]
-                for r in await self._list(io, cfg, creds, "/calendar_events", params):
-                    event = self._calendar_event(r, kind)
-                    if event is not None:
-                        out.append(event)
+            params: list[tuple[str, Any]] = [
+                ("type", "event"),
+                ("start_date", start.astimezone(UTC).isoformat()),
+                ("end_date", end.astimezone(UTC).isoformat()),
+                *(("context_codes[]", f"course_{c}") for c in chunk),
+            ]
+            for r in await self._list(io, cfg, creds, "/calendar_events", params):
+                event = self._calendar_event(r)
+                if event is not None:
+                    out.append(event)
         return out
 
-    def _calendar_event(self, r: dict[str, Any], kind: str) -> LmsCalendarEvent | None:
+    def _calendar_event(self, r: dict[str, Any]) -> LmsCalendarEvent | None:
         context = str(r.get("context_code") or "")
-        if not context.startswith("course_"):
-            return None
-        assignment = cast(dict[str, Any], r.get("assignment") or {})
-        start = r.get("start_at") or assignment.get("due_at")
-        if not start:
+        start = r.get("start_at")
+        if not context.startswith("course_") or not start:
             return None
         return LmsCalendarEvent(
             external_id=str(r.get("id") or ""),
             web_url=_text(r.get("html_url")),
-            raw_kind=kind,
+            raw_kind="event",
             external_course_id=context.removeprefix("course_"),
-            kind="assignment" if kind == "assignment" else "event",
-            title=_text(r.get("title")) or _text(assignment.get("name")) or "",
-            html=_text(r.get("description")) or _text(assignment.get("description")),
+            title=_text(r.get("title")) or "",
+            html=_text(r.get("description")),
             location=_text(r.get("location_name")),
             start_at=start,
-            end_at=None if kind == "assignment" else r.get("end_at"),
+            end_at=r.get("end_at"),
             all_day=bool(r.get("all_day")),
-            assignment_id=_text(assignment.get("id")) if kind == "assignment" else None,
         )

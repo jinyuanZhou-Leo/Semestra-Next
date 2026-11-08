@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 import { createContext, useContext } from 'react'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -19,6 +18,7 @@ import {
 import { dueText, percentText } from '../display'
 import { scoreText } from '../score'
 import { compareValues } from '../sort'
+import type { AssessmentColumn } from '../types'
 import type { WhatIf } from '../whatif'
 import { CategoryBadge } from './CategoryBadge'
 import { InlineInput } from './InlineInput'
@@ -38,6 +38,9 @@ const column = createColumnHelper<typeof features, AssessmentRow>()
  * every render, and the cell inputs would lose what was being typed.
  */
 export type TableActions = {
+  programId: string
+  /** Columns from other modules by id (`ext:<id>` columns). */
+  extensions: ReadonlyMap<string, AssessmentColumn>
   categories: ReadonlyMap<string, AssessmentCategory>
   whatIf: WhatIf
   /** The forecast's score per ungraded assessment: the hint in an empty assumption. */
@@ -145,6 +148,36 @@ function ActionsCell({ a }: { a: Assessment }) {
   )
 }
 
+// One component for every contributed column (not a new one per render): it finds the
+// contribution by the column's id, so its cells keep their state when the table re-renders.
+function ExtensionCell({
+  row,
+  column: col,
+}: {
+  row: { original: AssessmentRow }
+  column: { id: string }
+}) {
+  const { extensions, programId } = useActions()
+  const Cell = extensions.get(col.id.slice('ext:'.length))?.Cell
+  return Cell ? <Cell assessment={row.original} programId={programId} /> : null
+}
+
+/** A contributed column, shown before the row menu. */
+export const extensionColumn = (ext: AssessmentColumn) =>
+  column.display({
+    id: `ext:${ext.id}`,
+    header: () => ext.header(),
+    cell: ExtensionCell,
+    enableSorting: false,
+  })
+
+export const actionsColumn = column.display({
+  id: 'actions',
+  header: () => <span className="sr-only">{m.grading_actions()}</span>,
+  cell: ({ row }) => <ActionsCell a={row.original} />,
+  enableSorting: false,
+})
+
 export const assessmentColumns = column.columns([
   column.accessor((a) => a.title, {
     id: 'title',
@@ -164,14 +197,7 @@ export const assessmentColumns = column.columns([
     id: 'due',
     header: () => m.grading_assessment_due(),
     sortFn: by((a) => (a.due_at === null ? null : Date.parse(a.due_at))),
-    cell: ({ row }) => (
-      <span className={cn(row.original.status === 'overdue' && 'text-destructive')}>
-        {dueText(row.original)}
-        {row.original.status === 'overdue' ? (
-          <span className="ml-1.5 text-xs">{m.grading_overdue()}</span>
-        ) : null}
-      </span>
-    ),
+    cell: ({ row }) => dueText(row.original),
   }),
   column.accessor((a) => a.weight, {
     id: 'weight',
@@ -183,12 +209,6 @@ export const assessmentColumns = column.columns([
     id: 'score',
     header: () => <span className="block pr-16 text-right">{m.grading_assessment_score()}</span>,
     cell: ({ row }) => <ScoreCell a={row.original} />,
-    enableSorting: false,
-  }),
-  column.display({
-    id: 'actions',
-    header: () => <span className="sr-only">{m.grading_actions()}</span>,
-    cell: ({ row }) => <ActionsCell a={row.original} />,
     enableSorting: false,
   }),
 ])
