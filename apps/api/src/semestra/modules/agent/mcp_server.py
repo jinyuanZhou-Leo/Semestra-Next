@@ -56,13 +56,13 @@ async def _with_ctx(state: State, ident: McpIdentity, fn: Callable[[Ctx], Any]) 
 
 async def _tools_for(ctx: Ctx, ident: McpIdentity) -> list[Capability]:
     """The tools to list: what `Registry.invoke` would let this token call."""
-    caps = await registry.available(ctx, "mcp")
-    prefs = await service.get_preferences(ctx)
     out: list[Capability] = []
-    for cap in caps:
+    for cap in await registry.available(ctx, "mcp"):
         if cap.effect != "read" and not ident.can_write:
             continue
-        if cap.effect == "destructive" and not prefs.mcp_allow_destructive:
+        try:
+            await service.check_token_call(ctx, cap)
+        except AppError:
             continue
         out.append(cap)
     return out
