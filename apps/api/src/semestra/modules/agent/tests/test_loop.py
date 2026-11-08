@@ -178,7 +178,7 @@ async def test_the_prompt_prefix_is_stable_across_turns(
     of day is only on each user message, taken from when it was sent."""
     program = await agent.program()
     session = await agent.session({"program_id": program["id"]})
-    model.then(call(SEARCH, {"queries": ["meeting list"]}), say("First."), say("Second."))
+    model.then(call(SEARCH, {"queries": ["section list"]}), say("First."), say("Second."))
     await agent.send(session["id"], "one")
     clock.advance(minutes=7)
     await agent.send(session["id"], "two")
@@ -190,7 +190,7 @@ async def test_the_prompt_prefix_is_stable_across_turns(
     before = [t.name for t in first.function_tools]
     after = [t.name for t in second.function_tools]
     assert after[: len(before)] == before
-    assert "schedule__meeting__list" in after[len(before) :]
+    assert "schedule__section__list" in after[len(before) :]
     assert [t.name for t in third.function_tools] == after
     # The first user message reads the same in the later request.
     one, two = (p for p in model.prompts(2) if str(p[0]).startswith("[Sent "))
@@ -647,14 +647,14 @@ def _found(*names: str) -> Reply:
 
 async def test_search_reveals_deferred_tools(agent: Agent, model: FakeModel):
     session = await agent.session()
-    model.then(_found("schedule.meeting.list"), say("Found it."))
+    model.then(_found("schedule.section.list"), say("Found it."))
     events = await agent.send(session["id"], "show my meetings")
     assert [r["ok"] for r in events_named(events, "tool_result")] == [True]
     assert events_named(events, "tool_call")[0]["name"] == SEARCH
-    assert "schedule__meeting__list" not in model.tools_of(0)
+    assert "schedule__section__list" not in model.tools_of(0)
     assert "academics__course__find" in model.tools_of(0)  # core
     assert {SEARCH, "load_capability", "read_tool_result"} <= model.tools_of(0)
-    assert "schedule__meeting__list" in model.tools_of(1)
+    assert "schedule__section__list" in model.tools_of(1)
     # A tool nobody found yet cannot be called.
     model.then(call("grading.assessment.delete", {}), say("ok"))
     events = await agent.send(session["id"], "events?")
@@ -1365,7 +1365,7 @@ async def test_model_errors_end_the_turn_with_an_error_event(agent: Agent, model
 
 async def test_compaction_summarizes_old_turns(app: FastAPI, agent: Agent, model: FakeModel):
     session = await agent.session()
-    model.then(_found("schedule.meeting.list"), say("found"))
+    model.then(_found("schedule.section.list"), say("found"))
     await agent.send(session["id"], "question 0 " + "y" * 400)
     for i in range(1, 3):
         model.then(say(f"answer {i} " + "x" * 400))
@@ -1382,7 +1382,7 @@ async def test_compaction_summarizes_old_turns(app: FastAPI, agent: Agent, model
     assert "question 0" not in sent
     assert "question 2" in sent
     # A tool found in the summarized part stays visible.
-    assert "schedule__meeting__list" in model.tools_of(-1)
+    assert "schedule__section__list" in model.tools_of(-1)
     # The stored history is not rewritten; the summary is reused on the next request.
     async with agent_ctx(app.state, await _me(agent), scope=None) as ctx:
         state = (await service.get_session_row(ctx, session["id"])).state

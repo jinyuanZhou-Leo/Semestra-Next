@@ -13,7 +13,7 @@ from semestra.modules.schedule.common import announce, columns, program_course_i
 from semestra.modules.schedule.models import (
     ScheduleEvent,
     ScheduleEventType,
-    ScheduleMeeting,
+    ScheduleSection,
 )
 from semestra.modules.schedule.schemas import (
     EventType,
@@ -135,13 +135,13 @@ async def delete_event_type(ctx: Ctx, type_id: str) -> None:
     row = await type_row(ctx, type_id)
     if row.builtin:
         raise AppError("common.validation", 422, errors=[{"loc": ["builtin"], "code": "fixed"}])
-    meetings = await ctx.db.scalar(
+    sections = await ctx.db.scalar(
         select(func.count())
-        .select_from(ScheduleMeeting)
+        .select_from(ScheduleSection)
         .where(
-            ScheduleMeeting.user_id == ctx.user_id,
-            ScheduleMeeting.course_id.in_(await program_course_ids(ctx, row.program_id)),
-            ScheduleMeeting.type_code == row.code,
+            ScheduleSection.user_id == ctx.user_id,
+            ScheduleSection.course_id.in_(await program_course_ids(ctx, row.program_id)),
+            ScheduleSection.type_code == row.code,
         )
     )
     used_events = await ctx.db.scalar(
@@ -153,7 +153,7 @@ async def delete_event_type(ctx: Ctx, type_id: str) -> None:
             ScheduleEvent.type_code == row.code,
         )
     )
-    count = (meetings or 0) + (used_events or 0)
+    count = (sections or 0) + (used_events or 0)
     if count:
         raise AppError("schedule.event_type_in_use", 409, count=count)
     await ctx.db.delete(row)

@@ -8,7 +8,7 @@ tools = [
   "calendar.occurrence.list",
   "academics.course.find",
   "academics.term.get_weeks",
-  "schedule.meeting.list",
+  "schedule.section.list",
 ]
 +++
 
@@ -29,7 +29,7 @@ converting.
   has a task, so its due date shows once, as that task (`meta.assessment_id`); finished tasks
   have `status: done`. `lms.events` are the LMS's own calendar events, not assignments.
 - "Week 6" or "reading week" as dates: `academics.term.get_weeks`.
-- "When does APS105 meet?" (the weekly pattern rather than dates): `schedule.meeting.list`.
+- "When does APS105 meet?" (the weekly pattern rather than dates): `schedule.section.list`.
 
 **Reading the results.**
 - `status: cancelled` means the class does not happen; say so instead of leaving it out.

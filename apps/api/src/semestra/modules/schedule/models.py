@@ -38,14 +38,27 @@ class ScheduleEventType(Base, OwnedMixin):
     position: Mapped[int] = mapped_column(Integer, default=0)
 
 
-class ScheduleMeeting(Base, OwnedMixin, TimestampMixin):
-    """A recurring class section of a course in one term. Weekday and times are wall-clock times
-    in the Program's time zone."""
+class ScheduleSection(Base, OwnedMixin, TimestampMixin):
+    """A class section of a course in one term (LEC0101): its type, instructor and the weeks that
+    all of its weekly times run in."""
 
-    __tablename__ = "schedule_meetings"
+    __tablename__ = "schedule_sections"
     __table_args__ = (
-        CheckConstraint("start_time < end_time", name="ck_schedule_meetings_times"),
-        Index("ix_schedule_meetings_course_term", "course_id", "term_id"),
+        CheckConstraint(
+            "end_week IS NULL OR end_week >= start_week", name="ck_schedule_sections_weeks"
+        ),
+        Index("ix_schedule_sections_course_term", "course_id", "term_id"),
+        # A section code names one section of the course in a term; sections without a code
+        # are told apart by their times only.
+        Index(
+            "uq_schedule_sections_code",
+            "course_id",
+            "term_id",
+            "type_code",
+            "section_code",
+            unique=True,
+            sqlite_where=text("section_code != ''"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
@@ -55,19 +68,32 @@ class ScheduleMeeting(Base, OwnedMixin, TimestampMixin):
     term_id: Mapped[str] = mapped_column(
         String, ForeignKey("academics_terms.id", ondelete="CASCADE"), index=True
     )
-    section_code: Mapped[str] = mapped_column(String, default="")
     type_code: Mapped[str] = mapped_column(String)
-    title: Mapped[str | None] = mapped_column(String, default=None)
+    section_code: Mapped[str] = mapped_column(String, default="")
     instructor: Mapped[str | None] = mapped_column(String, default=None)
-    location: Mapped[str | None] = mapped_column(String, default=None)
-    weekday: Mapped[int] = mapped_column(Integer)  # 1 = Monday .. 7 = Sunday
-    start_time: Mapped[time] = mapped_column(Time)
-    end_time: Mapped[time] = mapped_column(Time)
     recurrence: Mapped[str] = mapped_column(String, default="weekly")  # weekly | biweekly
     anchor_week: Mapped[int] = mapped_column(Integer, default=1)
     start_week: Mapped[int] = mapped_column(Integer, default=1)
     end_week: Mapped[int | None] = mapped_column(Integer, default=None)
     skip_breaks: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ScheduleMeeting(Base, OwnedMixin, TimestampMixin):
+    """One weekly time of a section. Weekday and times are wall-clock times in the Program's
+    time zone; the weeks are the section's."""
+
+    __tablename__ = "schedule_meetings"
+    __table_args__ = (CheckConstraint("start_time < end_time", name="ck_schedule_meetings_times"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    section_id: Mapped[str] = mapped_column(
+        String, ForeignKey("schedule_sections.id", ondelete="CASCADE"), index=True
+    )
+    weekday: Mapped[int] = mapped_column(Integer)  # 1 = Monday .. 7 = Sunday
+    start_time: Mapped[time] = mapped_column(Time)
+    end_time: Mapped[time] = mapped_column(Time)
+    location: Mapped[str | None] = mapped_column(String, default=None)
+    title: Mapped[str | None] = mapped_column(String, default=None)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     source_kind: Mapped[str | None] = mapped_column(String, default=None)
     source_ref: Mapped[str | None] = mapped_column(String, default=None)

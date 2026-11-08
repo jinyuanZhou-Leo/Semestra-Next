@@ -185,8 +185,8 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     # The reading-week date is not a class day: reported, not silently dropped.
     assert [s["date"] for s in result["skipped_exceptions"]] == ["2026-10-26"]
     course = (await chat.call("GET", f"/programs/{program_id}/courses"))["items"][0]
-    meetings = (await chat.call("GET", f"/courses/{course['id']}/meetings"))["items"]
-    cancelled = [(e["original_date"], e["kind"]) for e in meetings[0]["exceptions"]]
+    sections = (await chat.call("GET", f"/courses/{course['id']}/sections"))["items"]
+    cancelled = [(e["original_date"], e["kind"]) for e in sections[0]["meetings"][0]["exceptions"]]
     assert cancelled == [("2026-10-12", "cancelled")]
     # The attachment stays with the conversation; the import keeps its own copy.
     assert (await chat.tool("agent.attachment.read", {"attachment_id": att["id"]}))["type"] == "ics"

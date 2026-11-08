@@ -24,6 +24,10 @@ WINTER = {
 }
 
 
+_WEEK_KEYS = ("recurrence", "anchor_week", "start_week", "end_week", "skip_breaks")
+_SECTION_KEYS = ("type_code", "section_code", "instructor")
+
+
 class Api:
     def __init__(self, client: AsyncClient) -> None:
         self.client = client
@@ -46,17 +50,30 @@ class Api:
         )
         return program["id"], term["id"], course["id"]
 
-    async def meeting(self, course_id: str, term_id: str, **body: Any) -> Any:
+    async def section(self, course_id: str, term_id: str, status: int = 200, **body: Any) -> Any:
+        """A section with one weekly time (or the times in `meetings`), through create_many;
+        returns the section."""
+        weeks = {k: body.pop(k) for k in _WEEK_KEYS if k in body}
+        section = {k: body.pop(k) for k in _SECTION_KEYS if k in body}
+        meetings = body.pop("meetings", None) or [
+            {"weekday": 1, "start_time": "10:00", "end_time": "11:00", **body}
+        ]
         payload = {
             "term_id": term_id,
             "type_code": "LEC",
             "section_code": "LEC0101",
-            "weekday": 1,
-            "start_time": "10:00",
-            "end_time": "11:00",
-            **body,
+            **section,
+            **({"weeks": weeks} if weeks else {}),
+            "meetings": meetings,
         }
-        return await self.call("POST", f"/courses/{course_id}/meetings", json=payload)
+        out = await self.call(
+            "POST", f"/courses/{course_id}/sections:batch", status, json={"sections": [payload]}
+        )
+        return out["items"][0] if status == 200 else out
+
+    async def meeting(self, course_id: str, term_id: str, **body: Any) -> Any:
+        """A section with one weekly time; returns the time."""
+        return (await self.section(course_id, term_id, **body))["meetings"][-1]
 
     async def calendar(self, program_id: str, start: str, end: str, **params: Any) -> Any:
         return await self.call(
@@ -112,67 +129,26 @@ async def test_builtin_event_types_and_custom_ones(api: Api):
     assert [t["code"] for t in order["items"]] == ["LAB", "LEC", "PRA", "TUT"]
 
 
-async def test_meeting_validation(api: Api):
+async def test_section_validation(api: Api):
     program_id, term_id, course_id = await api.setup()
     other = await api.call(
         "POST",
         f"/programs/{program_id}/terms",
         json={"name": "Summer", "start_date": "2026-05-11", "end_date": "2026-08-14"},
     )
-    r = await api.call(
-        "POST",
-        f"/courses/{course_id}/meetings",
-        422,
-        json={
-            "term_id": other["term"]["id"],
-            "type_code": "LEC",
-            "weekday": 1,
-            "start_time": "10:00",
-            "end_time": "11:00",
-        },
-    )
+    r = await api.section(course_id, other["term"]["id"], 422)
     assert r["error"]["code"] == "schedule.term_not_in_course"
-    r = await api.call(
-        "POST",
-        f"/courses/{course_id}/meetings",
-        422,
-        json={
-            "term_id": term_id,
-            "type_code": "LEC",
-            "weekday": 1,
-            "start_time": "11:00",
-            "end_time": "10:00",
-        },
-    )
+    r = await api.section(course_id, term_id, 422, start_time="11:00", end_time="10:00")
     assert r["error"]["code"] == "schedule.time_range_invalid"
-    r = await api.call(
-        "POST",
-        f"/courses/{course_id}/meetings",
-        422,
-        json={
-            "term_id": term_id,
-            "type_code": "LEC",
-            "weekday": 1,
-            "start_time": "10:00",
-            "end_time": "11:00",
-            "start_week": 5,
-            "end_week": 3,
-        },
-    )
+    r = await api.section(course_id, term_id, 422, start_week=5, end_week=3)
     assert r["error"]["code"] == "schedule.week_range_invalid"
-    r = await api.call(
-        "POST",
-        f"/courses/{course_id}/meetings",
-        422,
-        json={
-            "term_id": term_id,
-            "type_code": "XYZ",
-            "weekday": 1,
-            "start_time": "10:00",
-            "end_time": "11:00",
-        },
-    )
+    r = await api.section(course_id, term_id, 422, type_code="XYZ")
     assert r["error"]["code"] == "common.validation"
+    # A code names one section of the course in the term.
+    tut = await api.section(course_id, term_id, type_code="TUT", section_code="TUT0101")
+    await api.section(course_id, term_id, type_code="TUT", section_code="TUT0102")
+    r = await api.call("PATCH", f"/sections/{tut['id']}", 409, json={"section_code": "TUT0102"})
+    assert r["error"]["code"] == "schedule.section_exists"
 
 
 async def test_calendar_expands_meetings_with_breaks_and_dst(api: Api):
@@ -340,28 +316,53 @@ async def test_disabled_and_biweekly_and_conflicts(api: Api):
 
 async def test_create_many_dedupes_by_source(api: Api):
     _, term_id, course_id = await api.setup()
-    item = {
-        "term_id": term_id,
-        "type_code": "LEC",
+    time = {
         "weekday": 2,
         "start_time": "09:00",
         "end_time": "10:00",
         "source_kind": "ics",
         "source_ref": "uid-1",
     }
-    first = await api.call(
-        "POST", f"/courses/{course_id}/meetings:batch", json={"meetings": [item]}
+    first = await api.section(course_id, term_id, section_code="", meetings=[time])
+    (meeting,) = first["meetings"]
+    again = await api.section(
+        course_id, term_id, section_code="", meetings=[{**time, "location": "BA1160"}]
     )
-    assert len(first["created_ids"]) == 1
-    again = await api.call(
-        "POST",
-        f"/courses/{course_id}/meetings:batch",
-        json={"meetings": [{**item, "location": "BA1160"}]},
+    # A section without a code is found again by its imported time.
+    assert again["id"] == first["id"]
+    listed = await api.call("GET", f"/courses/{course_id}/sections")
+    assert [[m["location"] for m in s["meetings"]] for s in listed["items"]] == [["BA1160"]]
+    assert listed["items"][0]["meetings"][0]["id"] == meeting["id"]
+
+
+async def test_times_of_a_section_share_its_weeks(api: Api):
+    program_id, term_id, course_id = await api.setup()
+    mon = await api.meeting(course_id, term_id, start_week=2, end_week=3)
+    # Another time of LEC0101 joins the section and runs in its weeks.
+    section = await api.section(course_id, term_id, weekday=3)
+    assert (section["start_week"], section["end_week"]) == (2, 3)
+    assert [m["weekday"] for m in section["meetings"]] == [1, 3]
+    got = classes(await api.calendar(program_id, "2026-01-05", "2026-02-01"))
+    assert [o["start_at"][:10] for o in got] == [
+        "2026-01-12",
+        "2026-01-14",
+        "2026-01-19",
+        "2026-01-21",
+    ]
+    # Changing the weeks changes them for every time; a cancelled class outside them goes.
+    await api.call(
+        "PUT", f"/meetings/{mon['id']}/exceptions/2026-01-19", json={"kind": "cancelled"}
     )
-    assert again["created_ids"] == []
-    assert again["updated_ids"] == first["created_ids"]
-    listed = await api.call("GET", f"/courses/{course_id}/meetings")
-    assert [m["location"] for m in listed["items"]] == ["BA1160"]
+    changed = await api.call(
+        "PATCH", f"/sections/{section['id']}", json={"start_week": 1, "end_week": 2}
+    )
+    assert [m["exceptions"] for m in changed["meetings"]] == [[], []]
+    got = classes(await api.calendar(program_id, "2026-01-05", "2026-02-01"))
+    assert len(got) == 4
+    # A section's last time goes with the section.
+    for m in changed["meetings"]:
+        await api.call("DELETE", f"/meetings/{m['id']}")
+    assert (await api.call("GET", f"/courses/{course_id}/sections"))["items"] == []
 
 
 async def test_one_off_events(api: Api):
@@ -547,7 +548,7 @@ async def test_cleanup_on_course_and_term_changes(api: Api, app: FastAPI):
     await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id, summer_id]})
     await api.meeting(course_id, term_id)
     await api.meeting(course_id, summer_id)
-    assert len((await api.call("GET", f"/courses/{course_id}/meetings"))["items"]) == 2
+    assert len((await api.call("GET", f"/courses/{course_id}/sections"))["items"]) == 2
     summer_exam = await api.call(
         "POST",
         f"/programs/{program_id}/events",
@@ -564,12 +565,12 @@ async def test_cleanup_on_course_and_term_changes(api: Api, app: FastAPI):
     with collect_events(app, user_id) as pushed:
         await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id]})
     assert [m["type"] for m in pushed][-3:] == [
-        "schedule.meeting.deleted",
+        "schedule.section.deleted",
         "schedule.event.updated",
         "calendar.changed",
     ]
-    meetings = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
-    assert [m["term_id"] for m in meetings] == [term_id]
+    sections = (await api.call("GET", f"/courses/{course_id}/sections"))["items"]
+    assert [s["term_id"] for s in sections] == [term_id]
     quiz = await api.call("PATCH", f"/events/{summer_exam['id']}", json={"title": "Quiz"})
     assert (quiz["course_id"], quiz["term_id"]) == (course_id, None)
     await api.call("DELETE", f"/events/{summer_exam['id']}")
@@ -595,6 +596,7 @@ async def test_other_users_data_is_not_found(
 ):
     program_id, term_id, course_id = await api.setup()
     meeting = await api.meeting(course_id, term_id)
+    section_id = meeting["section_id"]
     event = await api.call(
         "POST",
         f"/programs/{program_id}/events",
@@ -605,7 +607,9 @@ async def test_other_users_data_is_not_found(
         ("GET", f"/programs/{program_id}/calendar?start=2026-01-05&end=2026-01-12"),
         ("GET", f"/programs/{program_id}/today"),
         ("GET", f"/programs/{program_id}/event-types"),
-        ("GET", f"/courses/{course_id}/meetings"),
+        ("GET", f"/courses/{course_id}/sections"),
+        ("PATCH", f"/sections/{section_id}"),
+        ("DELETE", f"/sections/{section_id}"),
         ("PATCH", f"/meetings/{meeting['id']}"),
         ("DELETE", f"/meetings/{meeting['id']}"),
         ("PUT", f"/meetings/{meeting['id']}/exceptions/2026-01-05"),
@@ -749,16 +753,16 @@ async def test_moving_an_all_day_event_keeps_its_days_across_dst(api: Api):
     assert (moved["start_at"], moved["end_at"]) == ("2026-12-05T05:00:00Z", "2026-12-07T05:00:00Z")
 
 
-async def test_editing_a_weekly_meeting_with_a_null_anchor(api: Api):
+async def test_editing_a_weekly_section_with_a_null_anchor(api: Api):
     _, term_id, course_id = await api.setup()
-    meeting = await api.meeting(course_id, term_id, start_week=3)
-    # The meeting dialog sends every field; weekly meetings carry no anchor.
+    section = await api.section(course_id, term_id, start_week=3)
+    # Weekly sections carry no anchor.
     edited = await api.call(
         "PATCH",
-        f"/meetings/{meeting['id']}",
-        json={"location": "MY150", "recurrence": "weekly", "anchor_week": None},
+        f"/sections/{section['id']}",
+        json={"instructor": "Korst", "recurrence": "weekly", "anchor_week": None},
     )
-    assert (edited["location"], edited["anchor_week"]) == ("MY150", 3)
+    assert (edited["instructor"], edited["anchor_week"]) == ("Korst", 3)
 
 
 async def test_recurrence_edits_drop_exceptions_on_dates_the_meeting_no_longer_has(api: Api):
@@ -825,8 +829,8 @@ async def test_keep_only_one_section_in_one_change(api: Api):
         },
     )
     assert [(m["id"], m["enabled"]) for m in changed["items"]] == [(other["id"], False)]
-    listed = await api.call("GET", f"/terms/{term_id}/meetings")
-    assert {m["id"]: m["enabled"] for m in listed["items"]} == {
+    listed = await api.call("GET", f"/terms/{term_id}/sections")
+    assert {m["id"]: m["enabled"] for s in listed["items"] for m in s["meetings"]} == {
         mon["id"]: True,
         wed["id"]: True,
         other["id"]: False,
@@ -838,26 +842,28 @@ async def test_a_repeated_import_keeps_hidden_sections_and_does_not_duplicate_ev
     item = {
         "term_id": term_id,
         "type_code": "TUT",
-        "weekday": 2,
-        "start_time": "09:00",
-        "end_time": "10:00",
-        "source_kind": "ics",
-        "source_ref": "uid-1:2",
+        "section_code": "TUT0101",
+        "meetings": [
+            {
+                "weekday": 2,
+                "start_time": "09:00",
+                "end_time": "10:00",
+                "source_kind": "ics",
+                "source_ref": "uid-1:2",
+            }
+        ],
     }
-    first = await api.call(
-        "POST", f"/courses/{course_id}/meetings:batch", json={"meetings": [item]}
-    )
+    url = f"/courses/{course_id}/sections:batch"
+    first = await api.call("POST", url, json={"sections": [item]})
     (meeting_id,) = first["created_ids"]
     await api.call(
         "PUT",
         f"/courses/{course_id}/meetings:enabled",
         json={"meeting_ids": [meeting_id], "enabled": False},
     )
-    again = await api.call(
-        "POST", f"/courses/{course_id}/meetings:batch", json={"meetings": [item]}
-    )
+    again = await api.call("POST", url, json={"sections": [item]})
     assert again["updated_ids"] == [meeting_id]
-    assert [m["enabled"] for m in again["items"]] == [False]
+    assert [m["enabled"] for m in again["items"][0]["meetings"]] == [False]
 
     exam = {
         "title": "Midterm",
@@ -975,43 +981,49 @@ def test_only_imports_can_mark_an_exception_as_imported():
 
 async def test_section_save_replaces_its_meetings_in_one_change(api: Api):
     _, term_id, course_id = await api.setup()
-    mon = await api.meeting(
-        course_id, term_id, recurrence="biweekly", anchor_week=2, start_week=2, enabled=False
+    section = await api.section(
+        course_id,
+        term_id,
+        recurrence="biweekly",
+        anchor_week=2,
+        start_week=2,
+        meetings=[
+            {"weekday": 1, "start_time": "10:00", "end_time": "11:00", "enabled": False},
+            {"weekday": 3, "start_time": "10:00", "end_time": "11:00", "enabled": False},
+        ],
     )
-    wed = await api.meeting(course_id, term_id, weekday=3, recurrence="biweekly", anchor_week=2)
-    await api.call("PATCH", f"/meetings/{wed['id']}", json={"enabled": False})
+    mon, wed = section["meetings"]
     url = f"/courses/{course_id}/sections"
     body = {
+        "section_id": section["id"],
         "term_id": term_id,
-        "meeting_ids": [mon["id"], wed["id"]],
         "section_code": "LEC0201",
         "type_code": "LEC",
         "instructor": "Korst",
+        "weeks": {"recurrence": "biweekly", "anchor_week": 2, "start_week": 2},
         "times": [
             {"meeting_id": mon["id"], "weekday": 2, "start_time": "09:00", "end_time": "10:00"},
             {"weekday": 5, "start_time": "09:00", "end_time": "10:00", "location": "BA 1160"},
         ],
     }
-    items = (await api.call("PUT", url, json=body))["items"]
-    # Monday's meeting moves to Tuesday, Wednesday's is deleted, Friday is new.
-    assert [(i["weekday"], i["section_code"], i["instructor"]) for i in items] == [
-        (2, "LEC0201", "Korst"),
-        (5, "LEC0201", "Korst"),
-    ]
-    assert items[0]["id"] == mon["id"]
-    # Without `weeks` the new time takes the section's weeks, and stays off with it.
-    new = items[1]
-    assert (new["recurrence"], new["anchor_week"], new["start_week"], new["enabled"]) == (
-        "biweekly",
-        2,
-        2,
-        False,
+    saved = await api.call("PUT", url, json=body)
+    # Monday's meeting moves to Tuesday, Wednesday's is deleted, Friday is new and stays off
+    # with the rest of the section.
+    assert (saved["id"], saved["section_code"], saved["instructor"]) == (
+        section["id"],
+        "LEC0201",
+        "Korst",
     )
-    listed = (await api.call("GET", f"/courses/{course_id}/meetings"))["items"]
-    assert sorted(m["id"] for m in listed) == sorted(i["id"] for i in items)
+    assert [(m["weekday"], m["enabled"]) for m in saved["meetings"]] == [(2, False), (5, False)]
+    assert saved["meetings"][0]["id"] == mon["id"]
+    assert wed["id"] not in {m["id"] for m in saved["meetings"]}
+    # A new section takes a code the course does not have yet in the term.
+    new = {**body, "section_id": None, "times": body["times"][1:]}
+    err = await api.call("PUT", url, 409, json=new)
+    assert err["error"]["code"] == "schedule.section_exists"
+    added = await api.call("PUT", url, json={**new, "section_code": "LEC0301"})
+    assert [m["enabled"] for m in added["meetings"]] == [True]
 
-    # Deleting the section (no times left) can be retried: gone ids are skipped.
-    gone = {**body, "meeting_ids": [mon["id"], wed["id"], new["id"]], "times": []}
-    assert (await api.call("PUT", url, json=gone))["items"] == []
-    assert (await api.call("PUT", url, json=gone))["items"] == []
-    assert (await api.call("GET", f"/courses/{course_id}/meetings"))["items"] == []
+    await api.call("DELETE", f"/sections/{section['id']}")
+    listed = (await api.call("GET", f"/courses/{course_id}/sections"))["items"]
+    assert [s["id"] for s in listed] == [added["id"]]

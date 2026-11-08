@@ -86,7 +86,7 @@ async def test_finding_a_tool_keeps_the_anthropic_tool_list(
             "type": "tool_use",
             "id": "toolu_1",
             "name": "search_tools",
-            "input": {"queries": ["schedule meeting list"]},
+            "input": {"queries": ["schedule section list"]},
         }
         route = mock.post(f"{ANTHROPIC}/v1/messages").mock(
             side_effect=[
@@ -99,7 +99,7 @@ async def test_finding_a_tool_keeps_the_anthropic_tool_list(
 
     assert [n for n, _ in events if n == "error"] == []
     first, second = (json.loads(c.request.content) for c in route.calls)
-    meetings = next(t for t in first["tools"] if t["name"] == "schedule__meeting__list")
-    assert meetings.get("defer_loading") is True
+    sections = next(t for t in first["tools"] if t["name"] == "schedule__section__list")
+    assert sections.get("defer_loading") is True
     assert second["tools"] == first["tools"]
     assert second["system"] == first["system"]

@@ -40,6 +40,7 @@ class OccurrenceMeta(BaseModel):
     )
     term_id: str | None = None
     meeting_id: str | None = None
+    section_id: str | None = None
     original_date: date | None = Field(
         default=None, description="For a class: its regular date (also when moved)"
     )

@@ -92,22 +92,13 @@ class MeetingException(BaseModel):
 
 class Meeting(BaseModel):
     id: str
-    course_id: str
-    term_id: str
-    section_code: str
-    type_code: str
-    title: str | None
-    instructor: str | None
-    location: str | None
+    section_id: str
     weekday: int = Field(description="1 = Monday .. 7 = Sunday")
     start_time: time = Field(description="Wall-clock time in the Program's time zone")
     end_time: time
-    recurrence: Recurrence
-    anchor_week: int = Field(description="Biweekly: the term week it starts alternating from")
-    start_week: int
-    end_week: int | None = Field(description="Last term week; null = until the end of term")
-    skip_breaks: bool
-    enabled: bool
+    location: str | None
+    title: str | None = Field(description="Optional name of this time, e.g. 'Lab'")
+    enabled: bool = Field(description="Shown in the calendar")
     source_kind: str | None
     source_ref: str | None
     exceptions: list[MeetingException] = Field(description="Cancelled or moved dates")
@@ -115,31 +106,42 @@ class Meeting(BaseModel):
     updated_at: datetime
 
 
-class MeetingList(BaseModel):
-    items: list[Meeting] = Field(description="By term, weekday and start time")
+class Section(BaseModel):
+    """A class section with its weekly times; all of them run in the section's weeks."""
+
+    id: str
+    course_id: str
+    term_id: str
+    type_code: str
+    section_code: str = Field(description="e.g. 'LEC0101'; empty when the source has none")
+    instructor: str | None
+    recurrence: Recurrence
+    anchor_week: int = Field(description="Biweekly: the term week it starts alternating from")
+    start_week: int
+    end_week: int | None = Field(description="Last term week; null = until the end of term")
+    skip_breaks: bool
+    meetings: list[Meeting] = Field(description="Weekly times, by weekday and start time")
+    created_at: datetime
+    updated_at: datetime
 
 
-class TermMeetingListInput(BaseModel):
+class SectionList(BaseModel):
+    items: list[Section] = Field(description="By term, type and section code")
+
+
+class SectionListInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    term_id: Id | None = Field(default=None, description="Only this term's sections")
+
+
+class TermSectionListInput(BaseModel):
     term_id: Id = Field(description="Term id")
 
 
-class MeetingListInput(BaseModel):
-    course_id: Id = Field(description="Course id")
-    term_id: Id | None = Field(default=None, description="Only this term's meetings")
+SectionCode = Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)]
 
 
-class MeetingFields(BaseModel):
-    term_id: Id = Field(description="Term of the course the meeting runs in")
-    section_code: Annotated[str, Field(max_length=32)] = Field(
-        default="", description="Section, e.g. 'LEC0101'"
-    )
-    type_code: TypeCode = Field(description="Event type code of the Program, e.g. 'LEC'")
-    title: ShortText | None = Field(default=None, description="Optional title")
-    instructor: ShortText | None = Field(default=None, description="Instructor")
-    location: ShortText | None = Field(default=None, description="Room or building")
-    weekday: Weekday = Field(description="1 = Monday .. 7 = Sunday")
-    start_time: time = Field(description="Start, wall-clock time in the Program's time zone")
-    end_time: time = Field(description="End, after the start")
+class SectionWeeks(BaseModel):
     recurrence: Recurrence = Field(default="weekly", description="Every week or every other week")
     anchor_week: WeekNumber | None = Field(
         default=None, description="Biweekly: first week it happens; defaults to start_week"
@@ -149,47 +151,66 @@ class MeetingFields(BaseModel):
         default=None, description="Last term week; null = until the end of term"
     )
     skip_breaks: bool = Field(default=True, description="No class in break weeks and on breaks")
-    enabled: bool = Field(default=True, description="Disabled sections are not shown")
+
+
+class SectionFields(BaseModel):
+    term_id: Id = Field(description="Term of the course the section runs in")
+    type_code: TypeCode = Field(description="Event type code of the Program, e.g. 'LEC'")
+    section_code: SectionCode = Field(default="", description="Section, e.g. 'LEC0101'")
+    instructor: ShortText | None = Field(default=None, description="Instructor")
+
+
+class MeetingTime(BaseModel):
+    weekday: Weekday = Field(description="1 = Monday .. 7 = Sunday")
+    start_time: time = Field(description="Start, wall-clock time in the Program's time zone")
+    end_time: time = Field(description="End, after the start")
+    location: ShortText | None = Field(default=None, description="Room or building")
+
+
+class NewMeeting(MeetingTime):
+    title: ShortText | None = Field(default=None, description="Optional name of this time")
+    enabled: bool = Field(default=True, description="False hides it from the calendar")
     source_kind: Annotated[str, Field(max_length=32)] | None = Field(
         default=None, description="Importer that created it, e.g. 'ics'"
     )
     source_ref: Annotated[str, Field(max_length=500)] | None = Field(
-        default=None, description="Id of the item in the import source, for de-duplication"
+        default=None, description="Id of the time in the import source, for de-duplication"
     )
 
 
-class MeetingCreateInput(MeetingFields):
-    course_id: Id = Field(description="Course id")
-
-
-class MeetingCreateManyInput(BaseModel):
-    course_id: Id = Field(description="Course id")
-    meetings: list[MeetingFields] = Field(
-        min_length=1, max_length=100, description="Meetings; same source_kind+source_ref updates"
+class NewSection(SectionFields):
+    weeks: SectionWeeks | None = Field(
+        default=None,
+        description="Weeks of all its times; null keeps an existing section's, and a new one "
+        "runs every week of the term",
+    )
+    meetings: list[NewMeeting] = Field(
+        min_length=1, max_length=20, description="Its weekly times, e.g. Monday and Wednesday"
     )
 
 
-class MeetingCreateManyResult(BaseModel):
-    items: list[Meeting]
-    created_ids: list[str]
-    updated_ids: list[str]
+class SectionCreateManyInput(BaseModel):
+    """A section whose code the course already has in that term gets the times (and the sent
+    fields); a time with the same source_kind+source_ref as one of the course's updates it."""
+
+    course_id: Id = Field(description="Course id")
+    sections: list[NewSection] = Field(min_length=1, max_length=50, description="Sections")
 
 
-class MeetingUpdateInput(BaseModel):
-    """Only the fields that are sent change."""
+class SectionCreateManyResult(BaseModel):
+    items: list[Section] = Field(description="The sections written, with all their times")
+    created_ids: list[str] = Field(description="Meetings added")
+    updated_ids: list[str] = Field(description="Meetings that existed and were updated")
 
-    meeting_id: Id = Field(description="Meeting id")
+
+class SectionUpdateInput(BaseModel):
+    """Only the fields that are sent change; the weeks apply to every time of the section."""
+
+    section_id: Id = Field(description="Section id")
     term_id: Id | None = Field(default=None, description="Another term of the course")
-    section_code: Annotated[str, Field(max_length=32)] | None = Field(
-        default=None, description="Section"
-    )
     type_code: TypeCode | None = Field(default=None, description="Event type code")
-    title: ShortText | None = Field(default=None, description="Title, or null")
+    section_code: SectionCode | None = Field(default=None, description="Section code")
     instructor: ShortText | None = Field(default=None, description="Instructor, or null")
-    location: ShortText | None = Field(default=None, description="Location, or null")
-    weekday: Weekday | None = Field(default=None, description="1 = Monday .. 7 = Sunday")
-    start_time: time | None = Field(default=None, description="Start time")
-    end_time: time | None = Field(default=None, description="End time")
     recurrence: Recurrence | None = Field(default=None, description="weekly or biweekly")
     anchor_week: WeekNumber | None = Field(
         default=None, description="Biweekly anchor week; null = the first week"
@@ -197,54 +218,52 @@ class MeetingUpdateInput(BaseModel):
     start_week: WeekNumber | None = Field(default=None, description="First term week")
     end_week: WeekNumber | None = Field(default=None, description="Last term week, or null")
     skip_breaks: bool | None = Field(default=None, description="Skip breaks")
-    enabled: bool | None = Field(default=None, description="Shown in the calendar")
 
 
-class SectionWeeks(BaseModel):
-    recurrence: Recurrence = Field(default="weekly", description="Every week or every other week")
-    anchor_week: WeekNumber | None = Field(
-        default=None, description="Biweekly: first week it happens; defaults to start_week"
-    )
-    start_week: WeekNumber = Field(default=1, description="First term week")
-    end_week: WeekNumber | None = Field(default=None, description="Last term week, or null")
-    skip_breaks: bool = Field(default=True, description="No class in break weeks and on breaks")
+class SectionRef(BaseModel):
+    section_id: Id = Field(description="Section id")
 
 
-class SectionTime(BaseModel):
+class SectionTime(MeetingTime):
     meeting_id: Id | None = Field(
         default=None, description="The meeting this time edits; null adds a new one"
     )
-    weekday: Weekday = Field(description="1 = Monday .. 7 = Sunday")
-    start_time: time = Field(description="Start, wall-clock time in the Program's time zone")
-    end_time: time = Field(description="End, after the start")
-    location: ShortText | None = Field(default=None, description="Room or building")
 
 
-class SectionSaveInput(BaseModel):
-    """Replaces a section's meetings in one change: `times` with a meeting_id update it, the
-    others are added, and meetings in `meeting_ids` left out of `times` are deleted (none left
-    deletes the section). Ids that no longer exist are skipped, so a retry is safe."""
+class SectionSaveInput(SectionFields):
+    """The app's section editor: the section with all its times in one change. Times with a
+    meeting_id update it, the others are added, and the section's meetings left out go."""
 
     course_id: Id = Field(description="Course id")
-    term_id: Id = Field(description="Term of the course the section runs in")
-    meeting_ids: list[Id] = Field(
-        default_factory=list, max_length=50, description="The section's meetings before the change"
-    )
-    section_code: Annotated[str, Field(max_length=32)] = Field(
-        default="", description="Section, e.g. 'LEC0101'"
-    )
-    type_code: TypeCode = Field(description="Event type code of the Program, e.g. 'LEC'")
-    instructor: ShortText | None = Field(default=None, description="Instructor")
-    weeks: SectionWeeks | None = Field(
-        default=None,
-        description="Weeks for every time; null keeps each meeting's and gives new times the "
-        "weeks of the section's first meeting",
-    )
-    times: list[SectionTime] = Field(max_length=50, description="The section's times after it")
+    section_id: Id | None = Field(default=None, description="The section edited; null adds one")
+    weeks: SectionWeeks = Field(default_factory=SectionWeeks, description="Weeks of all times")
+    times: list[SectionTime] = Field(min_length=1, max_length=20, description="Its weekly times")
+
+
+class MeetingCreateInput(MeetingTime):
+    section_id: Id = Field(description="Section the time belongs to")
+    title: ShortText | None = Field(default=None, description="Optional name of this time")
+    enabled: bool = Field(default=True, description="False hides it from the calendar")
+
+
+class MeetingUpdateInput(BaseModel):
+    """Only the fields that are sent change; the weeks are the section's."""
+
+    meeting_id: Id = Field(description="Meeting id")
+    weekday: Weekday | None = Field(default=None, description="1 = Monday .. 7 = Sunday")
+    start_time: time | None = Field(default=None, description="Start time")
+    end_time: time | None = Field(default=None, description="End time")
+    location: ShortText | None = Field(default=None, description="Location, or null")
+    title: ShortText | None = Field(default=None, description="Title, or null")
+    enabled: bool | None = Field(default=None, description="Shown in the calendar")
 
 
 class MeetingRef(BaseModel):
     meeting_id: Id = Field(description="Meeting id")
+
+
+class MeetingList(BaseModel):
+    items: list[Meeting]
 
 
 class MeetingSetEnabledInput(BaseModel):

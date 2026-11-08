@@ -20,7 +20,8 @@ register_settings(
 
 
 def register(app: FastAPI) -> None:
-    registry.set_id_source("meeting_id", "schedule.meeting.list")
+    registry.set_id_source("section_id", "schedule.section.list")
+    registry.set_id_source("meeting_id", "schedule.section.list")
     registry.set_id_source("event_id", "schedule.event.list")
     registry.set_id_source("event_type_id", "schedule.event_type.list")
     app.include_router(router)

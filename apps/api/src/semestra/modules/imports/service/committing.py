@@ -64,6 +64,8 @@ class _Commit:
         self.term_id: str | None = self.target.term_id
         self.categories: dict[str, dict[str, str]] = {}  # course id → key → category id
         self.terms: dict[str, Any] = {}
+        # Meeting item id → (course id, term id, start week, end week).
+        self.weeks: dict[str, tuple[str, str, int, int | None]] = {}
 
     def written(self, item_id: str) -> str | None:
         item = self.by_id.get(item_id)
@@ -102,6 +104,55 @@ class _Commit:
                 self.ctx, await academics.get_term_row(self.ctx, term_id)
             )
         return self.terms[term_id]
+
+    async def meeting_weeks(self, item: ImportsItem) -> tuple[str, str, int, int | None]:
+        """A meeting item's course, term and weeks; raises when it cannot be placed (validation
+        flags most of these)."""
+        if item.id in self.weeks:
+            return self.weeks[item.id]
+        data = item.data
+        course_id = self.course_id(data.get("course_ref"))
+        assert course_id is not None
+        first = date.fromisoformat(data["first_date"]) if data.get("first_date") else None
+        last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
+        term_id = await self.term(data.get("term_ref"), course_id, first)
+        weeks = (await self.term_dates(term_id)).weeks
+        start_week, end_week, problem = dates.meeting_weeks(
+            first, last, data.get("start_week"), data.get("end_week"), weeks
+        )
+        if problem:
+            # Never placed in the term's first week instead.
+            raise AppError(problem, 422, term_id=term_id)
+        self.weeks[item.id] = (course_id, term_id, start_week or 1, end_week)
+        return self.weeks[item.id]
+
+    async def section_weeks(
+        self, item: ImportsItem, course_id: str, term_id: str, type_code: str, code: str
+    ) -> tuple[int, int | None]:
+        """The weeks of the section a meeting item goes to: from the first week of its accepted
+        times to the last (a section without a code is just this time)."""
+        _, _, start, end = await self.meeting_weeks(item)
+        if not code:
+            return start, end
+        spans = [(start, end)]
+        for other in self.by_id.values():
+            data = other.data
+            if (
+                other.id == item.id
+                or other.type != "meeting"
+                or other.decision != "accept"
+                or str(data.get("section_code") or "").strip() != code
+                or str(data.get("type_code") or "LEC") != type_code
+            ):
+                continue
+            try:
+                other_course, other_term, s, e = await self.meeting_weeks(other)
+            except AppError:
+                continue
+            if (other_course, other_term) == (course_id, term_id):
+                spans.append((s, e))
+        ends = [e for _, e in spans if e is not None]
+        return min(s for s, _ in spans), max(ends) if len(ends) == len(spans) else None
 
     async def category_ids(self, course_id: str) -> dict[str, str]:
         if course_id not in self.categories:
@@ -210,43 +261,45 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
 
 
 async def _write_meeting(c: _Commit, item: ImportsItem) -> dict[str, Any]:
-    """Creates or updates a weekly meeting with its cancelled days."""
+    """Adds a weekly time to its section (created or found by its code) with its cancelled
+    days. All times of a section share its weeks: those of the commit's times of that section
+    together."""
     ctx, data = c.ctx, item.data
-    course_id = c.course_id(data.get("course_ref"))
-    assert course_id is not None
-    first = date.fromisoformat(data["first_date"]) if data.get("first_date") else None
-    last = date.fromisoformat(data["last_date"]) if data.get("last_date") else None
-    term_id = await c.term(data.get("term_ref"), course_id, first)
-    weeks = (await c.term_dates(term_id)).weeks
-    start_week, end_week, problem = dates.meeting_weeks(
-        first, last, data.get("start_week"), data.get("end_week"), weeks
-    )
-    if problem:
-        # Never placed in the term's first week instead; validation flags most of these.
-        raise AppError(problem, 422, term_id=term_id)
-    meeting = {
+    course_id, term_id, _, _ = await c.meeting_weeks(item)
+    section_code = str(data.get("section_code") or "").strip()
+    type_code = str(data.get("type_code") or "LEC")
+    start_week, end_week = await c.section_weeks(item, course_id, term_id, type_code, section_code)
+    section: dict[str, Any] = {
         "term_id": term_id,
-        "section_code": data.get("section_code", ""),
-        "type_code": data.get("type_code", "LEC"),
-        "weekday": data["weekday"],
-        "start_time": data["start_time"],
-        "end_time": data["end_time"],
-        "recurrence": data.get("recurrence", "weekly"),
-        "start_week": start_week or 1,
-        "end_week": end_week,
-        "location": data.get("location"),
-        "instructor": data.get("instructor"),
-        "source_kind": c.row.source_kind,
-        "source_ref": data.get("source_ref") or f"import:{item.id}",
+        "type_code": type_code,
+        "section_code": section_code,
+        "weeks": {
+            "recurrence": data.get("recurrence", "weekly"),
+            "start_week": start_week,
+            "end_week": end_week,
+        },
+        "meetings": [
+            {
+                "weekday": data["weekday"],
+                "start_time": data["start_time"],
+                "end_time": data["end_time"],
+                "location": data.get("location"),
+                "source_kind": c.row.source_kind,
+                "source_ref": data.get("source_ref") or f"import:{item.id}",
+            }
+        ],
     }
+    if data.get("instructor"):
+        section["instructor"] = data["instructor"]
     out = await deps.call(
-        ctx, "schedule.meeting.create_many", {"course_id": course_id, "meetings": [meeting]}
+        ctx, "schedule.section.create_many", {"course_id": course_id, "sections": [section]}
     )
     meeting_id = (out["created_ids"] or out["updated_ids"])[0]
+    meeting = next(m for m in out["items"][0]["meetings"] if m["id"] == meeting_id)
     cancelled = set(data.get("exceptions") or [])
     # A repeated import takes back the cancellations it wrote before that the file no longer
     # has; the user's own changes stay.
-    for exc in out["items"][0]["exceptions"]:
+    for exc in meeting["exceptions"]:
         day = str(exc["original_date"])
         if exc["imported"] and day not in cancelled:
             await deps.call(
