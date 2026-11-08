@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { assistantPage } from './store'
 
+const NONE = { id: null as string | null, key: '' }
+
 /**
  * Which conversation the full page (computer or phone) shows, from the URL's `sessionId`, and the
  * React key of its component. Only a change of conversation changes the key: a new conversation
@@ -11,8 +13,13 @@ import { assistantPage } from './store'
 export function usePageConversation(sessionId: string | null) {
   // The last conversation the URL named: a new conversation after it needs a new component.
   const [named, setNamed] = useState(sessionId)
-  if (sessionId !== null && sessionId !== named) setNamed(sessionId)
-  const [created, setCreated] = useState({ id: null as string | null, key: '' })
+  // The new conversation created here, which keeps the key it started with.
+  const [created, setCreated] = useState(NONE)
+  if (sessionId !== null && sessionId !== named) {
+    setNamed(sessionId)
+    // Another conversation: the created one's key is free again for a later new conversation.
+    if (sessionId !== created.id) setCreated(NONE)
+  }
   const newKey = `new-${named ?? ''}`
   const key = sessionId === null ? newKey : sessionId === created.id ? created.key : sessionId
   // The conversation shown, also before its URL has its id.

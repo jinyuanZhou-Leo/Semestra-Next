@@ -2,8 +2,13 @@ import type { AgentScope } from '@semestra/api-client'
 import type { JSONContent } from '@tiptap/core'
 import type { PendingAttachment } from './components/Composer'
 
-/** The key of the conversation not created yet (the panel and the page share it). */
-export const NEW_CONVERSATION = 'new'
+/**
+ * The key of a Program's conversation not created yet (the panel and the page share it). Per
+ * Program, since its scope and `@` references name that Program's terms and courses.
+ */
+export function newConversationKey(programId: string | null | undefined): string {
+  return `new:${programId ?? ''}`
+}
 
 /**
  * What the user has prepared in a conversation but not sent (M12 §6.1): the input's text, the
@@ -25,10 +30,10 @@ export const conversationDrafts = {
   update(key: string, patch: Draft) {
     drafts.set(key, { ...drafts.get(key), ...patch })
   },
-  /** The new conversation was created: what was prepared in it now belongs to `id`. */
-  created(id: string) {
-    const draft = drafts.get(NEW_CONVERSATION)
-    drafts.delete(NEW_CONVERSATION)
+  /** The new conversation (`from`) was created: what was prepared in it now belongs to `id`. */
+  created(from: string, id: string) {
+    const draft = drafts.get(from)
+    drafts.delete(from)
     if (draft) drafts.set(id, { ...drafts.get(id), ...draft })
   },
   forget(key: string) {

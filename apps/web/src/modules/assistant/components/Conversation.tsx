@@ -72,7 +72,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
-import { conversationDrafts, NEW_CONVERSATION } from '../drafts'
+import { conversationDrafts, newConversationKey } from '../drafts'
 import { skillTitle } from '../labels'
 import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
 import { useProgramEntities } from '../scope'
@@ -496,13 +496,14 @@ export function Conversation({
   const queryClient = useQueryClient()
   const temporaryId = useId()
   const ai = useAiStatus('chat')
+  // What was prepared here before (another page, a closed panel, the other view): drafts belong
+  // to the conversation, not to this component. A new one is the Program's it opened in.
+  const [newKey] = useState(() => newConversationKey(pageScope?.program_id))
   const chat = useChat(sessionId, (id) => {
-    conversationDrafts.created(id)
+    conversationDrafts.created(newKey, id)
     onCreated(id)
   })
-  // What was prepared here before (another page, a closed panel, the other view): drafts belong
-  // to the conversation, not to this component.
-  const draftKey = sessionId ?? NEW_CONVERSATION
+  const draftKey = sessionId ?? newKey
   const [draft] = useState(() => conversationDrafts.get(draftKey))
   const showReasoning = useShowReasoning()
   // Counts the messages sent from here, so the transcript can follow each one.
@@ -563,7 +564,7 @@ export function Conversation({
   async function changeScope(next: AgentScope) {
     if (!sessionId) {
       setChosenScope(next)
-      conversationDrafts.update(NEW_CONVERSATION, { scope: next })
+      conversationDrafts.update(newKey, { scope: next })
       return
     }
     await agentSessionUpdate({ path: { id: sessionId }, body: { scope: next } })
@@ -877,7 +878,7 @@ export function Conversation({
                   disabled={sessionId !== null}
                   onCheckedChange={(checked) => {
                     setTemporaryChoice(checked)
-                    conversationDrafts.update(NEW_CONVERSATION, { temporary: checked })
+                    conversationDrafts.update(newKey, { temporary: checked })
                   }}
                 />
               </TooltipTrigger>
