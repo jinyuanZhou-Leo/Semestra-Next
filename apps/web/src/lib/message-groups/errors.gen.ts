@@ -106,7 +106,6 @@ export const errorMessages = {
   error_import_file_unsupported: m.error_import_file_unsupported,
   error_import_ics_invalid: m.error_import_ics_invalid,
   error_import_ics_truncated: m.error_import_ics_truncated,
-  error_import_no_changes: m.error_import_no_changes,
   error_import_no_content: m.error_import_no_content,
   error_import_no_teaching_weeks: m.error_import_no_teaching_weeks,
   error_import_outside_term: m.error_import_outside_term,

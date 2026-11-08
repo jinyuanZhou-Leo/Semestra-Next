@@ -495,20 +495,25 @@ async def proposals(ctx: Ctx, session_id: str) -> list[AgentProposal]:
     )
     rows = list((await ctx.db.scalars(stmt)).all())
     for row in rows:
-        expire_if_stale(ctx, row)
+        settle(ctx, row)
     return rows
 
 
-def expire_if_stale(ctx: Ctx, row: AgentProposal) -> None:
+def settle(ctx: Ctx, row: AgentProposal) -> None:
+    """What time and a lost turn did to a card while no one looked: a card left pending too long
+    has expired, and one still executing when its turn is gone (the server stopped mid-write)
+    was interrupted."""
     if row.status == "pending" and row.created_at + PROPOSAL_TTL <= ctx.now:
         row.status = "expired"
+    elif row.status == "executing" and not ctx.state.agent.generating(row.session_id):
+        row.status, row.error_code = "failed", "agent.interrupted"
 
 
 async def get_proposal(ctx: Ctx, session_id: str, proposal_id: str) -> AgentProposal:
     row = await ctx.db.get(AgentProposal, proposal_id)
     if row is None or row.user_id != ctx.user_id or row.session_id != session_id:
         raise not_found("proposal", proposal_id)
-    expire_if_stale(ctx, row)
+    settle(ctx, row)
     return row
 
 
@@ -521,11 +526,12 @@ def check_pending(row: AgentProposal) -> None:
 
 async def claim_proposal(ctx: Ctx, row: AgentProposal, *, reject: bool) -> None:
     """Takes a pending proposal before its write runs, so a second decision (another tab, a
-    retried request) cannot run it again. Until the outcome is stored an approved one reads as
-    failed with `agent.interrupted`, which is also what a crash mid-write leaves behind."""
-    values: dict[str, Any] = {"status": "rejected", "decided_at": ctx.now}
-    if not reject:
-        values |= {"status": "failed", "error_code": "agent.interrupted"}
+    retried request) cannot run it again. An approved one is `executing` until its outcome is
+    stored (`settle` turns it into interrupted if the turn ends first)."""
+    values: dict[str, Any] = {
+        "status": "rejected" if reject else "executing",
+        "decided_at": ctx.now,
+    }
     result = await ctx.db.execute(
         update(AgentProposal)
         .where(AgentProposal.id == row.id, AgentProposal.status == "pending")

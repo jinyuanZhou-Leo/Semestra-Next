@@ -149,6 +149,7 @@ export function buildItems(detail: AgentSessionDetail, generating = false): View
     // result row: what it did is on the card.
     else if (proposal?.status === 'executed') status = 'done'
     else if (proposal?.status === 'failed') status = 'error'
+    else if (proposal?.status === 'executing') status = 'running'
     if (proposal?.status === 'pending') status = 'waiting'
     else if (proposal?.status === 'rejected') status = 'rejected'
     else if (proposal?.status === 'expired') status = 'expired'

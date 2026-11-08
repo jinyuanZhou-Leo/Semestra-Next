@@ -29,6 +29,7 @@ import { invalidateAfterCommit, settleEdits, storeSession } from '../queries'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
 import { useWorthKeeping } from './worth-keeping'
+import { isReading } from '../status'
 
 /** How long the finished check shows before the review replaces the extraction. */
 export const SUCCESS_HOLD_MS = 1000
@@ -59,14 +60,19 @@ export function ExtractionDone({
 }
 
 /** The running extraction as a button-shaped progress bar; its stop button cancels the job. */
-function ExtractingAction({ jobId }: { jobId: string | null | undefined }) {
+function ExtractingAction({ session }: { session: ImportSessionDetail }) {
+  const jobId = session.job_id
   const { progress, stageLabel, cancelling, cancel } = useJob(jobId)
   return (
     <AiAction
       state="running"
       label={m.imports_extracting()}
       progress={jobId ? progress : undefined}
-      stageLabel={stageLabel || m.imports_extracting()}
+      stageLabel={
+        session.status === 'waiting_files'
+          ? m.imports_waiting_files()
+          : stageLabel || m.imports_extracting()
+      }
       cancelling={cancelling}
       onCancel={jobId ? cancel : undefined}
     />
@@ -101,17 +107,17 @@ export function SessionView({
   const keep = useWorthKeeping(session)
   const [confirming, setConfirming] = useState(false)
 
-  if (session.status === 'extracting') {
+  if (isReading(session)) {
     return (
       <div className={cn('space-y-4', className)}>
-        <ExtractingAction jobId={session.job_id} />
+        <ExtractingAction session={session} />
         <FileStatusList rows={sessionRows(session.source_refs)} />
       </div>
     )
   }
 
   // Discarding is the user's own choice and "already up to date" is a fine result: plain text.
-  if (session.status === 'discarded' || session.error_code === 'import.no_changes') {
+  if (session.status === 'discarded' || session.status === 'up_to_date') {
     return (
       <p className={cn('text-sm text-muted-foreground', className)}>
         {session.status === 'discarded' ? m.imports_discarded() : m.imports_up_to_date()}

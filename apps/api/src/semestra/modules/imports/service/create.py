@@ -34,9 +34,7 @@ from semestra.modules.imports.service.rows import (
     session_items,
 )
 from semestra.modules.imports.service.uploads import get_upload, store_upload
-
-CLOSED = ("committed", "discarded")
-
+from semestra.modules.imports.states import CLOSED, move
 
 AI_PURPOSE = {"syllabus": "extraction", "text": "extraction", "timetable_image": "vision"}
 
@@ -126,7 +124,7 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
         program_id=inp.program_id,
         source_kind=kind,
         target=target.model_dump(mode="json"),
-        status="ready" if purpose is None else "extracting",
+        status="extracting",  # read below (ICS, nothing to read) or by `imports.extract`
         source_refs=[],
         source_meta=inp.source_meta,
         text=inp.text if kind == "text" else None,
@@ -158,7 +156,7 @@ async def create_session(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
         job = await enqueue(ctx, "imports.extract", ExtractPayload(session_id=row.id))
         row.job_id = job.id
     else:
-        row.status = "ready"
+        move(row, "ready")
         await revalidate(ctx, row, [])
     return await detail(ctx, row, limit=AGENT_PAGE if for_agent(ctx) else None)
 
@@ -188,7 +186,7 @@ async def _ics_items(ctx: Ctx, row: ImportsSession, uploads: Sequence[ImportsUpl
     if not new:
         raise AppError("import.no_content", 422)
     await add_items(ctx, row, new)
-    row.status = "ready"
+    move(row, "ready")
     await events.publish(ctx, "imports.session.ready", event_data(row))
 
 
@@ -270,14 +268,11 @@ def _is_duplicate(item: ImportsItem) -> bool:
 
 
 async def add_items_capability(
-    ctx: Ctx, session_id: str, new: Sequence[NewItem], *, ready: bool
+    ctx: Ctx, session_id: str, new: Sequence[NewItem]
 ) -> ImportSessionDetail:
     row = await get_session_row(ctx, session_id)
     require_open(row)
     added = await add_items(ctx, row, new)
-    if ready and row.status == "extracting" and row.job_id is None:
-        row.status = "ready"
-        await events.publish(ctx, "imports.session.ready", event_data(row))
     # The assistant gets the items it added (their ids), not the whole session again.
     return await detail(ctx, row, item_ids={i.id for i in added} if for_agent(ctx) else None)
 

@@ -191,7 +191,7 @@ export type AgentProposalOut = {
     /**
      * Status
      */
-    status: 'pending' | 'approved' | 'rejected' | 'executed' | 'failed' | 'expired';
+    status: 'pending' | 'executing' | 'rejected' | 'executed' | 'failed' | 'expired';
     /**
      * Result
      */
@@ -5225,7 +5225,7 @@ export type ImportSession = {
     /**
      * Status
      */
-    status: 'extracting' | 'ready' | 'committing' | 'committed' | 'failed' | 'discarded';
+    status: 'extracting' | 'waiting_files' | 'ready' | 'committing' | 'committed' | 'up_to_date' | 'failed' | 'discarded';
     /**
      * Job Id
      */
@@ -5279,7 +5279,7 @@ export type ImportSessionDetail = {
     /**
      * Status
      */
-    status: 'extracting' | 'ready' | 'committing' | 'committed' | 'failed' | 'discarded';
+    status: 'extracting' | 'waiting_files' | 'ready' | 'committing' | 'committed' | 'up_to_date' | 'failed' | 'discarded';
     /**
      * Job Id
      */

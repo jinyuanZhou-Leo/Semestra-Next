@@ -3020,9 +3020,9 @@ export const importsSessionListQueryKey = (options: Options<ImportsSessionListDa
 /**
  * Import history of a Program, newest first.
  *
- * Each import says where it came from and its state (extracting, ready,
- * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
- * days.
+ * Each import says where it came from and its state (extracting,
+ * waiting_files, ready, committed, up_to_date, failed, discarded). Open one with
+ * imports.session.get. Closed imports are kept for 30 days.
  */
 export const importsSessionListOptions = (options: Options<ImportsSessionListData>) => queryOptions<ImportsSessionListResponse, ImportsSessionListError, ImportsSessionListResponse, ReturnType<typeof importsSessionListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3042,9 +3042,9 @@ export const importsSessionListInfiniteQueryKey = (options: Options<ImportsSessi
 /**
  * Import history of a Program, newest first.
  *
- * Each import says where it came from and its state (extracting, ready,
- * committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
- * days.
+ * Each import says where it came from and its state (extracting,
+ * waiting_files, ready, committed, up_to_date, failed, discarded). Open one with
+ * imports.session.get. Closed imports are kept for 30 days.
  */
 export const importsSessionListInfiniteOptions = (options: Options<ImportsSessionListData>) => {
     const opts = infiniteQueryOptions<ImportsSessionListResponse, ImportsSessionListError, InfiniteData<ImportsSessionListResponse>, QueryKey<Options<ImportsSessionListData>>, string | null | Pick<QueryKey<Options<ImportsSessionListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -3080,10 +3080,10 @@ export const importsSessionListInfiniteOptions = (options: Options<ImportsSessio
  * to the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.
  * An import never creates terms: the target term must exist (academics.term.create first). ICS is
  * parsed at once (status ready); the other sources are extracted in the background (status
- * extracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a
- * document's contents with the modules' own create capabilities instead of importing it. The
- * assistant gets `summary` and the first
- * 25 items; read the rest with imports.session.get.
+ * extracting, or waiting_files while course files are still being processed, → ready): call
+ * imports.session.get with wait_seconds to wait for it. Never write a document's contents with
+ * the modules' own create capabilities instead of importing it. The assistant gets `summary` and
+ * the first 25 items; read the rest with imports.session.get.
  */
 export const importsSessionCreateMutation = (options?: Partial<Options<ImportsSessionCreateData>>): UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> => {
     const mutationOptions: UseMutationOptions<ImportsSessionCreateResponse, ImportsSessionCreateError, Options<ImportsSessionCreateData>> = {
@@ -3127,8 +3127,8 @@ export const importsSessionGetQueryKey = (options: Options<ImportsSessionGetData
  * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
  * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and
  * `fields`; items come 25 at a time, follow `next_cursor` for more. While it is
- * extracting, pass wait_seconds (up to 25) to wait for the result in one call; if it
- * is still extracting after that, tell the user and stop instead of calling again.
+ * extracting or waiting_files, pass wait_seconds (up to 25) to wait for the result in
+ * one call; if it is still not ready after that, tell the user and stop instead of calling again.
  */
 export const importsSessionGetOptions = (options: Options<ImportsSessionGetData>) => queryOptions<ImportsSessionGetResponse, ImportsSessionGetError, ImportsSessionGetResponse, ReturnType<typeof importsSessionGetQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3152,8 +3152,8 @@ export const importsSessionGetInfiniteQueryKey = (options: Options<ImportsSessio
  * needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
  * counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and
  * `fields`; items come 25 at a time, follow `next_cursor` for more. While it is
- * extracting, pass wait_seconds (up to 25) to wait for the result in one call; if it
- * is still extracting after that, tell the user and stop instead of calling again.
+ * extracting or waiting_files, pass wait_seconds (up to 25) to wait for the result in
+ * one call; if it is still not ready after that, tell the user and stop instead of calling again.
  */
 export const importsSessionGetInfiniteOptions = (options: Options<ImportsSessionGetData>) => {
     const opts = infiniteQueryOptions<ImportsSessionGetResponse, ImportsSessionGetError, InfiniteData<ImportsSessionGetResponse>, QueryKey<Options<ImportsSessionGetData>>, string | null | Pick<QueryKey<Options<ImportsSessionGetData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
