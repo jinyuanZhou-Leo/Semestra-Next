@@ -20,7 +20,8 @@ class PortabilityArchive(Base, OwnedMixin):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     kind: Mapped[str] = mapped_column(String)  # export | import
-    # export: pending → ready | failed; import: uploaded → importing → imported | failed
+    # export: pending → ready | failed (cancelled: deleted);
+    # import: uploaded → importing → imported | failed (cancelled: back to uploaded)
     status: Mapped[str] = mapped_column(String)
     job_id: Mapped[str | None] = mapped_column(String, default=None)
     include_files: Mapped[bool] = mapped_column(Boolean, default=False)

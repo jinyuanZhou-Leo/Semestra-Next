@@ -19,7 +19,7 @@ from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.core.jobs import JobCancelled, JobCtx
+from semestra.core.jobs import CoreJob, JobCancelled, JobCtx
 from semestra.core.storage import Storage
 from semestra.modules import ai
 from semestra.modules.files import chunking, indexing, service
@@ -127,46 +127,69 @@ async def _remove_objects(storage: Storage, keys: Sequence[str]) -> None:
             log.warning("files_object_delete_failed")
 
 
-async def _fail(ctx: JobCtx, work: _Work, code: str, params: dict[str, object]) -> None:
-    """Records the failure on the item and removes what the failed run wrote."""
+async def _discard(ctx: JobCtx, work: _Work) -> None:
+    """Removes what a failed run wrote. The item's status is set by `mark_failed`."""
     store = get_vector_store()
     keys = list(work.thumbnail_keys)
-    async with ctx.state.session_factory() as db:
-        if work.document_written:
+    if work.document_written:
+        async with ctx.state.session_factory() as db:
             keys += await indexing.delete_documents(db, store, [work.document_id])
-        item = await db.get(FilesItem, work.item_id)
-        if item is not None:
-            item.doc_status = "unsupported" if code == "files.unsupported_type" else "failed"
-            item.doc_error_code = code
-            item.updated_at = ctx.state.now()
-        await db.commit()
+            await db.commit()
     await _remove_objects(ctx.state.storage, keys)
-    await _announce(
+
+
+async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
+    """`files.process` ended failed or cancelled (in its handler, cancelled before it ran, or its
+    worker died): the item says why, instead of staying pending or processing for ever. Left
+    alone when the item has been queued again since."""
+    item = await ctx.db.get(FilesItem, item_id)
+    if item is None or item.doc_status not in ("pending", "processing"):
+        return
+    queued_again = await ctx.db.scalar(
+        select(CoreJob.id).where(
+            CoreJob.user_id == item.user_id,
+            CoreJob.dedupe_key == f"{item.id}:{item.sha256}",
+            CoreJob.status.in_(("pending", "running")),
+        )
+    )
+    if queued_again is not None:
+        return
+    code = (
+        "files.cancelled" if job.status == "cancelled" else job.error_code or "files.parse_failed"
+    )
+    item.doc_status = "unsupported" if code == "files.unsupported_type" else "failed"
+    item.doc_error_code = code
+    item.updated_at = ctx.now
+    data = {"item_id": item.id, "course_id": item.course_id}
+    await events.publish(ctx, "files.item.updated", data, user_id=item.user_id)
+    await events.publish(
         ctx,
-        ("files.item.updated", {"item_id": work.item_id, "course_id": work.course_id}),
-        ("files.document.failed", {"item_id": work.item_id, "code": code, "params": params}),
+        "files.document.failed",
+        {"item_id": item.id, "code": code, "params": job.error_params or {}},
+        user_id=item.user_id,
     )
 
 
 async def run(ctx: JobCtx, item_id: str) -> int:
-    """Processes one item; returns its page count. Failures are recorded on the item."""
+    """Processes one item; returns its page count. A failure ends the job with the reason as its
+    error code, which `mark_failed` records on the item."""
     work = await _begin(ctx, item_id)
     if work is None:
         return 0
     try:
         return await _run(ctx, work)
     except JobCancelled:
-        await _fail(ctx, work, "files.cancelled", {})
+        await _discard(ctx, work)
         raise
     except ParseError as exc:
-        await _fail(ctx, work, exc.code, exc.params)
+        await _discard(ctx, work)
         raise AppError(exc.code, 422, **exc.params) from exc
-    except AppError as exc:
-        await _fail(ctx, work, exc.code, exc.params)
+    except AppError:
+        await _discard(ctx, work)
         raise
     except Exception as exc:
         log.exception("files_process_failed")
-        await _fail(ctx, work, "files.parse_failed", {})
+        await _discard(ctx, work)
         raise AppError("files.parse_failed", 500) from exc
 
 

@@ -1,5 +1,6 @@
 import type { ImportSessionDetail } from '@semestra/api-client'
 import { useState } from 'react'
+import { isReading } from '../status'
 
 /** Sources the model reads (or Sem builds): reading them again takes time and AI usage. */
 const READ_BY_AI = new Set<ImportSessionDetail['source_kind']>([
@@ -22,7 +23,7 @@ function fingerprint(session: ImportSessionDetail): string {
 export function useWorthKeeping(session: ImportSessionDetail | undefined): boolean {
   // The items as they first came up for review; a change from them is the user's.
   const [baseline, setBaseline] = useState<string | null>(null)
-  if (!session || (session.status !== 'ready' && session.status !== 'extracting')) return false
+  if (!session || (session.status !== 'ready' && !isReading(session))) return false
   if (READ_BY_AI.has(session.source_kind)) return true
   if (session.status !== 'ready') return false
   const now = fingerprint(session)

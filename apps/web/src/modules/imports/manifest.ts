@@ -21,6 +21,7 @@ const courseInfoFill: CourseInfoFill = {
 
 const SESSION_EVENTS = [
   'imports.session.ready',
+  'imports.session.up_to_date',
   'imports.session.failed',
   'imports.session.committed',
 ] as const

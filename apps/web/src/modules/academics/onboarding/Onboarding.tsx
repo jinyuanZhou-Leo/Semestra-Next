@@ -19,7 +19,7 @@ import { invalidateAcademics } from '../queries'
 import { TOUR_DONE_KEY } from '../shell/Tour'
 import { ONBOARDING_STEPS, type OnboardingStep } from '../types'
 import { TermWizard } from '../wizard/TermWizard'
-import { load, type Progress, store } from './progress'
+import { load, type Progress, type Stage, store } from './progress'
 
 /**
  * First run without a Program (M02 §5.7): language → Program → first term → steps other
@@ -39,6 +39,7 @@ export function Onboarding() {
   const [signingOut, setSigningOut] = useState(false)
   const [progress, setProgress] = useState<Progress>(() => load(user?.id))
   useEffect(() => store(progress), [progress])
+  const go = (stage: Stage) => setProgress((current) => ({ ...current, stage }))
 
   const createProgram = useMutation({
     ...academicsProgramCreateMutation(),
@@ -46,33 +47,48 @@ export function Onboarding() {
     onSuccess: async (program) => {
       await invalidateAcademics(queryClient)
       updatePreferences({ active_program_id: program.id })
-      setProgress((current) => ({ userId: current.userId, step: 2, programId: program.id }))
+      go({ kind: 'term', programId: program.id })
     },
   })
 
-  const finishIndex = 3 + extra.length
-  const step = Math.min(progress.step, finishIndex)
-  const advance = (change: Partial<Progress> = {}) =>
-    setProgress((current) => ({ ...current, ...change, step: current.step + 1 }))
+  /** The first step other modules add after `index` (-1: after the term), else the end. */
+  const after = (index: number, programId: string, termId: string | undefined): Stage => {
+    const next = extra[index + 1]
+    return next
+      ? { kind: 'extra', id: next.id, programId, termId }
+      : { kind: 'done', programId, termId }
+  }
+  const saved = progress.stage
+  const extraIndex = saved.kind === 'extra' ? extra.findIndex((s) => s.id === saved.id) : -1
+  const extraStep = extra[extraIndex]
+  // A step that is no longer available (it was on an earlier load): the rest are skipped too.
+  const stage: Stage =
+    saved.kind === 'extra' && !extraStep
+      ? { kind: 'done', programId: saved.programId, termId: saved.termId }
+      : saved
 
-  const finish = () => {
+  const total = 4 + extra.length
+  const position = {
+    language: 0,
+    program: 1,
+    term: 2,
+    extra: 3 + Math.max(extraIndex, 0),
+    done: total - 1,
+  }[stage.kind]
+
+  const finish = (programId: string, termId: string | undefined) => {
     store(null)
     setTourDone(false)
-    const { programId, termId } = progress
     // Without a term, Today: it has cards for the tour, and the sidebar offers "New term".
-    router.history.replace(
-      programId ? (termId ? termPath(programId, termId) : `${programPath(programId)}/today`) : '/',
-    )
+    router.history.replace(termId ? termPath(programId, termId) : `${programPath(programId)}/today`)
   }
-
-  const extraStep = step >= 3 && step < finishIndex ? extra[step - 3] : undefined
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-8 px-6 py-12">
       <header className="flex items-center gap-3">
         <GraduationCap aria-hidden className="size-7 text-primary" />
         <p className="flex-1 text-sm text-muted-foreground">
-          {m.academics_onboarding_progress({ current: step + 1, total: finishIndex + 1 })}
+          {m.academics_onboarding_progress({ current: position + 1, total })}
         </p>
         {user ? (
           <p className="text-xs text-muted-foreground" data-testid="signed-in-as">
@@ -85,7 +101,7 @@ export function Onboarding() {
         <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
       </header>
 
-      {step === 0 ? (
+      {stage.kind === 'language' ? (
         <section className="space-y-6">
           <div className="space-y-2">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
@@ -113,12 +129,12 @@ export function Onboarding() {
             />
           </div>
           <div className="flex justify-end">
-            <Button onClick={() => advance()}>{m.academics_wizard_next()}</Button>
+            <Button onClick={() => go({ kind: 'program' })}>{m.academics_wizard_next()}</Button>
           </div>
         </section>
       ) : null}
 
-      {step === 1 ? (
+      {stage.kind === 'program' ? (
         <section className="space-y-6">
           <div className="space-y-2">
             <h1 className="font-heading text-2xl font-semibold tracking-tight">
@@ -131,11 +147,7 @@ export function Onboarding() {
             pending={createProgram.isPending}
             onSubmit={(body) => createProgram.mutate({ body })}
             footer={
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => setProgress({ ...progress, step: 0 })}
-              >
+              <Button variant="ghost" type="button" onClick={() => go({ kind: 'language' })}>
                 {m.academics_wizard_back()}
               </Button>
             }
@@ -143,7 +155,7 @@ export function Onboarding() {
         </section>
       ) : null}
 
-      {step === 2 && progress.programId ? (
+      {stage.kind === 'term' ? (
         <section className="space-y-6">
           <div className="space-y-2">
             <h1 className="font-heading text-2xl font-semibold tracking-tight">
@@ -152,43 +164,46 @@ export function Onboarding() {
             <p className="text-muted-foreground">{m.academics_onboarding_term_body()}</p>
           </div>
           <TermWizard
-            programId={progress.programId}
-            onCreated={(result) => advance({ termId: result.term.id })}
-            onSkip={() => advance({ termId: undefined })}
+            programId={stage.programId}
+            onCreated={(result) => go(after(-1, stage.programId, result.term.id))}
+            onSkip={() => go(after(-1, stage.programId, undefined))}
           />
         </section>
       ) : null}
 
-      {extraStep ? (
+      {stage.kind === 'extra' && extraStep ? (
         <section className="space-y-6">
           <h1 className="font-heading text-2xl font-semibold tracking-tight">
             {extraStep.title()}
           </h1>
-          <extraStep.component onDone={() => advance()} />
+          <extraStep.component
+            onDone={() => go(after(extraIndex, stage.programId, stage.termId))}
+          />
           <div className="flex justify-end">
-            <Button variant="ghost" onClick={() => advance()}>
+            <Button
+              variant="ghost"
+              onClick={() => go(after(extraIndex, stage.programId, stage.termId))}
+            >
               {m.academics_onboarding_skip()}
             </Button>
           </div>
         </section>
       ) : null}
 
-      {step === finishIndex ? (
+      {stage.kind === 'done' ? (
         <section className="space-y-6">
           <div className="space-y-2">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
               {m.academics_onboarding_done_title()}
             </h1>
             <p className="text-muted-foreground">
-              {progress.termId
+              {stage.termId
                 ? m.academics_onboarding_done_body()
                 : m.academics_onboarding_done_body_no_term()}
             </p>
           </div>
-          <Button onClick={finish}>
-            {progress.termId
-              ? m.academics_onboarding_start()
-              : m.academics_onboarding_start_no_term()}
+          <Button onClick={() => finish(stage.programId, stage.termId)}>
+            {stage.termId ? m.academics_onboarding_start() : m.academics_onboarding_start_no_term()}
           </Button>
         </section>
       ) : null}

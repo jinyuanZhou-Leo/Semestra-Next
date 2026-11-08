@@ -136,9 +136,11 @@ export const SOURCE_KIND_LABELS: Record<ImportSession['source_kind'], () => stri
 
 export const STATUS_LABELS: Record<ImportSession['status'], () => string> = {
   extracting: m.imports_status_extracting,
+  waiting_files: m.imports_status_waiting_files,
   ready: m.imports_status_ready,
   committing: m.imports_status_committing,
   committed: m.imports_status_committed,
+  up_to_date: m.imports_status_up_to_date,
   failed: m.imports_status_failed,
   discarded: m.imports_status_discarded,
 }

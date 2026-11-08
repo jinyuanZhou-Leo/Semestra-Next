@@ -599,7 +599,7 @@ async def test_a_proposal_is_claimed_before_its_write_runs(
     monkeypatch.setattr(outcome, "invoke", invoke)
     model.then(say("Done"))
     await agent.decide(session["id"], proposal["id"])
-    assert seen == ["failed"]  # claimed (agent.interrupted) while the write ran
+    assert seen == ["executing"]  # claimed while the write ran
     [card] = (await agent.detail(session["id"]))["proposals"]
     assert (card["status"], card["error_code"]) == ("executed", None)
 
