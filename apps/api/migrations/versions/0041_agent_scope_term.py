@@ -4,8 +4,8 @@ Conversations started on a course page before scopes stopped at the term named t
 (`agent_sessions.scope.course_id`). They now work in that course's term (the latest one for a
 year-long course, unless the scope already named a term), and the key goes.
 
-Revision ID: 0040
-Revises: 0039
+Revision ID: 0041
+Revises: 0040
 Create Date: 2026-11-08 18:00:00.000000
 
 """
@@ -15,8 +15,8 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0040"
-down_revision: str | Sequence[str] | None = "0039"
+revision: str = "0041"
+down_revision: str | Sequence[str] | None = "0040"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

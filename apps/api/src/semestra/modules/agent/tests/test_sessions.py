@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
+from semestra.core.config import Settings
 from semestra.modules.agent import skills
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
 from semestra.testing import MakeUser
@@ -147,18 +148,12 @@ async def test_unsent_attachments_can_be_deleted(agent: Agent, model: FakeModel)
     assert (await agent.call("GET", "/storage/usage"))["by_module"]["agent"] == 5
 
 
-async def test_parallel_uploads_respect_the_quota(agent: Agent, monkeypatch):
+async def test_parallel_uploads_respect_the_quota(agent: Agent, settings: Settings):
     import asyncio
 
-    from semestra.modules.agent import routes, service
-
-    async def quota(ctx: object) -> int:
-        left = 8 - await service._storage_used(ctx)  # pyright: ignore[reportPrivateUsage, reportArgumentType]
-        await asyncio.sleep(0.05)  # let a parallel upload check in between
-        return left
-
-    monkeypatch.setattr(routes, "remaining_quota", quota)
     session = await agent.session()
+    used = (await agent.call("GET", "/storage/usage"))["used_bytes"]
+    settings.user_storage_quota_bytes = used + 8  # room for one 5-byte file, not two
 
     async def upload(name: str) -> int:
         r = await agent.client.post(
@@ -169,6 +164,7 @@ async def test_parallel_uploads_respect_the_quota(agent: Agent, monkeypatch):
         return r.status_code
 
     assert sorted(await asyncio.gather(upload("a.txt"), upload("b.txt"))) == [200, 413]
+    assert (await agent.call("GET", "/storage/usage"))["by_module"]["agent"] == 5
 
 
 async def test_attachment_size_limit(agent: Agent, monkeypatch):

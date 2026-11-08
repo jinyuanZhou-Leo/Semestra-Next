@@ -4,8 +4,8 @@
 cleanup of unsent uploads reads only those, instead of scanning every message for references.
 Attachments already in messages take their message's time.
 
-Revision ID: 0041
-Revises: 0040
+Revision ID: 0042
+Revises: 0041
 Create Date: 2026-11-08 18:10:00.000000
 
 """
@@ -18,8 +18,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = "0041"
-down_revision: str | Sequence[str] | None = "0040"
+revision: str = "0042"
+down_revision: str | Sequence[str] | None = "0041"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

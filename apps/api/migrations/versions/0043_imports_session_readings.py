@@ -4,8 +4,8 @@
 that runs again (a crash, a locked database at the end) builds the items without paying for the
 files again. Emptied when extraction ends.
 
-Revision ID: 0042
-Revises: 0041
+Revision ID: 0043
+Revises: 0042
 Create Date: 2026-11-08 20:00:00.000000
 
 """
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0042"
-down_revision: str | Sequence[str] | None = "0041"
+revision: str = "0043"
+down_revision: str | Sequence[str] | None = "0042"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

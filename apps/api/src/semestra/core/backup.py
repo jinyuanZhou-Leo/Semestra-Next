@@ -37,7 +37,6 @@ def _sqlite_sources(settings: Settings) -> dict[str, Path]:
     url = make_url(settings.database_url)
     if url.get_backend_name() == "sqlite" and url.database not in (None, "", ":memory:"):
         sources["semestra"] = Path(url.database)
-    sources["agent_checkpoints"] = settings.data_dir / "agent_checkpoints.sqlite"
     return {name: path for name, path in sources.items() if path.is_file()}
 
 

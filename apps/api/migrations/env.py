@@ -15,27 +15,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-# Import every module's models here so autogenerate and `alembic check` see them.
-from semestra.core import jobs as _core_jobs  # noqa: E402,F401
 from semestra.core.config import get_settings  # noqa: E402
-from semestra.core.db import Base, ensure_sqlite_dir  # noqa: E402
-from semestra.modules.academics import models as _academics_models  # noqa: E402,F401
-from semestra.modules.agent import models as _agent_models  # noqa: E402,F401
-from semestra.modules.ai import models as _ai_models  # noqa: E402,F401
-from semestra.modules.auth import models as _auth_models  # noqa: E402,F401
-from semestra.modules.files import models as _files_models  # noqa: E402,F401
-from semestra.modules.grading import models as _grading_models  # noqa: E402,F401
-from semestra.modules.imports import models as _imports_models  # noqa: E402,F401
-from semestra.modules.layouts import models as _layouts_models  # noqa: E402,F401
-from semestra.modules.lms import models as _lms_models  # noqa: E402,F401
-from semestra.modules.notifications import models as _notifications_models  # noqa: E402,F401
-from semestra.modules.plugins import models as _plugins_models  # noqa: E402,F401
-from semestra.modules.plugins_builtin.habit_streak import models as _habit_models  # noqa: E402,F401
-from semestra.modules.plugins_builtin.pomodoro import models as _pomodoro_models  # noqa: E402,F401
-from semestra.modules.portability import models as _portability_models  # noqa: E402,F401
-from semestra.modules.schedule import models as _schedule_models  # noqa: E402,F401
-from semestra.modules.settings import models as _settings_models  # noqa: E402,F401
-from semestra.modules.tasks import models as _tasks_models  # noqa: E402,F401
+from semestra.core.db import Base, ensure_sqlite_dir, import_all_models  # noqa: E402
+
+# Every module's models, so autogenerate and `alembic check` see all tables.
+import_all_models()
 
 target_metadata = Base.metadata
 

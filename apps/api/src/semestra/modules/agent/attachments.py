@@ -20,7 +20,7 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import periodic
-from semestra.core.storage import get_storage
+from semestra.core.storage import delete_after_commit
 from semestra.modules.agent import service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import service as files
@@ -175,16 +175,9 @@ async def cleanup_unsent(ctx: Ctx) -> None:
             )
         )
     ).all()
-    keys = [row.storage_key for row in rows]
     for row in rows:
         await ctx.db.delete(row)
-    storage = get_storage(ctx)
-
-    async def _remove_files() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(_remove_files)
+    delete_after_commit(ctx, [row.storage_key for row in rows])
 
 
 # --- capability -----------------------------------------------------------------------------
