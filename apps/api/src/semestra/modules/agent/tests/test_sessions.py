@@ -22,7 +22,7 @@ async def test_session_crud(agent: Agent):
     program = await agent.program()
     a = await agent.session({"program_id": program["id"]})
     b = await agent.session()
-    assert a["scope"] == {"program_id": program["id"], "term_id": None, "course_id": None}
+    assert a["scope"] == {"program_id": program["id"], "term_id": None}
     await agent.call(
         "PATCH", f"/agent/sessions/{a['id']}", json={"title": "Grades", "pinned": True}
     )

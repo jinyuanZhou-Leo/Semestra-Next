@@ -17,10 +17,12 @@ from sse_starlette import EventSourceResponse
 from starlette.datastructures import State
 
 from semestra.core.capability import registry
+from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import get_storage, remaining_quota, user_key
+from semestra.core.uploads import limit_upload
 from semestra.modules.agent import attachments, decisions, loop, service, skills, store
 from semestra.modules.agent.models import (
     AgentAttachment,
@@ -44,6 +46,19 @@ router = APIRouter(tags=["agent"])
 _upload_locks: dict[str, asyncio.Lock] = {}
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+
+def _attachment_limit(settings: Settings) -> tuple[int, AppError]:
+    """Checked while the body arrives; the route checks the file itself exactly."""
+    del settings
+    return MAX_ATTACHMENT_BYTES, _too_large()
+
+
+def _too_large() -> AppError:
+    return AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
+
+
+limit_upload("/agent/attachments", _attachment_limit)
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 PING_SECONDS = 15
 
@@ -347,7 +362,7 @@ async def upload_attachment(
     session = await service.get_session_row(ctx, session_id)
     data = await file.read(MAX_ATTACHMENT_BYTES + 1)
     if len(data) > MAX_ATTACHMENT_BYTES:
-        raise AppError("agent.attachment_too_large", 413, limit_bytes=MAX_ATTACHMENT_BYTES)
+        raise _too_large()
     # The type comes from the content, not the browser's claim (Windows often sends
     # application/octet-stream for .ics and .md).
     name = file.filename or "file"

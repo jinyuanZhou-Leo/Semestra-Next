@@ -66,7 +66,7 @@ export function SuggestionChips({
 }) {
   const { data } = useQuery({
     ...agentSuggestionListOptions({
-      query: { program_id: scope.program_id, term_id: scope.term_id, course_id: scope.course_id },
+      query: { program_id: scope.program_id, term_id: scope.term_id },
     }),
     // Deadlines and grades change without an event for this list.
     refetchOnMount: 'always',

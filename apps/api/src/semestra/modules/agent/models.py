@@ -20,7 +20,7 @@ class AgentSession(Base, OwnedMixin):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     program_id: Mapped[str | None] = mapped_column(String, default=None)
     title: Mapped[str | None] = mapped_column(String, default=None)
-    # The page scope the session was started from: {program_id, term_id?, course_id?}.
+    # The page scope the session was started from: {program_id, term_id?}.
     scope: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     pinned: Mapped[bool] = mapped_column(default=False)
     # A temporary chat neither reads nor writes memories (M12 记忆).

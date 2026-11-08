@@ -64,14 +64,6 @@ async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRe
             parts.append(f"term {_quoted(term.name)} (term_id {term.id})")
         except AppError:
             pass
-    # Conversations started before scopes stopped at the term may still name a course.
-    if scope is not None and scope.course_id:
-        try:
-            course = await academics.get_course_row(ctx, scope.course_id)
-            label = f"{course.code} {course.title}" if course.code else course.title
-            parts.append(f"course {_quoted(label)} (course_id {course.id})")
-        except AppError:
-            pass
     if scope is None:
         parts.append("(their only Program)")
     return ", ".join(parts) + "."

@@ -238,12 +238,6 @@ export type AgentScope = {
      * Term it works in, if any.
      */
     term_id?: string | null;
-    /**
-     * Course Id
-     *
-     * Course of older conversations; new ones work in a Program or a term.
-     */
-    course_id?: string | null;
 };
 
 /**
@@ -13969,12 +13963,6 @@ export type AgentSuggestionListData = {
          * Term it works in, if any.
          */
         term_id?: string | null;
-        /**
-         * Course Id
-         *
-         * Course of older conversations; new ones work in a Program or a term.
-         */
-        course_id?: string | null;
     };
     url: '/agent/suggestions';
 };

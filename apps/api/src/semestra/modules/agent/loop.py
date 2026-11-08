@@ -346,7 +346,11 @@ class _Hooks(AbstractCapability[Turn]):
             )
         )
         overhead = history.request_overhead(instructions, params.function_tools)
+        summarized = turn.memo.get("summarized_until")
         request_context.messages = await compact(turn, messages, overhead)
+        if turn.memo.get("summarized_until") != summarized:
+            # Kept now: the request that follows may fail with nothing else to store.
+            await asyncio.shield(_save_memo(turn))
         if turn.cancel.is_set():
             # Stopped while compacting: the turn ends here, before the request goes out.
             raise _Stopped
@@ -765,6 +769,12 @@ async def _keep(store: Store, answer: Answer | None, run: AgentRun[Turn, Any] | 
         await asyncio.shield(store.partial(answer))
     if run is not None:
         await asyncio.shield(store.sync(run.all_messages()))
+
+
+async def _save_memo(turn: Turn) -> None:
+    async with agent_ctx(turn.state, turn.user_id, scope=None) as ctx:
+        save_state(await service.get_session_row(ctx, turn.session_id), turn)
+        await ctx.db.commit()
 
 
 async def _close(prepared: Prepared, messages: list[ModelMessage]) -> AsyncIterator[Event]:

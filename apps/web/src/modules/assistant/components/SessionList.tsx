@@ -1,10 +1,11 @@
-import type { AgentSessionOut } from '@semestra/api-client'
+import type { AgentSessionDetail, AgentSessionOut } from '@semestra/api-client'
 import {
   agentSessionDeleteMutation,
+  agentSessionGetQueryKey,
   agentSessionListOptions,
   agentSessionUpdateMutation,
 } from '@semestra/api-client/react-query'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { differenceInCalendarDays } from 'date-fns'
 import {
   MessageCircleDashed,
@@ -92,8 +93,8 @@ function RenameDialog({
   const [title, setTitle] = useState(session?.title ?? '')
   const update = useMutation({
     ...agentSessionUpdateMutation(),
-    onSuccess: () => {
-      void invalidateOperations(queryClient, ['agentSessionList', 'agentSessionGet'])
+    onSuccess: (updated) => {
+      sessionUpdated(queryClient, updated)
       onOpenChange(false)
     },
     onError: toastError,
@@ -141,21 +142,33 @@ function RenameDialog({
   )
 }
 
+/**
+ * A renamed or pinned conversation: the list is read again, and an open conversation takes the
+ * change in place. Reading the conversation again would drop an answer that is streaming in (the
+ * server's copy does not hold it yet).
+ */
+function sessionUpdated(queryClient: QueryClient, session: AgentSessionOut) {
+  queryClient.setQueryData<AgentSessionDetail>(
+    agentSessionGetQueryKey({ path: { id: session.id } }),
+    (detail) => detail && { ...detail, session },
+  )
+  void invalidateOperations(queryClient, ['agentSessionList'])
+}
+
 /** The rename, pin and delete actions on conversations, with their dialogs. */
 export function useSessionEditing(onDeleted?: (id: string) => void) {
   const queryClient = useQueryClient()
   const [renaming, setRenaming] = useState<AgentSessionOut | null>(null)
   const [deleting, setDeleting] = useState<AgentSessionOut | null>(null)
-  const refresh = () => invalidateOperations(queryClient, ['agentSessionList', 'agentSessionGet'])
   const update = useMutation({
     ...agentSessionUpdateMutation(),
-    onSuccess: refresh,
+    onSuccess: (updated) => sessionUpdated(queryClient, updated),
     onError: toastError,
   })
   const remove = useMutation({
     ...agentSessionDeleteMutation(),
     onSuccess: (_, variables) => {
-      void refresh()
+      void invalidateOperations(queryClient, ['agentSessionList'])
       onDeleted?.(variables.path.id)
       setDeleting(null)
     },

@@ -43,8 +43,9 @@ class AiRuntime:
         # learnt from a refusal (`calls.embed`).
         self.embed_batch: dict[tuple[str, str | None], int] = {}
         self._limiters = Limiters()
-        # provider id → the health last written by `mark_provider` (error code, checked at).
-        self._health: dict[str, tuple[str | None, datetime]] = {}
+        # provider id → the health `mark_provider` last decided to write (error code, checked at,
+        # and a token telling that decision from an equal earlier one).
+        self._health: dict[str, tuple[str | None, datetime, object]] = {}
 
     def gate(self, ep: Endpoint) -> Gate:
         """A slot of the endpoint's limit of requests at a time, for each request to it."""
@@ -89,14 +90,22 @@ class AiRuntime:
     ) -> None:
         """Remembers the outcome of calls for the provider card (`ai.invalid_key`, ...). Written
         only when it changes (or every `HEALTH_REFRESH`), not on every call, and without touching
-        `updated_at` (which keys the model list cache). A write never replaces a later check that
-        landed first."""
+        `updated_at` (which keys the model list cache). The writes run in the background in no
+        set order, so one that a later outcome has replaced is skipped, and none replaces a check
+        written later (a test of the provider)."""
         last = self._health.get(provider_id)
         if last is not None and last[0] == error_code and checked_at - last[1] < HEALTH_REFRESH:
             return
-        self._health[provider_id] = (error_code, checked_at)
+        token = object()
+        self._health[provider_id] = (error_code, checked_at, token)
+
+        def replaced() -> bool:
+            latest = self._health.get(provider_id)
+            return latest is not None and latest[2] is not token
 
         async def write(db: Any) -> None:
+            if replaced():
+                return
             await db.execute(
                 update(AiProvider)
                 .where(
@@ -113,6 +122,8 @@ class AiRuntime:
                 )
                 .execution_options(synchronize_session=False)
             )
+            if replaced():  # while it waited for the write lock: the later outcome stands
+                await db.rollback()
 
         self._spawn(state, write)
 
