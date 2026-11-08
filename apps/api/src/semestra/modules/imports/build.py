@@ -310,8 +310,12 @@ def from_ics(
                         "last_date": _iso(r.last),
                         "location": (m.location or None) and m.location[:200],
                         "instructor": m.instructor,
-                        # One class in two terms is two meetings: each needs its own reference.
-                        "source_ref": f"{m.source_ref}@{span.start.isoformat()}"[:500],
+                        # One class in two terms is two meetings, each referenced by its term
+                        # (an id, not dates the user may still move). A term or wizard import
+                        # has one term, so the class's own reference is enough.
+                        "source_ref": (f"{m.source_ref}@{term_id}" if term_id else m.source_ref)[
+                            :500
+                        ],
                         "exceptions": [_iso(d) for d in r.cancelled],
                     },
                     decision=decision,

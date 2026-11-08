@@ -158,14 +158,15 @@ async def test_imports_take_an_ics_attachment_with_its_cancelled_dates(chat: Cha
     session_id = await session_of(chat, program_id)
     att = await chat.attach(session_id, "coursesCalendar.ics", THANKSGIVING, "text/calendar")
     read = await chat.tool("agent.attachment.read", {"attachment_id": att["id"]})
-    # The calendar as the importer reads it, one page per course; never the raw file.
+    # The calendar as the importer reads it, one page per course; never the raw file. The
+    # reading week is the term's own break, not a class the file leaves out.
     assert (read["type"], read["page_count"], read["next_page"]) == ("ics", 1, None)
     page = read["pages"][0]["markdown"]
     assert page.startswith("## ECE201H1\nWeekly meetings:")
     assert (
         "- LEC0101 · Mon 10:00-11:00 · 2026-09-14 to 2026-12-07 · 11 classes · "
-        "no class on 2026-10-12, 2026-10-26"
-    ) in page
+        "no class on 2026-10-12\n"
+    ) in page + "\n"
     assert "VCALENDAR" not in page
     assert "imports__session__create" in read["note"]
 
@@ -447,7 +448,7 @@ def test_a_course_with_many_events_goes_on_over_more_pages():
                  None, None, f"e{i}")
         for i in range(EVENTS_PER_PAGE + 5)
     ]  # fmt: skip
-    pages = calendar_pages(IcsResult([IcsCourse("ECE201H1", "Circuits", events=events)], []))
+    pages = calendar_pages(IcsResult([IcsCourse("ECE201H1", "Circuits", events=events)], []), [])
     assert len(pages) == 2
     assert pages[1].startswith("## ECE201H1 (Circuits), continued")
     assert f"Lab {EVENTS_PER_PAGE + 4}" in pages[1]
