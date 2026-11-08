@@ -1,6 +1,7 @@
 """Canvas updates (M18 §4.4): every few hours, what is new in the linked courses of users who
 want it (M09 `lms.watch` decides what is new and remembers what was told), one notification per
-course and kind: new grades, changed assignments, new announcements."""
+course and kind: new grades, changed assignments, new announcements. They show even while a
+Semestra tab is in front: the app does not tell them, and they are recorded as told."""
 
 from datetime import timedelta
 
@@ -38,6 +39,7 @@ async def _messages(ctx: Ctx, news: lms_watch.CourseNews) -> list[Message]:
                     kind=_kind(base, len(names)),
                     params={"course": name, "items": texts.listing(locale, names)},
                     url=f"{page}/grades",
+                    hidden_only=False,
                     tag=f"{base}:{news.course_id}",
                 )
             )
@@ -53,6 +55,7 @@ async def _messages(ctx: Ctx, news: lms_watch.CourseNews) -> list[Message]:
                 kind=_kind("lms_announcements", len(found)),
                 params={"course": name, "items": texts.listing(locale, [a.title for a in found])},
                 url=url,
+                hidden_only=False,
                 tag=f"lms_announcements:{news.course_id}",
             )
         )
@@ -60,7 +63,13 @@ async def _messages(ctx: Ctx, news: lms_watch.CourseNews) -> list[Message]:
 
 
 async def watch_user(state: State, user_id: str) -> None:
-    async def run(ctx: Ctx) -> None:
+    """Each course in a transaction of its own: what was told is committed before the next
+    course is read from the platform."""
+    links: list[str] = []
+    announcements = False
+
+    async def courses(ctx: Ctx) -> None:
+        nonlocal announcements
         if ctx.user is None or not await service.has_devices(ctx):
             return
         cfg = await service.settings_of(ctx)
@@ -69,11 +78,19 @@ async def watch_user(state: State, user_id: str) -> None:
         # Not looked at during quiet hours, so what comes up then is told after them.
         if service.in_quiet_hours(cfg, ctx.now.astimezone(await service.zone_of(ctx))):
             return
-        for news in await lms_watch.news(ctx, announcements=cfg.lms == "all"):
-            for message in await _messages(ctx, news):
-                service.notify_after_commit(ctx, message, user_id=ctx.user_id)
+        announcements = cfg.lms == "all"
+        links.extend(await lms_watch.watched_links(ctx))
 
-    await run_as_system(state, user_id, run)
+    await run_as_system(state, user_id, courses)
+    for link_id in links:
+
+        async def course(ctx: Ctx, link_id: str = link_id) -> None:
+            news = await lms_watch.course_news(ctx, link_id, announcements=announcements)
+            if news is not None:
+                for message in await _messages(ctx, news):
+                    service.notify_after_commit(ctx, message, user_id=ctx.user_id)
+
+        await run_as_system(state, user_id, course)
 
 
 @periodic("notifications.lms", every=timedelta(hours=6), first_after=timedelta(minutes=10))

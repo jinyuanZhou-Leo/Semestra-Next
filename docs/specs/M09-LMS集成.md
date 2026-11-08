@@ -117,7 +117,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
   - 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、更新检测、导入，以及每小时的 `lms.complete_submitted` 定时任务，它只读还有未提交导入作业的同步课程，走 5 分钟缓存）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
 - `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
-- 更新通知（`lms/watch.py`，M18 §4.4 调用）：`news(ctx, announcements=…)` 看 `sync_enabled`、连接有凭证、学期在进行、未开始或结束不到 30 天的已关联课程，返回每门课新出的成绩、其他变更（名称、截止、权重）和新公告。“新”只出现一次：`lms_imported_refs.reported` 记着已报过的平台值（按字段，与 `snapshot` 无关，用户审不审核都不再报），公告看 `lms_course_links.watched_at` 之后发布的；`watched_at` 为空（刚关联、刚开启或从备份恢复）时这次只记下现状、不报。读取失败的课程不推进 `watched_at`，下次接着看。两个字段不进备份。迁移 0038。
+- 更新通知（`lms/watch.py`，M18 §4.4 调用）：`watched_links(ctx)` 列出要看的课程，`course_news(ctx, link_id, announcements=…)` 先读平台（不写库）再记录，调用方每门课提交一次；看 `sync_enabled`、连接有凭证、学期在进行、未开始或结束不到 30 天的已关联课程，返回每门课新出的成绩、其他变更（名称、截止、权重）和新公告。“新”只出现一次：`lms_imported_refs.reported` 记着已报过的平台值（按字段，与 `snapshot` 无关，用户审不审核都不再报），公告看 `lms_course_links.watched_at` 之后发布的；`watched_at` 为空（刚关联、刚开启或从备份恢复）或早于 2 天前时这次只记下现状、不报。读取失败的课程不推进 `watched_at`，下次接着看。两个字段不进备份。迁移 0038。
 - 定时任务 `lms.refresh_status`（每 6 小时）：验证所有连接是否仍然有效，失效时标记为 error 并通过 SSE 发出 `lms.connection.status_changed`。
 
 ## 5. Capabilities

@@ -34,11 +34,20 @@ async def test_each_change_is_reported_once_and_the_first_look_is_quiet(
     async def look(announcements: bool = False) -> list[dict[str, Any]]:
         clock.advance(minutes=10)  # past the read cache
         found: list[watch.CourseNews] = []
+        links: list[str] = []
 
-        async def run(ctx: Ctx) -> None:
-            found.extend(await watch.news(ctx, announcements=announcements))
+        async def courses(ctx: Ctx) -> None:
+            links.extend(await watch.watched_links(ctx))
 
-        await run_as_system(app.state, user_id, run)
+        await run_as_system(app.state, user_id, courses)
+        for link_id in links:
+
+            async def run(ctx: Ctx, link_id: str = link_id) -> None:
+                news = await watch.course_news(ctx, link_id, announcements=announcements)
+                if news is not None:
+                    found.append(news)
+
+            await run_as_system(app.state, user_id, run)
         return [
             {
                 "graded": n.graded,
@@ -72,3 +81,10 @@ async def test_each_change_is_reported_once_and_the_first_look_is_quiet(
     assert await look(announcements=True) == [
         {"graded": [], "changed": [], "announcements": ["Room change"]}
     ]
+
+    # After days without a look (the server was off), what changed meanwhile is only recorded.
+    labs[0] = labs[0].model_copy(update={"name": "Lab 1 (final)"})
+    clock.advance(days=3)
+    assert await look() == []
+    labs[2] = labs[2].model_copy(update={"name": "Midterm (room B)"})
+    assert await look() == [{"graded": [], "changed": ["Midterm (room B)"], "announcements": []}]
