@@ -19,6 +19,7 @@ import {
   Puzzle,
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -51,7 +52,7 @@ import { useScrollIntoView } from './scroll'
  */
 export function ModulesView({ selected }: { selected?: string }) {
   const { title, courseId } = useCanvasPage()
-  const [confirmUrl, setConfirmUrl] = useState<string | null>(null)
+  const confirmUrl = useDialogTarget<string>()
   const list = useQuery({
     ...lmsModuleListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -86,28 +87,27 @@ export function ModulesView({ selected }: { selected?: string }) {
                       module={module}
                       names={names}
                       focused={selected === module.external_id}
-                      onExternal={setConfirmUrl}
+                      onExternal={confirmUrl.show}
                     />
                   ))}
               </div>
             )
           }}
         </CanvasBoundary>
-        <AlertDialog
-          open={confirmUrl !== null}
-          onOpenChange={(open) => !open && setConfirmUrl(null)}
-        >
+        <AlertDialog {...confirmUrl.props}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
-              <AlertDialogDescription className="break-all">{confirmUrl}</AlertDialogDescription>
+              <AlertDialogDescription className="break-all">
+                {confirmUrl.target}
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  if (confirmUrl) openExternal(confirmUrl)
-                  setConfirmUrl(null)
+                  if (confirmUrl.target) openExternal(confirmUrl.target)
+                  confirmUrl.close()
                 }}
               >
                 {m.canvas_tab_external_confirm_open()}

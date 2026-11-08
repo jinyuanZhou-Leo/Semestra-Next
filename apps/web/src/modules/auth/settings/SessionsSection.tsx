@@ -10,15 +10,15 @@ import { LogOut, Monitor, Smartphone } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import type { SessionOut } from '@semestra/api-client'
 import { ActionRow, RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { deviceLabel } from '@/lib/device'
-import { errorMessage, toastError } from '@/lib/errors'
+import { useDialogTarget } from '@/lib/dialog-target'
+import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { SignOutDialog } from '../components/SignOutDialog'
 import { Badge } from '@/ui/badge'
-import { Button } from '@/ui/button'
-import { FieldError } from '@/ui/field'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
 
 const RevokeContext = createContext<(session: SessionOut) => void>(() => {})
@@ -91,78 +91,68 @@ export function SessionsSection() {
   const queryClient = useQueryClient()
   const [signingOut, setSigningOut] = useState(false)
   const sessions = useQuery(accountSessionListOptions())
-  const [target, setTarget] = useState<Target | null>(null)
+  const revoking = useDialogTarget<Target>()
 
   const done = () => {
-    setTarget(null)
+    revoking.close()
     void queryClient.invalidateQueries({ queryKey: accountSessionListQueryKey() })
   }
   const revokeOne = useMutation({
     ...accountSessionRevokeMutation(),
     onSuccess: done,
-    onError: (err) => (setTarget(null), toastError(err)),
+    onError: (err) => (revoking.close(), toastError(err)),
   })
   const revokeOthers = useMutation({
     ...accountSessionRevokeOthersMutation(),
     onSuccess: done,
-    onError: (err) => (setTarget(null), toastError(err)),
+    onError: (err) => (revoking.close(), toastError(err)),
   })
-
-  const items = sessions.data?.items ?? []
-  const hasOthers = items.some((s) => !s.current)
 
   return (
     <>
-      {sessions.isPending ? (
-        <p className="text-sm text-muted-foreground">{m.common_loading()}</p>
-      ) : sessions.isError ? (
-        <div className="space-y-2">
-          <FieldError>{errorMessage(sessions.error)}</FieldError>
-          <Button variant="outline" size="sm" onClick={() => void sessions.refetch()}>
-            {m.common_retry()}
-          </Button>
-        </div>
-      ) : (
-        <RevokeContext
-          value={(session) =>
-            // Revoking the session we are using is a sign-out: it must clear the cookies and
-            // leave the page instead of refetching into a 401.
-            session.current ? setSigningOut(true) : setTarget({ kind: 'one', id: session.id })
-          }
-        >
-          <SettingsTable
-            label={m.auth_account_sessions_title()}
-            data={items}
-            columns={columns}
-            getRowId={(session) => session.id}
-            columnClassName={COLUMN_CLASS}
-            footer={
-              hasOthers ? (
-                <ActionRow destructive onClick={() => setTarget({ kind: 'others' })}>
-                  {m.auth_account_sessions_revoke_others()}
-                </ActionRow>
-              ) : undefined
+      <AsyncBoundary query={sessions}>
+        {({ items }) => (
+          <RevokeContext
+            value={(session) =>
+              // Revoking the session we are using is a sign-out: it must clear the cookies and
+              // leave the page instead of refetching into a 401.
+              session.current ? setSigningOut(true) : revoking.show({ kind: 'one', id: session.id })
             }
-          />
-        </RevokeContext>
-      )}
+          >
+            <SettingsTable
+              label={m.auth_account_sessions_title()}
+              data={items}
+              columns={columns}
+              getRowId={(session) => session.id}
+              columnClassName={COLUMN_CLASS}
+              footer={
+                items.some((s) => !s.current) ? (
+                  <ActionRow destructive onClick={() => revoking.show({ kind: 'others' })}>
+                    {m.auth_account_sessions_revoke_others()}
+                  </ActionRow>
+                ) : undefined
+              }
+            />
+          </RevokeContext>
+        )}
+      </AsyncBoundary>
       <SignOutDialog open={signingOut} onOpenChange={setSigningOut} />
       <ConfirmDialog
-        open={target !== null}
-        onOpenChange={(open) => !open && setTarget(null)}
+        {...revoking.props}
         title={
-          target?.kind === 'others'
+          revoking.target?.kind === 'others'
             ? m.auth_account_sessions_revoke_others_title()
             : m.auth_account_sessions_revoke()
         }
         description={
-          target?.kind === 'others' ? m.auth_account_sessions_revoke_others_desc() : null
+          revoking.target?.kind === 'others' ? m.auth_account_sessions_revoke_others_desc() : null
         }
         confirmLabel={m.auth_account_sessions_revoke()}
         pending={revokeOne.isPending || revokeOthers.isPending}
         onConfirm={() => {
-          if (target?.kind === 'one') revokeOne.mutate({ path: { session_id: target.id } })
-          else if (target?.kind === 'others') revokeOthers.mutate({})
+          if (revoking.target?.kind === 'one')
+            revokeOne.mutate({ path: { session_id: revoking.target.id } })
+          else if (revoking.target?.kind === 'others') revokeOthers.mutate({})
         }}
       />
     </>

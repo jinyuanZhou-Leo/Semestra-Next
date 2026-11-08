@@ -15,6 +15,7 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { BrandTile } from '@/components/BrandLogo'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TimeAgo } from '@/components/TimeAgo'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
@@ -287,8 +288,8 @@ export function ConnectionsSection() {
   }
   // Fetched with the list, so the platform step opens with its rows already there.
   useQuery(lmsProviderListOptions())
-  const [editing, setEditing] = useState<Connection | null>(null)
-  const [deleting, setDeleting] = useState<Connection | null>(null)
+  const editing = useDialogTarget<Connection>()
+  const deleting = useDialogTarget<Connection>()
   const check = useMutation({
     ...lmsConnectionValidateMutation(),
     onSuccess: async (result) => {
@@ -304,16 +305,16 @@ export function ConnectionsSection() {
   const handlers: RowHandlers = {
     checkingId: check.isPending ? (check.variables?.body.connection_id ?? null) : null,
     onCheck: (connection) => check.mutate({ body: { connection_id: connection.id } }),
-    onEdit: setEditing,
-    onDelete: setDeleting,
+    onEdit: editing.show,
+    onDelete: deleting.show,
   }
   const remove = useMutation({
     ...lmsConnectionDeleteMutation(),
     onSuccess: async () => {
-      setDeleting(null)
+      deleting.close()
       await invalidateLms(queryClient, { all: true })
     },
-    onError: (err) => (setDeleting(null), toastError(err)),
+    onError: (err) => (deleting.close(), toastError(err)),
   })
 
   return (
@@ -358,38 +359,38 @@ export function ConnectionsSection() {
         )}
       </AsyncBoundary>
       <AddConnectionDialog key={addKey} open={adding} onClose={() => setAdding(false)} />
-      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+      <Dialog {...editing.props}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{m.lms_connection_edit()}</DialogTitle>
           </DialogHeader>
-          {editing ? (
+          {editing.target ? (
             <ConnectionForm
-              key={editing.id}
-              kind={editing.provider}
-              connection={editing}
-              onSaved={() => setEditing(null)}
+              key={editing.target.id}
+              kind={editing.target.provider}
+              connection={editing.target}
+              onSaved={() => editing.close()}
             />
           ) : null}
         </DialogContent>
       </Dialog>
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        {...deleting.props}
         title={m.lms_connection_delete_title()}
         description={
-          deleting && deleting.program_ids.length > 0
+          deleting.target && deleting.target.program_ids.length > 0
             ? m.lms_connection_delete_in_use({
-                name: deleting.display_name,
-                programs: deleting.program_ids.length,
-                courses: deleting.link_count,
+                name: deleting.target.display_name,
+                programs: deleting.target.program_ids.length,
+                courses: deleting.target.link_count,
               })
-            : m.lms_connection_delete_desc({ name: deleting?.display_name ?? '' })
+            : m.lms_connection_delete_desc({ name: deleting.target?.display_name ?? '' })
         }
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
         onConfirm={() =>
-          deleting && remove.mutate({ path: { id: deleting.id }, query: { detach_all: true } })
+          deleting.target &&
+          remove.mutate({ path: { id: deleting.target.id }, query: { detach_all: true } })
         }
       />
     </>

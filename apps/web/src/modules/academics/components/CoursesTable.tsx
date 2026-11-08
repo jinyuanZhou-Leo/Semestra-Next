@@ -35,6 +35,7 @@ import { RowMenu, useSettingsDialog } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { HistoryLink } from '@/components/HistoryLink'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -57,6 +58,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Input } from '@/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Kbd } from '@/ui/kbd'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
@@ -206,7 +208,7 @@ function ExtensionCell({ row, column: col }: CellProps) {
   return extensions.get(extensionId)?.cell(row.original, columnData.get(extensionId))
 }
 
-const ActionsHeader = () => <span className="sr-only">{m.terms_courses_actions_column()}</span>
+const ActionsHeader = () => <span className="sr-only">{m.common_actions()}</span>
 
 function ActionsCell({ row }: CellProps) {
   const { isPinned, togglePin, openCourse, openSettings, askDelete } = useTableState()
@@ -291,7 +293,7 @@ export function CoursesTable({
   const [columnFilters, setColumnFilters] = useState<Readonly<Record<string, string>>>({})
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
-  const [deletingCourse, setDeletingCourse] = useState<Course | null>(null)
+  const deletingCourse = useDialogTarget<Course>()
   const [busy, setBusy] = useState(false)
 
   const inScope = lockTerm ? courses.filter((c) => termId && c.term_ids.includes(termId)) : courses
@@ -349,7 +351,7 @@ export function CoursesTable({
     togglePin,
     openCourse: (course) => router.history.push(coursePath(programId, course.id)),
     openSettings: (course) => settings.open({ level: 'course', scope: course.id }),
-    askDelete: setDeletingCourse,
+    askDelete: deletingCourse.show,
     termSpan,
     extensions: new Map(extensions.map((ext) => [ext.id, ext])),
     columnData,
@@ -480,20 +482,18 @@ export function CoursesTable({
     <TableContext value={tableState}>
       <div className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="relative">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
+          <InputGroup className="w-64">
+            <InputGroupInput
               type="search"
               aria-label={m.academics_courses_search()}
               placeholder={m.academics_courses_search()}
-              className="w-64 pl-9"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </div>
+            <InputGroupAddon>
+              <Search aria-hidden />
+            </InputGroupAddon>
+          </InputGroup>
           {/*
             While rows are selected the batch actions take the filters' place on the right. Both
             sit in one grid cell, so the row keeps its height and the table never moves; the
@@ -710,12 +710,8 @@ export function CoursesTable({
           ) : null}
         </div>
 
-        {deletingCourse ? (
-          <DeleteCourseDialog
-            course={deletingCourse}
-            open
-            onOpenChange={(open) => !open && setDeletingCourse(null)}
-          />
+        {deletingCourse.target ? (
+          <DeleteCourseDialog course={deletingCourse.target} {...deletingCourse.props} />
         ) : null}
         <ConfirmDialog
           open={deleting}

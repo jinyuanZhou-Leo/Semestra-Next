@@ -53,6 +53,7 @@ export function ChoiceControl<T extends string>({
   disabled,
   selectClassName,
   follow,
+  select,
 }: {
   options: readonly ChoiceOption<T>[]
   value: T
@@ -65,6 +66,8 @@ export function ChoiceControl<T extends string>({
   /** Width of the select trigger; ignored by the segmented form. */
   selectClassName?: string
   follow?: FollowChoice
+  /** Always a select: for options that come from the user's data (terms), so their count varies. */
+  select?: boolean
 }) {
   const shown = follow?.selected ? FOLLOW : value
   const pick = (next: unknown) => {
@@ -75,7 +78,7 @@ export function ChoiceControl<T extends string>({
     const option = options.find((o) => o.value === next)
     if (option) onChange(option.value)
   }
-  if (options.length <= 4 && options.every((o) => !o.hint)) {
+  if (!select && options.length <= 4 && options.every((o) => !o.hint)) {
     return (
       <ToggleGroup
         id={id}

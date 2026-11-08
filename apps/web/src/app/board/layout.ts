@@ -33,11 +33,6 @@ export function span(size: CardSize, cols: number = COLS): readonly [w: number, 
   return [Math.min(w, cols), h]
 }
 
-/** The size whose span is w×h, if any. */
-export function sizeOf(w: number, h: number): CardSize | undefined {
-  return (Object.keys(SPANS) as CardSize[]).find((s) => SPANS[s][0] === w && SPANS[s][1] === h)
-}
-
 /**
  * Where a corner resize lands: the card's sizes from smallest to largest area form a ladder, and
  * dragging the corner `steps` cells right or down (negative: back) walks that many rungs from

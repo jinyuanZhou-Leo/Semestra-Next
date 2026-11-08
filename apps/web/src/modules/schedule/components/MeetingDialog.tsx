@@ -43,11 +43,14 @@ export function MeetingDialog({
   section,
   meeting,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   section: Section
   meeting: Meeting
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
@@ -98,7 +101,11 @@ export function MeetingDialog({
   const weekdays = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: weekdayName(d) }))
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !update.isPending && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !update.isPending && onOpenChange(next)}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{m.schedule_meeting_edit()}</DialogTitle>

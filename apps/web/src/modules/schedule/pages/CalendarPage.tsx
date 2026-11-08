@@ -39,6 +39,7 @@ import { useCallback, useRef, useState } from 'react'
 import { type CalendarSourceContribution, type PageProps, preload } from '@/app/extensions'
 import { useCalendarSources } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { firstDayOfWeek, getFormatPreferences, intl } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -221,15 +222,15 @@ function TermCalendar({
   // The first day the view shows, so the week label agrees with the week-number column.
   const [rangeStart, setRangeStart] = useState<string | null>(null)
 
-  const [details, setDetails] = useState<Occurrence | null>(null)
-  const [move, setMove] = useState<MoveTarget | null>(null)
-  const [meetingEdit, setMeetingEdit] = useState<SectionTime | null>(null)
-  const [eventEdit, setEventEdit] = useState<{ event?: OneOffEvent; slot?: EventSlot } | null>(null)
-  const [drag, setDrag] = useState<DragState | null>(null)
-  const [share, setShare] = useState<ShareKind | null>(null)
+  const details = useDialogTarget<Occurrence>()
+  const move = useDialogTarget<MoveTarget>()
+  const meetingEdit = useDialogTarget<SectionTime>()
+  const eventEdit = useDialogTarget<{ event?: OneOffEvent; slot?: EventSlot }>()
+  const drag = useDialogTarget<DragState>()
+  const share = useDialogTarget<ShareKind>()
   // Only the timetable and the export show sections; the other views show occurrences, and
   // editing one fetches its section or event when asked.
-  const termSections = useTermSections(term.id, view === 'timetable' || share === 'image')
+  const termSections = useTermSections(term.id, view === 'timetable' || share.target === 'image')
   const times = sectionTimes(termSections.items)
 
   // The section or event behind an occurrence, for its editor: fetched when its details open,
@@ -259,10 +260,10 @@ function TermCalendar({
   // A new item may be another source's (a to-do): its form starts loading with the dialog.
   const openNew = (slot: EventSlot) => {
     for (const source of sources) if (source.create) void preload(source.create.form)
-    setEventEdit({ slot })
+    eventEdit.show({ slot })
   }
   const showDetails = (o: Occurrence) => {
-    setDetails(o)
+    details.show(o)
     if (isMeeting(o) && o.course_id) void sectionsOf(o).catch(() => undefined)
     else if (isOneOff(o)) void eventOf(o).catch(() => undefined)
   }
@@ -407,12 +408,12 @@ function TermCalendar({
     if (info.event.allDay || isoDay(start) !== isoDay(new Date(end.getTime() - 1))) {
       return info.revert()
     }
-    setDrag({ occurrence: o, start, end, revert: info.revert })
+    drag.show({ occurrence: o, start, end, revert: info.revert })
   }
 
   const dragOnlyThis = async () => {
-    if (!drag) return
-    const { occurrence: o, start, end } = drag
+    if (!drag.target) return
+    const { occurrence: o, start, end } = drag.target
     const request = {
       path: {
         meeting_id: o.meta?.meeting_id ?? o.ref.id,
@@ -429,27 +430,27 @@ function TermCalendar({
     }
     try {
       await upsertException.mutateAsync(request)
-      setDrag(null)
+      drag.close()
     } catch (error) {
-      drag.revert()
-      setDrag(null)
+      drag.target.revert()
+      drag.close()
       toastError(error)
     }
     await invalidateSchedule(queryClient)
   }
   const dragAll = async () => {
-    if (!drag) return
-    const { occurrence: o, start, end } = drag
+    if (!drag.target) return
+    const { occurrence: o, start, end } = drag.target
     const request = {
       path: { meeting_id: o.meta?.meeting_id ?? o.ref.id },
       body: { weekday: isoWeekday(start), start_time: hhmm(start), end_time: hhmm(end) },
     }
     try {
       await updateMeeting.mutateAsync(request)
-      setDrag(null)
+      drag.close()
     } catch (error) {
-      drag.revert()
-      setDrag(null)
+      drag.target.revert()
+      drag.close()
       toastError(error)
     }
     await invalidateSchedule(queryClient)
@@ -460,9 +461,13 @@ function TermCalendar({
     return week ? weekLabel(week.number, week.break_info?.name) : ''
   }
   const currentWeek = weekOf(weeks, rangeStart ? midWeek(rangeStart) : anchor)
-  const detailsCourse = details ? courses.find((c) => c.id === details.course_id) : undefined
-  const editingCourse = meetingEdit
-    ? courses.find((c) => c.id === meetingEdit.section.course_id)
+  const shownDetails = details.target
+  const detailsCourse = shownDetails
+    ? courses.find((c) => c.id === shownDetails.course_id)
+    : undefined
+  const shownMeeting = meetingEdit.target
+  const editingCourse = shownMeeting
+    ? courses.find((c) => c.id === shownMeeting.section.course_id)
     : undefined
   const minWidth =
     settings.min_column_width > 0
@@ -581,7 +586,7 @@ function TermCalendar({
               />
               <DropdownMenuContent align="end" className="w-72">
                 {SHARE_KINDS.map((item) => (
-                  <DropdownMenuItem key={item.kind} onClick={() => setShare(item.kind)}>
+                  <DropdownMenuItem key={item.kind} onClick={() => share.show(item.kind)}>
                     <item.icon aria-hidden />
                     <span className="min-w-0">
                       <span className="block">{item.label()}</span>
@@ -604,7 +609,7 @@ function TermCalendar({
             dayStart={settings.day_start}
             dayEnd={settings.day_end}
             showWeekends={settings.show_weekends}
-            onEditMeeting={setMeetingEdit}
+            onEditMeeting={meetingEdit.show}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -691,25 +696,24 @@ function TermCalendar({
         )}
       </div>
 
-      {details ? (
+      {shownDetails ? (
         <OccurrenceDetails
-          occurrence={details}
+          occurrence={shownDetails}
           timezone={timezone}
           programId={programId}
           course={detailsCourse}
-          open
-          onOpenChange={(open) => !open && setDetails(null)}
+          {...details.props}
           onToggle={
-            sourceOf(details)?.complete
+            sourceOf(shownDetails)?.complete
               ? (completed) => {
-                  setDetails(null)
-                  toggle(details, completed)
+                  details.close()
+                  toggle(shownDetails, completed)
                 }
               : undefined
           }
           onMove={(o) => {
-            setDetails(null)
-            setMove({
+            details.close()
+            move.show({
               meetingId: o.meta?.meeting_id ?? o.ref.id,
               originalDate: o.meta?.original_date ?? '',
               date: toWall(o.start_at, timezone).slice(0, 10),
@@ -727,8 +731,8 @@ function TermCalendar({
                 const time = sectionTimes(list.items).find(
                   (t) => t.meeting.id === o.meta?.meeting_id,
                 )
-                setDetails(null)
-                if (time) setMeetingEdit(time)
+                details.close()
+                if (time) meetingEdit.show(time)
                 else toast.error(m.error_common_not_found())
               })
               .catch(toastError)
@@ -736,52 +740,49 @@ function TermCalendar({
           onEditEvent={(o) => {
             eventOf(o)
               .then((event) => {
-                setDetails(null)
-                setEventEdit({ event })
+                details.close()
+                eventEdit.show({ event })
               })
               .catch(toastError)
           }}
         />
       ) : null}
-      {move ? (
-        <MoveDialog target={move} open onOpenChange={(open) => !open && setMove(null)} />
-      ) : null}
-      {meetingEdit && editingCourse ? (
+      {move.target ? <MoveDialog target={move.target} {...move.props} /> : null}
+      {meetingEdit.target && editingCourse ? (
         <MeetingDialog
-          key={meetingEdit.meeting.id}
-          section={meetingEdit.section}
-          meeting={meetingEdit.meeting}
-          open
-          onOpenChange={(open) => !open && setMeetingEdit(null)}
+          key={meetingEdit.target.meeting.id}
+          section={meetingEdit.target.section}
+          meeting={meetingEdit.target.meeting}
+          {...meetingEdit.props}
         />
       ) : null}
-      {eventEdit ? (
+      {eventEdit.target ? (
         <EventDialog
           programId={programId}
           timezone={timezone}
           termId={term.id}
-          event={eventEdit.event}
-          slot={eventEdit.slot}
+          event={eventEdit.target.event}
+          slot={eventEdit.target.slot}
           creators={sources}
-          open
-          onOpenChange={(open) => !open && setEventEdit(null)}
+          {...eventEdit.props}
         />
       ) : null}
       <DragChoiceDialog
-        open={drag !== null}
-        allowAll={drag?.occurrence.status !== 'moved'}
+        open={drag.open}
+        onOpenChangeComplete={drag.props.onOpenChangeComplete}
+        allowAll={drag.target?.occurrence.status !== 'moved'}
         pending={upsertException.isPending || updateMeeting.isPending}
         onOnlyThis={() => void dragOnlyThis()}
         onAll={() => void dragAll()}
         onCancel={() => {
-          drag?.revert()
-          setDrag(null)
+          drag.target?.revert()
+          drag.close()
         }}
       />
-      {share ? (
+      {share.target ? (
         <ShareDialog
-          kind={share}
-          onKindChange={setShare}
+          kind={share.target}
+          onKindChange={share.show}
           programId={programId}
           termId={term.id}
           termName={term.name}
@@ -795,8 +796,7 @@ function TermCalendar({
           defaultSources={wanted}
           hiddenCourses={filters.hiddenCourses}
           settings={settings}
-          open
-          onOpenChange={(open) => !open && setShare(null)}
+          {...share.props}
         />
       ) : null}
     </div>

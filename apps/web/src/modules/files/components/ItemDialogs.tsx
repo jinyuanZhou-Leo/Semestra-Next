@@ -24,6 +24,9 @@ export type ItemAction =
   | { kind: 'new-folder'; parentId: string | null }
   | { kind: 'new-link'; folderId: string | null }
 
+/** Whether the dialog is open, and the page's hook to forget the action once it has closed. */
+type Shown = { open: boolean; onOpenChangeComplete: (open: boolean) => void }
+
 function useFilesMutation<T>(options: T) {
   const queryClient = useQueryClient()
   return { ...options, onSuccess: () => invalidateFiles(queryClient) }
@@ -36,6 +39,7 @@ function DeleteDialog({
   items,
   onClose,
   onDone,
+  ...shown
 }: {
   courseId: string
   targets: Target[]
@@ -43,7 +47,7 @@ function DeleteDialog({
   items: readonly ItemOut[]
   onClose: () => void
   onDone?: () => void
-}) {
+} & Shown) {
   const remove = useDeleteTargets()
   const tree = folderTree(folders)
   const only = targets.length === 1 ? targets[0] : undefined
@@ -62,7 +66,7 @@ function DeleteDialog({
         : m.files_delete_folder_description()
   return (
     <ConfirmDialog
-      open
+      {...shown}
       onOpenChange={(open) => !open && onClose()}
       title={
         only
@@ -96,6 +100,7 @@ export function ItemDialogs({
   action,
   onClose,
   onDone,
+  ...shown
 }: {
   courseId: string
   folders: readonly FolderOut[]
@@ -104,7 +109,7 @@ export function ItemDialogs({
   onClose: () => void
   /** After a move or delete went through (the page clears its selection). */
   onDone?: () => void
-}) {
+} & Shown) {
   const updateItem = useMutation({ ...useFilesMutation(filesItemUpdateMutation()) })
   const updateFolder = useMutation({ ...useFilesMutation(filesFolderUpdateMutation()) })
   const createFolder = useMutation({ ...useFilesMutation(filesFolderCreateMutation()) })
@@ -123,6 +128,7 @@ export function ItemDialogs({
         folders={folders}
         onClose={close}
         onDone={onDone}
+        {...shown}
       />
     )
   if (action.kind === 'delete')
@@ -134,6 +140,7 @@ export function ItemDialogs({
         items={items}
         onClose={close}
         onDone={onDone}
+        {...shown}
       />
     )
 
@@ -142,7 +149,7 @@ export function ItemDialogs({
     const mutation = target.type === 'item' ? updateItem : updateFolder
     return (
       <NameDialog
-        open
+        {...shown}
         title={m.files_rename()}
         label={m.files_name()}
         initial={target.type === 'item' ? target.item.display_name : target.folder.name}
@@ -168,7 +175,7 @@ export function ItemDialogs({
   if (action.kind === 'new-folder') {
     return (
       <NameDialog
-        open
+        {...shown}
         title={m.files_new_folder()}
         label={m.files_name()}
         initial=""
@@ -188,7 +195,7 @@ export function ItemDialogs({
 
   return (
     <NameDialog
-      open
+      {...shown}
       title={m.files_add_link()}
       label={m.files_link_name()}
       initial=""

@@ -19,7 +19,7 @@ import { PageHeader } from '@/app/host/PageHeader'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { HistoryLink } from '@/components/HistoryLink'
 import { formatDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -38,6 +38,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -250,7 +251,7 @@ function TermsTab({
           </SelectContent>
         </Select>
       </div>
-      <ul aria-label={m.academics_terms()} className="hidden space-y-1 lg:block">
+      <ItemGroup aria-label={m.academics_terms()} className="hidden gap-1 lg:flex">
         {terms.map((term) => (
           <TermRow
             key={term.id}
@@ -261,7 +262,7 @@ function TermsTab({
             onSelect={() => onSelect(term.id)}
           />
         ))}
-      </ul>
+      </ItemGroup>
       <TermPane
         key={selected.id}
         programId={programId}
@@ -296,17 +297,17 @@ function TermRow({
   onSelect: () => void
 }) {
   return (
-    <li>
-      <button
-        type="button"
-        aria-current={selected ? 'true' : undefined}
-        onClick={onSelect}
-        className={cn(
-          'flex w-full flex-col gap-0.5 rounded-xl px-3 py-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-          selected ? 'bg-muted' : 'hover:bg-muted/50',
-        )}
-      >
-        <span className="flex items-center gap-2">
+    <Item
+      size="xs"
+      variant={selected ? 'muted' : 'default'}
+      className="rounded-xl px-3 py-2 text-left hover:bg-muted/50"
+      render={
+        // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+        <button type="button" aria-current={selected ? 'true' : undefined} onClick={onSelect} />
+      }
+    >
+      <ItemContent className="min-w-0 gap-0.5">
+        <ItemTitle className="w-full">
           <span className="truncate font-medium">{term.name}</span>
           {isCurrent ? <Badge>{m.academics_term_current_badge()}</Badge> : null}
           {pinned ? (
@@ -318,12 +319,12 @@ function TermRow({
               <TooltipContent>{m.academics_pinned()}</TooltipContent>
             </Tooltip>
           ) : null}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">
+        </ItemTitle>
+        <ItemDescription className="truncate text-xs">
           {termDates(term)} · {m.academics_course_count({ count: term.course_count })}
-        </span>
-      </button>
-    </li>
+        </ItemDescription>
+      </ItemContent>
+    </Item>
   )
 }
 

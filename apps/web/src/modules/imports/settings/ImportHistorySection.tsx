@@ -1,20 +1,19 @@
 import type { ImportSession } from '@semestra/api-client'
 import { Link } from '@tanstack/react-router'
-import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
+import { createColumnHelper } from '@tanstack/react-table'
 import { History } from 'lucide-react'
 import { createContext, useContext } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
+import { SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { SOURCE_KIND_LABELS, STATUS_LABELS } from '../labels'
 import { useImportHistory } from '../queries'
 
-const features = tableFeatures({})
-const column = createColumnHelper<typeof features, ImportSession>()
+const column = createColumnHelper<typeof settingsTableFeatures, ImportSession>()
 
 function resultText(session: ImportSession): string {
   const { summary } = session
@@ -102,53 +101,28 @@ const columns = column.columns([
   }),
   column.display({
     id: 'open',
-    header: () => m.imports_history_open(),
+    header: () => <span className="sr-only">{m.imports_history_open()}</span>,
     cell: ({ row }) =>
       row.original.status === 'discarded' ? null : <OpenButton sessionId={row.original.id} />,
   }),
 ])
 
-const CELL_CLASS: Record<string, string> = {
+const COLUMN_CLASS: Record<string, string> = {
   created_at: 'whitespace-nowrap tabular-nums',
   result: 'text-muted-foreground',
+  open: 'w-0 text-right',
 }
 
 function HistoryTable({ programId, sessions }: { programId: string; sessions: ImportSession[] }) {
-  const table = useTable({ features, columns, data: sessions, getRowId: (s) => s.id })
   return (
     <ProgramIdContext value={programId}>
-      <div className="overflow-hidden rounded-2xl border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((group) => (
-              <TableRow key={group.id}>
-                {group.headers.map((h) => (
-                  <TableHead key={h.id} scope="col">
-                    {h.column.id === 'open' ? (
-                      <span className="sr-only">
-                        <table.FlexRender header={h} />
-                      </span>
-                    ) : (
-                      <table.FlexRender header={h} />
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id} className={CELL_CLASS[cell.column.id]}>
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <SettingsTable
+        label={m.imports_history()}
+        data={sessions}
+        columns={columns}
+        getRowId={(s) => s.id}
+        columnClassName={COLUMN_CLASS}
+      />
     </ProgramIdContext>
   )
 }

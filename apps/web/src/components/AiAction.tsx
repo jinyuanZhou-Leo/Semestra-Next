@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Progress } from '@/ui/progress'
-import { ProgressRing } from './Progress'
+import { Ring } from './Ring'
 
 export type AiActionState = 'idle' | 'running' | 'success' | 'error'
 export type AiActionVariant = 'integrated' | 'anchored' | 'radial'
@@ -113,7 +113,7 @@ export function AiAction({
           'w-64 overflow-hidden rounded-xl border bg-background transition-colors duration-200',
           EASE,
           running && 'border-primary/35 bg-primary/[0.025]',
-          shown === 'success' && 'border-emerald-600/25',
+          shown === 'success' && 'border-success/25',
           shown === 'error' && 'border-destructive/30 bg-destructive/[0.06]',
           className,
         )}
@@ -132,7 +132,7 @@ export function AiAction({
           <span
             className={cn(
               'flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors duration-200',
-              shown === 'success' && 'bg-emerald-600/10 text-emerald-700 dark:text-emerald-400',
+              shown === 'success' && 'bg-success/10 text-success',
               shown === 'error' && 'bg-destructive/10 text-destructive',
             )}
           >
@@ -153,7 +153,7 @@ export function AiAction({
           aria-label={statusText}
           className={cn(
             '[&_[data-slot=progress-track]]:h-0.5 [&_[data-slot=progress-track]]:rounded-none [&_[data-slot=progress-indicator]]:transition-[width,background-color] [&_[data-slot=progress-indicator]]:duration-500',
-            shown === 'success' && '[&_[data-slot=progress-indicator]]:bg-emerald-600',
+            shown === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
             shown === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
           )}
         />
@@ -170,19 +170,18 @@ export function AiAction({
           'h-10 w-48 justify-start gap-2.5 px-2.5',
           solid && 'disabled:opacity-100',
           running && 'border-primary/35 bg-primary/[0.035]',
-          shown === 'success' && 'border-emerald-600/25 text-emerald-700 dark:text-emerald-400',
+          shown === 'success' && 'border-success/25 text-success',
           shown === 'error' &&
             'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15 dark:bg-destructive/15 dark:hover:bg-destructive/20',
           className,
         )}
         aria-label={statusText}
       >
-        <span className="relative flex size-6 items-center justify-center">
-          <ProgressRing value={fill} className="absolute inset-0 size-6" />
-          <span className="scale-75">
+        <Ring ratio={fill / 100} color="currentColor" strokeWidth={10} className="size-6">
+          <span className="flex scale-75">
             <ActionIcon state={shown} />
           </span>
-        </span>
+        </Ring>
         <span
           key={labelKey}
           className="ai-action-state-enter min-w-0 flex-1 truncate text-left leading-none"
@@ -207,7 +206,7 @@ export function AiAction({
           EASE,
           running && 'bg-primary/90',
           shown === 'success' &&
-            'ai-action-success-surface bg-emerald-700 text-white hover:bg-emerald-700',
+            'ai-action-success-surface bg-success text-success-foreground hover:bg-success',
           shown === 'error' &&
             'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15 dark:bg-destructive/15 dark:hover:bg-destructive/20',
           className,

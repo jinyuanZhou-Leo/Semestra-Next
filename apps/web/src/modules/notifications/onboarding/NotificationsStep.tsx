@@ -9,6 +9,7 @@ import { ChevronDown, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { NamespaceForm, SettingsGroup } from '@/app/settings'
 import { fieldLabel, optionLabel } from '@/app/settings/texts'
+import { COLLAPSE } from '@/lib/collapse'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
@@ -199,7 +200,7 @@ function CategoryRow({
         </CollapsibleTrigger>
         <Switch aria-labelledby={labelId} checked={on} onCheckedChange={toggle} />
       </div>
-      <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none">
+      <CollapsibleContent className={COLLAPSE}>
         <div className="border-t bg-muted/30 pl-12">
           <NamespaceForm
             namespace={NAMESPACE}

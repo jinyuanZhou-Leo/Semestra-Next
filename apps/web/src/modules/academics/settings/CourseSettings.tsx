@@ -1,11 +1,19 @@
-import type { Course, CourseUpdateInputBody, Instructor, Term } from '@semestra/api-client'
 import {
-  academicsCourseSetTermsMutation,
+  academicsCourseSetTerms,
+  academicsCourseUpdate,
+  type Course,
+  type CourseUpdateInputBody,
+  type Instructor,
+  type Term,
+} from '@semestra/api-client'
+import {
+  academicsCourseGetQueryKey,
   academicsCourseUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
+import { createContext, use, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import {
   DangerZone,
@@ -13,30 +21,113 @@ import {
   SettingRow,
   SettingsBlock,
   SettingsGroup,
+  SettingsTable,
+  settingsTableFeatures,
   TextRow,
   useAutosave,
 } from '@/app/settings'
 import { useExtensions } from '@/app/registry'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { ChoiceControl } from '@/app/settings/choice'
 import { toastError } from '@/lib/errors'
+import { cn } from '@/lib/utils'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
-import { Field, FieldError, FieldLabel, FieldLegend, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { Item, ItemContent, ItemTitle } from '@/ui/item'
+import { Empty, EmptyHeader, EmptyTitle } from '@/ui/empty'
 import { Switch } from '@/ui/switch'
 import { ColorPicker, type ColorRef } from '../components/ColorPicker'
 import { DeleteCourseDialog } from '../components/DeleteCourseDialog'
 import { invalidateAcademics, useCourse, useTerms } from '../queries'
+import { endChoices, NEXT_TERM, rangeOf, rangeTerms, spanFrom } from '../term-range'
 import { COURSE_INFO_FILLS, type CourseInfoFill } from '../types'
 
-/** Whether the chosen terms are neighbours in the Program's order (M02 §3, year-long courses). */
-export function areConsecutive(terms: readonly Term[], ids: readonly string[]): boolean {
-  const positions = ids.map((id) => terms.findIndex((t) => t.id === id)).toSorted((a, b) => a - b)
-  if (positions.length === 0 || positions[0] === -1) return false
-  return positions.every((p, i) => i === 0 || p === (positions[i - 1] ?? 0) + 1)
+/** An instructor with its position; instructors have no ids, their place identifies them. */
+type InstructorLine = { index: number; person: Instructor }
+
+// The cells live at module level and read the list from this context, so typing keeps focus.
+const InstructorsContext = createContext<{
+  instructors: Instructor[]
+  change: (next: Instructor[]) => void
+} | null>(null)
+
+function useInstructors() {
+  const state = use(InstructorsContext)
+  if (!state) throw new Error('instructor cells must render inside the instructors table')
+  const { instructors, change } = state
+  return {
+    patch: (index: number, patch: Partial<Instructor>) =>
+      change(instructors.map((p, i) => (i === index ? { ...p, ...patch } : p))),
+    remove: (index: number) => change(instructors.filter((_, i) => i !== index)),
+  }
+}
+
+function InstructorNameCell({ line }: { line: InstructorLine }) {
+  const { patch } = useInstructors()
+  return (
+    <Input
+      aria-label={m.academics_instructor_name()}
+      placeholder={m.academics_instructor_name()}
+      className="w-full"
+      value={line.person.name}
+      onChange={(event) => patch(line.index, { name: event.target.value })}
+    />
+  )
+}
+
+function InstructorEmailCell({ line }: { line: InstructorLine }) {
+  const { patch } = useInstructors()
+  return (
+    <Input
+      type="email"
+      aria-label={m.academics_instructor_email()}
+      placeholder={m.academics_instructor_email()}
+      className="w-full"
+      value={line.person.email ?? ''}
+      onChange={(event) => patch(line.index, { email: event.target.value.trim() || null })}
+    />
+  )
+}
+
+function InstructorRemoveCell({ line }: { line: InstructorLine }) {
+  const { remove } = useInstructors()
+  return (
+    <Button
+      variant="destructive"
+      size="icon-sm"
+      aria-label={m.academics_instructor_remove({
+        name: line.person.name || m.academics_instructor_name(),
+      })}
+      onClick={() => remove(line.index)}
+    >
+      <Trash2 aria-hidden />
+    </Button>
+  )
+}
+
+const instructorColumn = createColumnHelper<typeof settingsTableFeatures, InstructorLine>()
+const instructorColumns = instructorColumn.columns([
+  instructorColumn.display({
+    id: 'name',
+    header: () => m.academics_instructor_name(),
+    cell: ({ row }) => <InstructorNameCell line={row.original} />,
+  }),
+  instructorColumn.display({
+    id: 'email',
+    header: () => m.academics_instructor_email(),
+    cell: ({ row }) => <InstructorEmailCell line={row.original} />,
+  }),
+  instructorColumn.display({
+    id: 'remove',
+    header: () => <span className="sr-only">{m.common_remove()}</span>,
+    cell: ({ row }) => <InstructorRemoveCell line={row.original} />,
+  }),
+])
+const INSTRUCTOR_COLUMN_CLASS = {
+  name: 'w-full max-w-0 pl-2',
+  email: 'w-64 min-w-64',
+  remove: 'w-14 min-w-14',
 }
 
 /** Course "basics" (M02 §5.5): every field, its color, its terms (year-long), delete. */
@@ -70,13 +161,27 @@ export function CourseBasicsSection({ scope }: SettingsSectionProps) {
 }
 
 function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
-  const id = useId()
   const queryClient = useQueryClient()
   const update = useMutation({ ...academicsCourseUpdateMutation() })
+  // The terms and the planned count are one choice: shown at once (optimistically), saved one
+  // after the other, and put back from the server if either save fails.
+  const courseKey = academicsCourseGetQueryKey({ path: { course_id: course.id } })
   const setTerms = useMutation({
-    ...academicsCourseSetTermsMutation(),
+    mutationFn: async (next: Saved) => {
+      const path = { course_id: course.id }
+      await academicsCourseSetTerms({ path, body: { term_ids: next.term_ids }, throwOnError: true })
+      await academicsCourseUpdate({
+        path,
+        body: { planned_terms: next.planned_terms },
+        throwOnError: true,
+      })
+    },
+    onMutate: async (next) => {
+      await queryClient.cancelQueries({ queryKey: courseKey })
+      queryClient.setQueryData<Course>(courseKey, (current) => current && { ...current, ...next })
+    },
     onError: toastError,
-    onSuccess: () => invalidateAcademics(queryClient),
+    onSettled: () => invalidateAcademics(queryClient),
   })
   const { queue } = useAutosave<CourseUpdateInputBody>({
     save: async (body) => {
@@ -92,15 +197,6 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
   const [color, setColor] = useState<ColorRef | null>(course.color)
   const [includeInGpa, setIncludeInGpa] = useState(course.include_in_gpa)
   const [instructors, setInstructors] = useState<Instructor[]>(course.instructors)
-  const [yearLong, setYearLong] = useState(course.planned_terms > 1)
-  const [termIds, setTermIds] = useState<string[]>(course.term_ids)
-  const termsInvalid = !areConsecutive(terms, termIds)
-
-  const chooseTerms = (next: string[]) => {
-    setTermIds(next)
-    if (areConsecutive(terms, next))
-      setTerms.mutate({ path: { course_id: course.id }, body: { term_ids: next } })
-  }
   const changeInstructors = (next: Instructor[]) => {
     setInstructors(next)
     queue({ instructors: next.filter((person) => person.name.trim()) })
@@ -181,114 +277,48 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
           value={course.description ?? ''}
           onChange={(text) => queue({ description: text.trim() || null })}
         />
-        <Item>
-          <ItemContent className="gap-2">
-            <div className="flex items-center justify-between gap-4">
-              <ItemTitle>{m.academics_course_instructors()}</ItemTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setInstructors([...instructors, { name: '' }])}
-              >
-                <Plus aria-hidden />
-                {m.academics_instructor_add()}
-              </Button>
-            </div>
-            {instructors.map((person, index) => (
-              // Instructors have no ids; their position identifies them while editing.
-              // oxlint-disable-next-line react/no-array-index-key
-              <div key={index} className="flex flex-wrap items-center gap-2">
-                <Input
-                  aria-label={m.academics_instructor_name()}
-                  placeholder={m.academics_instructor_name()}
-                  className="w-48"
-                  value={person.name}
-                  onChange={(event) =>
-                    changeInstructors(
-                      instructors.map((p, i) =>
-                        i === index ? { ...p, name: event.target.value } : p,
-                      ),
-                    )
-                  }
-                />
-                <Input
-                  type="email"
-                  aria-label={m.academics_instructor_email()}
-                  placeholder={m.academics_instructor_email()}
-                  className="w-56"
-                  value={person.email ?? ''}
-                  onChange={(event) =>
-                    changeInstructors(
-                      instructors.map((p, i) =>
-                        i === index ? { ...p, email: event.target.value.trim() || null } : p,
-                      ),
-                    )
-                  }
-                />
-                <Button
-                  variant="destructive"
-                  size="icon-sm"
-                  aria-label={m.academics_instructor_remove({
-                    name: person.name || m.academics_instructor_name(),
-                  })}
-                  onClick={() => changeInstructors(instructors.filter((_, i) => i !== index))}
-                >
-                  <Trash2 aria-hidden />
-                </Button>
-              </div>
-            ))}
-          </ItemContent>
-        </Item>
       </SettingsGroup>
 
-      <SettingsBlock title={m.academics_course_terms()}>
-        <SettingsGroup>
-          <SettingRow
-            label={m.academics_course_year_long()}
-            description={m.academics_course_year_long_hint()}
+      <SettingsBlock
+        title={m.academics_course_instructors()}
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setInstructors([...instructors, { name: '' }])}
           >
-            {(labelId) => (
-              <Switch
-                aria-labelledby={labelId}
-                checked={yearLong}
-                onCheckedChange={(on) => {
-                  setYearLong(on)
-                  queue({ planned_terms: on ? Math.max(2, termIds.length) : 1 })
-                  if (!on && termIds.length > 1) chooseTerms(termIds.slice(0, 1))
-                }}
-              />
-            )}
-          </SettingRow>
-          <Item>
-            <FieldSet className="gap-1.5">
-              <FieldLegend className="sr-only">{m.academics_course_terms()}</FieldLegend>
-              {terms.map((term) => (
-                <Field key={term.id} orientation="horizontal">
-                  <Checkbox
-                    id={`${id}-${term.id}`}
-                    checked={termIds.includes(term.id)}
-                    onCheckedChange={(on) => {
-                      if (!yearLong) {
-                        if (on) chooseTerms([term.id])
-                        return
-                      }
-                      const next = on
-                        ? [...termIds, term.id]
-                        : termIds.filter((tid) => tid !== term.id)
-                      if (next.length > 0) chooseTerms(next)
-                    }}
-                  />
-                  <FieldLabel htmlFor={`${id}-${term.id}`} className="font-normal">
-                    {term.name}
-                  </FieldLabel>
-                </Field>
-              ))}
-              <FieldError className="text-xs">
-                {termsInvalid ? m.error_academics_course_terms_not_adjacent() : null}
-              </FieldError>
-            </FieldSet>
-          </Item>
-        </SettingsGroup>
+            <Plus aria-hidden />
+            {m.academics_instructor_add()}
+          </Button>
+        }
+      >
+        {instructors.length > 0 ? (
+          <InstructorsContext value={{ change: changeInstructors, instructors }}>
+            <SettingsTable
+              label={m.academics_course_instructors()}
+              data={instructors.map((person, index) => ({ index, person }))}
+              columns={instructorColumns}
+              getRowId={(line) => String(line.index)}
+              columnClassName={INSTRUCTOR_COLUMN_CLASS}
+              rowClassName={() => 'animate-in fade-in duration-200'}
+            />
+          </InstructorsContext>
+        ) : (
+          <Empty className="rounded-2xl border border-solid border-border p-6">
+            <EmptyHeader>
+              <EmptyTitle>{m.academics_instructors_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </SettingsBlock>
+
+      <SettingsBlock title={m.academics_course_terms()}>
+        <CourseTerms
+          terms={terms}
+          termIds={course.term_ids}
+          planned={course.planned_terms}
+          onChange={(next) => setTerms.mutate(next)}
+        />
       </SettingsBlock>
     </>
   )
@@ -320,5 +350,88 @@ function CourseDanger({ course }: { course: Course }) {
       </DangerZone>
       <DeleteCourseDialog course={course} open={deleting} onOpenChange={setDeleting} />
     </>
+  )
+}
+
+type Saved = { term_ids: string[]; planned_terms: number }
+
+/**
+ * The course's terms (M02 §3): always one run of terms. A course in one term picks it; one that
+ * spans terms picks where it starts and ends, the end among the terms after the start, so only
+ * a valid run can be picked.
+ */
+function CourseTerms({
+  terms,
+  termIds,
+  planned,
+  onChange,
+}: {
+  terms: Term[]
+  termIds: string[]
+  planned: number
+  onChange: (next: Saved) => void
+}) {
+  const range = rangeOf(terms, termIds, planned)
+  const name = (id: string) =>
+    id === NEXT_TERM ? m.academics_course_term_next() : (terms.find((t) => t.id === id)?.name ?? '')
+  const termOptions = terms.map((t) => ({ value: t.id, label: t.name }))
+  const endOptions = endChoices(terms, range.start).map((id) => ({ value: id, label: name(id) }))
+
+  const choose = (start: string, end: string | null) => onChange(rangeTerms(terms, { start, end }))
+  const span = (on: boolean) => {
+    if (!on) return choose(range.start, null)
+    const next = spanFrom(terms, range.start, range.end)
+    choose(next.start, next.end)
+  }
+  const pickStart = (start: string) =>
+    choose(start, range.spanning ? spanFrom(terms, start, range.end).end : null)
+
+  return (
+    <SettingsGroup>
+      <SettingRow
+        label={m.academics_course_year_long()}
+        description={m.academics_course_year_long_hint()}
+      >
+        {(labelId) => (
+          <Switch aria-labelledby={labelId} checked={range.spanning} onCheckedChange={span} />
+        )}
+      </SettingRow>
+      <SettingRow label={m.academics_course_terms()}>
+        {() => (
+          <div className="flex items-center">
+            <ChoiceControl
+              select
+              label={range.spanning ? m.academics_course_term_start() : m.academics_course_terms()}
+              options={termOptions}
+              value={range.start}
+              onChange={pickStart}
+              selectClassName="w-44"
+            />
+            {/* The end slides out beside the start, so the one setting reads "from … to …". */}
+            <div
+              className={cn(
+                'grid transition-[grid-template-columns,opacity] duration-200 ease-out motion-reduce:transition-none',
+                range.spanning ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0',
+              )}
+              inert={!range.spanning}
+            >
+              <div className="flex items-center gap-2 overflow-hidden ps-2">
+                <span className="text-sm text-muted-foreground">
+                  {m.academics_course_term_to()}
+                </span>
+                <ChoiceControl
+                  select
+                  label={m.academics_course_term_end()}
+                  options={endOptions}
+                  value={range.spanning ? range.end : (endOptions[0]?.value ?? NEXT_TERM)}
+                  onChange={(end) => choose(range.start, end)}
+                  selectClassName="w-44"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </SettingRow>
+    </SettingsGroup>
   )
 }

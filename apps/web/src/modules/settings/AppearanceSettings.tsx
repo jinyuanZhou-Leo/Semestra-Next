@@ -168,7 +168,6 @@ function AppearanceForm({
               value={option}
               data-accent={option}
               aria-label={ACCENT_LABELS[option]()}
-              title={ACCENT_LABELS[option]()}
             />
           ))}
         </RadioGroup>

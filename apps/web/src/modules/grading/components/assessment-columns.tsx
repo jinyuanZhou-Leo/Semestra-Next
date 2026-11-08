@@ -126,11 +126,7 @@ function ActionsCell({ a }: { a: Assessment }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`${m.grading_actions()}: ${a.title}`}
-          />
+          <Button variant="ghost" size="icon-sm" aria-label={`${m.common_actions()}: ${a.title}`} />
         }
       >
         <MoreHorizontal aria-hidden />
@@ -173,7 +169,7 @@ export const extensionColumn = (ext: AssessmentColumn) =>
 
 export const actionsColumn = column.display({
   id: 'actions',
-  header: () => <span className="sr-only">{m.grading_actions()}</span>,
+  header: () => <span className="sr-only">{m.common_actions()}</span>,
   cell: ({ row }) => <ActionsCell a={row.original} />,
   enableSorting: false,
 })

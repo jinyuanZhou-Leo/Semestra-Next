@@ -87,14 +87,21 @@ export function AssistantPage({
       <ShellToolbar>
         <h1 className="flex min-w-0 font-heading text-sm font-semibold">
           {session ? (
-            <button
-              type="button"
-              className="min-w-0 truncate rounded-md px-1.5 py-1 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
-              title={m.assistant_rename()}
-              onClick={() => editing.rename(session)}
-            >
-              {title}
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+                  <button
+                    type="button"
+                    className="min-w-0 truncate rounded-md px-1.5 py-1 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
+                    onClick={() => editing.rename(session)}
+                  />
+                }
+              >
+                {title}
+              </TooltipTrigger>
+              <TooltipContent>{m.assistant_rename()}</TooltipContent>
+            </Tooltip>
           ) : (
             <span className="truncate px-1.5">{title}</span>
           )}

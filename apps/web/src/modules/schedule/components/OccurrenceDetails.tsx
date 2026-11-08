@@ -47,6 +47,7 @@ export function OccurrenceDetails({
   programId,
   course,
   open,
+  onOpenChangeComplete,
   onOpenChange,
   onMove,
   onEditMeeting,
@@ -58,6 +59,8 @@ export function OccurrenceDetails({
   programId: string
   course?: Course
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
   onMove: (o: Occurrence) => void
   onEditMeeting: (o: Occurrence) => void
@@ -120,7 +123,7 @@ export function OccurrenceDetails({
     ) : null,
   ].filter((badge) => badge !== null)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChangeComplete={onOpenChangeComplete} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-8">

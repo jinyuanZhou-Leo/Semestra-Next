@@ -3,9 +3,10 @@ import { scheduleEventDeleteMutation } from '@semestra/api-client/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
+import { createContext, use } from 'react'
 import { RowMenu, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
@@ -131,16 +132,16 @@ export function EventsTable({
   onEdit: (event: OneOffEvent) => void
 }) {
   const queryClient = useQueryClient()
-  const [deleting, setDeleting] = useState<OneOffEvent | null>(null)
+  const deleting = useDialogTarget<OneOffEvent>()
   const remove = useMutation({
     ...scheduleEventDeleteMutation(),
     onError: toastError,
-    onSuccess: () => setDeleting(null),
+    onSuccess: () => deleting.close(),
     onSettled: () => invalidateSchedule(queryClient),
   })
   const sorted = events.toSorted((a, b) => a.start_at.localeCompare(b.start_at))
   return (
-    <EventsContext value={{ types, timezone, onEdit, onDelete: setDeleting }}>
+    <EventsContext value={{ types, timezone, onEdit, onDelete: deleting.show }}>
       <SettingsTable
         label={m.schedule_events()}
         data={sorted}
@@ -149,13 +150,14 @@ export function EventsTable({
         columnClassName={EVENT_COLUMN_CLASS}
       />
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        {...deleting.props}
         title={m.schedule_event_delete_title()}
         description={m.schedule_event_delete_description()}
         confirmLabel={m.schedule_event_delete()}
         pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { event_id: deleting.id } })}
+        onConfirm={() =>
+          deleting.target && remove.mutate({ path: { event_id: deleting.target.id } })
+        }
       />
     </EventsContext>
   )

@@ -3,6 +3,14 @@ import type { Message } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/ui/popover'
 
 /** UI state: false while the tour is due (set at the end of onboarding), true once seen. */
 export const TOUR_DONE_KEY = 'onboarding.tour_done'
@@ -46,16 +54,22 @@ function useTargetBox(target: string | undefined): Box | null {
     if (!target) return
     let frame = 0
     const measure = () => {
-      const rect = findTarget(target)?.getBoundingClientRect()
-      setBox(
-        rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } : null,
-      )
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const rect = findTarget(target)?.getBoundingClientRect()
+        setBox(
+          rect ? { top: rect.top, left: rect.left, width: rect.width, height: rect.height } : null,
+        )
+      })
     }
-    frame = requestAnimationFrame(measure)
+    measure()
+    // Scrolling any container moves the target too.
     window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
     }
   }, [target])
   return box
@@ -76,39 +90,41 @@ function TourStep({
   const box = useTargetBox(step?.target)
   if (!step || !box) return null
   const last = index === steps.length - 1
-  const below = box.top + box.height + 180 < window.innerHeight
-  const cardTop = below ? box.top + box.height + 12 : Math.max(12, box.top)
-  const cardLeft = below
-    ? Math.min(box.left, window.innerWidth - 336)
-    : Math.min(box.left + box.width + 12, window.innerWidth - 336)
+  // The highlight ring is the popover's anchor, so the card follows it and stays on screen; Esc
+  // skips the tour, a click elsewhere does not (the dimmed page is only there to look at).
   return (
-    <dialog
+    <Popover
       open
-      aria-labelledby="tour-title"
-      className="fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none bg-transparent p-0"
+      modal
+      onOpenChange={(open, details) => {
+        if (!open && details.reason !== 'outside-press') onDone()
+      }}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none fixed rounded-2xl ring-2 ring-primary transition-all motion-reduce:transition-none"
-        style={{
-          top: box.top - 4,
-          left: box.left - 4,
-          width: box.width + 8,
-          height: box.height + 8,
-          boxShadow: '0 0 0 9999px color-mix(in oklab, var(--foreground) 35%, transparent)',
-        }}
+      <PopoverTrigger
+        nativeButton={false}
+        render={
+          <div
+            aria-hidden
+            tabIndex={-1}
+            className="pointer-events-none fixed z-50 rounded-2xl ring-2 ring-primary transition-all motion-reduce:transition-none"
+            style={{
+              top: box.top - 4,
+              left: box.left - 4,
+              width: box.width + 8,
+              height: box.height + 8,
+              boxShadow: '0 0 0 9999px color-mix(in oklab, var(--foreground) 35%, transparent)',
+            }}
+          />
+        }
       />
-      <div
-        className="fixed w-80 space-y-2 rounded-2xl bg-popover p-4 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10"
-        style={{ top: cardTop, left: Math.max(12, cardLeft) }}
-      >
+      <PopoverContent side="bottom" align="start" sideOffset={12} className="w-80 gap-2">
         <p className="text-xs text-muted-foreground">
           {m.academics_tour_progress({ current: index + 1, total: steps.length })}
         </p>
-        <h2 id="tour-title" className="font-heading text-base font-medium">
-          {step.title()}
-        </h2>
-        <p className="text-muted-foreground">{step.body()}</p>
+        <PopoverHeader>
+          <PopoverTitle className="font-heading">{step.title()}</PopoverTitle>
+          <PopoverDescription>{step.body()}</PopoverDescription>
+        </PopoverHeader>
         <div className="flex justify-end gap-2 pt-1">
           {last ? null : (
             <Button variant="ghost" size="sm" onClick={onDone}>
@@ -119,8 +135,8 @@ function TourStep({
             {last ? m.academics_tour_done() : m.academics_tour_next()}
           </Button>
         </div>
-      </div>
-    </dialog>
+      </PopoverContent>
+    </Popover>
   )
 }
 
