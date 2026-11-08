@@ -99,3 +99,10 @@ def render(kind: str, locale: str, **params: object) -> tuple[str, str]:
         Template(entry["title"]).safe_substitute(values),
         Template(entry["body"]).safe_substitute(values),
     )
+
+
+def listing(locale: str, names: list[str], limit: int = 3) -> str:
+    """ "A1, A2, A3 and 2 more"."""
+    shown = word(locale, "list").join(names[:limit])
+    rest = len(names) - limit
+    return word(locale, "more", items=shown, n=rest) if rest > 0 else shown

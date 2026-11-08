@@ -233,6 +233,18 @@ async def program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     )
 
 
+async def course_ids_active_since(ctx: Ctx, since: date) -> set[str]:
+    """The user's courses with a term that ends on or after `since` (running, upcoming or just
+    over): what background checks of outside platforms look at."""
+    rows = await ctx.db.scalars(
+        select(AcademicsCourseTerm.course_id)
+        .join(AcademicsTerm, AcademicsTerm.id == AcademicsCourseTerm.term_id)
+        .where(AcademicsCourseTerm.user_id == ctx.user_id, AcademicsTerm.end_date >= since)
+        .distinct()
+    )
+    return set(rows)
+
+
 async def _program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     rows = (
         await ctx.db.scalars(

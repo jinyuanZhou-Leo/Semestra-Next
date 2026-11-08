@@ -1,4 +1,5 @@
-"""Reminders (M18 §4): classes, one-off events, to-dos with a due time, and the daily summary.
+"""Reminders (M18 §4): classes, one-off events, to-dos with a due time, the daily summary, and
+those of other modules (`reminder_source`: a habit not checked in yet).
 
 Planning reads the calendar (M04 sources) for classes and events and the open to-dos (M05, which
 include the one of each dated assessment) for the next `HORIZON`, and stores one row per reminder;
@@ -6,6 +7,7 @@ it runs when the calendar or the settings change and every few hours to move the
 minute tick sends the rows that are due. Only users with at least one device are planned."""
 
 from collections import defaultdict
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -36,7 +38,7 @@ STALE = timedelta(minutes=15)
 
 # Deadlines are reminded through the to-dos, not the calendar: an assessment's deadline is its
 # to-do's, and checking that to-do off (handed in) must stop the reminder.
-_SOURCES = ("schedule.meetings", "schedule.events")
+_CALENDAR = ("schedule.meetings", "schedule.events")
 # Kind → setting holding its lead in minutes.
 _LEADS = {"class": "class_reminder", "event": "event_reminder", "task": "task_reminder"}
 _DIGEST_GROUP = {"class": "classes", "event": "events"}
@@ -59,7 +61,7 @@ async def _calendar_items(
     q = OccurrenceQuery(program_id, start, end)
     return [
         _Item(o.id, o.kind, o.title, o.start_at, o.location)
-        for o in await collect(ctx, q, _SOURCES, kinds)  # pyright: ignore[reportArgumentType]
+        for o in await collect(ctx, q, _CALENDAR, kinds)  # pyright: ignore[reportArgumentType]
         if not o.all_day and o.status not in ("cancelled", "done")
     ]
 
@@ -91,6 +93,37 @@ async def _open_tasks(
     return items, dated
 
 
+@dataclass(frozen=True)
+class Planned:
+    """A reminder another module plans: `key` is unique for the user (prefix it with the kind),
+    `params` are kept for its `message`, which decides at `fire_at` whether it is still worth
+    sending (the habit may be checked in by then)."""
+
+    key: str
+    program_id: str
+    fire_at: datetime
+    expires_at: datetime
+    params: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ReminderSource:
+    # Reminders of the ctx user within [since, end) in the given Programs.
+    plan: Callable[[Ctx, Sequence[AcademicsProgram], datetime, datetime], Awaitable[list[Planned]]]
+    # What to send for a due row, None when it is not worth it any more.
+    message: Callable[[Ctx, NotificationsReminder], Awaitable[service.Message | None]]
+
+
+_EXTRA: dict[str, ReminderSource] = {}
+
+
+def reminder_source(kind: str, source: ReminderSource) -> None:
+    """Lets another module plan reminders of its own (M14's habits). Its own settings decide
+    whether there are any; quiet hours, devices and sending are this module's. When those
+    settings change, the module calls `plan` for the Programs concerned."""
+    _EXTRA[kind] = source
+
+
 def _lead(cfg: NotificationsSettings, setting: str) -> int | None:
     value = getattr(cfg, setting)
     return None if value == "off" else int(value)
@@ -120,16 +153,17 @@ async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
     # Sent rows keep their key, so a reminder a little late is still planned but never repeated.
     since = ctx.now - STALE
     end = ctx.now + HORIZON
-    for program in await academics.program_rows(ctx):
-        if program_ids is not None and program.id not in program_ids:
-            continue
+    programs = [
+        p for p in await academics.program_rows(ctx) if program_ids is None or p.id in program_ids
+    ]
+    rows: list[dict[str, object]] = []
+    for program in programs:
         items: list[_Item] = []
         calendar_kinds = [kind for kind in leads if kind in _DIGEST_GROUP]
         if calendar_kinds:
             items += await _calendar_items(ctx, program.id, since, end, calendar_kinds)
         if "task" in leads:
             items += (await _open_tasks(ctx, program, since, end))[0]
-        rows: list[dict[str, object]] = []
         for item in items:
             lead = leads[item.kind]
             fire_at = item.start_at - timedelta(minutes=lead)
@@ -137,7 +171,10 @@ async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
                 continue
             rows.append(
                 {
-                    "key": f"{item.id}:{lead}",
+                    "program_id": program.id,
+                    # The start is part of the key: a class moved to another time is
+                    # reminded again at the new one.
+                    "key": f"{item.id}:{item.start_at.isoformat()}:{lead}",
                     "kind": item.kind,
                     "fire_at": fire_at,
                     "expires_at": item.start_at,
@@ -151,13 +188,26 @@ async def plan(ctx: Ctx, program_ids: list[str] | None = None) -> None:
             )
         digest = _digest_row(ctx, program, cfg)
         if digest is not None:
-            rows.append(digest)
-        if rows:
-            await ctx.db.execute(
-                sqlite_insert(NotificationsReminder)
-                .values([{"user_id": ctx.user_id, "program_id": program.id, **row} for row in rows])
-                .on_conflict_do_nothing(index_elements=["user_id", "key"])
-            )
+            rows.append({"program_id": program.id, **digest})
+    for kind, source in _EXTRA.items():
+        rows += [
+            {
+                "program_id": p.program_id,
+                "key": p.key,
+                "kind": kind,
+                "fire_at": p.fire_at,
+                "expires_at": p.expires_at,
+                "params": p.params,
+            }
+            for p in await source.plan(ctx, programs, since, end)
+            if p.fire_at >= since
+        ]
+    if rows:
+        await ctx.db.execute(
+            sqlite_insert(NotificationsReminder)
+            .values([{"user_id": ctx.user_id, **row} for row in rows])
+            .on_conflict_do_nothing(index_elements=["user_id", "key"])
+        )
 
 
 def _digest_row(
@@ -195,6 +245,8 @@ async def _message(ctx: Ctx, row: NotificationsReminder) -> service.Message | No
     locale = ctx.user.locale if ctx.user and ctx.user.locale else ctx.locale
     if row.kind == "digest":
         return await _digest(ctx, program, zone, locale)
+    if row.kind in _EXTRA:
+        return await _EXTRA[row.kind].message(ctx, row)
     p = row.params
     start = datetime.fromisoformat(p["start_at"]).astimezone(zone)
     lead = int(p["lead"])
@@ -301,7 +353,9 @@ async def _send_for(state: State, user_id: str, ids: list[str]) -> None:
             message = await _message(ctx, row)
             if message is not None:
                 await service.deliver(ctx, message)
-        await ctx.db.commit()
+            # Each push's cleanup (gone devices) is committed before the next push waits on a
+            # push service, so no write is held meanwhile.
+            await ctx.db.commit()
 
 
 @periodic("notifications.reminders.send", every=timedelta(minutes=1))

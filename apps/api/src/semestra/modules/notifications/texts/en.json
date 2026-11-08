@@ -17,6 +17,14 @@
   "model_failed": { "title": "Model download failed", "body": "Open Settings → Data to try again." },
   "approval": { "title": "Sem is waiting for you", "body": "Approve or decline the proposed changes to continue." },
   "sign_in": { "title": "New sign-in", "body": "$device signed in to your account. Not you? Sign it out in Settings → Account." },
+  "lms_grades_one": { "title": "New grade in $course", "body": "$items" },
+  "lms_grades_other": { "title": "New grades in $course", "body": "$items" },
+  "lms_changes_one": { "title": "Assignment changed in $course", "body": "$items" },
+  "lms_changes_other": { "title": "Assignments changed in $course", "body": "$items" },
+  "lms_announcements_one": { "title": "New announcement in $course", "body": "$items" },
+  "lms_announcements_other": { "title": "New announcements in $course", "body": "$items" },
+  "habit_daily": { "title": "$name", "body": "Not checked in today." },
+  "habit_weekly": { "title": "$name", "body": "$left to go this week." },
   "words": {
     "minute_one": "$n minute",
     "minute_other": "$n minutes",
@@ -32,6 +40,11 @@
     "tasks_other": "$n to-dos due",
     "join": ", ",
     "separator": " · ",
-    "unknown_device": "A new device"
+    "unknown_device": "A new device",
+    "list": ", ",
+    "more": "$items and $n more",
+    "habit": "Habit",
+    "times_one": "$n day",
+    "times_other": "$n days"
   }
 }

@@ -160,7 +160,7 @@ async def test_a_task_reminder_is_sent_once_at_its_lead_time(
     )
     pid = program["id"]
     # 2026-01-15 07:00 in Toronto; due 10:00 there, the default reminder is an hour before.
-    await call(
+    lab = await call(
         client,
         "POST",
         f"/programs/{pid}/tasks",
@@ -198,6 +198,13 @@ async def test_a_task_reminder_is_sent_once_at_its_lead_time(
     clock.advance(minutes=1)
     await reminders.send_due(app.state)
     assert len(received(push, browser)) == 1
+
+    # Moved to a later time, it is reminded again before the new one.
+    await call(client, "PATCH", f"/tasks/{lab['id']}", json={"due_time": "12:00:00"})
+    await drain(app.state)
+    clock.advance(hours=2)  # 11:01:30
+    await reminders.send_due(app.state)
+    assert [m["body"] for m in received(push, browser)] == ["10:00 AM", "12:00 PM"]
 
 
 async def test_settings_and_quiet_hours_decide_what_is_planned_and_sent(
@@ -245,6 +252,47 @@ async def test_settings_and_quiet_hours_decide_what_is_planned_and_sent(
     await reminders.send_due(app.state)
     assert received(push, browser) == []
     assert await planned() == []
+
+
+async def test_a_habit_card_reminds_at_its_time_unless_checked_in(
+    app: FastAPI, client: AsyncClient, user: UserHandle, clock: Clock, push: respx.MockRouter
+) -> None:
+    program = await call(
+        client, "POST", "/programs", json={"name": "BASc", "timezone": "America/Toronto"}
+    )
+    pid = program["id"]
+    await call(
+        client, "PATCH", "/me/settings/notifications", json={"values": {"daily_digest": "off"}}
+    )
+    browser = Browser()
+    await call(client, "POST", "/me/notifications/devices", json=browser.subscription())
+    card = await call(
+        client,
+        "POST",
+        f"/layouts/boards/program/{pid}/cards",
+        json={"card_id": "habit.ring", "settings": {"name": "Reading"}},
+    )
+    habit = card["instance_id"]
+    # 07:00 in Toronto: turning the reminder on plans it for 08:00 today.
+    settings = {"name": "Reading", "remind": True, "remind_at": "08:00"}
+    await call(client, "PUT", f"/layouts/cards/{habit}/settings", json={"settings": settings})
+    await drain(app.state)
+
+    clock.advance(hours=1, seconds=30)
+    await reminders.send_due(app.state)
+    [message] = received(push, browser)
+    assert (message["title"], message["body"]) == ("Reading", "Not checked in today.")
+    assert message["url"] == f"/p/{pid}"
+
+    # The next day the habit is checked in before 08:00: no reminder.
+    clock.advance(hours=23)
+    await reminders.replan_user(app.state, user.id)
+    await call(
+        client, "POST", f"/habit/instances/{habit}/checkins/toggle", json={"date": "2026-01-16"}
+    )
+    clock.advance(hours=1)
+    await reminders.send_due(app.state)
+    assert len(received(push, browser)) == 1
 
 
 async def test_the_daily_summary_counts_today_and_is_skipped_on_an_empty_day(

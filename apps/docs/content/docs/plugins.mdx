@@ -166,6 +166,12 @@ both languages).
   A plugin that wants its statistics to survive card deletion can respond to `plugins.purge`
   only (Pomodoro does). Plugins that keep data in `useUiPref` clear it in the same subscription
   with `settings.service.purge_ui_state(ctx, user_id, '<prefix>')`.
+- Timed reminders (the habit's daily reminder) go through M18:
+  `notifications.reminders.reminder_source(kind, ReminderSource(plan=..., message=...))`. `plan`
+  returns the `Planned` reminders of the coming hours; `message` decides when one is due whether
+  it is still worth sending (`None` sends nothing). Devices, quiet hours and sending are the
+  notifications module's; the texts go in `notifications/texts/{en,zh-CN}.json`. When the
+  plugin's own settings change, call `reminders.plan(ctx, [program_id])` to plan again.
 - Migrations follow the single Alembic chain: import your `models` in `migrations/env.py`, run
   `alembic revision --autogenerate`, and check the result.
 

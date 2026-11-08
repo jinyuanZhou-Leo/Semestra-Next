@@ -10,6 +10,8 @@ CARD_IDS = ("habit.ring",)
 # Defaults of the card settings (M14 §2); the card's zod schema uses the same values.
 DEFAULT_GOAL = "daily"
 DEFAULT_WEEKLY_TARGET = 3
+# The daily reminder (M18) is off until the card turns it on.
+DEFAULT_REMIND_AT = "20:00"
 # Check-ins may be changed for today and the seven days before it.
 BACKFILL_DAYS = 7
 # `habit.checkin.list` never spans more than this many days.

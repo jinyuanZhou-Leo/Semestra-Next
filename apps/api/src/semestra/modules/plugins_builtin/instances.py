@@ -69,3 +69,9 @@ async def update_card_settings(ctx: Ctx, instance_id: str, patch: dict[str, Any]
             settings=cast(Any, {**current.settings, **patch}),
         ),
     )
+
+
+async def all_card_instances(ctx: Ctx, *, card_ids: tuple[str, ...]) -> list[CardInstance]:
+    """Every stored instance of `card_ids` of the user, on any board (a card its board still
+    generates from the template has its default settings, so nothing to find there)."""
+    return [i for card_id in card_ids for i in await layouts.list_card_instances(ctx, card_id)]

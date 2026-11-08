@@ -35,6 +35,12 @@ export const habitSettingsSchema = z.object({
   weekly_target: z.number().int().min(1).max(7).default(3),
   color: z.enum(COLOR_TOKENS).default('primary'),
   show_toast: z.boolean().default(true),
+  // A daily notification at this time (Program time zone) while today is not checked in (M18).
+  remind: z.boolean().default(false),
+  remind_at: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .default('20:00'),
 })
 
 export type HabitSettings = z.infer<typeof habitSettingsSchema>
