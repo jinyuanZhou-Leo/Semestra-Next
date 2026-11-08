@@ -356,6 +356,34 @@ async def test_invalid_key_is_not_retried_and_flags_the_provider(
     assert (usage.status, usage.error_code) == ("error", "ai.invalid_key")
 
 
+async def test_calls_update_provider_health_without_refetching_its_models(
+    ai: Ai, app: FastAPI, mock: respx.MockRouter
+):
+    models_ok(mock)
+    created = await ai.provider("anthropic")
+
+    def listed() -> int:
+        return sum(call.request.url.path == "/v1/models" for call in mock.calls)
+
+    await ai.call("GET", f"/ai/providers/{created['id']}/models")
+    fetched = listed()
+    mock.post(f"{ANTHROPIC}/v1/messages").mock(
+        side_effect=[Response(401), anthropic_reply(), anthropic_reply()]
+    )
+    async with ai.ctx() as ctx:
+        with pytest.raises(AppError):
+            await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+        await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+        await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+    await ai.drain()
+    async with app.state.session_factory() as db:  # the card recovers once a call works
+        row = await db.get(AiProvider, created["id"])
+        assert row is not None
+        assert row.last_error_code is None
+    await ai.call("GET", f"/ai/providers/{created['id']}/models")
+    assert listed() == fetched  # still cached: calls are not settings changes
+
+
 async def test_context_too_long_is_recognised(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     await ai.provider("anthropic")

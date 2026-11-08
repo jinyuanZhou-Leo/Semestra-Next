@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import OperationalError
 from starlette.datastructures import State
 
@@ -24,6 +24,8 @@ log = structlog.get_logger()
 
 WRITE_ATTEMPTS = 3
 MODELS_CACHE_TTL = timedelta(hours=1)
+# How often an unchanged provider health is written again, so "last checked" stays roughly true.
+HEALTH_REFRESH = timedelta(minutes=15)
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class AiRuntime:
         # learnt from a refusal (`calls.embed`).
         self.embed_batch: dict[tuple[str, str | None], int] = {}
         self._limiters = Limiters()
+        # provider id → the health last written by `mark_provider` (error code, checked at).
+        self._health: dict[str, tuple[str | None, datetime]] = {}
 
     def gate(self, ep: Endpoint) -> Gate:
         """A slot of the endpoint's limit of requests at a time, for each request to it."""
@@ -83,17 +87,39 @@ class AiRuntime:
     def mark_provider(
         self, state: State, provider_id: str, *, error_code: str | None, checked_at: datetime
     ) -> None:
-        """Remembers the outcome of the last call for the provider card (`ai.invalid_key`, ...)."""
+        """Remembers the outcome of calls for the provider card (`ai.invalid_key`, ...). Written
+        only when it changes (or every `HEALTH_REFRESH`), not on every call, and without touching
+        `updated_at` (which keys the model list cache). A write never replaces a later check that
+        landed first."""
+        last = self._health.get(provider_id)
+        if last is not None and last[0] == error_code and checked_at - last[1] < HEALTH_REFRESH:
+            return
+        self._health[provider_id] = (error_code, checked_at)
 
         async def write(db: Any) -> None:
             await db.execute(
                 update(AiProvider)
-                .where(AiProvider.id == provider_id)
-                .values(last_error_code=error_code, last_checked_at=checked_at)
+                .where(
+                    AiProvider.id == provider_id,
+                    or_(
+                        AiProvider.last_checked_at.is_(None),
+                        AiProvider.last_checked_at <= checked_at,
+                    ),
+                )
+                .values(
+                    last_error_code=error_code,
+                    last_checked_at=checked_at,
+                    updated_at=AiProvider.updated_at,  # not a change of the provider's settings
+                )
                 .execution_options(synchronize_session=False)
             )
 
         self._spawn(state, write)
+
+    def forget_provider(self, provider_id: str) -> None:
+        """The provider's health was written elsewhere (a test, a new key): the next call writes
+        its outcome again."""
+        self._health.pop(provider_id, None)
 
     async def drain(self) -> None:
         # Unfinished ones only, as in `core.events.drain`: gathering finished tasks never yields.

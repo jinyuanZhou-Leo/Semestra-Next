@@ -202,6 +202,8 @@ def test_the_worker_keeps_recent_models_loaded(monkeypatch: pytest.MonkeyPatch):
     loads: list[str] = []
 
     def load(folder: str, wanted: str, thread_count: int) -> object:
+        if folder == "broken":
+            raise ValueError("unsupported inputs")
         loads.append(folder)
         return SimpleNamespace(device="cpu")
 
@@ -209,10 +211,56 @@ def test_the_worker_keeps_recent_models_loaded(monkeypatch: pytest.MonkeyPatch):
     ours, theirs = multiprocessing.Pipe()
     worker = threading.Thread(target=embedding_worker.serve, args=(theirs,), daemon=True)
     worker.start()
+    loaded: list[str] = []
     for folder in ("a", "b", "a", "b", "c", "b", "a"):
         ours.send(("load", folder, "cpu", 1, 2))
-        assert ours.recv() == ("ok", "cpu")
-    ours.close()
-    worker.join(5)
+        status, (device, loaded) = ours.recv()
+        assert (status, device, loaded[-1]) == ("ok", "cpu", folder)
     # Two users' models take turns without reloading; a third evicts the least recently used.
     assert loads == ["a", "b", "c", "a"]
+    # A model that fails to load fails that request only, and says what is still loaded.
+    ours.send(("load", "broken", "cpu", 1, 2))
+    status, _, loaded = ours.recv()
+    assert (status, loaded) == ("error", ["a"])
+    ours.send(("load", "a", "cpu", 1, 2))
+    assert ours.recv() == ("ok", ("cpu", ["a"]))
+    ours.close()
+    worker.join(5)
+
+
+def test_a_failing_model_does_not_restart_the_shared_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    import multiprocessing
+    import threading
+
+    from semestra import embedding_worker
+    from semestra.core.config import Settings
+
+    def load(folder: str, wanted: str, thread_count: int) -> object:
+        if folder.endswith("broken"):
+            raise ValueError("unsupported inputs")
+        return SimpleNamespace(device="cpu")
+
+    monkeypatch.setattr(embedding_worker, "_load", load)
+    monkeypatch.setattr(embedding_worker, "_embed", lambda model, texts, kind: [[1.0]] * len(texts))
+    started: list[bool] = []
+    runtime = local_embedding_runtime._Runtime()  # pyright: ignore[reportPrivateUsage]
+
+    def start() -> Any:
+        if not started:
+            ours, theirs = multiprocessing.Pipe()
+            threading.Thread(target=embedding_worker.serve, args=(theirs,), daemon=True).start()
+            runtime._conn = ours  # pyright: ignore[reportPrivateUsage]
+            started.append(True)
+        return runtime._conn  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.setattr(runtime, "_start", start)
+    settings = Settings()
+    assert runtime.embed(tmp_path / "e5", settings, ["x"], "query") == [[1.0]]
+    with pytest.raises(AppError) as failed:
+        runtime.embed(tmp_path / "broken", settings, ["x"], "query")
+    assert failed.value.code == "ai.local_model_failed"
+    assert runtime.embed(tmp_path / "e5", settings, ["y"], "query") == [[1.0]]
+    assert started == [True]  # one process throughout
+    assert runtime._loaded == [str(tmp_path / "e5")]  # pyright: ignore[reportPrivateUsage]

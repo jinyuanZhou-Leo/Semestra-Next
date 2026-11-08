@@ -149,8 +149,10 @@ def _embed(model: _Model, texts: Sequence[str], kind: str) -> list[list[float]]:
 
 def serve(conn: Connection) -> None:
     """The child's loop: `("load", folder, device, threads, keep)` then `("embed", texts, kind)`
-    requests, each answered with `("ok", value)` or `("error", reason)`. Up to `keep` models stay
-    loaded, the least recently used going first."""
+    requests, each answered with `("ok", value)` or `("error", reason, loaded folders)`; a load
+    answers `(device, loaded folders)`. Up to `keep` models stay loaded, the least recently used
+    going first. A request that fails (a model that does not load, a batch that does not run)
+    leaves the process and the other models as they are."""
     models: OrderedDict[str, _Model] = OrderedDict()
     model: _Model | None = None
     while True:
@@ -168,12 +170,12 @@ def serve(conn: Connection) -> None:
                         model = None  # the evicted model's memory goes before the next loads
                         model = models[folder] = _load(folder, wanted, thread_count)
                     models.move_to_end(folder)
-                    conn.send(("ok", model.device))
+                    conn.send(("ok", (model.device, list(models))))
                 case ("embed", list(texts), str(kind)):
                     assert model is not None
                     conn.send(("ok", _embed(model, texts, kind)))
                 case _:
-                    conn.send(("error", f"unknown request {message!r}"))
+                    conn.send(("error", f"unknown request {message!r}", list(models)))
         except Exception as exc:
             traceback.print_exc()  # the child's stderr, for whoever runs the API
-            conn.send(("error", repr(exc)))
+            conn.send(("error", repr(exc), list(models)))
