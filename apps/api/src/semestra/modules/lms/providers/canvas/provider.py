@@ -331,12 +331,13 @@ class CanvasProvider:
     ) -> None:
         await sign_in.revoke(io, _cfg(cfg), _creds(creds), now)
 
+    def web_base(self, cfg: BaseModel) -> str:
+        return f"{_cfg(cfg).base_url}/"
+
     def rewrite_internal_link(self, cfg: BaseModel, url: str) -> InternalRef | None:
-        base = _cfg(cfg).base_url
-        absolute = urljoin(f"{base}/", url)
-        if _origin(absolute) != _origin(base):
+        if _origin(url) != _origin(_cfg(cfg).base_url):
             return None
-        path = urlsplit(absolute).path.removeprefix(API_PREFIX)
+        path = urlsplit(url).path.removeprefix(API_PREFIX)
         for pattern, kind in LINK_PATTERNS:
             match = re.search(pattern, path)
             if match:

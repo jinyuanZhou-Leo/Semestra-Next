@@ -69,7 +69,7 @@ async def _read(
 
 def _cleaned(b: Bound, items: list[Any], field: str = "html") -> list[Any]:
     for item in items:
-        setattr(item, field, b.clean(getattr(item, field)))
+        setattr(item, field, b.clean(getattr(item, field), item.web_url))
         _lock_text(item)
     return items
 
@@ -387,7 +387,7 @@ async def pages(ctx: Ctx, course_id: str, refresh: bool) -> PageList:
 async def page(ctx: Ctx, course_id: str, ref: str, refresh: bool) -> PageDetail:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         detail = await b.provider.page(i, b.cfg, b.creds, ext, ref)
-        detail.html = b.clean(detail.html)
+        detail.html = b.clean(detail.html, detail.web_url)
         return _lock_text(detail)
 
     data, *_ = await _read(ctx, course_id, "pages", "page", {"ref": ref}, fetch, refresh=refresh)
@@ -407,7 +407,7 @@ async def quizzes(ctx: Ctx, course_id: str, refresh: bool) -> QuizList:
 async def syllabus(ctx: Ctx, course_id: str, refresh: bool) -> RichText:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         text = await b.provider.syllabus(i, b.cfg, b.creds, ext)
-        text.html = b.clean(text.html)
+        text.html = b.clean(text.html, text.web_url)
         return text
 
     data, *_ = await _read(ctx, course_id, "syllabus", "syllabus", {}, fetch, refresh=refresh)

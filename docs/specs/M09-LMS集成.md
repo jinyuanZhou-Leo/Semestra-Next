@@ -57,7 +57,7 @@ class LmsProvider(Protocol):
     async def calendar_events(self, cfg, creds, course_ids, start, end) -> list[LmsCalendarEvent]  # 一次请求多个课程
 ```
 - 所有返回值都是本模块定义的、与平台无关的 DTO（`schemas/dto.py`），provider 负责把平台数据映射过来。DTO 带 `external_id`、`web_url`（在原平台打开）和 `raw_kind`（调试用）。
-- HTML 内容（页面、公告、syllabus、作业描述）由**模块**统一清洗，provider 只负责取回原文。清洗使用 `nh3`：允许基本排版、表格、图片和链接；链接加 `rel="noopener noreferrer" target="_blank"`。provider 可以提供 `rewrite_internal_link(url) -> InternalRef | None`，把平台内部链接改写为内部引用（如 `{kind:'page', ref}`），供插件在应用内跳转。
+- HTML 内容（页面、公告、syllabus、作业描述）由**模块**统一清洗，provider 只负责取回原文。清洗使用 `nh3`：允许基本排版、表格、图片和链接；链接加 `rel="noopener noreferrer" target="_blank"`。清洗后所有链接和图片地址都补全为平台上的绝对地址（相对地址按条目自己的 `web_url` 解析，没有时用 provider 的 `web_base(cfg)`），否则在应用里会被解析成应用自己的地址（例如 Canvas 页面里的 `cover.html` 打开成应用的 404 页）。provider 可以提供 `rewrite_internal_link(url) -> InternalRef | None`（收到的已是绝对地址），把平台内部链接改写为内部引用（如 `{kind:'page', ref}`），供插件在应用内跳转。
 - 错误映射由 provider 实现，但只能抛本模块定义的错误码（第 9 节）。
 - 前端也有对应的 provider 注册：扩展点 **`lms.providerUi`**，每个 provider 贡献 `{ kind, label, logo, ConfigForm, isComplete }`（获取凭证的说明由 `ConfigForm` 自己渲染，随连接方式变化）。表单字段校验与后端 `config_model`/`credentials_model` 一致，由 OpenAPI 生成的类型约束。
 

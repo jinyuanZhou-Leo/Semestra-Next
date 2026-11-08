@@ -343,9 +343,9 @@ def test_internal_links_are_rewritten(settings: Settings):
     page = p.rewrite_internal_link(cfg, f"{CANVAS}/courses/101/pages/week-1")
     assert page is not None
     assert (page.kind, page.ref) == ("page", "week-1")
-    rel = p.rewrite_internal_link(cfg, "/courses/101/assignments/11")
-    assert rel is not None
-    assert (rel.kind, rel.ref) == ("assignment", "11")
+    assignment = p.rewrite_internal_link(cfg, f"{CANVAS}/api/v1/courses/101/assignments/11")
+    assert assignment is not None
+    assert (assignment.kind, assignment.ref) == ("assignment", "11")
     assert p.rewrite_internal_link(cfg, "https://other.example/courses/1/pages/x") is None
 
 

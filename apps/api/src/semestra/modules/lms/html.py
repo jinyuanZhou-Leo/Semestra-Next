@@ -5,15 +5,17 @@ Allowed: basic formatting, lists, tables, images and links, and inline styles li
 `STYLE_PROPERTIES` (colors, type, spacing, borders, sizes; nothing that positions, layers, hides or
 loads anything) so the Canvas tab can show content as it looks on the platform. Agents get the
 text as Markdown (`markdown.py`), which drops the styles. Links open in a new tab with
-`rel="noopener noreferrer"`; a platform link the provider recognizes also carries
-`data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An image of a
-course file is marked the same way: its own address needs a platform session, so the Canvas tab
-loads it through the file proxy instead.
+`rel="noopener noreferrer"`. Every address is made absolute against the platform, since the app
+would otherwise resolve a relative one against itself. A platform link the provider recognizes
+also carries `data-lms-kind` / `data-lms-ref` so the Canvas tab (M16) can open it in the app. An
+image of a course file is marked the same way: its own address needs a platform session, so the
+Canvas tab loads it through the file proxy instead.
 """
 
 import html as htmllib
 import re
 from collections.abc import Callable
+from urllib.parse import urljoin
 
 import nh3
 
@@ -27,8 +29,8 @@ TAGS = {
     "u", "ul",
 }  # fmt: skip
 ATTRIBUTES = {
-    "a": {"href", "title", "target", "data-lms-kind", "data-lms-ref"},
-    "img": {"src", "alt", "title", "width", "height", "data-lms-kind", "data-lms-ref"},
+    "a": {"href", "title", "target"},
+    "img": {"src", "alt", "title", "width", "height"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
     "col": {"span"},
@@ -54,28 +56,34 @@ URL_SCHEMES = {"http", "https", "mailto"}
 
 Rewriter = Callable[[str], InternalRef | None]
 
-_HREF = re.compile(r"""<(a)\b([^>]*?)\b(href)\s*=\s*("([^"]*)"|'([^']*)')""", re.I)
-_SRC = re.compile(r"""<(img)\b([^>]*?)\b(src)\s*=\s*("([^"]*)"|'([^']*)')""", re.I)
+# A link or image in the cleaned output, which always double-quotes attribute values (so a `>`
+# can only appear inside quotes).
+_LINK = re.compile(r'<(a|img)((?:\s+[^\s=>"]+(?:="[^"]*")?)*?)\s+(href|src)="([^"]*)"', re.I)
 
 
-def _mark_internal(raw: str, rewrite: Rewriter) -> str:
+def _resolve_links(cleaned: str, base: str, rewrite: Rewriter | None) -> str:
+    """Makes every link and image address absolute against the platform (`base`), and marks the
+    ones the provider recognizes. The HTML is shown inside the app, where a relative address
+    (`cover.html`, `/courses/1/discussion_topics/2`) would point at the app instead."""
+
     def repl(match: re.Match[str]) -> str:
-        tag, before, attr, quoted = match.group(1, 2, 3, 4)
-        url = htmllib.unescape(match.group(5) if match.group(5) is not None else match.group(6))
-        ref = rewrite(url)
-        if ref is None or (tag.lower() == "img" and ref.kind != "file"):
-            return match.group(0)
-        extra = f' data-lms-kind="{ref.kind}" data-lms-ref="{htmllib.escape(ref.ref)}"'
-        return f"<{tag}{before}{extra} {attr}={quoted}"
+        tag, before, attr, value = match.group(1, 2, 3, 4)
+        url = urljoin(base, htmllib.unescape(value).strip())
+        ref = rewrite(url) if rewrite is not None else None
+        extra = ""
+        if ref is not None and (tag.lower() == "a" or ref.kind == "file"):
+            kind, target = htmllib.escape(ref.kind), htmllib.escape(ref.ref)
+            extra = f' data-lms-kind="{kind}" data-lms-ref="{target}"'
+        return f'<{tag}{before}{extra} {attr}="{htmllib.escape(url)}"'
 
-    return _SRC.sub(repl, _HREF.sub(repl, raw))
+    return _LINK.sub(repl, cleaned)
 
 
-def clean(raw: str | None, rewrite: Rewriter | None = None) -> str | None:
+def clean(raw: str | None, *, base: str, rewrite: Rewriter | None = None) -> str | None:
+    """Sanitized HTML with absolute addresses; `base` is the item's own address on the platform
+    (or the platform's root), the address relative links in it were written against."""
     if raw is None:
         return None
-    if rewrite is not None:
-        raw = _mark_internal(raw, rewrite)
     cleaned = nh3.clean(
         raw,
         tags=TAGS,
@@ -85,8 +93,8 @@ def clean(raw: str | None, rewrite: Rewriter | None = None) -> str | None:
         link_rel="noopener noreferrer",
         set_tag_attribute_values={"a": {"target": "_blank"}},
         strip_comments=True,
-    )
-    return cleaned.strip() or None
+    ).strip()
+    return _resolve_links(cleaned, base, rewrite) if cleaned else None
 
 
 def to_text(raw: str | None) -> str | None:
