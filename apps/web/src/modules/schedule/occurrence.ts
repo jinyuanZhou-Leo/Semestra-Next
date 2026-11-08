@@ -1,6 +1,5 @@
-import type { CalendarWeek, Occurrence } from '@semestra/api-client'
+import type { Occurrence } from '@semestra/api-client'
 import { subjectColor } from '@/lib/subject-color'
-import { m } from '@/paraglide/messages'
 import type { GridItem } from './components/WeekGrid'
 import { minutes } from './components/WeekGrid'
 import { isoWeekday, localDay, toWall } from './time'
@@ -43,16 +42,6 @@ export function weekGridItems(
         onClick: onClick ? () => onClick(o) : undefined,
       }
     })
-}
-
-/** "Week 5" or the break's name for a week of the response. */
-export function calendarWeekLabel(week: Pick<CalendarWeek, 'number' | 'break_name'>): string {
-  if (week.number != null) {
-    return week.break_name
-      ? `${m.schedule_week_number({ number: week.number })} · ${week.break_name}`
-      : m.schedule_week_number({ number: week.number })
-  }
-  return week.break_name ?? ''
 }
 
 export function weekOf<W extends { start_date: string; end_date: string }>(

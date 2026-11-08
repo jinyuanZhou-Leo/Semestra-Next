@@ -14,11 +14,13 @@ import { useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { COLLAPSE } from '@/lib/collapse'
 import { errorMessage, toastError } from '@/lib/errors'
 import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
 import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
@@ -50,14 +52,16 @@ function EmailRow({ user }: { user: UserOut }) {
     onError: () => setCode(''),
   })
 
-  const close = () => {
-    setEditing(false)
+  // The form stays as it was while it folds away; it starts over when opened again.
+  const close = () => setEditing(false)
+  const open = () => {
     setSentTo(null)
     setNewEmail('')
     setCode('')
     setPassword('')
     start.reset()
     confirm.reset()
+    setEditing(true)
   }
 
   const send = (e: FormEvent) => {
@@ -71,7 +75,7 @@ function EmailRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div>
+    <Collapsible open={editing}>
       <Item>
         <ItemContent className="min-w-0">
           <ItemTitle>{m.auth_account_email_row()}</ItemTitle>
@@ -79,74 +83,81 @@ function EmailRow({ user }: { user: UserOut }) {
         </ItemContent>
         {editing ? null : (
           <ItemActions>
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button variant="outline" size="sm" onClick={open}>
               {m.auth_account_email_change()}
             </Button>
           </ItemActions>
         )}
       </Item>
-      {editing && !sentTo ? (
-        <form
-          onSubmit={send}
-          className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
-          noValidate
-        >
-          <FieldSet disabled={start.isPending} className="gap-3">
-            <Field>
-              <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
-              <Input
-                id={id}
-                type="email"
-                autoComplete="email"
-                ref={focusOnMount}
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-              />
-            </Field>
-            <ReauthFields error={start.error} password={password} onPasswordChange={setPassword} />
-            <FieldError>
-              {start.error && !reauthState(start.error).handled ? errorMessage(start.error) : null}
-            </FieldError>
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={!newEmail.trim() || (needsPassword && password === '')}
-              >
-                {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
-              </Button>
-              <Button type="button" variant="ghost" onClick={close}>
-                {m.common_cancel()}
-              </Button>
-            </div>
-          </FieldSet>
-        </form>
-      ) : null}
-      {editing && sentTo ? (
-        <div className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4">
-          <p className="text-sm">{m.auth_account_email_code_sent({ email: sentTo })}</p>
-          <InputOTP
-            maxLength={6}
-            pattern={REGEXP_ONLY_DIGITS}
-            value={code}
-            onChange={setCode}
-            onComplete={(value) => confirm.mutate({ body: { code: value } })}
-            disabled={confirm.isPending}
-            ref={focusOnMount}
-            aria-label={m.auth_code_label()}
+      <CollapsibleContent className={COLLAPSE}>
+        {!sentTo ? (
+          <form
+            onSubmit={send}
+            className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
+            noValidate
           >
-            <InputOTPGroup>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot key={i} index={i} />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
-          <FieldError>{confirm.error ? errorMessage(confirm.error) : null}</FieldError>
-          <Button type="button" variant="ghost" onClick={close} disabled={confirm.isPending}>
-            {m.common_cancel()}
-          </Button>
-        </div>
-      ) : null}
-    </div>
+            <FieldSet disabled={start.isPending} className="gap-3">
+              <Field>
+                <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
+                <Input
+                  id={id}
+                  type="email"
+                  autoComplete="email"
+                  ref={focusOnMount}
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
+              </Field>
+              <ReauthFields
+                error={start.error}
+                password={password}
+                onPasswordChange={setPassword}
+              />
+              <FieldError>
+                {start.error && !reauthState(start.error).handled
+                  ? errorMessage(start.error)
+                  : null}
+              </FieldError>
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  disabled={!newEmail.trim() || (needsPassword && password === '')}
+                >
+                  {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
+                </Button>
+                <Button type="button" variant="ghost" onClick={close}>
+                  {m.common_cancel()}
+                </Button>
+              </div>
+            </FieldSet>
+          </form>
+        ) : (
+          <div className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4">
+            <p className="text-sm">{m.auth_account_email_code_sent({ email: sentTo ?? '' })}</p>
+            <InputOTP
+              maxLength={6}
+              pattern={REGEXP_ONLY_DIGITS}
+              value={code}
+              onChange={setCode}
+              onComplete={(value) => confirm.mutate({ body: { code: value } })}
+              disabled={confirm.isPending}
+              ref={focusOnMount}
+              aria-label={m.auth_code_label()}
+            >
+              <InputOTPGroup>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <InputOTPSlot key={i} index={i} />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+            <FieldError>{confirm.error ? errorMessage(confirm.error) : null}</FieldError>
+            <Button type="button" variant="ghost" onClick={close} disabled={confirm.isPending}>
+              {m.common_cancel()}
+            </Button>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -165,11 +176,12 @@ function PasswordRow({ user }: { user: UserOut }) {
     },
   })
 
-  const close = () => {
-    setEditing(false)
+  const close = () => setEditing(false)
+  const open = () => {
     setCurrent('')
     setNext('')
     change.reset()
+    setEditing(true)
   }
 
   const submit = (e: FormEvent) => {
@@ -181,7 +193,7 @@ function PasswordRow({ user }: { user: UserOut }) {
   }
 
   return (
-    <div>
+    <Collapsible open={editing}>
       <Item>
         <ItemContent className="min-w-0">
           <ItemTitle>{m.auth_account_password_row()}</ItemTitle>
@@ -191,7 +203,7 @@ function PasswordRow({ user }: { user: UserOut }) {
         </ItemContent>
         {editing ? null : (
           <ItemActions>
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button variant="outline" size="sm" onClick={open}>
               {user.has_password
                 ? m.auth_account_password_change_action()
                 : m.auth_account_password_set_action()}
@@ -199,7 +211,7 @@ function PasswordRow({ user }: { user: UserOut }) {
           </ItemActions>
         )}
       </Item>
-      {editing ? (
+      <CollapsibleContent className={COLLAPSE}>
         <form
           onSubmit={submit}
           className="mx-4 mb-4 space-y-3 rounded-2xl bg-muted/50 p-4"
@@ -243,8 +255,8 @@ function PasswordRow({ user }: { user: UserOut }) {
             </div>
           </FieldSet>
         </form>
-      ) : null}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 

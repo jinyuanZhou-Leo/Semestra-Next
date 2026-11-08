@@ -18,6 +18,7 @@ import { Fragment, useState, type ReactNode } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -99,8 +100,8 @@ export function AssessmentTable({
   const queryClient = useQueryClient()
   const [sort, setSort] = useUiPref<SortPref>('grading.sort', DEFAULT_SORT)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  const [editing, setEditing] = useState<Assessment | null>(null)
-  const [deleting, setDeleting] = useState<Assessment | null>(null)
+  const editing = useDialogTarget<Assessment>()
+  const deleting = useDialogTarget<Assessment>()
   const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
@@ -112,7 +113,7 @@ export function AssessmentTable({
     ...gradingAssessmentDeleteMutation(),
     onError: toastError,
     onSuccess: async () => {
-      setDeleting(null)
+      deleting.close()
       await invalidateGrading(queryClient)
     },
   })
@@ -156,10 +157,10 @@ export function AssessmentTable({
     saveScore,
     saveWeight,
     assume,
-    edit: setEditing,
+    edit: editing.show,
     toggleDropped: (a) =>
       update.mutate({ path: { assessment_id: a.id }, body: { dropped: !a.dropped } }),
-    remove: setDeleting,
+    remove: deleting.show,
   }
 
   const table = useTable({
@@ -324,18 +325,18 @@ export function AssessmentTable({
         <AssessmentDialog
           courseId={courseId}
           categories={categories}
-          assessment={editing ?? undefined}
-          open={editing !== null}
-          onOpenChange={(open) => !open && setEditing(null)}
+          assessment={editing.target ?? undefined}
+          {...editing.props}
         />
         <ConfirmDialog
-          open={deleting !== null}
-          onOpenChange={(open) => !open && setDeleting(null)}
+          {...deleting.props}
           title={m.grading_assessment_delete()}
-          description={m.grading_assessment_delete_confirm({ title: deleting?.title ?? '' })}
+          description={m.grading_assessment_delete_confirm({ title: deleting.target?.title ?? '' })}
           confirmLabel={m.grading_assessment_delete()}
           pending={remove.isPending}
-          onConfirm={() => deleting && remove.mutate({ path: { assessment_id: deleting.id } })}
+          onConfirm={() =>
+            deleting.target && remove.mutate({ path: { assessment_id: deleting.target.id } })
+          }
         />
       </>
     </TableActionsContext>

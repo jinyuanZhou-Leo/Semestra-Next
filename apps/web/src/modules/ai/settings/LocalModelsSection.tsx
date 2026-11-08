@@ -17,6 +17,7 @@ import {
 } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { JobProgress } from '@/components/JobProgress'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { formatBytes } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -208,17 +209,15 @@ export function LocalModelsSection() {
     },
     onError: toastError,
   })
-  // The last row asked about stays set so the dialog keeps its text while it closes.
-  const [deleting, setDeleting] = useState<LocalRow | null>(null)
-  const [confirming, setConfirming] = useState(false)
+  const deleting = useDialogTarget<LocalRow>()
   const remove = useMutation({
     ...aiLocalModelDeleteMutation(),
     onSuccess: async () => {
-      setConfirming(false)
+      deleting.close()
       await invalidateAi(queryClient)
     },
     onError: (err) => {
-      setConfirming(false)
+      deleting.close()
       toastError(err)
     },
   })
@@ -232,10 +231,7 @@ export function LocalModelsSection() {
       ? `${download.variables?.body.purpose}:${download.variables?.body.model}`
       : null,
     onDownload: (row) => download.mutate({ body: { purpose: row.purpose, model: row.model } }),
-    onDelete: (row) => {
-      setDeleting(row)
-      setConfirming(true)
-    },
+    onDelete: deleting.show,
   }
 
   return (
@@ -256,14 +252,16 @@ export function LocalModelsSection() {
       })}
       <SettingsNote>{m.ai_local_models_total({ size: formatBytes(total) })}</SettingsNote>
       <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={m.ai_local_models_delete_title({ model: deleting?.model ?? '' })}
-        description={deleteDescription(deleting)}
+        {...deleting.props}
+        title={m.ai_local_models_delete_title({ model: deleting.target?.model ?? '' })}
+        description={deleteDescription(deleting.target)}
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
         onConfirm={() =>
-          deleting && remove.mutate({ body: { purpose: deleting.purpose, model: deleting.model } })
+          deleting.target &&
+          remove.mutate({
+            body: { purpose: deleting.target.purpose, model: deleting.target.model },
+          })
         }
       />
     </RowContext>

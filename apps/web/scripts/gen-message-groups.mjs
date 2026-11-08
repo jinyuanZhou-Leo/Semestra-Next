@@ -8,19 +8,7 @@
 // `node scripts/gen-message-groups.mjs` rewrites the files; `--check` fails when they are stale
 // (run by `pnpm i18n:lint`).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-
-const GROUPS = [
-  { file: 'errors', name: 'errorMessages', prefix: 'error_' },
-  { file: 'settings', name: 'settingsMessages', prefix: 'settings_' },
-  { file: 'capabilities', name: 'capabilityMessages', prefix: 'capability_' },
-  { file: 'assistant-fields', name: 'assistantFieldMessages', prefix: 'assistant_field_' },
-  { file: 'job-steps', name: 'jobStepMessages', prefix: 'job_step_' },
-  {
-    file: 'portability-entities',
-    name: 'portabilityEntityMessages',
-    prefix: 'portability_entity_',
-  },
-]
+import { GROUPS } from './message-groups.mjs'
 
 const messagesFile = new URL('../messages/en.json', import.meta.url)
 const outDir = new URL('../src/lib/message-groups/', import.meta.url)

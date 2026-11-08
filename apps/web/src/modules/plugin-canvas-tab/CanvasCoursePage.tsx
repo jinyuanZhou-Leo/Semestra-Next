@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/lib/now'
@@ -70,7 +71,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
   const queryClient = useQueryClient()
   const [location, go] = useCanvasLocation(courseId)
   const [refreshing, setRefreshing] = useState(false)
-  const [file, setFile] = useState<string | null>(null)
+  const file = useDialogTarget<string>()
   const overview = useQuery({
     ...lmsCourseOverviewOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
@@ -95,7 +96,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
     programId,
     courseId,
     go,
-    openFile: setFile,
+    openFile: file.show,
     display,
     setDisplay,
     title,
@@ -118,7 +119,7 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
           )}
         </CanvasBoundary>
       </div>
-      <FilePreviewDialog fileId={file} onClose={() => setFile(null)} />
+      <FilePreviewDialog fileId={file.target} {...file.props} />
     </CanvasPageContext>
   )
 }
@@ -307,9 +308,7 @@ function CourseNav({
         <div className="px-2">
           <p className="text-xs font-medium text-muted-foreground">{m.canvas_tab_page_title()}</p>
           {courseMeta ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground" title={courseMeta}>
-              {courseMeta}
-            </p>
+            <p className="line-clamp-2 text-xs text-muted-foreground">{courseMeta}</p>
           ) : null}
         </div>
         <ul className="space-y-0.5">

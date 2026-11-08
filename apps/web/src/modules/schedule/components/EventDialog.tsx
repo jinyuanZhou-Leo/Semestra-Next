@@ -131,6 +131,7 @@ export function EventDialog({
   slot,
   creators = [],
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   programId: string
@@ -144,6 +145,8 @@ export function EventDialog({
   /** Calendar sources a new item can be instead of an event (needs `termId` and `slot`). */
   creators?: readonly CalendarSourceContribution[]
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
@@ -234,7 +237,11 @@ export function EventDialog({
   const endSelected = endDay ? localDay(endDay) : undefined
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+    >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>

@@ -15,6 +15,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Input } from '@/ui/input'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
+import { Spinner } from '@/ui/spinner'
 import { UserAvatar } from './UserAvatar'
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024
@@ -96,8 +97,8 @@ export function ProfileSection({ user, children }: { user: UserOut; children?: R
               disabled={upload.isPending}
               onClick={() => fileInput.current?.click()}
             >
-              <Camera />
-              {upload.isPending ? m.common_loading() : m.auth_account_avatar_upload()}
+              {upload.isPending ? <Spinner /> : <Camera />}
+              {m.auth_account_avatar_upload()}
             </Button>
             {user.avatar_url ? (
               <Button

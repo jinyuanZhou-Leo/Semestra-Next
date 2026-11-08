@@ -19,6 +19,7 @@ import {
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { subjectColor } from '@/lib/subject-color'
 import { ColorDotPicker } from '@/modules/academics/components/ColorDotPicker'
@@ -183,7 +184,7 @@ const columns = column.columns([
   }),
   column.display({
     id: 'actions',
-    header: () => <span className="sr-only">{m.schedule_actions()}</span>,
+    header: () => <span className="sr-only">{m.common_actions()}</span>,
     cell: ActionsCell,
   }),
 ])
@@ -222,21 +223,21 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
     onError: toastError,
     onSettled: refresh,
   })
+  const deleting = useDialogTarget<EventType>()
   const remove = useMutation({
     ...scheduleEventTypeDeleteMutation(),
     onError: toastError,
     onSettled: async () => {
-      setDeleting(null)
+      deleting.close()
       await refresh()
     },
   })
-  const [deleting, setDeleting] = useState<EventType | null>(null)
   const [adding, setAdding] = useState(false)
   // A fresh dialog (empty fields) each time it opens.
   const [addKey, setAddKey] = useState(0)
   const handlers: RowHandlers = {
     patch: (type, body) => update.mutate({ path: { event_type_id: type.id }, body }),
-    onDelete: setDeleting,
+    onDelete: deleting.show,
   }
 
   return (
@@ -277,13 +278,14 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
         onOpenChange={setAdding}
       />
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={m.schedule_type_delete({ code: deleting?.code ?? '' })}
+        {...deleting.props}
+        title={m.schedule_type_delete({ code: deleting.target?.code ?? '' })}
         description={m.schedule_type_delete_description()}
         confirmLabel={m.schedule_type_delete_confirm()}
         pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { event_type_id: deleting.id } })}
+        onConfirm={() =>
+          deleting.target && remove.mutate({ path: { event_type_id: deleting.target.id } })
+        }
       />
     </>
   )

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Textarea } from '@/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { colorTint } from '../plugin-kit/colors'
 import { useCardSettings } from '../plugin-kit/useCardSettings'
 import { type FormatKind, applyFormat } from './format'
@@ -80,17 +81,22 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
           {size !== 's' ? (
             <div className="mt-1 flex gap-0.5">
               {TOOLS.map(([kind, Icon, label]) => (
-                <Button
-                  key={kind}
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={label()}
-                  title={label()}
-                  onMouseDown={keepFocus}
-                  onClick={() => format(kind)}
-                >
-                  <Icon aria-hidden />
-                </Button>
+                <Tooltip key={kind}>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={label()}
+                        onMouseDown={keepFocus}
+                        onClick={() => format(kind)}
+                      />
+                    }
+                  >
+                    <Icon aria-hidden />
+                  </TooltipTrigger>
+                  <TooltipContent>{label()}</TooltipContent>
+                </Tooltip>
               ))}
             </div>
           ) : null}
@@ -120,21 +126,30 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
         </div>
       )}
       {editing ? null : (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={m.sticky_edit()}
-          title={m.sticky_edit()}
-          onClick={() => setEditing(true)}
-          className="absolute right-1 bottom-1 text-muted-foreground"
-        >
-          <Pencil aria-hidden />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={m.sticky_edit()}
+                onClick={() => setEditing(true)}
+                className="absolute right-1 bottom-1 text-muted-foreground"
+              />
+            }
+          >
+            <Pencil aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{m.sticky_edit()}</TooltipContent>
+        </Tooltip>
       )}
-      <output title={dotLabel} className="absolute top-2 right-2">
-        <span className="sr-only">{dotLabel}</span>
-        <span aria-hidden className={cn('block size-1.5 rounded-full', dot)} />
-      </output>
+      <Tooltip>
+        <TooltipTrigger render={<output className="absolute top-2 right-2" />}>
+          <span className="sr-only">{dotLabel}</span>
+          <span aria-hidden className={cn('block size-1.5 rounded-full', dot)} />
+        </TooltipTrigger>
+        <TooltipContent>{dotLabel}</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

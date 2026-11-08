@@ -23,6 +23,8 @@ import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TimeAgo } from '@/components/TimeAgo'
+import { COLLAPSE } from '@/lib/collapse'
+import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -89,13 +91,10 @@ function AddDialogHeader({ title, description, logo }: FlowHeader) {
 
 function EditProviderDialog({
   provider,
-  onClose,
-}: {
-  provider: Provider | null
-  onClose: () => void
-}) {
+  ...props
+}: { provider: Provider | null } & DialogTargetProps) {
   return (
-    <Dialog open={provider !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog {...props}>
       <DialogContent>
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -105,7 +104,11 @@ function EditProviderDialog({
           <DialogDescription>{m.ai_provider_key_note()}</DialogDescription>
         </DialogHeader>
         {provider ? (
-          <EditProviderForm key={provider.id} provider={provider} onDone={onClose} />
+          <EditProviderForm
+            key={provider.id}
+            provider={provider}
+            onDone={() => props.onOpenChange(false)}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -207,7 +210,7 @@ function EditProviderForm({ provider, onDone }: { provider: Provider; onDone: ()
               />
               <span className="font-medium">{m.ai_provider_advanced()}</span>
             </CollapsibleTrigger>
-            <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+            <CollapsibleContent className={COLLAPSE}>
               {/* The left rule ties the fields to the trigger; padding keeps focus rings visible. */}
               <FieldGroup className="mt-3 ml-1.5 w-auto border-l-2 py-1 pr-1 pl-4">
                 <Field data-invalid={concurrencyValid ? undefined : true}>
@@ -375,18 +378,16 @@ export function ProvidersSection() {
     setAddKey((k) => k + 1)
     setAdding(true)
   }
-  const [editing, setEditing] = useState<Provider | null>(null)
-  // The last provider asked about stays set so the dialog keeps its text while it closes.
-  const [deleting, setDeleting] = useState<Provider | null>(null)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const editing = useDialogTarget<Provider>()
+  const deleting = useDialogTarget<Provider>()
   const remove = useMutation({
     ...aiProviderDeleteMutation(),
     onSuccess: async () => {
-      setConfirmingDelete(false)
+      deleting.close()
       await invalidateAi(queryClient)
     },
     onError: (err) => {
-      setConfirmingDelete(false)
+      deleting.close()
       toastError(err)
     },
   })
@@ -407,14 +408,11 @@ export function ProvidersSection() {
   const handlers: RowHandlers = {
     testingId: test.isPending ? (test.variables?.path.id ?? null) : null,
     togglingId: toggle.isPending ? (toggle.variables?.path.id ?? null) : null,
-    onEdit: setEditing,
+    onEdit: editing.show,
     onTest: (provider) => test.mutate({ path: { id: provider.id } }),
     onToggle: (provider) =>
       toggle.mutate({ path: { id: provider.id }, body: { enabled: !provider.enabled } }),
-    onDelete: (provider) => {
-      setDeleting(provider)
-      setConfirmingDelete(true)
-    },
+    onDelete: deleting.show,
   }
 
   return (
@@ -465,15 +463,14 @@ export function ProvidersSection() {
           <AddProviderFlow key={addKey} onSaved={() => setAdding(false)} Header={AddDialogHeader} />
         </DialogContent>
       </Dialog>
-      <EditProviderDialog provider={editing} onClose={() => setEditing(null)} />
+      <EditProviderDialog provider={editing.target} {...editing.props} />
       <ConfirmDialog
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
+        {...deleting.props}
         title={m.ai_provider_delete_title()}
-        description={m.ai_provider_delete_desc({ name: deleting?.display_name ?? '' })}
+        description={m.ai_provider_delete_desc({ name: deleting.target?.display_name ?? '' })}
         confirmLabel={m.common_delete()}
         pending={remove.isPending}
-        onConfirm={() => deleting && remove.mutate({ path: { id: deleting.id } })}
+        onConfirm={() => deleting.target && remove.mutate({ path: { id: deleting.target.id } })}
       />
     </>
   )

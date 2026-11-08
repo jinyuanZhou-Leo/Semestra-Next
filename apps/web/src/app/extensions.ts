@@ -457,9 +457,3 @@ export function scopePath(scope: Scope, pageId?: string): string {
         : `/p/${scope.programId}/c/${scope.courseId}`
   return pageId ? `${base}/${pageId}` : base
 }
-
-/** URL of a scope's settings page, optionally of one group of sections (M11 §5.2). */
-export function scopeSettingsPath(scope: Scope, group?: string): string {
-  const base = `${scopePath(scope)}/settings`
-  return group ? `${base}/${group}` : base
-}

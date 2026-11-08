@@ -36,7 +36,6 @@ export default function StickySettingsForm({ value, onChange }: Props) {
                 key={color}
                 value={color}
                 aria-label={NAMES[color]()}
-                title={NAMES[color]()}
                 className="rounded-lg border-border"
                 color={colorTint(color, 40)}
                 checkColor="var(--foreground)"

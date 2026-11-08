@@ -58,7 +58,7 @@ export function ContextMeter({
   return (
     <Context usedTokens={Math.min(used, window)} maxTokens={window}>
       {compacting ? (
-        <ContextTrigger size="sm" className="h-8 rounded-full px-2 text-xs">
+        <ContextTrigger>
           <Button
             type="button"
             variant="ghost"

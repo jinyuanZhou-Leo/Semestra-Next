@@ -41,10 +41,13 @@ export type MoveTarget = {
 export function MoveDialog({
   target,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   target: MoveTarget
   open: boolean
+  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   const fid = useId()
@@ -86,7 +89,11 @@ export function MoveDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !save.isPending && onOpenChange(next)}>
+    <Dialog
+      open={open}
+      onOpenChangeComplete={onOpenChangeComplete}
+      onOpenChange={(next) => !save.isPending && onOpenChange(next)}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.schedule_move_title()}</DialogTitle>

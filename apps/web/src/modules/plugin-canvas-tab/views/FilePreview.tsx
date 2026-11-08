@@ -2,10 +2,12 @@ import { type FileMeta, lmsFileContent, lmsFileSaveToCourse } from '@semestra/ap
 import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { type ReactNode, Suspense, useState } from 'react'
 import { toast } from 'sonner'
+import type { DialogTargetProps } from '@/lib/dialog-target'
 import { errorCode, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
+import { LazyPdfViewer } from '@/modules/files/components/LazyPdfViewer'
 import { Markdown } from '@/modules/files/components/Markdown'
 import { m } from '@/paraglide/messages'
 import { PreviewShell } from '@/modules/files/components/PreviewShell'
@@ -174,24 +176,12 @@ export function FileActions({ fileId, name }: { fileId: string; name: string }) 
   )
 }
 
-// pdf.js is large; load it only when a PDF is opened (the course files preview does the same).
-const PdfViewer = lazy(() =>
-  import('@/modules/files/components/PdfViewer').then((mod) => ({ default: mod.PdfViewer })),
-)
-
 /** The preview of a Canvas file opened from a module or a link in a page; the same frame as the
  * course files preview (M07 §6.1), with "Save to course files" among the actions. */
 export function FilePreviewDialog({
-  fileId,
-  onClose,
-}: {
-  fileId: string | null
-  onClose: () => void
-}) {
-  // Keep showing the last file while the dialog animates closed, so it does not go blank.
-  const [last, setLast] = useState(fileId)
-  if (fileId !== null && fileId !== last) setLast(fileId)
-  const shown = fileId ?? last
+  fileId: shown,
+  ...props
+}: { fileId: string | null } & DialogTargetProps) {
   const { courseId } = useCanvasPage()
   const meta = useQuery({
     ...lmsFileGetOptions({ path: { course_id: courseId, file_id: shown ?? '' } }),
@@ -208,8 +198,7 @@ export function FilePreviewDialog({
     .join(' · ')
   return (
     <PreviewShell
-      open={fileId !== null}
-      onClose={onClose}
+      {...props}
       title={name || m.common_loading()}
       meta={details}
       footer={
@@ -254,7 +243,7 @@ function PreviewBody({ file }: { file: FileMeta }) {
             </div>
           }
         >
-          <PdfViewer url={src} />
+          <LazyPdfViewer url={src} />
         </Suspense>
       </ContentCheck>
     )

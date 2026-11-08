@@ -19,6 +19,7 @@ import type { PageProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ImportSourceItems } from '@/components/ImportSourceItems'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -125,19 +126,16 @@ function TermSchedule({
       .launch({ programId, courseId: course.id, termId })
       .then(() => invalidateSchedule(queryClient))
       .catch(toastError)
-  const [editing, setEditing] = useState<SectionTime | null>(null)
-  const [eventEdit, setEventEdit] = useState<OneOffEvent | 'new' | null>(null)
-  const [exceptionAdd, setExceptionAdd] = useState(false)
-  const [sectionAdd, setSectionAdd] = useState(false)
-  const [sectionEdit, setSectionEdit] = useState<{
-    section: Section
-    withNewTime: boolean
-  } | null>(null)
-  const [sectionDelete, setSectionDelete] = useState<Section | null>(null)
+  const editing = useDialogTarget<SectionTime>()
+  const eventEdit = useDialogTarget<OneOffEvent | 'new'>()
+  const exceptionAdd = useDialogTarget<true>()
+  const sectionAdd = useDialogTarget<true>()
+  const sectionEdit = useDialogTarget<{ section: Section; withNewTime: boolean }>()
+  const sectionDelete = useDialogTarget<Section>()
   const removeSection = useMutation({
     ...scheduleSectionDeleteMutation(),
     onError: toastError,
-    onSuccess: () => setSectionDelete(null),
+    onSuccess: () => sectionDelete.close(),
     onSettled: () => invalidateSchedule(queryClient),
   })
 
@@ -176,7 +174,7 @@ function TermSchedule({
   // The whole week and day of the Program's calendar settings; the grid widens for classes
   // outside them.
   const { settings: calendar, isPending: calendarPending } = useCalendarSettingsState(termId)
-  const gridItems = meetingGridItems(enabled, [course], conflicting, setEditing, {
+  const gridItems = meetingGridItems(enabled, [course], conflicting, editing.show, {
     bySection: true,
   })
 
@@ -204,7 +202,7 @@ function TermSchedule({
         >
           {importMenu}
           {sections.length > 0 ? (
-            <Button size="sm" variant="outline" onClick={() => setSectionAdd(true)}>
+            <Button size="sm" variant="outline" onClick={() => sectionAdd.show(true)}>
               <Plus aria-hidden />
               {m.schedule_section_new_title()}
             </Button>
@@ -220,7 +218,7 @@ function TermSchedule({
               <EmptyDescription>{m.schedule_meetings_empty_description()}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" onClick={() => setSectionAdd(true)}>
+              <Button size="sm" onClick={() => sectionAdd.show(true)}>
                 <Plus aria-hidden />
                 {m.schedule_section_new_title()}
               </Button>
@@ -266,9 +264,9 @@ function TermSchedule({
               busy={setEnabled.isPending}
               onToggle={toggle}
               onKeepOnly={keepOnly}
-              onEdit={(section, meeting) => setEditing({ section, meeting })}
-              onEditSection={(section, withNewTime) => setSectionEdit({ section, withNewTime })}
-              onDeleteSection={setSectionDelete}
+              onEdit={(section, meeting) => editing.show({ section, meeting })}
+              onEditSection={(section, withNewTime) => sectionEdit.show({ section, withNewTime })}
+              onDeleteSection={sectionDelete.show}
             />
           </>
         )}
@@ -281,7 +279,7 @@ function TermSchedule({
           description={m.schedule_events_hint()}
         >
           {events.length > 0 ? (
-            <Button size="sm" variant="outline" onClick={() => setEventEdit('new')}>
+            <Button size="sm" variant="outline" onClick={() => eventEdit.show('new')}>
               <Plus aria-hidden />
               {m.schedule_event_add()}
             </Button>
@@ -296,13 +294,13 @@ function TermSchedule({
               <EmptyTitle>{m.schedule_events_empty_title()}</EmptyTitle>
             </EmptyHeader>
             <EmptyContent>
-              <Button size="sm" variant="link" onClick={() => setEventEdit('new')}>
+              <Button size="sm" variant="link" onClick={() => eventEdit.show('new')}>
                 {m.schedule_event_add()}
               </Button>
             </EmptyContent>
           </Empty>
         ) : (
-          <EventsTable events={events} types={types} timezone={timezone} onEdit={setEventEdit} />
+          <EventsTable events={events} types={types} timezone={timezone} onEdit={eventEdit.show} />
         )}
       </section>
 
@@ -314,7 +312,7 @@ function TermSchedule({
             description={m.schedule_exceptions_hint()}
           >
             {exceptions.length > 0 && enabled.length > 0 ? (
-              <Button size="sm" variant="outline" onClick={() => setExceptionAdd(true)}>
+              <Button size="sm" variant="outline" onClick={() => exceptionAdd.show(true)}>
                 <Plus aria-hidden />
                 {m.schedule_exception_add()}
               </Button>
@@ -330,7 +328,7 @@ function TermSchedule({
               </EmptyHeader>
               {enabled.length > 0 ? (
                 <EmptyContent>
-                  <Button size="sm" variant="link" onClick={() => setExceptionAdd(true)}>
+                  <Button size="sm" variant="link" onClick={() => exceptionAdd.show(true)}>
                     {m.schedule_exception_add()}
                   </Button>
                 </EmptyContent>
@@ -350,71 +348,66 @@ function TermSchedule({
         </section>
       ) : null}
 
-      {editing ? (
+      {editing.target ? (
         <MeetingDialog
-          key={editing.meeting.id}
-          section={editing.section}
-          meeting={editing.meeting}
-          open
-          onOpenChange={(open) => !open && setEditing(null)}
+          key={editing.target.meeting.id}
+          section={editing.target.section}
+          meeting={editing.target.meeting}
+          {...editing.props}
         />
       ) : null}
-      {sectionAdd ? (
+      {sectionAdd.target ? (
         <SectionDialog
           programId={programId}
           courseId={course.id}
           termId={termId}
           typeCode={types[0]?.code ?? 'LEC'}
-          open
-          onOpenChange={setSectionAdd}
+          {...sectionAdd.props}
         />
       ) : null}
-      {sectionEdit ? (
+      {sectionEdit.target ? (
         <SectionDialog
-          key={sectionEdit.section.id}
+          key={sectionEdit.target.section.id}
           programId={programId}
           courseId={course.id}
           termId={termId}
-          typeCode={sectionEdit.section.type_code}
-          section={sectionEdit.section}
-          withNewTime={sectionEdit.withNewTime}
-          open
-          onOpenChange={(open) => !open && setSectionEdit(null)}
+          typeCode={sectionEdit.target.section.type_code}
+          section={sectionEdit.target.section}
+          withNewTime={sectionEdit.target.withNewTime}
+          {...sectionEdit.props}
         />
       ) : null}
       <ConfirmDialog
-        open={sectionDelete !== null}
-        onOpenChange={(open) => !open && setSectionDelete(null)}
+        {...sectionDelete.props}
         title={m.schedule_section_delete_title({
-          section: sectionDelete ? sectionLabel(sectionDelete) : '',
+          section: sectionDelete.target ? sectionLabel(sectionDelete.target) : '',
         })}
         description={m.schedule_section_delete_description()}
         confirmLabel={m.schedule_section_delete()}
         pending={removeSection.isPending}
         onConfirm={() =>
-          sectionDelete && removeSection.mutate({ path: { section_id: sectionDelete.id } })
+          sectionDelete.target &&
+          removeSection.mutate({ path: { section_id: sectionDelete.target.id } })
         }
       />
-      {exceptionAdd ? (
+      {exceptionAdd.target ? (
         <ExceptionDialog
           programId={programId}
           courseId={course.id}
           termId={termId}
           today={todayIn(timezone)}
           times={enabled}
-          open
-          onOpenChange={(open) => !open && setExceptionAdd(false)}
+          {...exceptionAdd.props}
         />
       ) : null}
-      {eventEdit ? (
+      {eventEdit.target ? (
         <EventDialog
           programId={programId}
           timezone={timezone}
           termId={termId}
           courseId={course.id}
-          event={eventEdit === 'new' ? undefined : eventEdit}
-          open
-          onOpenChange={(open) => !open && setEventEdit(null)}
+          event={eventEdit.target === 'new' ? undefined : eventEdit.target}
+          {...eventEdit.props}
         />
       ) : null}
     </div>

@@ -30,6 +30,7 @@ import {
 import { type CSSProperties, type ReactNode, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useTerms } from '@/modules/academics/queries'
 import { cn } from '@/lib/utils'
@@ -118,16 +119,16 @@ function useListEditing({
   onSelect: (selection: Selection) => void
   actions: TaskActions
 }) {
-  const [creating, setCreating] = useState(false)
-  const [renaming, setRenaming] = useState<TaskList | null>(null)
-  const [deleting, setDeleting] = useState<TaskList | null>(null)
+  const creating = useDialogTarget<true>()
+  const renaming = useDialogTarget<TaskList>()
+  const deleting = useDialogTarget<TaskList>()
   const [alsoTasks, setAlsoTasks] = useState(false)
+  const renamingList = renaming.target
   const dialogs = (
     <>
-      {creating ? (
+      {creating.target ? (
         <ListDialog
-          open
-          onOpenChange={setCreating}
+          {...creating.props}
           title={m.tasks_list_new()}
           submitLabel={m.tasks_list_create()}
           canChooseLevel={Boolean(termId)}
@@ -140,20 +141,18 @@ function useListEditing({
           }}
         />
       ) : null}
-      {renaming ? (
+      {renamingList ? (
         <ListDialog
-          open
-          onOpenChange={(open) => !open && setRenaming(null)}
+          {...renaming.props}
           title={m.tasks_list_rename()}
-          initialName={renaming.name}
-          onSubmit={({ name }) => actions.renameList(renaming.id, name)}
+          initialName={renamingList.name}
+          onSubmit={({ name }) => actions.renameList(renamingList.id, name)}
         />
       ) : null}
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        {...deleting.props}
         title={m.tasks_list_delete_title()}
-        description={m.tasks_list_delete_description({ name: deleting?.name ?? '' })}
+        description={m.tasks_list_delete_description({ name: deleting.target?.name ?? '' })}
         extra={
           <Field orientation="horizontal">
             <Checkbox id="also-tasks" checked={alsoTasks} onCheckedChange={setAlsoTasks} />
@@ -162,8 +161,8 @@ function useListEditing({
         }
         confirmLabel={m.common_delete()}
         onConfirm={() => {
-          const list = deleting
-          setDeleting(null)
+          const list = deleting.target
+          deleting.close()
           if (!list) return
           if (selection.kind === 'list' && selection.listId === list.id) {
             onSelect({ kind: 'smart', view: 'all' })
@@ -174,11 +173,11 @@ function useListEditing({
     </>
   )
   return {
-    create: () => setCreating(true),
-    rename: setRenaming,
+    create: () => creating.show(true),
+    rename: renaming.show,
     remove: (list: TaskList) => {
       setAlsoTasks(false)
-      setDeleting(list)
+      deleting.show(list)
     },
     dialogs,
   }

@@ -48,6 +48,7 @@ export function AssessmentDialog({
   categories,
   assessment,
   open,
+  onOpenChangeComplete,
   onOpenChange,
 }: {
   courseId: string
@@ -55,10 +56,11 @@ export function AssessmentDialog({
   /** The assessment to edit; none adds a new one. */
   assessment?: Assessment
   open: boolean
+  onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChangeComplete={onOpenChangeComplete} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>

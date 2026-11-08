@@ -19,7 +19,6 @@ export type CourseData = {
 }
 
 export type FieldChange = { old?: unknown; new?: unknown; apply?: boolean }
-export type CoursePatchData = { course_id: string; changes: Record<string, FieldChange> }
 /** `assessment_patch` / `task_patch` (M09 LMS updates); `label` names the item. */
 export type TargetPatchData = { label?: string; changes: Record<string, FieldChange> }
 
@@ -122,17 +121,3 @@ export type FileImportRequest = Extract<ImportRequest, { source: ImportSourceKin
 
 /** null when the user closed the dialog without finishing. */
 export type ImportOutcome = { session: ImportSessionDetail } | null
-
-export function dataOf<T>(item: ImportItem): T {
-  return item.data as T
-}
-
-/** `item:<id>` / `course:<id>` → the id, and which kind it is. */
-export function parseRef(
-  ref: string | undefined,
-): { kind: 'item' | 'course' | 'key'; id: string } | null {
-  if (!ref) return null
-  const [kind, ...rest] = ref.split(':')
-  if (kind !== 'item' && kind !== 'course' && kind !== 'key') return null
-  return { kind, id: rest.join(':') }
-}
