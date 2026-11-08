@@ -16,7 +16,9 @@ import { disableDevice, enableDevice, useDeviceState } from '../push'
 /** Settings → Notifications → This device (M18 §7): whether this browser gets anything. */
 export default function DeviceSection() {
   const state = useDeviceState()
-  const [busy, setBusy] = useState(false)
+  // The value being switched to while the browser subscribes or unsubscribes; the switch shows
+  // it at once so nothing else in the row moves.
+  const [pending, setPending] = useState<boolean | null>(null)
   const test = useMutation({
     ...notificationsTestSendMutation(),
     onSuccess: (result) => {
@@ -27,13 +29,13 @@ export default function DeviceSection() {
 
   // Called from the switch's change, so the permission prompt has its user gesture.
   const toggle = async (checked: boolean) => {
-    setBusy(true)
+    setPending(checked)
     try {
       await (checked ? enableDevice() : disableDevice())
     } catch (err) {
       toastError(err)
     }
-    setBusy(false)
+    setPending(null)
   }
 
   if (state === 'unsupported') return <SettingsNote>{m.notifications_unsupported()}</SettingsNote>
@@ -52,27 +54,26 @@ export default function DeviceSection() {
     )
   }
   const on = state === 'on'
+  const settling = pending !== null || state === 'checking'
   return (
     <SettingsGroup>
       <SettingRow label={deviceLabel(navigator.userAgent) ?? m.notifications_this_device()}>
         {(labelId) => (
           <div className="flex items-center gap-3">
-            {on ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={test.isPending}
-                onClick={() => test.mutate({})}
-              >
-                {test.isPending ? <Spinner /> : <Send aria-hidden />}
-                {m.notifications_test()}
-              </Button>
-            ) : null}
-            {busy || state === 'checking' ? <Spinner /> : null}
+            {/* Always there, so turning the device on or off keeps the row's height. */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!on || settling || test.isPending}
+              onClick={() => test.mutate({})}
+            >
+              {test.isPending ? <Spinner /> : <Send aria-hidden />}
+              {m.notifications_test()}
+            </Button>
             <Switch
               aria-labelledby={labelId}
-              checked={on}
-              disabled={busy || state === 'checking'}
+              checked={pending ?? on}
+              disabled={settling}
               onCheckedChange={(checked) => void toggle(checked)}
             />
           </div>

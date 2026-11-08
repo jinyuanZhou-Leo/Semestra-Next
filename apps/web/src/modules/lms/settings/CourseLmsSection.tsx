@@ -132,9 +132,7 @@ function ProgramUnbound() {
               <Button
                 size="sm"
                 onClick={
-                  none
-                    ? openConnections
-                    : () => settings.open({ level: 'program', group: 'integrations' })
+                  none ? openConnections : () => settings.open({ level: 'program', group: 'lms' })
                 }
               >
                 {none ? m.lms_connection_add() : m.lms_course_open_program_settings()}

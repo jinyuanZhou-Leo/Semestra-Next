@@ -268,7 +268,7 @@ test('old links to the single AI page open the AI page that now holds the sectio
 test('an old AI link with a section lands on the page holding it', async () => {
   mount('/?settings=account/ai#assistant-mcp')
   const nav = await screen.findByRole('navigation', { name: 'Settings' })
-  expect(within(nav).getByRole('button', { name: 'Integrations' })).toHaveAttribute(
+  expect(within(nav).getByRole('button', { name: 'API & MCP' })).toHaveAttribute(
     'aria-current',
     'page',
   )
@@ -281,11 +281,13 @@ test('an old AI link with a section lands on the page holding it', async () => {
 test('a link inside the dialog to other settings does not make Close step back to it', async () => {
   const router = mount('/')
   await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding'))
-  router.history.push('/onboarding?settings=account/integrations', { settingsOpened: true })
+  router.history.push('/onboarding?settings=account/ai-models', { settingsOpened: true })
   const dialog = await screen.findByRole('dialog')
 
-  await userEvent.click(await within(dialog).findByRole('button', { name: 'Create an API token' }))
-  await waitFor(() => expect(router.state.location.search).toEqual({ settings: 'account/account' }))
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Add provider' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' }),
+  )
   await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
 
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

@@ -37,8 +37,7 @@ const NONE = 'none'
 /** Opens account settings on the LMS connections, e.g. from a Program without one. */
 export function useOpenConnections() {
   const settings = useSettingsDialog()
-  return () =>
-    settings.open({ level: 'account', group: 'integrations', section: 'lms-connections' })
+  return () => settings.open({ level: 'account', group: 'lms', section: 'lms-connections' })
 }
 
 /**

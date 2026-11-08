@@ -96,7 +96,7 @@ defineModule({
 - 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
 - **文件预览**：M07 的 `PreviewDialog` 只认 M07 自己的文件条目（`itemId`），不能预览 LMS 文件，所以插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 的预览以后若支持任意内容地址，再改用它。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
 - Syllabus 的"智能导入"用 `<AiAction>` 包在 `<AiRequired purpose="extraction">` 里，调用 `lms.syllabus.import` 后打开 M08 审核。
-- 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing` 带"打开连接设置"（账户设置 → 集成）；`lms.forbidden` 在读接口上表示这一项内容对该账户不可见（课程关了 Pages、未解锁的文件等，M09 不会因此把连接标为出错），显示"你没有权限查看这项内容"和"在 Canvas 中打开"；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
+- 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing` 带"打开连接设置"（全局设置 → 学习平台）；`lms.forbidden` 在读接口上表示这一项内容对该账户不可见（课程关了 Pages、未解锁的文件等，M09 不会因此把连接标为出错），显示"你没有权限查看这项内容"和"在 Canvas 中打开"；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
 - 同一页签内打开或关闭条目（展开作业、打开公告）用 replace 更新 URL，切换页签才新增历史记录，所以"返回"直接离开当前页签。
 - **学生视角补充（2026-10-22）**：
   - "文件"页签不再隐藏（讨论仍隐藏）：按文件夹浏览（`ref` 是文件夹 id，面包屑来自 `trail`）与按文件名搜索（至少 2 个字），文件行沿用单元里的预览/下载/保存按钮，锁定的文件只显示锁。列表是 TanStack Table（名称、大小、更新时间可排序，排序记在 `useUiPref('canvas-tab.files_sort')`），文件夹按 Canvas 的顺序排在文件前面。

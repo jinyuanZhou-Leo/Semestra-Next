@@ -85,10 +85,7 @@ export function CanvasBoundary<T>({
         </AlertDescription>
         <AlertAction>
           {credentials ? (
-            <Button
-              size="sm"
-              onClick={() => settings.open({ level: 'account', group: 'integrations' })}
-            >
+            <Button size="sm" onClick={() => settings.open({ level: 'account', group: 'lms' })}>
               {m.canvas_tab_open_connections()}
             </Button>
           ) : (

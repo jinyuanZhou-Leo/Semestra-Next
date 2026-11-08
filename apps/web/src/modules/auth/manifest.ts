@@ -49,11 +49,11 @@ export default defineModule({
     {
       id: 'tokens',
       level: 'account',
-      group: 'account',
+      group: 'api-mcp',
       title: m.auth_account_tokens_title,
       description: m.auth_account_tokens_desc,
       icon: KeyRound,
-      order: 40,
+      order: 20,
       component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.TokensSettings })),
       ),
