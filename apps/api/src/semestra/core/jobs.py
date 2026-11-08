@@ -229,10 +229,6 @@ class JobCtx(Ctx):
     _last_step: str | None = field(default=None, repr=False)
     _last_sent: float = field(default=-1.0, repr=False)
 
-    async def report(self, progress: int, step: str | None = None) -> None:
-        """Overall progress for jobs without stages."""
-        await self._emit(progress, step, None, None)
-
     async def stage(
         self,
         key: str,
@@ -360,7 +356,11 @@ async def _on_failure(ctx: Ctx, job: CoreJob) -> None:
     handler = _handlers.get(job.kind)
     if handler is None or handler.on_failure is None or job.status == "succeeded":
         return
-    await handler.on_failure(ctx, handler.payload_model.model_validate(job.payload), job)
+    try:
+        payload = handler.payload_model.model_validate(job.payload)
+    except ValidationError:
+        return  # nothing to clean up for a payload the handler could never have run with
+    await handler.on_failure(ctx, payload, job)
 
 
 async def enqueue(
@@ -714,6 +714,15 @@ class JobRunner:
             # What it waits for changed: the last progress again, without a write.
             await events.dispatch(self.state, _event(last))
 
+        try:
+            payload = handler.payload_model.model_validate(job.payload)
+        except ValidationError:
+            # Retrying cannot fix a payload that does not match its model.
+            log.warning("job_payload_invalid", job_id=job.id, kind=job.kind)
+            return await self._update(
+                job.id, {"status": "failed", "error_code": "common.validation", **end()}
+            )
+
         async def finish(values: dict[str, Any]) -> CoreJob | None:
             # The job's new state, a failed or cancelled job's `on_failure`, and (on success) the
             # handler's writes commit together, so the module's copy never outlives the job. If
@@ -735,7 +744,6 @@ class JobRunner:
                 progress_hook=report,
             )
             try:
-                payload = handler.payload_model.model_validate(job.payload)
                 token = _running.set(_Running(job.id, notify))
                 try:
                     result = await handler.fn(ctx, payload)
@@ -745,15 +753,15 @@ class JobRunner:
             except JobCancelled:
                 await _discard(ctx)
                 row = await finish({"status": "cancelled", **end()})
-            except (AppError, ValidationError) as exc:
+            except AppError as exc:
                 await _discard(ctx)
-                code, params = (
-                    (exc.code, exc.params)
-                    if isinstance(exc, AppError)
-                    else ("common.validation", {})
-                )
                 row = await finish(
-                    {"status": "failed", "error_code": code, "error_params": params, **end()}
+                    {
+                        "status": "failed",
+                        "error_code": exc.code,
+                        "error_params": exc.params,
+                        **end(),
+                    }
                 )
             except Exception:
                 await _discard(ctx)

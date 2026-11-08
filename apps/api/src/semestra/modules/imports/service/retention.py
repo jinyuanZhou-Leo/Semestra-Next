@@ -5,7 +5,7 @@ from datetime import timedelta
 from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
-from semestra.core.storage import get_storage
+from semestra.core.storage import delete_after_commit
 from semestra.modules.imports.models import ImportsSession, ImportsUpload
 
 RETENTION = timedelta(days=30)
@@ -42,10 +42,4 @@ async def cleanup(ctx: Ctx) -> None:
     keys += [u.storage_key for u in stale]
     for upload in stale:
         await ctx.db.delete(upload)
-    storage = get_storage(ctx)
-
-    async def _remove() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(_remove)
+    delete_after_commit(ctx, keys)

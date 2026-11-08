@@ -40,7 +40,7 @@ class FilesFolder(Base, OwnedMixin, TimestampMixin):
         String, ForeignKey("academics_courses.id", ondelete="CASCADE"), index=True
     )
     parent_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("files_folders.id", ondelete="CASCADE"), default=None
+        String, ForeignKey("files_folders.id", ondelete="CASCADE"), default=None, index=True
     )
     name: Mapped[str] = mapped_column(String)
 
@@ -56,7 +56,7 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
         String, ForeignKey("academics_courses.id", ondelete="CASCADE")
     )
     folder_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("files_folders.id", ondelete="CASCADE"), default=None
+        String, ForeignKey("files_folders.id", ondelete="CASCADE"), default=None, index=True
     )
     kind: Mapped[str] = mapped_column(String)  # 'file' | 'link'
     display_name: Mapped[str] = mapped_column(String)

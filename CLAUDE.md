@@ -78,7 +78,7 @@ docs/                设计稿与模块规格
 - **pnpm**：根 `package.json` 的 `packageManager` 字段会强制 pnpm 版本，升级 pnpm 要同步改它。依赖要精确版本，`pnpm add` 前确认 `pnpm-workspace.yaml` 里 `savePrefix: ''` 还在。
 - **Node 通过 nvm 管理**：切换 Node 版本不会带走全局包（`pnpm`、`@openai/codex` 等需要重装）；非交互 shell 的 PATH 可能仍指向旧版本。
 - **macOS 没有 `timeout` 命令**；长时间运行的命令用后台任务，不要用 `timeout N cmd`。
-- Alembic 的 `env.py` 里要手动 import 各模块的 models，否则 autogenerate 与 `alembic check` 看不到它们；新增模块时记得加。
+- Alembic 的 `env.py` 用 `core/db.import_all_models()` 自动加载 `semestra.modules` 下所有 `models` 模块；表定义要放在名为 `models` 的模块里，否则 autogenerate 与 `alembic check` 看不到。
 - **测试里没有后台 worker**（`jobs_autostart=False`）：入队后用 `run_jobs()` fixture 执行；推给用户的 SSE 消息用 `collect_events(app, user_id)` 收集。事件订阅者在提交后的后台任务里运行（`core/events.py`），测试应用里每个请求返回前、`run_jobs()` 返回前都会等它们跑完；直接调 `run_after_commit` 或 `run_as_system` 的测试要自己 `await drain(app.state)`（`semestra.core.events.drain`）。冻结的 `clock` 也驱动任务退避与租约，测重试要 `clock.advance(...)`。同一阶段内的进度推送有 250ms 节流（按真实单调时钟），要断言每一条进度事件时 `monkeypatch.setattr("semestra.core.jobs.PROGRESS_THROTTLE_SECONDS", 0)`。
 - **实时刷新的声明方式**（`app/realtime.ts`，M00 §4.7）：manifest 的 `realtimeInvalidations` 值可以是 operationId，也可以是 `(data) => [operationId | { _id, path: {...} }]`，能按事件里的 id 缩小范围就用函数；事件会在约 50 ms 内合并、`cancelRefetch: false`。只有当每个触发该事件的 mutation 自己都更新或失效了缓存时，才把事件类型写进 `realtimeSkipOwn`（跳过本标签页的回声）。模块读的界面状态前缀写在 manifest 的 `uiPrefPrefixes`，不要再去改 `ui-pref.ts`。
 - **扩大 Agent/MCP 权限的设置开关**用 `register_settings(..., agent_writable=False)` 注册，Sem 和 MCP 就改不了它（M11 §4）。
@@ -105,7 +105,7 @@ docs/                设计稿与模块规格
 - **structlog 的 `event` 是保留参数**：`log.info("x", event=...)` 会抛 TypeError，换个字段名。
 - **事件只在提交后派发**：自定义路由（`routes.py`）里 `publish` 之后要 `await ctx.db.commit()` 再 `await run_after_commit(ctx)`；capability 路由自动处理。
 - **`@capability`、`@job_handler`、`@periodic`、`@events.subscribe` 在 import 时注册**：模块 `__init__.py` 必须 import 定义它们的文件。
-- **后台任务在自己的事务里写过库之后不要再 `ctx.stage()`/`ctx.report()`**：进度用单独的短事务写，SQLite 只允许一个写者，会等满 `busy_timeout` 后报 `database is locked`。把最后一次进度报告放在第一次写库之前（M13 导入就是这样）。
+- **后台任务在自己的事务里写过库之后不要再 `ctx.stage()`**：进度用单独的短事务写，SQLite 只允许一个写者，会等满 `busy_timeout` 后报 `database is locked`。把最后一次进度报告放在第一次写库之前（M13 导入就是这样）。
 - **`/_authed` 的登录检查在 loader 里，不在 `beforeLoad`**（为了让外壳代码和数据与 `/account/me` 并行，M01 §12）：子路由的 `beforeLoad` 要读数据时先 `await requireSignIn(queryClient, location.href)`，否则未登录访问会先收到 401 而不是跳到登录页。
 - **`index.html` 里有启动画面（`#boot`）**：它按真实外壳的尺寸画侧边栏（宽 16rem，各行 36px，顶部切换器 56px），在首个页面渲染完成前显示（M11 §9）。改了侧边栏的结构或尺寸，要同步改这里，否则加载完成时页面会跳一下。
 - **前端测试里没有 handler 的请求会让测试失败**（`test-utils.tsx` 监听 msw 的 `request:unhandled`，在 `afterEach` 里报出）：界面调用的每个接口都要给 handler；登录后外壳要的接口（含 `/ai/status`、各级 `/me/settings/:namespace`）在 `academicsHandlers` 里。注意 `server.use(...)` 里同一次传入的 handler 先写的优先，要覆盖 `academicsHandlers` 里的接口就写在它前面。

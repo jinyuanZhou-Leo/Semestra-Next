@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
-from semestra.core.storage import get_storage
+from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.imports import build, dates, deps
 from semestra.modules.imports.models import ImportsItem, ImportsSession
@@ -21,7 +21,7 @@ from semestra.modules.imports.schemas import (
 from semestra.modules.imports.service.context import revalidate, target_of, term_dates_of
 from semestra.modules.imports.service.create import event_data
 from semestra.modules.imports.service.rows import detail, for_agent, get_session_row, session_items
-from semestra.modules.imports.service.uploads import after_commit_delete, session_uploads
+from semestra.modules.imports.service.uploads import session_uploads
 from semestra.modules.imports.states import CLOSED, can_move, move
 
 log = structlog.get_logger()
@@ -645,5 +645,5 @@ async def _file_uploads(ctx: Ctx, row: ImportsSession, c: _Commit) -> None:
                 if ref.get("upload_id") == upload.id:
                     ref["warning_code"] = "import.upload_not_filed"
             continue
-        after_commit_delete(ctx, [key])
+        delete_after_commit(ctx, [key])
     row.source_refs = refs

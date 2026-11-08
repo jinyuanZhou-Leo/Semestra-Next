@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError, not_found
-from semestra.core.storage import get_storage, storage_usage_provider
+from semestra.core.storage import delete_after_commit, get_storage, storage_usage_provider
 from semestra.modules.agent import history
 from semestra.modules.agent.models import (
     AgentAttachment,
@@ -183,18 +183,12 @@ async def delete_session(ctx: Ctx, session_id: str) -> None:
     atts = (
         await ctx.db.scalars(select(AgentAttachment).where(AgentAttachment.session_id == row.id))
     ).all()
-    storage = get_storage(ctx)
     keys = [a.storage_key for a in atts]
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.session_id == row.id))
     await ctx.db.execute(delete(AgentAttachment).where(AgentAttachment.session_id == row.id))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.session_id == row.id))
     await ctx.db.delete(row)
-
-    async def _remove_files() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(_remove_files)
+    delete_after_commit(ctx, keys)
 
 
 # --- transcript ----------------------------------------------------------------------------
@@ -438,16 +432,9 @@ async def _drop_unreferenced_attachments(
     if not ids:
         return
     rows = [a for a in await attachments(ctx, session.id) if a.id in ids]
-    storage = get_storage(ctx)
-    keys = [a.storage_key for a in rows]
     for a in rows:
         await ctx.db.delete(a)
-
-    async def _remove_files() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(_remove_files)
+    delete_after_commit(ctx, [a.storage_key for a in rows])
 
 
 # --- proposals -----------------------------------------------------------------------------
@@ -575,14 +562,8 @@ async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
     )
     if sent:
         raise AppError("agent.attachment_in_use", 409)
-    key = row.storage_key
-    storage = get_storage(ctx)
     await ctx.db.delete(row)
-
-    async def _remove_file() -> None:
-        await storage.delete(key)
-
-    ctx.after_commit.append(_remove_file)
+    delete_after_commit(ctx, [row.storage_key])
 
 
 async def read_attachment(ctx: Ctx, row: AgentAttachment) -> bytes:

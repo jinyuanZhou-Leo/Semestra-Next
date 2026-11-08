@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+import anyio
 from sqlalchemy import delete, func, select
 
 from semestra.core.context import Ctx
@@ -13,7 +14,15 @@ from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, enqueue
-from semestra.core.storage import StoredObject, get_storage, remaining_quota, storage_usage_provider
+from semestra.core.storage import (
+    StoredObject,
+    charge,
+    delete_after_commit,
+    discard_on_error,
+    get_storage,
+    stage,
+    storage_usage_provider,
+)
 from semestra.core.storage import usage as core_usage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import indexing
@@ -487,33 +496,26 @@ class StagedFile:
 
 
 async def stage_file(
-    ctx: Ctx, *, filename: str | None, stream: AsyncIterable[bytes], budget: int | None
+    ctx: Ctx, *, filename: str | None, stream: AsyncIterable[bytes], reserved: int = 0
 ) -> StagedFile:
-    """Writes one upload to storage, cut off above the per-file limit or `budget` (the quota
-    left, None = unlimited). No database write happens here, so no write lock is held while
-    the bytes arrive; `add_staged_files` makes the rows."""
-    if budget is not None and budget <= 0:
-        raise await _quota_error(ctx)
-    storage = get_storage(ctx)
+    """Writes one upload to storage, cut off above the per-file limit or the quota left after
+    `reserved` bytes this request already staged. No database write happens here, so no write
+    lock is held while the bytes arrive; `add_staged_files` makes the rows."""
     cap = ctx.settings.files_max_upload_bytes
-    limit = cap if budget is None else min(cap, budget)
     item_id = new_id()
-    key = storage_key(ctx.user_id, item_id)
-    try:
-        stored = await storage.put(key, stream, "application/octet-stream", max_bytes=limit)
-    except AppError as exc:
-        if exc.code != "common.quota_exceeded":
-            raise
-        if budget is None or cap <= budget:
-            raise AppError("files.too_large", 413, max=cap) from None
-        raise await _quota_error(ctx) from None
-    try:
-        name = _safe_name(filename)
-        detected = detect(await _read_all(ctx, key), name)
-    except BaseException:
-        await storage.delete(key)
-        raise
-    return StagedFile(item_id, name, stored, detected.mime, detected.kind in PARSEABLE)
+    staged = await stage(
+        ctx,
+        storage_key(ctx.user_id, item_id),
+        stream,
+        cap=cap,
+        too_large=AppError("files.too_large", 413, max=cap),
+        reserved=reserved,
+        keep=True,
+    )
+    name = _safe_name(filename)
+    async with discard_on_error(ctx, [staged.key]):
+        detected = await anyio.to_thread.run_sync(detect, staged.data, name)
+    return StagedFile(item_id, name, staged.stored, detected.mime, detected.kind in PARSEABLE)
 
 
 async def add_staged_files(
@@ -524,39 +526,33 @@ async def add_staged_files(
     source_kind: SourceKind = "upload",
     source_ref: str | None = None,
 ) -> list[FilesItem]:
-    """Creates the rows for staged files and checks the quota again with them counted. The
-    first insert takes SQLite's write lock, so two uploads racing for the last free bytes are
-    decided one after the other. Nothing is committed here; on error the caller deletes the
-    staged bytes."""
-    rows = [
-        FilesItem(
-            id=file.item_id,
-            user_id=ctx.user_id,
-            course_id=course_id,
-            folder_id=folder_id,
-            kind="file",
-            display_name=file.name,
-            original_name=file.name,
-            mime_type=file.mime,
-            size_bytes=file.stored.size,
-            sha256=file.stored.sha256,
-            storage_key=file.stored.key,
-            source_kind=source_kind,
-            source_ref=source_ref,
-            doc_status="pending" if file.supported else "unsupported",
-            doc_error_code=None if file.supported else "files.unsupported_type",
-            created_at=ctx.now,
-            updated_at=ctx.now,
-        )
-        for file in staged
-    ]
-    ctx.db.add_all(rows)
-    await ctx.db.flush()
-    current = await core_usage(ctx)
-    if current.quota_bytes > 0 and current.used_bytes > current.quota_bytes:
-        raise AppError(
-            "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
-        )
+    """Creates the rows for staged files and checks the quota again with them counted
+    (`charge`). Nothing is committed here; on error the staged bytes are deleted."""
+    async with discard_on_error(ctx, [file.stored.key for file in staged]):
+        rows = [
+            FilesItem(
+                id=file.item_id,
+                user_id=ctx.user_id,
+                course_id=course_id,
+                folder_id=folder_id,
+                kind="file",
+                display_name=file.name,
+                original_name=file.name,
+                mime_type=file.mime,
+                size_bytes=file.stored.size,
+                sha256=file.stored.sha256,
+                storage_key=file.stored.key,
+                source_kind=source_kind,
+                source_ref=source_ref,
+                doc_status="pending" if file.supported else "unsupported",
+                doc_error_code=None if file.supported else "files.unsupported_type",
+                created_at=ctx.now,
+                updated_at=ctx.now,
+            )
+            for file in staged
+        ]
+        ctx.db.add_all(rows)
+        await charge(ctx)
     # With auto-indexing off, supported files wait as "none" until the user (or an import that
     # needs the text) asks for them to be read.
     if any(row.doc_status == "pending" for row in rows) and not await auto_index(ctx, course_id):
@@ -584,26 +580,9 @@ async def store_file(
     or the user's remaining quota is refused, and nothing is left behind. Nothing is committed
     here."""
     await check_upload_target(ctx, course_id, folder_id)
-    staged = await stage_file(
-        ctx, filename=filename, stream=stream, budget=await remaining_quota(ctx)
-    )
-    try:
-        [row] = await add_staged_files(ctx, course_id, folder_id, [staged], source_kind, source_ref)
-    except BaseException:
-        await get_storage(ctx).delete(staged.stored.key)
-        raise
+    staged = await stage_file(ctx, filename=filename, stream=stream)
+    [row] = await add_staged_files(ctx, course_id, folder_id, [staged], source_kind, source_ref)
     return row
-
-
-async def _quota_error(ctx: Ctx) -> AppError:
-    current = await core_usage(ctx)
-    return AppError(
-        "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
-    )
-
-
-async def _read_all(ctx: Ctx, key: str) -> bytes:
-    return b"".join([chunk async for chunk in get_storage(ctx).open(key)])
 
 
 async def enqueue_processing(ctx: Ctx, row: FilesItem) -> None:
@@ -698,7 +677,8 @@ async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
     row = await get_item(ctx, item_id)
     if row.kind != "file" or not row.storage_key:
         raise AppError("files.unsupported_type", 422)
-    detected = detect(await _read_all(ctx, row.storage_key), row.original_name)
+    data = b"".join([chunk async for chunk in get_storage(ctx).open(row.storage_key)])
+    detected = await anyio.to_thread.run_sync(detect, data, row.original_name)
     row.mime_type = detected.mime
     if detected.kind not in PARSEABLE:
         row.doc_status, row.doc_error_code = "unsupported", "files.unsupported_type"
@@ -841,13 +821,7 @@ async def purge_items(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     keys += [r.storage_key for r in rows if r.storage_key]
     await ctx.db.execute(delete(FilesIndexState).where(FilesIndexState.item_id.in_(ids)))
     await ctx.db.execute(delete(FilesItem).where(FilesItem.id.in_(ids)))
-    storage = get_storage(ctx)
-
-    async def remove() -> None:
-        for key in keys:
-            await storage.delete(key)
-
-    ctx.after_commit.append(remove)
+    delete_after_commit(ctx, keys)
     for row in rows:
         await events.publish(
             ctx, "files.item.deleted", {"item_id": row.id, "course_id": row.course_id}

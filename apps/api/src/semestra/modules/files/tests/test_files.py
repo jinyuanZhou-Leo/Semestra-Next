@@ -877,7 +877,7 @@ async def test_short_terms_count_next_to_long_ones(fx: Fx):
 async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings: Settings):
     from semestra.core.context import Ctx
     from semestra.core.errors import AppError
-    from semestra.core.storage import remaining_quota, usage
+    from semestra.core.storage import usage
     from semestra.modules.auth.models import AuthUser
     from semestra.modules.files import service
 
@@ -904,9 +904,7 @@ async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings
         settings.user_storage_quota_bytes = (await usage(ctxs[0])).used_bytes + 100
         # Both check the quota before either has written: each sees 100 bytes free.
         staged = [
-            await service.stage_file(
-                ctx, filename=f"{n}.txt", stream=chunks(), budget=await remaining_quota(ctx)
-            )
+            await service.stage_file(ctx, filename=f"{n}.txt", stream=chunks())
             for n, ctx in enumerate(ctxs)
         ]
         await service.add_staged_files(ctxs[0], fx.course_id, None, [staged[0]])
