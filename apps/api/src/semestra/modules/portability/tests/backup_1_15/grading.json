@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "scales": [
+    {
+      "id": "01a1b925-a564-734c-ab97-f19fedf2ff27",
+      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "bands": [
+        {
+          "min": 85,
+          "max": 100,
+          "points": 4.0,
+          "letter": "A"
+        }
+      ],
+      "max_points": 4.0,
+      "year_course_attribution": "end_term",
+      "default_forecast_model": "auto",
+      "default_categories": [
+        {
+          "key": "exam",
+          "name": "Exams",
+          "color": "red"
+        }
+      ],
+      "hide_gpa": false,
+      "round_before_lookup": true,
+      "created_at": "2026-11-08T03:13:34.564450+00:00",
+      "updated_at": "2026-11-08T03:13:34.564451+00:00"
+    }
+  ],
+  "course_results": [
+    {
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "basis": "percentage",
+      "manual_percentage": null,
+      "final_override_percentage": null,
+      "pass_fail_result": null,
+      "target_points": 3.7,
+      "forecast_model": "auto",
+      "gradebook_enabled": true,
+      "created_at": "2026-11-08T03:13:34.563190+00:00",
+      "updated_at": "2026-11-08T03:13:34.563192+00:00"
+    }
+  ],
+  "categories": [
+    {
+      "id": "01a1b925-a545-7198-8bad-1d67419e9f9a",
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "key": "exam",
+      "name": "Exams",
+      "color": "red",
+      "position": 0,
+      "archived": false
+    }
+  ],
+  "assessments": [
+    {
+      "id": "01a1b925-a556-7192-b34a-9909280034e8",
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "category_id": "01a1b925-a545-7198-8bad-1d67419e9f9a",
+      "title": "Midterm",
+      "due_at": "2025-10-20T14:00:00+00:00",
+      "due_has_time": false,
+      "weight": 30.0,
+      "score_percentage": 88.0,
+      "points_earned": null,
+      "points_possible": null,
+      "dropped": false,
+      "note": null,
+      "source_kind": null,
+      "source_ref": null,
+      "position": 0,
+      "created_at": "2026-11-08T03:13:34.562044+00:00",
+      "updated_at": "2026-11-08T03:13:34.562047+00:00"
+    },
+    {
+      "id": "01a1b925-a57d-7270-9e34-244fe8c38338",
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "category_id": null,
+      "title": "Lab report",
+      "due_at": "2025-11-04T04:59:00+00:00",
+      "due_has_time": true,
+      "weight": 20.0,
+      "score_percentage": null,
+      "points_earned": null,
+      "points_possible": null,
+      "dropped": false,
+      "note": null,
+      "source_kind": null,
+      "source_ref": null,
+      "position": 0,
+      "created_at": "2026-11-08T03:13:34.589948+00:00",
+      "updated_at": "2026-11-08T03:13:34.589951+00:00"
+    },
+    {
+      "id": "01a1b925-a57e-7292-a795-a09ab52d2240",
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "category_id": null,
+      "title": "Final project",
+      "due_at": "2026-04-10T04:00:00+00:00",
+      "due_has_time": false,
+      "weight": 40.0,
+      "score_percentage": null,
+      "points_earned": null,
+      "points_possible": null,
+      "dropped": false,
+      "note": null,
+      "source_kind": null,
+      "source_ref": null,
+      "position": 0,
+      "created_at": "2026-11-08T03:13:34.590719+00:00",
+      "updated_at": "2026-11-08T03:13:34.590720+00:00"
+    },
+    {
+      "id": "01a1b925-a57e-7292-a795-a09bf37bcc5a",
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "category_id": null,
+      "title": "Participation",
+      "due_at": null,
+      "due_has_time": false,
+      "weight": 10.0,
+      "score_percentage": null,
+      "points_earned": null,
+      "points_possible": null,
+      "dropped": false,
+      "note": null,
+      "source_kind": null,
+      "source_ref": null,
+      "position": 0,
+      "created_at": "2026-11-08T03:13:34.590726+00:00",
+      "updated_at": "2026-11-08T03:13:34.590727+00:00"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "programs": [
+    {
+      "id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "name": "Engineering",
+      "institution": null,
+      "timezone": "America/Toronto",
+      "default_course_credits": 0.5,
+      "credit_requirement": null,
+      "subject_colors": {},
+      "sort_order": 0,
+      "created_at": "2026-11-08T03:13:34.523802+00:00",
+      "updated_at": "2026-11-08T03:13:34.523807+00:00"
+    }
+  ],
+  "terms": [
+    {
+      "id": "01a1b925-a53e-711b-8d6a-6a82c38c4541",
+      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "name": "Fall 2025",
+      "start_date": "2025-09-01",
+      "end_date": "2025-12-20",
+      "breaks": [
+        {
+          "id": "b1",
+          "name": "Reading",
+          "start_date": "2025-10-27",
+          "end_date": "2025-10-31"
+        }
+      ],
+      "count_break_weeks": false,
+      "created_at": "2026-11-08T03:13:34.526790+00:00",
+      "updated_at": "2026-11-08T03:13:34.526792+00:00"
+    }
+  ],
+  "courses": [
+    {
+      "id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "program_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "code": "APS100",
+      "title": "Orientation",
+      "alias": null,
+      "subject_code": "",
+      "color": null,
+      "credits": 0.5,
+      "include_in_gpa": true,
+      "instructors": [],
+      "description": null,
+      "website_url": null,
+      "planned_terms": 1,
+      "sort_order": 0,
+      "created_at": "2026-11-08T03:13:34.525571+00:00",
+      "updated_at": "2026-11-08T03:13:34.525572+00:00"
+    }
+  ],
+  "course_terms": [
+    {
+      "course_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "term_id": "01a1b925-a53e-711b-8d6a-6a82c38c4541"
+    }
+  ]
+}

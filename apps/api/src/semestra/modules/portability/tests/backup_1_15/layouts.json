@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "nav": [
+    {
+      "scope_type": "course",
+      "order": [
+        "grades",
+        "schedule"
+      ],
+      "hidden": [],
+      "updated_at": "2026-11-08T03:13:34.568572+00:00"
+    }
+  ],
+  "templates": [
+    {
+      "scope_type": "course",
+      "cards": [
+        {
+          "card_id": "x",
+          "size": "2x1"
+        }
+      ],
+      "updated_at": "2026-11-08T03:13:34.569469+00:00"
+    }
+  ],
+  "card_settings": [
+    {
+      "instance_id": "01a1b925-a53f-76df-96fc-8f8fc9d49862",
+      "card_id": "sticky-note.note",
+      "scope_type": "course",
+      "scope_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "settings": {
+        "text": "Remember the quiz",
+        "course": "01a1b925-a53d-72ad-b792-80a1768368f0"
+      },
+      "updated_at": "2026-11-08T03:13:34.535265+00:00"
+    },
+    {
+      "instance_id": "01a1b925-a556-7192-b34a-990b2825f4fa",
+      "card_id": "pomodoro.timer",
+      "scope_type": "program",
+      "scope_id": "01a1b925-a53b-71aa-8285-c00d5b0a29fd",
+      "settings": {},
+      "updated_at": "2026-11-08T03:13:34.567707+00:00"
+    }
+  ],
+  "boards": [
+    {
+      "id": "01a1b925-a567-766a-9bdb-4009425b4ab9",
+      "scope_type": "course",
+      "scope_id": "01a1b925-a53d-72ad-b792-80a1768368f0",
+      "cards": [
+        {
+          "instance_id": "01a1b925-a53f-76df-96fc-8f8fc9d49862",
+          "card_id": "sticky-note.note",
+          "x": 0,
+          "y": 0
+        }
+      ],
+      "updated_at": "2026-11-08T03:13:34.567231+00:00"
+    }
+  ]
+}

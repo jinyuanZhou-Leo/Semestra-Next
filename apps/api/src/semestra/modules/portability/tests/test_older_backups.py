@@ -1,5 +1,6 @@
-"""M13 §3.1: a backup made by 1.15 (`backup_1_15/`, exported by v1.15.0 from the test dataset
-plus rows whose format changed in 2.0) restores into the current version."""
+"""M13 §3.1: a backup made by 1.15 restores into the current version. `backup_1_15/` holds its
+`manifest.json` and `data/<module>.json` files (flattened: `data/` is git-ignored), exported by
+v1.15.0 from the test dataset plus rows whose format changed in 2.0."""
 
 import io
 import json
@@ -32,8 +33,8 @@ FIXTURE = Path(__file__).parent / "backup_1_15"
 def _archive() -> bytes:
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
-        for path in sorted(FIXTURE.rglob("*.json")):
-            z.write(path, path.relative_to(FIXTURE).as_posix())
+        for path in sorted(FIXTURE.glob("*.json")):
+            z.write(path, path.name if path.name == "manifest.json" else f"data/{path.name}")
     return out.getvalue()
 
 
