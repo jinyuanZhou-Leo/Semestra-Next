@@ -4,7 +4,7 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import type { PageContribution, Scope } from '@/app/extensions'
-import { useListedHotkey } from '@/app/hotkeys'
+import { useHotkey } from '@/app/hotkeys'
 import { usePreferences } from '@/app/preferences'
 import { useModules } from '@/app/registry'
 import { m } from '@/paraglide/messages'
@@ -17,20 +17,6 @@ const THROTTLE_MS = 150
 function availabilityData(queryClient: QueryClient, page: PageContribution, scope: Scope) {
   const query = page.availabilityQuery?.(scope)
   return query ? queryClient.getQueryData(query.queryKey) : undefined
-}
-
-/** ⌘ on Apple keyboards, Ctrl elsewhere: the modifier of the course-switch shortcut. */
-export function modifierKey(): string {
-  const platform =
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
-    navigator.platform ??
-    ''
-  return /mac|iphone|ipad/i.test(platform) ? '⌘' : 'Ctrl'
-}
-
-function isEditable(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)
 }
 
 /**
@@ -56,12 +42,7 @@ export function useCourseSwitchHotkey({
   const queryClient = useQueryClient()
   const modules = useModules()
   const last = useRef(0)
-  useListedHotkey('mod+up, mod+down', m.hotkeys_switch_course, { order: 50 })
   const keep = usePreferences().data?.keep_course_tab ?? true
-  const latest = useRef({ programId, courseId, termId, pageId, courses, modules, keep })
-  useEffect(() => {
-    latest.current = { programId, courseId, termId, pageId, courses, modules, keep }
-  })
 
   // Fetch the neighbours ahead of time so the switch shows data at once.
   const index = courses.findIndex((c) => c.id === courseId)
@@ -73,25 +54,19 @@ export function useCourseSwitchHotkey({
     }
   }, [queryClient, prevId, nextId])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
-      if (isEditable(event.target)) return
-      const s = latest.current
-      const position = s.courses.findIndex((c) => c.id === s.courseId)
-      if (position < 0) return
-      event.preventDefault()
+  useHotkey(
+    'mod+up, mod+down',
+    (event) => {
       const now = performance.now()
       if (now - last.current < THROTTLE_MS) return
       last.current = now
-      const target = s.courses[position + (event.key === 'ArrowDown' ? 1 : -1)]
+      const target = courses[index + (event.key === 'ArrowDown' ? 1 : -1)]
       if (!target) return
-      const scope: Scope = { kind: 'course', programId: s.programId, courseId: target.id }
-      const tab = s.keep && s.pageId !== 'overview' ? s.pageId : undefined
+      const scope: Scope = { kind: 'course', programId, courseId: target.id }
+      const tab = keep && pageId !== 'overview' ? pageId : undefined
       const contribution = tab
         ? coursePage(
-            s.modules.flatMap((module) => module.pages ?? []),
+            modules.flatMap((module) => module.pages ?? []),
             tab,
           )
         : undefined
@@ -102,9 +77,13 @@ export function useCourseSwitchHotkey({
           ? tab
           : undefined
       void queryClient.prefetchQuery(academicsCourseGetOptions({ path: { course_id: target.id } }))
-      router.history.push(coursePath(s.programId, target.id, page, s.termId))
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [router, queryClient])
+      router.history.push(coursePath(programId, target.id, page, termId))
+    },
+    {
+      description: m.hotkeys_switch_course,
+      order: 50,
+      // Not a course of the list: the arrows keep their usual meaning.
+      ignoreEventWhen: () => index < 0,
+    },
+  )
 }

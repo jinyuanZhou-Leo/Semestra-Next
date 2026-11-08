@@ -1,11 +1,12 @@
 import { expect, test } from 'vitest'
-import { addDays, columnsRange, milestoneAt, weekColumns, weekStartOf } from './grid'
+import { plusDays, weekStartOf } from '@/lib/day'
+import { columnsRange, milestoneAt, weekColumns } from './grid'
 
 // 2026-01-15 is a Thursday.
 test('dates move across month and year ends', () => {
-  expect(addDays('2026-01-31', 1)).toBe('2026-02-01')
-  expect(addDays('2026-01-01', -1)).toBe('2025-12-31')
-  expect(addDays('2024-02-28', 2)).toBe('2024-03-01')
+  expect(plusDays('2026-01-31', 1)).toBe('2026-02-01')
+  expect(plusDays('2026-01-01', -1)).toBe('2025-12-31')
+  expect(plusDays('2024-02-28', 2)).toBe('2024-03-01')
 })
 
 test('weeks start on Monday or Sunday', () => {

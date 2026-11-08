@@ -2,6 +2,7 @@ import type { Assessment, AssessmentCategory, GradebookSummary } from '@semestra
 import { formatDate, formatDateTime, formatPercent } from '@/lib/format'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
+import { dayDate } from '@/lib/day'
 
 /** The built-in category colors are names; they map to the theme's subject palette. */
 const NAMED_COLORS: Record<string, string> = {
@@ -49,10 +50,10 @@ export const GPA_MASK = '•••'
  */
 export function dueText(a: Pick<Assessment, 'due_date' | 'due_time'>): string {
   if (!a.due_date) return '—'
-  const [year, month, day] = a.due_date.split('-').map(Number)
   const [hours = 0, minutes = 0] = (a.due_time ?? '').split(':').map(Number)
   // A wall-clock date built in the browser zone prints back the same wall clock.
-  const wall = new Date(year ?? 1970, (month ?? 1) - 1, day ?? 1, hours, minutes)
+  const wall = dayDate(a.due_date)
+  wall.setHours(hours, minutes)
   return a.due_time ? formatDateTime(wall) : formatDate(wall)
 }
 

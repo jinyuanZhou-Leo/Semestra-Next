@@ -29,7 +29,7 @@ import { Fragment, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useDebounced } from '@/modules/files/hooks'
+import { useDebounced } from '@/hooks/use-debounced'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,

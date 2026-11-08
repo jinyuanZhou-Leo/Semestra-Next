@@ -6,8 +6,7 @@ import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { formatDate, formatTime } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { isoDay } from '@/lib/day'
-import { localDay } from '@/modules/schedule/time'
+import { dayDate, isoDay } from '@/lib/day'
 import { calendarLocale } from '@/lib/calendar'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -165,14 +164,14 @@ export function TaskDetail({
                     }
                   >
                     <CalendarDays aria-hidden />
-                    {draft.due_date ? formatDate(localDay(draft.due_date)) : m.tasks_due_none()}
+                    {draft.due_date ? formatDate(dayDate(draft.due_date)) : m.tasks_due_none()}
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       {...calendarLocale()}
                       mode="single"
-                      selected={draft.due_date ? localDay(draft.due_date) : undefined}
-                      defaultMonth={draft.due_date ? localDay(draft.due_date) : undefined}
+                      selected={draft.due_date ? dayDate(draft.due_date) : undefined}
+                      defaultMonth={draft.due_date ? dayDate(draft.due_date) : undefined}
                       onSelect={(date) => set('due_date', date ? isoDay(date) : null)}
                     />
                   </PopoverContent>
@@ -348,7 +347,7 @@ export function TaskDetail({
 /** An assessment's due date and time, as text. */
 function dueText({ due_date, due_time }: Pick<Task, 'due_date' | 'due_time'>): string {
   if (!due_date) return m.tasks_due_none()
-  const day = formatDate(localDay(due_date))
+  const day = formatDate(dayDate(due_date))
   return due_time ? `${day} ${formatTime(new Date(`${due_date}T${due_time}`))}` : day
 }
 

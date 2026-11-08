@@ -44,8 +44,8 @@ import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { typeName } from '../labels'
 import { invalidateSchedule, useEventTypes } from '../queries'
-import { isoDay } from '@/lib/day'
-import { localDay, plusDays, toWall } from '../time'
+import { dayDate, isoDay, plusDays } from '@/lib/day'
+import { toWall } from '../time'
 
 function calendarDay(value: string): string {
   return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : ''
@@ -230,8 +230,8 @@ export function EventDialog({
     ...types.map((t) => ({ value: t.code, label: `${t.code} · ${typeName(t)}` })),
   ]
   const calendar = calendarLocale()
-  const startSelected = startDay ? localDay(startDay) : undefined
-  const endSelected = endDay ? localDay(endDay) : undefined
+  const startSelected = startDay ? dayDate(startDay) : undefined
+  const endSelected = endDay ? dayDate(endDay) : undefined
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>

@@ -2,13 +2,13 @@ import type { Task } from '@semestra/api-client'
 import { useState } from 'react'
 import { MobileList, MobileSection } from '@/app/mobile/MobilePage'
 import { useCourses } from '@/modules/academics/queries'
-import { plusDays } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
 import { useTaskActions } from '../actions'
 import { useProgramToday, useTaskLists } from '../queries'
 import { MotionDiv, TaskListPresence, useRowPresence } from '../components/presence'
 import { TaskItem } from './TaskItem'
 import { TaskSheet } from './TaskSheet'
+import { plusDays } from '@/lib/day'
 
 export type TaskGroup = { id: string; title: string; tone?: 'destructive'; tasks: Task[] }
 

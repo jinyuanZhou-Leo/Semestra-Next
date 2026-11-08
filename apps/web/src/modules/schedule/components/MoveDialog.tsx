@@ -23,8 +23,7 @@ import { TIME_INPUT } from '@/lib/time-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import { Textarea } from '@/ui/textarea'
 import { invalidateSchedule } from '../queries'
-import { isoDay } from '@/lib/day'
-import { localDay } from '../time'
+import { dayDate, isoDay } from '@/lib/day'
 
 export type MoveTarget = {
   meetingId: string
@@ -56,7 +55,7 @@ export function MoveDialog({
   const [note, setNote] = useState(target.note)
   const [touched, setTouched] = useState(false)
   const [dateOpen, setDateOpen] = useState(false)
-  const picked = /^\d{4}-\d{2}-\d{2}$/.test(date) ? localDay(date) : undefined
+  const picked = /^\d{4}-\d{2}-\d{2}$/.test(date) ? dayDate(date) : undefined
   const save = useMutation({
     ...scheduleExceptionUpsertMutation(),
     onError: toastError,

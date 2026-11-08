@@ -42,6 +42,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
+import { daysBetween, plusDays, weekStartOf } from '@/lib/day'
 
 type UsageRange = '1' | '7' | '30' | 'all'
 
@@ -75,12 +76,6 @@ function browserTimeZone(): string {
 }
 
 /** `YYYY-MM-DD` plus `n` days. */
-function addDays(date: string, n: number): string {
-  return new Date(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) + n * 86_400_000)
-    .toISOString()
-    .slice(0, 10)
-}
-
 function cost(value: number | null, complete = true): string {
   if (value === null) return '—'
   return complete ? formatUsd(value) : m.ai_usage_cost_partial({ cost: formatUsd(value) })
@@ -101,22 +96,16 @@ function spanDays(summary: UsageSummary): number {
   return daysBetween(summary.since.slice(0, 10), summary.until) + 1
 }
 
-/** Whole days from one `YYYY-MM-DD` to another. */
-function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000)
-}
-
 export function buckets(summary: UsageSummary): Bucket[] {
   const first = summary.since.slice(0, 10)
   const until = summary.until
   const size = spanDays(summary) > DAILY_BARS_MAX ? 7 : 1
   // Weeks start on the user's first day of the week; the first one is cut at the first day.
-  const weekday = new Date(`${first}T00:00:00Z`).getUTCDay()
-  const origin = size === 7 ? addDays(first, -((weekday - (firstDayOfWeek() % 7) + 7) % 7)) : first
+  const origin = size === 7 ? weekStartOf(first, firstDayOfWeek()) : first
   const bars: Bucket[] = []
-  for (let i = 0; addDays(origin, i) <= until; i += size) {
-    const start = addDays(origin, i)
-    const end = addDays(origin, i + size - 1)
+  for (let i = 0; plusDays(origin, i) <= until; i += size) {
+    const start = plusDays(origin, i)
+    const end = plusDays(origin, i + size - 1)
     bars.push({
       start: start < first ? first : start,
       end: end > until ? until : end,

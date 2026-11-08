@@ -358,7 +358,7 @@ test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async 
   // The term's courses have loaded (the sidebar shares the query).
   await screen.findByRole('link', { name: /MAT188H1/ })
   // The term's order is c1, c2, c3: ↑ from c3 goes to c2, which has no notes page.
-  fireEvent.keyDown(window, { key: 'ArrowUp', ctrlKey: true })
+  fireEvent.keyDown(document.body, { key: 'ArrowUp', code: 'ArrowUp', ctrlKey: true })
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
   expect(router.state.location.search).toEqual({ fromTerm: 't2' })
   expect(
@@ -366,11 +366,11 @@ test('Cmd/Ctrl+↓ opens the next course of the term and keeps the page', async 
   ).not.toHaveLength(0)
   // ↑ again reaches c1, which has notes; a held key inside 150 ms is ignored.
   await new Promise((resolve) => setTimeout(resolve, 160))
-  fireEvent.keyDown(window, { key: 'ArrowUp', ctrlKey: true })
-  fireEvent.keyDown(window, { key: 'ArrowUp', ctrlKey: true })
+  fireEvent.keyDown(document.body, { key: 'ArrowUp', code: 'ArrowUp', ctrlKey: true })
+  fireEvent.keyDown(document.body, { key: 'ArrowUp', code: 'ArrowUp', ctrlKey: true })
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1'))
   await new Promise((resolve) => setTimeout(resolve, 160))
-  fireEvent.keyDown(window, { key: 'ArrowDown', metaKey: true })
+  fireEvent.keyDown(document.body, { key: 'ArrowDown', code: 'ArrowDown', ctrlKey: true })
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c2'))
 })
 

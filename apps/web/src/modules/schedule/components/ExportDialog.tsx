@@ -34,11 +34,12 @@ import { pngsToPdf, renderPng } from '../export'
 import { weekLabel } from '../labels'
 import { weekGridItems } from '../occurrence'
 import type { CalendarSettings } from '../queries'
-import { dayInWeek, localDay, plusDays, wallDate } from '../time'
+import { wallDate } from '../time'
 import { FeedPanel } from './FeedPanel'
 import type { SectionTime } from '../sections'
 import { meetingGridItems } from './TimetableView'
 import { type GridDay, WeekGrid, minutes, weekDays } from './WeekGrid'
+import { dayDate, dayInWeek, plusDays } from '@/lib/day'
 
 /** The widest range the calendar answers in one request (the API's `MAX_RANGE_DAYS`). */
 const MAX_RANGE_DAYS = 120
@@ -200,7 +201,7 @@ function weekRows({
   if (range !== 'week' && range !== 'weeks') return []
   const options = weeks.map((w) => ({
     value: w.start_date,
-    label: `${weekLabel(w.number, w.break_info?.name)} · ${formatDate(localDay(w.start_date))}`,
+    label: `${weekLabel(w.number, w.break_info?.name)} · ${formatDate(dayDate(w.start_date))}`,
   }))
   const row = (
     key: string,
@@ -332,13 +333,13 @@ function ImagePanel({
     return {
       key: week.start_date,
       title: `${termName} · ${weekLabel(week.number, week.break_info?.name)} · ${formatDate(
-        localDay(week.start_date),
-      )} – ${formatDate(localDay(week.end_date))}`,
+        dayDate(week.start_date),
+      )} – ${formatDate(dayDate(week.end_date))}`,
       // In the term's own week order, so the dates run left to right whatever day it starts on.
       days: weekDays(settings.show_weekends)
         .map((d) => ({ ...d, date: dayInWeek(week.start_date, d.weekday) }))
         .toSorted((a, b) => a.date.localeCompare(b.date))
-        .map(({ date, ...d }) => ({ ...d, sublabel: String(localDay(date).getDate()) })),
+        .map(({ date, ...d }) => ({ ...d, sublabel: String(dayDate(date).getDate()) })),
       items: weekGridItems(inWeek, timezone),
     }
   }

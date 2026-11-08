@@ -51,7 +51,8 @@ import { type Uploads, useUploads } from '../components/Uploads'
 import { UsageBar } from '../components/UsageBar'
 import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
-import { useDebounced, useFileDrop } from '../hooks'
+import { useDebounced } from '@/hooks/use-debounced'
+import { useFileDrop } from '../hooks'
 import { useCourseFiles } from '../queries'
 
 /** The `files` page of a course (M07 §6.1). */
