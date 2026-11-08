@@ -67,9 +67,8 @@ async def _session(
 ) -> ImportsSession:
     detail = await imports.create_session(
         ctx,
-        SessionCreateInput(
-            program_id=program_id, source_kind="lms", target=target, source_meta=meta
-        ),
+        SessionCreateInput(program_id=program_id, source_kind="lms", target=target),
+        module_meta=meta,
     )
     return await imports.get_session_row(ctx, detail.id)
 
@@ -137,7 +136,7 @@ def new_courses(listed: dict[str, ExternalCourse], external_ids: list[str]) -> l
 
 async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     await academics.get_program_row(ctx, inp.program_id)
-    if inp.term_wizard and ctx.actor in ("agent", "mcp"):
+    if inp.term_wizard and ctx.delegated:
         # The app's wizard creates the term afterwards; an assistant creates it first.
         raise AppError(
             "common.validation", 422, errors=[{"loc": ["term_wizard"], "code": "wizard_only"}]
@@ -432,12 +431,12 @@ async def import_syllabus(ctx: Ctx, course_id: str) -> ImportStarted:
             source_kind="text",
             target=SessionTarget(kind="course", course_id=course_id),
             text=plain[:MAX_TEXT],
-            source_meta={
-                "provider": b.row.provider,
-                "connection_id": b.row.id,
-                "lms": {"kind": "syllabus"},
-            },
         ),
+        module_meta={
+            "provider": b.row.provider,
+            "connection_id": b.row.id,
+            "lms": {"kind": "syllabus"},
+        },
     )
     return ImportStarted(session_id=detail.id, program_id=link.program_id, count=0)
 
@@ -672,7 +671,7 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
     links: dict[str, LmsCourseLink] = {}
     for link_id in {info["link_id"] for info in meta.values()}:
         link = await ctx.db.get(LmsCourseLink, link_id)
-        if link is None:
+        if link is None or link.user_id != ctx.user_id:
             # Unlinked or linked to another platform course since the session started (a
             # relink replaces the row): roll the whole commit back rather than write untracked
             # items or apply changes from the old course.

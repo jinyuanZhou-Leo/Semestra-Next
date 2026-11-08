@@ -23,6 +23,9 @@ signed-in session). The secret is returned once; Semestra stores only its hash.
 - **Reach**: API tokens work for `/mcp` and for the HTTP endpoints of capabilities that are
   offered to MCP, marked with `personalAccessToken` in the [reference](/docs/api/reference/academics).
   Account, AI provider, token and data-export endpoints refuse them with `auth.token_scope`.
+- **Same limits as MCP**: over HTTP a token is still a client acting for you. Delete operations
+  need **Delete data** turned on (see [MCP](/docs/mcp)), otherwise `auth.token_scope`; settings
+  only you may change (Canvas writes, Sem's memory) are refused with `settings.user_only`.
 - **Expiry**: never, or after 30, 90 or 365 days. Revoke a token from the same page.
 
 ```bash

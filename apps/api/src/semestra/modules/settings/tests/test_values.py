@@ -375,9 +375,20 @@ async def test_sem_and_mcp_cannot_flip_user_only_switches(
     args = {"namespace": "lms", "scope_type": "account", "values": {"allow_writes": True}}
     for surface in ("agent", "mcp"):
         async with system_ctx(app.state, user.id) as ctx:
+            ctx.actor = surface
             with pytest.raises(AppError) as refused:
                 await registry.invoke(ctx, "settings.value.update", args, surface)
         assert refused.value.code == "settings.user_only"
+    # A token is a delegate on REST routes too.
+    token = (
+        await client.post("/account/tokens", json={"name": "MCP", "scopes": ["read", "write"]})
+    ).json()["token"]
+    r = await client.patch(
+        "/me/settings/lms",
+        json={"values": {"allow_writes": True}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.json()["error"]["code"] == "settings.user_only"
     r = await client.patch("/me/settings/lms", json={"values": {"allow_writes": True}})
     assert r.status_code == 200
     assert r.json()["values"]["allow_writes"] is True

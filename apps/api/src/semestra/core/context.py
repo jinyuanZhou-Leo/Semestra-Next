@@ -81,7 +81,8 @@ class Ctx:
     request_id: str
     auth: AuthInfo | None = field(default=None)
     # Where the running capability was called from ("http", "agent", "mcp"); set by
-    # `Registry.invoke`. Output shaping keys on this, not on `actor`: a token over HTTP is "mcp".
+    # `Registry.invoke`. It only decides the shape of the output (a token over HTTP gets the full
+    # output); permission rules use `delegated`, which a token has on every route.
     surface: str = "http"
     # The browser tab that sent the request (`X-Semestra-Client`), and the module of the
     # capability it called over HTTP (set by the generated route). Only that module's own events
@@ -101,6 +102,13 @@ class Ctx:
     @property
     def settings(self) -> Settings:
         return self.state.settings
+
+    @property
+    def delegated(self) -> bool:
+        """Acting for the user rather than as the user: Sem, or an MCP client with a personal
+        access token (on `/mcp` and on capability REST routes alike). Rules that keep a delegate
+        from going past what the user allowed key on this, never on `surface`."""
+        return self.actor in ("agent", "mcp")
 
     @property
     def user_id(self) -> str:

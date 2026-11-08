@@ -8919,13 +8919,9 @@ export type SessionCreateInputBody = {
      */
     text?: string | null;
     /**
-     * Source Meta
-     *
-     * Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course; {keep_files: false} does not save an uploaded syllabus to the course files
+     * Options for this import
      */
-    source_meta?: {
-        [key: string]: unknown;
-    };
+    source_meta?: SourceOptions;
 };
 
 /**
@@ -9398,6 +9394,27 @@ export type SkippedException = {
      * Why it was not written, e.g. schedule.not_a_class_day
      */
     code: string;
+};
+
+/**
+ * SourceOptions
+ *
+ * What the caller chooses about a new session. Anything else in a session's `source_meta`
+ * is written by the module that created it (M09's course links) and never comes from here.
+ */
+export type SourceOptions = {
+    /**
+     * Only
+     *
+     * course_info keeps just the field changes of the target course
+     */
+    only?: 'course_info' | null;
+    /**
+     * Keep Files
+     *
+     * false does not save an uploaded syllabus to the course files
+     */
+    keep_files?: boolean;
 };
 
 /**

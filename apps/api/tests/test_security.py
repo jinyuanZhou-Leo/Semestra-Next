@@ -7,7 +7,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from semestra.core import http
 from semestra.core.config import Settings
 from semestra.core.errors import AppError
-from semestra.core.http import close_shared_transports, is_public_address, safe_client
+from semestra.core.http import close_shared_transports, egress_allowed, safe_client
 from semestra.core.security import decrypt, encrypt, mask
 from semestra.main import create_app
 
@@ -32,24 +32,33 @@ def test_mask() -> None:
 
 
 @pytest.mark.parametrize(
-    ("address", "public"),
+    ("address", "public", "private_policy"),
     [
-        ("8.8.8.8", True),
-        ("2606:4700::1111", True),
-        ("127.0.0.1", False),
-        ("10.1.2.3", False),
-        ("192.168.0.1", False),
-        ("169.254.169.254", False),
-        ("100.64.0.1", False),
-        ("0.0.0.0", False),  # noqa: S104
-        ("::1", False),
-        ("fe80::1%eth0", False),
-        ("::ffff:127.0.0.1", False),
-        ("224.0.0.1", False),
+        ("8.8.8.8", True, True),
+        ("2606:4700::1111", True, True),
+        ("127.0.0.1", False, True),
+        ("10.1.2.3", False, True),
+        ("192.168.0.1", False, True),
+        ("fd12::1", False, True),
+        ("100.64.0.1", False, True),
+        ("::1", False, True),
+        ("::ffff:127.0.0.1", False, True),
+        ("64:ff9b::808:808", True, True),
+        ("64:ff9b::a00:1", False, True),
+        # Metadata and link-local stay out of reach even when the LAN is allowed.
+        ("169.254.169.254", False, False),
+        ("fe80::1%eth0", False, False),
+        ("fd00:ec2::254", False, False),
+        ("100.100.100.200", False, False),
+        ("64:ff9b::a9fe:a9fe", False, False),
+        ("::ffff:169.254.169.254", False, False),
+        ("0.0.0.0", False, False),  # noqa: S104
+        ("224.0.0.1", False, False),
     ],
 )
-def test_is_public_address(address: str, public: bool) -> None:
-    assert is_public_address(address) is public
+def test_egress_allowed(address: str, public: bool, private_policy: bool) -> None:
+    assert egress_allowed(address) is public
+    assert egress_allowed(address, allow_private=True) is private_policy
 
 
 @pytest.mark.parametrize("url", ["http://127.0.0.1:9/", "http://localhost:9/", "http://[::1]:9/"])
@@ -64,6 +73,9 @@ async def test_private_egress_can_be_allowed_for_self_hosting() -> None:
     async with safe_client(Settings(env="test", allow_private_egress=True)) as client:
         with pytest.raises(httpx.ConnectError):
             await client.get("http://127.0.0.1:9/")
+        with pytest.raises(AppError) as exc:
+            await client.get("http://169.254.169.254/latest/meta-data/")
+    assert exc.value.code == "common.egress_blocked"
 
 
 async def test_safe_clients_share_one_pool_that_outlives_them() -> None:

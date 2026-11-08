@@ -1,4 +1,9 @@
-import type { ImportItem, ImportSessionDetail, SessionTarget } from '@semestra/api-client'
+import type {
+  ImportItem,
+  ImportSessionDetail,
+  SessionTarget,
+  SourceOptions,
+} from '@semestra/api-client'
 import type { ComponentType } from 'react'
 
 /**
@@ -108,7 +113,7 @@ export type ImportRequest = {
       source: ImportSourceKind
       target: SessionTarget
       /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
-      sourceMeta?: Record<string, unknown>
+      sourceMeta?: SourceOptions
       /** Course files picked beforehand (a file's "Read with AI…"); the dialog opens on them. */
       fileItemIds?: string[]
     }

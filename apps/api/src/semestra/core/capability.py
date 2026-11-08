@@ -81,6 +81,10 @@ class Capability:
 
 # Returns the plugin ids the ctx user has installed (registered by M10's plugins module).
 PluginGate = Callable[[Ctx], Awaitable[set[str]]]
+# Raises when the user has not allowed their personal access tokens this capability (M12
+# registers the "allow MCP clients to delete" preference). Runs for every token call, whether it
+# came over `/mcp` or a REST route.
+TokenGate = Callable[[Ctx, "Capability"], Awaitable[None]]
 # Fills an argument an agent or MCP client left out from the call's context (M02 registers
 # `program_id`: the Program the user is in, or their only one). None leaves it missing.
 ContextDefault = Callable[[Ctx], Awaitable[str | None]]
@@ -98,6 +102,7 @@ class Registry:
     def __init__(self) -> None:
         self._items: dict[str, Capability] = {}
         self._plugin_gate: PluginGate | None = None
+        self._token_gate: TokenGate | None = None
         self._context_args: dict[str, ContextArg] = {}
         self._id_sources: dict[str, str] = {}
         # Bumped whenever something that shapes agent tool schemas changes, so caches built from
@@ -166,12 +171,7 @@ class Registry:
         except ValidationError as exc:
             raise validation_error(exc) from exc
         if cap.check is not None:
-            # The check reads the surface like the handler does (rules for agents only).
-            outer, ctx.surface = ctx.surface, surface
-            try:
-                await cap.check(ctx, inp)
-            finally:
-                ctx.surface = outer
+            await cap.check(ctx, inp)
         return inp
 
     def set_plugin_gate(self, gate: PluginGate | None) -> None:
@@ -179,6 +179,10 @@ class Registry:
         `available()` unless the gate lists that plugin. Without a gate every plugin counts as
         installed."""
         self._plugin_gate = gate
+
+    def set_token_gate(self, gate: TokenGate | None) -> None:
+        """Checked on every call made with a personal access token, after its scope."""
+        self._token_gate = gate
 
     async def require_plugin(self, ctx: Ctx, plugin_id: str | None) -> None:
         """Raises `plugins.not_installed` for a plugin the ctx user has not installed, for data
@@ -232,6 +236,8 @@ class Registry:
                 raise AppError("auth.token_scope", 403)
             if cap.effect != "read" and "write" not in ctx.auth.scopes:
                 raise AppError("auth.token_scope", 403, required="write")
+            if self._token_gate is not None:
+                await self._token_gate(ctx, cap)
         gate = self._plugin_gate
         if cap.plugin_id is not None and gate is not None and cap.plugin_id not in await gate(ctx):
             raise AppError("plugins.not_installed", 403, plugin_id=cap.plugin_id)

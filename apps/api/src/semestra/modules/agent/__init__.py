@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
+from semestra.core.capability import registry
 from semestra.modules.agent import (  # noqa: F401  (registers on import)
     attachments,
     capabilities,
@@ -15,6 +16,7 @@ from semestra.modules.agent import (  # noqa: F401  (registers on import)
     memory,
     models,
     portability,
+    service,
 )
 from semestra.modules.agent.routes import router
 from semestra.modules.agent.runtime import AgentRuntime
@@ -51,5 +53,6 @@ class _LazyMcp:
 
 def register(app: FastAPI) -> None:
     app.state.agent = AgentRuntime()
+    registry.set_token_gate(service.check_token_call)
     app.include_router(router)
     app.router.routes.append(Route("/mcp", endpoint=_LazyMcp(), methods=["GET", "POST", "DELETE"]))
