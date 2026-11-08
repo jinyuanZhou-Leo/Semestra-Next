@@ -734,7 +734,7 @@ async def test_rejects_old_and_broken_backups(
     assert error["code"] == "portability.unsupported_version"
     assert error["params"] == {"version": "2"}
 
-    # A module's data older than it can read (tasks before assessment links) is refused too.
+    # A module's data newer than this version reads is refused too.
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         manifest = {
@@ -742,16 +742,16 @@ async def test_rejects_old_and_broken_backups(
             "version": 1,
             "exported_at": "2026-01-01T00:00:00Z",
             "app_version": "1.0.0",
-            "modules": {"tasks": 1},
+            "modules": {"tasks": 3},
             "include_files": False,
             "counts": {},
         }
         z.writestr("manifest.json", json.dumps(manifest))
-        z.writestr("data/tasks.json", json.dumps({"schema_version": 1, "lists": [], "items": []}))
+        z.writestr("data/tasks.json", json.dumps({"schema_version": 3, "lists": [], "items": []}))
     error = (await _upload(client, out.getvalue())).json()["error"]
     assert (error["code"], error["params"]) == (
         "portability.unsupported_version",
-        {"version": "tasks 1"},
+        {"version": "tasks 3"},
     )
 
 

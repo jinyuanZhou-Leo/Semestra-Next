@@ -179,6 +179,11 @@ portability coverage test fails (every table with `user_id` must belong to an ad
 A plugin with no data of its own (such as the sticky note, whose text lives in the card
 settings) can have an empty adapter.
 
+When a plugin changes what it exports, raise its `schema_version` and pass
+`upgrades={old_version: step}`: `step(payload, archive)` turns a payload of the old version into
+the next one, so backups made before the change still restore. Steps are pure functions, like a
+migration of the plugin's tables.
+
 ### 4.5 Agent skill
 
 `<plugin package>/skills/<name>.md`. The frontmatter is TOML between `+++` lines: `name`, `title = { en = "…", zh-CN = "…" }`

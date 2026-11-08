@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "preferences": [
+    {
+      "locale": null,
+      "theme": "dark",
+      "accent": "green",
+      "time_format": "auto",
+      "week_start": 0,
+      "reduce_motion": "system",
+      "start_page": "today",
+      "keep_course_tab": true,
+      "active_program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "updated_at": "2026-11-08T03:49:39.905935+00:00"
+    }
+  ],
+  "ui_state": [
+    {
+      "key": "courses.sort.01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "value": {
+        "by": "code"
+      },
+      "updated_at": "2026-11-08T03:49:39.906886+00:00"
+    }
+  ],
+  "values": [
+    {
+      "id": "01a1b946-afc3-77a2-9d5a-fc04c64e191f",
+      "namespace": "calendar",
+      "scope_type": "program",
+      "scope_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "data": {},
+      "created_at": "2026-11-08T03:49:39.907805+00:00",
+      "updated_at": "2026-11-08T03:49:39.907807+00:00"
+    },
+    {
+      "id": "01a1b946-afc4-77ab-87e7-e330afa33125",
+      "namespace": "calendar",
+      "scope_type": "account",
+      "scope_id": "",
+      "data": {
+        "week": 1
+      },
+      "created_at": "2026-11-08T03:49:39.908736+00:00",
+      "updated_at": "2026-11-08T03:49:39.908738+00:00"
+    },
+    {
+      "id": "01a1b946-afd1-739a-b631-ccbae6fb333f",
+      "namespace": "tasks",
+      "scope_type": "program",
+      "scope_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "data": {
+        "auto_tasks_from_assessments": true,
+        "default_priority": "high"
+      },
+      "created_at": "2026-11-08T03:49:39.921640+00:00",
+      "updated_at": "2026-11-08T03:49:39.921642+00:00"
+    }
+  ]
+}

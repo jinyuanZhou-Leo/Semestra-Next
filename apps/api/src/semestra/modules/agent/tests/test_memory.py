@@ -17,7 +17,10 @@ from semestra.core.jobs import run_periodic
 from semestra.modules.agent import memory
 from semestra.modules.agent.memory import MemoryOperation, MemoryUpdates
 from semestra.modules.agent.models import AgentSession
-from semestra.modules.agent.portability import _memory  # pyright: ignore[reportPrivateUsage]
+from semestra.modules.agent.portability import (  # pyright: ignore[reportPrivateUsage]
+    _memory,  # pyright: ignore[reportPrivateUsage]
+    _v1_to_v2,  # pyright: ignore[reportPrivateUsage]
+)
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
 from semestra.modules.ai import Message
 from semestra.testing import API_DIR, Clock, MakeUser
@@ -436,7 +439,8 @@ async def test_imported_memories_are_converted_checked_and_kept_to_the_limit(
             "content": long,
             "created_at": "2026-10-20T00:00:00+00:00",
         }
-        converted = await _memory(ctx, old, None)  # pyright: ignore[reportArgumentType]
+        [upgraded] = _v1_to_v2({"memories": [old]}, None)["memories"]  # pyright: ignore[reportArgumentType]
+        converted = await _memory(ctx, upgraded, None)  # pyright: ignore[reportArgumentType]
         assert converted is not None
         assert converted["name"] == "memory-0000abcd"
         assert converted["type"] == "project"

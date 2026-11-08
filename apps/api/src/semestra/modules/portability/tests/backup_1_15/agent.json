@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "memories": [
+    {
+      "id": "01a1b946-afa8-7403-8fc1-18c403ba93e2",
+      "name": "short-answers-engineering",
+      "type": "feedback",
+      "description": "Prefers short answers.",
+      "body": "Why: reads on the phone. How to apply: a few lines, no tables.",
+      "created_at": "2026-01-15T12:00:00+00:00",
+      "updated_at": "2026-01-15T12:00:00+00:00"
+    }
+  ]
+}

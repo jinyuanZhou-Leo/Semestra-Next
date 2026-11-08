@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "folders": [
+    {
+      "id": "01a1b946-af90-7481-8e90-1db8df219ed0",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "parent_id": null,
+      "name": "Lectures",
+      "created_at": "2026-11-08T03:49:39.856396+00:00",
+      "updated_at": "2026-11-08T03:49:39.856398+00:00"
+    }
+  ],
+  "items": [
+    {
+      "id": "01a1b946-af9b-750c-b314-f4a90c651705",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "folder_id": "01a1b946-af90-7481-8e90-1db8df219ed0",
+      "kind": "link",
+      "display_name": "Syllabus",
+      "original_name": null,
+      "mime_type": null,
+      "size_bytes": 0,
+      "sha256": null,
+      "url": "https://example.com/syllabus",
+      "pinned": false,
+      "source_kind": null,
+      "source_ref": null,
+      "doc_status": "none",
+      "created_at": "2026-11-08T03:49:39.867342+00:00",
+      "updated_at": "2026-11-08T03:49:39.867345+00:00"
+    }
+  ]
+}

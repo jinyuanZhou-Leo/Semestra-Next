@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "connections": [
+    {
+      "id": "01a1b946-af95-77c9-94ac-674e47a2cb3c",
+      "provider": "canvas",
+      "display_name": "Quercus",
+      "config": {
+        "base_url": "https://q.example.edu"
+      },
+      "account_name": "Alice"
+    }
+  ],
+  "bindings": [
+    {
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "connection_id": "01a1b946-af95-77c9-94ac-674e47a2cb3c"
+    }
+  ],
+  "links": [
+    {
+      "id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "course_id": "01a1b946-af8a-763d-a1dd-96cd8b402b37",
+      "program_id": "01a1b946-af88-7456-b003-c11e79e7ab4a",
+      "connection_id": "01a1b946-af95-77c9-94ac-674e47a2cb3c",
+      "external_course_id": "101",
+      "external_code": "APS100",
+      "external_name": null,
+      "external_term": null,
+      "web_url": null,
+      "sync_enabled": true
+    }
+  ],
+  "refs": [
+    {
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "external_kind": "assignment",
+      "external_id": "9001",
+      "target_kind": "assessment",
+      "target_id": "01a1b946-afa3-77ef-9e04-d4937d2434f5",
+      "snapshot": {
+        "title": "Midterm"
+      },
+      "imported_at": "2026-01-15T12:00:00Z"
+    },
+    {
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "external_kind": "assignment",
+      "external_id": "9002",
+      "target_kind": "assessment",
+      "target_id": "01a1b946-afce-77fa-a313-4914d000e4ce",
+      "snapshot": {
+        "title": "Lab report"
+      },
+      "imported_at": "2026-01-15T12:00:00Z"
+    },
+    {
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "external_kind": "assignment",
+      "external_id": "9002",
+      "target_kind": "task",
+      "target_id": "01a1b946-afd2-778e-a770-d313b35ba142",
+      "snapshot": {
+        "title": "Lab report"
+      },
+      "imported_at": "2026-01-15T12:00:00Z"
+    },
+    {
+      "link_id": "01a1b946-af9c-7439-8e6e-82b8e284c447",
+      "external_kind": "assignment",
+      "external_id": "9003",
+      "target_kind": "task",
+      "target_id": "01a1b946-afd3-77b5-81fd-6b01a2fdd438",
+      "snapshot": {
+        "title": "Reading response"
+      },
+      "imported_at": "2026-01-15T12:00:00Z"
+    }
+  ]
+}
