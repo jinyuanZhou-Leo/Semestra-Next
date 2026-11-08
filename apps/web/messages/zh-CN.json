@@ -1670,6 +1670,7 @@
   "assistant_mcp_hint_claude_desktop": "在“设置 → 开发者 → 编辑配置”中打开该文件，保存后重启 Claude Desktop。需要已安装 Node.js。",
   "assistant_mcp_hint_restart": "文件中已有其他服务器时，把 semestra 一项并列加入。然后重启 {client}。",
   "assistant_mcp_token": "API 令牌",
+  "assistant_mcp_token_other": "MCP 客户端",
   "assistant_mcp_hint_manual": "在客户端中选择 Streamable HTTP，并以 Authorization: Bearer 请求头发送令牌。",
   "assistant_mcp_client_docs": "设置指南",
   "assistant_messages_label": "消息",

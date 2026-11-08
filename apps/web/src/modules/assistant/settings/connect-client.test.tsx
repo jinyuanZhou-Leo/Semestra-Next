@@ -28,7 +28,6 @@ test('connecting a client creates a token named after it and fills it into the c
         name: 'Claude Code',
         scopes: ['read', 'write'],
         expires_in_days: null,
-        password: null,
       })
       return HttpResponse.json({
         id: 't1',

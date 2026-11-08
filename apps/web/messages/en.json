@@ -1670,6 +1670,7 @@
   "assistant_mcp_hint_claude_desktop": "Open it from Settings → Developer → Edit Config, then restart Claude Desktop. Requires Node.js.",
   "assistant_mcp_hint_restart": "If the file already lists servers, add semestra next to them. Then restart {client}.",
   "assistant_mcp_token": "API token",
+  "assistant_mcp_token_other": "MCP client",
   "assistant_mcp_hint_manual": "Choose Streamable HTTP in the client and send the token as an Authorization: Bearer header.",
   "assistant_mcp_client_docs": "Setup guide",
   "assistant_messages_label": "Messages",

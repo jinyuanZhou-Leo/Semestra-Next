@@ -10,7 +10,7 @@ import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
 import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
 import { errorMessage } from '@/lib/errors'
-import { ReauthFields, reauthState } from '@/modules/auth/components/ReauthFields'
+import { needsReauth, ReauthStep } from '@/modules/auth/components/ReauthStep'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -59,7 +59,9 @@ function Code({ value }: { value: string }) {
       <CodeBlockActions>
         <CodeBlockCopyButton value={value} />
       </CodeBlockActions>
-      <CodeBlockContent className="pr-10 break-all whitespace-pre-wrap">{value}</CodeBlockContent>
+      <CodeBlockContent wrap className="pr-10">
+        {value}
+      </CodeBlockContent>
     </CodeBlock>
   )
 }
@@ -170,7 +172,6 @@ export function ConnectClientDialog({
   const [clientId, setClientId] = useState<ClientId | null>(null)
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('never')
-  const [password, setPassword] = useState('')
   const [created, setCreated] = useState<TokenCreated | null>(null)
   const create = useMutation({
     ...accountTokenCreateMutation(),
@@ -179,7 +180,7 @@ export function ConnectClientDialog({
       void queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
     },
   })
-  const { needsPassword } = reauthState(create.error)
+  const reauth = needsReauth(create.error)
   const client = MCP_CLIENTS.find((c) => c.id === clientId) ?? null
 
   const scopeItems: ChoiceOption<'read' | 'write'>[] = [
@@ -194,17 +195,21 @@ export function ConnectClientDialog({
     })),
   ]
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  // Also sent again once the user confirms it's them.
+  const save = () => {
     if (!client) return
     create.mutate({
       body: {
-        name: clientName(client),
+        name: client.id === 'other' ? m.assistant_mcp_token_other() : clientName(client),
         scopes: scope === 'write' ? ['read', 'write'] : ['read'],
         expires_in_days: days === 'never' ? null : Number(days),
-        password: password === '' ? null : password,
       },
     })
+  }
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    save()
   }
 
   // Forgotten once the dialog has faded out, so the next one starts over.
@@ -212,7 +217,6 @@ export function ConnectClientDialog({
     setClientId(null)
     setScope('read')
     setDays('never')
-    setPassword('')
     setCreated(null)
     create.reset()
   }
@@ -231,7 +235,7 @@ export function ConnectClientDialog({
         {created && client ? (
           <div
             key="finish"
-            className="grid gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200 motion-reduce:animate-none"
+            className="grid min-w-0 gap-4 animate-in fade-in-0 slide-in-from-right-2 duration-200 motion-reduce:animate-none"
           >
             <DialogHeader>
               <DialogTitle>
@@ -314,16 +318,8 @@ export function ConnectClientDialog({
                   options={expiryItems}
                 />
               </Field>
-              <ReauthFields
-                error={create.error}
-                password={password}
-                onPasswordChange={setPassword}
-              />
-              <FieldError>
-                {create.error && !reauthState(create.error).handled
-                  ? errorMessage(create.error)
-                  : null}
-              </FieldError>
+              <ReauthStep error={create.error} onVerified={save} />
+              <FieldError>{create.error && !reauth ? errorMessage(create.error) : null}</FieldError>
             </FieldSet>
             <DialogFooter>
               <DialogClose
@@ -331,10 +327,7 @@ export function ConnectClientDialog({
               >
                 {m.common_cancel()}
               </DialogClose>
-              <Button
-                type="submit"
-                disabled={!client || create.isPending || (needsPassword && password === '')}
-              >
+              <Button type="submit" disabled={!client || create.isPending || reauth}>
                 {create.isPending ? m.common_saving() : m.assistant_mcp_create_continue()}
               </Button>
             </DialogFooter>
