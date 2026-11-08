@@ -30,7 +30,7 @@ defineModule({
   commands: [{ id: 'canvas-tab.openInCanvas', scope: 'course', ... }],
 })
 ```
-- `isAvailable` 的数据来自 M09 `lms.course.link.get`（已在课程布局查询中预取，避免额外请求）。
+- `isAvailable` 的数据来自 M09 `lms.course.link.list`（整个 Program 的关联一次取全，切课不再逐门请求）。
 - 课程未关联时不显示 Page；课程设置中关联后自动出现（M10 Page 排序规则中排在末尾，可以拖动）。
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
@@ -78,7 +78,7 @@ defineModule({
 
 **注册与可用性**
 - 前端 `apps/web/src/modules/plugin-canvas-tab/`，Page id 为 `canvas`（课程地址 `/p/:id/c/:courseId/canvas`），`order: 1000` 排在最后；后端只在 `plugins_builtin/__init__.py` 里登记 `PluginInfo(id="canvas-tab", default_installed=False)`，没有表和 capability。
-- **对 M10 的改动**：`PageContribution` 新增 `availabilityQuery(scope)`，`isAvailable(scope, data)` 多了第二个参数（该查询的数据）。查询走 TanStack Query 缓存，与课程信息卡片、成绩页提示条共用 `lms.course.link.get`，不会多发请求。新 hook `usePageStatuses(scope)` 给出每个 Page 的 `available / pending / unavailable`；`usePages` 只返回可用的；`ScopePage` 在 `pending` 时显示加载中，而不是"页面不可用"。课程切换快捷键用缓存里的数据判断，没有缓存时回到概览。
+- **对 M10 的改动**：`PageContribution` 新增 `availabilityQuery(scope)`，`isAvailable(scope, data)` 多了第二个参数（该查询的数据）。查询走 TanStack Query 缓存，按 Program 取 `lms.course.link.list`，切换课程不会多发请求。新 hook `usePageStatuses(scope)` 给出每个 Page 的 `available / pending / unavailable`；`usePages` 只返回可用的；`ScopePage` 在 `pending` 时显示加载中，而不是"页面不可用"。课程切换快捷键用缓存里的数据判断，没有缓存时回到概览。
 - 插件详情页的"使用前提"用 manifest 的 `requirements`。命令面板命令 `canvas-tab.open-in-canvas` 先读关联再打开 Canvas。
 
 **位置与刷新**

@@ -133,6 +133,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.program.binding.get` / `.set` / `.clear` | read / write / write | GET/PUT/DELETE /programs/{id}/lms-binding | 规则见第 3 节 |
 | `lms.course.list` | read | GET /programs/{id}/lms/courses | 使用该 Program 绑定的连接列出外部课程，标记是否已关联及关联到哪门课程 |
 | `lms.course.link.get` | read | GET /courses/{id}/lms-link | |
+| `lms.course.link.list` | read | GET /programs/{id}/lms-links | 该 Program 所有课程的关联（`items`），课程页标签判断可用性时一次取全，不按课程逐个请求；`expose=("http",)` |
 | `lms.course.link.set` | write | PUT /courses/{id}/lms-link | 参数 external_course_id、sync_enabled；冲突 → `lms.course_already_linked`（params: course_id） |
 | `lms.course.link.update` | write | PATCH /courses/{id}/lms-link | 修改 sync_enabled |
 | `lms.course.link.sync` | write | POST /courses/{id}/lms-link:sync | 刷新外部元数据 |
@@ -161,7 +162,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ## 6. 事件与扩展
 - 订阅：`academics.course.deleting`（删除关联与导入记录）、`academics.program.deleting`（删除绑定）、`grading.assessment.deleting` / `tasks.task.deleting`（删除对应的导入记录，之后可以再次导入）。
-- 发出：`lms.connection.status_changed`、`lms.course.linked`、`lms.course.unlinked`。
+- 发出：`lms.connection.status_changed`、`lms.course.linked`、`lms.course.unlinked`、`lms.course.imports_recorded`（`{course_id}`，M08 提交钩子记下导入的作业或更新的快照之后，前端据此刷新“平台上的新作业”和作业列表的“已导入为”）。
 - 贡献：
   - 日历源 `lms.events`（M04 `calendarSources`）：在日历筛选面板中按连接显示；事件描述默认以纯文本显示，用户可以在源设置中开启"渲染 HTML 描述"（清洗后，开启前确认，与旧版一致）。
   - `academics.termWizardImportSources`：学期向导中的"从 LMS 导入课程"（要求 Program 已绑定连接，否则引导绑定）。

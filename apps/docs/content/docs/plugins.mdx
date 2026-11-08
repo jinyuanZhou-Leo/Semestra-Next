@@ -57,7 +57,7 @@ export default defineModule({
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
     component: preloadable(...),
     prefetch: (scope, queryClient) => ...,   // optional: start the card's data with its code (queryClient.prefetchQuery)
-    settings: { schema: zodSchema, component: preloadable(...) },   // component is optional; without it a form is generated from the schema
+    settings: () => import('./schema'),   // optional: loads with the card, see below
     multiple: true,
     headerActions: ...,        // card header actions (the counter's "reset"); the host shows them on hover
     keepTitleWhenSmall: true,  // optional: keep the title row at size s (hidden by default)
@@ -73,6 +73,10 @@ export default defineModule({
   `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Pass
   `m.xxx` as the function itself; do not call it at module level (switching language remounts).
 - Add the new plugin's manifest to the list in `app/registry.ts`.
+- Card settings load with the card, not with the app: `settings` imports a file whose default
+  export is `{ schema, component?, fields? } satisfies CardSettings`. `schema` is a zod schema;
+  `component` (a custom form, `preloadable()`) is optional, and without it a form is generated
+  from the schema.
 - A custom card settings form looks like a settings section: one or more `SettingsGroup`s of
   `SettingRow`s from `@/app/settings` (name on the left, control on the right; Switch for on/off,
   `ChoiceControl` for one of several). Pickers that need the full width (icons, colors, a list of
@@ -81,7 +85,7 @@ export default defineModule({
 ### 3.2 Card components
 
 - Props: `{ scope, instanceId, size, settings }`. `settings` is what the host parsed with
-  `settings.schema`, so give every field a default; otherwise old cards fail to parse when a
+  the settings `schema`, so give every field a default; otherwise old cards fail to parse when a
   field is added.
 - **Every declared size needs a design.** Size s holds the least information and one main
   action; do not just scale things down. Tests render every size.

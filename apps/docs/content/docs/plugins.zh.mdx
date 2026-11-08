@@ -47,7 +47,7 @@ export default defineModule({
     title, icon, sizes: ['s','m','l'], defaultSize: 'm',
     component: preloadable(...),
     prefetch: (scope, queryClient) => ...,   // 可选：卡片代码加载时同时开始取数据（queryClient.prefetchQuery）
-    settings: { schema: zodSchema, component: preloadable(...) },   // component 可省，省略则按 schema 自动生成表单
+    settings: () => import('./schema'),   // 可选：随卡片一起加载，见下
     multiple: true,
     headerActions: ...,        // 卡片头部操作（计数器的"重置"），由宿主在悬停时显示
     keepTitleWhenSmall: true,  // 可选：s 尺寸也保留标题行（默认隐藏）
@@ -59,11 +59,12 @@ export default defineModule({
 
 - 所有重组件按需加载；页面的 `component`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
+- 卡片设置随卡片加载，不进首屏：`settings` 导入一个文件，它默认导出 `{ schema, component?, fields? } satisfies CardSettings`。`schema` 是 zod schema；`component`（自定义表单，用 `preloadable()`）可省，省略则按 schema 自动生成表单。
 - 自定义的卡片设置表单和设置分区长一个样：用 `@/app/settings` 的 `SettingsGroup` + `SettingRow`（名称在左、控件在右；开关用 Switch，多选一用 `ChoiceControl`），需要整行宽度的选择器（图标、颜色、城市列表）单独占一行或放进 `SettingsBlock`。取消和保存按钮由宿主提供。
 
 ### 3.2 卡片组件
 
-- Props：`{ scope, instanceId, size, settings }`。`settings` 是宿主用 `settings.schema` 解析后的结果，所以每个字段给默认值，旧卡片才不会因为新增字段而解析失败。
+- Props：`{ scope, instanceId, size, settings }`。`settings` 是宿主用设置的 `schema` 解析后的结果，所以每个字段给默认值，旧卡片才不会因为新增字段而解析失败。
 - **每个声明的尺寸都要有设计**。s 只放最少的信息和一个主操作；不要用缩放凑合。测试里遍历所有尺寸渲染。
 - s 尺寸下宿主会隐藏标题行，把整张卡片留给内容（编辑 Board 时标题会回来），所以内容的第一行要能说明这是什么：计数器的名称、时钟的城市、"专注"。只有内容做不到时才设 `keepTitleWhenSmall`。
 - `headerActions` 和设置按钮一起放在右上角，指针移到卡片上或焦点在卡片内时出现（触屏上一直显示），插件不要自己控制显隐。
