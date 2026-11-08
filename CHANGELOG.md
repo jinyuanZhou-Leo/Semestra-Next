@@ -3,6 +3,56 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.1 (2026-11-08)
+
+### New
+
+- **API & MCP:** The unused endpoint for reordering assessments (PUT /courses/{course_id}/assessment-order) has been removed.
+- **Self-hosting:** Behind the bundled Caddy or another reverse proxy, set SEMESTRA_TRUSTED_PROXY_HOPS=1 so sign-in limits see the real client address; FORWARDED_ALLOW_IPS is no longer used.
+
+### Improved
+
+- **Terms & courses:** A year-long course's terms are now chosen as a start and end term, and instructors are listed in their own table in course settings.
+- **Import:** Calendar files are read by term: full calendar app exports work, classes spanning two terms are added to each, and every-other-week classes across a reading week are recognized.
+- **Settings:** API tokens, the MCP server and client permissions now share one API & MCP page; Integrations is renamed Learning platforms.
+
+### Fixed
+
+- **General:** Faster imports and updates involving many assessments or to-dos, and lighter calendar subscription refreshes.
+- **General:** Deleting terms, programs, folders and Sem conversations is faster, and uploading a backup no longer holds up other changes.
+- **General:** Dialogs keep their content while closing, expanding sections animate, and loading and error states look the same across the app.
+- **General:** Fewer repeated requests after saving changes and when returning to the app.
+- **General:** Faster first load: less code is downloaded before the first page appears.
+- **Sem:** An approved change that is still being applied no longer briefly shows as failed in another tab.
+- **Sem:** Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+- **Sem:** Older conversations started on a course page now work in that course's term.
+- **Sem:** When your session expires during a conversation, Sem asks you to sign in again and then continues.
+- **Tasks:** The tasks page opens the last viewed list without loading other lists first.
+- **Notifications:** Turning notifications on or off for this device no longer shifts the settings layout.
+- **Notifications:** Reminders now follow changes to term dates, breaks and the program time zone right away, and keep arriving after the browser renews its subscription.
+- **Files:** Files that finish processing while you switch search models are indexed again with the new model.
+- **Files:** Files whose processing was stopped or interrupted no longer stay in processing; they show why and can be processed again.
+- **Files:** Fixed scanned files failing to process with on-server OCR.
+- **Files:** Uploading or processing files in one course no longer reloads the file lists of other courses.
+- **Files:** Searching selected files now stays within the current term or course.
+- **Files:** Storage quota is enforced the same way for course files, import uploads and Sem attachments, including uploads made at the same time.
+- **Import:** Fixed a calendar file import dropping a class whose time changed partway through the term.
+- **Import:** Importing the same syllabus again no longer duplicates its deadline tasks and calendar events.
+- **Import:** An interrupted import resumes without reading files it already read, avoiding repeat AI charges.
+- **Import:** Sources quoted from scanned pages of an imported document now point to the right page.
+- **Import:** Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+- **Import:** Imports show when they are waiting for course files, and an import that found the course already up to date is no longer listed as failed.
+- **Canvas:** Fixed missed announcement notifications, all-day events landing on the previous day, and repeated assignment changes not being notified again.
+- **AI:** AI providers are no longer marked unreachable by errors unrelated to the provider, and model lists load faster.
+- **Settings:** Reduce motion now applies to all animations, including progress bars and card effects.
+- **Data:** Stopping a backup export or restore no longer reports an error; a stopped restore can be started again.
+- **API & MCP:** Import sessions report the waiting_files and up_to_date states, and Sem's approval cards report executing.
+- **API & MCP:** Added an endpoint that lists all course links of a program, and an option to include active jobs when listing jobs.
+- **API & MCP:** API tokens follow the same limits on REST endpoints as over MCP: deleting needs the "Delete data" permission, and settings only you may change stay protected.
+- **Self-hosting:** Lower memory use with local embedding, and faster repeated searches and attachment cleanup.
+- **Self-hosting:** A local embedding model that fails no longer interrupts search and indexing for other users of the server.
+- **Self-hosting:** Link-local and cloud metadata addresses are now always blocked for outbound requests, even when private network access is allowed.
+
 ## 2.0.0-beta.0 (2026-11-08)
 
 ### New
