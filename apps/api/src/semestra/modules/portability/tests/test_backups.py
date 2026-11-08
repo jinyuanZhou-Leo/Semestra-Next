@@ -17,7 +17,7 @@ from sqlalchemy import Table, func, select, text, update
 from semestra import __version__
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.db import Base, new_id
-from semestra.core.jobs import CoreJob
+from semestra.core.jobs import JobRunner
 from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai.models import AiProvider
 from semestra.modules.auth.mailer import MemoryMailer
@@ -770,8 +770,13 @@ async def test_refuses_oversized_data_entries(
     assert response.json()["error"]["code"] == "portability.invalid_archive"
 
 
-async def test_an_import_whose_job_died_can_be_discarded(
-    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, run_jobs: RunJobs
+async def test_an_import_whose_worker_died_fails_and_can_be_discarded(
+    app: FastAPI,
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: RunJobs,
+    clock: Clock,
 ) -> None:
     user = await make_user()
     await login_as(client, user)
@@ -780,16 +785,14 @@ async def test_an_import_whose_job_died_can_be_discarded(
     started = (await client.post(f"/me/imports/{upload_id}:start", json={"mode": "merge"})).json()
     assert started["status"] == "importing"
 
-    # The worker was killed mid-import: the job is failed, the upload never heard of it.
-    async with app.state.session_factory() as db:
-        job = await db.get(CoreJob, started["job_id"])
-        assert job is not None
-        job.status = "failed"
-        await db.commit()
+    # A worker took the job and was killed; once its lease runs out the job fails.
+    assert await JobRunner(app.state)._claim() is not None  # pyright: ignore[reportPrivateUsage]
+    clock.advance(seconds=61)
+    await run_jobs()
 
     current = (await client.get(f"/me/imports/{upload_id}")).json()
     assert current["status"] == "failed"
-    assert current["error_code"] == "common.internal"
+    assert current["error_code"] == "core.job_lease_expired"
     assert (await client.delete(f"/me/imports/{upload_id}")).status_code == 200
 
 

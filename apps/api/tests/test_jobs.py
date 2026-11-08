@@ -99,6 +99,20 @@ async def waits(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+failures: list[tuple[str, str, str | None]] = []
+
+
+async def record_failure(ctx: Any, payload: Payload, job: CoreJob) -> None:
+    failures.append((payload.name, job.status, job.error_code))
+
+
+@job_handler("test.with_on_failure", max_attempts=1, on_failure=record_failure)
+async def with_on_failure(ctx: JobCtx, payload: Payload) -> Result:
+    if payload.name == "fails":
+        raise AppError("test.bad_input", 422)
+    return Result()
+
+
 async def start(app: FastAPI, user_id: str, kind: str, **kwargs: Any) -> str:
     async with system_ctx(app.state, user_id) as ctx:
         job = await enqueue(ctx, kind, Payload(name=kwargs.pop("name", kind)), **kwargs)
@@ -371,3 +385,32 @@ async def test_a_job_shows_what_it_waits_for(app: FastAPI, make_user: MakeUser):
     waits = [m["data"]["waiting"] for m in messages if m["data"].get("status") == "running"]
     assert waits[-2:] == [{"reason": "ai.provider_busy", "until": None}, None]
     assert jobs.JobOut.of(await get(app, job_id)).waiting is None
+
+
+async def test_on_failure_runs_however_the_job_ends(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, clock: Clock
+):
+    failures.clear()
+    user = await make_user()
+    # The handler fails.
+    await start(app, user.id, "test.with_on_failure", name="fails")
+    await app.state.jobs.run_until_idle()
+    # Cancelled before a worker took it.
+    queued = await start(app, user.id, "test.with_on_failure", name="cancelled")
+    async with system_ctx(app.state, user.id) as ctx:
+        await jobs.job_cancel(ctx, jobs.JobRef(job_id=queued))
+        await ctx.db.commit()
+    # Its worker died.
+    await start(app, user.id, "test.with_on_failure", name="died")
+    assert await JobRunner(app.state)._claim() is not None  # pyright: ignore[reportPrivateUsage]
+    clock.advance(seconds=61)
+    await app.state.jobs.run_until_idle()
+    # Succeeds: no call.
+    await start(app, user.id, "test.with_on_failure", name="ok")
+    await app.state.jobs.run_until_idle()
+
+    assert failures == [
+        ("fails", "failed", "test.bad_input"),
+        ("cancelled", "cancelled", None),
+        ("died", "failed", "core.job_lease_expired"),
+    ]

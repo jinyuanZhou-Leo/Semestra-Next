@@ -10,6 +10,10 @@
   renews; if the process dies the lease runs out and another worker retries the job.
 * An `AppError` from a handler fails the job at once (the input is wrong, retrying will not
   help). Any other exception is retried with exponential backoff up to `max_attempts`.
+* `on_failure=fn` (`async def fn(ctx, payload, job)`) runs once when the job ends `failed` or
+  `cancelled`, whatever ended it: the handler, a cancel before it started, or a worker that died
+  (its lease ran out). A module that keeps its own copy of the job's state (a file "processing",
+  an import "extracting") sets it there, so the copy never outlives the job.
 * Every state or progress change publishes `core.job.progress` to the job's owner (SSE);
   progress-only updates are throttled to one per 250 ms.
 * `@periodic("core.cleanup", every=timedelta(hours=1))` runs a function in this process.
@@ -286,8 +290,10 @@ class JobHandler:
     max_attempts: int
     stages: tuple[tuple[str, float], ...]
     lane: Lane = "default"
+    on_failure: OnFailure | None = None
 
 
+OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
 _handlers: dict[str, JobHandler] = {}
 
 
@@ -297,6 +303,7 @@ def job_handler(
     max_attempts: int = 3,
     stages: Sequence[tuple[str, float]] = (),
     lane: Lane = "default",
+    on_failure: OnFailure | None = None,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -315,7 +322,9 @@ def job_handler(
         for model in (payload_model, result_model):
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
-        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts, tuple(stages), lane)
+        _handlers[kind] = JobHandler(
+            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure
+        )
         return fn
 
     return decorate
@@ -338,10 +347,29 @@ def _event(job: CoreJob) -> Event:
 
 
 def _finished(job: CoreJob) -> Event:
-    """`core.job.finished`: once per job a worker ran to an end, for subscribers that care about
+    """`core.job.finished`: once per job, however it ended, for subscribers that care about
     outcomes (notifications) rather than progress."""
     data = {"job_id": job.id, "kind": job.kind, "status": job.status, "error_code": job.error_code}
     return Event(JOB_FINISHED, data, job.user_id)
+
+
+async def _on_failure(ctx: Ctx, job: CoreJob) -> None:
+    """The handler's `on_failure` for a job that has ended failed or cancelled, in `ctx`'s
+    transaction."""
+    handler = _handlers.get(job.kind)
+    if handler is None or handler.on_failure is None or job.status == "succeeded":
+        return
+    await handler.on_failure(ctx, handler.payload_model.model_validate(job.payload), job)
+
+
+async def _ended(state: State, job: CoreJob) -> None:
+    """After a worker's write that ended a job has committed: `on_failure` in its own
+    transaction, then `core.job.finished`. Never raises (the job's own state is already saved)."""
+    try:
+        await run_as_system(state, job.user_id, lambda ctx: _on_failure(ctx, job))
+    except Exception:
+        log.exception("job_on_failure_failed", job_id=job.id, kind=job.kind)
+    await events.dispatch(state, _finished(job))
 
 
 async def enqueue(
@@ -591,6 +619,7 @@ class JobRunner:
             await db.commit()
         for row in ended:
             await events.dispatch(self.state, _event(row))
+            await _ended(self.state, row)
         if job is not None:
             await events.dispatch(self.state, _event(job))
         return job
@@ -632,7 +661,7 @@ class JobRunner:
         if row is not None:
             await events.dispatch(self.state, _event(row))
             if row.status in TERMINAL:
-                await events.dispatch(self.state, _finished(row))
+                await _ended(self.state, row)
 
     async def _run_handler(self, job: CoreJob) -> CoreJob | None:
         handler = _handlers.get(job.kind)
@@ -810,10 +839,13 @@ async def job_cancel(ctx: Ctx, inp: JobRef) -> JobOut:
         job.cancel_requested = True
         for key, value in _end_values(ctx.now).items():
             setattr(job, key, value)
+        await ctx.db.flush()
+        # It never ran: what the handler would have done on cancelling happens here.
+        await _on_failure(ctx, job)
+        await events.publish(ctx, JOB_PROGRESS, _event(job).data)
+        await events.publish(ctx, JOB_FINISHED, _finished(job).data)
     elif job.status == "running":
         job.cancel_requested = True
-    else:
-        return JobOut.of(job)
-    await ctx.db.flush()
-    await events.publish(ctx, JOB_PROGRESS, _event(job).data)
+        await ctx.db.flush()
+        await events.publish(ctx, JOB_PROGRESS, _event(job).data)
     return JobOut.of(job)

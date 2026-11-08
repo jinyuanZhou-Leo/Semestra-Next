@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from semestra.core.context import Ctx
-from semestra.core.jobs import JobCtx, job_handler, periodic
+from semestra.core.jobs import CoreJob, JobCtx, job_handler, periodic
 from semestra.modules.portability import service
 from semestra.modules.portability.registry import ImportOptions
 from semestra.modules.portability.schemas import (
@@ -14,7 +14,19 @@ from semestra.modules.portability.schemas import (
 )
 
 
-@job_handler("portability.export", stages=[("collecting", 70), ("saving", 30)])
+async def _export_failed(ctx: Ctx, payload: ExportJobInput, job: CoreJob) -> None:
+    await service.mark_failed(ctx, payload.archive_id, job)
+
+
+async def _import_failed(ctx: Ctx, payload: ImportJobInput, job: CoreJob) -> None:
+    await service.mark_failed(ctx, payload.archive_id, job)
+
+
+@job_handler(
+    "portability.export",
+    stages=[("collecting", 70), ("saving", 30)],
+    on_failure=_export_failed,
+)
 async def export(ctx: JobCtx, payload: ExportJobInput) -> ExportJobResult:
     size = await service.build_export(ctx, payload.archive_id)
     return ExportJobResult(archive_id=payload.archive_id, size_bytes=size)
@@ -25,6 +37,7 @@ async def export(ctx: JobCtx, payload: ExportJobInput) -> ExportJobResult:
     "portability.import",
     max_attempts=1,
     stages=[("reading", 10), ("copying", 50), ("importing", 40)],
+    on_failure=_import_failed,
 )
 async def import_(ctx: JobCtx, payload: ImportJobInput) -> ImportJobResult:
     options = ImportOptions(
@@ -32,12 +45,7 @@ async def import_(ctx: JobCtx, payload: ImportJobInput) -> ImportJobResult:
         program_ids=None if payload.program_ids is None else frozenset(payload.program_ids),
         include_preferences=payload.include_preferences,
     )
-    state = ctx.state
-
-    async def mark_failed(code: str) -> None:
-        await service.mark_import_failed(state, payload.archive_id, code)
-
-    await service.run_import(ctx, payload.archive_id, options, mark_failed)
+    await service.run_import(ctx, payload.archive_id, options)
     return ImportJobResult(archive_id=payload.archive_id)
 
 
