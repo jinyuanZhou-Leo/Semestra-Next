@@ -29,7 +29,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | `SEMESTRA_REFRESH_TOKEN_TTL_DAYS`     | `60`    | 原生客户端刷新令牌有效期                                         |
 | `SEMESTRA_NOTIFY_NEW_SIGN_IN`         | `false` | 有新会话登录时给用户发邮件                                       |
 | `SEMESTRA_GOOGLE_CLIENT_ID`           | （空）  | Google 登录。为空时隐藏 Google 按钮                              |
-| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | API 前面的反向代理层数；客户端 IP 从 `X-Forwarded-For` 右数这么多层读取 |
+| `SEMESTRA_TRUSTED_PROXY_HOPS`         | `0`     | API 前面的反向代理层数；客户端 IP 从 `X-Forwarded-For` 右数这么多层读取。这是客户端 IP 的唯一来源，用内置 Caddy 时设为 `1` |
 | `SEMESTRA_COOKIE_SECURE`              | （未设置） | 未设置时，公开地址是 `https` 就使用 Secure cookie             |
 
 邮件设置见[邮件](./email.mdx)。
@@ -47,7 +47,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 
 | 变量                            | 默认值（自部署）  | 含义                                                                                      |
 | ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------- |
-| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_  | 允许服务器访问内网和回环地址：局域网里的 Ollama、学校自建的 Canvas、纯 http 的 Canvas。compose 文件之外默认是 `false` |
+| `SEMESTRA_ALLOW_PRIVATE_EGRESS` | `true` _compose_  | 允许服务器访问内网和回环地址：局域网里的 Ollama、学校自建的 Canvas、纯 http 的 Canvas。链路本地和云主机元数据地址仍然拒绝。compose 文件之外默认是 `false` |
 
 设为 `false` 时，访问用户填写的主机如果解析到内网、回环或链路本地地址，会被拒绝：AI 接口地址返回 `common.egress_blocked`，Canvas
 地址返回 `lms.blocked_address`。Canvas 返回的每个重定向目标也要通过同样的检查。

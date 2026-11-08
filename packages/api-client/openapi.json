@@ -32125,10 +32125,8 @@
             "description": "Only for source_kind `text`: text the user pasted"
           },
           "source_meta": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Source Meta",
-            "description": "Extra source info, e.g. {provider, connection_id}; {only: 'course_info'} keeps just the field changes of the target course; {keep_files: false} does not save an uploaded syllabus to the course files"
+            "$ref": "#/components/schemas/SourceOptions",
+            "description": "Options for this import"
           }
         },
         "type": "object",
@@ -32906,6 +32904,33 @@
           "code"
         ],
         "title": "SkippedException"
+      },
+      "SourceOptions": {
+        "properties": {
+          "only": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "course_info"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Only",
+            "description": "course_info keeps just the field changes of the target course"
+          },
+          "keep_files": {
+            "type": "boolean",
+            "title": "Keep Files",
+            "description": "false does not save an uploaded syllabus to the course files",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SourceOptions",
+        "description": "What the caller chooses about a new session. Anything else in a session's `source_meta`\nis written by the module that created it (M09's course links) and never comes from here."
       },
       "SourceRef": {
         "properties": {

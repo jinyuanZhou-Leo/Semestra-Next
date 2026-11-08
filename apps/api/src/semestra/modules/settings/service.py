@@ -301,8 +301,9 @@ async def _publish_values_updated(
 
 
 async def check_update(ctx: Ctx, inp: ValuesUpdateInput) -> None:
-    """Sem and MCP clients cannot change namespaces registered with `agent_writable=False`."""
-    if ctx.surface != "http" and not settings_registry.get(inp.namespace).agent_writable:
+    """Sem and MCP clients (tokens on REST routes too) cannot change namespaces registered with
+    `agent_writable=False`."""
+    if ctx.delegated and not settings_registry.get(inp.namespace).agent_writable:
         raise AppError("settings.user_only", 403, namespace=inp.namespace)
 
 

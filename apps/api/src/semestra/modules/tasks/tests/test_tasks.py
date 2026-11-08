@@ -651,6 +651,7 @@ async def test_agent_find_and_field_selection(app: FastAPI, api: Api, user: User
     await api.task(pid, "Write lab report", due_date="2026-02-01")
     await api.task(pid, "Buy milk")
     async with system_ctx(app.state, user.id) as ctx:
+        ctx.actor = "agent"
         found = await registry.invoke(
             ctx, "tasks.item.find", {"query": "lab report", "program_id": pid}, "agent"
         )

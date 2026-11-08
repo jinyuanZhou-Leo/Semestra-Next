@@ -48,3 +48,4 @@ Any other provider works the same way; see [Instance-wide provider](/docs/ai/ins
 The compose file sets `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`, so users can add an Ollama or a Canvas
 on a private address (`192.168.x.x`, `10.x.x.x`). On a public server shared with people you do not
 trust, set it to `false`: the server then refuses to call private and loopback addresses.
+Link-local and cloud metadata addresses (`169.254.169.254` and the like) are refused either way.

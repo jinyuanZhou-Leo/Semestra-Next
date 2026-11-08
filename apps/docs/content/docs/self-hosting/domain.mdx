@@ -17,18 +17,20 @@ firewall. Caddy needs both to get the certificate.
 </Step>
 <Step>
 
-### Set four values in `.env`
+### Set five values in `.env`
 
 ```bash title=".env"
 COMPOSE_PROFILES=https
 SEMESTRA_DOMAIN=semestra.example.com
 SEMESTRA_PUBLIC_URL=https://semestra.example.com
 SEMESTRA_BIND=127.0.0.1
+SEMESTRA_TRUSTED_PROXY_HOPS=1
 ```
 
 `COMPOSE_PROFILES=https` adds the bundled Caddy to every `docker compose` command.
 `SEMESTRA_BIND=127.0.0.1` keeps port 8000 off the public interface, so the only way in is through
-Caddy.
+Caddy. `SEMESTRA_TRUSTED_PROXY_HOPS=1` reads the client address Caddy passes on, which sign-in
+limits and the device list use.
 
 </Step>
 <Step>

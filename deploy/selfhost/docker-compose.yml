@@ -34,8 +34,9 @@ services:
       SEMESTRA_EMAIL_BACKEND: ${SEMESTRA_EMAIL_BACKEND:-console}
       SEMESTRA_USER_STORAGE_QUOTA_BYTES: ${SEMESTRA_USER_STORAGE_QUOTA_BYTES:-0}
       SEMESTRA_ALLOW_PRIVATE_EGRESS: ${SEMESTRA_ALLOW_PRIVATE_EGRESS:-true}
-      SEMESTRA_SINGLE_USER: ${SEMESTRA_SINGLE_USER:-false}
-      FORWARDED_ALLOW_IPS: "*"
+      # 1 with the bundled Caddy (or your own proxy) in front; then also SEMESTRA_BIND=127.0.0.1,
+      # or clients could reach port 8000 directly and claim any address.
+      SEMESTRA_TRUSTED_PROXY_HOPS: ${SEMESTRA_TRUSTED_PROXY_HOPS:-0}
       # Local Ollama as the instance-wide AI provider (only meaningful with --profile ai-local).
       SEMESTRA_INSTANCE_AI_KIND: ${SEMESTRA_INSTANCE_AI_KIND:-}
       SEMESTRA_INSTANCE_AI_BASE_URL: ${SEMESTRA_INSTANCE_AI_BASE_URL:-}

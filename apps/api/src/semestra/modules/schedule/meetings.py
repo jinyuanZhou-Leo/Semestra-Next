@@ -352,9 +352,9 @@ async def upsert_exception(ctx: Ctx, inp: ExceptionUpsertInput) -> Meeting:
     if inp.kind == "moved" and start >= end:
         raise AppError("schedule.time_range_invalid", 422)
     exc = await _exception_row(ctx, row.id, inp.original_date)
-    # Only an import marks its changes (it calls in with the http surface); the assistant and MCP
+    # Only an import marks its changes (it calls in as the app); the assistant and MCP clients
     # cannot, so what they write stays the user's.
-    imported = inp.imported and ctx.surface == "http"
+    imported = inp.imported and not ctx.delegated
     if exc is not None and imported and not exc.imported:
         # The user changed this class themselves: their change stays.
         return (await meetings_out(ctx, [row]))[0]
