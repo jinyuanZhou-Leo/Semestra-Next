@@ -6,6 +6,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, ChevronRight, ExternalLink } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
+import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
 import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
@@ -27,7 +28,6 @@ import {
 } from '@/ui/dialog'
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldError,
   FieldLabel,
@@ -35,20 +35,7 @@ import {
   FieldTitle,
 } from '@/ui/field'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
-import {
-  type ClientId,
-  type ClientKind,
-  MCP_CLIENTS,
-  mcpSetup,
-  type McpClient,
-} from './mcp-clients'
-
-const KIND_LABEL: Record<ClientKind, () => string> = {
-  link: m.assistant_mcp_kind_link,
-  command: m.assistant_mcp_kind_command,
-  config: m.assistant_mcp_kind_config,
-  manual: m.assistant_mcp_kind_manual,
-}
+import { type ClientId, MCP_CLIENTS, mcpSetup, type McpClient } from './mcp-clients'
 
 const clientName = (client: McpClient) => client.name || m.assistant_mcp_client_other()
 
@@ -231,7 +218,7 @@ export function ConnectClientDialog({
         if (!next) reset()
       }}
     >
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         {created && client ? (
           <div
             key="finish"
@@ -283,14 +270,16 @@ export function ConnectClientDialog({
                     htmlFor={`${id}-${c.id}`}
                     className="transition-colors duration-200 motion-reduce:transition-none *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
                   >
-                    <Field orientation="horizontal">
-                      <FieldContent className="min-w-0">
-                        <FieldTitle className="truncate">{clientName(c)}</FieldTitle>
-                        <FieldDescription className="truncate text-xs">
-                          {KIND_LABEL[c.kind]()}
-                        </FieldDescription>
-                      </FieldContent>
-                      <RadioGroupItem value={c.id} id={`${id}-${c.id}`} />
+                    <Field>
+                      <div className="flex items-center gap-3">
+                        <BrandTile>
+                          <BrandLogo src={c.logo} />
+                        </BrandTile>
+                        <FieldTitle className="block w-auto min-w-0 flex-1 truncate">
+                          {clientName(c)}
+                        </FieldTitle>
+                        <RadioGroupItem value={c.id} id={`${id}-${c.id}`} />
+                      </div>
                     </Field>
                   </FieldLabel>
                 ))}

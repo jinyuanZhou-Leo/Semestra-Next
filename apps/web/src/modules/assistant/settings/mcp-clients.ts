@@ -1,3 +1,13 @@
+import cursorLogo from '@lobehub/icons-static-svg/icons/cursor.svg?url'
+import lmstudioLogo from '@lobehub/icons-static-svg/icons/lmstudio.svg?url'
+import claudecodeLogo from '@lobehub/icons-static-svg/icons/claudecode.svg?url'
+import geminicliLogo from '@lobehub/icons-static-svg/icons/geminicli.svg?url'
+import githubcopilotLogo from '@lobehub/icons-static-svg/icons/githubcopilot.svg?url'
+import claudeLogo from '@lobehub/icons-static-svg/icons/claude.svg?url'
+import codexLogo from '@lobehub/icons-static-svg/icons/codex.svg?url'
+import devinLogo from '@lobehub/icons-static-svg/icons/devin.svg?url'
+import mcpLogo from '@lobehub/icons-static-svg/icons/mcp.svg?url'
+
 /**
  * How each MCP client connects to Semestra with an API token (M12 §5): an install link, a
  * terminal command, or a config file to paste into. Checked against each client's docs on
@@ -15,8 +25,6 @@ export type ClientId =
   | 'devin'
   | 'other'
 
-export type ClientKind = 'link' | 'command' | 'config' | 'manual'
-
 export type Setup =
   /** An install link the client opens itself, with a config file as the fallback. */
   | { kind: 'link'; href: string; file: string; text: string }
@@ -28,21 +36,40 @@ export type Setup =
 export interface McpClient {
   id: ClientId
   name: string
-  kind: ClientKind
   /** The docs page for this client, under `mcp/`. */
   docs: string
+  /** Its one-colour mark; VS Code's MCP support is GitHub Copilot's, so it takes that one. */
+  logo: string
 }
 
 export const MCP_CLIENTS: readonly McpClient[] = [
-  { id: 'cursor', name: 'Cursor', kind: 'link', docs: 'mcp/cursor' },
-  { id: 'lm-studio', name: 'LM Studio', kind: 'link', docs: 'mcp/lm-studio' },
-  { id: 'claude-code', name: 'Claude Code', kind: 'command', docs: 'mcp/claude-code' },
-  { id: 'gemini-cli', name: 'Gemini CLI', kind: 'command', docs: 'mcp/gemini-cli' },
-  { id: 'vscode', name: 'VS Code', kind: 'config', docs: 'mcp/vscode' },
-  { id: 'claude-desktop', name: 'Claude Desktop', kind: 'config', docs: 'mcp/claude-desktop' },
-  { id: 'codex', name: 'Codex', kind: 'config', docs: 'mcp/codex' },
-  { id: 'devin', name: 'Devin Desktop', kind: 'config', docs: 'mcp/devin' },
-  { id: 'other', name: '', kind: 'manual', docs: 'mcp/other' },
+  { id: 'cursor', name: 'Cursor', docs: 'mcp/cursor', logo: cursorLogo },
+  { id: 'lm-studio', name: 'LM Studio', docs: 'mcp/lm-studio', logo: lmstudioLogo },
+  {
+    id: 'claude-code',
+    name: 'Claude Code',
+
+    docs: 'mcp/claude-code',
+    logo: claudecodeLogo,
+  },
+  {
+    id: 'gemini-cli',
+    name: 'Gemini CLI',
+
+    docs: 'mcp/gemini-cli',
+    logo: geminicliLogo,
+  },
+  { id: 'vscode', name: 'VS Code', docs: 'mcp/vscode', logo: githubcopilotLogo },
+  {
+    id: 'claude-desktop',
+    name: 'Claude Desktop',
+
+    docs: 'mcp/claude-desktop',
+    logo: claudeLogo,
+  },
+  { id: 'codex', name: 'Codex', docs: 'mcp/codex', logo: codexLogo },
+  { id: 'devin', name: 'Devin Desktop', docs: 'mcp/devin', logo: devinLogo },
+  { id: 'other', name: '', docs: 'mcp/other', logo: mcpLogo },
 ]
 
 const SERVER = 'semestra'
