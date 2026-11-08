@@ -10,6 +10,10 @@
   renews; if the process dies the lease runs out and another worker retries the job.
 * An `AppError` from a handler fails the job at once (the input is wrong, retrying will not
   help). Any other exception is retried with exponential backoff up to `max_attempts`.
+* `on_failure=fn` (`async def fn(ctx, payload, job)`) runs once when the job ends `failed` or
+  `cancelled`, whatever ended it: the handler, a cancel before it started, or a worker that died
+  (its lease ran out). A module that keeps its own copy of the job's state (a file "processing",
+  an import "extracting") sets it there, so the copy never outlives the job.
 * Every state or progress change publishes `core.job.progress` to the job's owner (SSE);
   progress-only updates are throttled to one per 250 ms.
 * `@periodic("core.cleanup", every=timedelta(hours=1))` runs a function in this process.
@@ -47,6 +51,7 @@ from sqlalchemy import (
     case,
     delete,
     func,
+    not_,
     or_,
     select,
     text,
@@ -286,8 +291,10 @@ class JobHandler:
     max_attempts: int
     stages: tuple[tuple[str, float], ...]
     lane: Lane = "default"
+    on_failure: OnFailure | None = None
 
 
+OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
 _handlers: dict[str, JobHandler] = {}
 
 
@@ -297,6 +304,7 @@ def job_handler(
     max_attempts: int = 3,
     stages: Sequence[tuple[str, float]] = (),
     lane: Lane = "default",
+    on_failure: OnFailure | None = None,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -315,7 +323,9 @@ def job_handler(
         for model in (payload_model, result_model):
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
-        _handlers[kind] = JobHandler(kind, payload_model, fn, max_attempts, tuple(stages), lane)
+        _handlers[kind] = JobHandler(
+            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure
+        )
         return fn
 
     return decorate
@@ -338,10 +348,19 @@ def _event(job: CoreJob) -> Event:
 
 
 def _finished(job: CoreJob) -> Event:
-    """`core.job.finished`: once per job a worker ran to an end, for subscribers that care about
+    """`core.job.finished`: once per job, however it ended, for subscribers that care about
     outcomes (notifications) rather than progress."""
     data = {"job_id": job.id, "kind": job.kind, "status": job.status, "error_code": job.error_code}
     return Event(JOB_FINISHED, data, job.user_id)
+
+
+async def _on_failure(ctx: Ctx, job: CoreJob) -> None:
+    """The handler's `on_failure` for a job that has ended failed or cancelled, in `ctx`'s
+    transaction."""
+    handler = _handlers.get(job.kind)
+    if handler is None or handler.on_failure is None or job.status == "succeeded":
+        return
+    await handler.on_failure(ctx, handler.payload_model.model_validate(job.payload), job)
 
 
 async def enqueue(
@@ -461,6 +480,27 @@ def _bulk_kinds() -> list[str]:
     return [kind for kind, handler in _handlers.items() if handler.lane == "bulk"]
 
 
+async def _ended(state: State, job: CoreJob) -> None:
+    """After a write to a job has committed: its progress event, and `core.job.finished` once it
+    has ended."""
+    await events.dispatch(state, _event(job))
+    if job.status in TERMINAL:
+        await events.dispatch(state, _finished(job))
+
+
+async def _discard(ctx: Ctx) -> None:
+    """Roll back `ctx`'s transaction, with the side effects it had queued."""
+    await ctx.db.rollback()
+    ctx.after_commit.clear()
+
+
+def _lease_lapsed(now: datetime) -> ColumnElement[bool]:
+    return and_(CoreJob.status == "running", CoreJob.lease_expires_at < now)
+
+
+_GIVE_UP = or_(CoreJob.cancel_requested, CoreJob.attempts >= CoreJob.max_attempts)
+
+
 def _end_values(now: datetime) -> dict[str, Any]:
     return {"finished_at": now, "lease_owner": None, "lease_expires_at": None, "dedupe_key": None}
 
@@ -548,33 +588,25 @@ class JobRunner:
 
     async def _claim(self, *, bulk_ok: bool = True) -> CoreJob | None:
         now: datetime = self.state.now()
-        lease_lapsed = and_(CoreJob.status == "running", CoreJob.lease_expires_at < now)
+        # A job whose worker died runs again, unless it was asked to stop or is out of attempts:
+        # then it ends, each in its own transaction with its `on_failure`.
+        lapsed = _lease_lapsed(now)
+        due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lapsed)
+        if not bulk_ok:
+            due = and_(due, CoreJob.kind.not_in(_bulk_kinds()))
         async with self.state.session_factory() as db:
             # Most polls find nothing: check with a read first, so an idle worker does not take
             # SQLite's write lock every POLL_SECONDS.
-            due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lease_lapsed)
-            if not bulk_ok:
-                due = and_(due, CoreJob.kind.not_in(_bulk_kinds()))
             if await db.scalar(select(CoreJob.id).where(due).limit(1)) is None:
                 return None
-            # Jobs whose worker died: cancel if asked, fail if out of attempts.
-            ended = (
-                await db.scalars(
-                    update(CoreJob)
-                    .where(
-                        lease_lapsed,
-                        or_(CoreJob.cancel_requested, CoreJob.attempts >= CoreJob.max_attempts),
-                    )
-                    .values(
-                        status=case((CoreJob.cancel_requested, "cancelled"), else_="failed"),
-                        error_code=case(
-                            (CoreJob.cancel_requested, None), else_="core.job_lease_expired"
-                        ),
-                        **_end_values(now),
-                    )
-                    .returning(CoreJob)
-                )
+            ending = (
+                await db.execute(select(CoreJob.id, CoreJob.user_id).where(lapsed, _GIVE_UP))
             ).all()
+        for job_id, user_id in ending:
+            await self._end_lapsed(job_id, user_id, now)
+        # One that could not be ended (its `on_failure` failed) is left for the next poll.
+        due = and_(due, not_(and_(lapsed, _GIVE_UP)))
+        async with self.state.session_factory() as db:
             pick = select(CoreJob.id).where(due).order_by(CoreJob.run_after).limit(1)
             job = await db.scalar(
                 update(CoreJob)
@@ -589,11 +621,36 @@ class JobRunner:
                 .returning(CoreJob)
             )
             await db.commit()
-        for row in ended:
-            await events.dispatch(self.state, _event(row))
         if job is not None:
             await events.dispatch(self.state, _event(job))
         return job
+
+    async def _end_lapsed(self, job_id: str, user_id: str, now: datetime) -> None:
+        """End a job whose worker died: cancelled if asked, else failed. Its `on_failure` runs in
+        the same transaction; if that fails, the job stays as it was and the next poll retries."""
+        try:
+            async with system_ctx(self.state, user_id) as ctx:
+                row = await ctx.db.scalar(
+                    update(CoreJob)
+                    .where(CoreJob.id == job_id, _lease_lapsed(now), _GIVE_UP)
+                    .values(
+                        status=case((CoreJob.cancel_requested, "cancelled"), else_="failed"),
+                        error_code=case(
+                            (CoreJob.cancel_requested, None), else_="core.job_lease_expired"
+                        ),
+                        **_end_values(now),
+                    )
+                    .returning(CoreJob)
+                )
+                if row is None:  # another worker ended it first
+                    return
+                await _on_failure(ctx, row)
+                await ctx.db.commit()
+        except Exception:
+            log.exception("job_on_failure_failed", job_id=job_id)
+            return
+        await run_after_commit(ctx)
+        await _ended(self.state, row)
 
     def _mine(self, job_id: str) -> ColumnElement[bool]:
         return and_(
@@ -630,13 +687,10 @@ class JobRunner:
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat
         if row is not None:
-            await events.dispatch(self.state, _event(row))
-            if row.status in TERMINAL:
-                await events.dispatch(self.state, _finished(row))
+            await _ended(self.state, row)
 
     async def _run_handler(self, job: CoreJob) -> CoreJob | None:
         handler = _handlers.get(job.kind)
-        now: datetime = self.state.now()
 
         def end() -> dict[str, Any]:
             # When the job ended, not when it started: the status bar times "done" from it.
@@ -660,6 +714,18 @@ class JobRunner:
             # What it waits for changed: the last progress again, without a write.
             await events.dispatch(self.state, _event(last))
 
+        async def finish(values: dict[str, Any]) -> CoreJob | None:
+            # The job's new state, a failed or cancelled job's `on_failure`, and (on success) the
+            # handler's writes commit together, so the module's copy never outlives the job. If
+            # `on_failure` raises, nothing commits: the lease lapses and the sweep ends the job.
+            row = await self._update(job.id, values, db=ctx.db)
+            if row is None:
+                await _discard(ctx)  # lease lost: another worker owns the job now
+                return None
+            await _on_failure(ctx, row)
+            await ctx.db.commit()
+            return row
+
         async with system_ctx(self.state, job.user_id) as base:
             ctx = JobCtx(
                 **{f: getattr(base, f) for f in Ctx.__dataclass_fields__},
@@ -677,46 +743,45 @@ class JobRunner:
                     _running.reset(token)
                     _waits.pop(job.id, None)
             except JobCancelled:
-                await ctx.db.rollback()
-                return await self._update(job.id, {"status": "cancelled", **end()})
+                await _discard(ctx)
+                row = await finish({"status": "cancelled", **end()})
             except (AppError, ValidationError) as exc:
-                await ctx.db.rollback()
+                await _discard(ctx)
                 code, params = (
                     (exc.code, exc.params)
                     if isinstance(exc, AppError)
                     else ("common.validation", {})
                 )
-                return await self._update(
-                    job.id,
-                    {"status": "failed", "error_code": code, "error_params": params, **end()},
+                row = await finish(
+                    {"status": "failed", "error_code": code, "error_params": params, **end()}
                 )
             except Exception:
-                await ctx.db.rollback()
+                await _discard(ctx)
                 log.exception("job_failed", job_id=job.id, kind=job.kind, attempt=job.attempts)
                 error = {"error_code": "common.internal", "error_params": None}
                 if job.attempts >= job.max_attempts:
-                    return await self._update(job.id, {"status": "failed", **error, **end()})
-                retry = {
-                    "status": "pending",
-                    "run_after": now + _backoff(job.attempts),
-                    "lease_owner": None,
-                    "lease_expires_at": None,
-                }
-                return await self._update(job.id, {**retry, **error})
-            # Success commits together with the handler's own writes.
-            done = {
-                "status": "succeeded",
-                "progress": 100,
-                "result": result.model_dump(mode="json"),
-                "error_code": None,
-                "error_params": None,
-                **end(),
-            }
-            row = await self._update(job.id, done, db=ctx.db)
-            if row is None:
-                await ctx.db.rollback()  # lease lost: another worker owns the job now
-                return None
-            await ctx.db.commit()
+                    row = await finish({"status": "failed", **error, **end()})
+                else:
+                    retry = {
+                        "status": "pending",
+                        # From the failure, not the start: a long run still waits its backoff.
+                        "run_after": self.state.now() + _backoff(job.attempts),
+                        "lease_owner": None,
+                        "lease_expires_at": None,
+                    }
+                    row = await finish({**retry, **error})
+            else:
+                # Success commits together with the handler's own writes.
+                row = await finish(
+                    {
+                        "status": "succeeded",
+                        "progress": 100,
+                        "result": result.model_dump(mode="json"),
+                        "error_code": None,
+                        "error_params": None,
+                        **end(),
+                    }
+                )
         await run_after_commit(ctx)
         return row
 
@@ -810,10 +875,13 @@ async def job_cancel(ctx: Ctx, inp: JobRef) -> JobOut:
         job.cancel_requested = True
         for key, value in _end_values(ctx.now).items():
             setattr(job, key, value)
+        await ctx.db.flush()
+        # It never ran: what the handler would have done on cancelling happens here.
+        await _on_failure(ctx, job)
+        await events.publish(ctx, JOB_PROGRESS, _event(job).data)
+        await events.publish(ctx, JOB_FINISHED, _finished(job).data)
     elif job.status == "running":
         job.cancel_requested = True
-    else:
-        return JobOut.of(job)
-    await ctx.db.flush()
-    await events.publish(ctx, JOB_PROGRESS, _event(job).data)
+        await ctx.db.flush()
+        await events.publish(ctx, JOB_PROGRESS, _event(job).data)
     return JobOut.of(job)

@@ -8260,7 +8260,7 @@
           "imports"
         ],
         "summary": "Start an import from an ICS file, syllabi, a timetable screenshot or pasted text.",
-        "description": "Use when the user shares a syllabus, timetable, ICS file or other document to\nbring into the app (\"import this\", \"set up my courses from this syllabus\"). Creates a draft the user\nreviews before anything is written. Pass the files themselves: `attachment_ids` for files attached\nto the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.\nAn import never creates terms: the target term must exist (academics.term.create first). ICS is\nparsed at once (status ready); the other sources are extracted in the background (status\nextracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a\ndocument's contents with the modules' own create capabilities instead of importing it. The\nassistant gets `summary` and the first\n25 items; read the rest with imports.session.get.",
+        "description": "Use when the user shares a syllabus, timetable, ICS file or other document to\nbring into the app (\"import this\", \"set up my courses from this syllabus\"). Creates a draft the user\nreviews before anything is written. Pass the files themselves: `attachment_ids` for files attached\nto the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.\nAn import never creates terms: the target term must exist (academics.term.create first). ICS is\nparsed at once (status ready); the other sources are extracted in the background (status\nextracting, or waiting_files while course files are still being processed, → ready): call\nimports.session.get with wait_seconds to wait for it. Never write a document's contents with\nthe modules' own create capabilities instead of importing it. The assistant gets `summary` and\nthe first 25 items; read the rest with imports.session.get.",
         "operationId": "importsSessionCreate",
         "security": [
           {
@@ -8324,7 +8324,7 @@
           "imports"
         ],
         "summary": "Import history of a Program, newest first.",
-        "description": "Each import says where it came from and its state (extracting, ready,\ncommitted, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30\ndays.",
+        "description": "Each import says where it came from and its state (extracting,\nwaiting_files, ready, committed, up_to_date, failed, discarded). Open one with\nimports.session.get. Closed imports are kept for 30 days.",
         "operationId": "importsSessionList",
         "security": [
           {
@@ -8466,7 +8466,7 @@
           "imports"
         ],
         "summary": "An import with its items, their issues and the extraction progress.",
-        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and\n`fields`; items come 25 at a time, follow `next_cursor` for more. While it is\nextracting, pass wait_seconds (up to 25) to wait for the result in one call; if it\nis still extracting after that, tell the user and stop instead of calling again.",
+        "description": "Use to see what an import found (courses, assessments, meetings...) and what\nneeds checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`\ncounts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and\n`fields`; items come 25 at a time, follow `next_cursor` for more. While it is\nextracting or waiting_files, pass wait_seconds (up to 25) to wait for the result in\none call; if it is still not ready after that, tell the user and stop instead of calling again.",
         "operationId": "importsSessionGet",
         "security": [
           {
@@ -16952,7 +16952,7 @@
             "type": "string",
             "enum": [
               "pending",
-              "approved",
+              "executing",
               "rejected",
               "executed",
               "failed",
@@ -25663,9 +25663,11 @@
             "type": "string",
             "enum": [
               "extracting",
+              "waiting_files",
               "ready",
               "committing",
               "committed",
+              "up_to_date",
               "failed",
               "discarded"
             ],
@@ -25778,9 +25780,11 @@
             "type": "string",
             "enum": [
               "extracting",
+              "waiting_files",
               "ready",
               "committing",
               "committed",
+              "up_to_date",
               "failed",
               "discarded"
             ],

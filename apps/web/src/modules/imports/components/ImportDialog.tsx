@@ -11,6 +11,7 @@ import { SOURCES } from '../sources'
 import type { ImportOutcome, ImportRequest } from '../types'
 import { ExtractionDone, SessionView } from './SessionView'
 import { SourcePicker } from './SourcePicker'
+import { isReading } from '../status'
 
 /** What a commit saved, without the categories that came with the assessments. */
 function savedCount(session: ImportSessionDetail): number {
@@ -31,7 +32,7 @@ function unfinished(request: ImportRequest, sessions: ImportSession[]): ImportSe
   const only = request.sourceMeta?.only ?? null
   return sessions.find(
     (s) =>
-      (s.status === 'extracting' || s.status === 'ready') &&
+      (isReading(s) || s.status === 'ready') &&
       s.source_kind === request.source &&
       (s.source_meta.only ?? null) === only &&
       s.target.kind === target.kind &&
@@ -82,8 +83,8 @@ export function ImportDialog({
   const inPicker = request.source !== 'session' && request.source !== 'picker' && !reviewing
   // Other starts (Canvas, LMS) hand over an extracting session: show its check before the review.
   const [watched, setWatched] = useState(false)
-  if (!inPicker && session?.status === 'extracting' && !watched) setWatched(true)
-  const finishing = !inPicker && watched && !reviewing && session && session.status !== 'extracting'
+  if (!inPicker && isReading(session) && !watched) setWatched(true)
+  const finishing = !inPicker && watched && !reviewing && session && !isReading(session)
   const spec =
     request.source === 'picker'
       ? request.picker

@@ -23,7 +23,7 @@ agent_messages
   model?, input_tokens?, output_tokens?, created_at
 agent_proposals
   id, session_id, user_id, message_id, capability, args JSON, preview JSON,
-  status ('pending'|'approved'|'rejected'|'executed'|'failed'|'expired'), result JSON?, error_code?,
+  status ('pending'|'executing'|'rejected'|'executed'|'failed'|'expired'), result JSON?, error_code?,
   decided_at?, executed_at?, created_at
 agent_attachments
   id, session_id, user_id, kind ('image'|'file'), storage_key, mime, size, file_item_id? (若已保存为课程文件), created_at
@@ -142,7 +142,7 @@ agent_preferences
 - 每用户并发生成数限制 2，超出返回 `agent.busy`。
 
 ## 9. 错误码
-`agent.busy`、`agent.tool_limit_reached`、`agent.repeated_call`、`agent.not_paused`、`agent.proposal_expired`、`agent.proposal_not_pending`、`agent.interrupted`（批准后写操作没跑完就中断，提案保留为 failed）、`agent.session_not_found`（用 `common.not_found`）、`agent.attachment_too_large`、`ai.*`（透传 M06）。
+`agent.busy`、`agent.tool_limit_reached`、`agent.repeated_call`、`agent.not_paused`、`agent.proposal_expired`、`agent.proposal_not_pending`、`agent.interrupted`（批准后写操作没跑完就中断：提案在执行时是 `executing`，所在的轮次已经结束仍是 `executing` 的，读取时改为 failed + 此错误码）、`agent.session_not_found`（用 `common.not_found`）、`agent.attachment_too_large`、`ai.*`（透传 M06）。
 
 ## 10. 测试
 - 用假模型（Pydantic AI 的 `FunctionModel`，脚本化回复，见 `agent/tests/conftest.py` 的 `FakeModel`）驱动循环：read 工具直接执行、write 工具生成提案并中断、批准后恢复执行、拒绝后模型收到拒绝原因、auto_approve 生效、destructive 永不自动执行。发往真实服务商的请求形状（工具列表、system）用 respx 模拟 Anthropic 接口测（`agent/tests/test_wire.py`）。

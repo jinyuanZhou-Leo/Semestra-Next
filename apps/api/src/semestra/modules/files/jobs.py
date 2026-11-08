@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import exists, func, or_, select
 
 from semestra.core.context import Ctx, run_as_system
-from semestra.core.jobs import JobCtx, enqueue, job_handler, periodic
+from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
 from semestra.modules.files import pipeline
 from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
@@ -41,7 +41,11 @@ class ReindexResult(BaseModel):
     items_rebuilt: int
 
 
-@job_handler("files.process", stages=PROCESS_STAGES, max_attempts=1)
+async def _process_failed(ctx: Ctx, payload: ProcessPayload, job: CoreJob) -> None:
+    await pipeline.mark_failed(ctx, payload.item_id, job)
+
+
+@job_handler("files.process", stages=PROCESS_STAGES, max_attempts=1, on_failure=_process_failed)
 async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
 

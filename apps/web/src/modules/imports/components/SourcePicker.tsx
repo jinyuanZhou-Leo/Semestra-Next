@@ -23,6 +23,7 @@ import type { FileImportRequest } from '../types'
 import { CourseFilePicker } from './CourseFilePicker'
 import { type FileRow, FileStatusList, sessionRows } from './FileStatusList'
 import { SUCCESS_HOLD_MS } from './SessionView'
+import { isReading } from '../status'
 
 /** Upload takes the first fifth of the bar; the extraction job fills the rest. */
 const UPLOAD_SHARE = 20
@@ -115,7 +116,7 @@ export function SourcePicker({
   // Read by the start request when it finishes: the user stopped, or closed the dialog, meanwhile.
   const stopRequested = useRef(false)
   const mounted = useRef(true)
-  const job = useJob(session?.status === 'extracting' ? session.job_id : null)
+  const job = useJob(isReading(session) ? session?.job_id : null)
 
   useEffect(() => {
     mounted.current = true
@@ -134,7 +135,7 @@ export function SourcePicker({
       ? files.length > 0
       : text.trim().length > 0
 
-  const extracting = session?.status === 'extracting'
+  const extracting = isReading(session)
   const starting = phase !== 'idle'
   let state: AiActionState = 'idle'
   let error: string | null = null
@@ -257,7 +258,7 @@ export function SourcePicker({
 
   // Once started the rows follow the server: first the uploads, then reading each file.
   let rows: FileRow[]
-  if (session?.status === 'extracting') {
+  if (extracting && session) {
     rows = sessionRows(
       session.source_refs,
       sending.map((file) => file.size),

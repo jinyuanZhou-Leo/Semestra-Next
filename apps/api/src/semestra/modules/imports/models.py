@@ -21,7 +21,7 @@ class ImportsSession(Base, OwnedMixin, TimestampMixin):
     source_kind: Mapped[str] = mapped_column(String)
     # {kind: term_wizard | term | course, term_id?, course_id?, start_date?, end_date?}
     target: Mapped[dict[str, Any]] = mapped_column(JSON)
-    # extracting | ready | committing | committed | failed | discarded
+    # `SessionStatus`; changed only through `states.move`.
     status: Mapped[str] = mapped_column(String)
     job_id: Mapped[str | None] = mapped_column(String, default=None)
     # [{upload_id?, file_item_id?, filename?, lms_course_id?, status, error_code?}]

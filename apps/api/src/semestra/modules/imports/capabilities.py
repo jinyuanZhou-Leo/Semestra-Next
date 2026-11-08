@@ -54,10 +54,10 @@ reviews before anything is written. Pass the files themselves: `attachment_ids` 
 to the conversation, `file_item_ids` for course files (the app passes `upload_ids`), or `text`.
 An import never creates terms: the target term must exist (academics.term.create first). ICS is
 parsed at once (status ready); the other sources are extracted in the background (status
-extracting → ready): call imports.session.get with wait_seconds to wait for it. Never write a
-document's contents with the modules' own create capabilities instead of importing it. The
-assistant gets `summary` and the first
-{service.AGENT_PAGE} items; read the rest with imports.session.get.""",
+extracting, or waiting_files while course files are still being processed, → ready): call
+imports.session.get with wait_seconds to wait for it. Never write a document's contents with
+the modules' own create capabilities instead of importing it. The assistant gets `summary` and
+the first {service.AGENT_PAGE} items; read the rest with imports.session.get.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/imports"),
     tags=TAGS,
@@ -76,8 +76,8 @@ async def session_create(ctx: Ctx, inp: SessionCreateInput) -> ImportSessionDeta
 needs checking (`issues`: unresolved dates, weights not adding up to 100, duplicates). `summary`
 counts the items per type. Narrow it with `item_ids` (check one item after changing it), `types` and
 `fields`; items come {service.AGENT_PAGE} at a time, follow `next_cursor` for more. While it is
-extracting, pass wait_seconds (up to {MAX_WAIT_SECONDS}) to wait for the result in one call; if it
-is still extracting after that, tell the user and stop instead of calling again.""",
+extracting or waiting_files, pass wait_seconds (up to {MAX_WAIT_SECONDS}) to wait for the result in
+one call; if it is still not ready after that, tell the user and stop instead of calling again.""",
     effect="read",
     http=Http("GET", "/imports/{session_id}"),
     tags=TAGS,
@@ -102,9 +102,9 @@ async def session_get(ctx: Ctx, inp: SessionGetInput) -> ImportSessionDetail:
 @capability(
     name="imports.session.list",
     summary="Import history of a Program, newest first.",
-    description="""Each import says where it came from and its state (extracting, ready,
-committed, failed, discarded). Open one with imports.session.get. Closed imports are kept for 30
-days.""",
+    description="""Each import says where it came from and its state (extracting,
+waiting_files, ready, committed, up_to_date, failed, discarded). Open one with
+imports.session.get. Closed imports are kept for 30 days.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/imports"),
     tags=TAGS,
@@ -193,7 +193,7 @@ Returns the session's `summary` and the added items.""",
     agent_output_fields=AGENT_SESSION,
 )
 async def items_add(ctx: Ctx, inp: ItemsAddInput) -> ImportSessionDetail:
-    return await service.add_items_capability(ctx, inp.session_id, _new_items(inp), ready=inp.ready)
+    return await service.add_items_capability(ctx, inp.session_id, _new_items(inp))
 
 
 async def _commit_preview(ctx: Ctx, inp: CommitInput) -> dict[str, Any]:

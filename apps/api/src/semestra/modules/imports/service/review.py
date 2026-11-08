@@ -30,6 +30,7 @@ from semestra.modules.imports.service.rows import (
     session_out,
 )
 from semestra.modules.imports.service.uploads import delete_uploads, session_uploads
+from semestra.modules.imports.states import can_move, move
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
@@ -259,17 +260,19 @@ async def list_sessions(
 
 async def discard(ctx: Ctx, session_id: str) -> ImportSession:
     row = await get_session_row(ctx, session_id)
-    if row.status == "committed":
+    if row.status == "discarded":
+        return session_out(row)
+    if not can_move(row.status, "discarded"):
         raise AppError("import.session_closed", 409, state=row.status)
-    if row.status != "discarded":
-        await delete_uploads(ctx, await session_uploads(ctx, row.id))
-        if row.job_id is not None and deps.has_capability("core.job.cancel"):
-            with contextlib.suppress(AppError):
-                await deps.call(ctx, "core.job.cancel", {"job_id": row.job_id})
-        row.status = "discarded"
-        row.text = None
-        row.updated_at = ctx.now
-        await ctx.db.flush()
+    # Discarded before the job is cancelled, so the job's end leaves the session as it is.
+    move(row, "discarded")
+    await delete_uploads(ctx, await session_uploads(ctx, row.id))
+    if row.job_id is not None and deps.has_capability("core.job.cancel"):
+        with contextlib.suppress(AppError):
+            await deps.call(ctx, "core.job.cancel", {"job_id": row.job_id})
+    row.text = None
+    row.updated_at = ctx.now
+    await ctx.db.flush()
     return session_out(row)
 
 

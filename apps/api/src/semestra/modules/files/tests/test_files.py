@@ -100,6 +100,15 @@ async def test_broken_file_fails_with_a_code_and_can_be_retried(fx: Fx):
     assert again["doc_error_code"] is None
 
 
+async def test_cancelling_a_queued_file_marks_it_failed(fx: Fx):
+    item = await fx.upload("notes.docx", make_docx([("Normal", "Recursion basics")]))
+    assert item["doc_status"] == "pending"
+    await fx.call("POST", f"/jobs/{item['job_id']}/cancel")
+    cancelled = await fx.call("GET", f"/files/{item['id']}")
+    assert (cancelled["doc_status"], cancelled["doc_error_code"]) == ("failed", "files.cancelled")
+    assert cancelled["job_id"] is None
+
+
 async def test_reprocess_switches_the_document_atomically(fx: Fx):
     item = await fx.upload_ready("notes.docx", make_docx([("Normal", "Recursion basics")]))
     await fx.call("POST", f"/files/{item['id']}:reprocess")
