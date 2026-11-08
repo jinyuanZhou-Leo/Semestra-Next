@@ -409,16 +409,12 @@ async def test_times_of_a_code_in_other_weeks_are_a_section_of_their_own(api: Ap
     again = await api.call("POST", url, json={"sections": [tue, thu]})
     assert (len(again["created_ids"]), len(again["updated_ids"])) == (0, 2)
     assert await sections() == expected
-    # A time in the section's weeks joins it; the file's new weeks for the whole section apply.
+    # A time in the section's weeks joins it.
     await api.call("POST", url, json={"sections": [time(5, "c", 1, 12)]})
     assert (await sections())[0] == ("PRA0101", 1, [(2, None), (5, None)])
-    item = {
-        **tue,
-        "meetings": [*tue["meetings"], {**tue["meetings"][0], "weekday": 5, "source_ref": "c"}],
-    }
-    item["weeks"] = {"start_week": 2, "end_week": 12}
-    await api.call("POST", url, json={"sections": [item]})
-    assert (await sections())[0] == ("PRA0101", 2, [(2, None), (5, None)])
+    # The file's new weeks for the whole section apply, also with each time as its own item.
+    await api.call("POST", url, json={"sections": [time(2, "a", 2, 12), time(5, "c", 2, 12)]})
+    assert await sections() == [("PRA0101", 2, [(2, None), (5, None)]), expected[1]]
 
 
 async def test_one_off_events(api: Api):
