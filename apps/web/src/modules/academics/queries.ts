@@ -14,9 +14,10 @@ export function usePrograms() {
   return useQuery(academicsProgramListOptions())
 }
 
-export function useProgram(programId: string) {
+export function useProgram(programId: string | undefined) {
   return useQuery({
-    ...academicsProgramGetOptions({ path: { program_id: programId } }),
+    ...academicsProgramGetOptions({ path: { program_id: programId ?? '' } }),
+    enabled: programId !== undefined,
   })
 }
 

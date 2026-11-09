@@ -30,13 +30,13 @@ const onboardingSteps: readonly OnboardingStep[] = [
     summary: preloadable(() => import('./onboarding/AiSummary')),
     status: {
       queries: () => [aiStatusOptions(), aiProviderListOptions()],
-      // Left out where the server already serves AI without a provider of the user's.
+      // Left out where the server's own models already serve AI; local OCR or embedding don't count.
       read: ([status, providers]) => {
         const purposes = (status as AiStatusGetResponse).items
         return {
           offered:
             (providers as AiProviderListResponse).items.length > 0 ||
-            !purposes.some((p) => p.available),
+            !purposes.some((p) => p.available && p.source === 'instance'),
           provides: purposes.filter((p) => p.available).map((p) => `ai.${p.purpose}`),
         }
       },

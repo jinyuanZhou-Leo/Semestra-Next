@@ -92,7 +92,7 @@ export function ProgramStep({
 }) {
   const queryClient = useQueryClient()
   const programId = progress.programId
-  const program = useProgram(programId ?? '')
+  const program = useProgram(programId)
   const setupFields = useExtensions<ProgramSetupField>(PROGRAM_SETUP_FIELDS)
   const create = useMutation({ ...academicsProgramCreateMutation(), onError: toastError })
   const update = useMutation({ ...academicsProgramUpdateMutation(), onError: toastError })
