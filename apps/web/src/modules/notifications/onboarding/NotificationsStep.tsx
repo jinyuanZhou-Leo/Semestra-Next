@@ -26,6 +26,8 @@ import {
   isActive,
   offValue,
 } from '../categories'
+import { StepFooter } from '@/modules/academics/onboarding/StepFooter'
+import type { OnboardingStepProps } from '@/modules/academics/types'
 import { enableDevice, useDeviceState } from '../push'
 import { NotificationPreview } from './NotificationPreview'
 
@@ -33,10 +35,9 @@ const ACCOUNT = { scope_type: 'account' } as const
 
 /**
  * Onboarding step "Turn on notifications" (M18 §7): examples of what arrives, the three kinds
- * with their details one click away, and the button that asks the browser. The host shows
- * "Skip" under it.
+ * with their details one click away, and the button that asks the browser.
  */
-export default function NotificationsStep({ onDone }: { onDone: () => void }) {
+export default function NotificationsStep({ nav }: OnboardingStepProps) {
   const state = useDeviceState()
   const [busy, setBusy] = useState(false)
 
@@ -49,43 +50,40 @@ export default function NotificationsStep({ onDone }: { onDone: () => void }) {
       toastError(err)
     }
     setBusy(false)
-    if (next === 'on') onDone()
+    if (next === 'on') nav.next()
   }
 
+  const settled = state === 'on' || state === 'blocked' || state === 'install'
   return (
-    <div className="space-y-6">
-      <p className="text-muted-foreground">{m.notifications_onboarding_body()}</p>
-      <NotificationPreview />
-      <Categories />
-      {state === 'blocked' ? (
-        <Alert>
-          <TriangleAlert aria-hidden />
-          <AlertTitle>{m.notifications_blocked_title()}</AlertTitle>
-          <AlertDescription>{m.notifications_blocked_description()}</AlertDescription>
-        </Alert>
-      ) : null}
-      {state === 'install' ? (
-        <Alert>
-          <AlertTitle>{m.notifications_install_title()}</AlertTitle>
-          <AlertDescription>{m.notifications_install_description()}</AlertDescription>
-        </Alert>
-      ) : null}
-      {state === 'on' || state === 'blocked' || state === 'install' ? (
-        <Button className="w-full" size="lg" onClick={onDone}>
-          {m.notifications_onboarding_continue()}
-        </Button>
-      ) : (
-        <Button
-          className="w-full"
-          size="lg"
-          disabled={busy || state === 'checking'}
-          onClick={() => void turnOn()}
-        >
-          {busy ? <Spinner /> : null}
-          {m.notifications_turn_on()}
-        </Button>
-      )}
-    </div>
+    <>
+      <div className="space-y-6">
+        <NotificationPreview />
+        <Categories />
+        {state === 'blocked' ? (
+          <Alert>
+            <TriangleAlert aria-hidden />
+            <AlertTitle>{m.notifications_blocked_title()}</AlertTitle>
+            <AlertDescription>{m.notifications_blocked_description()}</AlertDescription>
+          </Alert>
+        ) : null}
+        {state === 'install' ? (
+          <Alert>
+            <AlertTitle>{m.notifications_install_title()}</AlertTitle>
+            <AlertDescription>{m.notifications_install_description()}</AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
+      <StepFooter onBack={nav.back} onSkip={settled ? undefined : nav.next}>
+        {settled ? (
+          <Button onClick={nav.next}>{m.academics_onboarding_continue()}</Button>
+        ) : (
+          <Button disabled={busy || state === 'checking'} onClick={() => void turnOn()}>
+            {busy ? <Spinner /> : null}
+            {m.notifications_turn_on()}
+          </Button>
+        )}
+      </StepFooter>
+    </>
   )
 }
 

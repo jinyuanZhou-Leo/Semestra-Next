@@ -76,12 +76,18 @@ export function TermWizard({
   programId,
   onCreated,
   onSkip,
+  onBack,
+  provides,
 }: {
   programId: string
   /** Default: open the new term. Onboarding passes its own and has no "Cancel". */
   onCreated?: (result: TermCreateResult) => void
-  /** Onboarding: "Add later" in place of "Cancel", leaving the Program without a term. */
+  /** Onboarding: "Add later" beside "Next", leaving the Program without a term. */
   onSkip?: () => void
+  /** Onboarding: "Back" (to the step before) in place of "Cancel". */
+  onBack?: () => void
+  /** Onboarding: what is set up; import sources that need anything else are left out. */
+  provides?: ReadonlySet<string>
 }) {
   const id = useId()
   const router = useRouter()
@@ -89,7 +95,9 @@ export function TermWizard({
   const program = useProgram(programId).data
   const terms = useTerms(programId).data?.items ?? []
   const courses = useCourses(programId).data?.items ?? []
-  const sources = useCourseSources(programId)
+  const sources = useCourseSources(programId).filter(
+    (source) => !provides || !source.requires || provides.has(source.requires),
+  )
   const [draft, setDraft] = useState<WizardDraft>(() => loadDraft(programId))
   const [touched, setTouched] = useState(false)
   const done = useRef(false)
@@ -168,7 +176,7 @@ export function TermWizard({
   ].join(' · ')
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
       <ol className="flex items-center gap-2 text-sm" aria-label={m.academics_wizard_steps()}>
         {STEPS.map((title, index) => (
           <li
@@ -298,11 +306,11 @@ export function TermWizard({
         />
       ) : null}
 
-      <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4">
         {step === 0 ? (
-          onSkip ? (
-            <Button variant="ghost" onClick={onSkip}>
-              {m.academics_onboarding_term_later()}
+          onBack ? (
+            <Button variant="ghost" onClick={onBack}>
+              {m.academics_wizard_back()}
             </Button>
           ) : onCreated ? (
             <span />
@@ -320,7 +328,14 @@ export function TermWizard({
           </Button>
         )}
         {step === 0 ? (
-          <Button onClick={next}>{m.academics_wizard_next()}</Button>
+          <div className="flex items-center gap-2">
+            {onSkip ? (
+              <Button variant="ghost" onClick={onSkip}>
+                {m.academics_onboarding_term_later()}
+              </Button>
+            ) : null}
+            <Button onClick={next}>{m.academics_wizard_next()}</Button>
+          </div>
         ) : (
           <div className="flex min-w-0 items-center gap-4">
             <span className="truncate text-sm text-muted-foreground">{summary}</span>

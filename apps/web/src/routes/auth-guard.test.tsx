@@ -48,16 +48,21 @@ test('signed-out visitors to a protected page are sent to /login?redirect=…', 
   expect(router.state.location.search).toEqual({ redirect: '/p/p1/grades?view=plan' })
 })
 
-/** A new account: no Programs yet, so `/` leads to onboarding; no plugins in the catalog. */
+/**
+ * A new account: no Programs yet, so `/` leads to onboarding; no plugins in the catalog, and
+ * no AI provider or learning platform (onboarding asks what is set up).
+ */
 const noPrograms = () => [
   ...academicsHandlers({ ...defaultWorld(), programs: [] }),
   http.get(`${API}/plugins/catalog`, () => HttpResponse.json({ items: [] })),
+  http.get(`${API}/ai/providers`, () => HttpResponse.json({ items: [] })),
+  http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
 ]
 
 test('signed-in users reach the protected page', async () => {
   server.use(signedIn, healthy, noGoogle, ...noPrograms())
   const router = mount('/')
-  expect(await screen.findByTestId('signed-in-as')).toHaveTextContent('Signed in as Ada')
+  expect(await screen.findByTestId('signed-in-as')).toHaveAccessibleName('Signed in as Ada')
   expect(router.state.location.pathname).toBe('/onboarding')
 })
 

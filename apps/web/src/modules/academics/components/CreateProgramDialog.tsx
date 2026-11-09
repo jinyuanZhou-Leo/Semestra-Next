@@ -9,6 +9,7 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
@@ -37,21 +38,24 @@ export function CreateProgramDialog({
   })
   return (
     <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{m.academics_program_new()}</DialogTitle>
           <DialogDescription>{m.academics_program_new_description()}</DialogDescription>
         </DialogHeader>
         {open ? (
           <ProgramForm
-            submitLabel={m.academics_program_create()}
-            pending={create.isPending}
             footer={
-              <DialogClose
-                render={<Button type="button" variant="outline" disabled={create.isPending} />}
-              >
-                {m.common_cancel()}
-              </DialogClose>
+              <DialogFooter>
+                <DialogClose
+                  render={<Button type="button" variant="outline" disabled={create.isPending} />}
+                >
+                  {m.common_cancel()}
+                </DialogClose>
+                <Button type="submit" disabled={create.isPending}>
+                  {create.isPending ? m.common_saving() : m.academics_program_create()}
+                </Button>
+              </DialogFooter>
             }
             onSubmit={(body) => create.mutate({ body })}
           />

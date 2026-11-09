@@ -1,6 +1,16 @@
 import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
-import { COURSE_INFO_ROWS, TERM_WIZARD_IMPORT_SOURCES } from '@/modules/academics/types'
+import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
+import {
+  lmsProgramBindingGetOptions,
+  lmsProviderListOptions,
+} from '@semestra/api-client/react-query'
+import {
+  COURSE_INFO_ROWS,
+  ONBOARDING_STEPS,
+  type OnboardingStep,
+  TERM_WIZARD_IMPORT_SOURCES,
+} from '@/modules/academics/types'
 import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
@@ -26,6 +36,31 @@ const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
+
+const onboardingSteps: readonly OnboardingStep[] = [
+  {
+    id: 'lms.connect',
+    // After AI, before the first term (whose wizard imports the platform's courses).
+    order: 200,
+    icon: School,
+    title: m.lms_onboarding_title,
+    description: m.lms_onboarding_body,
+    component: preloadable(() => import('./onboarding/ConnectLmsStep')),
+    summary: preloadable(() => import('./onboarding/LmsSummary')),
+    status: {
+      queries: (programId) => [
+        lmsProviderListOptions(),
+        ...(programId ? [lmsProgramBindingGetOptions({ path: { program_id: programId } })] : []),
+      ],
+      read: ([providers, binding]) => ({
+        offered: (providers as LmsProviderListResponse).items.length > 0,
+        provides: (binding as LmsProgramBindingGetResponse | undefined)?.connection_id
+          ? ['lms']
+          : [],
+      }),
+    },
+  },
+]
 
 /**
  * M09 LMS 集成: connections to learning platforms (Canvas for now), a Program's binding, course
@@ -110,6 +145,7 @@ export default defineModule({
   ],
   extensions: {
     [LMS_PROVIDER_UI]: [canvasUi],
+    [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],

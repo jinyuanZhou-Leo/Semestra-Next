@@ -6,7 +6,7 @@ afterEach(() => sessionStorage.clear())
 test('onboarding progress belongs to the user who started it', () => {
   sessionStorage.setItem(
     'semestra.onboarding',
-    JSON.stringify({ userId: 'a', stage: { kind: 'term', programId: 'p' } }),
+    JSON.stringify({ userId: 'a', step: 'term', programId: 'p' }),
   )
   expect(onboardingInProgress('a')).toBe(true)
   expect(onboardingInProgress('b')).toBe(false)

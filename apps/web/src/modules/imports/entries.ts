@@ -50,6 +50,7 @@ export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
     icon: SOURCES[source].icon,
+    requires: SOURCES[source].purpose ? `ai.${SOURCES[source].purpose}` : undefined,
     request: ({ programId, startDate, endDate, termId }) => ({
       programId,
       source,

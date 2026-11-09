@@ -10,7 +10,7 @@ import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/ty
 import { courseColumns } from './extensions/columns'
 import TaskGradebook from './extensions/TaskGradebook'
 import { prefetchGradesPage } from './queries'
-import { ScalePresetField } from './extensions/SetupField'
+import { ScalePresetField, applyScalePreset } from './extensions/SetupField'
 
 /** Queries that show grades; any change to grades or to the courses behind them refetches them. */
 const GRADING_QUERIES = [
@@ -45,6 +45,7 @@ const setupField: ProgramSetupField = {
   id: 'grading_scale_preset',
   order: 10,
   component: ScalePresetField,
+  apply: applyScalePreset,
 }
 
 /**

@@ -240,10 +240,23 @@ function ProviderPicker({
   )
 }
 
-/** Remounted on every open (see `addKey`), so closing keeps the title through the exit animation. */
-function AddConnectionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * "Add connection", also from onboarding with the platform already `chosen`. Remounted on every
+ * open (see `addKey`), so closing keeps the title through the exit animation.
+ */
+export function AddConnectionDialog({
+  open,
+  onClose,
+  chosen,
+  onSaved,
+}: {
+  open: boolean
+  onClose: () => void
+  chosen?: string
+  onSaved?: (connection: Connection) => void
+}) {
   const { providers, isPending } = useOfferedProviders()
-  const [picked, setPicked] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(chosen ?? null)
   // With one platform there is nothing to pick: the dialog opens on its form.
   const kind = picked ?? (providers.length === 1 ? (providers[0]?.kind ?? null) : null)
   const ui = useProviderUis().get(kind ?? '')
@@ -266,8 +279,11 @@ function AddConnectionDialog({ open, onClose }: { open: boolean; onClose: () => 
           <ConnectionForm
             key={kind}
             kind={kind}
-            onSaved={onClose}
-            onBack={providers.length > 1 ? () => setPicked(null) : undefined}
+            onSaved={(connection) => {
+              onSaved?.(connection)
+              onClose()
+            }}
+            onBack={providers.length > 1 && !chosen ? () => setPicked(null) : undefined}
           />
         ) : (
           <ProviderPicker providers={providers} isPending={isPending} onPick={setPicked} />

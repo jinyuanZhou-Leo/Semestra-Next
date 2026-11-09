@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Message } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
+import { useAiStatus } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -143,6 +144,8 @@ function TourStep({
 /** The first-run tour (M02 §5.7). Shows while `onboarding.tour_done` is false. */
 export function Tour() {
   const [done, setDone] = useUiPref<boolean | null>(TOUR_DONE_KEY, null)
+  // Sem can do nothing until AI is connected (it may have been skipped in onboarding).
+  const chat = useAiStatus('chat')
   const [index, setIndex] = useState(0)
   const [steps, setSteps] = useState<readonly Step[] | null>(null)
   useEffect(() => {
@@ -158,10 +161,11 @@ export function Tour() {
     }, 200)
     return () => clearInterval(timer)
   }, [done])
-  if (done !== false || !steps || steps.length === 0) return null
+  const shown = steps?.filter((step) => step.target !== 'assistant' || chat.available) ?? []
+  if (done !== false || shown.length === 0) return null
   return (
     <TourStep
-      steps={steps}
+      steps={shown}
       index={index}
       onNext={() => setIndex((i) => i + 1)}
       onDone={() => setDone(true)}
