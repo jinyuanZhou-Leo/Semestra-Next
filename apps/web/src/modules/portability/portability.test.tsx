@@ -89,6 +89,7 @@ const upload = (over: Record<string, unknown> = {}) => ({
 function mount(group: 'data' = 'data', signOut: AuthState['signOut'] = async () => {}) {
   server.use(
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({})),
     http.get(`${API}/storage/usage`, () =>
       HttpResponse.json({ used_bytes: 0, quota_bytes: 0, by_module: {} }),
@@ -256,7 +257,9 @@ test('deletes the account after the sentence and the tick, then leaves', async (
   server.use(
     http.get(`${API}/me/exports`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
-    http.post(`${API}/account/reauth/password`, () => HttpResponse.json({ ok: true })),
+    http.post(`${API}/account/reauth/password`, () =>
+      HttpResponse.json({ remaining_seconds: 600 }),
+    ),
     http.post(`${API}/me\\:delete`, async ({ request }) => {
       bodies.push(await request.json())
       attempts += 1

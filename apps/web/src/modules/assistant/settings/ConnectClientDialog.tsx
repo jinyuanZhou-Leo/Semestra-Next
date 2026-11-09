@@ -11,7 +11,7 @@ import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
 import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
 import { errorMessage } from '@/lib/errors'
-import { needsReauth, ReauthStep } from '@/modules/auth/components/ReauthStep'
+import { needsReauth, ReauthGate, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -160,7 +160,7 @@ export function ConnectClientDialog({
       void queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
     },
   })
-  const reauth = needsReauth(create.error)
+  const reauth = useReauthRequired(create.error)
   const client = MCP_CLIENTS.find((c) => c.id === clientId) ?? null
 
   const scopeItems: ChoiceOption<'read' | 'write'>[] = [
@@ -251,57 +251,62 @@ export function ConnectClientDialog({
               <DialogDescription>{m.assistant_mcp_connect_description()}</DialogDescription>
             </DialogHeader>
             <FieldSet disabled={create.isPending} className="gap-4">
-              <RadioGroup
-                aria-label={m.assistant_mcp_client()}
-                value={clientId}
-                onValueChange={(next) => setClientId(next as ClientId)}
-                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-              >
-                {MCP_CLIENTS.map((c) => (
-                  <FieldLabel
-                    key={c.id}
-                    htmlFor={`${id}-${c.id}`}
-                    className="transition-colors duration-200 motion-reduce:transition-none *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
-                  >
-                    <Field>
-                      <div className="flex items-center gap-3">
-                        <BrandTile>
-                          <BrandLogo src={c.logo} />
-                        </BrandTile>
-                        <FieldTitle className="block w-auto min-w-0 flex-1 truncate">
-                          {clientName(c)}
-                        </FieldTitle>
-                        <RadioGroupItem value={c.id} id={`${id}-${c.id}`} />
-                      </div>
-                    </Field>
+              <ReauthGate error={create.error} onVerified={save} className="gap-4">
+                <RadioGroup
+                  aria-label={m.assistant_mcp_client()}
+                  value={clientId}
+                  onValueChange={(next) => setClientId(next as ClientId)}
+                  className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                >
+                  {MCP_CLIENTS.map((c) => (
+                    <FieldLabel
+                      key={c.id}
+                      htmlFor={`${id}-${c.id}`}
+                      className="transition-colors duration-200 motion-reduce:transition-none *:data-[slot=field]:p-3 has-data-checked:border-primary/60 has-data-checked:bg-primary/5"
+                    >
+                      <Field>
+                        <div className="flex items-center gap-3">
+                          <BrandTile>
+                            <BrandLogo src={c.logo} />
+                          </BrandTile>
+                          <FieldTitle className="block w-auto min-w-0 flex-1 truncate">
+                            {clientName(c)}
+                          </FieldTitle>
+                          <RadioGroupItem value={c.id} id={`${id}-${c.id}`} />
+                        </div>
+                      </Field>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+                <Field>
+                  <FieldLabel id={`${id}-scope`}>{m.auth_account_tokens_scope_label()}</FieldLabel>
+                  <ChoiceControl
+                    labelId={`${id}-scope`}
+                    value={scope}
+                    onChange={setScope}
+                    options={scopeItems}
+                  />
+                  <FieldDescription>
+                    {scope === 'write'
+                      ? m.assistant_mcp_scope_write_hint()
+                      : m.assistant_mcp_scope_read_hint()}
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel id={`${id}-expiry`}>
+                    {m.auth_account_tokens_expiry_label()}
                   </FieldLabel>
-                ))}
-              </RadioGroup>
-              <Field>
-                <FieldLabel id={`${id}-scope`}>{m.auth_account_tokens_scope_label()}</FieldLabel>
-                <ChoiceControl
-                  labelId={`${id}-scope`}
-                  value={scope}
-                  onChange={setScope}
-                  options={scopeItems}
-                />
-                <FieldDescription>
-                  {scope === 'write'
-                    ? m.assistant_mcp_scope_write_hint()
-                    : m.assistant_mcp_scope_read_hint()}
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel id={`${id}-expiry`}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
-                <ChoiceControl
-                  labelId={`${id}-expiry`}
-                  value={days}
-                  onChange={setDays}
-                  options={expiryItems}
-                />
-              </Field>
-              <ReauthStep error={create.error} onVerified={save} />
-              <FieldError>{create.error && !reauth ? errorMessage(create.error) : null}</FieldError>
+                  <ChoiceControl
+                    labelId={`${id}-expiry`}
+                    value={days}
+                    onChange={setDays}
+                    options={expiryItems}
+                  />
+                </Field>
+              </ReauthGate>
+              <FieldError>
+                {create.error && !needsReauth(create.error) ? errorMessage(create.error) : null}
+              </FieldError>
             </FieldSet>
             <DialogFooter>
               <DialogClose

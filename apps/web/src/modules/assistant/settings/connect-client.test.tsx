@@ -28,6 +28,7 @@ test('install links carry the server config with the token', () => {
 
 test('connecting a client creates a token named after it and fills it into the command', async () => {
   server.use(
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     http.post(`${API}/account/tokens`, async ({ request }) => {
       expect(await request.json()).toEqual({
         name: 'Claude Code',

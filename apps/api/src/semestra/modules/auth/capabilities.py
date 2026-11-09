@@ -264,8 +264,29 @@ async def tokens_revoke(ctx: Ctx, inp: TokenRevokeInput) -> Revoked:
 REAUTH_NOTE = " Renews re-authentication for the current session. Not available to agents."
 
 
-class Verified(BaseModel):
-    ok: bool = True
+class ReauthStatus(BaseModel):
+    remaining_seconds: int = Field(
+        description="Seconds until sensitive actions ask to confirm it's you again (0: now)"
+    )
+
+
+@capability(
+    name="account.reauth.status",
+    summary="How long the current session stays confirmed.",
+    description="Lets the client ask the user to confirm it's them before a sensitive action, "
+    "instead of after it is refused. Not available to agents.",
+    effect="read",
+    http=Http("GET", "/account/reauth"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_status(ctx: Ctx, inp: NoInput) -> ReauthStatus:
+    return ReauthStatus(remaining_seconds=service.reauth_remaining(ctx))
+
+
+def _verified(ctx: Ctx) -> ReauthStatus:
+    # The check just stamped the session; the window starts now.
+    return ReauthStatus(remaining_seconds=int(service.REAUTH_WINDOW.total_seconds()))
 
 
 class ReauthPasswordInput(BaseModel):
@@ -281,9 +302,9 @@ class ReauthPasswordInput(BaseModel):
     expose=HTTP_ONLY,
     tags=("account",),
 )
-async def reauth_password(ctx: Ctx, inp: ReauthPasswordInput) -> Verified:
+async def reauth_password(ctx: Ctx, inp: ReauthPasswordInput) -> ReauthStatus:
     await service.reauth_with_password(ctx, inp.password)
-    return Verified()
+    return _verified(ctx)
 
 
 @capability(
@@ -312,9 +333,9 @@ class ReauthEmailVerifyInput(BaseModel):
     expose=HTTP_ONLY,
     tags=("account",),
 )
-async def reauth_email_verify(ctx: Ctx, inp: ReauthEmailVerifyInput) -> Verified:
+async def reauth_email_verify(ctx: Ctx, inp: ReauthEmailVerifyInput) -> ReauthStatus:
     await service.reauth_email_verify(ctx, inp.code)
-    return Verified()
+    return _verified(ctx)
 
 
 @capability(
@@ -326,7 +347,7 @@ async def reauth_email_verify(ctx: Ctx, inp: ReauthEmailVerifyInput) -> Verified
     expose=HTTP_ONLY,
     tags=("account",),
 )
-async def reauth_google(ctx: Ctx, inp: GoogleLinkInput) -> Verified:
+async def reauth_google(ctx: Ctx, inp: GoogleLinkInput) -> ReauthStatus:
     claims = await ctx.state.auth_runtime.google.verify(inp.id_token)
     await service.reauth_with_google(ctx, claims)
-    return Verified()
+    return _verified(ctx)

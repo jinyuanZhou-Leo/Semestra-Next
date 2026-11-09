@@ -19,7 +19,8 @@ not fall back to the cookie.
 Create one in global settings → **API & MCP → API tokens** (`POST /account/tokens` from a
 signed-in session). The secret is returned once; Semestra stores only its hash. If you signed in
 more than 10 minutes ago, Semestra first asks you to confirm it's you with your password, a code
-sent to your email, or Google; the session can do that through `POST /account/reauth/*`.
+sent to your email, or Google; the session can do that through `POST /account/reauth/*`, and `GET /account/reauth` tells how many
+seconds remain before it is asked again.
 
 - **Access**: `read` or `read` + `write`. A read-only token can only call operations that read.
 - **Reach**: API tokens work for `/mcp` and for the HTTP endpoints of capabilities that are

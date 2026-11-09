@@ -147,6 +147,8 @@ export function academicsHandlers(world: World) {
         inherited: {},
       })
     }),
+    // Signed in just now: sensitive account actions do not ask to confirm it's the user.
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     // No AI configured (the shell's Sem entry and AI actions ask).
     http.get(`${API}/ai/status`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/programs`, () => HttpResponse.json({ items: world.programs })),

@@ -15,7 +15,7 @@ import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
-import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
+import { ReauthGate, needsReauth, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
@@ -80,7 +80,7 @@ function CreateTokenDialog({
       onCreated(token)
     },
   })
-  const reauth = needsReauth(create.error)
+  const reauth = useReauthRequired(create.error)
 
   // Also sent again once the user confirms it's them: with what the form shows by then.
   const save = () => {
@@ -115,37 +115,40 @@ function CreateTokenDialog({
         </DialogHeader>
         <form onSubmit={submit} noValidate>
           <FieldSet disabled={create.isPending} className="gap-4">
-            <Field>
-              <FieldLabel htmlFor={nameId}>{m.auth_account_tokens_name_label()}</FieldLabel>
-              <Input
-                id={nameId}
-                placeholder={m.auth_account_tokens_name_placeholder()}
-                value={name}
-                maxLength={60}
-                ref={focusOnMount}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel id={scopeId}>{m.auth_account_tokens_scope_label()}</FieldLabel>
-              <ChoiceControl
-                labelId={scopeId}
-                value={scope}
-                onChange={setScope}
-                options={scopeItems}
-              />
-            </Field>
-            <Field>
-              <FieldLabel id={expiryId}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
-              <ChoiceControl
-                labelId={expiryId}
-                value={days}
-                onChange={setDays}
-                options={expiryItems}
-              />
-            </Field>
-            <ReauthStep error={create.error} onVerified={save} />
-            <FieldError>{create.error && !reauth ? errorMessage(create.error) : null}</FieldError>
+            <ReauthGate error={create.error} onVerified={save} className="gap-4">
+              <Field>
+                <FieldLabel htmlFor={nameId}>{m.auth_account_tokens_name_label()}</FieldLabel>
+                <Input
+                  id={nameId}
+                  placeholder={m.auth_account_tokens_name_placeholder()}
+                  value={name}
+                  maxLength={60}
+                  ref={focusOnMount}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel id={scopeId}>{m.auth_account_tokens_scope_label()}</FieldLabel>
+                <ChoiceControl
+                  labelId={scopeId}
+                  value={scope}
+                  onChange={setScope}
+                  options={scopeItems}
+                />
+              </Field>
+              <Field>
+                <FieldLabel id={expiryId}>{m.auth_account_tokens_expiry_label()}</FieldLabel>
+                <ChoiceControl
+                  labelId={expiryId}
+                  value={days}
+                  onChange={setDays}
+                  options={expiryItems}
+                />
+              </Field>
+            </ReauthGate>
+            <FieldError>
+              {create.error && !needsReauth(create.error) ? errorMessage(create.error) : null}
+            </FieldError>
             <DialogFooter>
               <DialogClose
                 render={<Button type="button" variant="outline" disabled={create.isPending} />}

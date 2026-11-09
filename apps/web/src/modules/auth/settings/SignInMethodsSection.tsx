@@ -16,7 +16,7 @@ import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { COLLAPSE } from '@/lib/collapse'
 import { errorMessage, toastError } from '@/lib/errors'
-import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
+import { ReauthGate, needsReauth, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -43,7 +43,7 @@ function EmailRow({ user }: { user: UserOut }) {
     ...accountEmailChangeStartMutation(),
     onSuccess: (_data, variables) => setSentTo(variables.body.new_email),
   })
-  const reauth = needsReauth(start.error)
+  const reauth = useReauthRequired(start.error)
   const confirm = useMutation({
     ...accountEmailChangeConfirmMutation(),
     onSuccess: (data) => {
@@ -98,27 +98,36 @@ function EmailRow({ user }: { user: UserOut }) {
             noValidate
           >
             <FieldSet disabled={start.isPending} className="gap-3">
-              <Field>
-                <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
-                <Input
-                  id={id}
-                  type="email"
-                  autoComplete="email"
-                  ref={focusOnMount}
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                />
-              </Field>
-              <ReauthStep error={start.error} onVerified={save} />
-              <FieldError>{start.error && !reauth ? errorMessage(start.error) : null}</FieldError>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={!newEmail.trim() || reauth}>
-                  {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
-                </Button>
-                <Button type="button" variant="ghost" onClick={close}>
-                  {m.common_cancel()}
-                </Button>
-              </div>
+              <ReauthGate
+                error={start.error}
+                onVerified={save}
+                onCancel={close}
+                plain
+                className="gap-3"
+              >
+                <Field>
+                  <FieldLabel htmlFor={id}>{m.auth_account_email_new_label()}</FieldLabel>
+                  <Input
+                    id={id}
+                    type="email"
+                    autoComplete="email"
+                    ref={focusOnMount}
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                  />
+                </Field>
+                <FieldError>
+                  {start.error && !needsReauth(start.error) ? errorMessage(start.error) : null}
+                </FieldError>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={!newEmail.trim() || reauth}>
+                    {start.isPending ? m.auth_sending() : m.auth_account_email_send_code()}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={close}>
+                    {m.common_cancel()}
+                  </Button>
+                </div>
+              </ReauthGate>
             </FieldSet>
           </form>
         ) : (
@@ -174,6 +183,7 @@ function PasswordRow({ user }: { user: UserOut }) {
     setEditing(true)
   }
 
+  const reauth = useReauthRequired(change.error, !user.has_password)
   const save = () => {
     if (!next) return
     change.mutate({
@@ -211,44 +221,53 @@ function PasswordRow({ user }: { user: UserOut }) {
           noValidate
         >
           <FieldSet disabled={change.isPending} className="gap-3">
-            {user.has_password ? (
+            {/* Only a first password needs a recent check; changing one asks for the old one. */}
+            <ReauthGate
+              error={change.error}
+              enabled={!user.has_password}
+              onVerified={save}
+              onCancel={close}
+              plain
+              className="gap-3"
+            >
+              {user.has_password ? (
+                <Field>
+                  <FieldLabel htmlFor={`${id}-current`}>
+                    {m.auth_account_password_current()}
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-current`}
+                    type="password"
+                    autoComplete="current-password"
+                    ref={focusOnMount}
+                    value={current}
+                    onChange={(e) => setCurrent(e.target.value)}
+                  />
+                </Field>
+              ) : null}
               <Field>
-                <FieldLabel htmlFor={`${id}-current`}>
-                  {m.auth_account_password_current()}
-                </FieldLabel>
+                <FieldLabel htmlFor={`${id}-new`}>{m.auth_account_password_new()}</FieldLabel>
                 <Input
-                  id={`${id}-current`}
+                  id={`${id}-new`}
                   type="password"
-                  autoComplete="current-password"
-                  ref={focusOnMount}
-                  value={current}
-                  onChange={(e) => setCurrent(e.target.value)}
+                  autoComplete="new-password"
+                  ref={!user.has_password ? focusOnMount : undefined}
+                  value={next}
+                  onChange={(e) => setNext(e.target.value)}
                 />
               </Field>
-            ) : null}
-            <Field>
-              <FieldLabel htmlFor={`${id}-new`}>{m.auth_account_password_new()}</FieldLabel>
-              <Input
-                id={`${id}-new`}
-                type="password"
-                autoComplete="new-password"
-                ref={!user.has_password ? focusOnMount : undefined}
-                value={next}
-                onChange={(e) => setNext(e.target.value)}
-              />
-            </Field>
-            <ReauthStep error={change.error} onVerified={save} />
-            <FieldError>
-              {change.error && !needsReauth(change.error) ? errorMessage(change.error) : null}
-            </FieldError>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={!next || needsReauth(change.error)}>
-                {change.isPending ? m.common_saving() : m.common_save()}
-              </Button>
-              <Button type="button" variant="ghost" onClick={close}>
-                {m.common_cancel()}
-              </Button>
-            </div>
+              <FieldError>
+                {change.error && !needsReauth(change.error) ? errorMessage(change.error) : null}
+              </FieldError>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={!next || reauth}>
+                  {change.isPending ? m.common_saving() : m.common_save()}
+                </Button>
+                <Button type="button" variant="ghost" onClick={close}>
+                  {m.common_cancel()}
+                </Button>
+              </div>
+            </ReauthGate>
           </FieldSet>
         </form>
       </CollapsibleContent>
@@ -306,15 +325,22 @@ function GoogleRow({ user, clientId }: { user: UserOut; clientId: string | null 
           </ItemActions>
         ) : null}
       </Item>
-      {needsReauth(link.error) ? (
-        <div className="mx-4 mb-4">
-          {/* The Google credential is still valid: link it once the user confirms it's them. */}
-          <ReauthStep
-            error={link.error}
-            onVerified={() => link.variables && link.mutate(link.variables)}
-          />
-        </div>
-      ) : link.error ? (
+      {/* Folds open like the other rows' forms: Google's button gives no chance to ask first.
+          Its credential is still valid, so it is linked once the user confirms it's them. */}
+      <Collapsible open={needsReauth(link.error)}>
+        <CollapsibleContent className={COLLAPSE}>
+          <div className="mx-4 mb-4">
+            <ReauthGate
+              error={link.error}
+              enabled={false}
+              onVerified={() => link.variables && link.mutate(link.variables)}
+            >
+              {null}
+            </ReauthGate>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+      {link.error && !needsReauth(link.error) ? (
         <FieldError className="mx-4 mb-3">{errorMessage(link.error)}</FieldError>
       ) : null}
       <ConfirmDialog
