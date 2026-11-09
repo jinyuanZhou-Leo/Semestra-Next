@@ -276,7 +276,6 @@ function Categories({ gradebook }: { gradebook: Gradebook }) {
       action={
         <Button
           size="sm"
-          variant="outline"
           onClick={() => {
             setAddKey((k) => k + 1)
             setAdding(true)

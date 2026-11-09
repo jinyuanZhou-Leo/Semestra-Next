@@ -311,7 +311,7 @@ export function TokensSection() {
         {(page) => (
           <RevokeContext value={(t) => revoking.show({ id: t.id, name: t.name })}>
             <SectionAction>
-              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+              <Button size="sm" onClick={() => setCreating(true)}>
                 <Plus aria-hidden />
                 {m.auth_account_tokens_create()}
               </Button>

@@ -111,7 +111,7 @@ export function CourseRowsEditor({
           {tableRows.length > 0 ? (
             <div className="flex items-center gap-2">
               {importMenu('outline')}
-              <Button variant="outline" size="sm" onClick={addRow}>
+              <Button size="sm" onClick={addRow}>
                 <Plus aria-hidden />
                 {m.academics_wizard_add_row()}
               </Button>

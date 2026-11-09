@@ -245,7 +245,6 @@ function EventTypesTable({ programId, types }: { programId: string; types: Event
       <SectionAction>
         <Button
           size="sm"
-          variant="outline"
           onClick={() => {
             setAddKey((k) => k + 1)
             setAdding(true)

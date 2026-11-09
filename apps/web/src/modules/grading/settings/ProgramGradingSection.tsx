@@ -331,7 +331,6 @@ function BandEditor({ scale }: { scale: GradingScale }) {
       </BandsContext>
       <div className="flex flex-wrap items-center gap-2">
         <Button
-          variant="outline"
           size="sm"
           onClick={() => setRows([...rows, { min: '', max: '', points: '', letter: '' }])}
         >
@@ -565,7 +564,6 @@ function DefaultCategories({
       action={
         <Button
           size="sm"
-          variant="outline"
           onClick={() => {
             setAddKey((k) => k + 1)
             setAdding(true)

@@ -372,7 +372,7 @@ function TermPane({
               termId={term.id}
               align="end"
               trigger={
-                <Button size="sm" variant="outline" className="mr-1">
+                <Button size="sm" className="mr-1">
                   <Plus aria-hidden data-icon="inline-start" />
                   {m.academics_course_add()}
                   <ChevronDown aria-hidden data-icon="inline-end" />

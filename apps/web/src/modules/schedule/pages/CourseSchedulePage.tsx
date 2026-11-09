@@ -202,7 +202,7 @@ function TermSchedule({
         >
           {importMenu}
           {sections.length > 0 ? (
-            <Button size="sm" variant="outline" onClick={() => sectionAdd.show(true)}>
+            <Button size="sm" onClick={() => sectionAdd.show(true)}>
               <Plus aria-hidden />
               {m.schedule_section_new_title()}
             </Button>
@@ -279,7 +279,7 @@ function TermSchedule({
           description={m.schedule_events_hint()}
         >
           {events.length > 0 ? (
-            <Button size="sm" variant="outline" onClick={() => eventEdit.show('new')}>
+            <Button size="sm" onClick={() => eventEdit.show('new')}>
               <Plus aria-hidden />
               {m.schedule_event_add()}
             </Button>
@@ -312,7 +312,7 @@ function TermSchedule({
             description={m.schedule_exceptions_hint()}
           >
             {exceptions.length > 0 && enabled.length > 0 ? (
-              <Button size="sm" variant="outline" onClick={() => exceptionAdd.show(true)}>
+              <Button size="sm" onClick={() => exceptionAdd.show(true)}>
                 <Plus aria-hidden />
                 {m.schedule_exception_add()}
               </Button>

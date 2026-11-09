@@ -141,7 +141,7 @@ export function BreaksTable({
     <SettingsBlock
       title={m.academics_term_breaks()}
       action={
-        <Button type="button" size="sm" variant="outline" onClick={add}>
+        <Button type="button" size="sm" onClick={add}>
           <Plus aria-hidden />
           {m.academics_break_add()}
         </Button>
