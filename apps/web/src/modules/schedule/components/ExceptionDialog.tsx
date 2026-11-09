@@ -198,137 +198,142 @@ export function ExceptionDialog({
         </DialogHeader>
         <form noValidate onSubmit={submit} className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
-            <SettingsGroup>
-              <SettingRow label={m.schedule_exception_meeting()} htmlFor={`${fid}-meeting`}>
-                <Select
-                  value={meetingId}
-                  items={items}
-                  onValueChange={(next) => next && pickMeeting(next)}
+            {/* The moved-class group carries its own top gap, so it opens and closes with it. */}
+            <div>
+              <SettingsGroup>
+                <SettingRow label={m.schedule_exception_meeting()} htmlFor={`${fid}-meeting`}>
+                  <Select
+                    value={meetingId}
+                    items={items}
+                    onValueChange={(next) => next && pickMeeting(next)}
+                  >
+                    <SelectTrigger id={`${fid}-meeting`} className="w-72">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {items.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </SettingRow>
+                <SettingRow
+                  label={m.schedule_exception_date()}
+                  htmlFor={`${fid}-date`}
+                  note={
+                    touched && dateMissing ? <FieldError>{m.schedule_required()}</FieldError> : null
+                  }
                 >
-                  <SelectTrigger id={`${fid}-meeting`} className="w-72">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {items.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-              <SettingRow
-                label={m.schedule_exception_date()}
-                htmlFor={`${fid}-date`}
-                note={
-                  touched && dateMissing ? <FieldError>{m.schedule_required()}</FieldError> : null
-                }
-              >
-                <DateField
-                  id={`${fid}-date`}
-                  className="w-44"
-                  value={originalDate}
-                  onChange={pickOriginal}
-                  placeholder={m.schedule_date_placeholder()}
-                  // Only the days this section really meets in the term.
-                  allowed={(day) => meetingDays?.has(isoDay(day)) ?? false}
-                  range={termRange}
-                  invalid={touched && dateMissing}
-                />
-              </SettingRow>
-              <SettingRow label={m.schedule_exception_kind()}>
-                {(labelId) => (
-                  <ChoiceControl<'cancelled' | 'moved'>
-                    labelId={labelId}
-                    value={kind}
-                    onChange={setKind}
-                    options={[
-                      { value: 'cancelled', label: m.schedule_exception_cancel() },
-                      { value: 'moved', label: m.schedule_exception_move() },
-                    ]}
+                  <DateField
+                    id={`${fid}-date`}
+                    className="w-44"
+                    value={originalDate}
+                    onChange={pickOriginal}
+                    placeholder={m.schedule_date_placeholder()}
+                    // Only the days this section really meets in the term.
+                    allowed={(day) => meetingDays?.has(isoDay(day)) ?? false}
+                    range={termRange}
+                    invalid={touched && dateMissing}
                   />
-                )}
-              </SettingRow>
-            </SettingsGroup>
-            {/* A moved class's new day, time and room slide in under the choice. */}
-            <Collapsible open={kind === 'moved'}>
-              <CollapsibleContent className={COLLAPSE}>
-                <SettingsGroup>
-                  <SettingRow
-                    label={m.schedule_exception_new_date()}
-                    htmlFor={`${fid}-new-date`}
-                    note={
-                      touched && newDateMissing ? (
-                        <FieldError>{m.schedule_required()}</FieldError>
-                      ) : null
-                    }
-                  >
-                    <DateField
-                      id={`${fid}-new-date`}
-                      className="w-44"
-                      value={date}
-                      onChange={setDate}
-                      placeholder={m.schedule_date_placeholder()}
-                      invalid={touched && newDateMissing}
+                </SettingRow>
+                <SettingRow label={m.schedule_exception_kind()}>
+                  {(labelId) => (
+                    <ChoiceControl<'cancelled' | 'moved'>
+                      labelId={labelId}
+                      value={kind}
+                      onChange={setKind}
+                      options={[
+                        { value: 'cancelled', label: m.schedule_exception_cancel() },
+                        { value: 'moved', label: m.schedule_exception_move() },
+                      ]}
                     />
-                  </SettingRow>
-                  <SettingRow
-                    label={m.schedule_time()}
-                    htmlFor={`${fid}-start`}
-                    note={
-                      timeError ? (
-                        <FieldError id={`${fid}-time-error`}>
-                          {m.error_schedule_time_range_invalid()}
-                        </FieldError>
-                      ) : null
-                    }
-                  >
-                    <div className="flex items-center gap-2">
-                      <InputGroup className="w-32">
-                        <InputGroupInput
-                          id={`${fid}-start`}
-                          type="time"
-                          aria-label={m.schedule_start_time()}
-                          className={TIME_INPUT}
-                          value={shownStart}
-                          onChange={(e) => setStart(e.target.value)}
+                  )}
+                </SettingRow>
+              </SettingsGroup>
+              {/* A moved class's new day, time and room slide in under the choice. */}
+              <Collapsible open={kind === 'moved'}>
+                <CollapsibleContent className={COLLAPSE}>
+                  <div className="pt-4">
+                    <SettingsGroup>
+                      <SettingRow
+                        label={m.schedule_exception_new_date()}
+                        htmlFor={`${fid}-new-date`}
+                        note={
+                          touched && newDateMissing ? (
+                            <FieldError>{m.schedule_required()}</FieldError>
+                          ) : null
+                        }
+                      >
+                        <DateField
+                          id={`${fid}-new-date`}
+                          className="w-44"
+                          value={date}
+                          onChange={setDate}
+                          placeholder={m.schedule_date_placeholder()}
+                          invalid={touched && newDateMissing}
                         />
-                        <InputGroupAddon>
-                          <Clock2 aria-hidden />
-                        </InputGroupAddon>
-                      </InputGroup>
-                      <span aria-hidden className="text-muted-foreground">
-                        –
-                      </span>
-                      <InputGroup className="w-32">
-                        <InputGroupInput
-                          type="time"
-                          aria-label={m.schedule_end_time()}
-                          aria-invalid={timeError || undefined}
-                          aria-describedby={timeError ? `${fid}-time-error` : undefined}
-                          className={TIME_INPUT}
-                          value={shownEnd}
-                          onChange={(e) => setEnd(e.target.value)}
+                      </SettingRow>
+                      <SettingRow
+                        label={m.schedule_time()}
+                        htmlFor={`${fid}-start`}
+                        note={
+                          timeError ? (
+                            <FieldError id={`${fid}-time-error`}>
+                              {m.error_schedule_time_range_invalid()}
+                            </FieldError>
+                          ) : null
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          <InputGroup className="w-32">
+                            <InputGroupInput
+                              id={`${fid}-start`}
+                              type="time"
+                              aria-label={m.schedule_start_time()}
+                              className={TIME_INPUT}
+                              value={shownStart}
+                              onChange={(e) => setStart(e.target.value)}
+                            />
+                            <InputGroupAddon>
+                              <Clock2 aria-hidden />
+                            </InputGroupAddon>
+                          </InputGroup>
+                          <span aria-hidden className="text-muted-foreground">
+                            –
+                          </span>
+                          <InputGroup className="w-32">
+                            <InputGroupInput
+                              type="time"
+                              aria-label={m.schedule_end_time()}
+                              aria-invalid={timeError || undefined}
+                              aria-describedby={timeError ? `${fid}-time-error` : undefined}
+                              className={TIME_INPUT}
+                              value={shownEnd}
+                              onChange={(e) => setEnd(e.target.value)}
+                            />
+                            <InputGroupAddon>
+                              <Clock2 aria-hidden />
+                            </InputGroupAddon>
+                          </InputGroup>
+                        </div>
+                      </SettingRow>
+                      <SettingRow label={m.schedule_location()} htmlFor={`${fid}-location`}>
+                        <Input
+                          id={`${fid}-location`}
+                          className="w-64"
+                          value={shownLocation}
+                          onChange={(e) => setLocation(e.target.value)}
                         />
-                        <InputGroupAddon>
-                          <Clock2 aria-hidden />
-                        </InputGroupAddon>
-                      </InputGroup>
-                    </div>
-                  </SettingRow>
-                  <SettingRow label={m.schedule_location()} htmlFor={`${fid}-location`}>
-                    <Input
-                      id={`${fid}-location`}
-                      className="w-64"
-                      value={shownLocation}
-                      onChange={(e) => setLocation(e.target.value)}
-                    />
-                  </SettingRow>
-                </SettingsGroup>
-              </CollapsibleContent>
-            </Collapsible>
+                      </SettingRow>
+                    </SettingsGroup>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
             <Textarea
               aria-label={m.schedule_note()}
               placeholder={m.schedule_note()}
