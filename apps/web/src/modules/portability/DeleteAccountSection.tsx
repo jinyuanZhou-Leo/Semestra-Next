@@ -1,5 +1,5 @@
-import { accountDeleteMutation } from '@semestra/api-client/react-query'
-import { useMutation } from '@tanstack/react-query'
+import { accountDeleteMutation, accountReauthStatusOptions } from '@semestra/api-client/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { DangerZone, SettingRow } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,6 +15,8 @@ import { Input } from '@/ui/input'
 /** Delete the account (M13 §5): typed sentence, a tick, and a recent check that it is the user. */
 export function DeleteAccountSection() {
   const [open, setOpen] = useState(false)
+  // Known before the dialog opens, so it starts on the right step instead of switching to it.
+  useQuery(accountReauthStatusOptions())
   return (
     <>
       <DangerZone>

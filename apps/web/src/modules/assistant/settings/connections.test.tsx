@@ -113,6 +113,26 @@ test('a token for anything else takes a name, after confirming who you are', asy
   expect(await screen.findByText('spat_SECRET')).toBeInTheDocument()
 })
 
+test('an answer that arrives after the dialog opened asks to confirm at once', async () => {
+  let answer: (() => void) | undefined
+  const arrived = new Promise<void>((resolve) => (answer = resolve))
+  server.use(http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })))
+  mount()
+  server.use(
+    http.get(`${API}/account/reauth`, async () => {
+      await arrived
+      return HttpResponse.json({ remaining_seconds: 0 })
+    }),
+  )
+
+  await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Other client or script' }))
+  answer?.()
+  expect(await within(dialog).findByLabelText('Password', {}, { timeout: 1000 })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Create API token' })).toBeDisabled()
+})
+
 test('revoking a connection asks for confirmation first', async () => {
   const revoked = vi.fn<(id: string) => void>()
   server.use(

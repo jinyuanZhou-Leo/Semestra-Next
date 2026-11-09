@@ -38,7 +38,9 @@ export function useReauthRequired(error: unknown, enabled = true): boolean {
   // Counted from when the answer arrived, so the browser's clock does not need to match.
   const until = status.data ? status.dataUpdatedAt + status.data.remaining_seconds * 1000 : null
   const now = useNow(5_000, (at) => until !== null && at < until)
-  return needsReauth(error) || (enabled && until !== null && now >= until)
+  // An answer newer than the last tick counts as now: "0 seconds left" asks at once.
+  const due = until !== null && Math.max(now, status.dataUpdatedAt) >= until
+  return needsReauth(error) || (enabled && due)
 }
 
 /**
