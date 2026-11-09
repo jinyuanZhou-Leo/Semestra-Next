@@ -1,31 +1,22 @@
 import { agentPreferenceGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, Plus } from 'lucide-react'
-import { useState } from 'react'
-import { SectionAction, SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
+import { ExternalLink } from 'lucide-react'
+import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
 import { apiUrl } from '@/lib/api-extras'
 import { docsUrl } from '@/lib/docs'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton } from '@/ui/code-block'
 import { Switch } from '@/ui/switch'
-import { ConnectClientDialog } from './ConnectClientDialog'
 import { useUpdatePreferences } from './shared'
 
-/** The MCP server (M12 §5): connecting a client, its address, and the catalog in the docs. */
+/** The MCP server (M12 §5): its address and the catalog in the docs. */
 export function McpSection() {
-  const [connecting, setConnecting] = useState(false)
   // Clients run outside the browser: same-origin deployments need the page's origin.
   const url = new URL(apiUrl('/mcp'), window.location.origin).href
 
   return (
     <>
-      <SectionAction>
-        <Button size="sm" variant="outline" onClick={() => setConnecting(true)}>
-          <Plus aria-hidden />
-          {m.assistant_mcp_setup()}
-        </Button>
-      </SectionAction>
       <SettingsGroup>
         <SettingRow
           label={m.assistant_mcp_endpoint()}
@@ -60,7 +51,6 @@ export function McpSection() {
           </Button>
         </SettingRow>
       </SettingsGroup>
-      <ConnectClientDialog open={connecting} onOpenChange={setConnecting} url={url} />
     </>
   )
 }

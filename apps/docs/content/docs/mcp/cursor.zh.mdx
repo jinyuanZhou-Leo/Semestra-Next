@@ -5,15 +5,15 @@ description: 一键把 Semestra 安装到 Cursor。
 
 ## 在 Semestra 中连接
 
-1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **客户端与 API 令牌** 旁的 **新建连接**。
 2. 选择 **Cursor**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
 3. 点 **在 Cursor 中打开**。Cursor 会显示服务器信息并请你确认，选择 **Install**。
 
-令牌以 Cursor 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+令牌以 Cursor 命名，只在该窗口中显示一次。要断开时，在 **客户端与 API 令牌** 中撤销它。
 
 ## 手动设置
 
-先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+先创建 API 令牌：设置 → **AI → API 与 MCP → 新建连接 → 其他客户端或脚本**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
 
 在 `~/.cursor/mcp.json`（所有项目）或项目里的 `.cursor/mcp.json` 中加入 `semestra`：
 
@@ -36,4 +36,4 @@ description: 一键把 Semestra 安装到 Cursor。
 
 ## 断开
 
-在 **Tools & MCP** 中关闭或删除。 在 **API 令牌** 中撤销对应令牌也会立即断开。
+在 **Tools & MCP** 中关闭或删除。 在 **客户端与 API 令牌** 中撤销对应令牌也会立即断开。

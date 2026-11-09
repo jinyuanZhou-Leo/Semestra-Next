@@ -5,15 +5,15 @@ description: 在 VS Code 的 GitHub Copilot 代理模式中使用 Semestra。
 
 ## 在 Semestra 中连接
 
-1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **MCP 服务** 旁的 **连接客户端**。
+1. 在 Semestra 中打开设置 → **AI → API 与 MCP**，点 **客户端与 API 令牌** 旁的 **新建连接**。
 2. 选择 **VS Code**，选 **只读** 或 **读写**，点 **创建令牌并继续**。
 3. 下一步显示已填好令牌的配置，复制到其中注明的文件里。
 
-令牌以 VS Code 命名，只在该窗口中显示一次。要断开时，在 **API 令牌** 中撤销它。
+令牌以 VS Code 命名，只在该窗口中显示一次。要断开时，在 **客户端与 API 令牌** 中撤销它。
 
 ## 手动设置
 
-先创建 API 令牌：设置 → **AI → API 与 MCP → API 令牌 → 创建 API 令牌**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
+先创建 API 令牌：设置 → **AI → API 与 MCP → 新建连接 → 其他客户端或脚本**。把下面的 `<token>` 换成它，示例地址换成 **MCP 服务** 中显示的地址。
 
 1. 打开命令面板，运行 **MCP: Open User Configuration**（对所有工作区生效）。只想用于一个工作区时，改用 `.vscode/mcp.json`。
 2. 在 `servers` 下加入 `semestra`：
@@ -55,4 +55,4 @@ description: 在 VS Code 的 GitHub Copilot 代理模式中使用 Semestra。
 
 ## 断开
 
-删除该项，或运行 **MCP: List Servers** 选择 **Remove**。 在 **API 令牌** 中撤销对应令牌也会立即断开。
+删除该项，或运行 **MCP: List Servers** 选择 **Remove**。 在 **客户端与 API 令牌** 中撤销对应令牌也会立即断开。

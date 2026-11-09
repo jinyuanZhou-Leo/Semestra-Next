@@ -5,15 +5,15 @@ description: Add Semestra to the Codex CLI and IDE extension.
 
 ## Connect from Semestra
 
-1. In Semestra, open Settings → **AI → API & MCP** and click **Connect a client** next to **MCP server**.
+1. In Semestra, open Settings → **AI → API & MCP** and click **New connection** next to **Clients and API tokens**.
 2. Choose **Codex**, pick **Read only** or **Read and write**, and click **Create token and continue**.
 3. The next step shows the config with your token filled in. Copy it into the file named there.
 
-The token is created for Codex and shown only in that window. To disconnect, revoke it under **API tokens**.
+The token is created for Codex and shown only in that window. To disconnect, revoke it under **Clients and API tokens**.
 
 ## Set it up by hand
 
-Create an API token first: Settings → **AI → API & MCP → API tokens → Create API token**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+Create an API token first: Settings → **AI → API & MCP → New connection → Other client or script**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
 
 Codex reads `~/.codex/config.toml` (the CLI and the IDE extension share it). Add:
 
@@ -37,4 +37,4 @@ Restart Codex and type `/mcp`. **semestra** should be listed with its tools.
 
 ## Disconnect
 
-Delete the `[mcp_servers.semestra]` table. Revoking its API token under **API tokens** also cuts it off right away.
+Delete the `[mcp_servers.semestra]` table. Revoking its token under **Clients and API tokens** also cuts it off right away.
