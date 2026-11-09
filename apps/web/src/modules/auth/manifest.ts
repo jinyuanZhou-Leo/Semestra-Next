@@ -1,4 +1,4 @@
-import { KeyRound, MonitorSmartphone, ShieldCheck, UserRound } from 'lucide-react'
+import { MonitorSmartphone, ShieldCheck, UserRound } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 
@@ -44,18 +44,6 @@ export default defineModule({
       order: 30,
       component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.SessionsSettings })),
-      ),
-    },
-    {
-      id: 'tokens',
-      level: 'account',
-      group: 'api-mcp',
-      title: m.auth_account_tokens_title,
-      description: m.auth_account_tokens_desc,
-      icon: KeyRound,
-      order: 20,
-      component: preloadable(() =>
-        import('./settings/sections').then((s) => ({ default: s.TokensSettings })),
       ),
     },
   ],
