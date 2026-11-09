@@ -6,9 +6,13 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { calendarLocale } from '@/lib/calendar'
 import { toastError } from '@/lib/errors'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { TIME_INPUT } from '@/lib/time-input'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -20,17 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
+import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { sectionLabel } from '../labels'
 import { invalidateSchedule } from '../queries'
 import { weekdayName } from '../time'
@@ -98,7 +95,14 @@ export function MeetingDialog({
     })
   }
 
-  const weekdays = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: weekdayName(d) }))
+  // The week as the calendar shows it: Sunday first when the week starts on Sunday.
+  const weekdays =
+    calendarLocale().weekStartsOn === 0 ? [7, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7]
+  const timeError = touched && timeInvalid
+  // One character a day where that tells the days apart (一…日), otherwise the short names.
+  const narrow = weekdays.map((day) => weekdayName(day, 'narrow'))
+  const dayLabels =
+    new Set(narrow).size === 7 ? narrow : weekdays.map((d) => weekdayName(d, 'short'))
 
   return (
     <Dialog
@@ -106,88 +110,101 @@ export function MeetingDialog({
       onOpenChangeComplete={onOpenChangeComplete}
       onOpenChange={(next) => !update.isPending && onOpenChange(next)}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{m.schedule_meeting_edit()}</DialogTitle>
           <DialogDescription>{sectionLabel(section)}</DialogDescription>
         </DialogHeader>
         <form noValidate onSubmit={submit} className="flex flex-col gap-6">
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={`${fid}-day`}>{m.schedule_weekday()}</FieldLabel>
-              <Select
-                value={weekday}
-                items={weekdays}
-                onValueChange={(next) => next && setWeekday(next)}
-              >
-                <SelectTrigger id={`${fid}-day`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {weekdays.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
+          <div className="flex flex-col gap-4">
+            <SettingsGroup>
+              <SettingRow label={m.schedule_weekday()}>
+                {(labelId) => (
+                  <ToggleGroup
+                    aria-labelledby={labelId}
+                    size="sm"
+                    className={SEGMENTED}
+                    value={[weekday]}
+                    onValueChange={(next) => next[0] && setWeekday(next[0])}
+                  >
+                    {weekdays.map((day, index) => (
+                      <ToggleGroupItem
+                        key={day}
+                        value={String(day)}
+                        aria-label={weekdayName(day)}
+                        className={cn(SEGMENT, 'min-w-8 px-2')}
+                      >
+                        {dayLabels[index]}
+                      </ToggleGroupItem>
                     ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field>
-                <FieldLabel htmlFor={`${fid}-start`}>{m.schedule_start_time()}</FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${fid}-start`}
-                    type="time"
-                    className={TIME_INPUT}
-                    value={start}
-                    onChange={(e) => setStart(e.target.value)}
-                  />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-              </Field>
-              <Field data-invalid={(touched && timeInvalid) || undefined}>
-                <FieldLabel htmlFor={`${fid}-end`}>{m.schedule_end_time()}</FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${fid}-end`}
-                    aria-invalid={(touched && timeInvalid) || undefined}
-                    type="time"
-                    className={TIME_INPUT}
-                    value={end}
-                    onChange={(e) => setEnd(e.target.value)}
-                  />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-                {touched && timeInvalid ? (
-                  <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
-                ) : null}
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor={`${fid}-location`}>{m.schedule_location()}</FieldLabel>
-              <Input
-                id={`${fid}-location`}
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={`${fid}-title`}>{m.schedule_meeting_title()}</FieldLabel>
-              <Input
-                id={`${fid}-title`}
-                placeholder={m.schedule_meeting_title_placeholder()}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
+                  </ToggleGroup>
+                )}
+              </SettingRow>
+              <SettingRow
+                label={m.schedule_time()}
+                htmlFor={`${fid}-start`}
+                note={
+                  timeError ? (
+                    <FieldError id={`${fid}-time-error`}>
+                      {m.error_schedule_time_range_invalid()}
+                    </FieldError>
+                  ) : null
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <InputGroup className="w-32">
+                    <InputGroupInput
+                      id={`${fid}-start`}
+                      type="time"
+                      aria-label={m.schedule_start_time()}
+                      className={TIME_INPUT}
+                      value={start}
+                      onChange={(e) => setStart(e.target.value)}
+                    />
+                    <InputGroupAddon>
+                      <Clock2 aria-hidden />
+                    </InputGroupAddon>
+                  </InputGroup>
+                  <span aria-hidden className="text-muted-foreground">
+                    –
+                  </span>
+                  <InputGroup className="w-32">
+                    <InputGroupInput
+                      type="time"
+                      aria-label={m.schedule_end_time()}
+                      aria-invalid={timeError || undefined}
+                      aria-describedby={timeError ? `${fid}-time-error` : undefined}
+                      className={TIME_INPUT}
+                      value={end}
+                      onChange={(e) => setEnd(e.target.value)}
+                    />
+                    <InputGroupAddon>
+                      <Clock2 aria-hidden />
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+              </SettingRow>
+            </SettingsGroup>
+            <SettingsGroup>
+              <SettingRow label={m.schedule_location()} htmlFor={`${fid}-location`}>
+                <Input
+                  id={`${fid}-location`}
+                  className="w-64"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+              </SettingRow>
+              <SettingRow label={m.schedule_meeting_title()} htmlFor={`${fid}-title`}>
+                <Input
+                  id={`${fid}-title`}
+                  className="w-64"
+                  placeholder={m.schedule_meeting_title_placeholder()}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </SettingRow>
+            </SettingsGroup>
+          </div>
           <DialogFooter>
             <Button
               type="button"

@@ -1,17 +1,18 @@
 import type { Term } from '@semestra/api-client'
 import { scheduleExceptionUpsertMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
-import { CalendarIcon, Clock2 } from 'lucide-react'
+import { Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
-import { ChoiceControl } from '@/app/settings'
-import { calendarLocale } from '@/lib/calendar'
-import { dayDate, isoDay, plusDays } from '@/lib/day'
+import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
+import { DateField } from '@/components/DateField'
+import { COLLAPSE } from '@/lib/collapse'
+import { isoDay, plusDays } from '@/lib/day'
 import { toastError } from '@/lib/errors'
-import { formatDate, formatTime } from '@/lib/format'
+import { formatTime } from '@/lib/format'
 import { TIME_INPUT } from '@/lib/time-input'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Calendar } from '@/ui/calendar'
+import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
 import {
   Dialog,
   DialogClose,
@@ -20,10 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldError, FieldLabel, FieldTitle } from '@/ui/field'
+import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
   SelectContent,
@@ -41,66 +41,7 @@ import { weekdayName } from '../time'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
-/** A date field: a button that opens a calendar; `allowed` limits the days that can be picked. */
-function DateField({
-  id,
-  value,
-  onChange,
-  allowed,
-  range,
-  invalid,
-}: {
-  id: string
-  value: string
-  onChange: (day: string) => void
-  allowed?: (day: Date) => boolean
-  /** The first and last day the calendar can show (YYYY-MM-DD), e.g. the term's; it opens on
-   * `today` when nothing is picked, kept within them. */
-  range?: { start: string; end: string; today: string }
-  invalid?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const picked = DAY.test(value) ? dayDate(value) : undefined
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            id={id}
-            type="button"
-            variant="outline"
-            aria-invalid={invalid || undefined}
-            data-empty={!picked}
-            className="w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
-          />
-        }
-      >
-        <CalendarIcon data-icon="inline-start" />
-        {picked ? formatDate(value) : m.schedule_date_placeholder()}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0">
-        <Calendar
-          {...calendarLocale()}
-          mode="single"
-          selected={picked}
-          defaultMonth={picked ?? (range ? dayDate(clampDay(range.today, range)) : undefined)}
-          startMonth={range ? dayDate(range.start) : undefined}
-          endMonth={range ? dayDate(range.end) : undefined}
-          disabled={allowed ? (day) => !allowed(day) : undefined}
-          onSelect={(next) => {
-            onChange(next ? isoDay(next) : '')
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 const hhmm = (time: string) => time.slice(0, 5)
-
-const clampDay = (day: string, range: { start: string; end: string }) =>
-  day < range.start ? range.start : day > range.end ? range.end : day
 
 /**
  * The days each meeting of the course really meets in the term, from the calendar (term weeks,
@@ -243,6 +184,7 @@ export function ExceptionDialog({
     value: mt.id,
     label: `${sectionLabel(section)} · ${weekdayName(mt.weekday, 'short')} ${formatTime(mt.start_time)} – ${formatTime(mt.end_time)}`,
   }))
+  const timeError = touched && timeInvalid
 
   return (
     <Dialog
@@ -250,121 +192,152 @@ export function ExceptionDialog({
       onOpenChangeComplete={onOpenChangeComplete}
       onOpenChange={(next) => !save.isPending && onOpenChange(next)}
     >
-      <DialogContent>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{m.schedule_exception_add()}</DialogTitle>
         </DialogHeader>
-        <form noValidate onSubmit={submit} className="grid grid-cols-6 gap-4">
-          <Field className="col-span-4">
-            <FieldLabel htmlFor={`${fid}-1`}>{m.schedule_exception_meeting()}</FieldLabel>
-            <Select
-              value={meetingId}
-              items={items}
-              onValueChange={(next) => next && pickMeeting(next)}
-            >
-              <SelectTrigger id={`${fid}-1`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {items.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="col-span-2" data-invalid={(touched && dateMissing) || undefined}>
-            <FieldLabel htmlFor={`${fid}-2`}>{m.schedule_exception_date()}</FieldLabel>
-            <DateField
-              id={`${fid}-2`}
-              value={originalDate}
-              onChange={pickOriginal}
-              // Only the days this section really meets in the term.
-              allowed={(day) => meetingDays?.has(isoDay(day)) ?? false}
-              range={termRange}
-              invalid={touched && dateMissing}
-            />
-          </Field>
-          <Field className="col-span-6">
-            <FieldTitle id={`${fid}-kind`}>{m.schedule_exception_kind()}</FieldTitle>
-            <ChoiceControl<'cancelled' | 'moved'>
-              labelId={`${fid}-kind`}
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: 'cancelled', label: m.schedule_exception_cancel() },
-                { value: 'moved', label: m.schedule_exception_move() },
-              ]}
-            />
-          </Field>
-          {kind === 'moved' ? (
-            <>
-              <Field className="col-span-2" data-invalid={(touched && newDateMissing) || undefined}>
-                <FieldLabel htmlFor={`${fid}-3`}>{m.schedule_exception_new_date()}</FieldLabel>
+        <form noValidate onSubmit={submit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            <SettingsGroup>
+              <SettingRow label={m.schedule_exception_meeting()} htmlFor={`${fid}-meeting`}>
+                <Select
+                  value={meetingId}
+                  items={items}
+                  onValueChange={(next) => next && pickMeeting(next)}
+                >
+                  <SelectTrigger id={`${fid}-meeting`} className="w-72">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {items.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+              <SettingRow
+                label={m.schedule_exception_date()}
+                htmlFor={`${fid}-date`}
+                note={
+                  touched && dateMissing ? <FieldError>{m.schedule_required()}</FieldError> : null
+                }
+              >
                 <DateField
-                  id={`${fid}-3`}
-                  value={date}
-                  onChange={setDate}
-                  invalid={touched && newDateMissing}
+                  id={`${fid}-date`}
+                  className="w-44"
+                  value={originalDate}
+                  onChange={pickOriginal}
+                  placeholder={m.schedule_date_placeholder()}
+                  // Only the days this section really meets in the term.
+                  allowed={(day) => meetingDays?.has(isoDay(day)) ?? false}
+                  range={termRange}
+                  invalid={touched && dateMissing}
                 />
-              </Field>
-              <Field className="col-span-2">
-                <FieldLabel htmlFor={`${fid}-4`}>{m.schedule_start_time()}</FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${fid}-4`}
-                    type="time"
-                    className={TIME_INPUT}
-                    value={shownStart}
-                    onChange={(e) => setStart(e.target.value)}
+              </SettingRow>
+              <SettingRow label={m.schedule_exception_kind()}>
+                {(labelId) => (
+                  <ChoiceControl<'cancelled' | 'moved'>
+                    labelId={labelId}
+                    value={kind}
+                    onChange={setKind}
+                    options={[
+                      { value: 'cancelled', label: m.schedule_exception_cancel() },
+                      { value: 'moved', label: m.schedule_exception_move() },
+                    ]}
                   />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-              </Field>
-              <Field className="col-span-2" data-invalid={(touched && timeInvalid) || undefined}>
-                <FieldLabel htmlFor={`${fid}-5`}>{m.schedule_end_time()}</FieldLabel>
-                <InputGroup>
-                  <InputGroupInput
-                    id={`${fid}-5`}
-                    aria-invalid={(touched && timeInvalid) || undefined}
-                    type="time"
-                    className={TIME_INPUT}
-                    value={shownEnd}
-                    onChange={(e) => setEnd(e.target.value)}
-                  />
-                  <InputGroupAddon>
-                    <Clock2 aria-hidden />
-                  </InputGroupAddon>
-                </InputGroup>
-                {touched && timeInvalid ? (
-                  <FieldError>{m.error_schedule_time_range_invalid()}</FieldError>
-                ) : null}
-              </Field>
-              <Field className="col-span-6">
-                <FieldLabel htmlFor={`${fid}-6`}>{m.schedule_location()}</FieldLabel>
-                <Input
-                  id={`${fid}-6`}
-                  value={shownLocation}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </Field>
-            </>
-          ) : null}
-          <Field className="col-span-6">
-            <FieldLabel htmlFor={`${fid}-7`}>{m.schedule_note()}</FieldLabel>
+                )}
+              </SettingRow>
+            </SettingsGroup>
+            {/* A moved class's new day, time and room slide in under the choice. */}
+            <Collapsible open={kind === 'moved'}>
+              <CollapsibleContent className={COLLAPSE}>
+                <SettingsGroup>
+                  <SettingRow
+                    label={m.schedule_exception_new_date()}
+                    htmlFor={`${fid}-new-date`}
+                    note={
+                      touched && newDateMissing ? (
+                        <FieldError>{m.schedule_required()}</FieldError>
+                      ) : null
+                    }
+                  >
+                    <DateField
+                      id={`${fid}-new-date`}
+                      className="w-44"
+                      value={date}
+                      onChange={setDate}
+                      placeholder={m.schedule_date_placeholder()}
+                      invalid={touched && newDateMissing}
+                    />
+                  </SettingRow>
+                  <SettingRow
+                    label={m.schedule_time()}
+                    htmlFor={`${fid}-start`}
+                    note={
+                      timeError ? (
+                        <FieldError id={`${fid}-time-error`}>
+                          {m.error_schedule_time_range_invalid()}
+                        </FieldError>
+                      ) : null
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <InputGroup className="w-32">
+                        <InputGroupInput
+                          id={`${fid}-start`}
+                          type="time"
+                          aria-label={m.schedule_start_time()}
+                          className={TIME_INPUT}
+                          value={shownStart}
+                          onChange={(e) => setStart(e.target.value)}
+                        />
+                        <InputGroupAddon>
+                          <Clock2 aria-hidden />
+                        </InputGroupAddon>
+                      </InputGroup>
+                      <span aria-hidden className="text-muted-foreground">
+                        –
+                      </span>
+                      <InputGroup className="w-32">
+                        <InputGroupInput
+                          type="time"
+                          aria-label={m.schedule_end_time()}
+                          aria-invalid={timeError || undefined}
+                          aria-describedby={timeError ? `${fid}-time-error` : undefined}
+                          className={TIME_INPUT}
+                          value={shownEnd}
+                          onChange={(e) => setEnd(e.target.value)}
+                        />
+                        <InputGroupAddon>
+                          <Clock2 aria-hidden />
+                        </InputGroupAddon>
+                      </InputGroup>
+                    </div>
+                  </SettingRow>
+                  <SettingRow label={m.schedule_location()} htmlFor={`${fid}-location`}>
+                    <Input
+                      id={`${fid}-location`}
+                      className="w-64"
+                      value={shownLocation}
+                      onChange={(e) => setLocation(e.target.value)}
+                    />
+                  </SettingRow>
+                </SettingsGroup>
+              </CollapsibleContent>
+            </Collapsible>
             <Textarea
-              id={`${fid}-7`}
+              aria-label={m.schedule_note()}
+              placeholder={m.schedule_note()}
               rows={2}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-          </Field>
-          <DialogFooter className="col-span-6">
+          </div>
+          <DialogFooter>
             <DialogClose
               render={<Button type="button" variant="outline" disabled={save.isPending} />}
             >
