@@ -16,6 +16,7 @@ export const errorMessages = {
   error_agent_attachment_unsupported: m.error_agent_attachment_unsupported,
   error_agent_busy: m.error_agent_busy,
   error_agent_cannot_regenerate: m.error_agent_cannot_regenerate,
+  error_agent_chat_search_off: m.error_agent_chat_search_off,
   error_agent_interrupted: m.error_agent_interrupted,
   error_agent_memory_full: m.error_agent_memory_full,
   error_agent_memory_name_taken: m.error_agent_memory_name_taken,

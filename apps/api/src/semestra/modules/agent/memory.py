@@ -19,7 +19,6 @@ anything when the user turns memory off (the `memory` settings namespace).
 """
 
 import re
-from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Literal
 
@@ -32,6 +31,7 @@ from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError, agent_hints
 from semestra.core.jobs import periodic
+from semestra.modules.agent import current
 from semestra.modules.agent.models import AgentMemory, AgentMessage, AgentSession
 from semestra.modules.ai import Message
 from semestra.modules.settings import service as settings_service
@@ -61,9 +61,6 @@ GET = "agent.memory.get"
 WRITES = frozenset({REMEMBER, FORGET})
 # The model's memory tools: left out of temporary conversations and with memory turned off.
 TOOLS = frozenset({REMEMBER, FORGET, GET})
-# The conversation a memory tool runs in, set by the loop around the call; recorded as the
-# memory's `source_session_id`.
-conversation: ContextVar[str | None] = ContextVar("agent_memory_conversation", default=None)
 
 _NAME = re.compile(NAME_PATTERN)
 _LINK = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)\]\]")
@@ -72,6 +69,10 @@ _LINK = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)\]\]")
 class MemorySettings(BaseModel):
     enabled: bool = Field(
         default=True, description="Let Sem remember things about you across conversations"
+    )
+    search_chats: bool = Field(
+        default=True,
+        description="Let Sem search and read your other conversations in the same program",
     )
 
 
@@ -672,7 +673,7 @@ async def remember(ctx: Ctx, inp: RememberInput) -> Remembered:
         type=inp.type,
         description=inp.description,
         body=inp.body,
-        session_id=conversation.get(),
+        session_id=current.conversation.get(),
     )
     same = saved.memory.name != inp.name
     return Remembered(

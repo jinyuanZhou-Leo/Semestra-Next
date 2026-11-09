@@ -26,7 +26,7 @@ export type StepDisplay = {
   link?: { to: string }
 }
 
-/** A file quoted by a tool result (M07); `[[cite:<id>]]` in the answer points at it. */
+/** A file (M07), web page or earlier conversation quoted by a tool result; `[[cite:<id>]]` in the answer points at it. */
 export type Citation = {
   id: string
   title?: string

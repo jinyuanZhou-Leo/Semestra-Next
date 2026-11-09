@@ -62,8 +62,8 @@ from semestra.core.context import Ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, validation_error
 from semestra.core.events import events
-from semestra.modules.agent import history, memory, outcome, service, skills, tools
-from semestra.modules.agent.compaction import compact, compact_now
+from semestra.modules.agent import chats, current, history, memory, outcome, service, skills, tools
+from semestra.modules.agent.compaction import compact, compact_in_turn, compact_now
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.decisions import close_calls, edited
 from semestra.modules.agent.display import make_preview
@@ -184,23 +184,24 @@ def _tool(cap: Capability) -> tools.ToolFunction:
         elif turn.cancel.is_set():
             # Stopped before this call started: it does not run (a write least of all).
             result = outcome.error(STOPPED, ran=False)
-        elif cap.effect == "read":
-            async with turn.sem:
-                work = outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
-                result = await _unless_stopped(turn, work)
         else:
-            token = memory.conversation.set(turn.session_id)
+            token = current.conversation.set(turn.session_id)
             try:
-                result = await outcome.invoke(
-                    turn.state,
-                    turn.user_id,
-                    turn.scope,
-                    cap.name,
-                    args,
-                    changes=cap.name not in memory.WRITES,
-                )
+                if cap.effect == "read":
+                    async with turn.sem:
+                        work = outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
+                        result = await _unless_stopped(turn, work)
+                else:
+                    result = await outcome.invoke(
+                        turn.state,
+                        turn.user_id,
+                        turn.scope,
+                        cap.name,
+                        args,
+                        changes=cap.name not in memory.WRITES,
+                    )
             finally:
-                memory.conversation.reset(token)
+                current.conversation.reset(token)
         return _tool_return(cap, call_id, result, turn)
 
     return run
@@ -238,6 +239,26 @@ async def _ask(ctx: RunContext[Turn], **_args: Any) -> ToolReturn:
     turn, call_id = ctx.deps, ctx.tool_call_id or ""
     result = turn.decided.get(call_id) or outcome.error("agent.interrupted")
     return _tool_return(None, call_id, result, turn)
+
+
+COMPACTED = {
+    "done": "Done: everything before the user's latest message is now a summary. Tell the user "
+    "in one short sentence.",
+    "nothing": "Nothing to compact: the conversation has nothing before the user's latest "
+    "message yet.",
+    "stopped": "The user stopped the compaction; nothing changed.",
+}
+
+
+async def _compact(ctx: RunContext[Turn], focus: str = "") -> str:
+    """`compact_conversation`: the summary replaces the earlier turns from the next request of
+    this turn on (`compaction.compact` applies the memo), and is kept at once."""
+    turn = ctx.deps
+    messages = [m for m in (_replayable(m, turn) for m in ctx.messages) if m]
+    done = await compact_in_turn(turn, messages, focus.strip() or None)
+    if done == "done":
+        await asyncio.shield(_save_memo(turn))
+    return COMPACTED[done]
 
 
 def _skipped(turn: Turn, call: ToolCallPart, code: str, **params: Any) -> SkipToolExecution:
@@ -404,7 +425,7 @@ def _agent(
     capabilities: list[AbstractCapability[Turn]] = [_Hooks(), Caching()]
     toolsets = []
     if turn.model.supports_tools:
-        toolsets.append(tools.toolset(available, _tool, _read_result, _ask))
+        toolsets.append(tools.toolset(available, _tool, _read_result, _ask, _compact))
         capabilities = [
             ToolSearch(
                 strategy=tools.search,
@@ -503,6 +524,8 @@ async def _prepare(
     available = await registry.available(ctx, "agent")
     if not remembered:  # a temporary conversation, or memory turned off
         available = [c for c in available if c.name not in memory.TOOLS]
+    if not await chats.offered(ctx, session):
+        available = [c for c in available if c.name not in chats.TOOLS]
     prefs = await service.get_preferences(ctx)
     visible = skills.visible_skills(available)
     st = dict(session.state or {})
