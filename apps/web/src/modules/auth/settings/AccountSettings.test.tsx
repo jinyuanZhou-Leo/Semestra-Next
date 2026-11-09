@@ -25,20 +25,7 @@ const session = (over: Record<string, unknown>) => ({
   ...over,
 })
 
-const token = {
-  id: 't1',
-  name: 'Claude Desktop',
-  prefix: 'spat_AbC',
-  scopes: ['read'],
-  created_at: '2026-01-01T00:00:00Z',
-  last_used_at: null,
-  expires_at: null,
-}
-
-function mount(
-  signOut: () => Promise<void> = async () => {},
-  group: 'account' | 'api-mcp' = 'account',
-) {
+function mount(signOut: () => Promise<void> = async () => {}) {
   server.use(
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
@@ -46,7 +33,7 @@ function mount(
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <ModuleRegistry value={[manifest]}>
-        <SettingsSections level="account" group={group} />
+        <SettingsSections level="account" group="account" />
       </ModuleRegistry>
     </AuthContext.Provider>,
   )
@@ -56,7 +43,6 @@ test('signing out the current device goes through the normal sign-out flow', asy
   const revoked = vi.fn<(id: string) => void>()
   const signOut = vi.fn<() => Promise<void>>(async () => {})
   server.use(
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/account/sessions`, () =>
       HttpResponse.json({ items: [session({ id: 's1', current: true })] }),
     ),
@@ -79,7 +65,6 @@ test('lists devices and signs one out after confirmation', async () => {
   let sessions = [session({ id: 's1', current: true }), session({ id: 's2', kind: 'native' })]
   const revoked = vi.fn<(id: string) => void>()
   server.use(
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: sessions })),
     http.delete(`${API}/account/sessions/:id`, ({ params }) => {
       revoked(String(params.id))
@@ -104,76 +89,11 @@ test('lists devices and signs one out after confirmation', async () => {
   )
 })
 
-test('creating a token reveals the plaintext once', async () => {
-  const items: (typeof token)[] = []
-  server.use(
-    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items })),
-    http.post(`${API}/account/tokens`, async ({ request }) => {
-      expect(await request.json()).toEqual({
-        name: 'Claude Desktop',
-        scopes: ['read', 'write'],
-        expires_in_days: 90,
-      })
-      items.push(token)
-      return HttpResponse.json({ ...token, scopes: ['read', 'write'], token: 'spat_SECRET' })
-    }),
-  )
-  mount(undefined, 'api-mcp')
-
-  await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
-  const form = await screen.findByRole('dialog')
-  await userEvent.type(within(form).getByLabelText('Name'), 'Claude Desktop')
-  await userEvent.click(within(form).getByRole('button', { name: 'Read and write' }))
-  await userEvent.click(within(form).getByRole('button', { name: /90/ }))
-  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
-
-  expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
-  await userEvent.click(screen.getByRole('button', { name: 'Done' }))
-
-  await waitFor(() => expect(screen.queryByTestId('new-token')).not.toBeInTheDocument())
-  expect(await screen.findByText('Claude Desktop')).toBeInTheDocument()
-  expect(screen.queryByText('spat_SECRET')).not.toBeInTheDocument() // only the prefix is listed
-})
-
-test('after the re-authentication window, the dialog confirms it is the user before the form', async () => {
-  const verified = { remaining_seconds: 600 }
-  server.use(
-    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
-    http.post(`${API}/account/reauth/password`, async ({ request }) =>
-      ((await request.json()) as { password: string }).password === 'hunter22hunter22'
-        ? HttpResponse.json(verified)
-        : HttpResponse.json(apiError('auth.wrong_password', 400).body, { status: 400 }),
-    ),
-    http.post(`${API}/account/tokens`, () => HttpResponse.json({ ...token, token: 'spat_SECRET' })),
-  )
-  mount(undefined, 'api-mcp')
-  server.use(http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 0 })))
-
-  await userEvent.click(await screen.findByRole('button', { name: 'Create API token' }))
-  const form = await screen.findByRole('dialog')
-  // The confirmation takes the fields' place; the form cannot be sent yet.
-  const password = await within(form).findByLabelText('Password')
-  expect(within(form).queryByRole('textbox', { name: 'Name' })).toBeNull()
-  expect(within(form).getByRole('button', { name: 'Create API token' })).toBeDisabled()
-  await userEvent.type(password, 'wrong{Enter}')
-  expect(await within(form).findByText('Incorrect password.')).toBeInTheDocument()
-  await userEvent.clear(password)
-  await userEvent.type(password, 'hunter22hunter22')
-  await userEvent.click(within(form).getByRole('button', { name: 'Confirm' }))
-
-  await userEvent.type(await within(form).findByRole('textbox', { name: 'Name' }), 'CLI')
-  await userEvent.click(within(form).getByRole('button', { name: 'Create API token' }))
-  expect(await screen.findByTestId('new-token')).toHaveTextContent('spat_SECRET')
-})
-
 test('an action refused for an old sign-in is sent again after an emailed code', async () => {
   let verified = false
   const codes: unknown[] = []
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     http.post(`${API}/account/reauth/email-start`, () =>
       HttpResponse.json({ resend_in_seconds: 60, expires_in_seconds: 600 }),
     ),
@@ -201,30 +121,10 @@ test('an action refused for an old sign-in is sent again after an emailed code',
   expect(codes).toEqual([{ code: '123456' }])
 })
 
-test('revoking a token asks for confirmation first', async () => {
-  const revoked = vi.fn<(id: string) => void>()
-  server.use(
-    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [token] })),
-    http.delete(`${API}/account/tokens/:id`, ({ params }) => {
-      revoked(String(params.id))
-      return HttpResponse.json({ ok: true })
-    }),
-  )
-  mount(undefined, 'api-mcp')
-  await userEvent.click(await screen.findByRole('button', { name: 'Actions for Claude Desktop' }))
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Revoke' }))
-  expect(revoked).not.toHaveBeenCalled()
-  const dialog = await screen.findByRole('alertdialog')
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }))
-  await waitFor(() => expect(revoked).toHaveBeenCalledWith('t1'))
-})
-
 test('setting a name saves the profile', async () => {
   const saved = vi.fn<(body: unknown) => void>()
   server.use(
     http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
     http.patch(`${API}/account/profile`, async ({ request }) => {
       const body = await request.json()
       saved(body)

@@ -6,7 +6,6 @@ import githubcopilotLogo from '@lobehub/icons-static-svg/icons/githubcopilot.svg
 import claudeLogo from '@lobehub/icons-static-svg/icons/claude.svg?url'
 import codexLogo from '@lobehub/icons-static-svg/icons/codex.svg?url'
 import devinLogo from '@lobehub/icons-static-svg/icons/devin.svg?url'
-import mcpLogo from '@lobehub/icons-static-svg/icons/mcp.svg?url'
 
 /**
  * How each MCP client connects to Semestra with an API token (M12 §5): an install link, a
@@ -38,8 +37,11 @@ export interface McpClient {
   name: string
   /** The docs page for this client, under `mcp/`. */
   docs: string
-  /** Its one-colour mark; VS Code's MCP support is GitHub Copilot's, so it takes that one. */
-  logo: string
+  /**
+   * Its one-colour mark; VS Code's MCP support is GitHub Copilot's, so it takes that one. None
+   * for `other`: any client or script, named by the user.
+   */
+  logo: string | null
 }
 
 export const MCP_CLIENTS: readonly McpClient[] = [
@@ -48,14 +50,12 @@ export const MCP_CLIENTS: readonly McpClient[] = [
   {
     id: 'claude-code',
     name: 'Claude Code',
-
     docs: 'mcp/claude-code',
     logo: claudecodeLogo,
   },
   {
     id: 'gemini-cli',
     name: 'Gemini CLI',
-
     docs: 'mcp/gemini-cli',
     logo: geminicliLogo,
   },
@@ -63,13 +63,12 @@ export const MCP_CLIENTS: readonly McpClient[] = [
   {
     id: 'claude-desktop',
     name: 'Claude Desktop',
-
     docs: 'mcp/claude-desktop',
     logo: claudeLogo,
   },
   { id: 'codex', name: 'Codex', docs: 'mcp/codex', logo: codexLogo },
   { id: 'devin', name: 'Devin Desktop', docs: 'mcp/devin', logo: devinLogo },
-  { id: 'other', name: '', docs: 'mcp/other', logo: mcpLogo },
+  { id: 'other', name: '', docs: 'mcp/other', logo: null },
 ]
 
 const SERVER = 'semestra'
@@ -144,4 +143,9 @@ export function mcpSetup(client: ClientId, url: string, token: string): Setup {
     case 'other':
       return { kind: 'manual' }
   }
+}
+
+/** The client a token was made for, from its name ("Cursor"); none for tokens named otherwise. */
+export function clientOfToken(name: string): McpClient | undefined {
+  return MCP_CLIENTS.find((c) => c.name !== '' && c.name === name)
 }

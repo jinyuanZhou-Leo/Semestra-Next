@@ -6,7 +6,6 @@ import { useUser } from '../useAuth'
 import { ProfileSection } from './ProfileSection'
 import { SessionsSection } from './SessionsSection'
 import { SignInMethodsSection } from './SignInMethodsSection'
-import { TokensSection } from './TokensSection'
 
 // The account sections as settings-framework components (M11 hosts them; the title and
 // description come from the manifest).
@@ -31,8 +30,4 @@ export function SignInMethodsSettings() {
 
 export function SessionsSettings() {
   return <SessionsSection />
-}
-
-export function TokensSettings() {
-  return <TokensSection />
 }

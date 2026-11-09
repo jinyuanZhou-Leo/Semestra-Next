@@ -1,4 +1,4 @@
-import { Bookmark, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
+import { Bookmark, KeyRound, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { assistantPage, panel } from './store'
@@ -96,13 +96,23 @@ export default defineModule({
       component: preloadable(() => settings().then((s) => ({ default: s.ClearMemoriesSection }))),
     },
     {
+      id: 'assistant-connections',
+      level: 'account',
+      group: 'api-mcp',
+      title: m.assistant_settings_connections,
+      description: m.assistant_settings_connections_description,
+      icon: KeyRound,
+      order: 10,
+      component: preloadable(() => settings().then((s) => ({ default: s.ConnectionsSection }))),
+    },
+    {
       id: 'assistant-mcp',
       level: 'account',
       group: 'api-mcp',
       title: m.assistant_settings_mcp,
       description: m.assistant_settings_mcp_description,
       icon: Plug,
-      order: 10,
+      order: 20,
       component: preloadable(() => settings().then((s) => ({ default: s.McpSection }))),
     },
   ],
