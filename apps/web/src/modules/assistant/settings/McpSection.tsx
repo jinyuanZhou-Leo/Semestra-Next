@@ -1,42 +1,57 @@
 import { agentPreferenceGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, Plus } from 'lucide-react'
-import { useState } from 'react'
-import { SectionAction, SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
+import { Check, Copy, ExternalLink } from 'lucide-react'
+import { useId, useState } from 'react'
+import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
 import { apiUrl } from '@/lib/api-extras'
 import { docsUrl } from '@/lib/docs'
+import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton } from '@/ui/code-block'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
 import { Switch } from '@/ui/switch'
-import { ConnectClientDialog } from './ConnectClientDialog'
 import { useUpdatePreferences } from './shared'
 
-/** The MCP server (M12 §5): connecting a client, its address, and the catalog in the docs. */
+/** The MCP server (M12 §5): its address and the catalog in the docs. */
 export function McpSection() {
-  const [connecting, setConnecting] = useState(false)
   // Clients run outside the browser: same-origin deployments need the page's origin.
   const url = new URL(apiUrl('/mcp'), window.location.origin).href
+  const labelId = useId()
+  const [copied, setCopied] = useState(false)
+  const copy = () =>
+    navigator.clipboard.writeText(url).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => toastError(new Error('clipboard')),
+    )
 
   return (
     <>
-      <SectionAction>
-        <Button size="sm" variant="outline" onClick={() => setConnecting(true)}>
-          <Plus aria-hidden />
-          {m.assistant_mcp_setup()}
-        </Button>
-      </SectionAction>
       <SettingsGroup>
         <SettingRow
           label={m.assistant_mcp_endpoint()}
           description={m.assistant_mcp_endpoint_description()}
+          labelId={labelId}
         >
-          <CodeBlock size="sm" className="w-auto max-w-72">
-            <CodeBlockActions>
-              <CodeBlockCopyButton value={url} />
-            </CodeBlockActions>
-            <CodeBlockContent className="pr-10">{url}</CodeBlockContent>
-          </CodeBlock>
+          <InputGroup className="w-72">
+            <InputGroupInput
+              readOnly
+              value={url}
+              aria-labelledby={labelId}
+              onFocus={(e) => e.target.select()}
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                aria-label={copied ? m.common_copied() : m.common_copy()}
+                size="icon-xs"
+                onClick={copy}
+              >
+                {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
         </SettingRow>
         <SettingRow
           label={m.assistant_mcp_reference()}
@@ -60,7 +75,6 @@ export function McpSection() {
           </Button>
         </SettingRow>
       </SettingsGroup>
-      <ConnectClientDialog open={connecting} onOpenChange={setConnecting} url={url} />
     </>
   )
 }

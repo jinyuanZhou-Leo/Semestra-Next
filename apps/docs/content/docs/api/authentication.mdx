@@ -16,8 +16,8 @@ not fall back to the cookie.
 
 ## API tokens
 
-Create one in global settings → **API & MCP → API tokens** (`POST /account/tokens` from a
-signed-in session). The secret is returned once; Semestra stores only its hash. If you signed in
+In global settings → **AI → API & MCP**, click **New connection** and choose **Other client or
+script** (`POST /account/tokens` from a signed-in session). The secret is returned once; Semestra stores only its hash. If you signed in
 more than 10 minutes ago, Semestra first asks you to confirm it's you with your password, a code
 sent to your email, or Google; the session can do that through `POST /account/reauth/*`.
 
@@ -28,7 +28,7 @@ sent to your email, or Google; the session can do that through `POST /account/re
 - **Same limits as MCP**: over HTTP a token is still a client acting for you. Delete operations
   need **Delete data** turned on (see [MCP](/docs/mcp)), otherwise `auth.token_scope`; settings
   only you may change (Canvas writes, Sem's memory) are refused with `settings.user_only`.
-- **Expiry**: never, or after 30, 90 or 365 days. Revoke a token from the same page.
+- **Expiry**: never, or after 30, 90 or 365 days. Revoke a token under **Clients and API tokens**.
 
 ```bash
 curl https://semestra.example.com/programs \
