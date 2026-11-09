@@ -9,11 +9,20 @@ import {
   Sun,
   Tags,
 } from 'lucide-react'
-import { defineModule, preloadable } from '@/app/extensions'
+import { type CalendarOpenAction, defineModule, preloadable } from '@/app/extensions'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { TodaySubtitle } from './components/TodaySubtitle'
 import { prefetchCalendarPage, prefetchToday } from './queries'
+
+/** Classes and events lead to their course's schedule; an event without a course leads nowhere. */
+const OPEN_COURSE_SCHEDULE: CalendarOpenAction = {
+  Label: () => m.schedule_open_course_schedule(),
+  available: (o) => o.course_id != null,
+  run: (o, navigate, { programId }) => {
+    if (o.course_id) navigate(coursePath(programId, o.course_id, 'schedule'))
+  },
+}
 
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
 const SCHEDULE_QUERIES = [
@@ -191,18 +200,14 @@ export default defineModule({
       label: m.schedule_source_meetings,
       icon: CalendarDays,
       defaultVisible: true,
-      onOpen: (o, navigate, { programId }) => {
-        if (o.course_id) navigate(coursePath(programId, o.course_id, 'schedule'))
-      },
+      open: OPEN_COURSE_SCHEDULE,
     },
     {
       source: 'schedule.events',
       label: m.schedule_source_events,
       icon: CalendarClock,
       defaultVisible: true,
-      onOpen: (o, navigate, { programId }) => {
-        if (o.course_id) navigate(coursePath(programId, o.course_id, 'schedule'))
-      },
+      open: OPEN_COURSE_SCHEDULE,
     },
   ],
   uiPrefPrefixes: ['calendar.'],

@@ -4,45 +4,102 @@ import {
   scheduleExceptionUpsertMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
 import {
+  ArrowRight,
+  CalendarClock,
   CalendarX2,
-  CircleCheck,
-  Circle,
-  ExternalLink,
+  Clock,
+  Ellipsis,
+  History,
   MapPin,
+  NotebookText,
   Pencil,
   RotateCcw,
   TriangleAlert,
   User,
+  Users,
+  X,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ComponentProps, type ReactNode, useRef } from 'react'
 import { useCalendarSources } from '@/app/registry'
 import { toastError } from '@/lib/errors'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { Checkbox } from '@/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/ui/popover'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { dayLabel, timeRange, weekLabel } from '../labels'
+import { useOpenOccurrence } from '../open'
 import { isMeeting, isOneOff, occurrenceColor } from '../occurrence'
 import { invalidateSchedule } from '../queries'
 import { wallDate } from '../time'
 
-function Line({ icon: Icon, children }: { icon: typeof MapPin; children: ReactNode }) {
+/**
+ * Where the clicked item sits, relative to the positioned box `OccurrenceDetails` renders in, and
+ * the side the details open on: beside a block, below a row that spans the calendar (list view).
+ */
+export type DetailsAnchor = {
+  left: number
+  top: number
+  width: number
+  height: number
+  side: 'right' | 'bottom'
+}
+
+function Line({
+  icon: Icon,
+  className,
+  children,
+}: {
+  icon: typeof MapPin
+  className?: string
+  children: ReactNode
+}) {
   return (
-    <p className="flex items-center gap-2">
-      <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0">{children}</span>
-    </p>
+    <div className={cn('flex gap-3', className)}>
+      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">{children}</div>
+    </div>
+  )
+}
+
+function IconAction({
+  label,
+  children,
+  ...props
+}: { label: string; children: ReactNode } & Omit<ComponentProps<typeof Button>, 'children'>) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<Button variant="ghost" size="icon-sm" aria-label={label} {...props} />}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
 /**
- * Details of a calendar item (M04 §5.2) with its actions: open the source, and for classes
- * cancel or move this one, restore it, or edit the whole meeting.
+ * Details of a calendar item (M04 §5.2), next to the item: what and when, then where it leads.
+ * Classes are edited, moved, cancelled or restored from the header; to-dos are checked off there.
  */
 export function OccurrenceDetails({
   occurrence: o,
+  anchor,
   timezone,
   programId,
   course,
@@ -55,11 +112,12 @@ export function OccurrenceDetails({
   onToggle,
 }: {
   occurrence: Occurrence
+  anchor: DetailsAnchor
   timezone: string
   programId: string
   course?: Course
   open: boolean
-  /** Clear what the dialog is about here, once it has closed (`useDialogTarget`). */
+  /** Clear what the details are about here, once they have closed (`useDialogTarget`). */
   onOpenChangeComplete?: (open: boolean) => void
   onOpenChange: (open: boolean) => void
   onMove: (o: Occurrence) => void
@@ -68,9 +126,10 @@ export function OccurrenceDetails({
   /** The item can be checked off (its source has `complete`). */
   onToggle?: (completed: boolean) => void
 }) {
-  const router = useRouter()
   const queryClient = useQueryClient()
+  const popup = useRef<HTMLDivElement>(null)
   const source = useCalendarSources().find((s) => s.source === o.source)
+  const openItem = useOpenOccurrence(programId)(o)
   const done = async () => {
     await invalidateSchedule(queryClient)
     onOpenChange(false)
@@ -85,161 +144,196 @@ export function OccurrenceDetails({
     onError: toastError,
     onSuccess: done,
   })
-  const meetingId = o.meta?.meeting_id
+  const meetingId = isMeeting(o) ? o.meta?.meeting_id : undefined
   const originalDate = o.meta?.original_date
   const busy = cancel.isPending || restore.isPending
   const conflicts = o.meta?.conflicts_with?.length ?? 0
+  const finished = o.status === 'cancelled' || o.status === 'done'
+  const section = o.meta?.section_code ?? o.type_code
+  const editLabel = meetingId
+    ? m.schedule_edit_meeting()
+    : isOneOff(o)
+      ? m.schedule_event_edit()
+      : null
+  const OpenIcon = source?.open?.icon ?? ArrowRight
 
-  const badges = [
-    o.type_code ? (
-      <Badge key="type" variant="outline">
-        {o.type_code}
-      </Badge>
-    ) : null,
-    o.meta?.section_code ? (
-      <Badge key="section" variant="outline">
-        {o.meta.section_code}
-      </Badge>
-    ) : null,
-    o.status === 'cancelled' ? (
-      <Badge key="status" variant="secondary">
-        {m.schedule_status_cancelled()}
-      </Badge>
-    ) : null,
-    o.status === 'moved' ? (
-      <Badge key="status" variant="secondary">
-        {m.schedule_status_moved()}
-      </Badge>
-    ) : null,
-    o.status === 'done' ? (
-      <Badge key="status" variant="secondary">
-        {m.schedule_status_done()}
-      </Badge>
-    ) : null,
-    o.status === 'overdue' ? (
-      <Badge key="status" variant="destructive">
-        {m.schedule_status_overdue()}
-      </Badge>
-    ) : null,
-  ].filter((badge) => badge !== null)
   return (
-    <Dialog open={open} onOpenChangeComplete={onOpenChangeComplete} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 pr-8">
+    <Popover open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
+      {/* The popover sits against the clicked item: a box over it is its anchor. */}
+      <PopoverTrigger
+        render={
+          <span
+            aria-hidden
+            tabIndex={-1}
+            className="pointer-events-none absolute"
+            style={{
+              left: anchor.left,
+              top: anchor.top,
+              width: anchor.width,
+              height: anchor.height,
+            }}
+          />
+        }
+      />
+      <PopoverContent
+        ref={popup}
+        // Focus the details themselves, not the first icon button (its tooltip would show).
+        initialFocus={popup}
+        side={anchor.side}
+        align="start"
+        sideOffset={anchor.side === 'bottom' ? 4 : 8}
+        className="w-84 gap-3"
+      >
+        <div className="flex items-start gap-3">
+          {onToggle ? (
+            <Checkbox
+              aria-label={m.schedule_check_item({ title: o.title })}
+              checked={o.status === 'done'}
+              onCheckedChange={onToggle}
+              className="task-check mt-0.5 size-4.5 rounded-full"
+            />
+          ) : (
             <span
               aria-hidden
-              className="size-3 shrink-0 rounded-full"
+              className="mt-0.5 h-5 w-1 shrink-0 rounded-full"
               style={{ backgroundColor: occurrenceColor(o) }}
             />
-            <span className={o.status === 'cancelled' ? 'line-through' : undefined}>{o.title}</span>
-          </DialogTitle>
-          <DialogDescription>
+          )}
+          <div className="min-w-0 flex-1">
+            <PopoverTitle
+              className={cn('leading-snug', finished && 'text-muted-foreground line-through')}
+            >
+              {o.title}
+            </PopoverTitle>
+            {/* Titles start with the course code already: the line gives its name. */}
+            {course ? <PopoverDescription>{course.title}</PopoverDescription> : null}
+          </div>
+          <div className="-mt-1 -mr-1 flex shrink-0 items-center">
+            {editLabel ? (
+              <IconAction
+                label={editLabel}
+                disabled={busy}
+                onClick={() => (meetingId ? onEditMeeting(o) : onEditEvent(o))}
+              >
+                <Pencil />
+              </IconAction>
+            ) : null}
+            {meetingId && originalDate ? (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={busy}
+                            aria-label={m.common_more_actions()}
+                          />
+                        }
+                      />
+                    }
+                  >
+                    <Ellipsis />
+                  </TooltipTrigger>
+                  <TooltipContent>{m.common_more_actions()}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="w-40">
+                  {o.status === 'cancelled' || o.status === 'moved' ? (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        restore.mutate({
+                          path: { meeting_id: meetingId, original_date: originalDate },
+                        })
+                      }
+                    >
+                      <RotateCcw />
+                      {m.schedule_restore()}
+                    </DropdownMenuItem>
+                  ) : (
+                    <>
+                      <DropdownMenuItem onClick={() => onMove(o)}>
+                        <CalendarClock />
+                        {m.schedule_move_once()}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() =>
+                          cancel.mutate({
+                            path: { meeting_id: meetingId, original_date: originalDate },
+                            body: { kind: 'cancelled' },
+                          })
+                        }
+                      >
+                        <CalendarX2 />
+                        {m.schedule_cancel_once()}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <IconAction label={m.common_close()} onClick={() => onOpenChange(false)}>
+              <X />
+            </IconAction>
+          </div>
+        </div>
+
+        <div className="space-y-2 pl-4">
+          <Line icon={Clock}>
             {dayLabel(wallDate(o.start_at, timezone))} · {timeRange(o, timezone)}
-            {o.meta?.week_number != null ? ` · ${weekLabel(o.meta.week_number)}` : ''}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          {badges.length > 0 ? <div className="flex flex-wrap gap-1.5">{badges}</div> : null}
-          {/* Titles start with the course code already: the line gives its name. */}
-          {course ? <p className="font-medium">{course.title}</p> : null}
-          {o.location ? <Line icon={MapPin}>{o.location}</Line> : null}
-          {o.meta?.instructor ? <Line icon={User}>{o.meta.instructor}</Line> : null}
-          {conflicts > 0 ? (
-            <Line icon={TriangleAlert}>
-              <span className="text-destructive">
-                {m.schedule_conflict_with({ count: conflicts })}
+            {o.meta?.week_number != null ? (
+              <span className="text-muted-foreground"> · {weekLabel(o.meta.week_number)}</span>
+            ) : null}
+            {o.status === 'overdue' ? (
+              <span className="text-destructive"> · {m.schedule_status_overdue()}</span>
+            ) : null}
+          </Line>
+          {o.status === 'cancelled' ? (
+            <Line icon={CalendarX2}>{m.schedule_status_cancelled()}</Line>
+          ) : null}
+          {o.status === 'moved' && o.meta?.original_start_at ? (
+            <Line icon={History}>
+              <span className="text-muted-foreground">
+                {m.schedule_moved_from({
+                  when: `${dayLabel(wallDate(o.meta.original_start_at, timezone))} ${timeRange(
+                    { start_at: o.meta.original_start_at, end_at: null, all_day: false },
+                    timezone,
+                  )}`,
+                })}
               </span>
             </Line>
           ) : null}
-          {o.status === 'moved' && o.meta?.original_start_at ? (
-            <p className="text-muted-foreground">
-              {m.schedule_moved_from({
-                when: `${dayLabel(wallDate(o.meta.original_start_at, timezone))} ${timeRange(
-                  { start_at: o.meta.original_start_at, end_at: null, all_day: false },
-                  timezone,
-                )}`,
-              })}
-            </p>
+          {o.location ? <Line icon={MapPin}>{o.location}</Line> : null}
+          {o.meta?.instructor ? <Line icon={User}>{o.meta.instructor}</Line> : null}
+          {section ? <Line icon={Users}>{section}</Line> : null}
+          {conflicts > 0 ? (
+            <Line icon={TriangleAlert} className="text-destructive">
+              {m.schedule_conflict_with({ count: conflicts })}
+            </Line>
           ) : null}
           {o.meta?.note ? (
-            <p className="whitespace-pre-line text-muted-foreground">{o.meta.note}</p>
+            <Line icon={NotebookText}>
+              <span className="whitespace-pre-line text-muted-foreground">{o.meta.note}</span>
+            </Line>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {onToggle ? (
-            <Button variant="outline" size="sm" onClick={() => onToggle(o.status !== 'done')}>
-              {o.status === 'done' ? <Circle aria-hidden /> : <CircleCheck aria-hidden />}
-              {o.status === 'done' ? m.schedule_mark_not_done() : m.schedule_mark_done()}
-            </Button>
-          ) : null}
-          {isMeeting(o) && meetingId && originalDate ? (
-            o.status === 'cancelled' || o.status === 'moved' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  restore.mutate({ path: { meeting_id: meetingId, original_date: originalDate } })
-                }
-              >
-                <RotateCcw aria-hidden />
-                {m.schedule_restore()}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() =>
-                    cancel.mutate({
-                      path: { meeting_id: meetingId, original_date: originalDate },
-                      body: { kind: 'cancelled' },
-                    })
-                  }
-                >
-                  <CalendarX2 aria-hidden />
-                  {m.schedule_cancel_once()}
-                </Button>
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => onMove(o)}>
-                  {m.schedule_move_once()}
-                </Button>
-              </>
-            )
-          ) : null}
-          {isMeeting(o) && meetingId ? (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => onEditMeeting(o)}>
-              <Pencil aria-hidden />
-              {m.schedule_edit_meeting()}
-            </Button>
-          ) : null}
-          {isOneOff(o) ? (
-            <Button variant="outline" size="sm" onClick={() => onEditEvent(o)}>
-              <Pencil aria-hidden />
-              {m.schedule_event_edit()}
-            </Button>
-          ) : null}
-          {source?.onOpen ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => {
-                onOpenChange(false)
-                source.onOpen?.(o, (to) => router.history.push(to), { programId })
-              }}
-            >
-              {source.openIcon ? <source.openIcon aria-hidden /> : <ExternalLink aria-hidden />}
-              {source.OpenLabel ? (
-                <source.OpenLabel programId={programId} occurrence={o} />
-              ) : (
-                m.schedule_open_source()
-              )}
-            </Button>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+        {openItem && source?.open ? (
+          <Button
+            variant="secondary"
+            className="mt-1 w-full justify-between"
+            onClick={() => {
+              onOpenChange(false)
+              openItem()
+            }}
+          >
+            <source.open.Label programId={programId} occurrence={o} />
+            <OpenIcon aria-hidden />
+          </Button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }

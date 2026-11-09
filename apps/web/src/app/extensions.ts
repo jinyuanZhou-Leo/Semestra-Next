@@ -324,6 +324,17 @@ export type CalendarCreateProps = {
   onCancel: () => void
 }
 
+/** A calendar source's "open" (`CalendarSourceContribution.open`). */
+export type CalendarOpenAction = {
+  /** The button's text, e.g. "Open in Canvas". */
+  Label: ComponentType<{ programId: string; occurrence: Occurrence }>
+  /** Trails the text: the default (an arrow) leads within the app, an external link out of it. */
+  icon?: LucideIcon
+  /** Whether this item leads anywhere, e.g. an event only with a course; default every item. */
+  available?: (occurrence: Occurrence) => boolean
+  run: (occurrence: Occurrence, navigate: (to: string) => void, ctx: { programId: string }) => void
+}
+
 export type CalendarSourceContribution = {
   /** Backend source name, e.g. 'tasks.due'. */
   source: string
@@ -336,16 +347,11 @@ export type CalendarSourceContribution = {
    * in the details. Small: it sits next to the item's title.
    */
   Mark?: ComponentType<{ programId: string }>
-  /** The text of `onOpen` in the details, e.g. "Open in Canvas" (default "Open source"). */
-  OpenLabel?: ComponentType<{ programId: string; occurrence: Occurrence }>
-  /** The icon of `onOpen`: the default (an external link) is for a source opened outside the app. */
-  openIcon?: LucideIcon
-  /** "Open" in the occurrence's details; without it the details have no open action. */
-  onOpen?: (
-    occurrence: Occurrence,
-    navigate: (to: string) => void,
-    ctx: { programId: string },
-  ) => void
+  /**
+   * Where an item leads: the button at the foot of its details, and the item's row in the
+   * schedule cards. Without it the details have no open action and the rows stay plain text.
+   */
+  open?: CalendarOpenAction
   /**
    * Items can be checked off: a checkbox on the item and in its details (status `done` when
    * finished). Resolves once saved; the source refreshes its own queries, since the change's
