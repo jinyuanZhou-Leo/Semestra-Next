@@ -8,6 +8,7 @@ import { ChevronRight, ExternalLink, KeyRound } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
+import { SettingRow, SettingsGroup } from '@/app/settings'
 import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
 import { focusOnMount } from '@/lib/focus'
@@ -26,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from '@/ui/field'
+import { FieldError, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { type ClientId, MCP_CLIENTS, mcpSetup, type McpClient } from './mcp-clients'
@@ -231,8 +232,16 @@ export function AddConnectionDialog({
   const tokenName = named ? name.trim() : (client?.name ?? '')
 
   const scopeItems: ChoiceOption<'read' | 'write'>[] = [
-    { value: 'read', label: m.auth_account_tokens_scope_read() },
-    { value: 'write', label: m.auth_account_tokens_scope_write() },
+    {
+      value: 'read',
+      label: m.auth_account_tokens_scope_read(),
+      hint: m.assistant_mcp_scope_read_hint(),
+    },
+    {
+      value: 'write',
+      label: m.auth_account_tokens_scope_write(),
+      hint: m.assistant_mcp_scope_write_hint(),
+    },
   ]
   const expiryItems: ChoiceOption<string>[] = [
     { value: 'never', label: m.auth_account_tokens_expiry_never() },
@@ -316,46 +325,48 @@ export function AddConnectionDialog({
                 }
               />
               <FieldSet disabled={create.isPending} className="gap-4">
-                {named ? (
-                  <Field>
-                    <FieldLabel htmlFor={`${id}-name`}>
-                      {m.auth_account_tokens_name_label()}
-                    </FieldLabel>
-                    <Input
-                      id={`${id}-name`}
-                      placeholder={m.auth_account_tokens_name_placeholder()}
-                      value={name}
-                      maxLength={60}
-                      ref={focusOnMount}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </Field>
-                ) : null}
-                <Field>
-                  <FieldLabel id={`${id}-scope`}>{m.auth_account_tokens_scope_label()}</FieldLabel>
-                  <ChoiceControl
-                    labelId={`${id}-scope`}
-                    value={scope}
-                    onChange={setScope}
-                    options={scopeItems}
-                  />
-                  <FieldDescription>
-                    {scope === 'write'
-                      ? m.assistant_mcp_scope_write_hint()
-                      : m.assistant_mcp_scope_read_hint()}
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel id={`${id}-expiry`}>
-                    {m.auth_account_tokens_expiry_label()}
-                  </FieldLabel>
-                  <ChoiceControl
-                    labelId={`${id}-expiry`}
-                    value={days}
-                    onChange={setDays}
-                    options={expiryItems}
-                  />
-                </Field>
+                <SettingsGroup>
+                  {[
+                    named ? (
+                      <SettingRow
+                        key="name"
+                        label={m.auth_account_tokens_name_label()}
+                        htmlFor={`${id}-name`}
+                      >
+                        <Input
+                          id={`${id}-name`}
+                          className="w-56"
+                          placeholder={m.auth_account_tokens_name_placeholder()}
+                          value={name}
+                          maxLength={60}
+                          ref={focusOnMount}
+                          onChange={(e) => setName(e.target.value)}
+                        />
+                      </SettingRow>
+                    ) : null,
+                    <SettingRow key="scope" label={m.auth_account_tokens_scope_label()}>
+                      {(labelId) => (
+                        <ChoiceControl
+                          labelId={labelId}
+                          value={scope}
+                          onChange={setScope}
+                          options={scopeItems}
+                          selectClassName="w-36"
+                        />
+                      )}
+                    </SettingRow>,
+                    <SettingRow key="expiry" label={m.auth_account_tokens_expiry_label()}>
+                      {(labelId) => (
+                        <ChoiceControl
+                          labelId={labelId}
+                          value={days}
+                          onChange={setDays}
+                          options={expiryItems}
+                        />
+                      )}
+                    </SettingRow>,
+                  ]}
+                </SettingsGroup>
                 <ReauthStep error={create.error} onVerified={save} />
                 <FieldError>
                   {create.error && !reauth ? errorMessage(create.error) : null}

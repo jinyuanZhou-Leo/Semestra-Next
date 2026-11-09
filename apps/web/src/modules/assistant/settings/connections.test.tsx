@@ -63,7 +63,8 @@ test('connecting a client creates a token named after it and fills it into the c
   await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
   const dialog = await screen.findByRole('dialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Claude Code' }))
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Read and write' }))
+  await userEvent.click(within(dialog).getByRole('combobox', { name: 'Access' }))
+  await userEvent.click(await screen.findByRole('option', { name: /Read and write/ }))
   await userEvent.click(within(dialog).getByRole('button', { name: 'Create API token' }))
 
   expect(await screen.findByText(/claude mcp add --transport http semestra/)).toHaveTextContent(
