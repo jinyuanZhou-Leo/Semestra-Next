@@ -57,6 +57,8 @@ export type DetailsAnchor = {
   width: number
   height: number
   side: 'right' | 'bottom'
+  /** The clicked item itself: focus goes back to it when the details close. */
+  item: HTMLElement
 }
 
 function Line({
@@ -161,6 +163,7 @@ export function OccurrenceDetails({
     <Popover open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
       {/* The popover sits against the clicked item: a box over it is its anchor. */}
       <PopoverTrigger
+        nativeButton={false}
         render={
           <span
             aria-hidden
@@ -179,6 +182,9 @@ export function OccurrenceDetails({
         ref={popup}
         // Focus the details themselves, not the first icon button (its tooltip would show).
         initialFocus={popup}
+        // Back to the item when it is still drawn (a refetch can redraw the calendar meanwhile),
+        // never to the hidden anchor.
+        finalFocus={() => (anchor.item.isConnected ? anchor.item : false)}
         side={anchor.side}
         align="start"
         sideOffset={anchor.side === 'bottom' ? 4 : 8}

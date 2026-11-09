@@ -264,7 +264,7 @@ function TermCalendar({
     for (const source of sources) if (source.create) void preload(source.create.form)
     eventEdit.show({ slot })
   }
-  const showDetails = (o: Occurrence, item: Element) => {
+  const showDetails = (o: Occurrence, item: HTMLElement) => {
     const box = item.getBoundingClientRect()
     const frame = frameRef.current
     const origin = frame?.getBoundingClientRect()
@@ -276,6 +276,7 @@ function TermCalendar({
         width: box.width,
         height: box.height,
         side: view === 'list' ? 'bottom' : 'right',
+        item,
       },
     })
     if (isMeeting(o) && o.course_id) void sectionsOf(o).catch(() => undefined)
