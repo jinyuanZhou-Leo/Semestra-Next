@@ -282,11 +282,7 @@ function CourseBasics({ course, terms }: { course: Course; terms: Term[] }) {
       <SettingsBlock
         title={m.academics_course_instructors()}
         action={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setInstructors([...instructors, { name: '' }])}
-          >
+          <Button size="sm" onClick={() => setInstructors([...instructors, { name: '' }])}>
             <Plus aria-hidden />
             {m.academics_instructor_add()}
           </Button>

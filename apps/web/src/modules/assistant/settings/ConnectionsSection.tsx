@@ -142,7 +142,7 @@ export function ConnectionsSection() {
         {(page) => (
           <RevokeContext value={(t) => revoking.show({ id: t.id, name: t.name })}>
             <SectionAction>
-              <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+              <Button size="sm" onClick={() => setAdding(true)}>
                 <Plus aria-hidden />
                 {m.assistant_mcp_add()}
               </Button>

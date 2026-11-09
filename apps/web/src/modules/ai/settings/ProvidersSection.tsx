@@ -441,7 +441,7 @@ export function ProvidersSection() {
         {(data) => (
           <RowContext value={handlers}>
             <SectionAction>
-              <Button size="sm" variant="outline" onClick={startAdding}>
+              <Button size="sm" onClick={startAdding}>
                 <Plus aria-hidden />
                 {m.ai_provider_add()}
               </Button>

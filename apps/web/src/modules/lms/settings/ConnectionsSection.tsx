@@ -349,7 +349,7 @@ export function ConnectionsSection() {
         {(data) => (
           <RowContext value={handlers}>
             <SectionAction>
-              <Button size="sm" variant="outline" onClick={startAdding}>
+              <Button size="sm" onClick={startAdding}>
                 <Plus aria-hidden />
                 {m.lms_connection_add()}
               </Button>
