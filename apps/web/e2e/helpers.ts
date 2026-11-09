@@ -72,9 +72,10 @@ export async function onboard(
   await page.getByLabel('Code, row 1').fill(course.code)
   await page.getByLabel('Title, row 1').fill(course.title)
   await page.getByRole('button', { name: 'Create term' }).click()
-  // Chromium supports Web Push, so the notifications step is offered too.
+  // Chromium supports Web Push, so the notifications step is offered too. Where the browser has
+  // already decided (headless Chromium blocks notifications) it offers Continue instead of Skip.
   await expect(page.getByRole('heading', { name: 'Turn on notifications' })).toBeVisible()
-  await page.getByRole('button', { name: 'Skip' }).click()
+  await page.getByRole('button', { name: /^(Skip|Continue)$/ }).click()
 
   await page.getByRole('button', { name: 'Go to my term' }).click()
   await expect(page).toHaveURL(/\/p\/[^/]+\/t\/[^/]+$/)
