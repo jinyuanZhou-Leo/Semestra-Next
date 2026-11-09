@@ -1,4 +1,4 @@
-import { ArrowRight, ListChecks, ListTodo, Sun } from 'lucide-react'
+import { ListChecks, ListTodo, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
@@ -102,20 +102,21 @@ export default defineModule({
       label: m.tasks_calendar_source,
       icon: ListChecks,
       defaultVisible: true,
-      OpenLabel: CalendarOpenLabel,
-      openIcon: ArrowRight,
-      onOpen: (occurrence, navigate, { programId }) => {
-        // An assessment's task opens its row in the course's gradebook.
-        const assessment = occurrence.meta?.assessment_id
-        if (occurrence.course_id && assessment)
-          navigate(
-            `${coursePath(programId, occurrence.course_id, 'grades')}?assessment=${encodeURIComponent(assessment)}`,
-          )
-        else if (occurrence.course_id)
-          navigate(coursePath(programId, occurrence.course_id, 'tasks'))
-        else if (occurrence.meta?.term_id)
-          navigate(termPath(programId, occurrence.meta?.term_id, 'tasks'))
-        else navigate(`/p/${programId}/tasks`)
+      open: {
+        Label: CalendarOpenLabel,
+        run: (occurrence, navigate, { programId }) => {
+          // An assessment's task opens its row in the course's gradebook.
+          const assessment = occurrence.meta?.assessment_id
+          if (occurrence.course_id && assessment)
+            navigate(
+              `${coursePath(programId, occurrence.course_id, 'grades')}?assessment=${encodeURIComponent(assessment)}`,
+            )
+          else if (occurrence.course_id)
+            navigate(coursePath(programId, occurrence.course_id, 'tasks'))
+          else if (occurrence.meta?.term_id)
+            navigate(termPath(programId, occurrence.meta?.term_id, 'tasks'))
+          else navigate(`/p/${programId}/tasks`)
+        },
       },
       complete: completeFromCalendar,
       reschedule: rescheduleFromCalendar,

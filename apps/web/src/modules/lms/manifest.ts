@@ -1,4 +1,4 @@
-import { Link2, Megaphone, RefreshCw, School } from 'lucide-react'
+import { ExternalLink, Link2, Megaphone, RefreshCw, School } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
 import {
@@ -135,11 +135,14 @@ export default defineModule({
       icon: School,
       defaultVisible: true,
       Mark: CalendarMark,
-      OpenLabel: CalendarOpenLabel,
-      onOpen: (occurrence) => {
-        const url = occurrence.meta?.url
+      open: {
+        Label: CalendarOpenLabel,
+        icon: ExternalLink,
         // Platform data: only web links are opened (the API drops the rest too).
-        if (url && /^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener,noreferrer')
+        available: (occurrence) => /^https?:\/\//i.test(occurrence.meta?.url ?? ''),
+        run: (occurrence) => {
+          window.open(occurrence.meta?.url ?? '', '_blank', 'noopener,noreferrer')
+        },
       },
     },
   ],

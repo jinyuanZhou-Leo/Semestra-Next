@@ -64,7 +64,7 @@ import { SHARE_KINDS, ShareDialog, type ShareKind } from '../components/ExportDi
 import { FilterPanel } from '../components/FilterPanel'
 import { MeetingDialog } from '../components/MeetingDialog'
 import { MoveDialog, type MoveTarget } from '../components/MoveDialog'
-import { OccurrenceDetails } from '../components/OccurrenceDetails'
+import { type DetailsAnchor, OccurrenceDetails } from '../components/OccurrenceDetails'
 import { TimetableView } from '../components/TimetableView'
 import { type CalendarFilters, DEFAULT_FILTERS, visibleSources } from '../filters'
 import { useProgramTimezone } from '../hooks'
@@ -222,7 +222,9 @@ function TermCalendar({
   // The first day the view shows, so the week label agrees with the week-number column.
   const [rangeStart, setRangeStart] = useState<string | null>(null)
 
-  const details = useDialogTarget<Occurrence>()
+  const details = useDialogTarget<{ occurrence: Occurrence; anchor: DetailsAnchor }>()
+  // The details are placed against the clicked item, measured within this box.
+  const frameRef = useRef<HTMLDivElement>(null)
   const move = useDialogTarget<MoveTarget>()
   const meetingEdit = useDialogTarget<SectionTime>()
   const eventEdit = useDialogTarget<{ event?: OneOffEvent; slot?: EventSlot }>()
@@ -262,8 +264,21 @@ function TermCalendar({
     for (const source of sources) if (source.create) void preload(source.create.form)
     eventEdit.show({ slot })
   }
-  const showDetails = (o: Occurrence) => {
-    details.show(o)
+  const showDetails = (o: Occurrence, item: HTMLElement) => {
+    const box = item.getBoundingClientRect()
+    const frame = frameRef.current
+    const origin = frame?.getBoundingClientRect()
+    details.show({
+      occurrence: o,
+      anchor: {
+        left: box.left - (origin?.left ?? 0) + (frame?.scrollLeft ?? 0),
+        top: box.top - (origin?.top ?? 0) + (frame?.scrollTop ?? 0),
+        width: box.width,
+        height: box.height,
+        side: view === 'list' ? 'bottom' : 'right',
+        item,
+      },
+    })
     if (isMeeting(o) && o.course_id) void sectionsOf(o).catch(() => undefined)
     else if (isOneOff(o)) void eventOf(o).catch(() => undefined)
   }
@@ -461,7 +476,8 @@ function TermCalendar({
     return week ? weekLabel(week.number, week.break_info?.name) : ''
   }
   const currentWeek = weekOf(weeks, rangeStart ? midWeek(rangeStart) : anchor)
-  const shownDetails = details.target
+  const shownDetails = details.target?.occurrence
+  const shownAnchor = details.target?.anchor
   const detailsCourse = shownDetails
     ? courses.find((c) => c.id === shownDetails.course_id)
     : undefined
@@ -612,7 +628,7 @@ function TermCalendar({
             onEditMeeting={meetingEdit.show}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div ref={frameRef} className="relative overflow-x-auto">
             <div className="semestra-calendar" style={{ minWidth }}>
               <FullCalendar
                 // A new view (the toggle, or the stored one arriving) starts a fresh calendar.
@@ -669,7 +685,7 @@ function TermCalendar({
                     return
                   }
                   const o = arg.event.extendedProps.occurrence as Occurrence | undefined
-                  if (o) showDetails(o)
+                  if (o) showDetails(o, arg.el)
                 }}
                 eventDrop={onChange}
                 eventResize={onChange}
@@ -692,61 +708,62 @@ function TermCalendar({
                 }}
               />
             </div>
+            {shownDetails && shownAnchor ? (
+              <OccurrenceDetails
+                occurrence={shownDetails}
+                anchor={shownAnchor}
+                timezone={timezone}
+                programId={programId}
+                course={detailsCourse}
+                {...details.props}
+                onToggle={
+                  sourceOf(shownDetails)?.complete
+                    ? (completed) => {
+                        details.close()
+                        toggle(shownDetails, completed)
+                      }
+                    : undefined
+                }
+                onMove={(o) => {
+                  details.close()
+                  move.show({
+                    meetingId: o.meta?.meeting_id ?? o.ref.id,
+                    originalDate: o.meta?.original_date ?? '',
+                    date: toWall(o.start_at, timezone).slice(0, 10),
+                    start: toWall(o.start_at, timezone).slice(11, 16),
+                    end: toWall(o.end_at ?? o.start_at, timezone).slice(11, 16),
+                    location: o.location ?? '',
+                    note: o.meta?.note ?? '',
+                  })
+                }}
+                onEditMeeting={(o) => {
+                  if (!o.course_id) return
+                  // The details stay open until the meeting is here, then give way to its editor.
+                  sectionsOf(o)
+                    .then((list) => {
+                      const time = sectionTimes(list.items).find(
+                        (t) => t.meeting.id === o.meta?.meeting_id,
+                      )
+                      details.close()
+                      if (time) meetingEdit.show(time)
+                      else toast.error(m.error_common_not_found())
+                    })
+                    .catch(toastError)
+                }}
+                onEditEvent={(o) => {
+                  eventOf(o)
+                    .then((event) => {
+                      details.close()
+                      eventEdit.show({ event })
+                    })
+                    .catch(toastError)
+                }}
+              />
+            ) : null}
           </div>
         )}
       </div>
 
-      {shownDetails ? (
-        <OccurrenceDetails
-          occurrence={shownDetails}
-          timezone={timezone}
-          programId={programId}
-          course={detailsCourse}
-          {...details.props}
-          onToggle={
-            sourceOf(shownDetails)?.complete
-              ? (completed) => {
-                  details.close()
-                  toggle(shownDetails, completed)
-                }
-              : undefined
-          }
-          onMove={(o) => {
-            details.close()
-            move.show({
-              meetingId: o.meta?.meeting_id ?? o.ref.id,
-              originalDate: o.meta?.original_date ?? '',
-              date: toWall(o.start_at, timezone).slice(0, 10),
-              start: toWall(o.start_at, timezone).slice(11, 16),
-              end: toWall(o.end_at ?? o.start_at, timezone).slice(11, 16),
-              location: o.location ?? '',
-              note: o.meta?.note ?? '',
-            })
-          }}
-          onEditMeeting={(o) => {
-            if (!o.course_id) return
-            // The details stay open until the meeting is here, then give way to its editor.
-            sectionsOf(o)
-              .then((list) => {
-                const time = sectionTimes(list.items).find(
-                  (t) => t.meeting.id === o.meta?.meeting_id,
-                )
-                details.close()
-                if (time) meetingEdit.show(time)
-                else toast.error(m.error_common_not_found())
-              })
-              .catch(toastError)
-          }}
-          onEditEvent={(o) => {
-            eventOf(o)
-              .then((event) => {
-                details.close()
-                eventEdit.show({ event })
-              })
-              .catch(toastError)
-          }}
-        />
-      ) : null}
       {move.target ? <MoveDialog target={move.target} {...move.props} /> : null}
       {meetingEdit.target && editingCourse ? (
         <MeetingDialog
