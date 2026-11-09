@@ -3,6 +3,22 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.3 (2026-11-08)
+
+### New
+
+- **Sem:** Sem can search and reference your earlier conversations, and link to the one it drew on.
+
+### Improved
+
+- **Sem:** Ask Sem to compact the conversation.
+- **Account:** Confirming it's you for sensitive account actions now appears up front in place of the form, so the dialog no longer changes size.
+- **API & MCP:** Connect an MCP client or create an API token from one "New connection" button, with each client's icon in the token list.
+
+### Fixed
+
+- **General:** Add buttons above lists and tables now use the accent color, so they are easier to find.
+
 ## 2.0.0-beta.2 (2026-11-08)
 
 ### New

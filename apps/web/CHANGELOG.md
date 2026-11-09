@@ -1,5 +1,50 @@
 # @semestra/web
 
+## 2.0.0-beta.3
+
+### Minor Changes
+
+- c160f2b: <!-- area: api -->
+  <!-- improved -->
+
+  <!-- en -->
+
+  Connect an MCP client or create an API token from one "New connection" button, with each client's icon in the token list.
+
+  <!-- zh -->
+
+  连接 MCP 客户端与创建 API 令牌合并为一个「新建连接」入口，令牌列表显示各客户端的图标。
+
+- d1014b7: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Ask Sem to compact the conversation.
+  <!-- zh -->
+  可以直接让 Sem 压缩对话。
+- d1014b7: <!-- area: sem -->
+  <!-- en -->
+  Sem can search and reference your earlier conversations, and link to the one it drew on.
+  <!-- zh -->
+  Sem 可以搜索并引用以前的对话，回答里会附上来源对话的链接。
+- 5802219: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+
+  Confirming it's you for sensitive account actions now appears up front in place of the form, so the dialog no longer changes size.
+
+  <!-- zh -->
+
+  敏感账户操作的身份确认改为一打开就显示在表单的位置，对话框不再变高。
+
+### Patch Changes
+
+- 3b4a0e3: <!-- area: general -->
+  <!-- en -->
+  Add buttons above lists and tables now use the accent color, so they are easier to find.
+  <!-- zh -->
+  列表和表格上方的添加按钮改用强调色，更容易找到。
+- @semestra/api-client@2.0.0-beta.3
+
 ## 2.0.0-beta.2
 
 ### Minor Changes
