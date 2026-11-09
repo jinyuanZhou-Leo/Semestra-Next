@@ -1,5 +1,26 @@
 # @semestra/web
 
+## 2.0.0-beta.4
+
+### Minor Changes
+
+- 8d8f504: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Calendar item details open beside the item without covering the calendar, with clearer actions.
+  <!-- zh -->
+  日历条目的详情改为在条目旁弹出，不再遮挡日历，操作更清晰。
+- 1c7aeab: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned onboarding: connect AI and your learning platform before creating your first term, go back to any earlier step, and review everything on a summary page.
+  <!-- zh -->
+  重新设计新用户引导：创建第一个学期前即可连接 AI 和学习平台，可以返回上一步修改，最后在汇总页确认所有设置。
+
+### Patch Changes
+
+- @semestra/api-client@2.0.0-beta.4
+
 ## 2.0.0-beta.3
 
 ### Minor Changes
