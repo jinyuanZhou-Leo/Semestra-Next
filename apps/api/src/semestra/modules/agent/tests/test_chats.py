@@ -12,7 +12,7 @@ READ = "agent__session__read"
 
 
 def _result(model: FakeModel, name: str) -> dict[str, Any]:
-    [part] = [r for r in model.results() if r.tool_name == name]
+    part = [r for r in model.results() if r.tool_name == name][-1]
     text = str(part.content)
     return json.loads(text[text.index("{") : text.rindex("}") + 1])
 
@@ -51,6 +51,13 @@ async def test_search_and_read_stay_in_the_program_and_skip_temporary_chats(
     assert cited["url"] == f"/p/{program['id']}/assistant/{old['id']}"
     assert "先修高数" in match["excerpt"]
     assert found[0]["started_with"] == "选课顺序怎么排"
+
+    # A bare date is a day in the Program's zone; the range applies to title matches too.
+    model.then(
+        call("agent.session.search", {"query": "高数 Lab", "before": "2020-01-01"}), say("None.")
+    )
+    await agent.send(now["id"], "很久以前呢")
+    assert _result(model, SEARCH)["items"] == []
 
     model.then(
         call("agent.session.read", {"id": old["id"], "from_message": match["message_id"]}),

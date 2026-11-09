@@ -12,16 +12,19 @@ conversations are a few thousand rows at most.
 """
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 from typing import Any, Literal, cast
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, func, or_, select, true
+from sqlalchemy.orm import load_only
 
 from semestra.core.capability import capability
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, agent_hints, not_found
 from semestra.core.labels import owned_names, resolver
+from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsTerm
 from semestra.modules.agent import current, tools
 from semestra.modules.agent.memory import MemorySettings
@@ -303,6 +306,37 @@ async def _hits(
     return [(r[0], r[1], cast(Role, r[2]), r[3], r[4] or "") for r in rows.all()]
 
 
+# What a search shows of a conversation: not its state (memory snapshot, summary, usage).
+_LISTED = load_only(
+    AgentSession.title,
+    AgentSession.program_id,
+    AgentSession.scope,
+    AgentSession.created_at,
+    AgentSession.updated_at,
+    AgentSession.archived_at,
+)
+
+
+async def _in_program_zone(ctx: Ctx, inp: ChatSearchInput) -> ChatSearchInput:
+    """`after`/`before` without an offset (a bare date) are times in the Program's zone."""
+    if all(t is None or t.tzinfo is not None for t in (inp.after, inp.before)):
+        return inp
+    zone: tzinfo = UTC
+    if ctx.scope is not None:
+        zone = ZoneInfo((await academics.get_program_row(ctx, ctx.scope.program_id)).timezone)
+    return inp.model_copy(
+        update={
+            k: t.replace(tzinfo=zone)
+            for k, t in (("after", inp.after), ("before", inp.before))
+            if t is not None and t.tzinfo is None
+        }
+    )
+
+
+def _in_range(at: datetime, inp: ChatSearchInput) -> bool:
+    return (inp.after is None or at > inp.after) and (inp.before is None or at < inp.before)
+
+
 @capability(
     name=SEARCH,
     summary="Search the user's other conversations with Sem, or list them by time.",
@@ -319,8 +353,9 @@ async def _hits(
 )
 async def search(ctx: Ctx, inp: ChatSearchInput) -> ChatSearchResult:
     await _check(ctx)
+    inp = await _in_program_zone(ctx, inp)
     terms = _terms(inp.query)
-    stmt = select(AgentSession).where(*_visible(ctx))
+    stmt = select(AgentSession).options(_LISTED).where(*_visible(ctx))
     if not terms:
         if inp.after:
             stmt = stmt.where(AgentSession.updated_at > inp.after)
@@ -348,7 +383,9 @@ async def search(ctx: Ctx, inp: ChatSearchInput) -> ChatSearchResult:
                     message_id=message_id, role=role, sent_at=at, excerpt=_excerpt(body, terms)
                 )
             )
-    for s in sessions.values():  # a title with the words counts as a match too
+    for s in sessions.values():  # a title with the words counts as a match too, in the range
+        if not _in_range(s.updated_at, inp):
+            continue
         title = (s.title or "").lower()
         if hits_in_title := {t for t in terms if t in title}:
             matched.setdefault(s.id, set()).update(hits_in_title)
@@ -411,6 +448,9 @@ async def read(ctx: Ctx, inp: ChatReadInput) -> ChatTranscript:
         (
             await ctx.db.scalars(
                 select(AgentMessage)
+                .options(
+                    load_only(AgentMessage.role, AgentMessage.content, AgentMessage.created_at)
+                )
                 .where(
                     AgentMessage.session_id == session.id,
                     or_(AgentMessage.role == "user", AgentMessage.role == "assistant"),
