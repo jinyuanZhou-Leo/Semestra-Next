@@ -15,10 +15,13 @@ import { canOffer } from './push'
 const onboardingSteps: readonly OnboardingStep[] = [
   {
     id: 'notifications.enable',
-    // After connecting AI.
-    order: 200,
+    // After the first term.
+    order: 600,
+    icon: BellRing,
     title: m.notifications_onboarding_title,
+    description: m.notifications_onboarding_body,
     component: preloadable(() => import('./onboarding/NotificationsStep')),
+    summary: preloadable(() => import('./onboarding/NotificationsSummary')),
     available: canOffer,
   },
 ]

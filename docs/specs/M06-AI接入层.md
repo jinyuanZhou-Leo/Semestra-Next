@@ -106,7 +106,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
   4. **AI 动作**：用 `<AiAction>`（见 M00 4.7.1），外观与动画沿用 bid-analysis-agent（运行时扫光、完成时对勾光圈；owner 2026-10-21 决定，取代原先「不用发光/扫光」的约定）；不使用渐变底色和彩色边框；空状态不放营销文案。
   5. **进度低调**：进度只显示在按钮内或侧边栏状态条里，不弹模态对话框；完成时一次短暂的对勾反馈；失败用行内提示加“重试”，不用全屏错误页。
   6. **不自作主张**：除用户自己点击或助手会话里发起的操作外，AI 不主动弹出建议。
-- Onboarding 步骤（扩展点 `academics.onboardingSteps`）："连接 AI（可选）"，嵌入添加提供方表单，可跳过。
+- Onboarding 步骤（扩展点 `academics.onboardingSteps`，order 100，在学期向导之前）："连接 AI"，嵌入添加提供方表单，可跳过；已有服务商时列出并直接继续。服务器自己的模型已经提供 AI（有 `source: instance` 的可用用途）则不显示这一步，本机 OCR/embedding 不算；`provides` 是当前可用的各用途 `ai.<用途>`，学期向导据此只显示能用的识别来源。
 
 ## 8. 错误码
 `ai.not_configured`（409，params: purpose）、`ai.invalid_key`、`ai.provider_check_failed`（params: reason，为下面某个错误码）、`ai.provider_unreachable`（params: http_status?）、`ai.rate_limited`（提供方限流，params: retry_after?）、`ai.context_too_long`、`ai.capability_unsupported`（params: capability）、`ai.output_invalid`（结构化输出重试后仍不合法）、`ai.output_truncated`（结构化输出到了输出上限被截断，不重试；`extract` 会把这一段对半分开重读）、`ai.out_of_credit`（402 或余额不足的提示，如 DeepSeek 的 Insufficient Balance、OpenAI 的 `insufficient_quota`、Anthropic 的 credit balance is too low；不重试，记到服务商卡片上；Gemini 每分钟限流的 "exceeded your current quota" 仍是 `ai.rate_limited`）、`ai.timeout`、`ai.quota_exceeded`（预留）、`ai.model_not_found`（params: model）、`ai.request_rejected`（其它 4xx，params: http_status）、`ai.cancelled`（流式调用被调用方中断，只出现在用量记录里）。

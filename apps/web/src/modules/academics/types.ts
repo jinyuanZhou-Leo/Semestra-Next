@@ -72,6 +72,11 @@ export type TermWizardImportSource = {
   query?: (programId: string) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
   description?: Message
+  /**
+   * What the source needs set up first (a key an onboarding step `provides`, e.g. `ai.vision`,
+   * `lms`). Onboarding lists only sources whose needs are met; elsewhere they gate themselves.
+   */
+  requires?: string
   launch: (ctx: TermWizardContext) => Promise<CourseDraft[]>
   /** Called after the term was created for the drafts of this source that carry `extras`. */
   onCoursesCreated?: (mapping: CreatedCourseMapping) => Promise<void>
@@ -99,21 +104,49 @@ export type CourseInfoRow = {
   component: ComponentType<CourseInfoRowProps>
 }
 
-/** A field on the onboarding Program form; its value goes to `program.create` `setup[id]`. */
+/**
+ * A row on the Program form (onboarding and "New Program"); its value goes to `program.create`
+ * `setup[id]`. Going back to the Program step of onboarding edits the Program that exists, so
+ * the field also says how to `apply` a changed value to it.
+ */
 export type ProgramSetupField = {
   id: string
   order: number
   component: ComponentType<{ value: unknown; onChange: (value: unknown) => void }>
+  apply: (programId: string, value: unknown) => Promise<void>
 }
 
-/** An optional onboarding step after the first term (e.g. connecting AI, M06). */
+/** Moves between onboarding steps; what a step was given is kept when it is left. */
+export type OnboardingNav = { back: () => void; next: () => void }
+
+export type OnboardingStepProps = { programId: string; nav: OnboardingNav }
+
+/**
+ * An onboarding step another module adds (M02 §5.7), between the host's own steps: language
+ * (0), Program (10), first term (500), done (1000). Steps that set something up come before the
+ * term, so what the term wizard offers can use it.
+ */
 export type OnboardingStep = {
   id: string
   order: number
+  icon: LucideIcon
   title: Message
-  component: ComponentType<{ onDone: () => void }>
+  description: Message
+  /** The step, ending in `StepFooter` (back, skip, its own action). */
+  component: ComponentType<OnboardingStepProps>
+  /** Its line on the done step (`SummaryRow`). */
+  summary: ComponentType<{ programId: string }>
   /** Leaves the step out where it cannot apply (notifications in a browser without them). */
   available?: () => boolean
+  /**
+   * What the step has set up, from the server: `offered` false leaves the step out (no LMS on
+   * this server); `provides` are the keys import sources can `require` (e.g. `ai.extraction`).
+   */
+  status?: {
+    // oxlint-disable-next-line no-explicit-any
+    queries: (programId: string | undefined) => readonly UseQueryOptions<any, any, any, any>[]
+    read: (data: readonly unknown[]) => { offered: boolean; provides: readonly string[] }
+  }
 }
 
 export const COURSE_COLUMNS = 'academics.courseColumns'

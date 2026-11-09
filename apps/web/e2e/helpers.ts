@@ -35,17 +35,22 @@ export async function signUp(page: Page, email: string, name: string) {
 }
 
 /**
- * Goes through onboarding: a Program, a term running today and one course; the AI and
- * notifications steps are skipped. Returns the term's path; the tour is dismissed.
+ * Goes through onboarding: a Program, a term running today and one course; the AI, learning
+ * platform and notifications steps are skipped. Returns the term's path; the tour is dismissed.
  */
 export async function onboard(
   page: Page,
   course = { code: 'APS105H1', title: 'Computer Fundamentals' },
 ) {
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByLabel('Name').fill('Computer Engineering')
   await page.getByLabel('School').fill('University of Toronto')
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  // AI and the learning platform come before the term, so its wizard can use them.
+  await expect(page.getByRole('heading', { name: 'Connect AI' })).toBeVisible()
+  await page.getByRole('button', { name: 'Skip' }).click()
+  await expect(page.getByRole('heading', { name: 'Connect a learning platform' })).toBeVisible()
+  await page.getByRole('button', { name: 'Skip' }).click()
 
   // The 1st of this month to the 15th of the next: the calendar opens on this month and shows
   // the next, and neither number can be one of the other month's days shown around the grid.
@@ -67,8 +72,6 @@ export async function onboard(
   await page.getByLabel('Code, row 1').fill(course.code)
   await page.getByLabel('Title, row 1').fill(course.title)
   await page.getByRole('button', { name: 'Create term' }).click()
-  await expect(page.getByRole('heading', { name: 'Connect AI (optional)' })).toBeVisible()
-  await page.getByRole('button', { name: 'Skip' }).click()
   // Chromium supports Web Push, so the notifications step is offered too.
   await expect(page.getByRole('heading', { name: 'Turn on notifications' })).toBeVisible()
   await page.getByRole('button', { name: 'Skip' }).click()

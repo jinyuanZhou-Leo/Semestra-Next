@@ -64,6 +64,7 @@ export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
   icon: School,
+  requires: 'lms',
   request: ({ programId, startDate, endDate }) => courseRequest(programId, { startDate, endDate }),
 })
 

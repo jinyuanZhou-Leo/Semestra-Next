@@ -1,7 +1,10 @@
+import type { AiProviderListResponse, AiStatusGetResponse } from '@semestra/api-client'
+import { aiProviderListOptions } from '@semestra/api-client/react-query'
 import { BarChart3, Boxes, HardDriveDownload, KeyRound, Sparkles } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { ONBOARDING_STEPS, type OnboardingStep } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
+import { aiStatusOptions } from '@/hooks/use-ai-status'
 import { AI_QUERIES } from './queries'
 
 const EVENTS = [
@@ -20,8 +23,24 @@ const onboardingSteps: readonly OnboardingStep[] = [
   {
     id: 'ai.connect',
     order: 100,
+    icon: Sparkles,
     title: m.ai_onboarding_title,
+    description: m.ai_onboarding_body,
     component: preloadable(() => import('./onboarding/ConnectAiStep')),
+    summary: preloadable(() => import('./onboarding/AiSummary')),
+    status: {
+      queries: () => [aiStatusOptions(), aiProviderListOptions()],
+      // Left out where the server's own models already serve AI; local OCR or embedding don't count.
+      read: ([status, providers]) => {
+        const purposes = (status as AiStatusGetResponse).items
+        return {
+          offered:
+            (providers as AiProviderListResponse).items.length > 0 ||
+            !purposes.some((p) => p.available && p.source === 'instance'),
+          provides: purposes.filter((p) => p.available).map((p) => `ai.${p.purpose}`),
+        }
+      },
+    },
   },
 ]
 

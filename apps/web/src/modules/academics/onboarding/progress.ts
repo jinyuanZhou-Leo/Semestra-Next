@@ -3,35 +3,36 @@
 const STORAGE_KEY = 'semestra.onboarding'
 
 /**
- * Where the first run is. Steps other modules add are named by id, so a step that is available
- * on one load and not the next cannot shift the others; the Program (and the term, once there)
- * travel with the steps that need them.
+ * Where the first run is, and what it has made so far. Steps are named by id, so a step that is
+ * offered on one load and not the next cannot shift the others; going back keeps all of it.
  */
-export type Stage =
-  | { kind: 'language' }
-  | { kind: 'program' }
-  | { kind: 'term'; programId: string }
-  | { kind: 'extra'; id: string; programId: string; termId?: string }
-  | { kind: 'done'; programId: string; termId?: string }
+export type Progress = {
+  /** Progress of one user: another account signing in to the same tab starts over. */
+  userId?: string
+  step: string
+  /** The Program, once the Program step created it. */
+  programId?: string
+  /** What the Program form's setup rows were set to (they are not part of the Program). */
+  setup?: Record<string, unknown>
+  /** The first term once created, or `later` when it was left for later. */
+  term?: { id: string; name: string; courses: number } | 'later'
+}
 
-/** Progress of one user: another account signing in to the same tab starts over. */
-export type Progress = { userId?: string; stage: Stage }
-
-/** Whether an onboarding was started in this tab (it then continues after the Program exists). */
+/** Whether an onboarding started in this tab already made its Program (and continues after it). */
 export function onboardingInProgress(userId: string): boolean {
-  return load(userId).stage.kind !== 'language'
+  return load(userId).programId !== undefined
 }
 
 export function load(userId: string | undefined): Progress {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
     const progress = raw ? (JSON.parse(raw) as Partial<Progress>) : null
-    if (progress?.stage?.kind && progress.userId === userId)
-      return { userId, stage: progress.stage }
+    if (typeof progress?.step === 'string' && progress.userId === userId)
+      return { ...progress, userId, step: progress.step }
   } catch {
     // Start over.
   }
-  return { userId, stage: { kind: 'language' } }
+  return { userId, step: 'welcome' }
 }
 
 export function store(progress: Progress | null) {
