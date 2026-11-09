@@ -12,6 +12,7 @@ from semestra.core.capability import registry
 from semestra.modules.agent import (  # noqa: F401  (registers on import)
     attachments,
     capabilities,
+    chats,
     labels,
     memory,
     models,

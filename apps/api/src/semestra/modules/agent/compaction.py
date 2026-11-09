@@ -5,7 +5,8 @@ and outside text such as files and Canvas pages arrives that way); when that is 
 turns are summarized by the chat model. A request still too large after that clears the read
 results of the recent turns as well, all but the last step's. Only the request changes; the
 stored history stays as it is. What was cleared and the summary are kept in the session and
-reused until the next compaction. The user can also compact on demand (`compact_now`)."""
+reused until the next compaction. The user can also compact on demand (`compact_now`), or ask
+Sem to (`compact_in_turn`)."""
 
 import asyncio
 from collections.abc import Awaitable, Sequence
@@ -258,11 +259,27 @@ async def compact_now(
     """Summarizes everything before the user's last message, now (the user asked). Updates
     `memo` when done."""
     job = _OnDemand(state, user_id, session_id, model, memo, rows, cancel)
-    messages = _applied(job, messages)
-    smaller = await _smaller(job, messages, 1, history.prompt_tokens(messages), focus=focus or "")
+    smaller = await _everything_before_last(job, messages, focus)
     if isinstance(smaller, str):
         return smaller
     # The instructions and tools are what the last request sent; this compaction sends none.
     overhead = {k: int(v) for k, v in (memo.get("overhead") or {}).items()}
     memo["context"] = _usage(smaller[0], smaller[1], model.context_window, overhead)
     return "done"
+
+
+async def compact_in_turn(
+    turn: Compacting, messages: list[ModelMessage], focus: str | None
+) -> Literal["nothing", "stopped", "done"]:
+    """Sem's `compact_conversation`, when the user asked it to: like `compact_now`, inside the
+    turn. Only `memo` changes; the next request of the turn applies it (`compact`)."""
+    smaller = await _everything_before_last(turn, messages, focus)
+    return smaller if isinstance(smaller, str) else "done"
+
+
+async def _everything_before_last(
+    turn: Compacting, messages: list[ModelMessage], focus: str | None
+) -> Smaller:
+    """The request with everything before the user's last message summarized."""
+    messages = _applied(turn, messages)
+    return await _smaller(turn, messages, 1, history.prompt_tokens(messages), focus=focus or "")

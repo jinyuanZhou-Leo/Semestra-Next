@@ -185,14 +185,16 @@ async def test_attachment_size_limit(agent: Agent, monkeypatch):
 async def test_tool_catalog_follows_installed_plugins(agent: Agent):
     names = {t["name"] for t in (await agent.call("GET", "/agent/tools"))["items"]}
     assert "grading.assessment.update" in names
-    # The assistant's own tools are not listed, except its memory (it changes the user's data)
-    # and the conversation's attachments.
+    # The assistant's own tools are not listed, except its memory (it changes the user's data),
+    # the conversation's attachments and the other conversations.
     assert {n for n in names if n.startswith("agent.")} == {
         "agent.memory.remember",
         "agent.memory.forget",
         "agent.memory.get",
         "agent.attachment.read",
         "agent.attachment.save",
+        "agent.session.search",
+        "agent.session.read",
     }
     installed = "sticky.note.list" in names
     await agent.call("PUT" if not installed else "DELETE", "/plugins/sticky-note/installation")

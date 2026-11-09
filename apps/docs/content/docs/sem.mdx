@@ -52,9 +52,17 @@ Sem remembers lasting facts about you, how you want it to work, your plans, and 
 things. Review and edit them in global settings → **AI → Sem → Memory**. A **Temporary chat** neither
 reads nor saves memories.
 
+## Earlier conversations
+
+When you bring up something from an earlier chat ("what did we decide about the lab report?"),
+Sem can search your other conversations in the same program and read the one that matters. Its
+answer links to the conversation it drew on. Temporary chats are never searched, and Sem can't
+search from one either. Turn this off in global settings → **AI → Sem → Memory → Reference other
+conversations**.
+
 ## Long conversations
 
 When the conversation nearly fills the model's context, Sem compacts it before answering: it
 summarizes earlier messages and keeps the latest ones word for word. To do it yourself, type
-`/compact`, optionally followed by what the summary must keep. While it runs you can't send a new
-message.
+`/compact`, optionally followed by what the summary must keep, or ask Sem to compact the
+conversation. While it runs you can't send a new message.

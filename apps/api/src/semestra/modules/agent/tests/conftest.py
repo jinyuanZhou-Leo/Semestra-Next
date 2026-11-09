@@ -60,6 +60,8 @@ Step = Reply | Callable[[list[ModelMessage]], Reply]
 SCRIPTED_CORE = frozenset(
     {
         "academics.term.list",
+        "agent.session.read",
+        "agent.session.search",
         "calendar.occurrence.list",
         "files.document.search",
         "grading.assessment.update",

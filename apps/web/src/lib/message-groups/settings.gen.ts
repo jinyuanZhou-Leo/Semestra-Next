@@ -98,6 +98,8 @@ export const settingsMessages = {
   settings_lms_complete_submitted_label: m.settings_lms_complete_submitted_label,
   settings_memory_enabled_description: m.settings_memory_enabled_description,
   settings_memory_enabled_label: m.settings_memory_enabled_label,
+  settings_memory_search_chats_description: m.settings_memory_search_chats_description,
+  settings_memory_search_chats_label: m.settings_memory_search_chats_label,
   settings_motion_description: m.settings_motion_description,
   settings_motion_label: m.settings_motion_label,
   settings_motion_off: m.settings_motion_off,

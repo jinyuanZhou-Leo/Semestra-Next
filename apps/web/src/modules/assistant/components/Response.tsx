@@ -42,12 +42,12 @@ function CitationBadge({ citation, children }: { citation: Citation; children: R
         <div className="font-medium">{citationTitle(citation)}</div>
         {snippet ? <p className="line-clamp-4 text-muted-foreground">{snippet}</p> : null}
         {citation.url ? (
-          <a
+          <AppLink
             href={citation.url}
             className="text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
             {m.assistant_citation_open()}
-          </a>
+          </AppLink>
         ) : null}
       </HoverCardContent>
     </HoverCard>
@@ -56,13 +56,28 @@ function CitationBadge({ citation, children }: { citation: Citation; children: R
 
 const LINK_CLASS = 'font-medium text-primary underline-offset-4 hover:underline'
 
-/** A link to a page of the app stays in the app. */
-function InternalLink({ href, children }: { href: string; children: ReactNode }) {
+/** A link to a page of the app (such as an earlier conversation) stays in the app. */
+function AppLink({
+  href,
+  className = LINK_CLASS,
+  children,
+}: {
+  href: string
+  className?: string
+  children: ReactNode
+}) {
   const router = useRouter()
+  if (!href.startsWith('/') || href.startsWith('//')) {
+    return (
+      <a href={href} className={className} target="_blank" rel="noreferrer">
+        {children}
+      </a>
+    )
+  }
   return (
     <a
       href={href}
-      className={LINK_CLASS}
+      className={className}
       onClick={(event) => {
         event.preventDefault()
         router.history.push(href)
@@ -83,14 +98,7 @@ function Link({ href, children }: ComponentProps<'a'>) {
     const citation = citations.get(decodeURIComponent(href.slice(CITE_HREF.length)))
     return citation ? <CitationBadge citation={citation}>{children}</CitationBadge> : null
   }
-  if (href?.startsWith('/') && !href.startsWith('//')) {
-    return <InternalLink href={href}>{children}</InternalLink>
-  }
-  return (
-    <a href={href} className={LINK_CLASS} target="_blank" rel="noreferrer">
-      {children}
-    </a>
-  )
+  return <AppLink href={href ?? ''}>{children}</AppLink>
 }
 
 /**

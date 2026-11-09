@@ -13,6 +13,7 @@ const META_TITLES: Record<string, () => string> = {
   search_tools: m.assistant_step_search_tools,
   load_capability: m.assistant_step_load_capability,
   read_tool_result: m.assistant_step_read_tool_result,
+  compact_conversation: m.assistant_step_compact_conversation,
 }
 
 /** The localized name of a capability (`capability_<name>_title`, M12 §7), else the name. */
