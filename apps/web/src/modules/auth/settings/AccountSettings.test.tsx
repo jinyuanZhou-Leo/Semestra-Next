@@ -26,7 +26,10 @@ const session = (over: Record<string, unknown>) => ({
 })
 
 function mount(signOut: () => Promise<void> = async () => {}) {
-  server.use(http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })))
+  server.use(
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
+  )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
       <ModuleRegistry value={[manifest]}>
@@ -86,7 +89,7 @@ test('lists devices and signs one out after confirmation', async () => {
   )
 })
 
-test('after the re-authentication window, an emailed code confirms an email change', async () => {
+test('an action refused for an old sign-in is sent again after an emailed code', async () => {
   let verified = false
   const codes: unknown[] = []
   server.use(
@@ -97,7 +100,7 @@ test('after the re-authentication window, an emailed code confirms an email chan
     http.post(`${API}/account/reauth/email-verify`, async ({ request }) => {
       codes.push(await request.json())
       verified = true
-      return HttpResponse.json({ ok: true })
+      return HttpResponse.json({ remaining_seconds: 600 })
     }),
     http.post(`${API}/account/email/change-start`, () =>
       verified
@@ -108,11 +111,10 @@ test('after the re-authentication window, an emailed code confirms an email chan
   mount()
 
   await userEvent.click(await screen.findByRole('button', { name: 'Change email' }))
-  const send = screen.getByRole('button', { name: 'Send code' })
   await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
-  await userEvent.click(send)
+  await userEvent.click(screen.getByRole('button', { name: 'Send code' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Use an email code instead' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Send a code to ada@example.com' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Send code' }))
   await userEvent.type(await screen.findByLabelText('Verification code'), '123456')
 
   expect(await screen.findByText(/new@example\.com/)).toBeInTheDocument()
@@ -161,6 +163,7 @@ test('the official Google button sits on the Google row; its credential links th
   }
   server.use(
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: 'cid' })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     http.post(`${API}/account/google/link`, async ({ request }) => {
       linked(await request.json())
       return HttpResponse.json({
@@ -186,6 +189,7 @@ test('a linked Google account shows its email and unlinks after confirmation', a
   const unlinked = vi.fn<() => void>()
   server.use(
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: 'cid' })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     http.post(`${API}/account/google/unlink`, () => {
       unlinked()
       return HttpResponse.json(user)

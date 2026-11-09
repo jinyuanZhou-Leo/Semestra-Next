@@ -666,14 +666,17 @@ async def test_creating_a_token_needs_a_recent_check_and_the_password_renews_it(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
 ) -> None:
     await login_as(client, await make_user(password=PASSWORD))
-    clock.advance(minutes=11)
+    clock.advance(minutes=4)
+    assert (await client.get("/account/reauth")).json() == {"remaining_seconds": 360}
+    clock.advance(minutes=7)
+    assert (await client.get("/account/reauth")).json() == {"remaining_seconds": 0}
     stale = await client.post("/account/tokens", json={"name": "cli"})
     assert stale.status_code == 403
     assert stale.json()["error"]["code"] == "auth.reauth_required"
     wrong = await client.post("/account/reauth/password", json={"password": "not it at all"})
     assert wrong.json()["error"]["code"] == "auth.wrong_password"
     ok = await client.post("/account/reauth/password", json={"password": PASSWORD})
-    assert ok.status_code == 200, ok.text
+    assert ok.json() == {"remaining_seconds": 600}
     await create_pat(client)
     clock.advance(minutes=11)  # the check lasts as long as a fresh sign-in
     assert (await client.post("/account/tokens", json={"name": "cli"})).status_code == 403

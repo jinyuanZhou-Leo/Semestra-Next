@@ -15,7 +15,7 @@ OpenAPI schema 声明了三种认证方式，每个接口都列出了它接受�
 
 ## API 令牌
 
-在全局设置 → **AI → API 与 MCP** 中点 **新建连接**，选 **其他客户端或脚本** 创建（已登录会话调用 `POST /account/tokens`）。密钥只返回一次，Semestra 只保存它的哈希。如果登录已超过 10 分钟，会先要求用密码、邮箱验证码或 Google 确认是你本人；会话可通过 `POST /account/reauth/*` 完成这一步。
+在全局设置 → **AI → API 与 MCP** 中点 **新建连接**，选 **其他客户端或脚本** 创建（已登录会话调用 `POST /account/tokens`）。密钥只返回一次，Semestra 只保存它的哈希。如果登录已超过 10 分钟，会先要求用密码、邮箱验证码或 Google 确认是你本人；会话可通过 `POST /account/reauth/*` 完成这一步，`GET /account/reauth` 返回距离再次询问还有几秒。
 
 - **权限**：`read`，或 `read` + `write`。只读令牌只能调用读取类操作。
 - **范围**：API 令牌可用于 `/mcp`，以及对 MCP 开放的能力的 HTTP 接口，即[接口参考](/docs/api/reference/academics)中标有 `personalAccessToken` 的接口。

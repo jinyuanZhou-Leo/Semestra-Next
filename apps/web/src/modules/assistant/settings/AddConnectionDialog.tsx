@@ -13,7 +13,7 @@ import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
 import { focusOnMount } from '@/lib/focus'
 import { errorMessage } from '@/lib/errors'
-import { needsReauth, ReauthStep } from '@/modules/auth/components/ReauthStep'
+import { needsReauth, ReauthGate, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton } from '@/ui/code-block'
@@ -227,7 +227,7 @@ export function AddConnectionDialog({
       void queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
     },
   })
-  const reauth = needsReauth(create.error)
+  const reauth = useReauthRequired(create.error, open)
   const named = client?.name === ''
   const tokenName = named ? name.trim() : (client?.name ?? '')
 
@@ -325,51 +325,52 @@ export function AddConnectionDialog({
                 }
               />
               <FieldSet disabled={create.isPending} className="gap-4">
-                <SettingsGroup>
-                  {[
-                    named ? (
-                      <SettingRow
-                        key="name"
-                        label={m.auth_account_tokens_name_label()}
-                        htmlFor={`${id}-name`}
-                      >
-                        <Input
-                          id={`${id}-name`}
-                          className="w-56"
-                          placeholder={m.auth_account_tokens_name_placeholder()}
-                          value={name}
-                          maxLength={60}
-                          ref={focusOnMount}
-                          onChange={(e) => setName(e.target.value)}
-                        />
-                      </SettingRow>
-                    ) : null,
-                    <SettingRow key="scope" label={m.auth_account_tokens_scope_label()}>
-                      {(labelId) => (
-                        <ChoiceControl
-                          labelId={labelId}
-                          value={scope}
-                          onChange={setScope}
-                          options={scopeItems}
-                          selectClassName="w-36"
-                        />
-                      )}
-                    </SettingRow>,
-                    <SettingRow key="expiry" label={m.auth_account_tokens_expiry_label()}>
-                      {(labelId) => (
-                        <ChoiceControl
-                          labelId={labelId}
-                          value={days}
-                          onChange={setDays}
-                          options={expiryItems}
-                        />
-                      )}
-                    </SettingRow>,
-                  ]}
-                </SettingsGroup>
-                <ReauthStep error={create.error} onVerified={save} />
+                <ReauthGate error={create.error} onVerified={save}>
+                  <SettingsGroup>
+                    {[
+                      named ? (
+                        <SettingRow
+                          key="name"
+                          label={m.auth_account_tokens_name_label()}
+                          htmlFor={`${id}-name`}
+                        >
+                          <Input
+                            id={`${id}-name`}
+                            className="w-56"
+                            placeholder={m.auth_account_tokens_name_placeholder()}
+                            value={name}
+                            maxLength={60}
+                            ref={focusOnMount}
+                            onChange={(e) => setName(e.target.value)}
+                          />
+                        </SettingRow>
+                      ) : null,
+                      <SettingRow key="scope" label={m.auth_account_tokens_scope_label()}>
+                        {(labelId) => (
+                          <ChoiceControl
+                            labelId={labelId}
+                            value={scope}
+                            onChange={setScope}
+                            options={scopeItems}
+                            selectClassName="w-36"
+                          />
+                        )}
+                      </SettingRow>,
+                      <SettingRow key="expiry" label={m.auth_account_tokens_expiry_label()}>
+                        {(labelId) => (
+                          <ChoiceControl
+                            labelId={labelId}
+                            value={days}
+                            onChange={setDays}
+                            options={expiryItems}
+                          />
+                        )}
+                      </SettingRow>,
+                    ]}
+                  </SettingsGroup>
+                </ReauthGate>
                 <FieldError>
-                  {create.error && !reauth ? errorMessage(create.error) : null}
+                  {create.error && !needsReauth(create.error) ? errorMessage(create.error) : null}
                 </FieldError>
               </FieldSet>
               <div className="flex items-center justify-between gap-2">

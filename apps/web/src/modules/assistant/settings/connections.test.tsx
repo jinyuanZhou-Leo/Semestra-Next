@@ -24,7 +24,10 @@ const token = {
 }
 
 function mount() {
-  server.use(http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })))
+  server.use(
+    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
+  )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut: async () => {} }}>
       <ConnectionsSection />
@@ -75,33 +78,29 @@ test('connecting a client creates a token named after it and fills it into the c
   expect(await screen.findByText('Claude Code')).toBeInTheDocument() // listed by its prefix only
 })
 
-test('a token for anything else takes a name, and confirming who you are sends it again', async () => {
-  let verified = false
+test('a token for anything else takes a name, after confirming who you are', async () => {
   server.use(
     http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
-    http.post(`${API}/account/reauth/password`, async ({ request }) => {
-      verified = ((await request.json()) as { password: string }).password === 'hunter22hunter22'
-      return verified
-        ? HttpResponse.json({ ok: true })
-        : HttpResponse.json(apiError('auth.wrong_password', 400).body, { status: 400 })
-    }),
+    http.post(`${API}/account/reauth/password`, async ({ request }) =>
+      ((await request.json()) as { password: string }).password === 'hunter22hunter22'
+        ? HttpResponse.json({ remaining_seconds: 600 })
+        : HttpResponse.json(apiError('auth.wrong_password', 400).body, { status: 400 }),
+    ),
     http.post(`${API}/account/tokens`, async ({ request }) => {
       expect(((await request.json()) as { name: string }).name).toBe('CLI')
-      return verified
-        ? HttpResponse.json({ ...token, name: 'CLI', token: 'spat_SECRET' })
-        : HttpResponse.json(apiError('auth.reauth_required', 403).body, { status: 403 })
+      return HttpResponse.json({ ...token, name: 'CLI', token: 'spat_SECRET' })
     }),
   )
   mount()
+  // Signed in over 10 minutes ago.
+  server.use(http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 0 })))
 
   await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
   const dialog = await screen.findByRole('dialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Other client or script' }))
-  const create = within(dialog).getByRole('button', { name: 'Create API token' })
-  expect(create).toBeDisabled()
-  await userEvent.type(within(dialog).getByLabelText('Name'), 'CLI')
-  await userEvent.click(create)
+  // The confirmation takes the fields' place until it is done.
   const password = await within(dialog).findByLabelText('Password')
+  const create = within(dialog).getByRole('button', { name: 'Create API token' })
   expect(create).toBeDisabled()
   await userEvent.type(password, 'wrong{Enter}')
   expect(await within(dialog).findByText('Incorrect password.')).toBeInTheDocument()
@@ -109,8 +108,29 @@ test('a token for anything else takes a name, and confirming who you are sends i
   await userEvent.type(password, 'hunter22hunter22')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
 
-  // Confirming sends the creation again on its own; the token is shown with the address.
+  await userEvent.type(await within(dialog).findByRole('textbox', { name: 'Name' }), 'CLI')
+  await userEvent.click(create)
   expect(await screen.findByText('spat_SECRET')).toBeInTheDocument()
+})
+
+test('an answer that arrives after the dialog opened asks to confirm at once', async () => {
+  let answer: (() => void) | undefined
+  const arrived = new Promise<void>((resolve) => (answer = resolve))
+  server.use(http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })))
+  mount()
+  server.use(
+    http.get(`${API}/account/reauth`, async () => {
+      await arrived
+      return HttpResponse.json({ remaining_seconds: 0 })
+    }),
+  )
+
+  await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
+  const dialog = await screen.findByRole('dialog')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Other client or script' }))
+  answer?.()
+  expect(await within(dialog).findByLabelText('Password', {}, { timeout: 1000 })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Create API token' })).toBeDisabled()
 })
 
 test('revoking a connection asks for confirmation first', async () => {

@@ -1,10 +1,10 @@
-import { accountDeleteMutation } from '@semestra/api-client/react-query'
-import { useMutation } from '@tanstack/react-query'
+import { accountDeleteMutation, accountReauthStatusOptions } from '@semestra/api-client/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { DangerZone, SettingRow } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/modules/auth/useAuth'
-import { ReauthStep, needsReauth } from '@/modules/auth/components/ReauthStep'
+import { ReauthGate, needsReauth, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -15,6 +15,8 @@ import { Input } from '@/ui/input'
 /** Delete the account (M13 §5): typed sentence, a tick, and a recent check that it is the user. */
 export function DeleteAccountSection() {
   const [open, setOpen] = useState(false)
+  // Known before the dialog opens, so it starts on the right step instead of switching to it.
+  useQuery(accountReauthStatusOptions())
   return (
     <>
       <DangerZone>
@@ -40,7 +42,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
     onSuccess: () => signOut({ to: '/account-deleted', flush: false }),
   })
   const error = remove.error
-  const reauth = needsReauth(error)
+  const reauth = useReauthRequired(error)
   // Also sent again once the user confirms it's them: with what the dialog shows by then.
   const confirm = () => remove.mutate({ body: { confirmation: phrase, acknowledged } })
   const matches = phrase.trim().toLowerCase() === m.portability_delete_phrase().toLowerCase()
@@ -58,29 +60,30 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
       confirmDisabled={!matches || !acknowledged || reauth}
       extra={
         <FieldGroup className="gap-4">
-          <Field>
-            <FieldLabel htmlFor={`${id}-phrase`}>
-              {m.portability_type_to_confirm({ phrase: m.portability_delete_phrase() })}
-            </FieldLabel>
-            <Input
-              id={`${id}-phrase`}
-              autoComplete="off"
-              value={phrase}
-              onChange={(e) => setPhrase(e.target.value)}
-            />
-          </Field>
-          <Field orientation="horizontal">
-            <Checkbox
-              id={`${id}-ack`}
-              checked={acknowledged}
-              onCheckedChange={(checked) => setAcknowledged(checked)}
-            />
-            <FieldLabel htmlFor={`${id}-ack`} className="font-normal">
-              {m.portability_delete_acknowledge()}
-            </FieldLabel>
-          </Field>
-          <ReauthStep error={error} onVerified={confirm} />
-          {error && !reauth ? <FieldError>{errorMessage(error)}</FieldError> : null}
+          <ReauthGate error={error} onVerified={confirm} className="gap-4">
+            <Field>
+              <FieldLabel htmlFor={`${id}-phrase`}>
+                {m.portability_type_to_confirm({ phrase: m.portability_delete_phrase() })}
+              </FieldLabel>
+              <Input
+                id={`${id}-phrase`}
+                autoComplete="off"
+                value={phrase}
+                onChange={(e) => setPhrase(e.target.value)}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <Checkbox
+                id={`${id}-ack`}
+                checked={acknowledged}
+                onCheckedChange={(checked) => setAcknowledged(checked)}
+              />
+              <FieldLabel htmlFor={`${id}-ack`} className="font-normal">
+                {m.portability_delete_acknowledge()}
+              </FieldLabel>
+            </Field>
+          </ReauthGate>
+          {error && !needsReauth(error) ? <FieldError>{errorMessage(error)}</FieldError> : null}
         </FieldGroup>
       }
       onConfirm={confirm}

@@ -8537,6 +8537,18 @@ export type ReauthPasswordInputBody = {
 };
 
 /**
+ * ReauthStatus
+ */
+export type ReauthStatus = {
+    /**
+     * Remaining Seconds
+     *
+     * Seconds until sensitive actions ask to confirm it's you again (0: now)
+     */
+    remaining_seconds: number;
+};
+
+/**
  * RecommendedModel
  */
 export type RecommendedModel = {
@@ -11856,16 +11868,6 @@ export type ValuesUpdateInputBody = {
 };
 
 /**
- * Verified
- */
-export type Verified = {
-    /**
-     * Ok
-     */
-    ok?: boolean;
-};
-
-/**
  * WizardCourse
  */
 export type WizardCourse = {
@@ -13847,7 +13849,7 @@ export type AccountReauthEmailVerifyResponses = {
     /**
      * Successful Response
      */
-    200: Verified;
+    200: ReauthStatus;
 };
 
 export type AccountReauthEmailVerifyResponse = AccountReauthEmailVerifyResponses[keyof AccountReauthEmailVerifyResponses];
@@ -13872,7 +13874,7 @@ export type AccountReauthGoogleResponses = {
     /**
      * Successful Response
      */
-    200: Verified;
+    200: ReauthStatus;
 };
 
 export type AccountReauthGoogleResponse = AccountReauthGoogleResponses[keyof AccountReauthGoogleResponses];
@@ -13897,10 +13899,35 @@ export type AccountReauthPasswordResponses = {
     /**
      * Successful Response
      */
-    200: Verified;
+    200: ReauthStatus;
 };
 
 export type AccountReauthPasswordResponse = AccountReauthPasswordResponses[keyof AccountReauthPasswordResponses];
+
+export type AccountReauthStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/reauth';
+};
+
+export type AccountReauthStatusErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthStatusError = AccountReauthStatusErrors[keyof AccountReauthStatusErrors];
+
+export type AccountReauthStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReauthStatus;
+};
+
+export type AccountReauthStatusResponse = AccountReauthStatusResponses[keyof AccountReauthStatusResponses];
 
 export type AccountSessionListData = {
     body?: never;

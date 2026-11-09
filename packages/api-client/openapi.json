@@ -3050,7 +3050,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Verified"
+                  "$ref": "#/components/schemas/ReauthStatus"
                 }
               }
             }
@@ -3100,7 +3100,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Verified"
+                  "$ref": "#/components/schemas/ReauthStatus"
                 }
               }
             }
@@ -3150,7 +3150,47 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Verified"
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "How long the current session stays confirmed.",
+        "description": "Lets the client ask the user to confirm it's them before a sensitive action, instead of after it is refused. Not available to agents.",
+        "operationId": "accountReauthStatus",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
                 }
               }
             }
@@ -32236,6 +32276,20 @@
         ],
         "title": "ReauthPasswordInputBody"
       },
+      "ReauthStatus": {
+        "properties": {
+          "remaining_seconds": {
+            "type": "integer",
+            "title": "Remaining Seconds",
+            "description": "Seconds until sensitive actions ask to confirm it's you again (0: now)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "remaining_seconds"
+        ],
+        "title": "ReauthStatus"
+      },
       "RecommendedModel": {
         "properties": {
           "provider_id": {
@@ -37823,17 +37877,6 @@
           "values"
         ],
         "title": "ValuesUpdateInputBody"
-      },
-      "Verified": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok",
-            "default": true
-          }
-        },
-        "type": "object",
-        "title": "Verified"
       },
       "WizardCourse": {
         "properties": {

@@ -632,6 +632,14 @@ async def require_recent_auth(ctx: Ctx) -> None:
         raise AppError("auth.reauth_required", 403)
 
 
+def reauth_remaining(ctx: Ctx) -> int:
+    """Seconds left before sensitive actions ask the user to confirm it's them again (0 = now)."""
+    verified = ctx.auth.verified_at if ctx.auth else None
+    if verified is None:
+        return 0
+    return max(0, math.floor((verified + REAUTH_WINDOW - ctx.now).total_seconds()))
+
+
 def _current_session_id(ctx: Ctx) -> str:
     # Personal access tokens have no session to verify; they cannot reach these anyway.
     if ctx.auth is None or ctx.auth.session_id is None:
