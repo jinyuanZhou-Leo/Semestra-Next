@@ -3,6 +3,13 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.4 (2026-11-09)
+
+### Improved
+
+- **General:** Redesigned onboarding: connect AI and your learning platform before creating your first term, go back to any earlier step, and review everything on a summary page.
+- **Calendar:** Calendar item details open beside the item without covering the calendar, with clearer actions.
+
 ## 2.0.0-beta.3 (2026-11-08)
 
 ### New
