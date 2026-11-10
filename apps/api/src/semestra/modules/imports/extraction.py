@@ -19,8 +19,8 @@ from semestra.modules.imports.build import (
     BuildContext,
     Builder,
     category_key,
+    match_category,
     norm_title,
-    slug_key,
     type_code,
     year_long,
 )
@@ -238,7 +238,8 @@ def from_syllabus(
     )
     course_id = ref.removeprefix("course:") if ref.startswith("course:") else None
     existing = ctx.existing_assessments.get(course_id or "", set())
-    category_refs = _syllabus_categories(ext, builder, source, ref)
+    categories = ctx.categories.get(course_id or "", [])
+    category_refs = _syllabus_categories(ext, builder, source, ref, categories)
     titles = _syllabus_assessments(ext, ctx, builder, source, ref, category_refs, existing)
     _share_category_weights(builder, ref)
     _syllabus_meetings(ext, ctx, builder, source, ref)
@@ -279,9 +280,13 @@ def _syllabus_course(c: CourseX, source: dict[str, str | None]) -> tuple[_Fields
 
 
 def _syllabus_categories(
-    ext: SyllabusExtraction, builder: Builder, source: dict[str, str | None], ref: str
+    ext: SyllabusExtraction,
+    builder: Builder,
+    source: dict[str, str | None],
+    ref: str,
+    categories: Sequence[tuple[str, str]],
 ) -> dict[str, str]:
-    """Categories: a built-in key when the name means one, else a new custom category. Returns
+    """Categories: the course's own one when `match_category` finds it, else a new one. Returns
     their refs by normalized name and by `key:<key>`."""
     category_refs: dict[str, str] = {}
     for cat in ext.grading.categories:
@@ -292,13 +297,14 @@ def _syllabus_categories(
         fields.put("name", cat.name, name[:200])
         if isinstance(cat.weight.value, int | float) and 0 <= cat.weight.value <= 100:
             fields.put("weight_total", cat.weight)
-        key = category_key(name) or slug_key(name)
-        fields.data.update(course_ref=ref, key=key)
+        key = match_category(name, categories)
+        fields.data.update(course_ref=ref, **({"key": key} if key else {}))
         item_key = builder.add(
             "category", fields.data, evidence=fields.evidence, confidence=fields.confidence
         )
         category_refs[norm_title(name)] = f"item:{item_key}"
-        category_refs.setdefault(f"key:{key}", f"item:{item_key}")
+        if key:
+            category_refs.setdefault(f"key:{key}", f"item:{item_key}")
     return category_refs
 
 

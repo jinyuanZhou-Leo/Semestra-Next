@@ -16,6 +16,7 @@ import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { useTargetCategories } from '../categories'
 import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
@@ -208,8 +209,6 @@ function destination(item: ImportItem): string {
   switch (item.type) {
     case 'course':
       return m.imports_dest_course()
-    case 'category':
-      return m.imports_dest_category()
     case 'assessment':
       return m.imports_dest_gradebook()
     case 'meeting':
@@ -244,11 +243,23 @@ function ResultCell({ row }: CellProps) {
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
-    <span className="flex items-center gap-1 text-muted-foreground">
+    <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
       {done ? (
         <CircleCheck aria-label={m.imports_row_done()} className="size-4 shrink-0 text-success" />
       ) : null}
-      {destination(item)}
+      {item.type === 'category' ? <CategoryDestination item={item} /> : destination(item)}
+    </span>
+  )
+}
+
+/** A category item goes into the course's category with its key, or makes a new one. */
+function CategoryDestination({ item }: { item: ImportItem }) {
+  const { session } = useReview()
+  const categories = useTargetCategories(session.program_id, item.data.course_ref)
+  const into = categories.find((c) => c.key === item.data.key)
+  return (
+    <span className="truncate">
+      {into ? m.imports_dest_into({ category: into.name }) : m.imports_dest_category()}
     </span>
   )
 }

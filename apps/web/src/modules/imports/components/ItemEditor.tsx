@@ -13,7 +13,8 @@ import { Switch } from '@/ui/switch'
 import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText } from '../labels'
-import { trackEdit, useItemUpdate } from '../queries'
+import { useTargetCategories } from '../categories'
+import { trackEdit, useImportSession, useItemUpdate } from '../queries'
 import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
@@ -113,17 +114,20 @@ function FieldsEditor({ item, editable }: { item: ImportItem; editable: boolean 
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {specs.map((spec) => (
-        <FieldInput
-          key={spec.key}
-          spec={spec}
-          item={item}
-          value={values[spec.key]}
-          disabled={!editable}
-          onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
-          onCommit={(value) => commit(spec.key, value)}
-        />
-      ))}
+      {/* A category going into an existing one keeps that one's name. */}
+      {specs
+        .filter((spec) => !(item.type === 'category' && spec.key === 'name' && values.key))
+        .map((spec) => (
+          <FieldInput
+            key={spec.key}
+            spec={spec}
+            item={item}
+            value={values[spec.key]}
+            disabled={!editable}
+            onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
+            onCommit={(value) => commit(spec.key, value)}
+          />
+        ))}
     </div>
   )
 }
@@ -205,6 +209,17 @@ function FieldInput({
         </NativeSelect>
       )
       break
+    case 'category':
+      control = (
+        <CategorySelect
+          id={id}
+          item={item}
+          value={text}
+          disabled={disabled}
+          onChange={(key) => choose(key || null)}
+        />
+      )
+      break
     default:
       control = (
         <Input
@@ -228,6 +243,39 @@ function FieldInput({
       {head}
       {control}
     </Field>
+  )
+}
+
+/** Which of the course's categories a category item goes into, or a new one (""). */
+function CategorySelect({
+  id,
+  item,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string
+  item: ImportItem
+  value: string
+  disabled: boolean
+  onChange: (key: string) => void
+}) {
+  const session = useImportSession(item.session_id).data
+  const categories = useTargetCategories(session?.program_id ?? '', item.data.course_ref)
+  return (
+    <NativeSelect
+      id={id}
+      value={value}
+      disabled={disabled || !session}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {categories.map((c) => (
+        <NativeSelectOption key={c.key} value={c.key}>
+          {c.name}
+        </NativeSelectOption>
+      ))}
+      <NativeSelectOption value="">{m.imports_dest_category()}</NativeSelectOption>
+    </NativeSelect>
   )
 }
 

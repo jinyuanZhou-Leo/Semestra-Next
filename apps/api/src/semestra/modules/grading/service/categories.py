@@ -17,6 +17,7 @@ from semestra.modules.grading.schemas import (
 )
 from semestra.modules.grading.service.common import reject_nulls
 from semestra.modules.grading.service.courses import course_and_program, ensure_course_setup
+from semestra.modules.grading.service.scales import get_scale_row
 
 
 def category_out(row: models.GradingCategory) -> AssessmentCategory:
@@ -38,6 +39,19 @@ async def category_rows(ctx: Ctx, course_id: str) -> list[models.GradingCategory
             )
         ).all()
     )
+
+
+async def course_categories(
+    ctx: Ctx, program_id: str, course_id: str | None = None
+) -> list[tuple[str, str]]:
+    """A course's categories as `(key, name)`. A course the gradebook has not set up yet, or one
+    still to be created (`course_id` None), has the Program's defaults; nothing is written."""
+    if course_id is not None:
+        result = await ctx.db.get(models.GradingCourseResult, course_id)
+        if result is not None and result.user_id == ctx.user_id:
+            return [(r.key, r.name) for r in await category_rows(ctx, course_id)]
+    scale = await get_scale_row(ctx, program_id)
+    return [(t["key"], t["name"]) for t in scale.default_categories]
 
 
 async def get_category(ctx: Ctx, category_id: str) -> models.GradingCategory:

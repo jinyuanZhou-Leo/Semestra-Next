@@ -359,6 +359,10 @@ async def test_import_assignments_once_and_updates(api: Api, app: FastAPI, fake:
     assert all(a["imported_as"]["kind"] == "assessment" for a in listed["items"])
     gradebook = await api.call("GET", f"/courses/{course}/assessments")
     assert len(gradebook["items"]) == 3
+    # The groups went into the course's built-in categories; none was added.
+    assert [c["data"]["key"] for c in categories] == ["lab", "exam"]
+    book = await api.call("GET", f"/courses/{course}/gradebook")
+    assert len(book["categories"]) == 7
 
     # Importing the same assignments again creates nothing.
     err = await api.call(
@@ -768,6 +772,8 @@ async def test_a_refused_resource_leaves_the_connection_alone(
 
 
 async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: FakeProvider):
+    """Two groups are two category rows (each with its own weight total), even when both go
+    into the same category of the course."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
@@ -783,9 +789,26 @@ async def test_assignment_groups_with_the_same_name_stay_apart(api: Api, fake: F
         ("Labs", 20),
         ("Labs", 80),
     ]
-    assert len({c["data"]["key"] for c in categories}) == 2
+    assert [c["data"]["key"] for c in categories] == ["lab", "lab"]
     refs = [a["data"]["category_ref"] for a in by_type(session, "assessment")]
     assert refs[0] == refs[1] != refs[2]
+
+
+async def test_a_group_goes_where_its_assignments_were_moved(api: Api):
+    """Assignments moved to another category in the gradebook take their group with them: the
+    group's next assignment goes there too."""
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    path = f"/courses/{course}/lms/imports:assignments"
+    assert (await api.call("POST", path, json={"external_ids": ["a1"]}))["committed"]
+    book = await api.call("GET", f"/courses/{course}/gradebook")
+    project = next(c["id"] for c in book["categories"] if c["key"] == "project")
+    [lab1] = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
+    await api.call("PATCH", f"/assessments/{lab1['id']}", json={"category_id": project})
+    started = await api.call("POST", path, json={"external_ids": ["a2"]})
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    assert [c["data"]["key"] for c in by_type(session, "category")] == ["project"]
 
 
 async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: FakeProvider):
