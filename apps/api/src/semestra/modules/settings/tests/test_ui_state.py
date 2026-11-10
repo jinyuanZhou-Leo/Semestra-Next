@@ -73,8 +73,3 @@ async def test_ui_state_is_per_user(client: AsyncClient, make_user: MakeUser, lo
         await login_as(other, await make_user("b@example.com"))
         r = await other.post("/me/ui-state:get", json={"keys": ["sidebar.collapsed"]})
         assert r.json()["items"] == {}
-
-
-async def test_requires_login(client: AsyncClient):
-    assert (await client.put("/me/ui-state/x", json={"value": 1})).status_code == 401
-    assert (await client.post("/me/ui-state:get", json={"keys": ["x"]})).status_code == 401

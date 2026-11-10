@@ -15,9 +15,20 @@ export default defineConfig({
     }),
   ],
   test: {
-    include: ['src/**/*.test.{ts,tsx}'],
-    environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
     globals: false,
+    // `.test.ts` files test plain logic and run in Node; `.test.tsx` files render and get jsdom,
+    // whose setup costs about as much as a small file's tests.
+    projects: [
+      { extends: true, test: { name: 'unit', include: ['src/**/*.test.ts'], environment: 'node' } },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          include: ['src/**/*.test.tsx'],
+          environment: 'jsdom',
+          setupFiles: ['./src/test-setup.ts'],
+        },
+      },
+    ],
   },
 })
