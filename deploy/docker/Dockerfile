@@ -120,13 +120,8 @@ ENV SEMESTRA_SERVE_WEB=true \
 
 # ---- all-in-one with local OCR and embedding (self-hosting) --------------------------------
 # Built from the shared runtime rather than allinone, so the image has one virtualenv, not two.
+# OpenCV (pulled in by PaddleOCR) is the headless build, which needs no system libraries.
 FROM runtime AS allinone-local
-USER root
-# OpenCV (pulled in by PaddleOCR) links against these.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0t64 \
-    && rm -rf /var/lib/apt/lists/*
-USER semestra
 COPY --from=api-builder-local /opt/venv /opt/venv
 COPY --from=web-builder --chown=semestra:semestra /repo/apps/web/dist /app/web
 # No model is in the image: each downloads into the data volume the first time it is needed,

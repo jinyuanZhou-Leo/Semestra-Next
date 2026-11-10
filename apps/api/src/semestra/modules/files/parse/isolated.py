@@ -74,7 +74,9 @@ def _context() -> ForkServerContext | SpawnContext:
     # child starts quickly and inherits none of the API's threads or open connections.
     if "forkserver" in multiprocessing.get_all_start_methods():
         forkserver = multiprocessing.get_context("forkserver")
-        forkserver.set_forkserver_preload([__name__])
+        # PyMuPDF is imported only where it is used, so the API process never loads it; the
+        # forkserver loads it once for all children.
+        forkserver.set_forkserver_preload([__name__, "pymupdf", "pymupdf4llm"])
         return forkserver
     return multiprocessing.get_context("spawn")
 

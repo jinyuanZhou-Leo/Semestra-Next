@@ -2,8 +2,8 @@
 
 import io
 import math
+from typing import TYPE_CHECKING
 
-import pymupdf
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
@@ -17,6 +17,9 @@ OCR_IMAGE_MAX_SIDE = 2400
 MAX_IMAGE_PIXELS = 60_000_000
 
 register_heif_opener()
+
+if TYPE_CHECKING:
+    import pymupdf
 
 
 def _png(image: Image.Image) -> bytes:
@@ -33,11 +36,22 @@ def _fit(image: Image.Image, width: int, height: int) -> Image.Image:
     return image.resize((max(1, round(image.width * factor)), max(1, round(image.height * factor))))
 
 
+def _matrix(zoom: float) -> pymupdf.Matrix:
+    import pymupdf
+
+    return pymupdf.Matrix(zoom, zoom)
+
+
 class PageRenderer:
     """Renders pages of one file; open once, call from one thread at a time, then `close()`."""
 
     def __init__(self, data: bytes, *, pdf: bool) -> None:
-        self._pdf = pymupdf.open(stream=data, filetype="pdf") if pdf else None
+        # Imported here, like in `readers._pdf`: pages render in child processes only.
+        import pymupdf
+
+        self._pdf: pymupdf.Document | None = (
+            pymupdf.open(stream=data, filetype="pdf") if pdf else None
+        )
         self._image: Image.Image | None = None
         if not pdf:
             image = Image.open(io.BytesIO(data))
@@ -60,7 +74,7 @@ class PageRenderer:
             area = max(rect.width, 1) * max(rect.height, 1)
             dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / area))
             zoom = dpi / 72
-            matrix = pymupdf.Matrix(zoom, zoom)
+            matrix = _matrix(zoom)
             return self._pdf[index].get_pixmap(matrix=matrix).tobytes("png")
         assert self._image is not None
         return _png(_fit(self._image, OCR_IMAGE_MAX_SIDE, OCR_IMAGE_MAX_SIDE))
@@ -72,6 +86,6 @@ class PageRenderer:
             zoom = min(
                 THUMB_WIDTH / max(page.rect.width, 1), THUMB_MAX_HEIGHT / max(page.rect.height, 1)
             )
-            return page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png")
+            return page.get_pixmap(matrix=_matrix(zoom)).tobytes("png")
         assert self._image is not None
         return _png(_fit(self._image, THUMB_WIDTH, THUMB_MAX_HEIGHT))

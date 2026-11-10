@@ -50,7 +50,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Local OCR of scanned pages (PaddleOCR's PP-OCRv6/v5 models on ONNX Runtime), for self-hosted images.
-ocr = ["onnxruntime>=1.31.1", "paddleocr>=3.7.0"]
+# PaddleX asks for the GUI build of OpenCV (`opencv-contrib-python`, excluded below), which needs
+# libGL; the headless build has the same `cv2` and runs on a bare server. Same version as PaddleX
+# pins.
+ocr = ["onnxruntime>=1.31.1", "opencv-contrib-python-headless==4.10.0.84", "paddleocr>=3.7.0"]
 # Local text embedding (ONNX models from Hugging Face), for self-hosted images.
 embedding = ["huggingface-hub>=2.3.0", "numpy>=2.3.5", "onnxruntime>=1.31.1", "tokenizers>=0.23.3"]
 # Both of the above on an NVIDIA GPU (Linux, Windows), instead of `ocr` and `embedding`: the GPU
@@ -59,6 +62,7 @@ local-cuda = [
     "huggingface-hub>=2.3.0",
     "numpy>=2.3.5",
     "onnxruntime-gpu>=1.31.1; sys_platform != 'darwin'",
+    "opencv-contrib-python-headless==4.10.0.84",
     "paddleocr>=3.7.0",
     "tokenizers>=0.23.3",
 ]
@@ -71,6 +75,10 @@ requires = ["uv_build>=0.10.10,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv]
+# Never installed: PyMuPDF requires the packages of its layout model, which we turn off
+# (`pymupdf4llm.use_layout(False)` in files/parse/readers.py), and PaddleX the GUI build of OpenCV
+# (the extras above install the headless one).
+exclude-dependencies = ["networkx", "opencv-contrib-python", "pymupdf-layout"]
 conflicts = [
     [{ extra = "local-cuda" }, { extra = "ocr" }],
     [{ extra = "local-cuda" }, { extra = "embedding" }],

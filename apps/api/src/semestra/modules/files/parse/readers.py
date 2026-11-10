@@ -8,16 +8,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-import pymupdf
-import pymupdf4llm
-
 from semestra.modules.files.parse.detect import Detected, decode_text
-
-# pymupdf4llm 2.x defaults to PyMuPDF's layout model (ONNX), which took about twice the time
-# and four times the memory per page, and has no header identification hook. The rule-based
-# reader keeps parsing within the child's memory limit on a small server; our own OCR covers
-# scanned pages.
-pymupdf4llm.use_layout(False)
 
 MAX_PAGES = 500
 OCR_MIN_CHARS = 50
@@ -146,6 +137,16 @@ def _text_pages(text: str) -> list[ParsedPage]:
 
 
 def _pdf(data: bytes, max_pages: int) -> ParsedDocument:
+    # Imported here: PDFs are read in a child process (`isolated`), so the API itself never
+    # loads PyMuPDF (about 45 MB); the forkserver preloads it for the children.
+    import pymupdf
+    import pymupdf4llm
+
+    # pymupdf4llm 2.x defaults to PyMuPDF's layout model (ONNX), which took about twice the time
+    # and four times the memory per page, and has no header identification hook. The rule-based
+    # reader keeps parsing within the child's memory limit on a small server; our own OCR covers
+    # scanned pages. The layout model's dependencies are not even installed (pyproject.toml).
+    pymupdf4llm.use_layout(False)
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as exc:
