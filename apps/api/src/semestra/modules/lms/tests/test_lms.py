@@ -1190,6 +1190,70 @@ async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(ap
     assert set(updates["items"][0]["changes"]) == {"due_at", "weight"}
 
 
+async def test_only_one_assignment_is_offered_binding_to_an_assessment(
+    api: Api, fake: FakeProvider
+):
+    """Two assignments named like one assessment made by hand: the first is bound to it, the
+    other can only be a new assessment (binding both would fail on commit)."""
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    labs = fake.course_assignments["101"]
+    labs.append(labs[2].model_copy(update={"external_id": "a7"}))
+    made = await api.call(
+        "POST", f"/courses/{course}/assessments", json={"title": "Midterm", "weight": 30}
+    )
+    started = await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a3", "a7"]}
+    )
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    first, second = by_type(session, "assessment")
+    assert first["issues"][0]["code"] == "import.binds_assessment"
+    assert second["issues"] == [
+        {"code": "import.duplicate_assessment", "params": {"title": "Midterm"}}
+    ]
+    url = f"/imports/{session['id']}/items/{first['id']}"
+    freed = await api.call("PATCH", url, json={"data": {"existing_assessment_id": None}})
+    offered = next(i for i in freed["items"] if i["id"] == second["id"])
+    assert offered["issues"][0]["params"]["assessment_id"] == made["id"]
+
+
+async def test_adding_a_to_do_to_the_gradebook_bound_to_an_assessment_keeps_one_to_do(
+    api: Api, fake: FakeProvider
+):
+    """An assignment imported as a to-do, then added to the gradebook bound to a dated
+    assessment made by hand (which has its own to-do): the imported to-do becomes the
+    assessment's and the other goes, done if either was."""
+    from semestra.modules.lms.schemas.dto import Assignment
+
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a5", name="Reading", points=0,
+                   due_at=datetime(2026, 3, 6, 4, 59, tzinfo=UTC))
+    )  # fmt: skip
+    path = f"/courses/{course}/lms/imports"
+    await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]})
+    made = await api.call(
+        "POST",
+        f"/courses/{course}/assessments",
+        json={"title": "Reading", "weight": 5, "due_date": "2026-03-05"},
+    )
+    tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    own = next(t for t in tasks if t["assessment_id"] == made["id"])
+    await api.call("POST", f"/tasks/{own['id']}:complete", json={"completed": True})
+    imported = next(t for t in tasks if t["assessment_id"] is None)
+    added = await api.call("POST", f"{path}:gradebook", json={"external_ids": ["a5"]})
+    session = await api.call("GET", f"/imports/{added['session_id']}")
+    (item,) = by_type(session, "assessment")
+    assert item["data"]["existing_assessment_id"] == made["id"]
+    await api.commit(added["session_id"])
+    (task,) = (await api.call("GET", f"/programs/{program_id}/tasks?completed=include"))["items"]
+    assert (task["id"], task["assessment_id"]) == (imported["id"], made["id"])
+    assert task["completed_at"] is not None
+
+
 async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
     """Binding from the gradebook: the assessment keeps its own values and follows the assignment
     from then on; an assignment imported already can't be bound. Unbinding leaves it as made by

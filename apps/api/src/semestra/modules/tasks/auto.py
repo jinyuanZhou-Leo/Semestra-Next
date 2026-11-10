@@ -3,8 +3,9 @@
 assessment has a score, and goes when the assessment is deleted (the foreign key) or loses its
 due date. A task made for an assessment that is already past due stays open (overdue): whether it
 was handed in is the user's to say. An assessment imported from the same source as an existing
-to-do (a platform assignment first imported as a to-do, then added to the gradebook) takes that
-to-do over instead of getting a second one. This module is the only writer of that link."""
+to-do (a platform assignment first imported as a to-do, then added to the gradebook, or bound to
+an assessment made by hand that has its own to-do already) takes that to-do over instead of
+keeping a second one. This module is the only writer of that link."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -111,7 +112,7 @@ async def sync(ctx: Ctx, assessment_ids: Sequence[str]) -> None:
             )
         )
     }
-    same_source = await _same_source(ctx, [i for i in infos.values() if i.id not in existing])
+    same_source = await _same_source(ctx, list(infos.values()))
     lookups: dict[str, tuple[AcademicsProgram, service.TermLookup]] = {}
     for program_id in {i.program_id for i in infos.values() if i.due_at is not None}:
         program = await academics.get_program_row(ctx, program_id)
@@ -122,10 +123,17 @@ async def sync(ctx: Ctx, assessment_ids: Sequence[str]) -> None:
         task = existing.get(assessment_id)
         changed: list[str] = []
         # A to-do of the same item (an LMS assignment first imported as a to-do) becomes the
-        # assessment's; without a due date it goes, like any assessment to-do.
-        if task is None and info is not None and info.source_ref is not None:
-            task = same_source.pop((str(info.source_kind), info.source_ref), None)
-            if task is not None:
+        # assessment's; without a due date it goes, like any assessment to-do. The one the
+        # assessment had (it was made by hand, then bound to that item) goes into it.
+        if info is not None and info.source_ref is not None:
+            imported = same_source.pop((str(info.source_kind), info.source_ref), None)
+            if imported is not None:
+                if task is not None:
+                    if imported.completed_at is None and task.completed_at is not None:
+                        imported.completed_at = task.completed_at
+                        changed.append("completed_at")
+                    await _drop(ctx, task)
+                task = imported
                 task.assessment_id = info.id
                 changed.append("assessment_id")
         if info is None or info.due_at is None:

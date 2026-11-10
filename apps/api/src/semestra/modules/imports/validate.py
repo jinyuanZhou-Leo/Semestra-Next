@@ -105,7 +105,13 @@ def validate(
     """Sets `issues` on every item; returns the weight totals of each course and category
     (`weights`, `category_weights` of the session summary)."""
     by_id = {i.id: i for i in items}
-    issues = {i.id: _item_issues(i, by_id, ctx) for i in items}
+    # The item each assessment is bound to: one at most, so no other is offered binding to it.
+    binders: dict[str, str] = {}
+    for item in items:
+        bound = item.data.get("existing_assessment_id")
+        if item.type == "assessment" and item.decision != "reject" and bound:
+            binders.setdefault(str(bound), item.id)
+    issues = {i.id: _item_issues(i, by_id, binders, ctx) for i in items}
     groups: defaultdict[str, list[ImportsItem]] = defaultdict(list)
     for item in items:
         # One bound to an existing assessment adds no weight: that one counts already.
@@ -131,7 +137,10 @@ def _ref_missing(item: ImportsItem, by_id: dict[str, ImportsItem]) -> bool:
 
 
 def _item_issues(
-    item: ImportsItem, by_id: dict[str, ImportsItem], ctx: ValidationContext
+    item: ImportsItem,
+    by_id: dict[str, ImportsItem],
+    binders: Mapping[str, str],
+    ctx: ValidationContext,
 ) -> list[dict[str, Any]]:
     """The problems of one item on its own (category totals look at several)."""
     data = item.data
@@ -152,7 +161,7 @@ def _item_issues(
         if ref.startswith("course:"):
             titles = ctx.existing_assessments.get(ref.removeprefix("course:"), {})
             if same := titles.get(norm_title(str(data.get("title", "")))):
-                found.append(_duplicate(item, same))
+                found.append(_duplicate(item, same, binders.get(same.id)))
     if item.type == "task" and data.get("due_text") and not data.get("due_date"):
         found.append(_issue("import.date_unresolved", text=data["due_text"]))
     if item.type == "event" and not data.get("date"):
@@ -166,11 +175,12 @@ def _item_issues(
     return found
 
 
-def _duplicate(item: ImportsItem, same: ExistingAssessment) -> dict[str, Any]:
+def _duplicate(item: ImportsItem, same: ExistingAssessment, binder: str | None) -> dict[str, Any]:
     """The course has an assessment of this title. An item from a source (a platform assignment)
-    can be bound to it instead (`assessment_id`) when that one is not bound yet; bound, it is
-    `import.binds_assessment`, which still has the review show it."""
-    if not (same.bindable and item.data.get("source_ref")):
+    can be bound to it instead (`assessment_id`) when that one is not bound yet, neither before
+    nor by another item of the session; bound, it is `import.binds_assessment`, which still has
+    the review show it."""
+    if not (same.bindable and item.data.get("source_ref")) or binder not in (None, item.id):
         return _issue("import.duplicate_assessment", title=same.title)
     if item.data.get("existing_assessment_id") == same.id:
         return _issue("import.binds_assessment", title=same.title, assessment_id=same.id)
