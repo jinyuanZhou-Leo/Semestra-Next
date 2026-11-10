@@ -3,6 +3,13 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.6 (2026-11-10)
+
+### Fixed
+
+- **API & MCP:** The copy button for MCP connection settings now works on a self-hosted instance opened over http.
+- **Self-hosting:** A self-hosted instance opened over plain http from another device on the network now loads, and copy buttons and duplicate-upload detection work there too.
+
 ## 2.0.0-beta.5 (2026-11-10)
 
 ### New
