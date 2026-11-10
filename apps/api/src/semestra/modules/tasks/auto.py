@@ -129,9 +129,7 @@ async def sync(ctx: Ctx, assessment_ids: Sequence[str]) -> None:
             imported = same_source.pop((str(info.source_kind), info.source_ref), None)
             if imported is not None:
                 if task is not None:
-                    if imported.completed_at is None and task.completed_at is not None:
-                        imported.completed_at = task.completed_at
-                        changed.append("completed_at")
+                    changed.extend(_merge(imported, task))
                     await _drop(ctx, task)
                 task = imported
                 task.assessment_id = info.id
@@ -142,6 +140,29 @@ async def sync(ctx: Ctx, assessment_ids: Sequence[str]) -> None:
             continue
         program, terms = lookups[info.program_id]
         await _apply(ctx, info, task, changed, program, terms)
+
+
+def _merge(into: TasksItem, other: TasksItem) -> list[str]:
+    """What the user set on `other`, a to-do that goes for `into` (both stand for one item):
+    done if either is, the higher priority, flagged if either is, both notes, a list if `into`
+    has none. Returns the fields of `into` that changed."""
+    changed: list[str] = []
+    if into.completed_at is None and other.completed_at is not None:
+        into.completed_at = other.completed_at
+        changed.append("completed_at")
+    if rules.PRIORITY_RANK[other.priority] < rules.PRIORITY_RANK[into.priority]:
+        into.priority = other.priority
+        changed.append("priority")
+    if other.flagged and not into.flagged:
+        into.flagged = True
+        changed.append("flagged")
+    if other.notes and other.notes not in into.notes:
+        into.notes = f"{into.notes}\n\n{other.notes}" if into.notes else other.notes
+        changed.append("notes")
+    if into.list_id is None and other.list_id is not None:
+        into.list_id = other.list_id
+        changed.append("list_id")
+    return changed
 
 
 async def _apply(

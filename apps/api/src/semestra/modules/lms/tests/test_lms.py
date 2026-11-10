@@ -1223,7 +1223,7 @@ async def test_adding_a_to_do_to_the_gradebook_bound_to_an_assessment_keeps_one_
 ):
     """An assignment imported as a to-do, then added to the gradebook bound to a dated
     assessment made by hand (which has its own to-do): the imported to-do becomes the
-    assessment's and the other goes, done if either was."""
+    assessment's and the other goes into it (done, notes, priority)."""
     from semestra.modules.lms.schemas.dto import Assignment
 
     program_id, term_id, _ = await setup_program(api)
@@ -1243,6 +1243,7 @@ async def test_adding_a_to_do_to_the_gradebook_bound_to_an_assessment_keeps_one_
     tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
     own = next(t for t in tasks if t["assessment_id"] == made["id"])
     await api.call("POST", f"/tasks/{own['id']}:complete", json={"completed": True})
+    await api.call("PATCH", f"/tasks/{own['id']}", json={"notes": "Chapter 4", "priority": "high"})
     imported = next(t for t in tasks if t["assessment_id"] is None)
     added = await api.call("POST", f"{path}:gradebook", json={"external_ids": ["a5"]})
     session = await api.call("GET", f"/imports/{added['session_id']}")
@@ -1252,6 +1253,7 @@ async def test_adding_a_to_do_to_the_gradebook_bound_to_an_assessment_keeps_one_
     (task,) = (await api.call("GET", f"/programs/{program_id}/tasks?completed=include"))["items"]
     assert (task["id"], task["assessment_id"]) == (imported["id"], made["id"])
     assert task["completed_at"] is not None
+    assert (task["notes"], task["priority"]) == ("Chapter 4", "high")
 
 
 async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
