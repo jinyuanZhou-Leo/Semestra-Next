@@ -150,7 +150,3 @@ async def test_plugin_capabilities_are_gated(app: FastAPI, client: AsyncClient, 
 
 async def test_gate_is_installed_on_the_core_registry(app: FastAPI):
     assert registry._plugin_gate is installed_ids  # pyright: ignore[reportPrivateUsage]
-
-
-async def test_catalog_requires_login(client: AsyncClient):
-    assert (await client.get("/plugins/catalog")).status_code == 401

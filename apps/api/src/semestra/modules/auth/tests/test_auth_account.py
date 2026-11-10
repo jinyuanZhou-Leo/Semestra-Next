@@ -654,11 +654,6 @@ async def test_avatar_upload_body_limit_applies_to_chunked_uploads(
     assert r.json()["error"]["request_id"] == r.headers["x-request-id"]
 
 
-async def test_avatar_upload_requires_login(client: AsyncClient) -> None:
-    r = await client.post("/account/avatar", files={"file": ("a.png", _png((8, 8)))})
-    assert r.status_code == 401
-
-
 # --- re-authentication and credential hygiene -------------------------------------------------
 
 

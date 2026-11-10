@@ -29,11 +29,6 @@ async def test_defaults_before_any_change(
     }
 
 
-async def test_requires_login(client: AsyncClient):
-    assert (await client.get("/me/preferences")).status_code == 401
-    assert (await client.patch("/me/preferences", json={"theme": "dark"})).status_code == 401
-
-
 async def test_partial_update_keeps_other_fields(
     client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ):

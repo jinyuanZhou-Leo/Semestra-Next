@@ -29,6 +29,16 @@ docs/                设计稿与模块规格
 
 **草稿 PR 不跑 CI（为节省 Actions 额度）**：开 PR 时先建成草稿，迭代期间每次推送前在本地跑相关检查（`pnpm --filter @semestra/web lint`/`typecheck`/`test`，`apps/api` 下 `uv run ruff check . && uv run pyright && uv run pytest -n auto`，改了接口再 `pnpm gen:api`）；自认为完成后把 PR 标成“准备好评审”（ready for review），这时才跑一轮 CI 作为合并门槛。标成就绪后的每次推送都会再跑 CI，所以修改尽量攒到一次推送。CI 按改动路径只跑相关 job（只改前端就不跑 api），同一 PR 的新推送会取消旧运行；`Deploy check` 只在 `deploy/**` 等部署文件变化时运行，`E2E` 只在版本 PR（`changeset-release/*`）上自动跑、或在 Actions 页手动触发。PR 上的测试只跑受影响的部分（`.github/scripts/affected_tests.py`，推到 main 时跑全量兜底）：后端改了 `modules/<m>/` 就跑 `<m>` 和直接引用它的模块（import 或事件/capability 名字符串）的测试，外加 `apps/api/tests/`，改到 core、迁移、依赖或 `testing.py` 跑全量；前端把改动的 `src/` 文件和用到改动文案 key 的文件交给 `vitest related`，改配置、依赖、`packages/` 或测试 setup 跑全量。本地可用 `python3 .github/scripts/affected_tests.py web --base origin/main` 看会选哪些（后端那侧要在 `apps/api` 下用 `uv run python` 跑）。
 
+## 写测试的规则
+
+- 修 bug 先写一个能复现它的失败测试，再改代码。
+- 从外部行为测：后端通过 capability / HTTP 接口，前端通过用户操作（Testing Library + msw），不测内部函数的调用方式，也不 mock 自己的模块。纯规则（`rules.py`、`engine.py`、前端纯函数）可以直接测。
+- 对所有模块都成立的约束写成一个遍历注册表的全局测试，不要每个模块各写一份。例如 `tests/test_auth_required.py` 检查每个接口都要求登录，`tests/test_capability_names.py` 检查命名；新接口会自动被覆盖，公开接口要写进它的白名单。
+- 不为不会发生的情况、框架或库本身的行为、常量和文案写测试；一个行为只在一处测。
+- 不能为了让 CI 变绿而删除、跳过或放宽已有测试；测试本身错了要在 PR 里说明原因。
+- 本地只跑受影响的测试（`affected_tests.py`，见上），推到 main 才跑全量。
+- 前端 `*.test.ts` 跑在 Node 里（不加载 `test-setup.ts`），用来测纯逻辑；要渲染组件或用到 DOM、`renderHook`、`EventSource`、storage 的测试用 `*.test.tsx`（jsdom）。
+
 ## 版本号与 changeset（1.0 起）
 
 - 全仓库一个产品版本号（SemVer），用 Changesets 管理，所有 `@semestra/*` 包同号；不要手改各 `package.json`/`pyproject.toml` 的 `version`。
@@ -74,7 +84,7 @@ docs/                设计稿与模块规格
 - **shadcn CLI**：非交互运行必须 `CI=1 pnpm dlx shadcn@latest init ... </dev/null`，否则会无限挂起。它默认把组件放到 `src/components/ui`，本项目约定放 `src/ui`（`components.json` 的 `aliases.ui` 已设为 `@/ui`），新增后检查位置。shadcn 4.x 生成的组件从 `cn` 包导入 `cn`，这是正常的。`src/ui/` 已用 `add --all` 装好全部官方组件（field、native-select、spinner、empty、item、sidebar 等）。CLI 同时生成的 `src/hooks/use-mobile.ts`、`src/hooks/use-highlighted-code.ts`、`src/lib/highlighter.tsx` 也视为生成文件。
 - **AI Elements**：`apps/web/src/components/ai-elements/` 是 AI Elements CLI（`pnpm dlx ai-elements@latest add <组件>`）生成的文件，和 `src/ui/` 一样不手改、不跑 lint/格式化，改调用方。目前只有 `message.tsx`（Sem 回答用其中的 `MessageResponse`，即 Streamdown，插件 cjk/code/math/mermaid）。云沙箱里 registry.ai-sdk.dev 被代理挡住，那里只能从 github.com/vercel/ai-elements 的 `packages/elements/src` 复制，并照 CLI 的方式改导入路径（`@/ui/...`、`@/lib/utils`）和 Base UI 的 `render`。Streamdown 的样式类来自 node_modules，`src/app/theme.css` 用 `@source` 引入。该文件也导出 `Message`、`MessageContent`，和 `@/ui/message` 重名：消息布局一律用 `@/ui/message`，这里只用 `MessageResponse`。
 - **shadcn 主题预设**：沿用旧 Semestra `4.0` 分支的预设——`components.json` 的 `style` 为 `base-luma`，主色为天蓝色系（`oklch(0.5 0.134 242.749)`，色相约 242），字体 Inter（正文）+ Figtree（标题），`--radius: 0.625rem`；令牌在 `apps/web/src/app/theme.css`。该预设在旧仓库 4.0 分支里是未提交的工作区改动（见 `~/Documents/Develop/Semestra/frontend/components.json` 与 `src/app/index.css`）。换预设后用 `CI=1 pnpm dlx shadcn@latest add <组件> --overwrite --yes </dev/null` 重新生成已有组件，CLI 不会自动改 `theme.css` 的色值，需要手动同步。
-- **Vitest 只跑 `src/**/*.test.{ts,tsx}`**（见 `vitest.config.ts`）；`e2e/` 下是 Playwright 用例，被 Vitest 收进去会报错。
+- **Vitest 只跑 `src/**/*.test.{ts,tsx}`**（见 `vitest.config.ts`，`.ts` 在 Node 项目、`.tsx` 在 jsdom 项目）；`e2e/` 下是 Playwright 用例，被 Vitest 收进去会报错。
 - **pnpm**：根 `package.json` 的 `packageManager` 字段会强制 pnpm 版本，升级 pnpm 要同步改它。依赖要精确版本，`pnpm add` 前确认 `pnpm-workspace.yaml` 里 `savePrefix: ''` 还在。
 - **Node 通过 nvm 管理**：切换 Node 版本不会带走全局包（`pnpm`、`@openai/codex` 等需要重装）；非交互 shell 的 PATH 可能仍指向旧版本。
 - **macOS 没有 `timeout` 命令**；长时间运行的命令用后台任务，不要用 `timeout N cmd`。

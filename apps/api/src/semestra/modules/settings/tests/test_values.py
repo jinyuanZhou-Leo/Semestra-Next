@@ -226,11 +226,6 @@ async def test_values_are_per_user(client: AsyncClient, make_user: MakeUser, log
         assert (await get(other))["values"]["default_view"] == "week"
 
 
-async def test_requires_login(client: AsyncClient):
-    assert (await client.get(NS)).status_code == 401
-    assert (await client.get("/me/settings-schemas")).status_code == 401
-
-
 async def test_stale_stored_data_falls_back_to_defaults(
     app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs
 ):
