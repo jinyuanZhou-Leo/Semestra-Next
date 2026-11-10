@@ -303,8 +303,10 @@ def _syllabus_categories(
             "category", fields.data, evidence=fields.evidence, confidence=fields.confidence
         )
         category_refs[norm_title(name)] = f"item:{item_key}"
-        if key:
-            category_refs.setdefault(f"key:{key}", f"item:{item_key}")
+        # A new category still stands for the built-in its name means, so an assessment whose
+        # category is worded differently ("Homework" for "Problem sets") joins it.
+        if alias := key or category_key(name):
+            category_refs.setdefault(f"key:{alias}", f"item:{item_key}")
     return category_refs
 
 

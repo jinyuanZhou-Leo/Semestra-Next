@@ -262,11 +262,19 @@ function CategorySelect({
 }) {
   const session = useImportSession(item.session_id).data
   const categories = useTargetCategories(session?.program_id ?? '', item.data.course_ref)
+  if (!categories) {
+    // Empty and disabled until the choices are known, not showing one that is not chosen.
+    return (
+      <NativeSelect id={id} value="" disabled>
+        <NativeSelectOption value="" />
+      </NativeSelect>
+    )
+  }
   return (
     <NativeSelect
       id={id}
       value={value}
-      disabled={disabled || !session}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     >
       {categories.map((c) => (

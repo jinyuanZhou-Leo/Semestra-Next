@@ -44,12 +44,14 @@ async def category_rows(ctx: Ctx, course_id: str) -> list[models.GradingCategory
 async def course_categories(
     ctx: Ctx, program_id: str, course_id: str | None = None
 ) -> list[tuple[str, str]]:
-    """A course's categories as `(key, name)`. A course the gradebook has not set up yet, or one
-    still to be created (`course_id` None), has the Program's defaults; nothing is written."""
+    """A course's categories in use as `(key, name)`; archived ones are left out (hidden from
+    pickers). A course the gradebook has not set up yet, or one still to be created
+    (`course_id` None), has the Program's defaults; nothing is written."""
     if course_id is not None:
         result = await ctx.db.get(models.GradingCourseResult, course_id)
         if result is not None and result.user_id == ctx.user_id:
-            return [(r.key, r.name) for r in await category_rows(ctx, course_id)]
+            rows = await category_rows(ctx, course_id)
+            return [(r.key, r.name) for r in rows if not r.archived]
     scale = await get_scale_row(ctx, program_id)
     return [(t["key"], t["name"]) for t in scale.default_categories]
 

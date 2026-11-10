@@ -811,6 +811,19 @@ async def test_a_group_goes_where_its_assignments_were_moved(api: Api):
     assert [c["data"]["key"] for c in by_type(session, "category")] == ["project"]
 
 
+async def test_an_archived_category_takes_no_group(api: Api):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    book = await api.call("GET", f"/courses/{course}/gradebook")
+    lab = next(c["id"] for c in book["categories"] if c["key"] == "lab")
+    await api.call("PATCH", f"/grading-categories/{lab}", json={"archived": True})
+    path = f"/courses/{course}/lms/imports:assignments"
+    started = await api.call("POST", path, json={"external_ids": ["a1"]})
+    session = await api.call("GET", f"/imports/{started['session_id']}")
+    assert [c["data"].get("key") for c in by_type(session, "category")] == [None]
+
+
 async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: FakeProvider):
     # The confirmation cards (M12 §3.5) say which LMS course, assignments and connection, by
     # name, from the cached reads only; never an external id, never a call to the LMS.

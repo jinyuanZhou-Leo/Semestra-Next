@@ -256,6 +256,7 @@ function ResultCell({ row }: CellProps) {
 function CategoryDestination({ item }: { item: ImportItem }) {
   const { session } = useReview()
   const categories = useTargetCategories(session.program_id, item.data.course_ref)
+  if (!categories) return null
   const into = categories.find((c) => c.key === item.data.key)
   return (
     <span className="truncate">
