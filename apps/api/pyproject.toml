@@ -71,6 +71,10 @@ requires = ["uv_build>=0.10.10,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv]
+# Never installed: PyMuPDF requires the packages of its layout model, which we turn off
+# (`pymupdf4llm.use_layout(False)` in files/parse/readers.py). (PaddleX's GUI build of OpenCV
+# cannot be swapped for the headless one the same way: PaddleX checks for it by package name.)
+exclude-dependencies = ["networkx", "pymupdf-layout"]
 conflicts = [
     [{ extra = "local-cuda" }, { extra = "ocr" }],
     [{ extra = "local-cuda" }, { extra = "embedding" }],

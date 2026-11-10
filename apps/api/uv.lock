@@ -33,6 +33,12 @@ conflicts = [[
     { package = "semestra-api", extra = "local-cuda" },
 ]]
 
+[manifest]
+excludes = [
+    "networkx",
+    "pymupdf-layout",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -1654,15 +1660,6 @@ wheels = [
 ]
 
 [[package]]
-name = "networkx"
-version = "3.7"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/dc/76/3af777226b63a5e64a6b36b1ec5855c14e2b94a37096d4760e595fc43511/networkx-3.7.tar.gz", hash = "sha256:fd77a511bd90f39f3d016351345b52cf5319b813bdca01de3f755d3cca62e96a", size = 1866482, upload-time = "2026-09-21T16:45:16.974Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/cd/fe58041e9011f307c490e3e17dd48cc516448f7c698a3f2d9d9d65d7e6a8/networkx-3.7-py3-none-any.whl", hash = "sha256:e3fd2c13a7814cee3746340d8d7f8598a67f16a58bf47fb7f8793fab6efca1b0", size = 2142205, upload-time = "2026-09-21T16:45:14.609Z" },
-]
-
-[[package]]
 name = "nh3"
 version = "0.3.7"
 source = { registry = "https://pypi.org/simple" }
@@ -2438,11 +2435,9 @@ name = "pymupdf"
 version = "2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "networkx" },
     { name = "numpy" },
     { name = "onnxruntime" },
     { name = "psutil" },
-    { name = "pymupdf-layout" },
     { name = "pymupdf4llm" },
     { name = "pyyaml" },
     { name = "tabulate" },
@@ -2456,24 +2451,11 @@ wheels = [
 ]
 
 [[package]]
-name = "pymupdf-layout"
-version = "2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pymupdf" },
-    { name = "pymupdf4llm" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/13/7a1edc4029348e728114cf37837dd121a7439defd668caa087d128b5df2d/pymupdf_layout-2.1-py3-none-any.whl", hash = "sha256:e7e00bc50ec9113d36bdbb0dd5cdafa5f4d61e22e598960fc187ee4f721f5095", size = 1044, upload-time = "2026-11-02T17:16:05.112Z" },
-]
-
-[[package]]
 name = "pymupdf4llm"
 version = "2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pymupdf" },
-    { name = "pymupdf-layout" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/38/19/21e262de4e1ddbcd552889e5f04147f83ed219dd13d1e0e0db46ab4d2347/pymupdf4llm-2.1-py3-none-any.whl", hash = "sha256:2fe8bb344444c6a8ef41fd745d2d10f6da59df6e104ef20f35d51dd26914b5fb", size = 1023, upload-time = "2026-11-02T17:16:04.153Z" },
