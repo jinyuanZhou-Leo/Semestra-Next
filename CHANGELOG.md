@@ -3,6 +3,26 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.5 (2026-11-10)
+
+### New
+
+- **Canvas:** Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+- **Self-hosting:** The `-ocr` image tags are no longer published; use the `-local` tags instead.
+
+### Improved
+
+- **Sem:** Auto Dream tidies Sem's memories in the background at most once a day, after a number of new conversations you choose.
+- **Grades:** Redesigned the assessment dialog with grouped fields and a switch for leaving an assessment out of the grade.
+- **Calendar:** Redesigned the meeting, event and cancel-or-move dialogs with grouped fields, a weekday picker and one-line time ranges.
+- **Canvas:** Canvas assignment groups are imported into the course's existing grade categories, and remember where you moved them.
+
+### Fixed
+
+- **Sem:** Fixed Sem and MCP clients failing to look up assessments by name in courses that use grading categories.
+- **API & MCP:** When a tool fails on the server, Sem and MCP clients are told to get the information another way instead of retrying.
+- **Self-hosting:** Self-hosted servers use less memory, and the images are slightly smaller.
+
 ## 2.0.0-beta.4 (2026-11-09)
 
 ### Improved

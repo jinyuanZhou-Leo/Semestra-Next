@@ -1,5 +1,41 @@
 # @semestra/api
 
+## 2.0.0-beta.5
+
+### Major Changes
+
+- e6a7e58: <!-- area: self-hosting -->
+  <!-- en -->
+  The `-ocr` image tags are no longer published; use the `-local` tags instead.
+  <!-- zh -->
+  不再发布 `-ocr` 镜像标签，请改用 `-local` 标签。
+
+### Minor Changes
+
+- 75d9a15: <!-- area: canvas -->
+  <!-- en -->
+  Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+  <!-- zh -->
+  手动添加的考核可以绑定到 Canvas 作业，导入同名作业时会绑定到已有考核，不再重复添加。
+
+### Patch Changes
+
+- f3202e6: <!-- area: self-hosting -->
+  <!-- en -->
+  Self-hosted servers use less memory, and the images are slightly smaller.
+  <!-- zh -->
+  自部署的服务器占用更少内存，镜像也略小一些。
+- 9e52342: <!-- area: sem -->
+  <!-- en -->
+  Fixed Sem and MCP clients failing to look up assessments by name in courses that use grading categories.
+  <!-- zh -->
+  修复了课程设有成绩分类时，Sem 和 MCP 客户端按名称查找考核失败的问题。
+- 9e52342: <!-- area: api -->
+  <!-- en -->
+  When a tool fails on the server, Sem and MCP clients are told to get the information another way instead of retrying.
+  <!-- zh -->
+  工具在服务器端出错时，Sem 和 MCP 客户端会被提示改用其他方式获取信息，而不是反复重试。
+
 ## 2.0.0-beta.4
 
 No changes in this release.

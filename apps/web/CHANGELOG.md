@@ -1,5 +1,43 @@
 # @semestra/web
 
+## 2.0.0-beta.5
+
+### Minor Changes
+
+- 75d9a15: <!-- area: canvas -->
+  <!-- en -->
+  Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+  <!-- zh -->
+  手动添加的考核可以绑定到 Canvas 作业，导入同名作业时会绑定到已有考核，不再重复添加。
+- 5d3aacd: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas assignment groups are imported into the course's existing grade categories, and remember where you moved them.
+  <!-- zh -->
+  导入 Canvas 作业时，作业组会归入课程已有的成绩分类，并记住你调整过的归类。
+- cd685d3: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Auto Dream tidies Sem's memories in the background at most once a day, after a number of new conversations you choose.
+  <!-- zh -->
+  Auto Dream 每天最多一次在后台整理 Sem 的记忆，频率按新对话数量可调。
+- d0ecead: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned the assessment dialog with grouped fields and a switch for leaving an assessment out of the grade.
+  <!-- zh -->
+  重新设计了考核对话框：字段分组排列，“不计入成绩”改为开关。
+- d0ecead: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned the meeting, event and cancel-or-move dialogs with grouped fields, a weekday picker and one-line time ranges.
+  <!-- zh -->
+  重新设计了上课时间、单次事件和停课调课对话框：字段分组排列，星期一键选择，起止时间并为一行。
+
+### Patch Changes
+
+- @semestra/api-client@2.0.0-beta.5
+
 ## 2.0.0-beta.4
 
 ### Minor Changes
