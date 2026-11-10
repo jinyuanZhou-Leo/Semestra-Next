@@ -10,7 +10,6 @@ import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
-import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, SETTLED } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
@@ -20,8 +19,8 @@ import { ConfidenceDot, EvidenceButton } from './Evidence'
 type Values = Record<string, unknown>
 
 /**
- * An item opened in the review table (M08 §6.2), whose row names it: an assessment or to-do can
- * switch between the two, then its issues and its fields.
+ * An item opened in the review table (M08 §6.2), whose row names it and where it goes: its issues
+ * and its fields.
  */
 export function ItemEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const problems = item.issues.filter((issue) => !SETTLED.has(issue.code))
@@ -29,9 +28,6 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
   const bound = Boolean((item.data as { existing_assessment_id?: string }).existing_assessment_id)
   return (
     <div className="space-y-4">
-      {editable && (item.type === 'assessment' || item.type === 'task') ? (
-        <TypeSwitch item={item} />
-      ) : null}
       {item.result?.error_code ? (
         <p className="flex gap-2 text-sm text-destructive">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -59,34 +55,6 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
         <FieldsEditor key={`${item.id}:${item.type}`} item={item} editable={editable} />
       )}
     </div>
-  )
-}
-
-/** Imports the item as an assessment of the course or as a task (M09 LMS assignments). */
-function TypeSwitch({ item }: { item: ImportItem }) {
-  const save = useItemUpdate({ onError: toastError })
-  return (
-    <ChoiceControl<'assessment' | 'task'>
-      label={m.imports_import_as()}
-      value={item.type === 'task' ? 'task' : 'assessment'}
-      disabled={save.isPending}
-      onChange={(type) => {
-        if (type !== item.type) {
-          trackEdit(
-            save
-              .mutateAsync({
-                path: { session_id: item.session_id, item_id: item.id },
-                body: { type },
-              })
-              .catch(() => undefined), // reported by onError
-          )
-        }
-      }}
-      options={[
-        { value: 'assessment', label: m.imports_type_assessment() },
-        { value: 'task', label: m.imports_type_task() },
-      ]}
-    />
   )
 }
 
