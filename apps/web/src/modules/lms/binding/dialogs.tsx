@@ -31,9 +31,6 @@ import { Spinner } from '@/ui/spinner'
 import { useProgramProviderName } from '../providers'
 import { invalidateLms } from '../queries'
 
-/** A list this long gets a search box. */
-const SEARCH_FROM = 8
-
 /**
  * Picks the assignment an assessment made by hand follows from now on (M09 §4): the course's
  * assignments not imported yet. Nothing of the assessment changes; what the platform has
@@ -100,66 +97,67 @@ function AssignmentChoice({ assessment, close }: { assessment: Assessment; close
       >
         {() => (
           <div className="flex min-h-0 flex-col gap-3">
-            {open.length > SEARCH_FROM ? (
-              <InputGroup>
-                <InputGroupInput
-                  aria-label={m.lms_bind_search()}
-                  placeholder={m.lms_bind_search()}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                <InputGroupAddon>
-                  <Search aria-hidden />
-                </InputGroupAddon>
-              </InputGroup>
-            ) : null}
-            {shown.length === 0 ? (
-              <Empty className="border-0 p-0 py-6">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <SearchX aria-hidden />
-                  </EmptyMedia>
-                  <EmptyTitle>{m.lms_bind_no_match()}</EmptyTitle>
-                </EmptyHeader>
-                <EmptyContent>
-                  <Button variant="link" size="sm" onClick={() => setSearch('')}>
-                    {m.common_clear_filters()}
-                  </Button>
-                </EmptyContent>
-              </Empty>
-            ) : (
-              <RadioGroup
-                value={picked}
-                onValueChange={(value) => setPicked(value as string)}
-                className="max-h-80 gap-0 overflow-y-auto"
-              >
-                {shown.map((a) => {
-                  const radio = `${id}-${a.external_id}`
-                  const detail = [
-                    a.group_name,
-                    a.due_at ? formatDateTime(a.due_at) : m.lms_no_due_date(),
-                    a.points != null ? m.lms_points({ points: a.points }) : null,
-                  ].filter(Boolean)
-                  return (
-                    <Field
-                      key={a.external_id}
-                      orientation="horizontal"
-                      className="rounded-xl px-2 py-1.5 hover:bg-muted/50"
-                    >
-                      <RadioGroupItem id={radio} value={a.external_id} />
-                      <FieldLabel htmlFor={radio} className="min-w-0 flex-1 font-normal">
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate">{a.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {detail.join(' · ')}
+            <InputGroup>
+              <InputGroupInput
+                aria-label={m.lms_bind_search()}
+                placeholder={m.lms_bind_search()}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <InputGroupAddon>
+                <Search aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
+            {/* A fixed height: filtering does not make the dialog jump. */}
+            <div className="flex h-72 flex-col">
+              {shown.length === 0 ? (
+                <Empty className="border-0 p-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <SearchX aria-hidden />
+                    </EmptyMedia>
+                    <EmptyTitle>{m.lms_bind_no_match()}</EmptyTitle>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button variant="link" size="sm" onClick={() => setSearch('')}>
+                      {m.common_clear_filters()}
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <RadioGroup
+                  value={picked}
+                  onValueChange={(value) => setPicked(value as string)}
+                  className="min-h-0 flex-1 content-start gap-0 overflow-y-auto"
+                >
+                  {shown.map((a) => {
+                    const radio = `${id}-${a.external_id}`
+                    const detail = [
+                      a.group_name,
+                      a.due_at ? formatDateTime(a.due_at) : m.lms_no_due_date(),
+                      a.points != null ? m.lms_points({ points: a.points }) : null,
+                    ].filter(Boolean)
+                    return (
+                      <Field
+                        key={a.external_id}
+                        orientation="horizontal"
+                        className="rounded-xl px-2 py-1.5 hover:bg-muted/50"
+                      >
+                        <RadioGroupItem id={radio} value={a.external_id} />
+                        <FieldLabel htmlFor={radio} className="min-w-0 flex-1 font-normal">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{a.name}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {detail.join(' · ')}
+                            </span>
                           </span>
-                        </span>
-                      </FieldLabel>
-                    </Field>
-                  )
-                })}
-              </RadioGroup>
-            )}
+                        </FieldLabel>
+                      </Field>
+                    )
+                  })}
+                </RadioGroup>
+              )}
+            </div>
           </div>
         )}
       </AsyncBoundary>
