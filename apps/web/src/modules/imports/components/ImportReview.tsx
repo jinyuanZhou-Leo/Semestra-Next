@@ -7,13 +7,21 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CircleCheck } from 'lucide-react'
 import { createContext, Fragment, type ReactNode, use, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
@@ -50,6 +58,7 @@ const ISSUE_COLUMN: Record<string, Column> = {
   'import.weight_missing': 'weight',
   'import.duplicate_course': 'result',
   'import.duplicate_assessment': 'result',
+  'import.binds_assessment': 'result',
 }
 
 /** The open issues of an accepted item that belong in one cell. */
@@ -110,6 +119,8 @@ type ReviewState = {
   busy: boolean
   toggle: (item: ImportItem) => void
   decide: (item: ImportItem, accept: boolean) => void
+  /** Binds an assessment item to the gradebook's one of the same title, or (null) creates it. */
+  bind: (item: ImportItem, assessmentId: string | null) => void
 }
 const ReviewContext = createContext<ReviewState | null>(null)
 
@@ -211,7 +222,9 @@ function destination(item: ImportItem): string {
     case 'category':
       return m.imports_dest_category()
     case 'assessment':
-      return m.imports_dest_gradebook()
+      return (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
+        ? m.imports_dest_bind()
+        : m.imports_dest_gradebook()
     case 'meeting':
       return m.imports_dest_timetable()
     case 'event':
@@ -221,6 +234,52 @@ function destination(item: ImportItem): string {
     default:
       return m.imports_dest_update()
   }
+}
+
+/** The gradebook's assessment of the same title an item from a source can be bound to (M09). */
+function bindable(item: ImportItem): { id: string; title: string } | null {
+  for (const issue of item.issues) {
+    const { assessment_id: id, title } = issue.params ?? {}
+    if (typeof id === 'string' && typeof title === 'string') return { id, title }
+  }
+  return null
+}
+
+/** Bound to the gradebook's assessment of the same title, or added as a new one. */
+function BindChoice({ item, target }: { item: ImportItem; target: { id: string; title: string } }) {
+  const { session, busy, bind } = useReview()
+  const bound = (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={!isEditable(session, item) || busy}
+        onClick={(event) => event.stopPropagation()}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-7 max-w-full gap-1 px-2 font-normal text-muted-foreground"
+          />
+        }
+      >
+        <span className="truncate">
+          {bound ? m.imports_dest_bind() : m.imports_dest_gradebook()}
+        </span>
+        <ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-auto" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuRadioGroup
+          value={bound ? 'bind' : 'new'}
+          onValueChange={(value) => bind(item, value === 'bind' ? target.id : null)}
+        >
+          <DropdownMenuRadioItem value="bind">
+            {m.imports_bind_to({ title: target.title })}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="new">{m.imports_bind_new()}</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 function ResultCell({ row }: CellProps) {
@@ -241,6 +300,8 @@ function ResultCell({ row }: CellProps) {
     // other unticked row says nothing; its empty box does.
     return duplicate.length > 0 ? <span className="text-muted-foreground">{exists}</span> : null
   }
+  const target = item.result ? null : bindable(item)
+  if (target) return <BindChoice item={item} target={target} />
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
@@ -338,6 +399,11 @@ export function ImportReview({
       update.mutate({
         path: { session_id: session.id, item_id: item.id },
         body: { decision: accept ? 'accept' : 'reject' },
+      }),
+    bind: (item, assessmentId) =>
+      update.mutate({
+        path: { session_id: session.id, item_id: item.id },
+        body: { data: { existing_assessment_id: assessmentId } },
       }),
   }
   const decideGroup = (group: Group, accept: boolean) =>

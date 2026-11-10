@@ -11,9 +11,14 @@ import {
   type OnboardingStep,
   TERM_WIZARD_IMPORT_SOURCES,
 } from '@/modules/academics/types'
-import { ASSESSMENT_IMPORT_SOURCES, COURSE_GRADES_BANNERS } from '@/modules/grading/types'
+import {
+  ASSESSMENT_ACTIONS,
+  ASSESSMENT_IMPORT_SOURCES,
+  COURSE_GRADES_BANNERS,
+} from '@/modules/grading/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
+import { bindAction, unbindAction } from './binding/actions'
 import { CalendarMark, CalendarOpenLabel } from './components/CalendarMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
 import { NewAssignmentsToast } from './components/NewAssignmentsToast'
@@ -151,6 +156,7 @@ export default defineModule({
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
+    [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
     [TASK_DETAIL_SECTIONS]: [

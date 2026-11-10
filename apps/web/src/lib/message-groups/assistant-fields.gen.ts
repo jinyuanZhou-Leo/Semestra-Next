@@ -69,6 +69,7 @@ export const assistantFieldMessages = {
   assistant_field_kind: m.assistant_field_kind,
   assistant_field_last_date: m.assistant_field_last_date,
   assistant_field_list: m.assistant_field_list,
+  assistant_field_lms_assignment: m.assistant_field_lms_assignment,
   assistant_field_lms_assignments: m.assistant_field_lms_assignments,
   assistant_field_lms_course: m.assistant_field_lms_course,
   assistant_field_lms_courses: m.assistant_field_lms_courses,

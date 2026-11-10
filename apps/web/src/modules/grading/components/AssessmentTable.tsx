@@ -31,7 +31,12 @@ import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
 import { type AssessmentFilter, matchesFilter } from '../filter'
-import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '../types'
+import {
+  ASSESSMENT_ACTIONS,
+  ASSESSMENT_COLUMNS,
+  type AssessmentAction,
+  type AssessmentColumn,
+} from '../types'
 import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
@@ -102,6 +107,8 @@ export function AssessmentTable({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const editing = useDialogTarget<Assessment>()
   const deleting = useDialogTarget<Assessment>()
+  const acting = useDialogTarget<{ action: string; assessment: Assessment }>()
+  const actions = useExtensions<AssessmentAction>(ASSESSMENT_ACTIONS)
   const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
@@ -151,6 +158,8 @@ export function AssessmentTable({
   const actionsValue: TableActions = {
     programId,
     extensions: new Map(contributed.map((ext) => [ext.id, ext])),
+    actions,
+    act: (action, assessment) => acting.show({ action: action.id, assessment }),
     categories: byId,
     whatIf,
     predictions,
@@ -328,6 +337,19 @@ export function AssessmentTable({
           assessment={editing.target ?? undefined}
           {...editing.props}
         />
+        {actions.map((action) => {
+          const mine = acting.target?.action === action.id
+          return (
+            <action.Dialog
+              key={action.id}
+              {...acting.props}
+              open={acting.open && mine}
+              assessment={mine ? (acting.target?.assessment ?? null) : null}
+              programId={programId}
+              close={acting.close}
+            />
+          )
+        })}
         <ConfirmDialog
           {...deleting.props}
           title={m.grading_assessment_delete()}

@@ -12,7 +12,7 @@ import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
-import { issueText } from '../labels'
+import { issueText, SETTLED } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
 import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
@@ -24,6 +24,9 @@ type Values = Record<string, unknown>
  * switch between the two, then its issues and its fields.
  */
 export function ItemEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
+  const problems = item.issues.filter((issue) => !SETTLED.has(issue.code))
+  // Bound to an assessment of the gradebook: nothing of the item is written (M09).
+  const bound = Boolean((item.data as { existing_assessment_id?: string }).existing_assessment_id)
   return (
     <div className="space-y-4">
       {editable && (item.type === 'assessment' || item.type === 'task') ? (
@@ -40,9 +43,9 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
           })}
         </p>
       ) : null}
-      {item.issues.length > 0 ? (
+      {problems.length > 0 ? (
         <ul className="space-y-1 text-sm text-destructive">
-          {item.issues.map((issue) => (
+          {problems.map((issue) => (
             <li key={issue.code} className="flex gap-2">
               <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
               {issueText(issue)}
@@ -52,7 +55,7 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
       ) : null}
       {item.type.endsWith('_patch') ? (
         <PatchEditor item={item} editable={editable} />
-      ) : (
+      ) : bound ? null : (
         <FieldsEditor key={`${item.id}:${item.type}`} item={item} editable={editable} />
       )}
     </div>

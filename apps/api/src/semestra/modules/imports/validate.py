@@ -168,10 +168,13 @@ def _item_issues(
 
 def _duplicate(item: ImportsItem, same: ExistingAssessment) -> dict[str, Any]:
     """The course has an assessment of this title. An item from a source (a platform assignment)
-    can be bound to it instead (`assessment_id`), when it is not bound to another one yet."""
-    if same.bindable and item.data.get("source_ref"):
-        return _issue("import.duplicate_assessment", title=same.title, assessment_id=same.id)
-    return _issue("import.duplicate_assessment", title=same.title)
+    can be bound to it instead (`assessment_id`) when that one is not bound yet; bound, it is
+    `import.binds_assessment`, which still has the review show it."""
+    if not (same.bindable and item.data.get("source_ref")):
+        return _issue("import.duplicate_assessment", title=same.title)
+    if item.data.get("existing_assessment_id") == same.id:
+        return _issue("import.binds_assessment", title=same.title, assessment_id=same.id)
+    return _issue("import.duplicate_assessment", title=same.title, assessment_id=same.id)
 
 
 def _outside_terms(

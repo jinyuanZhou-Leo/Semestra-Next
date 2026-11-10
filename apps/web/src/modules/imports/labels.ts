@@ -115,10 +115,17 @@ const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
   'import.weight_missing': m.imports_issue_weights_missing,
 }
 
+/**
+ * Issues that record a choice already made (an assignment bound to the gradebook's assessment of
+ * its title): they keep the import in review, where the row shows the choice, not a problem.
+ */
+export const SETTLED = new Set(['import.binds_assessment'])
+
 /** "3 dates to check · weights don't add up" for the accepted items, or null without issues. */
 export function issueSummary(session: ImportSessionDetail): string | null {
   const counts = new Map<(p: { count: number }) => string, number>()
   for (const [code, count] of Object.entries(session.summary.issues ?? {})) {
+    if (SETTLED.has(code)) continue
     const fn = ISSUE_SHORT[code] ?? m.imports_issue_other
     counts.set(fn, (counts.get(fn) ?? 0) + count)
   }

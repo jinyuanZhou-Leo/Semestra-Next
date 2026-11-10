@@ -5,9 +5,10 @@ description: Bring Canvas courses, assignments and syllabi into Semestra.
 
 Course and syllabus imports open a review first and write nothing until you confirm. Assignment
 imports are saved right away when there is nothing for you to decide; an assessment of the same
-name already in the gradebook, or an assessment without a weight, opens the review. Assignments
-already in the gradebook start unticked there, marked as such, and are imported only if you tick
-them. If you close the review and import the course's assignments again, you return to that
+name already in the gradebook, or an assessment without a weight, opens the review. An assignment
+named like an assessment you added yourself is bound to it there (**Bound to existing**): the
+assessment is kept as it is and follows the assignment from then on. Choose **Add as a new
+assessment** in that cell to import it separately instead. If you close the review and import the course's assignments again, you return to that
 unfinished import, with any newly picked assignments added.
 
 ## Courses
@@ -34,6 +35,16 @@ in at once, and **Ignore** stops reminding you of these until new ones appear.
 
 An assignment that is only a to-do can be moved with **Add to gradebook** in its row menu: it
 becomes an assessment and keeps its to-do.
+
+### Binding an assessment you added yourself
+
+When an assessment you added by hand has a different name on Canvas, open its row menu on the
+Grades page and choose **Bind Canvas assignment…**, then pick one of the course's assignments
+not imported yet. Binding changes nothing in the assessment: where its due date, weight or grade
+differ from Canvas, they show up as [changes](#changes-after-an-import) to review. From then on
+it behaves like an imported assessment (changes, the to-do finished when you hand in on Canvas).
+**Unbind from Canvas** in the same menu keeps the assessment as it is and frees the assignment to
+import or bind again; it works for imported assessments too.
 
 - As assessments, each Canvas assignment group becomes a grading category (with the group's
   weight when the course weights its groups), and the assignment's Canvas link is kept in its

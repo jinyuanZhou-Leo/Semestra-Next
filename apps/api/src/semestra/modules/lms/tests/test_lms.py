@@ -1155,7 +1155,7 @@ async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(ap
     (item,) = by_type(session, "assessment")
     assert item["issues"] == [
         {
-            "code": "import.duplicate_assessment",
+            "code": "import.binds_assessment",
             "params": {"title": "Midterm", "assessment_id": made["id"]},
         }
     ]
