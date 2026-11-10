@@ -16,6 +16,9 @@ from semestra.modules.lms.schemas.io import (
     AnnouncementRead,
     AnnouncementReadInput,
     AnnouncementsInput,
+    AssessmentRef,
+    AssignmentBinding,
+    AssignmentBindInput,
     AssignmentImportInput,
     AssignmentList,
     AssignmentsImportInput,
@@ -802,6 +805,36 @@ gradebook.""",
 )
 async def add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     return await imports.add_to_gradebook(ctx, inp)
+
+
+@capability(
+    name="lms.assignment.bind",
+    summary="Bind an assessment made by hand to an LMS assignment of its course not imported yet.",
+    description="""The assessment then follows the assignment as if imported from it (updates,
+handed-in to-do). Nothing of it changes now: the platform's differing due date, weight and grade
+come as changes for the user's review (lms.activity.list, lms.change.import). Importing an
+assignment whose title matches an assessment made by hand binds them already.""",
+    effect="write",
+    http=Http("PUT", "/assessments/{assessment_id}/lms-assignment"),
+    preview=previews.preview_assignment_bind,
+    tags=TAGS,
+)
+async def bind_assignment(ctx: Ctx, inp: AssignmentBindInput) -> AssignmentBinding:
+    return await imports.bind_assignment(ctx, inp)
+
+
+@capability(
+    name="lms.assignment.unbind",
+    summary="Stop an assessment from following its LMS assignment; it stays as it is.",
+    description="""Works for imported and bound assessments; the assignment can then be imported
+or bound again.""",
+    effect="write",
+    http=Http("DELETE", "/assessments/{assessment_id}/lms-assignment"),
+    preview=previews.preview_assignment_unbind,
+    tags=TAGS,
+)
+async def unbind_assignment(ctx: Ctx, inp: AssessmentRef) -> AssignmentBinding:
+    return await imports.unbind_assignment(ctx, inp)
 
 
 @capability(

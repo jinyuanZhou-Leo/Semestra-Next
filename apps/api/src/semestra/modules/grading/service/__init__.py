@@ -20,6 +20,7 @@ from semestra.modules.grading.service.assessments import (
     preview_assessment_update,
     preview_category_delete,
     scored_counts,
+    set_source,
     upcoming_assessments,
     update_assessment,
 )
@@ -85,6 +86,7 @@ __all__ = [
     "reorder_categories",
     "scale_out",
     "scored_counts",
+    "set_source",
     "simulate_course",
     "simulate_term",
     "suggest_scores",

@@ -13,8 +13,11 @@ from typing import Any
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
+from semestra.modules.grading import service as grading
 from semestra.modules.lms import imports, reads, service
 from semestra.modules.lms.schemas.io import (
+    AssessmentRef,
+    AssignmentBindInput,
     AssignmentImportInput,
     AssignmentsImportInput,
     BindingSetInput,
@@ -226,3 +229,30 @@ async def preview_apply_updates(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
         names = [u.name for u in updates.items]
         changes.append(_counted("lms_updates", names, len(names)))
     return {"target": await _course(ctx, inp.course_id), "changes": changes}
+
+
+async def _assessment(ctx: Ctx, assessment_id: str) -> tuple[str, str | None, str | None]:
+    """The assessment's title and course, and the name of the assignment it follows."""
+    row = (await grading.find_assessment_rows(ctx, [assessment_id])).get(assessment_id)
+    if row is None:
+        return assessment_id, None, None
+    bound = None
+    if row.source_kind == "lms" and (link := await service.link_row(ctx, row.course_id)):
+        done = await reads.imported_targets(ctx, link.id)
+        external = next((e for e, t in done.items() if t["id"] == row.id), None)
+        if external is not None:
+            bound = (await assignment_labels(ctx, row.course_id, [external])).get(external)
+    return row.title, row.course_id, bound
+
+
+async def preview_assignment_bind(ctx: Ctx, inp: AssignmentBindInput) -> dict[str, Any]:
+    title, course_id, bound = await _assessment(ctx, inp.assessment_id)
+    names = await assignment_labels(ctx, course_id, [inp.assignment_id]) if course_id else {}
+    change = {"field": "lms_assignment", "before": bound, "after": names.get(inp.assignment_id)}
+    return {"target": title, "changes": [change]}
+
+
+async def preview_assignment_unbind(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
+    title, _, bound = await _assessment(ctx, inp.assessment_id)
+    change = {"field": "lms_assignment", "before": bound, "after": None}
+    return {"target": title, "changes": [change]}

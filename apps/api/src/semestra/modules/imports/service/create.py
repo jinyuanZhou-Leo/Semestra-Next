@@ -274,18 +274,29 @@ async def add_items(ctx: Ctx, row: ImportsSession, new: Sequence[NewItem]) -> li
     await ctx.db.flush()
     items = [*existing, *rows]
     await revalidate(ctx, row, items)
-    # Already in the gradebook: left out unless the user ticks it (M08 §5). Only when added, so
-    # a later edit never undoes the user's choice.
-    duplicates = [i for i in rows if i.decision == "accept" and _is_duplicate(i)]
+    # Already in the gradebook (M08 §5): an item from a source is bound to the assessment made
+    # by hand (each one once), any other is left out unless the user ticks it. Only when added,
+    # so a later edit never undoes the user's choice.
+    duplicates = [i for i in rows if i.decision == "accept" and _duplicate_of(i) is not None]
     if duplicates:
+        taken = {i.data.get("existing_assessment_id") for i in items} - {None}
         for item in duplicates:
-            item.decision = "reject"
+            match = _duplicate_of(item)
+            if match and match not in taken:
+                item.data = {**item.data, "existing_assessment_id": match}
+                taken.add(match)
+            else:
+                item.decision = "reject"
         await revalidate(ctx, row, items)
     return rows
 
 
-def _is_duplicate(item: ImportsItem) -> bool:
-    return any(issue["code"] == "import.duplicate_assessment" for issue in item.issues)
+def _duplicate_of(item: ImportsItem) -> str | None:
+    """The assessment the item duplicates: its id when the item can be bound to it, else ''."""
+    for issue in item.issues:
+        if issue["code"] == "import.duplicate_assessment":
+            return str(issue["params"].get("assessment_id") or "")
+    return None
 
 
 async def add_items_capability(

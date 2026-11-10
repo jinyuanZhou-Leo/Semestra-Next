@@ -500,24 +500,6 @@ function importItem(
   }
 }
 
-test('an LMS assignment can switch between assessment and task in the review', async () => {
-  const patched = vi.fn<(body: unknown) => void>()
-  server.use(
-    http.patch(`${API}/imports/s1/items/i1`, async ({ request }) => {
-      patched(await request.json())
-      return HttpResponse.json({ id: 's1', items: [] })
-    }),
-  )
-  renderWithRouter(
-    <ItemEditor
-      item={importItem({ type: 'assessment', data: { course_ref: 'course:c1', title: 'Lab 1' } })}
-      editable
-    />,
-  )
-  await userEvent.click(await screen.findByRole('button', { name: 'Task' }))
-  await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
-})
-
 test('a changed assignment shows its old → new values', async () => {
   renderWithRouter(
     <ItemEditor

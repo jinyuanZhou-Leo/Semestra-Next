@@ -18,10 +18,11 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from semestra.core.context import Ctx, system_ctx
-from semestra.core.errors import AppError
+from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
+from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.grading.service import AssessmentSnapshot
 from semestra.modules.imports import build, register_commit_hook
 from semestra.modules.imports import service as imports
@@ -31,6 +32,9 @@ from semestra.modules.lms import html, reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.schemas.io import (
+    AssessmentRef,
+    AssignmentBinding,
+    AssignmentBindInput,
     AssignmentsImportInput,
     AssignmentUpdate,
     CoursesImportInput,
@@ -408,6 +412,29 @@ def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
     }
 
 
+def bound_snapshot(platform: dict[str, Any], row: GradingAssessment) -> dict[str, Any]:
+    """The import record of an assignment bound to an assessment made by hand: the assessment's
+    own due date and weight stand for what was imported, and no grade counts as seen. So the
+    first update check offers what the platform has differently, for review; binding itself
+    overwrites nothing. The title stays the platform's: a name the user chose is kept."""
+    due = row.due_at.astimezone(UTC).isoformat() if row.due_at is not None else None
+    return {**platform, "due_at": due, "weight": row.weight, "score": None}
+
+
+def bound_reported(platform: dict[str, Any], snap: dict[str, Any]) -> dict[str, Any]:
+    """What the update check finds different right after binding (`bound_snapshot`), counted as
+    reported already: the app still offers it for review, but the background check (M18) does
+    not announce it as a change on the platform, since nothing changed there."""
+    out: dict[str, Any] = {}
+    if not _same_time(platform["due_at"], snap["due_at"]):
+        out["due_at"] = platform["due_at"]
+    if platform["weight"] is not None and platform["weight"] != snap["weight"]:
+        out["weight"] = platform["weight"]
+    if platform["score"] is not None:
+        out["score"] = platform["score"]
+    return out
+
+
 def platform_score(a: dict[str, Any]) -> dict[str, float] | None:
     """The user's graded score on the platform as points, or None while there is none (not
     graded, not posted, or an assignment worth no points)."""
@@ -437,6 +464,81 @@ def _has_score(row: AssessmentSnapshot | None, score: dict[str, float]) -> bool:
         return True
     percent = 100 * score["points_earned"] / score["points_possible"]
     return row.score_percentage is not None and abs(row.score_percentage - percent) < 0.005
+
+
+# --- binding --------------------------------------------------------------------------------
+
+
+async def _assessment(ctx: Ctx, assessment_id: str) -> GradingAssessment:
+    row = (await grading.find_assessment_rows(ctx, [assessment_id])).get(assessment_id)
+    if row is None:
+        raise not_found("assessment", assessment_id)
+    return row
+
+
+async def _ref_of(ctx: Ctx, assessment_id: str) -> LmsImportedRef | None:
+    return await ctx.db.scalar(
+        select(LmsImportedRef).where(
+            LmsImportedRef.user_id == ctx.user_id,
+            LmsImportedRef.external_kind == "assignment",
+            LmsImportedRef.target_kind == "assessment",
+            LmsImportedRef.target_id == assessment_id,
+        )
+    )
+
+
+async def bind_assignment(ctx: Ctx, inp: AssignmentBindInput) -> AssignmentBinding:
+    """Binds an assessment made by hand to an assignment of its course not imported yet (M09 §4):
+    it becomes that assignment's one Semestra object, as if imported, and follows it from then
+    on. Binding changes nothing of the assessment; the first update check offers the platform's
+    differing due date, weight and grade for review (`bound_snapshot`)."""
+    row = await _assessment(ctx, inp.assessment_id)
+    link, b = await service.require_link(ctx, row.course_id)
+    service.require_feature(b, "assignments")
+    if row.source_kind == "lms":
+        raise lms_error("lms.assessment_already_bound")
+    data, _ = await reads.raw_assignments(ctx, row.course_id, refresh=True)
+    a = next((x for x in data if str(x["external_id"]) == inp.assignment_id), None)
+    if a is None:
+        raise lms_error("lms.not_found")
+    if inp.assignment_id in await reads.imported_targets(ctx, link.id):
+        raise lms_error("lms.assignment_already_imported", title=a["name"])
+    await grading.set_source(ctx, row.id, ("lms", source_ref(b.row.id, inp.assignment_id)))
+    platform = snapshot(a, _weights(data).get(inp.assignment_id))
+    ctx.db.add(
+        LmsImportedRef(
+            user_id=ctx.user_id,
+            link_id=link.id,
+            external_kind="assignment",
+            external_id=inp.assignment_id,
+            target_kind="assessment",
+            target_id=row.id,
+            snapshot=(snap := bound_snapshot(platform, row)),
+            reported=bound_reported(platform, snap),
+            imported_at=ctx.now,
+        )
+    )
+    await ctx.db.flush()
+    await events.publish(ctx, "lms.course.imports_recorded", {"course_id": row.course_id})
+    return AssignmentBinding(
+        assessment_id=row.id, course_id=row.course_id, assignment_id=inp.assignment_id
+    )
+
+
+async def unbind_assignment(ctx: Ctx, inp: AssessmentRef) -> AssignmentBinding:
+    """The assessment stops following its platform assignment, imported or bound: it stays as it
+    is, as one made by hand, and the assignment can be imported or bound again."""
+    row = await _assessment(ctx, inp.assessment_id)
+    ref = await _ref_of(ctx, row.id)
+    if ref is None and row.source_kind != "lms":
+        raise lms_error("lms.assessment_not_bound")
+    if ref is not None:
+        await ctx.db.delete(ref)
+    # Also when the course was unlinked meanwhile (its import records went with the link).
+    await grading.set_source(ctx, row.id, None)
+    await ctx.db.flush()
+    await events.publish(ctx, "lms.course.imports_recorded", {"course_id": row.course_id})
+    return AssignmentBinding(assessment_id=row.id, course_id=row.course_id, assignment_id=None)
 
 
 # --- syllabus -------------------------------------------------------------------------------
@@ -693,6 +795,14 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
     if kind not in ("assignments", "updates"):
         return
     items = {i.id: i for i in await imports.session_items(ctx, row.id)}
+    bound = await grading.find_assessment_rows(
+        ctx,
+        [
+            str(i.data["existing_assessment_id"])
+            for i in items.values()
+            if i.type == "assessment" and i.data.get("existing_assessment_id")
+        ],
+    )
     links: dict[str, LmsCourseLink] = {}
     for link_id in {info["link_id"] for info in meta.values()}:
         link = await ctx.db.get(LmsCourseLink, link_id)
@@ -731,6 +841,10 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         # What the import record compares later: a to-do has no grade to offer (an item may
         # have been switched in the review).
         snap = {**info["snapshot"], **({} if item.type == "assessment" else {"score": None})}
+        reported: dict[str, Any] = {}
+        if (made := bound.get(str(item.data.get("existing_assessment_id")))) is not None:
+            snap = bound_snapshot(info["snapshot"], made)
+            reported = bound_reported(info["snapshot"], snap)
         exists = await ctx.db.scalar(
             select(LmsImportedRef).where(
                 LmsImportedRef.link_id == link.id,
@@ -748,6 +862,7 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
                     target_kind=item.type,
                     target_id=target_id,
                     snapshot=snap,
+                    reported=reported,
                     imported_at=ctx.now,
                 )
             )
@@ -755,6 +870,8 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             # Added to the gradebook: the assessment took the to-do over (M05), and the one
             # Semestra object of this assignment is now the assessment.
             exists.target_kind, exists.target_id, exists.snapshot = item.type, target_id, snap
+            if made is not None:
+                exists.reported = reported
         elif exists.target_kind == item.type:
             exists.target_id = target_id  # imported again meanwhile: the same object
         else:

@@ -21,12 +21,24 @@ from semestra.modules.imports.models import ImportsItem
 CATEGORY_TOLERANCE = 0.5
 
 
+@dataclass(frozen=True)
+class ExistingAssessment:
+    """An assessment the course already has, by normalised title."""
+
+    id: str
+    title: str
+    # Not from an LMS assignment: an imported item from a source can be bound to it.
+    bindable: bool
+
+
 @dataclass
 class ValidationContext:
     target_kind: str
     target_term_id: str | None
-    # Existing course id → normalised titles of its assessments.
-    existing_assessments: dict[str, set[str]] = field(default_factory=lambda: {})
+    # Existing course id → its assessments by normalised title.
+    existing_assessments: dict[str, dict[str, ExistingAssessment]] = field(
+        default_factory=lambda: {}
+    )
     # Existing course id → weights of its counted assessments (from the gradebook, M03).
     existing_weights: dict[str, list[float]] = field(default_factory=lambda: {})
     # Existing course id → how many terms it has.
@@ -93,10 +105,21 @@ def validate(
     """Sets `issues` on every item; returns the weight totals of each course and category
     (`weights`, `category_weights` of the session summary)."""
     by_id = {i.id: i for i in items}
-    issues = {i.id: _item_issues(i, by_id, ctx) for i in items}
+    # The item each assessment is bound to: one at most, so no other is offered binding to it.
+    binders: dict[str, str] = {}
+    for item in items:
+        bound = item.data.get("existing_assessment_id")
+        if item.type == "assessment" and item.decision != "reject" and bound:
+            binders.setdefault(str(bound), item.id)
+    issues = {i.id: _item_issues(i, by_id, binders, ctx) for i in items}
     groups: defaultdict[str, list[ImportsItem]] = defaultdict(list)
     for item in items:
-        if item.type == "assessment" and item.decision != "reject":
+        # One bound to an existing assessment adds no weight: that one counts already.
+        if (
+            item.type == "assessment"
+            and item.decision != "reject"
+            and not item.data.get("existing_assessment_id")
+        ):
             groups[str(item.data.get("course_ref", ""))].append(item)
     for item in items:
         item.issues = issues[item.id]
@@ -114,7 +137,10 @@ def _ref_missing(item: ImportsItem, by_id: dict[str, ImportsItem]) -> bool:
 
 
 def _item_issues(
-    item: ImportsItem, by_id: dict[str, ImportsItem], ctx: ValidationContext
+    item: ImportsItem,
+    by_id: dict[str, ImportsItem],
+    binders: Mapping[str, str],
+    ctx: ValidationContext,
 ) -> list[dict[str, Any]]:
     """The problems of one item on its own (category totals look at several)."""
     data = item.data
@@ -133,9 +159,9 @@ def _item_issues(
             found.append(_issue("import.date_unresolved", text=data["due_text"]))
         ref = str(data.get("course_ref", ""))
         if ref.startswith("course:"):
-            titles = ctx.existing_assessments.get(ref.removeprefix("course:"), set())
-            if norm_title(str(data.get("title", ""))) in titles:
-                found.append(_issue("import.duplicate_assessment"))
+            titles = ctx.existing_assessments.get(ref.removeprefix("course:"), {})
+            if same := titles.get(norm_title(str(data.get("title", "")))):
+                found.append(_duplicate(item, same, binders.get(same.id)))
     if item.type == "task" and data.get("due_text") and not data.get("due_date"):
         found.append(_issue("import.date_unresolved", text=data["due_text"]))
     if item.type == "event" and not data.get("date"):
@@ -147,6 +173,18 @@ def _item_issues(
     if dated and day and _outside_terms(day, item, by_id, ctx):
         found.append(_issue("import.date_outside_term", date=day.isoformat()))
     return found
+
+
+def _duplicate(item: ImportsItem, same: ExistingAssessment, binder: str | None) -> dict[str, Any]:
+    """The course has an assessment of this title. An item from a source (a platform assignment)
+    can be bound to it instead (`assessment_id`) when that one is not bound yet, neither before
+    nor by another item of the session; bound, it is `import.binds_assessment`, which still has
+    the review show it."""
+    if not (same.bindable and item.data.get("source_ref")) or binder not in (None, item.id):
+        return _issue("import.duplicate_assessment", title=same.title)
+    if item.data.get("existing_assessment_id") == same.id:
+        return _issue("import.binds_assessment", title=same.title, assessment_id=same.id)
+    return _issue("import.duplicate_assessment", title=same.title, assessment_id=same.id)
 
 
 def _outside_terms(

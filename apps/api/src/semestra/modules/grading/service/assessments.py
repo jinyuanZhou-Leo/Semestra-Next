@@ -440,6 +440,39 @@ def _updated_due(
     return _resolve_due(tz, None, day, clock)
 
 
+async def set_source(
+    ctx: Ctx, assessment_id: str, source: tuple[str, str] | None
+) -> models.GradingAssessment:
+    """Says where an existing assessment comes from, or that it comes from nowhere (`None`): M09
+    binds one made by hand to a platform assignment and unbinds it. Only the source changes; the
+    platform's differing values come as reviewed updates. An assessment holds one item of a
+    source kind, and an item one assessment of the course (`grading.source_conflict`)."""
+    row = await _get_assessment(ctx, assessment_id)
+    kind, ref = source if source is not None else (None, None)
+    if (row.source_kind, row.source_ref) == (kind, ref):
+        return row
+    if kind is not None and ref is not None:
+        if row.source_kind == kind and row.source_ref is not None:
+            # From another item of that source already (another platform assignment).
+            raise AppError("grading.source_conflict", 409, assessment_id=row.id)
+        taken = await ctx.db.scalar(
+            select(models.GradingAssessment.id).where(
+                models.GradingAssessment.user_id == ctx.user_id,
+                models.GradingAssessment.course_id == row.course_id,
+                models.GradingAssessment.source_kind == kind,
+                models.GradingAssessment.source_ref == ref,
+            )
+        )
+        if taken is not None:
+            raise AppError("grading.source_conflict", 409, assessment_id=taken)
+    row.source_kind, row.source_ref = kind, ref
+    row.updated_at = ctx.now
+    await ctx.db.flush()
+    course = await academics.get_course_row(ctx, row.course_id)
+    await _announce_assessment(ctx, "updated", row, course.program_id, ["source"])
+    return row
+
+
 async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
     row = await _get_assessment(ctx, assessment_id)
     course = await academics.get_course_row(ctx, row.course_id)

@@ -31,6 +31,8 @@ STATUS = {
     "lms.course_already_linked": 409,
     "lms.course_link_exists": 409,
     "lms.assignment_already_imported": 409,
+    "lms.assessment_already_bound": 409,
+    "lms.assessment_not_bound": 409,
     "lms.credentials_missing": 409,
     # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
     "lms.writes_disabled": 409,
@@ -94,6 +96,8 @@ agent_hints(
         "lms.rate_limited": "The LMS is limiting requests; wait before trying again.",
         "lms.assignment_already_imported": "This assignment is already in the gradebook; update "
         "that assessment.",
+        "lms.assessment_already_bound": "This assessment already follows an LMS assignment; "
+        "unbind it first (lms.assignment.unbind) to bind another one.",
     }
 )
 

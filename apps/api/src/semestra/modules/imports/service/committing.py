@@ -12,6 +12,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
+from semestra.modules.grading import service as grading
 from semestra.modules.imports import dates, deps
 from semestra.modules.imports.models import ImportsItem, ImportsSession
 from semestra.modules.imports.schemas import (
@@ -195,6 +196,10 @@ async def _write_category(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     return {"created_id": out["id"]}
 
 
+def _assessment_source(c: _Commit) -> str:
+    return "lms" if c.row.source_kind == "lms" else "syllabus"
+
+
 async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     """Creates an assessment; its category is a written item or a built-in key."""
     ctx, data = c.ctx, item.data
@@ -216,6 +221,15 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
                 {"course_id": course_id, "name": name, "key": key},
             )
             category_id = known[key] = out["id"]
+    if bound := data.get("existing_assessment_id"):
+        # Bound to one made by hand: it takes the source, its values stay (M09 offers the
+        # platform's differing ones as updates).
+        source_ref = data.get("source_ref")
+        row = (await grading.find_assessment_rows(ctx, [bound])).get(bound)
+        if not source_ref or row is None or row.course_id != course_id:
+            raise not_found("assessment", bound)
+        await grading.set_source(ctx, bound, (_assessment_source(c), source_ref))
+        return {"updated_id": bound, "bound": True}
     assessment = {
         "title": data["title"],
         "category_id": category_id,
@@ -225,7 +239,7 @@ async def _write_assessment(c: _Commit, item: ImportsItem) -> dict[str, Any]:
         "note": data.get("note"),
         "points_earned": data.get("points_earned"),
         "points_possible": data.get("points_possible"),
-        "source_kind": "lms" if c.row.source_kind == "lms" else "syllabus",
+        "source_kind": _assessment_source(c),
         "source_ref": data.get("source_ref") or f"import:{item.id}",
     }
     out = await deps.call(

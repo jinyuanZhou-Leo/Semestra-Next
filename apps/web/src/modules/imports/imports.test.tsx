@@ -104,6 +104,22 @@ function courses() {
   )
 }
 
+test('an assessment can be imported as a to-do from its destination', async () => {
+  const patched = vi.fn<(body: unknown) => void>()
+  server.use(
+    courses(),
+    http.patch(`${API}/imports/s1/items/a2`, async ({ request }) => {
+      patched(await request.json())
+      return HttpResponse.json(session())
+    }),
+  )
+  renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
+  const row = (await screen.findByText('Final exam')).closest('tr')!
+  await userEvent.click(within(row).getByRole('button', { name: /Gradebook/ }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'To-dos' }))
+  await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
+})
+
 test('the review groups items by course, marks problems on their cell and opens an item in place', async () => {
   server.use(courses())
   renderWithRouter(

@@ -3,6 +3,7 @@ import type { UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
+import type { DialogTargetProps } from '@/lib/dialog-target'
 
 /**
  * Extension points defined by the grading module (M03 §5.1). Other modules contribute through
@@ -56,3 +57,30 @@ export type AssessmentColumn = {
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'
+
+/**
+ * An entry of a gradebook row's menu from another module (M09's "Bind Canvas assignment…"), with
+ * the dialog it opens. The gradebook keeps the dialog, so it stays open after the menu closes.
+ */
+export type AssessmentAction = {
+  id: string
+  /** Shown after a separator, before "Delete" (M00 §4.8: undoing actions go last). */
+  destructive?: boolean
+  /** The menu item; renders nothing when the action does not apply to this assessment. */
+  Item: ComponentType<AssessmentActionItemProps>
+  Dialog: ComponentType<AssessmentActionDialogProps>
+}
+
+export type AssessmentActionItemProps = {
+  assessment: Assessment
+  programId: string
+  open: () => void
+}
+
+export type AssessmentActionDialogProps = DialogTargetProps & {
+  assessment: Assessment | null
+  programId: string
+  close: () => void
+}
+
+export const ASSESSMENT_ACTIONS = 'grading.assessmentActions'

@@ -98,3 +98,19 @@ async def test_each_change_is_reported_once_and_the_first_look_is_quiet(
     assert await look() == []
     labs[2] = labs[2].model_copy(update={"name": "Midterm (room B)"})
     assert await look() == [{"graded": [], "changed": ["Midterm (room B)"], "announcements": []}]
+
+    # Binding an assessment made by hand: what differs from it is offered in the app, but
+    # nothing changed on the platform, so the check announces nothing.
+    labs.append(
+        labs[1].model_copy(update={"external_id": "a6", "name": "Essay", "group_id": "g9",
+                                   "submission": Submission(state="graded", score=20)})
+    )  # fmt: skip
+    made = await api.call(
+        "POST", f"/courses/{course}/assessments", json={"title": "My essay", "weight": 3}
+    )
+    await api.call("PUT", f"/assessments/{made['id']}/lms-assignment", json={"assignment_id": "a6"})
+    assert await look() == []
+    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
+    assert {"due_at", "score"} <= set(
+        next(u for u in updates["items"] if u["external_id"] == "a6")["changes"]
+    )

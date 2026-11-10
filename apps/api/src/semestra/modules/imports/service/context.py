@@ -14,7 +14,12 @@ from semestra.modules.imports.models import ImportsItem, ImportsSession
 from semestra.modules.imports.schemas import (
     SessionTarget,
 )
-from semestra.modules.imports.validate import ValidationContext, summarize, validate
+from semestra.modules.imports.validate import (
+    ExistingAssessment,
+    ValidationContext,
+    summarize,
+    validate,
+)
 
 
 def target_of(row: ImportsSession) -> SessionTarget:
@@ -58,12 +63,15 @@ async def _program_courses(ctx: Ctx, program_id: str) -> list[Any]:
     return page.items
 
 
-async def _existing_assessments(ctx: Ctx, course_ids: Sequence[str]) -> dict[str, set[str]]:
-    """Normalised titles of the courses' assessments (the plain list: no gradebook maths, which
-    every review edit would otherwise pay for)."""
+async def _existing_assessments(
+    ctx: Ctx, course_ids: Sequence[str]
+) -> dict[str, dict[str, ExistingAssessment]]:
+    """The courses' assessments by normalised title (the plain list: no gradebook maths, which
+    every review edit would otherwise pay for). Of two with one title, one that can still be
+    bound to a platform assignment is kept."""
     if not course_ids or not deps.has_capability("grading.assessment.list"):
         return {}
-    out: dict[str, set[str]] = {}
+    out: dict[str, dict[str, ExistingAssessment]] = {}
     for course_id in course_ids:
         try:
             page = await deps.call(
@@ -71,7 +79,13 @@ async def _existing_assessments(ctx: Ctx, course_ids: Sequence[str]) -> dict[str
             )
         except AppError:
             continue
-        out[course_id] = {build.norm_title(a["title"]) for a in page.get("items", [])}
+        titles: dict[str, ExistingAssessment] = {}
+        for a in page.get("items", []):
+            found = ExistingAssessment(a["id"], a["title"], a.get("source_kind") != "lms")
+            key = build.norm_title(a["title"])
+            if key not in titles or (found.bindable and not titles[key].bindable):
+                titles[key] = found
+        out[course_id] = titles
     return out
 
 
@@ -105,7 +119,10 @@ async def build_context(ctx: Ctx, row: ImportsSession) -> build.BuildContext:
         term=await _term_dates(ctx, target),
         courses=existing,
         type_codes=type_codes,
-        existing_assessments=await _existing_assessments(ctx, ids),
+        existing_assessments={
+            course_id: set(titles)
+            for course_id, titles in (await _existing_assessments(ctx, ids)).items()
+        },
         categories={
             course_id or "": await grading.course_categories(ctx, row.program_id, course_id)
             for course_id in [None, *ids]

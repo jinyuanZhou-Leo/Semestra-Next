@@ -60,6 +60,7 @@ const ISSUE_COLUMN: Record<string, Column> = {
   'import.weight_missing': 'weight',
   'import.duplicate_course': 'result',
   'import.duplicate_assessment': 'result',
+  'import.binds_assessment': 'result',
 }
 
 /** The open issues of an accepted item that belong in one cell. */
@@ -68,7 +69,42 @@ function issuesIn(item: ImportItem, column: Column): Issue[] {
   return item.issues.filter((issue) => (ISSUE_COLUMN[issue.code] ?? 'name') === column)
 }
 
-type Group = { key: string; label: string; items: ImportItem[] }
+type Group = {
+  key: string
+  label: string
+  /** Each category followed by its assessments, then the rest; the to-dos last. */
+  items: ImportItem[]
+  /** The group's to-dos, under a heading of their own when other items come first. */
+  tasks: ImportItem[]
+}
+
+/**
+ * A course's items as a hierarchy (owner's pick 2026-11-10): each category heads its
+ * assessments, which are indented under it, and to-dos come last under their own heading.
+ */
+function nest(members: ImportItem[]): {
+  items: ImportItem[]
+  tasks: ImportItem[]
+  families: [string, ImportItem[]][]
+} {
+  const categories = members.filter((i) => i.type === 'category')
+  const under = new Map(categories.map((c) => [`item:${c.id}`, [] as ImportItem[]]))
+  const rest: ImportItem[] = []
+  for (const item of members) {
+    const children = item.type === 'assessment' ? under.get(String(item.data.category_ref)) : null
+    if (children) children.push(item)
+    else if (item.type !== 'category') rest.push(item)
+  }
+  const families = categories.map((c): [string, ImportItem[]] => [
+    c.id,
+    [c, ...(under.get(`item:${c.id}`) ?? [])],
+  ])
+  return {
+    items: [...families.flatMap(([, family]) => family), ...rest],
+    tasks: rest.filter((i) => i.type === 'task'),
+    families,
+  }
+}
 
 function groupKey(item: ImportItem, targetCourse: string | null | undefined): string {
   if (item.type === 'course') return `item:${item.id}`
@@ -84,7 +120,7 @@ function groupItems(
   items: readonly ImportItem[],
   courseName: (id: string) => string,
   targetCourse: string | null | undefined,
-): Group[] {
+): (Group & { families: [string, ImportItem[]][] })[] {
   const groups = new Map<string, ImportItem[]>()
   const sorted = items.toSorted(
     (a, b) => TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || a.position - b.position,
@@ -105,7 +141,7 @@ function groupItems(
           : kind === 'course'
             ? courseName(id)
             : m.imports_group_other()
-    return { key, label, items: members }
+    return { key, label, ...nest(members) }
   })
 }
 
@@ -120,6 +156,15 @@ type ReviewState = {
   busy: boolean
   toggle: (item: ImportItem) => void
   decide: (item: ImportItem, accept: boolean) => void
+  /** Each category item with the assessments under it: its box decides them all. */
+  families: Map<string, ImportItem[]>
+  /** Items shown indented under a category or the to-dos heading. */
+  nested: Set<string>
+  decideMany: (items: ImportItem[], accept: boolean) => void
+  /** Binds an assessment item to the gradebook's one of the same title, or (null) creates it. */
+  bind: (item: ImportItem, assessmentId: string | null) => void
+  /** Imports an assessment as a to-do or the other way round (M09 assignments). */
+  retype: (item: ImportItem, type: 'assessment' | 'task') => void
   /** A category item's target: a course category's key, or null for a new one. */
   setCategory: (item: ImportItem, key: string | null) => void
 }
@@ -150,9 +195,23 @@ function Marked({ issues, children }: { issues: Issue[]; children: ReactNode }) 
 }
 
 function AcceptCell({ row }: CellProps) {
-  const { session, busy, decide } = useReview()
+  const { session, busy, decide, families, decideMany } = useReview()
   const item = row.original
   const done = Boolean(item.result && !item.result.error_code)
+  const family = families.get(item.id)
+  if (family && family.length > 1) {
+    const accepted = family.filter((i) => i.decision === 'accept').length
+    return (
+      <Checkbox
+        aria-label={m.imports_group_accept({ group: itemTitle(item) })}
+        checked={accepted === family.length}
+        indeterminate={accepted > 0 && accepted < family.length}
+        disabled={!isEditable(session, item) || done || busy}
+        onCheckedChange={(on) => decideMany(family, on)}
+        onClick={(event) => event.stopPropagation()}
+      />
+    )
+  }
   return (
     <Checkbox
       aria-label={m.imports_accept_item({ item: itemTitle(item) })}
@@ -165,18 +224,19 @@ function AcceptCell({ row }: CellProps) {
 }
 
 function NameCell({ row }: CellProps) {
-  const { expanded } = useReview()
+  const { expanded, nested } = useReview()
   const item = row.original
   const open = expanded === item.id
+  const indented = nested.has(item.id)
   return (
-    <span className="flex min-w-0 items-center gap-1.5">
+    <span className={cn('flex min-w-0 items-center gap-1.5', indented && 'pl-5')}>
       {open ? (
         <ChevronDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
         <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       )}
       <Marked issues={issuesIn(item, 'name')}>
-        <span className="truncate font-medium">{itemTitle(item) || '—'}</span>
+        <span className={cn('truncate', !indented && 'font-medium')}>{itemTitle(item) || '—'}</span>
       </Marked>
     </span>
   )
@@ -220,8 +280,13 @@ function destination(item: ImportItem): string {
   switch (item.type) {
     case 'course':
       return m.imports_dest_course()
-    case 'assessment':
-      return m.imports_dest_gradebook()
+    case 'assessment': {
+      if (!(item.data as { existing_assessment_id?: string | null }).existing_assessment_id) {
+        return m.imports_dest_gradebook()
+      }
+      const target = bindable(item)
+      return target ? m.imports_bind_to({ title: target.title }) : m.imports_dest_bind()
+    }
     case 'meeting':
       return m.imports_dest_timetable()
     case 'event':
@@ -233,7 +298,122 @@ function destination(item: ImportItem): string {
   }
 }
 
+/** The gradebook's assessment of the same title an item from a source can be bound to (M09). */
+function bindable(item: ImportItem): { id: string; title: string } | null {
+  for (const issue of item.issues) {
+    const { assessment_id: id, title } = issue.params ?? {}
+    if (typeof id === 'string' && typeof title === 'string') return { id, title }
+  }
+  return null
+}
+
+type MenuOption = { value: string; label: string; separated?: boolean }
+
+/**
+ * Where a row goes, as a menu in its cell (owner's pick 2026-11-10): the trigger names the
+ * current choice, so a row is only opened to edit its fields; choosing does not open the row.
+ */
+function DestinationMenu({
+  label,
+  warn,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  /** The current choice has an issue (a same-titled assessment exists). */
+  warn?: boolean
+  value: string
+  options: MenuOption[]
+  onChange: (value: string) => void
+}) {
+  const { busy } = useReview()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={busy}
+        onClick={(event) => event.stopPropagation()}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              '-ml-2 h-7 max-w-full gap-1 px-2 font-normal text-muted-foreground',
+              warn && 'text-destructive',
+            )}
+          />
+        }
+      >
+        {warn ? <CircleAlert aria-hidden className="size-3.5 shrink-0" /> : null}
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-auto" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => {
+            if (next !== value) onChange(next as string)
+          }}
+        >
+          {options.map((option) => (
+            <Fragment key={option.value}>
+              {option.separated ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuRadioItem value={option.value}>{option.label}</DropdownMenuRadioItem>
+            </Fragment>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * An assessment or to-do goes to the gradebook or the to-dos (M08 §6.2); an assignment named
+ * like an assessment of the gradebook can be bound to that one instead (M09).
+ */
+function AssessmentDestination({
+  item,
+  target,
+  exists,
+}: {
+  item: ImportItem
+  target: { id: string; title: string } | null
+  /** A same-titled assessment it can't be bound to: the trigger warns. */
+  exists: boolean
+}) {
+  const { bind, retype } = useReview()
+  const bound = (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
+  const value = bound ? 'bind' : item.type === 'task' ? 'task' : 'assessment'
+  const label =
+    value === 'bind' && target
+      ? m.imports_bind_to({ title: target.title })
+      : value === 'task'
+        ? m.imports_dest_tasks()
+        : exists
+          ? m.imports_dest_exists_assessment()
+          : m.imports_dest_gradebook()
+  const options: MenuOption[] = [
+    ...(target ? [{ value: 'bind', label: m.imports_bind_to({ title: target.title }) }] : []),
+    { value: 'assessment', label: target ? m.imports_bind_new() : m.imports_dest_gradebook() },
+    { value: 'task', label: target ? m.imports_bind_task() : m.imports_dest_tasks() },
+  ]
+  return (
+    <DestinationMenu
+      label={label}
+      warn={exists && value === 'assessment'}
+      value={value}
+      options={options}
+      onChange={(next) => {
+        if (next === 'bind' && target) bind(item, target.id)
+        else if (next === 'assessment' && item.type === 'assessment') bind(item, null)
+        else retype(item, next === 'task' ? 'task' : 'assessment')
+      }}
+    />
+  )
+}
+
 function ResultCell({ row }: CellProps) {
+  const { session } = useReview()
   const item = row.original
   const failed = item.result?.error_code
   if (failed) {
@@ -250,6 +430,13 @@ function ResultCell({ row }: CellProps) {
     // A duplicate starts unticked (M08 §5): why it is skipped, marked once it is ticked. Any
     // other unticked row says nothing; its empty box does.
     return duplicate.length > 0 ? <span className="text-muted-foreground">{exists}</span> : null
+  }
+  const movable = item.type === 'assessment' || item.type === 'task'
+  if (movable && !item.result && isEditable(session, item)) {
+    const target = bindable(item)
+    return (
+      <AssessmentDestination item={item} target={target} exists={!target && duplicate.length > 0} />
+    )
   }
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
@@ -268,7 +455,7 @@ function ResultCell({ row }: CellProps) {
  * review is open the cell is a menu to pick another (it does not open the row).
  */
 function CategoryDestination({ item }: { item: ImportItem }) {
-  const { session, busy, setCategory } = useReview()
+  const { session, setCategory } = useReview()
   const categories = useTargetCategories(session.program_id, item.data.course_ref)
   if (!categories) return null
   const key = typeof item.data.key === 'string' ? item.data.key : ''
@@ -276,36 +463,15 @@ function CategoryDestination({ item }: { item: ImportItem }) {
   const label = into ? m.imports_dest_into({ category: into.name }) : m.imports_dest_category()
   if (item.result || !isEditable(session, item)) return <span className="truncate">{label}</span>
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={busy}
-        onClick={(event) => event.stopPropagation()}
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-2 h-7 max-w-full gap-1 px-2 font-normal text-muted-foreground"
-          />
-        }
-      >
-        <span className="truncate">{label}</span>
-        <ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-auto" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuRadioGroup
-          value={into ? key : ''}
-          onValueChange={(value) => setCategory(item, value || null)}
-        >
-          {categories.map((c) => (
-            <DropdownMenuRadioItem key={c.key} value={c.key}>
-              {c.name}
-            </DropdownMenuRadioItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuRadioItem value="">{m.imports_dest_category()}</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DestinationMenu
+      label={label}
+      value={into ? key : ''}
+      options={[
+        ...categories.map((c) => ({ value: c.key, label: c.name })),
+        { value: '', label: m.imports_dest_category(), separated: true },
+      ]}
+      onChange={(value) => setCategory(item, value || null)}
+    />
   )
 }
 
@@ -322,10 +488,32 @@ const WIDTHS: Record<string, string> = {
   accept: 'w-10',
   when: 'w-44',
   weight: 'w-20',
-  result: 'w-44',
+  result: 'w-52',
 }
 
 /** "Weights total 100% (incl. 6 already in the gradebook)" on a course's heading. */
+/** The heading of a group's to-dos, whose box decides them all. */
+function SubHeading({ label, items }: { label: string; items: ImportItem[] }) {
+  const { session, busy, decideMany } = useReview()
+  const accepted = items.filter((i) => i.decision === 'accept').length
+  return (
+    <TableRow className="h-10 bg-muted/20 hover:bg-muted/20">
+      <TableCell className="py-1.5">
+        <Checkbox
+          aria-label={m.imports_group_accept({ group: label })}
+          checked={accepted === items.length}
+          indeterminate={accepted > 0 && accepted < items.length}
+          disabled={session.status !== 'ready' || busy}
+          onCheckedChange={(on) => decideMany(items, on)}
+        />
+      </TableCell>
+      <TableCell colSpan={columns.length - 1} className="py-1.5 font-medium">
+        {label}
+      </TableCell>
+    </TableRow>
+  )
+}
+
 function WeightTotal({
   session,
   groupKey: key,
@@ -382,6 +570,13 @@ export function ImportReview({
   const table = useTable({ features, columns, data: session.items, getRowId: (item) => item.id })
   const rows = new Map(table.getRowModel().rows.map((row) => [row.id, row]))
   const groups = groupItems(session.items, courseName, session.target.course_id)
+  const families = new Map(groups.flatMap((g) => g.families))
+  const nested = new Set(
+    groups.flatMap((g) => [
+      ...g.families.flatMap(([, family]) => family.slice(1).map((i) => i.id)),
+      ...(g.tasks.length < g.items.length ? g.tasks.map((i) => i.id) : []),
+    ]),
+  )
   const open = session.status === 'ready'
   const busy = update.isPending || bulk.isPending
 
@@ -395,17 +590,26 @@ export function ImportReview({
         path: { session_id: session.id, item_id: item.id },
         body: { decision: accept ? 'accept' : 'reject' },
       }),
+    families,
+    nested,
+    decideMany: (items, accept) =>
+      bulk.mutate({
+        path: { session_id: session.id },
+        body: { decision: accept ? 'accept' : 'reject', item_ids: items.map((i) => i.id) },
+      }),
+    bind: (item, assessmentId) =>
+      update.mutate({
+        path: { session_id: session.id, item_id: item.id },
+        body: { data: { existing_assessment_id: assessmentId } },
+      }),
+    retype: (item, type) =>
+      update.mutate({ path: { session_id: session.id, item_id: item.id }, body: { type } }),
     setCategory: (item, key) =>
       update.mutate({
         path: { session_id: session.id, item_id: item.id },
         body: { data: { key } },
       }),
   }
-  const decideGroup = (group: Group, accept: boolean) =>
-    bulk.mutate({
-      path: { session_id: session.id },
-      body: { decision: accept ? 'accept' : 'reject', item_ids: group.items.map((i) => i.id) },
-    })
 
   return (
     <ReviewContext value={state}>
@@ -438,7 +642,7 @@ export function ImportReview({
                         checked={accepted === group.items.length}
                         indeterminate={accepted > 0 && accepted < group.items.length}
                         disabled={!open || busy}
-                        onCheckedChange={(on) => decideGroup(group, on)}
+                        onCheckedChange={(on) => state.decideMany(group.items, on)}
                       />
                     </TableCell>
                     <TableCell colSpan={columns.length - 1} className="py-1.5">
@@ -452,13 +656,18 @@ export function ImportReview({
                     const row = rows.get(item.id)
                     if (!row) return null
                     const isOpen = expanded === item.id
+                    const tasksStart = nested.has(item.id) && item === group.tasks[0]
                     return (
                       <Fragment key={item.id}>
+                        {tasksStart ? (
+                          <SubHeading label={m.imports_dest_tasks()} items={group.tasks} />
+                        ) : null}
                         <TableRow
                           aria-expanded={isOpen}
                           data-state={isOpen ? 'selected' : undefined}
                           className={cn(
                             'h-10 cursor-pointer',
+                            families.has(item.id) && 'bg-muted/20',
                             item.decision !== 'accept' && 'text-muted-foreground',
                           )}
                           onClick={() => state.toggle(item)}

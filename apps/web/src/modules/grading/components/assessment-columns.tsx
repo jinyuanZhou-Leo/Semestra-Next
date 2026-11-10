@@ -13,12 +13,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { dueText, percentText } from '../display'
 import { scoreText } from '../score'
 import { compareValues } from '../sort'
-import type { AssessmentColumn } from '../types'
+import type { AssessmentAction, AssessmentColumn } from '../types'
 import type { WhatIf } from '../whatif'
 import { CategoryBadge } from './CategoryBadge'
 import { InlineInput } from './InlineInput'
@@ -41,6 +42,9 @@ export type TableActions = {
   programId: string
   /** Columns from other modules by id (`ext:<id>` columns). */
   extensions: ReadonlyMap<string, AssessmentColumn>
+  /** Row menu entries from other modules, and how to open one's dialog. */
+  actions: readonly AssessmentAction[]
+  act: (action: AssessmentAction, a: Assessment) => void
   categories: ReadonlyMap<string, AssessmentCategory>
   whatIf: WhatIf
   /** The forecast's score per ungraded assessment: the hint in an empty assumption. */
@@ -121,7 +125,18 @@ function ScoreCell({ a }: { a: Assessment }) {
 }
 
 function ActionsCell({ a }: { a: Assessment }) {
-  const { edit, toggleDropped, remove } = useActions()
+  const { programId, edit, toggleDropped, remove, actions, act } = useActions()
+  const items = (destructive: boolean) =>
+    actions
+      .filter((action) => Boolean(action.destructive) === destructive)
+      .map((action) => (
+        <action.Item
+          key={action.id}
+          assessment={a}
+          programId={programId}
+          open={() => act(action, a)}
+        />
+      ))
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -136,6 +151,9 @@ function ActionsCell({ a }: { a: Assessment }) {
         <DropdownMenuItem onClick={() => toggleDropped(a)}>
           {a.dropped ? m.grading_assessment_include() : m.grading_assessment_drop()}
         </DropdownMenuItem>
+        {items(false)}
+        <DropdownMenuSeparator />
+        {items(true)}
         <DropdownMenuItem variant="destructive" onClick={() => remove(a)}>
           {m.grading_assessment_delete()}
         </DropdownMenuItem>
