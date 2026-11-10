@@ -40,6 +40,10 @@ def agent_hints(hints: Mapping[str, str]) -> None:
 
 agent_hints(
     {
+        "common.internal": "A bug on the server, not a mistake in your arguments: the same "
+        "call fails again however you word it. Get what you needed another way (a list tool "
+        "instead of a find tool, a broader read) and carry on; if nothing else gives it, tell "
+        "the user this step failed and quote `request_id` so they can report it.",
         "common.not_found": "The id is wrong or the item was deleted (params name which one). "
         "Look it up again with a find or list tool; never guess an id.",
         "common.conflict": "Someone changed this at the same time. Read it again, then retry once.",

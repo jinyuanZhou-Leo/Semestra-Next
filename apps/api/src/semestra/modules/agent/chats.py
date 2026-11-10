@@ -228,7 +228,7 @@ async def _term_names(ctx: Ctx, sessions: Sequence[AgentSession]) -> dict[str, s
             AcademicsTerm.id.in_(ids), AcademicsTerm.user_id == ctx.user_id
         )
     )
-    return {i: n for i, n in rows.tuples()}
+    return {i: n for i, n in rows}
 
 
 def _term(session: AgentSession, names: dict[str, str]) -> str | None:

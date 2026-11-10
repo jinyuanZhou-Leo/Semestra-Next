@@ -771,7 +771,10 @@ def candidates(out: Any) -> list[dict[str, Any]]:
 async def test_finding_assessments_by_name(api: Api, app: FastAPI):
     program, course = await one_course(api)
     other = await api.course(program["id"], course["term_ids"], code="MAT100")
-    lab3 = await api.assessment(course["id"], "Lab 3", 5)
+    labs = await api.call(
+        "POST", f"/courses/{course['id']}/grading-categories", json={"name": "Labs"}
+    )
+    lab3 = await api.assessment(course["id"], "Lab 3", 5, category_id=labs["id"])
     await api.assessment(course["id"], "Lab 4", 5)
     midterm = await api.assessment(course["id"], "Midterm Exam", 20)
     await api.assessment(other["id"], "Lab 3", 5)
@@ -786,6 +789,7 @@ async def test_finding_assessments_by_name(api: Api, app: FastAPI):
         )
         assert [i["id"] for i in candidates(got)][:1] == [lab3["id"]]
         assert candidates(got)[0]["score"] == 1.0
+        assert candidates(got)[0]["category_name"] == "Labs"
         mid = await registry.invoke(
             ctx, "grading.assessment.find", {"query": "midterm", "course_id": course["id"]}, "agent"
         )

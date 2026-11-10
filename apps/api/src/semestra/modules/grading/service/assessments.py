@@ -532,20 +532,15 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
     )
     top = scored[: inp.limit]
     category_ids = {r.category_id for _, r in top if r.category_id}
-    categories = (
-        dict(
-            (
-                await ctx.db.execute(
-                    select(models.GradingCategory.id, models.GradingCategory.name).where(
-                        models.GradingCategory.user_id == ctx.user_id,
-                        models.GradingCategory.id.in_(category_ids),
-                    )
-                )
-            ).tuples()
+    categories: dict[str, str] = {}
+    if category_ids:
+        rows = await ctx.db.execute(
+            select(models.GradingCategory.id, models.GradingCategory.name).where(
+                models.GradingCategory.user_id == ctx.user_id,
+                models.GradingCategory.id.in_(category_ids),
+            )
         )
-        if category_ids
-        else {}
-    )
+        categories = {cid: name for cid, name in rows}
     return AssessmentCandidates(
         items=[
             AssessmentCandidate(
