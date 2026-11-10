@@ -9,6 +9,7 @@ result, gradebook, what-if) and `summaries` (term, Program and course summaries)
 from semestra.modules.grading.service.assessments import (
     AssessmentSnapshot,
     assessment_snapshots,
+    category_keys,
     counted_weights,
     create_assessments,
     delete_assessment,
@@ -24,6 +25,7 @@ from semestra.modules.grading.service.assessments import (
     update_assessment,
 )
 from semestra.modules.grading.service.categories import (
+    course_categories,
     create_category,
     delete_category,
     reorder_categories,
@@ -58,7 +60,9 @@ from semestra.modules.grading.service.summaries import (
 __all__ = [
     "AssessmentSnapshot",
     "assessment_snapshots",
+    "category_keys",
     "counted_weights",
+    "course_categories",
     "course_grades",
     "create_assessments",
     "create_category",

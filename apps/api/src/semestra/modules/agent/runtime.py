@@ -15,9 +15,11 @@ import uuid
 from collections import defaultdict
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, contextmanager
+from datetime import datetime
 from typing import Any, Protocol
 
 import structlog
+from cachetools import LRUCache
 from pydantic_ai.models import Model
 from starlette.datastructures import State
 
@@ -163,6 +165,9 @@ class AgentRuntime:
         self._generations: dict[str, Generation] = {}
         self._background: set[asyncio.Task[Any]] = set()
         self._keyed: dict[str, asyncio.Task[Any]] = {}
+        # (conversation, memory name) -> the version of the memory that conversation has seen
+        # (`memory.remember` replaces a body only after it was read).
+        self.memory_reads: LRUCache[tuple[str, str], datetime] = LRUCache(maxsize=10_000)
 
     def generating(self, session_id: str) -> bool:
         return session_id in self._running

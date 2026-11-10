@@ -292,6 +292,49 @@ test('an edit is saved on blur and the commit waits for it', async () => {
   )
 })
 
+test("a category row says which of the course's categories it goes into, and can be changed", async () => {
+  const groups = session({
+    source_kind: 'lms',
+    items: [
+      item({
+        id: 'g1',
+        type: 'category',
+        data: { course_ref: 'course:c1', name: 'Midterms', key: 'exam' },
+      }),
+      item({
+        id: 'g2',
+        type: 'category',
+        position: 1,
+        data: { course_ref: 'course:c1', name: 'Bonus' },
+      }),
+    ],
+  })
+  const patches: unknown[] = []
+  server.use(
+    courses(),
+    http.get(`${API}/courses/c1/gradebook`, () =>
+      HttpResponse.json({ categories: [{ id: 'k1', key: 'exam', name: 'Exam' }] }),
+    ),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json(groups)),
+    http.patch(`${API}/imports/s1/items/g1`, async ({ request }) => {
+      patches.push(await request.json())
+      return HttpResponse.json(groups)
+    }),
+  )
+  renderWithRouter(<SessionView session={groups} mode="direct" onDone={() => {}} />)
+  const midterms = (await screen.findByText('Midterms')).closest('tr')!
+  expect(await within(midterms).findByText('Into Exam')).toBeInTheDocument()
+  expect(
+    within(screen.getByText('Bonus').closest('tr')!).getByText('New category'),
+  ).toBeInTheDocument()
+
+  // The cell is a menu (it does not open the row); a new category asks for its name.
+  await userEvent.click(within(midterms).getByRole('button', { name: 'Into Exam' }))
+  expect(midterms).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'New category' }))
+  await waitFor(() => expect(patches).toEqual([{ data: { key: null }, only_touched: true }]))
+})
+
 test('a meeting shows how many of its dates are cancelled', () => {
   const meeting = item({
     id: 'm1',

@@ -59,14 +59,14 @@ SYLLABUS = {
     "grading": {
         "categories": [
             {"name": ev("Labs"), "weight": ev(20)},
-            {"name": ev("Reflection journal"), "weight": ev(5)},
+            {"name": ev("Bonus work"), "weight": ev(5)},
         ],
         "assessments": [
             {"title": ev("Lab 1"), "category": ev("Labs"), "weight": ev(10),
              "due_text": ev("Week 3, Friday")},
             {"title": ev("Lab 2"), "category": ev("Labs"), "weight": ev(10),
              "due_text": ev("TBA")},
-            {"title": ev("Journal"), "category": ev("Reflection journal"), "weight": ev(5),
+            {"title": ev("Journal"), "category": ev("Bonus work"), "weight": ev(5),
              "due_date": ev("2026-04-01")},
             {"title": ev("Midterm"), "weight": ev(25), "due_text": ev("Week 7, Thursday")},
             {"title": ev("Final exam"), "weight": ev(35)},
@@ -338,9 +338,10 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     assert patch["confidence"]["title"] == "high"
 
     cats = by_type(session, "category")
-    assert [(c["data"]["name"], c["data"]["key"]) for c in cats] == [
+    # A name the course has no category for makes a new one (no key until the commit).
+    assert [(c["data"]["name"], c["data"].get("key")) for c in cats] == [
         ("Labs", "lab"),
-        ("Reflection journal", "reflection-journal"),
+        ("Bonus work", None),
     ]
     assessments = {a["data"]["title"]: a for a in by_type(session, "assessment")}
     assert assessments["Lab 1"]["data"]["due_date"] == "2026-01-23"  # week 3 Friday
@@ -406,7 +407,7 @@ async def test_syllabus_for_existing_course(api: Api, fake_ai: list[dict[str, An
     titles = sorted(a["title"] for a in book["assessments"])
     assert titles == ["Final exam", "Journal", "Lab 1", "Lab 2", "Midterm", "Quiz 0"]
     keys = {c["key"] for c in book["categories"]}
-    assert {"lab", "exam", "reflection-journal"} <= keys
+    assert {"lab", "exam", "bonus-work"} <= keys
     lab_id = next(c["id"] for c in book["categories"] if c["key"] == "lab")
     assert {a["category_id"] for a in book["assessments"] if a["title"].startswith("Lab")} == {
         lab_id

@@ -25,7 +25,7 @@ class AgentSession(Base, OwnedMixin):
     pinned: Mapped[bool] = mapped_column(default=False)
     # A temporary chat neither reads nor writes memories (M12 记忆).
     temporary: Mapped[bool] = mapped_column(default=False)
-    # When the idle conversation was last read for memories (`memory.consolidate_idle`).
+    # When Auto Dream last read the conversation for memories (`memory.dream`).
     memory_processed_at: Mapped[datetime | None] = mapped_column(default=None)
     # {summary: str | None, summarized_until: message id | None,
     #  turn: {tool_calls, requests, last_call, repeats} (see `loop.Counters`),
@@ -137,6 +137,8 @@ class AgentPreferences(Base):
     auto_approve: Mapped[list[str]] = mapped_column(JSON, default=list)
     mcp_allow_destructive: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column()
+    # When Auto Dream last tidied the memories (`memory.dream`): at most once a day.
+    memory_dreamed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class AgentMemory(Base, OwnedMixin):

@@ -38,9 +38,13 @@ in at once, and **Ignore** stops reminding you of these until new ones appear.
 An assignment that is only a to-do can be moved with **Add to gradebook** in its row menu: it
 becomes an assessment and keeps its to-do.
 
-- As assessments, each Canvas assignment group becomes a grading category (with the group's
-  weight when the course weights its groups), and the assignment's Canvas link is kept in its
-  note.
+- As assessments, each Canvas assignment group goes into one of the course's grading categories:
+  the one its earlier assignments are in now (so moving them in the gradebook teaches it), one of
+  the same name or named inside the group's name, or a built-in category the name means
+  ("Term Tests" → Exam, "Problem Sets" → Assignment). When the name says nothing ("Coursework",
+  Canvas's default "Assignments"), the assignments inside decide if most of them agree. Only when
+  nothing matches is a new category made from the group. The review shows where each group goes,
+  and you can change it. The assignment's Canvas link is kept in its note.
 - Weights come from Canvas assignment groups: an assessment's weight is its group's weight times
   its share of the group's points. When the course does not weight groups, the weight is left
   empty for you to fill in during the review.

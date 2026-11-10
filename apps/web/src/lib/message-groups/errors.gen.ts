@@ -22,6 +22,7 @@ export const errorMessages = {
   error_agent_memory_name_taken: m.error_agent_memory_name_taken,
   error_agent_memory_off: m.error_agent_memory_off,
   error_agent_memory_sensitive: m.error_agent_memory_sensitive,
+  error_agent_memory_unread: m.error_agent_memory_unread,
   error_agent_not_paused: m.error_agent_not_paused,
   error_agent_proposal_expired: m.error_agent_proposal_expired,
   error_agent_proposal_not_pending: m.error_agent_proposal_not_pending,

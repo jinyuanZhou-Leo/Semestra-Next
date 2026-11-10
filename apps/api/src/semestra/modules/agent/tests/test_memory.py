@@ -293,140 +293,6 @@ async def test_the_settings_page_can_edit_delete_and_clear(
     assert await _memories(agent) == []
 
 
-async def test_idle_conversations_are_consolidated_once(
-    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
-):
-    session = await agent.session()
-    model.then(_remember("gpa-goal", "Wants a 3.5 GPA.", type="project"), say("ok"))
-    await agent.send(session["id"], "my goal is a 3.5")
-    [old] = await _memories(agent)
-    model.then(say("Good luck!"))
-    await agent.send(session["id"], "actually make that 3.7, and I'm majoring in ECE")
-
-    seen: list[list[Message]] = []
-
-    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
-        seen.append(messages)
-        return MemoryUpdates(
-            operations=[
-                MemoryOperation(action="save", name="gpa-goal", description="Wants a 3.7 GPA."),
-                MemoryOperation(
-                    action="save", name="major", type="user", description="Majors in ECE."
-                ),
-                MemoryOperation(
-                    action="save", name="card", type="user", description="Card 4111 1111 1111 1111"
-                ),
-                MemoryOperation(action="save", name="Bad Name", type="user", description="x"),
-                MemoryOperation(action="delete", name="not-there"),
-            ]
-        )
-
-    app.state.agent.memory_model = memory_model
-    # Not idle long enough yet.
-    clock.advance(minutes=10)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert seen == []
-
-    clock.advance(minutes=25)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1
-    prompt = str(seen[0][1].content[0])
-    assert "[gpa-goal] (project) Wants a 3.5 GPA." in prompt
-    assert "make that 3.7" in prompt
-    assert "Today is " in prompt
-    assert "Good luck!" not in prompt  # only the user's own words
-    rows = {m["name"]: m for m in await _memories(agent)}
-    assert sorted(rows) == ["gpa-goal", "major"]  # the card number and the bad name were dropped
-    assert rows["gpa-goal"]["id"] == old["id"]
-    assert rows["gpa-goal"]["description"] == "Wants a 3.7 GPA."
-
-    # Nothing new since: not read again.
-    clock.advance(hours=1)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1
-
-    # A temporary chat is never read.
-    temp = await agent.call("POST", "/agent/sessions", json={"temporary": True})
-    model.then(say("Hi."))
-    await agent.send(temp["id"], "I love chemistry")
-    clock.advance(hours=1)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1
-
-
-async def test_consolidation_writes_nothing_until_the_model_answers(
-    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
-):
-    session = await agent.session()
-    model.then(say("Noted."))
-    await agent.send(session["id"], "I'm majoring in ECE")
-
-    calls: list[bool] = []
-
-    async def failing(ctx: Any, messages: list[Message]) -> MemoryUpdates:
-        # A pending write here would hold SQLite's write lock for the whole model call.
-        raw = await (await ctx.db.connection()).get_raw_connection()
-        calls.append(raw.driver_connection.in_transaction)
-        raise AppError("ai.provider_unreachable", 502)
-
-    app.state.agent.memory_model = failing
-    clock.advance(hours=1)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert calls == [False]
-
-    # The failed pass left the conversation unread: the next round reads the same words.
-    seen: list[str] = []
-
-    async def working(ctx: Any, messages: list[Message]) -> MemoryUpdates:
-        seen.append(str(messages[1].content[0]))
-        return MemoryUpdates(
-            operations=[
-                MemoryOperation(
-                    action="save", name="major", type="user", description="Majors in ECE."
-                )
-            ]
-        )
-
-    app.state.agent.memory_model = working
-    clock.advance(minutes=10)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1
-    assert "majoring in ECE" in seen[0]
-    assert [m["name"] for m in await _memories(agent)] == ["major"]
-    clock.advance(hours=1)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(seen) == 1
-
-
-async def test_a_conversation_held_with_memory_off_is_never_consolidated(
-    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
-):
-    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": False}})
-    session = await agent.session()
-    model.then(say("Hi."))
-    await agent.send(session["id"], "I'm majoring in ECE")
-    # Turned back on before the conversation goes idle.
-    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": True}})
-
-    seen: list[list[Message]] = []
-
-    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
-        seen.append(messages)
-        return MemoryUpdates(
-            operations=[
-                MemoryOperation(
-                    action="save", name="major", type="user", description="Majors in ECE."
-                )
-            ]
-        )
-
-    app.state.agent.memory_model = memory_model
-    clock.advance(hours=1)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert seen == []
-    assert await _memories(agent) == []
-
-
 async def test_imported_memories_are_converted_checked_and_kept_to_the_limit(
     app: FastAPI, make_user: MakeUser
 ):
@@ -540,19 +406,179 @@ def test_the_index_dates_a_memory_in_the_work_context_zone():
     assert memory.index_line(row) == '- [major] (user, 2026-10-21) "ECE" +'
 
 
-async def _stored(app: FastAPI, session_id: str) -> tuple[Any, ...]:
-    async with app.state.session_factory() as db:
-        row = await db.get(AgentSession, session_id)
-        assert row is not None
-        return (row.state, row.memory_processed_at, row.updated_at)
+DREAM = "agent.memory.dream"
 
 
-async def test_a_pass_that_would_fail_again_gives_its_window_up(
+async def _chat(agent: Agent, model: FakeModel, text: str, reply: str = "Noted.") -> str:
+    """A finished conversation of one exchange; returns its id."""
+    session = await agent.session()
+    model.then(say(reply))
+    await agent.send(session["id"], text)
+    return session["id"]
+
+
+async def _level(agent: Agent, level: str) -> None:
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"auto_dream": level}})
+
+
+async def test_auto_dream_waits_for_a_day_and_enough_conversations(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):
-    session = await agent.session()
-    model.then(say("Noted."))
-    await agent.send(session["id"], "I'm majoring in ECE")
+    long = "Chose ECE for robotics. " * 30  # longer than any excerpt: it is read in full
+    model.then(_remember("major", "Majors in ECE.", type="user", body=long), say("ok"))
+    first = await agent.session()
+    await agent.send(first["id"], "I'm majoring in ECE")
+    model.then(_remember("ece-major", "Studies ECE.", type="user"), say("ok"))
+    await agent.send(first["id"], "remember I study ECE")
+    for i in range(3):
+        await _chat(agent, model, f"note {i}", reply="Good luck!")
+
+    seen: list[list[Message]] = []
+
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        seen.append(messages)
+        return MemoryUpdates(
+            operations=[
+                # A merge: save one, forget the duplicate.
+                MemoryOperation(action="save", name="major", description="Majors in ECE (2026)."),
+                MemoryOperation(action="delete", name="ece-major"),
+                MemoryOperation(
+                    action="save", name="card", type="user", description="Card 4111 1111 1111 1111"
+                ),
+                MemoryOperation(action="save", name="Bad Name", type="user", description="x"),
+            ]
+        )
+
+    app.state.agent.memory_model = memory_model
+    clock.advance(hours=1)
+    # Four conversations: the default (medium) waits for five.
+    await run_periodic(app.state, DREAM)
+    assert seen == []
+    # A conversation still going on does not count yet.
+    fifth = await _chat(agent, model, "my goal is a 3.7")
+    await run_periodic(app.state, DREAM)
+    assert seen == []
+
+    clock.advance(minutes=31)
+    await run_periodic(app.state, DREAM)
+    assert len(seen) == 1
+    prompt = str(seen[0][1].content[0])
+    assert long.strip() in prompt  # every body in full
+    for words in ("my goal is a 3.7", "note 2", "majoring in ECE"):
+        assert words in prompt
+    assert "Today is " in prompt
+    assert "Good luck!" not in prompt  # only the user's own words
+    rows = {m["name"]: m for m in await _memories(agent)}
+    assert sorted(rows) == ["major"]  # merged; the card number and the bad name were dropped
+    assert rows["major"]["description"] == "Majors in ECE (2026)."
+    assert rows["major"]["body"] == long.strip()  # no body sent: kept as it was
+
+    # Five more within the day: the next dream waits until a day has passed.
+    model.then(say("ok"))
+    await agent.send(fifth, "and I like chemistry")
+    for i in range(4):
+        await _chat(agent, model, f"more {i}")
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert len(seen) == 1
+    clock.advance(hours=23)
+    await run_periodic(app.state, DREAM)
+    assert len(seen) == 2
+    prompt = str(seen[1][1].content[0])
+    assert "I like chemistry" in prompt
+    assert "my goal is a 3.7" not in prompt  # read last time
+
+    # A temporary chat is never read.
+    temp = await agent.call("POST", "/agent/sessions", json={"temporary": True})
+    model.then(say("Hi."))
+    await agent.send(temp["id"], "I love chemistry")
+    clock.advance(days=2)
+    await run_periodic(app.state, DREAM)
+    assert len(seen) == 2
+
+
+async def test_the_setting_picks_how_many_conversations_a_dream_waits_for(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    calls: list[int] = []
+
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        calls.append(1)
+        return MemoryUpdates()
+
+    app.state.agent.memory_model = memory_model
+    await _level(agent, "high")
+    await _chat(agent, model, "one")
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert calls == []
+    await _chat(agent, model, "two")
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert calls == [1]
+
+    await _level(agent, "low")
+    for i in range(9):
+        await _chat(agent, model, f"chat {i}")
+    clock.advance(days=1)
+    await run_periodic(app.state, DREAM)
+    assert calls == [1]
+    await _chat(agent, model, "the tenth")
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert calls == [1, 1]
+
+
+async def test_a_dream_writes_nothing_until_the_model_answers(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    first = await _chat(agent, model, "I'm majoring in ECE")
+    await _chat(agent, model, "and minoring in math")
+    before = await _stored(app, first)
+
+    calls: list[bool] = []
+
+    async def failing(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        # A pending write here would hold SQLite's write lock for the whole model call.
+        raw = await (await ctx.db.connection()).get_raw_connection()
+        calls.append(raw.driver_connection.in_transaction)
+        raise AppError("ai.provider_unreachable", 502)
+
+    app.state.agent.memory_model = failing
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert calls == [False]
+    assert await _stored(app, first) == before
+
+    # The provider being down is tried again next round, with the same words.
+    seen: list[str] = []
+
+    async def working(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        seen.append(str(messages[1].content[0]))
+        return MemoryUpdates(
+            operations=[
+                MemoryOperation(
+                    action="save", name="major", type="user", description="Majors in ECE."
+                )
+            ]
+        )
+
+    app.state.agent.memory_model = working
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert len(seen) == 1
+    assert "majoring in ECE" in seen[0]
+    assert "minoring in math" in seen[0]
+    assert [m["name"] for m in await _memories(agent)] == ["major"]
+
+
+async def test_a_dream_that_would_fail_again_is_given_up(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    await _chat(agent, model, "I'm majoring in ECE")
+    await _chat(agent, model, "and minoring in math")
     calls: list[int] = []
 
     async def invalid(ctx: Any, messages: list[Message]) -> MemoryUpdates:
@@ -562,33 +588,133 @@ async def test_a_pass_that_would_fail_again_gives_its_window_up(
     app.state.agent.memory_model = invalid
     clock.advance(hours=1)
     for _ in range(3):
-        await run_periodic(app.state, "agent.memory.consolidate")
-        clock.advance(minutes=10)
+        await run_periodic(app.state, DREAM)
+        clock.advance(days=1)
     assert len(calls) == 1
 
 
-async def test_a_provider_that_is_down_is_tried_again_and_writes_nothing(
+async def test_a_memory_changed_while_the_model_answers_is_left_alone(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):
-    session = await agent.session()
-    model.then(say("Noted."))
-    await agent.send(session["id"], "I'm majoring in ECE")
-    before = await _stored(app, session["id"])
-    calls: list[int] = []
+    await _level(agent, "high")
+    for name, line, text in (
+        ("major", "Majors in ECE.", "I'm majoring in ECE"),
+        ("tea", "Likes tea.", "I like tea"),
+    ):
+        session = await agent.session()
+        model.then(_remember(name, line, type="user"), say("ok"))
+        await agent.send(session["id"], text)
+    rows = {m["name"]: m for m in await _memories(agent)}
 
-    async def down(ctx: Any, messages: list[Message]) -> MemoryUpdates:
-        calls.append(1)
-        raise AppError("ai.provider_unreachable", 502)
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        # Meanwhile the user edits one memory on the settings page.
+        clock.advance(seconds=20)
+        await agent.call(
+            "PATCH", f"/agent/memories/{rows['major']['id']}", json={"description": "Majors in CS."}
+        )
+        return MemoryUpdates(
+            operations=[
+                MemoryOperation(action="delete", name="major"),
+                MemoryOperation(action="save", name="tea", description="Likes green tea."),
+            ]
+        )
 
-    app.state.agent.memory_model = down
+    app.state.agent.memory_model = memory_model
     clock.advance(hours=1)
-    for _ in range(5):
-        await run_periodic(app.state, "agent.memory.consolidate")
-        clock.advance(minutes=10)
-    assert len(calls) == 5
-    assert await _stored(app, session["id"]) == before
+    await run_periodic(app.state, DREAM)
+    after = {m["name"]: m["description"] for m in await _memories(agent)}
+    assert after == {"major": "Majors in CS.", "tea": "Likes green tea."}
 
-    # A week on, the conversation is left alone.
-    clock.advance(days=8)
-    await run_periodic(app.state, "agent.memory.consolidate")
-    assert len(calls) == 5
+
+async def test_a_dream_too_long_for_the_model_reads_fewer_conversations(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    await _chat(agent, model, "older: I'm majoring in ECE")
+    clock.advance(minutes=1)
+    await _chat(agent, model, "newer: I like tea")
+    prompts: list[str] = []
+
+    async def small(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        prompt = str(messages[1].content[0])
+        prompts.append(prompt)
+        if "older:" in prompt and "newer:" in prompt:
+            raise AppError("ai.context_too_long", 422)
+        return MemoryUpdates()
+
+    app.state.agent.memory_model = small
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert len(prompts) == 2
+    assert "newer: I like tea" in prompts[1]
+    assert "older:" not in prompts[1]
+    # The older conversation was not read: it is part of the next dream.
+    await _chat(agent, model, "third: I'm in year 2")
+    clock.advance(days=1)
+    await run_periodic(app.state, DREAM)
+    assert "older: I'm majoring in ECE" in prompts[-1]
+
+
+async def test_a_conversation_held_with_memory_off_is_never_read(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": False}})
+    await _chat(agent, model, "I'm majoring in ECE")
+    await _chat(agent, model, "I like chemistry")
+    # Turned back on before the conversations go idle.
+    await agent.call("PATCH", "/me/settings/memory", json={"values": {"enabled": True}})
+
+    seen: list[list[Message]] = []
+
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        seen.append(messages)
+        return MemoryUpdates()
+
+    app.state.agent.memory_model = memory_model
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert seen == []
+    await _chat(agent, model, "I'm a second year")
+    await _chat(agent, model, "in Toronto")
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    [messages] = seen
+    prompt = str(messages[1].content[0])
+    assert "second year" in prompt
+    assert "majoring in ECE" not in prompt
+
+
+async def test_a_body_is_replaced_only_after_it_was_read(agent: Agent, model: FakeModel):
+    session = await agent.session()
+    model.then(_remember("major", "Majors in ECE.", type="user", body="For robotics."), say("ok"))
+    await agent.send(session["id"], "I'm majoring in ECE for robotics")
+    # Written in this conversation: it knows the body.
+    model.then(_remember("major", "Majors in ECE.", body="For robotics and AI."), say("ok"))
+    await agent.send(session["id"], "and AI")
+    other = await agent.session()
+    model.then(_remember("major", "Majors in ECE.", body="Likes circuits."), say("ok"))
+    events = await agent.send(other["id"], "I like circuits")
+    [refused] = events_named(events, "tool_result")
+    assert refused["ok"] is False
+    assert "agent__memory__get" in str(model.results(-1)[0].content)
+    [kept] = await _memories(agent)
+    assert kept["body"] == "For robotics and AI."
+    # The description alone can change without reading.
+    model.then(_remember("major", "Majors in ECE (year 2)."), say("ok"))
+    await agent.send(other["id"], "I'm in year 2")
+    model.then(
+        call("agent.memory.get", {"name": "major"}),
+        _remember("major", "Majors in ECE (year 2).", body="For robotics and AI; likes circuits."),
+        say("ok"),
+    )
+    await agent.send(other["id"], "remember circuits")
+    [now] = await _memories(agent)
+    assert now["body"] == "For robotics and AI; likes circuits."
+
+
+async def _stored(app: FastAPI, session_id: str) -> tuple[Any, ...]:
+    async with app.state.session_factory() as db:
+        row = await db.get(AgentSession, session_id)
+        assert row is not None
+        return (row.state, row.memory_processed_at, row.updated_at)

@@ -545,6 +545,11 @@ async def test_a_failing_capability_fails_only_its_call(
     events = await agent.send(session["id"], "terms?")
     [result] = events_named(events, "tool_result")
     assert (result["ok"], result["error_code"]) == (False, "common.internal")
+    # The model learns it is a server bug to work around, with an id the user can report.
+    [seen] = model.results(-1)
+    error = json.loads(str(seen.content))["error"]
+    assert error["hint"]
+    assert error["params"]["request_id"]
     assert texts(events) == "Sorry."
 
 

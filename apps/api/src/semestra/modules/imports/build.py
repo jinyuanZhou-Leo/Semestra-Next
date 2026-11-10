@@ -12,19 +12,30 @@ from semestra.modules.imports import dates
 from semestra.modules.imports.ics import IcsResult, normalize_code
 from semestra.modules.imports.schemas import Evidence, NewItem
 
-# Built-in category keys (M03) and the words a syllabus uses for them, English and Chinese.
+# Built-in category keys (M03) and the words a syllabus or an LMS uses for them, English and
+# Chinese. English plurals need no entry of their own (`_words` makes them singular).
 CATEGORY_SYNONYMS: dict[str, tuple[str, ...]] = {
-    "quiz": ("quiz", "quizzes", "test", "tests", "小测", "测验", "随堂测"),
-    "exam": ("exam", "exams", "midterm", "midterms", "final", "finals", "examination", "考试",
-             "期中", "期末"),
-    "assignment": ("assignment", "assignments", "homework", "problem set", "problem sets", "pset",
-                   "psets", "essay", "essays", "paper", "papers", "作业", "论文"),
-    "project": ("project", "projects", "term project", "capstone", "项目", "大作业"),
-    "lab": ("lab", "labs", "laboratory", "practical", "practicals", "实验"),
-    "presentation": ("presentation", "presentations", "talk", "pitch", "展示", "汇报", "演讲"),
-    "participation": ("participation", "attendance", "engagement", "discussion", "出勤", "参与",
-                      "课堂表现", "考勤"),
+    "quiz": ("quiz", "test", "pop quiz", "knowledge check", "小测", "测验", "随堂测", "小考"),
+    "exam": ("exam", "midterm", "mid term", "final", "examination", "term test", "final exam",
+             "final assessment", "考试", "期中", "期末"),
+    "assignment": ("assignment", "homework", "hw", "problem set", "pset", "exercise", "worksheet",
+                   "essay", "paper", "reflection", "response", "reading response", "journal",
+                   "作业", "论文", "习题", "练习"),
+    "project": ("project", "term project", "group project", "final project", "capstone",
+                "portfolio", "项目", "大作业", "课程设计"),
+    "lab": ("lab", "laboratory", "practical", "practicum", "lab report", "实验", "实验报告"),
+    "presentation": ("presentation", "talk", "pitch", "poster", "demo", "seminar", "oral",
+                     "展示", "汇报", "演讲", "答辩", "海报"),
+    "participation": ("participation", "attendance", "engagement", "discussion", "forum",
+                      "clicker", "iclicker", "top hat", "tophat", "in class", "出勤", "参与",
+                      "课堂表现", "考勤", "签到", "讨论"),
 }  # fmt: skip
+# Group names that say nothing of what is in them: Canvas's own default groups among them, where
+# a course often puts everything. Their assignments decide first.
+VAGUE_GROUPS = re.compile(
+    r"^(assignment|imported assignment|coursework|course work|other|graded|grade|group \d*"
+    r"|assignment group \d*|作业组 ?\d*|其他)$"
+)
 TYPE_ALIASES = {
     "lecture": "LEC", "lec": "LEC", "seminar": "LEC", "sem": "LEC", "讲座": "LEC", "讲课": "LEC",
     "tutorial": "TUT", "tut": "TUT", "discussion": "TUT", "dis": "TUT", "recitation": "TUT",
@@ -38,23 +49,86 @@ def norm_title(text: str) -> str:
     return re.sub(r"[\s\W_]+", "", unicodedata.normalize("NFKC", text)).casefold()
 
 
+def _singular(word: str) -> str:
+    if not word.isascii() or len(word) <= 3 or word.endswith(("ss", "us", "is")):
+        return word
+    if word.endswith("zzes"):
+        return word[:-3]  # quizzes
+    if word.endswith("ies"):
+        return word[:-3] + "y"
+    return word.removesuffix("s")
+
+
+def _words(text: str) -> str:
+    """Lowercase words with one space between them, English plurals made singular: the form
+    category names and synonyms are compared in."""
+    words = re.split(r"[\W_]+", unicodedata.normalize("NFKC", text).casefold())
+    return " ".join(_singular(w) for w in words if w)
+
+
+def _contains(words: str, phrase: str) -> bool:
+    """Whether a phrase occurs in the words as whole words (CJK: anywhere)."""
+    if not phrase:
+        return False
+    if not phrase.isascii():
+        return phrase.replace(" ", "") in words.replace(" ", "")
+    return f" {phrase} " in f" {words} "
+
+
+_SYNONYMS = sorted(
+    ((_words(word), key) for key, words in CATEGORY_SYNONYMS.items() for word in words),
+    key=lambda pair: -len(pair[0]),
+)
+
+
 def category_key(name: str) -> str | None:
-    """The built-in category a name means, if any ("Midterm exams" → exam)."""
-    words = name.casefold().strip()
-    for key, synonyms in CATEGORY_SYNONYMS.items():
-        for word in synonyms:
-            if (
-                words == word
-                or re.search(rf"(^|\W){re.escape(word)}($|\W)", words)
-                or (not word.isascii() and word in words)
-            ):
-                return key
-    return None
+    """The built-in category a name means, if any ("Midterm exams" → exam). The longest word
+    found wins, so "Term test" is an exam, not a quiz."""
+    words = _words(name)
+    return next((key for word, key in _SYNONYMS if _contains(words, word)), None)
 
 
-def slug_key(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", name).casefold()).strip("-")
-    return (slug or "category")[:32].strip("-") or "category"
+def match_category(
+    name: str,
+    categories: Sequence[tuple[str, str]],
+    *,
+    previous: str | None = None,
+    contents: Sequence[tuple[str, bool]] = (),
+) -> str | None:
+    """The key of the course category a group of assessments named `name` goes into, or None to
+    create one. `categories` are the course's `(key, name)`; `previous` is the category its
+    earlier assessments are in now; `contents` the group's assessments as `(title, is_quiz)`.
+    In order: where the group went before, the same name, a category named inside the name, a
+    built-in by synonym, what most of its assessments are; else nothing."""
+    keys = {key for key, _ in categories}
+    if previous in keys:
+        return previous
+    words = _words(name)
+    vague = bool(VAGUE_GROUPS.match(words))
+    if vague and (voted := _vote(contents, keys)):
+        return voted
+    for key, label in categories:
+        if words in (_words(label), _words(key)):
+            return key
+    inside = [(w, key) for key, label in categories if len(w := _words(label)) >= 3]
+    for label, key in sorted(inside, key=lambda pair: -len(pair[0])):
+        if _contains(words, label):
+            return key
+    builtin = category_key(name)
+    if builtin in keys:
+        return builtin
+    return None if vague else _vote(contents, keys)
+
+
+def _vote(contents: Sequence[tuple[str, bool]], keys: set[str]) -> str | None:
+    """The category more than half of the assessments mean (an LMS quiz is a quiz)."""
+    counts: dict[str, int] = {}
+    for title, quiz in contents:
+        key = "quiz" if quiz else category_key(title)
+        if key in keys:
+            counts[key] = counts.get(key, 0) + 1
+    best = max(counts, key=lambda k: counts[k], default=None)
+    return best if best is not None and counts[best] * 2 > len(contents) else None
 
 
 def type_code(raw: str | None, available: Sequence[str]) -> str:
@@ -96,6 +170,8 @@ class BuildContext:
     type_codes: Sequence[str]
     # Normalised titles of the assessments the target course already has.
     existing_assessments: dict[str, set[str]] = field(default_factory=lambda: {})
+    # Each course's categories as `(key, name)` by id; "" is what a new course starts with.
+    categories: dict[str, list[tuple[str, str]]] = field(default_factory=lambda: {})
     source_kind: str = "syllabus"
 
 

@@ -13,7 +13,7 @@ from semestra.core.events import events
 from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
-from semestra.modules.imports import build, dates, deps
+from semestra.modules.imports import dates, deps
 from semestra.modules.imports.models import ImportsItem, ImportsSession
 from semestra.modules.imports.schemas import (
     CommitInput,
@@ -178,20 +178,21 @@ async def _write_course_patch(c: _Commit, item: ImportsItem) -> dict[str, Any]:
 
 
 async def _write_category(c: _Commit, item: ImportsItem) -> dict[str, Any]:
-    """Creates a grading category, or reuses the course's one with the same key."""
+    """Reuses the course's category with the item's key; an item without a key, or with one the
+    course does not have, creates a category (a free key is picked when there is none)."""
     ctx, data = c.ctx, item.data
     course_id = c.course_id(data.get("course_ref"))
     assert course_id is not None
-    key = data.get("key") or build.slug_key(data["name"])
+    key = data.get("key")
     known = await c.category_ids(course_id)
     if key in known:
         return {"created_id": known[key], "reused": True}
     out = await deps.call(
         ctx,
         "grading.category.create",
-        {"course_id": course_id, "name": data["name"], "key": key},
+        {"course_id": course_id, "name": data["name"], **({"key": key} if key else {})},
     )
-    known[key] = out["id"]
+    known[out["key"]] = out["id"]
     return {"created_id": out["id"]}
 
 

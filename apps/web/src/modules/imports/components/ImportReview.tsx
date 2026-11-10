@@ -20,10 +20,12 @@ import {
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { useTargetCategories } from '../categories'
 import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
@@ -123,6 +125,8 @@ type ReviewState = {
   bind: (item: ImportItem, assessmentId: string | null) => void
   /** Imports an assessment as a to-do or the other way round (M09 assignments). */
   retype: (item: ImportItem, type: 'assessment' | 'task') => void
+  /** A category item's target: a course category's key, or null for a new one. */
+  setCategory: (item: ImportItem, key: string | null) => void
 }
 const ReviewContext = createContext<ReviewState | null>(null)
 
@@ -221,8 +225,6 @@ function destination(item: ImportItem): string {
   switch (item.type) {
     case 'course':
       return m.imports_dest_course()
-    case 'category':
-      return m.imports_dest_category()
     case 'assessment': {
       if (!(item.data as { existing_assessment_id?: string | null }).existing_assessment_id) {
         return m.imports_dest_gradebook()
@@ -250,39 +252,27 @@ function bindable(item: ImportItem): { id: string; title: string } | null {
   return null
 }
 
-type Destination = 'bind' | 'assessment' | 'task'
+type MenuOption = { value: string; label: string; separated?: boolean }
 
 /**
- * Where an assessment or to-do goes, chosen in place (M08 §6.2): the gradebook or the to-dos,
- * and for an assignment named like an assessment of the gradebook, bound to that one (M09).
+ * Where a row goes, as a menu in its cell (owner's pick 2026-11-10): the trigger names the
+ * current choice, so a row is only opened to edit its fields; choosing does not open the row.
  */
-function DestinationChoice({
-  item,
-  target,
-  exists,
+function DestinationMenu({
+  label,
+  warn,
+  value,
+  options,
+  onChange,
 }: {
-  item: ImportItem
-  target: { id: string; title: string } | null
-  /** A same-titled assessment it can't be bound to: the trigger warns. */
-  exists: Issue[]
+  label: string
+  /** The current choice has an issue (a same-titled assessment exists). */
+  warn?: boolean
+  value: string
+  options: MenuOption[]
+  onChange: (value: string) => void
 }) {
-  const { busy, bind, retype } = useReview()
-  const bound = (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
-  const value: Destination = bound ? 'bind' : item.type === 'task' ? 'task' : 'assessment'
-  const label =
-    value === 'bind' && target
-      ? m.imports_bind_to({ title: target.title })
-      : value === 'task'
-        ? m.imports_dest_tasks()
-        : exists.length > 0
-          ? m.imports_dest_exists_assessment()
-          : m.imports_dest_gradebook()
-  const choose = (next: Destination) => {
-    if (next === value) return
-    if (next === 'bind' && target) bind(item, target.id)
-    else if (next === 'assessment' && item.type === 'assessment') bind(item, null)
-    else retype(item, next === 'task' ? 'task' : 'assessment')
-  }
+  const { busy } = useReview()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -294,33 +284,76 @@ function DestinationChoice({
             size="sm"
             className={cn(
               '-ml-2 h-7 max-w-full gap-1 px-2 font-normal text-muted-foreground',
-              exists.length > 0 && value === 'assessment' && 'text-destructive',
+              warn && 'text-destructive',
             )}
           />
         }
       >
-        {exists.length > 0 && value === 'assessment' ? (
-          <CircleAlert aria-hidden className="size-3.5 shrink-0" />
-        ) : null}
+        {warn ? <CircleAlert aria-hidden className="size-3.5 shrink-0" /> : null}
         <span className="truncate">{label}</span>
         <ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-auto" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuRadioGroup value={value} onValueChange={(next) => choose(next as Destination)}>
-          {target ? (
-            <DropdownMenuRadioItem value="bind">
-              {m.imports_bind_to({ title: target.title })}
-            </DropdownMenuRadioItem>
-          ) : null}
-          <DropdownMenuRadioItem value="assessment">
-            {target ? m.imports_bind_new() : m.imports_dest_gradebook()}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="task">
-            {target ? m.imports_bind_task() : m.imports_dest_tasks()}
-          </DropdownMenuRadioItem>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => {
+            if (next !== value) onChange(next as string)
+          }}
+        >
+          {options.map((option) => (
+            <Fragment key={option.value}>
+              {option.separated ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuRadioItem value={option.value}>{option.label}</DropdownMenuRadioItem>
+            </Fragment>
+          ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * An assessment or to-do goes to the gradebook or the to-dos (M08 §6.2); an assignment named
+ * like an assessment of the gradebook can be bound to that one instead (M09).
+ */
+function AssessmentDestination({
+  item,
+  target,
+  exists,
+}: {
+  item: ImportItem
+  target: { id: string; title: string } | null
+  /** A same-titled assessment it can't be bound to: the trigger warns. */
+  exists: boolean
+}) {
+  const { bind, retype } = useReview()
+  const bound = (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
+  const value = bound ? 'bind' : item.type === 'task' ? 'task' : 'assessment'
+  const label =
+    value === 'bind' && target
+      ? m.imports_bind_to({ title: target.title })
+      : value === 'task'
+        ? m.imports_dest_tasks()
+        : exists
+          ? m.imports_dest_exists_assessment()
+          : m.imports_dest_gradebook()
+  const options: MenuOption[] = [
+    ...(target ? [{ value: 'bind', label: m.imports_bind_to({ title: target.title }) }] : []),
+    { value: 'assessment', label: target ? m.imports_bind_new() : m.imports_dest_gradebook() },
+    { value: 'task', label: target ? m.imports_bind_task() : m.imports_dest_tasks() },
+  ]
+  return (
+    <DestinationMenu
+      label={label}
+      warn={exists && value === 'assessment'}
+      value={value}
+      options={options}
+      onChange={(next) => {
+        if (next === 'bind' && target) bind(item, target.id)
+        else if (next === 'assessment' && item.type === 'assessment') bind(item, null)
+        else retype(item, next === 'task' ? 'task' : 'assessment')
+      }}
+    />
   )
 }
 
@@ -346,17 +379,44 @@ function ResultCell({ row }: CellProps) {
   const movable = item.type === 'assessment' || item.type === 'task'
   if (movable && !item.result && isEditable(session, item)) {
     const target = bindable(item)
-    return <DestinationChoice item={item} target={target} exists={target ? [] : duplicate} />
+    return (
+      <AssessmentDestination item={item} target={target} exists={!target && duplicate.length > 0} />
+    )
   }
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
-    <span className="flex items-center gap-1 text-muted-foreground">
+    <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
       {done ? (
         <CircleCheck aria-label={m.imports_row_done()} className="size-4 shrink-0 text-success" />
       ) : null}
-      {destination(item)}
+      {item.type === 'category' ? <CategoryDestination item={item} /> : destination(item)}
     </span>
+  )
+}
+
+/**
+ * A category item goes into the course's category with its key, or makes a new one; while the
+ * review is open the cell is a menu to pick another (it does not open the row).
+ */
+function CategoryDestination({ item }: { item: ImportItem }) {
+  const { session, setCategory } = useReview()
+  const categories = useTargetCategories(session.program_id, item.data.course_ref)
+  if (!categories) return null
+  const key = typeof item.data.key === 'string' ? item.data.key : ''
+  const into = categories.find((c) => c.key === key)
+  const label = into ? m.imports_dest_into({ category: into.name }) : m.imports_dest_category()
+  if (item.result || !isEditable(session, item)) return <span className="truncate">{label}</span>
+  return (
+    <DestinationMenu
+      label={label}
+      value={into ? key : ''}
+      options={[
+        ...categories.map((c) => ({ value: c.key, label: c.name })),
+        { value: '', label: m.imports_dest_category(), separated: true },
+      ]}
+      onChange={(value) => setCategory(item, value || null)}
+    />
   )
 }
 
@@ -373,7 +433,7 @@ const WIDTHS: Record<string, string> = {
   accept: 'w-10',
   when: 'w-44',
   weight: 'w-20',
-  result: 'w-44',
+  result: 'w-52',
 }
 
 /** "Weights total 100% (incl. 6 already in the gradebook)" on a course's heading. */
@@ -453,6 +513,11 @@ export function ImportReview({
       }),
     retype: (item, type) =>
       update.mutate({ path: { session_id: session.id, item_id: item.id }, body: { type } }),
+    setCategory: (item, key) =>
+      update.mutate({
+        path: { session_id: session.id, item_id: item.id },
+        body: { data: { key } },
+      }),
   }
   const decideGroup = (group: Group, accept: boolean) =>
     bulk.mutate({

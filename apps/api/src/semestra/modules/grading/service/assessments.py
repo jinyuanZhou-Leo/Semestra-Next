@@ -565,20 +565,15 @@ async def find_assessments(ctx: Ctx, inp: AssessmentFindInput) -> AssessmentCand
     )
     top = scored[: inp.limit]
     category_ids = {r.category_id for _, r in top if r.category_id}
-    categories = (
-        dict(
-            (
-                await ctx.db.execute(
-                    select(models.GradingCategory.id, models.GradingCategory.name).where(
-                        models.GradingCategory.user_id == ctx.user_id,
-                        models.GradingCategory.id.in_(category_ids),
-                    )
-                )
-            ).tuples()
+    categories: dict[str, str] = {}
+    if category_ids:
+        rows = await ctx.db.execute(
+            select(models.GradingCategory.id, models.GradingCategory.name).where(
+                models.GradingCategory.user_id == ctx.user_id,
+                models.GradingCategory.id.in_(category_ids),
+            )
         )
-        if category_ids
-        else {}
-    )
+        categories = {cid: name for cid, name in rows}
     return AssessmentCandidates(
         items=[
             AssessmentCandidate(
@@ -668,3 +663,22 @@ async def assessment_snapshots(
         )
     )
     return {r.id: AssessmentSnapshot(*r) for r in rows}
+
+
+async def category_keys(ctx: Ctx, assessment_ids: Sequence[str]) -> dict[str, str]:
+    """The key of each assessment's category, by assessment id; ones without a category, or not
+    the user's, are left out."""
+    if not assessment_ids:
+        return {}
+    rows = await ctx.db.execute(
+        select(models.GradingAssessment.id, models.GradingCategory.key)
+        .join(
+            models.GradingCategory,
+            models.GradingCategory.id == models.GradingAssessment.category_id,
+        )
+        .where(
+            models.GradingAssessment.user_id == ctx.user_id,
+            models.GradingAssessment.id.in_(list(assessment_ids)),
+        )
+    )
+    return {r.id: r.key for r in rows}

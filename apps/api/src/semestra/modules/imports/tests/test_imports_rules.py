@@ -319,8 +319,9 @@ def test_category_and_type_mapping():
     assert build.category_key("Midterm Exam") == "exam"
     assert build.category_key("Problem sets") == "assignment"
     assert build.category_key("期末考试") == "exam"
-    assert build.category_key("Reflection journal") is None
-    assert build.slug_key("Reflection journal") == "reflection-journal"
+    assert build.category_key("Term tests") == "exam"
+    assert build.category_key("Lab reports") == "lab"
+    assert build.category_key("Bonus marks") is None
     assert build.type_code("Lab", ["LEC", "PRA", "TUT"]) == "PRA"
     assert build.type_code("LAB", ["LEC", "LAB"]) == "LAB"
     assert build.type_code("tutorial", ["LEC", "TUT"]) == "TUT"
@@ -426,3 +427,31 @@ async def test_an_upload_that_takes_too_long_says_so():
     with pytest.raises(AppError) as exc:
         await deps.render_pages(settings, data, "application/pdf", "t.pdf")
     assert exc.value.code == "import.file_too_complex"
+
+
+COURSE = [("quiz", "Quiz"), ("exam", "Exam"), ("assignment", "Assignment"), ("lab", "Lab"),
+          ("readings", "Readings")]  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("name", "kwargs", "expected"),
+    [
+        ("Labs", {"previous": "readings"}, "readings"),  # where it went before
+        ("Labs", {"previous": "gone"}, "lab"),  # a category since deleted counts for nothing
+        ("readings", {}, "readings"),  # the same name
+        ("Weekly Readings", {}, "readings"),  # a category named inside it
+        ("Term Tests", {}, "exam"),  # the longest synonym
+        ("Presentations", {}, None),  # a built-in the course does not have
+        (
+            "Coursework",
+            {"contents": [("Quiz 1", True), ("Quiz 2", True), ("Essay", False)]},
+            "quiz",
+        ),
+        ("Coursework", {"contents": [("Quiz 1", True), ("Essay", False)]}, None),  # no majority
+        ("Assignments", {"contents": [("Midterm", False), ("Final", False)]}, "exam"),
+        ("Assignments", {"contents": [("Midterm", False), ("Essay", False)]}, "assignment"),
+        ("Bonus Marks", {}, None),
+    ],
+)
+def test_match_category(name: str, kwargs: dict[str, Any], expected: str | None):
+    assert build.match_category(name, COURSE, **kwargs) == expected

@@ -9,7 +9,8 @@ in the commit's transaction.
 """
 
 import re
-from collections.abc import Collection
+from collections import Counter
+from collections.abc import Callable, Collection
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -23,7 +24,7 @@ from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.grading.service import AssessmentSnapshot
-from semestra.modules.imports import register_commit_hook
+from semestra.modules.imports import build, register_commit_hook
 from semestra.modules.imports import service as imports
 from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import Confidence, NewItem, SessionCreateInput, SessionTarget
@@ -59,11 +60,6 @@ def course_code(raw: str | None) -> str | None:
         return None
     match = CODE.search(raw.upper())
     return (match.group(1).replace(" ", "") if match else raw.strip())[:32] or None
-
-
-def _slug(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:32].strip("-")
-    return slug or "lms"
 
 
 async def _session(
@@ -298,11 +294,7 @@ async def _import(
     by_key: dict[str, dict[str, Any]] = {}
     # Canvas group id -> its category: an item key here, or the id of one a resumed session has.
     groups: dict[str, str] = dict((row.source_meta.get("lms") or {}).get("groups") or {})
-    slugs = {
-        str(i.data.get("key"))
-        for i in await imports.session_items(ctx, row.id)
-        if i.type == "category"
-    }
+    category_of = await _group_categories(ctx, link.program_id, course_id, data, done)
     for a, kind in picked:
         external_id = str(a["external_id"])
         due_date, due_time = _local(a.get("due_at"), tz)
@@ -317,10 +309,8 @@ async def _import(
                 group_key = str(a.get("group_id") or group)
                 if group_key not in groups:
                     groups[group_key] = f"g{len(new)}"
-                    slug = _slug(group)
-                    if slug in slugs:
-                        slug = f"{slug[:20].strip('-')}-{_slug(group_key)}"[:32].strip("-")
-                    slugs.add(slug)
+                    # An existing category's key goes into it; none creates one (M08 §2).
+                    into = category_of(group_key, group)
                     new.append(
                         NewItem(
                             key=groups[group_key],
@@ -328,7 +318,7 @@ async def _import(
                             data={
                                 "course_ref": course_ref,
                                 "name": group[:200],
-                                "key": slug,
+                                **({"key": into} if into else {}),
                                 **(
                                     {"weight_total": a["group_weight"]}
                                     if a.get("group_weight") is not None
@@ -372,6 +362,41 @@ async def _import(
     if counts is None:
         return started
     return started.model_copy(update={"committed": True, "failed": counts["failed"]})
+
+
+async def _group_categories(
+    ctx: Ctx,
+    program_id: str,
+    course_id: str,
+    data: list[dict[str, Any]],
+    done: dict[str, dict[str, str]],
+) -> Callable[[str, str], str | None]:
+    """Which course category each assignment group goes into (`build.match_category`): where
+    its assignments imported before are now, else by its name or what its assignments are."""
+    categories = await grading.course_categories(ctx, program_id, course_id)
+    members: dict[str, list[dict[str, Any]]] = {}
+    for a in data:
+        if a.get("group_name"):
+            members.setdefault(str(a.get("group_id") or a["group_name"]), []).append(a)
+    earlier = await grading.category_keys(
+        ctx, [t["id"] for t in done.values() if t["kind"] == "assessment"]
+    )
+
+    def category_of(group_key: str, name: str) -> str | None:
+        group = members.get(group_key, [])
+        placed = Counter(
+            earlier[t["id"]]
+            for a in group
+            if (t := done.get(str(a["external_id"]))) and t["id"] in earlier
+        )
+        return build.match_category(
+            name,
+            categories,
+            previous=placed.most_common(1)[0][0] if placed else None,
+            contents=[(str(a.get("name") or ""), a.get("raw_kind") == "quiz") for a in group],
+        )
+
+    return category_of
 
 
 def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:

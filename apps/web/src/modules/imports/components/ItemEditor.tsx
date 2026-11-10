@@ -84,17 +84,20 @@ function FieldsEditor({ item, editable }: { item: ImportItem; editable: boolean 
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      {specs.map((spec) => (
-        <FieldInput
-          key={spec.key}
-          spec={spec}
-          item={item}
-          value={values[spec.key]}
-          disabled={!editable}
-          onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
-          onCommit={(value) => commit(spec.key, value)}
-        />
-      ))}
+      {/* A category going into an existing one keeps that one's name. */}
+      {specs
+        .filter((spec) => !(item.type === 'category' && spec.key === 'name' && item.data.key))
+        .map((spec) => (
+          <FieldInput
+            key={spec.key}
+            spec={spec}
+            item={item}
+            value={values[spec.key]}
+            disabled={!editable}
+            onChange={(value) => setValues((current) => ({ ...current, [spec.key]: value }))}
+            onCommit={(value) => commit(spec.key, value)}
+          />
+        ))}
     </div>
   )
 }

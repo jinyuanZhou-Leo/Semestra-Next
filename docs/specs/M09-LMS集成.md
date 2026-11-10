@@ -151,7 +151,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | 文件内容代理 | — | GET /courses/{id}/lms/files/{file_id}/content | `routes.py`，流式代理，用于预览和下载 |
 | `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，`source_ref={provider, connection_id, file_id}` |
 | `lms.course.import` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
-| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 分类；权重按 group weight 推算，无法推算时留空），没有分值的成为待办；`imports.commit_if_clean` 没有冲突就直接提交（返回 `committed`、`failed`），否则留给审核 |
+| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 课程已有分类或新分类，规则见 M08 的分类映射；权重按 group weight 推算，无法推算时留空），没有分值的成为待办；`imports.commit_if_clean` 没有冲突就直接提交（返回 `committed`、`failed`），否则留给审核 |
 | `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
 | `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
