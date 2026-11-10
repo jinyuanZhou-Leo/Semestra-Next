@@ -36,6 +36,16 @@
             "object": "crypto",
             "property": "randomUUID",
             "message": "Only exists over https or localhost; a self-hosted instance opened at http://<LAN address> breaks. Use randomId() from @/lib/random-id."
+          },
+          {
+            "object": "navigator",
+            "property": "clipboard",
+            "message": "Only exists over https or localhost. Use copyText() from @/lib/clipboard, which falls back on a LAN address over http."
+          },
+          {
+            "object": "crypto",
+            "property": "subtle",
+            "message": "Only exists over https or localhost; a self-hosted instance opened at http://<LAN address> has none. Keep a fallback (see sha256Hex in modules/files/upload.ts)."
           }
         ],
         "no-restricted-imports": [

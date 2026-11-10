@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { ActionRow, SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { copyText } from '@/lib/clipboard'
 import { toastError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -109,7 +110,7 @@ export function FeedPanel({ programId }: { programId: string }) {
       body: { sources: FEED_SOURCES.filter((s) => (s === source ? on : sources.includes(s))) },
     })
   const copy = (text: string) =>
-    navigator.clipboard.writeText(text).then(
+    copyText(text).then(
       () => {
         setCopied(true)
         toast.success(m.schedule_feed_copied())
