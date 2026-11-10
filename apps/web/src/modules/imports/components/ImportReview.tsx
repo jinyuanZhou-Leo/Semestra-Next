@@ -223,10 +223,13 @@ function destination(item: ImportItem): string {
       return m.imports_dest_course()
     case 'category':
       return m.imports_dest_category()
-    case 'assessment':
-      return (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
-        ? m.imports_dest_bind()
-        : m.imports_dest_gradebook()
+    case 'assessment': {
+      if (!(item.data as { existing_assessment_id?: string | null }).existing_assessment_id) {
+        return m.imports_dest_gradebook()
+      }
+      const target = bindable(item)
+      return target ? m.imports_bind_to({ title: target.title }) : m.imports_dest_bind()
+    }
     case 'meeting':
       return m.imports_dest_timetable()
     case 'event':
@@ -267,8 +270,8 @@ function DestinationChoice({
   const bound = (item.data as { existing_assessment_id?: string | null }).existing_assessment_id
   const value: Destination = bound ? 'bind' : item.type === 'task' ? 'task' : 'assessment'
   const label =
-    value === 'bind'
-      ? m.imports_dest_bind()
+    value === 'bind' && target
+      ? m.imports_bind_to({ title: target.title })
       : value === 'task'
         ? m.imports_dest_tasks()
         : exists.length > 0
