@@ -57,8 +57,6 @@ LOOKBACK = timedelta(days=30)
 # Auto Dream: at most one a day, after this many new conversations (`MemorySettings.auto_dream`).
 DREAM_EVERY = timedelta(hours=24)
 DREAM_SESSIONS = {"high": 2, "medium": 5, "low": 10}
-# Failures that come back the same however often a dream is tried: that dream is given up.
-GIVE_UP = frozenset({"ai.output_invalid", "ai.context_too_long"})
 # What the user said, per conversation and in all, that one dream reads.
 TRANSCRIPT_CHARS = 8_000
 DREAM_CHARS = 40_000
@@ -374,7 +372,8 @@ find something outside Semestra).
 corrects you, confirms an approach that was not obvious, or asks you to remember something, call \
 `agent__memory__remember`. It needs no confirmation; say in a few words what you saved.
 - Check the index first. When a memory already covers it, pass that memory's name to update it \
-instead of saving a second one. Forget (`agent__memory__forget`) a memory the user withdraws or \
+instead of saving a second one; to change its body, read it with `agent__memory__get` first \
+and send the whole new body. Forget (`agent__memory__forget`) a memory the user withdraws or \
 that turns out wrong.
 - The description is one line in the user's language. Add a body only when there is more to it; \
 for feedback, the rule followed by **Why:** and **How to apply:** lines. Turn relative dates \
@@ -526,37 +525,45 @@ async def dream(ctx: Ctx) -> bool:
     settings = await settings_service.get_values(ctx, "memory", "account", None)
     if len(sessions) < DREAM_SESSIONS[MemorySettings.model_validate(settings.values).auto_dream]:
         return False
-    parts: list[str] = []
-    read: list[tuple[AgentSession, datetime]] = []
-    size = 0
-    for session in sessions:  # newest first; what does not fit waits for the next dream
-        words, until = await _new_words(ctx, session)
-        if words and size + len(words) > DREAM_CHARS and parts:
+    words = [(session, *await _new_words(ctx, session)) for session in sessions]
+    rows = await memories(ctx)
+    listing = _listing(rows)
+    # The version of each memory the model sees: one changed while it answers is left alone.
+    seen = {m.name: m.updated_at for m in rows}
+    budget = DREAM_CHARS
+    while True:
+        parts, read = _fit(words, budget)
+        try:
+            updates = await ctx.state.agent.memory_model(
+                ctx,
+                [
+                    Message.system(DREAM_PROMPT),
+                    Message.user(
+                        f"Today is {ctx.now.date().isoformat()}.\n\n# Memories\n{listing}\n\n"
+                        "# What the user said\n" + ("\n\n".join(parts) or "(nothing new)")
+                    ),
+                ],
+            )
             break
-        if words:
-            parts.append(f"## Conversation {session.updated_at.date().isoformat()}\n{words}")
-            size += len(words)
-        read.append((session, until))
-    listing = _listing(await memories(ctx))
-    try:
-        updates = await ctx.state.agent.memory_model(
-            ctx,
-            [
-                Message.system(DREAM_PROMPT),
-                Message.user(
-                    f"Today is {ctx.now.date().isoformat()}.\n\n# Memories\n{listing}\n\n"
-                    "# What the user said\n" + ("\n\n".join(parts) or "(nothing new)")
-                ),
-            ],
-        )
-    except AppError as exc:
-        # No model set up, provider down: nothing is written, the next round tries again. An
-        # answer the model cannot shape or a prompt too long would fail again: that dream is
-        # given up, and the conversations it read count as read.
-        log.info("agent.memory.dream_failed", user_id=ctx.user_id, code=exc.code)
-        if exc.code not in GIVE_UP:
-            return True
-        updates = MemoryUpdates()
+        except AppError as exc:
+            log.info("agent.memory.dream_failed", user_id=ctx.user_id, code=exc.code)
+            if exc.code == "ai.context_too_long" and len(parts) > 1:
+                budget = sum(len(p) for p in parts) // 2  # fewer conversations, the rest later
+                continue
+            if exc.code == "ai.context_too_long":
+                # The memories alone are too long for the model: nothing is read, and the
+                # conversations wait for a day (or a model with a longer context).
+                read = []
+                updates = MemoryUpdates()
+                break
+            if exc.code != "ai.output_invalid":
+                # No model set up, provider down: nothing is written, the next round tries
+                # again.
+                return True
+            # An answer the model cannot shape would fail again: this dream is given up, and
+            # the conversations it read count as read.
+            updates = MemoryUpdates()
+            break
     for session in skipped:
         session.memory_processed_at = session.updated_at
     for session, until in read:
@@ -567,17 +574,46 @@ async def dream(ctx: Ctx) -> bool:
         )
         ctx.db.add(prefs)
     prefs.memory_dreamed_at = ctx.now
-    await apply(ctx, updates, session_id=None)
+    await _apply(ctx, updates, seen)
     return True
 
 
-async def apply(ctx: Ctx, updates: MemoryUpdates, *, session_id: str | None) -> None:
-    """Deletes first, so a merge (save one, delete the others) fits in a full store."""
+def _fit(
+    words: list[tuple[AgentSession, str, datetime]], budget: int
+) -> tuple[list[str], list[tuple[AgentSession, datetime]]]:
+    """The conversations, newest first, whose words fit in `budget` (always at least one); what
+    does not fit waits for the next dream."""
+    parts: list[str] = []
+    read: list[tuple[AgentSession, datetime]] = []
+    size = 0
+    for session, text, until in words:
+        if text and size + len(text) > budget and parts:
+            break
+        if text:
+            parts.append(f"## Conversation {session.updated_at.date().isoformat()}\n{text}")
+            size += len(text)
+        read.append((session, until))
+    return parts, read
+
+
+async def _apply(ctx: Ctx, updates: MemoryUpdates, seen: dict[str, datetime]) -> None:
+    """Deletes first, so a merge (save one, delete the others) fits in a full store. A memory
+    changed or created since the model read the store (in a conversation, or on the settings
+    page) is left as it is: the next dream sees it."""
     ops = sorted(updates.operations, key=lambda op: op.action != "delete")
     for op in ops:
+        # Read from the database, not the session's copy loaded before the model answered.
+        now = await ctx.db.scalar(
+            select(AgentMemory.updated_at).where(
+                AgentMemory.user_id == ctx.user_id, AgentMemory.name == op.name
+            )
+        )
+        if now is not None and seen.get(op.name) != now:
+            log.info("agent.memory.operation_skipped", action=op.action, code="changed")
+            continue
+        row = await by_name(ctx, op.name)
         try:
             if op.action == "delete":
-                row = await by_name(ctx, op.name)
                 if row is not None:
                     await remove(ctx, row.id)
             else:
@@ -587,7 +623,7 @@ async def apply(ctx: Ctx, updates: MemoryUpdates, *, session_id: str | None) -> 
                     type=op.type,
                     description=op.description,
                     body=op.body,
-                    session_id=session_id,
+                    session_id=None,
                 )
         except AppError as exc:  # sensitive, full, invalid name: skip that one
             log.info("agent.memory.operation_skipped", action=op.action, code=exc.code)
@@ -673,8 +709,9 @@ class RememberInput(BaseModel):
         default=None,
         max_length=MAX_BODY,
         description="More detail, only when the line is not enough (feedback: the rule, then "
-        "**Why:** and **How to apply:** lines). Leave it out to keep an existing body; an empty "
-        "string removes it.",
+        "**Why:** and **How to apply:** lines). Replaces the whole body: to change an existing "
+        "one, read it with `agent__memory__get` first (refused otherwise), then send the whole "
+        "new body. Leave it out to keep the body; an empty string removes it.",
     )
 
 

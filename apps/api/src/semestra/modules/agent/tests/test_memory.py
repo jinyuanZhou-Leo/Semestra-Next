@@ -593,6 +593,68 @@ async def test_a_dream_that_would_fail_again_is_given_up(
     assert len(calls) == 1
 
 
+async def test_a_memory_changed_while_the_model_answers_is_left_alone(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    for name, line, text in (
+        ("major", "Majors in ECE.", "I'm majoring in ECE"),
+        ("tea", "Likes tea.", "I like tea"),
+    ):
+        session = await agent.session()
+        model.then(_remember(name, line, type="user"), say("ok"))
+        await agent.send(session["id"], text)
+    rows = {m["name"]: m for m in await _memories(agent)}
+
+    async def memory_model(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        # Meanwhile the user edits one memory on the settings page.
+        clock.advance(seconds=20)
+        await agent.call(
+            "PATCH", f"/agent/memories/{rows['major']['id']}", json={"description": "Majors in CS."}
+        )
+        return MemoryUpdates(
+            operations=[
+                MemoryOperation(action="delete", name="major"),
+                MemoryOperation(action="save", name="tea", description="Likes green tea."),
+            ]
+        )
+
+    app.state.agent.memory_model = memory_model
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    after = {m["name"]: m["description"] for m in await _memories(agent)}
+    assert after == {"major": "Majors in CS.", "tea": "Likes green tea."}
+
+
+async def test_a_dream_too_long_for_the_model_reads_fewer_conversations(
+    app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
+):
+    await _level(agent, "high")
+    await _chat(agent, model, "older: I'm majoring in ECE")
+    clock.advance(minutes=1)
+    await _chat(agent, model, "newer: I like tea")
+    prompts: list[str] = []
+
+    async def small(ctx: Any, messages: list[Message]) -> MemoryUpdates:
+        prompt = str(messages[1].content[0])
+        prompts.append(prompt)
+        if "older:" in prompt and "newer:" in prompt:
+            raise AppError("ai.context_too_long", 422)
+        return MemoryUpdates()
+
+    app.state.agent.memory_model = small
+    clock.advance(hours=1)
+    await run_periodic(app.state, DREAM)
+    assert len(prompts) == 2
+    assert "newer: I like tea" in prompts[1]
+    assert "older:" not in prompts[1]
+    # The older conversation was not read: it is part of the next dream.
+    await _chat(agent, model, "third: I'm in year 2")
+    clock.advance(days=1)
+    await run_periodic(app.state, DREAM)
+    assert "older: I'm majoring in ECE" in prompts[-1]
+
+
 async def test_a_conversation_held_with_memory_off_is_never_read(
     app: FastAPI, agent: Agent, model: FakeModel, clock: Clock
 ):
