@@ -1,12 +1,11 @@
 import { agentPreferenceGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Check, Copy, ExternalLink } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
+import { useCopy } from '@/hooks/use-copy'
 import { apiUrl } from '@/lib/api-extras'
-import { copyText } from '@/lib/clipboard'
 import { docsUrl } from '@/lib/docs'
-import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
@@ -18,15 +17,7 @@ export function McpSection() {
   // Clients run outside the browser: same-origin deployments need the page's origin.
   const url = new URL(apiUrl('/mcp'), window.location.origin).href
   const labelId = useId()
-  const [copied, setCopied] = useState(false)
-  const copy = () =>
-    copyText(url).then(
-      () => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      },
-      () => toastError(new Error('clipboard')),
-    )
+  const { copied, copy } = useCopy()
 
   return (
     <>
@@ -47,7 +38,7 @@ export function McpSection() {
               <InputGroupButton
                 aria-label={copied ? m.common_copied() : m.common_copy()}
                 size="icon-xs"
-                onClick={copy}
+                onClick={() => copy(url)}
               >
                 {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
               </InputGroupButton>

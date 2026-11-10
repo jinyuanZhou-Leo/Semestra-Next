@@ -51,6 +51,13 @@
         "no-restricted-imports": [
           "error",
           {
+            "paths": [
+              {
+                "name": "@/ui/code-block",
+                "importNames": ["CodeBlockCopyButton"],
+                "message": "It calls the Clipboard API directly, which a LAN address over http lacks. Use a Button with useCopy() from @/hooks/use-copy."
+              }
+            ],
             "patterns": [
               {
                 "group": ["**/mobile/*"],
