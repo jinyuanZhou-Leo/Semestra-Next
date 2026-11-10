@@ -4,11 +4,12 @@ import {
   accountTokenListQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, ExternalLink, KeyRound } from 'lucide-react'
+import { Check, ChevronRight, Copy, ExternalLink, KeyRound } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
 import { SettingRow, SettingsGroup } from '@/app/settings'
+import { useCopy } from '@/hooks/use-copy'
 import { COLLAPSE } from '@/lib/collapse'
 import { docsUrl } from '@/lib/docs'
 import { focusOnMount } from '@/lib/focus'
@@ -16,7 +17,7 @@ import { errorMessage } from '@/lib/errors'
 import { needsReauth, ReauthGate, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { CodeBlock, CodeBlockActions, CodeBlockContent, CodeBlockCopyButton } from '@/ui/code-block'
+import { CodeBlock, CodeBlockActions, CodeBlockContent } from '@/ui/code-block'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
   Dialog,
@@ -99,10 +100,19 @@ function ClientPicker({ onPick }: { onPick: (client: McpClient) => void }) {
 
 /** One copyable block of code. */
 function Code({ value }: { value: string }) {
+  const { copied, copy } = useCopy()
   return (
     <CodeBlock size="sm">
       <CodeBlockActions>
-        <CodeBlockCopyButton value={value} />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={copied ? m.common_copied() : m.common_copy()}
+          className="hover:bg-foreground/5 dark:hover:bg-foreground/10"
+          onClick={() => copy(value)}
+        >
+          {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+        </Button>
       </CodeBlockActions>
       <CodeBlockContent wrap className="pr-10">
         {value}

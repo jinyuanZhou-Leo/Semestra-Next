@@ -31,8 +31,8 @@ import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useAiStatus } from '@/hooks/use-ai-status'
-import { copyText } from '@/lib/clipboard'
-import { errorMessage, toastError } from '@/lib/errors'
+import { useCopy } from '@/hooks/use-copy'
+import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
@@ -134,22 +134,9 @@ function IconAction({
 }
 
 function CopyAction({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return
-    const timeout = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(timeout)
-  }, [copied])
+  const { copied, copy } = useCopy()
   return (
-    <IconAction
-      label={copied ? m.common_copied() : m.common_copy()}
-      onClick={() =>
-        copyText(text).then(
-          () => setCopied(true),
-          () => toastError(new Error('clipboard')),
-        )
-      }
-    >
+    <IconAction label={copied ? m.common_copied() : m.common_copy()} onClick={() => copy(text)}>
       {copied ? <Check /> : <Copy />}
     </IconAction>
   )
