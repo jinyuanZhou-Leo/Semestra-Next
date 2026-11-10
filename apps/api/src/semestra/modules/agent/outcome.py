@@ -50,12 +50,14 @@ def citations(payload: Any) -> list[dict[str, Any]]:
 
 
 def error_payload(exc: AppError) -> dict[str, Any]:
+    """A failed call as the model reads it: the code, its params and, when one is registered, a
+    hint on what to do next (`core.errors.agent_hints`)."""
     hint = agent_hint(exc.code)
     return {"error": {"code": exc.code, "params": exc.params, **({"hint": hint} if hint else {})}}
 
 
 def error(code: str, *, ran: bool = True, **params: Any) -> Outcome:
-    return Outcome(False, {"error": {"code": code, "params": params}}, code, ran=ran)
+    return Outcome(False, error_payload(AppError(code, **params)), code, ran=ran)
 
 
 def result_meta(cap: Capability | None, outcome: Outcome) -> dict[str, Any]:
@@ -100,10 +102,11 @@ async def invoke(
             await ctx.db.rollback()
             return Outcome(False, error_payload(exc), exc.code)
         except Exception:
-            # A bug in one capability fails that call, not the whole turn.
-            log.exception("agent_capability_failed", capability=name)
+            # A bug in one capability fails that call, not the whole turn. The model is told it
+            # is not its fault (the hint) and the id the log line carries, for the user to report.
+            log.exception("agent_capability_failed", capability=name, request_id=ctx.request_id)
             await ctx.db.rollback()
-            return error("common.internal")
+            return error("common.internal", request_id=ctx.request_id)
     await run_after_commit(ctx)
     return Outcome(True, payload, citations=citations(payload), display=shown)
 

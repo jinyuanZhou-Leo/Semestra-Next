@@ -104,6 +104,9 @@ addopts = "-m 'not live' -p semestra.testing"
 # times out (the default "signal" method keeps the xdist worker alive).
 timeout = 120
 filterwarnings = [
+    # Our own use of an API SQLAlchemy deprecates: in 2.1 `Result.tuples()` turned into a
+    # deprecated no-op whose result `dict()` cannot read, and that broke a tool in production.
+    "error::sqlalchemy.exc.SADeprecationWarning",
     # Third-party code using APIs that Python deprecates for removal in 3.17; nothing for us to change.
     "ignore:'_UnionGenericAlias' is deprecated:DeprecationWarning:google.genai.types",
     "ignore:'typing.ByteString' and 'collections.abc.ByteString' are deprecated:DeprecationWarning:pymupdf",
