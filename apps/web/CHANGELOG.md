@@ -1,5 +1,21 @@
 # @semestra/web
 
+## 2.0.0-beta.6
+
+### Patch Changes
+
+- 8026738: <!-- area: api -->
+  <!-- en -->
+  The copy button for MCP connection settings now works on a self-hosted instance opened over http.
+  <!-- zh -->
+  通过 http 打开自托管实例时，MCP 连接配置的复制按钮也能使用。
+- eb15d29: <!-- area: self-hosting -->
+  <!-- en -->
+  A self-hosted instance opened over plain http from another device on the network now loads, and copy buttons and duplicate-upload detection work there too.
+  <!-- zh -->
+  从局域网其他设备用 http 打开自托管实例时可以正常加载，复制按钮和重复上传检测也能使用。
+- @semestra/api-client@2.0.0-beta.6
+
 ## 2.0.0-beta.5
 
 ### Minor Changes
