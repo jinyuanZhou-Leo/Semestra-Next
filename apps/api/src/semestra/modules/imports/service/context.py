@@ -106,6 +106,10 @@ async def build_context(ctx: Ctx, row: ImportsSession) -> build.BuildContext:
         courses=existing,
         type_codes=type_codes,
         existing_assessments=await _existing_assessments(ctx, ids),
+        categories={
+            course_id or "": await grading.course_categories(ctx, row.program_id, course_id)
+            for course_id in [None, *ids]
+        },
         source_kind=row.source_kind,
     )
 

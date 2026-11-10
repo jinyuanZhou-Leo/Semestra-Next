@@ -7,15 +7,25 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, CircleAlert, CircleCheck } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CircleCheck } from 'lucide-react'
 import { createContext, Fragment, type ReactNode, use, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { useTargetCategories } from '../categories'
 import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
@@ -110,6 +120,8 @@ type ReviewState = {
   busy: boolean
   toggle: (item: ImportItem) => void
   decide: (item: ImportItem, accept: boolean) => void
+  /** A category item's target: a course category's key, or null for a new one. */
+  setCategory: (item: ImportItem, key: string | null) => void
 }
 const ReviewContext = createContext<ReviewState | null>(null)
 
@@ -208,8 +220,6 @@ function destination(item: ImportItem): string {
   switch (item.type) {
     case 'course':
       return m.imports_dest_course()
-    case 'category':
-      return m.imports_dest_category()
     case 'assessment':
       return m.imports_dest_gradebook()
     case 'meeting':
@@ -244,12 +254,58 @@ function ResultCell({ row }: CellProps) {
   if (duplicate.length > 0) return <Marked issues={duplicate}>{exists}</Marked>
   const done = Boolean(item.result)
   return (
-    <span className="flex items-center gap-1 text-muted-foreground">
+    <span className="flex min-w-0 items-center gap-1 text-muted-foreground">
       {done ? (
         <CircleCheck aria-label={m.imports_row_done()} className="size-4 shrink-0 text-success" />
       ) : null}
-      {destination(item)}
+      {item.type === 'category' ? <CategoryDestination item={item} /> : destination(item)}
     </span>
+  )
+}
+
+/**
+ * A category item goes into the course's category with its key, or makes a new one; while the
+ * review is open the cell is a menu to pick another (it does not open the row).
+ */
+function CategoryDestination({ item }: { item: ImportItem }) {
+  const { session, busy, setCategory } = useReview()
+  const categories = useTargetCategories(session.program_id, item.data.course_ref)
+  if (!categories) return null
+  const key = typeof item.data.key === 'string' ? item.data.key : ''
+  const into = categories.find((c) => c.key === key)
+  const label = into ? m.imports_dest_into({ category: into.name }) : m.imports_dest_category()
+  if (item.result || !isEditable(session, item)) return <span className="truncate">{label}</span>
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={busy}
+        onClick={(event) => event.stopPropagation()}
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-7 max-w-full gap-1 px-2 font-normal text-muted-foreground"
+          />
+        }
+      >
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-auto" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuRadioGroup
+          value={into ? key : ''}
+          onValueChange={(value) => setCategory(item, value || null)}
+        >
+          {categories.map((c) => (
+            <DropdownMenuRadioItem key={c.key} value={c.key}>
+              {c.name}
+            </DropdownMenuRadioItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioItem value="">{m.imports_dest_category()}</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -338,6 +394,11 @@ export function ImportReview({
       update.mutate({
         path: { session_id: session.id, item_id: item.id },
         body: { decision: accept ? 'accept' : 'reject' },
+      }),
+    setCategory: (item, key) =>
+      update.mutate({
+        path: { session_id: session.id, item_id: item.id },
+        body: { data: { key } },
       }),
   }
   const decideGroup = (group: Group, accept: boolean) =>
