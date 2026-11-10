@@ -36,7 +36,7 @@ export function todayIn(tz: string): string {
 }
 
 /** Localized weekday name; `weekday` is 1 = Monday … 7 = Sunday. */
-export function weekdayName(weekday: number, width: 'long' | 'short' = 'long'): string {
+export function weekdayName(weekday: number, width: 'long' | 'short' | 'narrow' = 'long'): string {
   // 2024-01-01 was a Monday.
   const date = new Date(2024, 0, weekday)
   return intl(Intl.DateTimeFormat, { weekday: width }).format(date)
