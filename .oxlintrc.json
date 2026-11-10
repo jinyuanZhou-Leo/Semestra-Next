@@ -30,6 +30,14 @@
     {
       "files": ["apps/web/src/**/*.{ts,tsx}"],
       "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "crypto",
+            "property": "randomUUID",
+            "message": "Only exists over https or localhost; a self-hosted instance opened at http://<LAN address> breaks. Use randomId() from @/lib/random-id."
+          }
+        ],
         "no-restricted-imports": [
           "error",
           {

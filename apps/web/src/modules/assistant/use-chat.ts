@@ -8,6 +8,7 @@ import { agentSessionGetOptions, agentSessionGetQueryKey } from '@semestra/api-c
 import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { invalidateOperations, toApiError } from '@/app/api'
+import { randomId } from '@/lib/random-id'
 import { preloadMarkdown } from './components/Markdown'
 import { MEMORY_QUERIES } from './memory'
 import type { MessageReference } from './prompt'
@@ -197,13 +198,6 @@ export function sessionQueryOptions(sessionId: string | null) {
   }
 }
 
-/** Idempotency key of a new conversation. `crypto.randomUUID` needs a secure context, which a
- * LAN address over http is not; `getRandomValues` does not. */
-function newClientKey(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
-}
-
 /**
  * One conversation: its transcript (the server copy, with streamed events applied as they
  * arrive) and the actions that start a turn. A new conversation is created on the first send.
@@ -219,7 +213,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
   // The conversation this hook creates on the first upload or send: one request at a time,
   // and the key makes the server return the same conversation if two get through anyway.
   const creating = useRef<Promise<string> | null>(null)
-  const [clientKey] = useState(newClientKey)
+  const [clientKey] = useState(randomId)
   const sending = useRef(false)
 
   const detail = useQuery(sessionQueryOptions(sessionId))
