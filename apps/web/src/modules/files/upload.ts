@@ -1,8 +1,21 @@
 import type { FilesUsageGet, ItemOut } from '@semestra/api-client'
 
+/**
+ * The file's SHA-256 as hex, matching `ItemOut.sha256`. Web Crypto exists only in a secure context
+ * (https or localhost); a self-hosted instance opened at `http://<LAN address>` hashes with
+ * `@noble/hashes`, loaded only then.
+ */
 export async function sha256Hex(file: Blob): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  const data = new Uint8Array(await file.arrayBuffer())
+  // oxlint-disable-next-line no-restricted-properties -- the one place with the fallback
+  const subtle = globalThis.crypto.subtle as SubtleCrypto | undefined
+  if (subtle) return toHex(new Uint8Array(await subtle.digest('SHA-256', data)))
+  const { sha256 } = await import('@noble/hashes/sha2.js')
+  return toHex(sha256(data))
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 export type UploadPlan = {

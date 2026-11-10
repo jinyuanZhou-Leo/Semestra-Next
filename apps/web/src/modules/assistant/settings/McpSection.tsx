@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useId, useState } from 'react'
 import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings'
 import { apiUrl } from '@/lib/api-extras'
+import { copyText } from '@/lib/clipboard'
 import { docsUrl } from '@/lib/docs'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -19,7 +20,7 @@ export function McpSection() {
   const labelId = useId()
   const [copied, setCopied] = useState(false)
   const copy = () =>
-    navigator.clipboard.writeText(url).then(
+    copyText(url).then(
       () => {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)

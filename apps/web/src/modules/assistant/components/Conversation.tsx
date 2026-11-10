@@ -31,7 +31,8 @@ import { invalidateOperations } from '@/app/api'
 import { useSettingsDialog } from '@/app/settings'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useAiStatus } from '@/hooks/use-ai-status'
-import { errorMessage } from '@/lib/errors'
+import { copyText } from '@/lib/clipboard'
+import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { whenSettled } from '@/lib/when-settled'
 import { m } from '@/paraglide/messages'
@@ -142,7 +143,12 @@ function CopyAction({ text }: { text: string }) {
   return (
     <IconAction
       label={copied ? m.common_copied() : m.common_copy()}
-      onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true))}
+      onClick={() =>
+        copyText(text).then(
+          () => setCopied(true),
+          () => toastError(new Error('clipboard')),
+        )
+      }
     >
       {copied ? <Check /> : <Copy />}
     </IconAction>

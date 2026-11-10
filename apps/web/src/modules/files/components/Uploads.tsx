@@ -7,6 +7,7 @@ import { postWithProgress } from '@/app/api'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
+import { randomId } from '@/lib/random-id'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
@@ -68,8 +69,7 @@ export function useUploads(): Uploads {
     const queued = files.map((file) => ({
       file,
       row: {
-        // crypto.randomUUID needs a secure context, which a LAN address over http is not.
-        key: `${Date.now()}-${Math.random()}`,
+        key: randomId(),
         name: file.name,
         size: file.size,
         status: 'queued' as const,

@@ -1,6 +1,7 @@
 import { client } from '@semestra/api-client'
 import type { QueryClient } from '@tanstack/react-query'
 import { isReauthPending, isSignedIn, requestReauth } from './session-expiry'
+import { randomId } from '@/lib/random-id'
 
 client.setConfig({
   baseUrl: import.meta.env.VITE_API_ORIGIN ?? 'http://localhost:8000',
@@ -62,7 +63,7 @@ const backups = new WeakMap<Request, Request>()
  * This tab's id, sent with every request (`X-Semestra-Client`). Events a request causes carry it
  * back as `origin`, so the tab can skip the echo of its own change (`app/realtime.ts`).
  */
-export const CLIENT_ID = crypto.randomUUID()
+export const CLIENT_ID = randomId()
 
 client.interceptors.request.use((request) => {
   request.headers.set('X-Semestra-Client', CLIENT_ID)
