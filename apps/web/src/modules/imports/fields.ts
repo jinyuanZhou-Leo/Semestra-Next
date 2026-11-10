@@ -1,15 +1,7 @@
 import { m } from '@/paraglide/messages'
 import type { ItemType } from './types'
 
-export type FieldKind =
-  | 'text'
-  | 'number'
-  | 'date'
-  | 'time'
-  | 'weekday'
-  | 'recurrence'
-  | 'switch'
-  | 'category'
+export type FieldKind = 'text' | 'number' | 'date' | 'time' | 'weekday' | 'recurrence' | 'switch'
 
 /** One editable field of an item's draft (`ImportItem.data[key]`). */
 export type FieldSpec = { key: string; label: () => string; kind: FieldKind; wide?: boolean }
@@ -42,7 +34,6 @@ export const FIELDS: Record<Exclude<ItemType, `${string}_patch`>, readonly Field
     { key: 'location', label: m.imports_field_location, kind: 'text', wide: true },
   ],
   category: [
-    { key: 'key', label: m.imports_field_category_into, kind: 'category', wide: true },
     { key: 'name', label: m.imports_field_name, kind: 'text', wide: true },
     { key: 'weight_total', label: m.imports_field_weight_total, kind: 'number' },
   ],

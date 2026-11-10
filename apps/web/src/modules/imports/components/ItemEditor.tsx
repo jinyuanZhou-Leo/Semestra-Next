@@ -13,8 +13,7 @@ import { Switch } from '@/ui/switch'
 import { ChoiceControl } from '@/app/settings/choice'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText } from '../labels'
-import { useTargetCategories } from '../categories'
-import { trackEdit, useImportSession, useItemUpdate } from '../queries'
+import { trackEdit, useItemUpdate } from '../queries'
 import type { FieldChange, TargetPatchData } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
@@ -116,7 +115,7 @@ function FieldsEditor({ item, editable }: { item: ImportItem; editable: boolean 
     <div className="grid grid-cols-2 gap-3">
       {/* A category going into an existing one keeps that one's name. */}
       {specs
-        .filter((spec) => !(item.type === 'category' && spec.key === 'name' && values.key))
+        .filter((spec) => !(item.type === 'category' && spec.key === 'name' && item.data.key))
         .map((spec) => (
           <FieldInput
             key={spec.key}
@@ -209,17 +208,6 @@ function FieldInput({
         </NativeSelect>
       )
       break
-    case 'category':
-      control = (
-        <CategorySelect
-          id={id}
-          item={item}
-          value={text}
-          disabled={disabled}
-          onChange={(key) => choose(key || null)}
-        />
-      )
-      break
     default:
       control = (
         <Input
@@ -243,47 +231,6 @@ function FieldInput({
       {head}
       {control}
     </Field>
-  )
-}
-
-/** Which of the course's categories a category item goes into, or a new one (""). */
-function CategorySelect({
-  id,
-  item,
-  value,
-  disabled,
-  onChange,
-}: {
-  id: string
-  item: ImportItem
-  value: string
-  disabled: boolean
-  onChange: (key: string) => void
-}) {
-  const session = useImportSession(item.session_id).data
-  const categories = useTargetCategories(session?.program_id ?? '', item.data.course_ref)
-  if (!categories) {
-    // Empty and disabled until the choices are known, not showing one that is not chosen.
-    return (
-      <NativeSelect id={id} value="" disabled>
-        <NativeSelectOption value="" />
-      </NativeSelect>
-    )
-  }
-  return (
-    <NativeSelect
-      id={id}
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {categories.map((c) => (
-        <NativeSelectOption key={c.key} value={c.key}>
-          {c.name}
-        </NativeSelectOption>
-      ))}
-      <NativeSelectOption value="">{m.imports_dest_category()}</NativeSelectOption>
-    </NativeSelect>
   )
 }
 

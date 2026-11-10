@@ -312,12 +312,11 @@ test("a category row says which of the course's categories it goes into, and can
     within(screen.getByText('Bonus').closest('tr')!).getByText('New category'),
   ).toBeInTheDocument()
 
-  await userEvent.click(midterms)
-  // Going into an existing category, it keeps that one's name.
-  expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
-  await userEvent.selectOptions(await screen.findByLabelText('Goes into'), 'New category')
+  // The cell is a menu (it does not open the row); a new category asks for its name.
+  await userEvent.click(within(midterms).getByRole('button', { name: 'Into Exam' }))
+  expect(midterms).toHaveAttribute('aria-expanded', 'false')
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'New category' }))
   await waitFor(() => expect(patches).toEqual([{ data: { key: null }, only_touched: true }]))
-  expect(screen.getByLabelText('Name')).toHaveValue('Midterms')
 })
 
 test('a meeting shows how many of its dates are cancelled', () => {
