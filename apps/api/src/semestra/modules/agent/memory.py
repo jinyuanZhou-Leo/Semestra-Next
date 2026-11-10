@@ -8,8 +8,9 @@ one-line `description` and an optional `body`. Only what the structured data can
 - In a conversation the model calls `agent.memory.remember` (create, or update the memory with
   that name) and `agent.memory.forget`. They run without a confirmation card; the message shows
   what was saved, with an undo.
-- When a conversation has been idle for `IDLE`, the small model (`title` purpose) reads what was
-  said since the last pass and saves or deletes memories, mem0 style (`consolidate_idle`).
+- Auto Dream (Claude Code style): at most once a day, after 2, 5 or 10 new conversations (the
+  user's `auto_dream` setting), the small model (`title` purpose) reads every memory in full and
+  what the user said in those conversations, and tidies the store (`dream`).
 
 The prompt carries an index (one line per memory); the model reads a body when it is relevant
 with `agent.memory.get`. A conversation sees the index as it was when it started (`snapshot`,
@@ -24,7 +25,7 @@ from typing import Literal
 
 import structlog
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, or_, select
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from semestra.core.capability import Http, NoInput, capability
@@ -32,7 +33,12 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError, agent_hints
 from semestra.core.jobs import periodic
 from semestra.modules.agent import current
-from semestra.modules.agent.models import AgentMemory, AgentMessage, AgentSession
+from semestra.modules.agent.models import (
+    AgentMemory,
+    AgentMessage,
+    AgentPreferences,
+    AgentSession,
+)
 from semestra.modules.ai import Message
 from semestra.modules.settings import service as settings_service
 
@@ -44,15 +50,16 @@ MAX_NAME = 64
 MAX_DESCRIPTION = 150
 MAX_BODY = 2000
 NAME_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+# A conversation is read once it has been quiet this long.
 IDLE = timedelta(minutes=30)
-# Conversations idle for longer than this when consolidation first sees them are left alone.
-LOOKBACK = timedelta(days=7)
-# Failures that come back the same however often the pass is tried: the window is given up.
-GIVE_UP = frozenset({"ai.output_invalid", "ai.context_too_long"})
-BATCH = 50
-TRANSCRIPT_CHARS = 12_000
-# How much of each body the consolidation model sees.
-LISTING_BODY_CHARS = 300
+# Conversations older than this when a dream first sees them are left alone.
+LOOKBACK = timedelta(days=30)
+# Auto Dream: at most one a day, after this many new conversations (`MemorySettings.auto_dream`).
+DREAM_EVERY = timedelta(hours=24)
+DREAM_SESSIONS = {"high": 2, "medium": 5, "low": 10}
+# What the user said, per conversation and in all, that one dream reads.
+TRANSCRIPT_CHARS = 8_000
+DREAM_CHARS = 40_000
 
 REMEMBER = "agent.memory.remember"
 FORGET = "agent.memory.forget"
@@ -73,6 +80,11 @@ class MemorySettings(BaseModel):
     search_chats: bool = Field(
         default=True,
         description="Let Sem search and read your other conversations in the same program",
+    )
+    auto_dream: Literal["low", "medium", "high"] = Field(
+        default="medium",
+        description="How often Sem tidies its memories in the background: at most once a day, "
+        "after 10, 5 or 2 new conversations",
     )
 
 
@@ -110,6 +122,8 @@ agent_hints(
         "agent.memory_sensitive": "Memories cannot hold credentials, health, money or ID numbers; "
         "leave them out.",
         "agent.memory_off": "The user turned memory off; do not save or read memories.",
+        "agent.memory_unread": "The body would be replaced: read the memory with "
+        "`agent__memory__get` first, then send the whole new body.",
     }
 )
 
@@ -358,7 +372,8 @@ find something outside Semestra).
 corrects you, confirms an approach that was not obvious, or asks you to remember something, call \
 `agent__memory__remember`. It needs no confirmation; say in a few words what you saved.
 - Check the index first. When a memory already covers it, pass that memory's name to update it \
-instead of saving a second one. Forget (`agent__memory__forget`) a memory the user withdraws or \
+instead of saving a second one; to change its body, read it with `agent__memory__get` first \
+and send the whole new body. Forget (`agent__memory__forget`) a memory the user withdraws or \
 that turns out wrong.
 - The description is one line in the user's language. Add a body only when there is more to it; \
 for feedback, the rule followed by **Why:** and **How to apply:** lines. Turn relative dates \
@@ -386,7 +401,12 @@ def _quoted(text: str) -> str:
     return '"' + " ".join(text.split()).replace('"', "'") + '"'
 
 
-# --- consolidation (mem0 style) ---------------------------------------------------------------
+# --- Auto Dream ------------------------------------------------------------------------------
+# Claude Code style: once a day at most, and only after enough new conversations, the small model
+# reads the whole memory store with full bodies plus what the user said in those conversations,
+# and tidies it: saves what is new, merges duplicates, settles contradictions, forgets what is
+# out of date, and keeps the store under its limit. Conversations write memories themselves too
+# (`remember`, `forget`); the dream is what keeps the store tidy.
 
 
 class MemoryOperation(BaseModel):
@@ -401,7 +421,9 @@ class MemoryOperation(BaseModel):
         "characters.",
     )
     body: str | None = Field(
-        default=None, description="More detail, only when needed; an empty string removes it."
+        default=None,
+        description="The whole new body; leave it out to keep the body as it is, an empty string "
+        "removes it.",
     )
 
 
@@ -409,9 +431,9 @@ class MemoryUpdates(BaseModel):
     operations: list[MemoryOperation] = Field(default_factory=lambda: [])
 
 
-CONSOLIDATE_PROMPT = f"""You maintain the long-term memory of Sem, a study assistant. Read what \
-the user said in the new part of a conversation and decide what to change in the memories listed \
-below.
+DREAM_PROMPT = f"""You maintain the long-term memory of Sem, a study assistant. Below are all \
+the memories, in full, and what the user said in their conversations since the last time you \
+tidied them. Reply with the changes that leave the memories accurate, tidy and useful.
 
 Each memory has a kebab-case name, a type, a one-line description and an optional body. Types: \
 user (who they are: background, preferences, lasting constraints), feedback (how they want Sem \
@@ -419,15 +441,20 @@ to work: their corrections and the approaches they confirmed, with a body of the
 **Why:** and **How to apply:** lines), project (goals, plans and deadlines they are working \
 towards), reference (where to find something outside the app).
 
-Keep only lasting facts that the app's data cannot hold. Do not keep courses, grades, schedules, \
-deadlines or tasks the app stores, one-off requests, or anything about health, money, identity \
-numbers or passwords.
+- Save lasting facts from the conversations: under the name of the memory they refine or \
+contradict (replace, do not pile up), or under a new name when nothing covers them.
+- Merge memories that say the same thing into one (save it, delete the others), and settle \
+contradictions in favour of the newer fact.
+- Turn relative dates into absolute ones; delete memories the user withdrew and plans whose date \
+has passed with nothing lasting left in them.
+- Keep at most {MAX_MEMORIES} memories in all.
+- Keep only what the app's data cannot hold: not courses, grades, schedules, deadlines or tasks \
+the app stores, not one-off requests, and never anything about health, money, identity numbers \
+or passwords.
 
-For each fact: save it under the name of the memory it refines or contradicts (replace, do not \
-pile up), or under a new name when nothing covers it; delete a memory the user withdrew. Change \
-nothing when nothing lasting was said. Write descriptions in the language the user wrote in, at \
-most {MAX_DESCRIPTION} characters, and turn relative dates into absolute ones. Refer to another \
-memory with [[its-name]]. Reply with the operations only."""
+A body you send replaces the whole body: include everything that should stay. Write descriptions \
+in the language the user wrote in, at most {MAX_DESCRIPTION} characters. Refer to another memory \
+with [[its-name]]. Change nothing when nothing needs changing. Reply with the operations only."""
 
 
 def _transcript(rows: list[AgentMessage]) -> str:
@@ -441,72 +468,152 @@ def _transcript(rows: list[AgentMessage]) -> str:
             b.get("text", "") for b in row.content if b.get("type") == "text" and b.get("text")
         ).strip()
         if text:
-            lines.append(f"{row.role}: {text}")
+            lines.append(f"user: {text}")
     return "\n".join(lines)[-TRANSCRIPT_CHARS:]
 
 
 def _listing(rows: list[AgentMemory]) -> str:
-    lines: list[str] = []
+    blocks: list[str] = []
     for m in rows:
-        lines.append(f"- [{m.name}] ({m.type}) {m.description}")
-        if m.body:
-            lines.append("  " + " ".join(m.body.split())[:LISTING_BODY_CHARS])
-    return "\n".join(lines) or "(none)"
+        line = f"[{m.name}] ({m.type}, updated {m.updated_at.date().isoformat()}) {m.description}"
+        blocks.append(f"{line}\n{m.body}" if m.body else line)
+    return "\n\n".join(blocks) or "(none)"
 
 
-async def consolidate(ctx: Ctx, session: AgentSession) -> None:
-    """One pass over what was said since the last pass; marks the conversation as read.
+def _pending(ctx: Ctx) -> Select[AgentSession]:
+    """The user's conversations with something new since they were last read, idle for `IDLE`
+    so a conversation still going on is read once it is over."""
+    return select(AgentSession).where(
+        AgentSession.user_id == ctx.user_id,
+        AgentSession.temporary.is_(False),
+        AgentSession.updated_at <= ctx.now - IDLE,
+        AgentSession.updated_at >= ctx.now - LOOKBACK,
+        or_(
+            AgentSession.memory_processed_at.is_(None),
+            AgentSession.memory_processed_at < AgentSession.updated_at,
+        ),
+    )
+
+
+async def _new_words(ctx: Ctx, session: AgentSession) -> tuple[str, datetime]:
+    """What the user said in `session` since it was last read, and the time of its newest
+    message (read up to that, not `now`: one written while the model runs is read next time)."""
+    query = select(AgentMessage).where(AgentMessage.session_id == session.id)
+    if session.memory_processed_at is not None:
+        query = query.where(AgentMessage.created_at > session.memory_processed_at)
+    rows = list(await ctx.db.scalars(query.order_by(AgentMessage.created_at, AgentMessage.id)))
+    return _transcript(rows), max((r.created_at for r in rows), default=ctx.now)
+
+
+async def dream(ctx: Ctx) -> bool:
+    """One dream for the user when it is due; True when the model was asked.
 
     Nothing is written before the model answers: a pending write would hold SQLite's write lock
     for the whole call and every other write would fail with `database is locked`. A call that
-    fails writes nothing either (a turn may be updating the session meanwhile)."""
-    since = session.memory_processed_at
-    query = select(AgentMessage).where(AgentMessage.session_id == session.id)
-    if since is not None:
-        query = query.where(AgentMessage.created_at > since)
-    rows = list(await ctx.db.scalars(query.order_by(AgentMessage.created_at, AgentMessage.id)))
-    # Read up to the newest message seen, not `now`: one written while the model runs is read
-    # next time.
-    read_until = max((r.created_at for r in rows), default=ctx.now)
-    if (session.state or {}).get("memory") is None:
-        # Started with memory off (or temporary): that conversation stays out of memory even
-        # when memory is turned back on later.
-        session.memory_processed_at = read_until
-        return
-    transcript = _transcript(rows)
-    if not transcript or not await active(ctx, session):
-        session.memory_processed_at = read_until
-        return
-    listing = _listing(await memories(ctx))
-    today = ctx.now.date().isoformat()
-    try:
-        updates = await ctx.state.agent.memory_model(
-            ctx,
-            [
-                Message.system(CONSOLIDATE_PROMPT),
-                Message.user(
-                    f"Today is {today}.\n\nMemories:\n{listing}\n\n"
-                    f"What the user said:\n{transcript}"
-                ),
-            ],
+    fails writes nothing either, and the next round tries again."""
+    if not await enabled(ctx):
+        return False
+    prefs = await ctx.db.get(AgentPreferences, ctx.user_id)
+    last = prefs.memory_dreamed_at if prefs is not None else None
+    if last is not None and ctx.now - last < DREAM_EVERY:
+        return False
+    sessions = list(await ctx.db.scalars(_pending(ctx).order_by(AgentSession.updated_at.desc())))
+    # Started with memory off (or before memory was on): that conversation stays out of memory
+    # even when memory is turned back on later.
+    skipped = [s for s in sessions if (s.state or {}).get("memory") is None]
+    sessions = [s for s in sessions if (s.state or {}).get("memory") is not None]
+    settings = await settings_service.get_values(ctx, "memory", "account", None)
+    if len(sessions) < DREAM_SESSIONS[MemorySettings.model_validate(settings.values).auto_dream]:
+        return False
+    words = [(session, *await _new_words(ctx, session)) for session in sessions]
+    rows = await memories(ctx)
+    listing = _listing(rows)
+    # The version of each memory the model sees: one changed while it answers is left alone.
+    seen = {m.name: m.updated_at for m in rows}
+    budget = DREAM_CHARS
+    while True:
+        parts, read = _fit(words, budget)
+        try:
+            updates = await ctx.state.agent.memory_model(
+                ctx,
+                [
+                    Message.system(DREAM_PROMPT),
+                    Message.user(
+                        f"Today is {ctx.now.date().isoformat()}.\n\n# Memories\n{listing}\n\n"
+                        "# What the user said\n" + ("\n\n".join(parts) or "(nothing new)")
+                    ),
+                ],
+            )
+            break
+        except AppError as exc:
+            log.info("agent.memory.dream_failed", user_id=ctx.user_id, code=exc.code)
+            if exc.code == "ai.context_too_long" and len(parts) > 1:
+                budget = sum(len(p) for p in parts) // 2  # fewer conversations, the rest later
+                continue
+            if exc.code == "ai.context_too_long":
+                # The memories alone are too long for the model: nothing is read, and the
+                # conversations wait for a day (or a model with a longer context).
+                read = []
+                updates = MemoryUpdates()
+                break
+            if exc.code != "ai.output_invalid":
+                # No model set up, provider down: nothing is written, the next round tries
+                # again.
+                return True
+            # An answer the model cannot shape would fail again: this dream is given up, and
+            # the conversations it read count as read.
+            updates = MemoryUpdates()
+            break
+    for session in skipped:
+        session.memory_processed_at = session.updated_at
+    for session, until in read:
+        session.memory_processed_at = until
+    if prefs is None:
+        prefs = AgentPreferences(
+            user_id=ctx.user_id, auto_approve=[], mcp_allow_destructive=False, updated_at=ctx.now
         )
-    except AppError as exc:
-        # No model set up, provider down: nothing is written, the next round reads the same
-        # words again (until the conversation is older than `LOOKBACK`). An answer the model
-        # cannot shape or a conversation too long would fail again: that window is given up.
-        log.info("agent.memory.consolidate_failed", session_id=session.id, code=exc.code)
-        if exc.code in GIVE_UP:
-            session.memory_processed_at = read_until
-        return
-    session.memory_processed_at = read_until
-    await apply(ctx, updates, session_id=session.id)
+        ctx.db.add(prefs)
+    prefs.memory_dreamed_at = ctx.now
+    await _apply(ctx, updates, seen)
+    return True
 
 
-async def apply(ctx: Ctx, updates: MemoryUpdates, *, session_id: str | None) -> None:
-    for op in updates.operations:
+def _fit(
+    words: list[tuple[AgentSession, str, datetime]], budget: int
+) -> tuple[list[str], list[tuple[AgentSession, datetime]]]:
+    """The conversations, newest first, whose words fit in `budget` (always at least one); what
+    does not fit waits for the next dream."""
+    parts: list[str] = []
+    read: list[tuple[AgentSession, datetime]] = []
+    size = 0
+    for session, text, until in words:
+        if text and size + len(text) > budget and parts:
+            break
+        if text:
+            parts.append(f"## Conversation {session.updated_at.date().isoformat()}\n{text}")
+            size += len(text)
+        read.append((session, until))
+    return parts, read
+
+
+async def _apply(ctx: Ctx, updates: MemoryUpdates, seen: dict[str, datetime]) -> None:
+    """Deletes first, so a merge (save one, delete the others) fits in a full store. A memory
+    changed or created since the model read the store (in a conversation, or on the settings
+    page) is left as it is: the next dream sees it."""
+    ops = sorted(updates.operations, key=lambda op: op.action != "delete")
+    for op in ops:
+        # Read from the database, not the session's copy loaded before the model answered.
+        now = await ctx.db.scalar(
+            select(AgentMemory.updated_at).where(
+                AgentMemory.user_id == ctx.user_id, AgentMemory.name == op.name
+            )
+        )
+        if now is not None and seen.get(op.name) != now:
+            log.info("agent.memory.operation_skipped", action=op.action, code="changed")
+            continue
+        row = await by_name(ctx, op.name)
         try:
             if op.action == "delete":
-                row = await by_name(ctx, op.name)
                 if row is not None:
                     await remove(ctx, row.id)
             else:
@@ -516,19 +623,24 @@ async def apply(ctx: Ctx, updates: MemoryUpdates, *, session_id: str | None) -> 
                     type=op.type,
                     description=op.description,
                     body=op.body,
-                    session_id=session_id,
+                    session_id=None,
                 )
         except AppError as exc:  # sensitive, full, invalid name: skip that one
             log.info("agent.memory.operation_skipped", action=op.action, code=exc.code)
 
 
-@periodic("agent.memory.consolidate", every=timedelta(minutes=10))
-async def consolidate_idle(ctx: Ctx) -> None:
-    """Conversations idle for `IDLE` with something new since their last pass."""
-    rows = (
-        await ctx.db.execute(
-            select(AgentSession.id, AgentSession.user_id)
+@periodic("agent.memory.dream", every=timedelta(hours=1))
+async def dream_due(ctx: Ctx) -> None:
+    """Users with new conversations to read; each dreams when its turn has come (`dream`)."""
+    users = (
+        await ctx.db.scalars(
+            select(AgentSession.user_id)
+            .outerjoin(AgentPreferences, AgentPreferences.user_id == AgentSession.user_id)
             .where(
+                or_(
+                    AgentPreferences.memory_dreamed_at.is_(None),
+                    AgentPreferences.memory_dreamed_at <= ctx.now - DREAM_EVERY,
+                ),
                 AgentSession.temporary.is_(False),
                 AgentSession.updated_at <= ctx.now - IDLE,
                 AgentSession.updated_at >= ctx.now - LOOKBACK,
@@ -537,21 +649,28 @@ async def consolidate_idle(ctx: Ctx) -> None:
                     AgentSession.memory_processed_at < AgentSession.updated_at,
                 ),
             )
-            .order_by(AgentSession.updated_at)
-            .limit(BATCH)
+            .group_by(AgentSession.user_id)
+            .having(func.count() >= min(DREAM_SESSIONS.values()))
         )
     ).all()
-    for session_id, user_id in rows:
+    for user_id in users:
         try:
             async with system_ctx(ctx.state, user_id) as uctx:
-                session = await uctx.db.get(AgentSession, session_id)
-                if session is not None:
-                    await consolidate(uctx, session)
+                if await dream(uctx):
                     await uctx.db.commit()
         except Exception:
-            # One broken conversation must not stop the round; it is retried after its next
-            # message (or never, when nothing new is said).
-            log.exception("agent.memory.consolidate_error", session_id=session_id)
+            # One broken store must not stop the round; it is tried again next round.
+            log.exception("agent.memory.dream_error", user_id=user_id)
+
+
+def _mark_read(ctx: Ctx, conversation: str, name: str, updated_at: datetime) -> None:
+    ctx.state.agent.memory_reads[(conversation, name)] = updated_at
+
+
+def _has_read(ctx: Ctx, conversation: str, row: AgentMemory) -> bool:
+    """The conversation has seen the memory as it is now (read or written it since its last
+    change). Kept in memory: after a restart the model is asked to read it again."""
+    return ctx.state.agent.memory_reads.get((conversation, row.name)) == row.updated_at
 
 
 # --- capabilities ---------------------------------------------------------------------------
@@ -590,8 +709,9 @@ class RememberInput(BaseModel):
         default=None,
         max_length=MAX_BODY,
         description="More detail, only when the line is not enough (feedback: the rule, then "
-        "**Why:** and **How to apply:** lines). Leave it out to keep an existing body; an empty "
-        "string removes it.",
+        "**Why:** and **How to apply:** lines). Replaces the whole body: to change an existing "
+        "one, read it with `agent__memory__get` first (refused otherwise), then send the whole "
+        "new body. Leave it out to keep the body; an empty string removes it.",
     )
 
 
@@ -667,14 +787,23 @@ async def remember(ctx: Ctx, inp: RememberInput) -> Remembered:
     # the list would break the prompt cache), so the switch is checked here.
     if not await enabled(ctx):
         raise AppError("agent.memory_off", 409)
+    conversation = current.conversation.get()
+    if inp.body is not None and conversation is not None:
+        # Like editing a file in Claude Code: a body is replaced only by one who has read it
+        # as it is now (the index shows descriptions only, and Auto Dream may have changed it).
+        row = await by_name(ctx, inp.name)
+        if row is not None and row.body and not _has_read(ctx, conversation, row):
+            raise AppError("agent.memory_unread", 409, name=inp.name)
     saved = await save(
         ctx,
         name=inp.name,
         type=inp.type,
         description=inp.description,
         body=inp.body,
-        session_id=current.conversation.get(),
+        session_id=conversation,
     )
+    if conversation is not None:
+        _mark_read(ctx, conversation, saved.memory.name, saved.memory.updated_at)
     same = saved.memory.name != inp.name
     return Remembered(
         **saved.memory.model_dump(),
@@ -721,6 +850,9 @@ async def memory_get(ctx: Ctx, inp: MemoryNameInput) -> MemoryRecord:
     row = await by_name(ctx, inp.name)
     if row is None:
         raise AppError("common.not_found", 404)
+    conversation = current.conversation.get()
+    if conversation is not None:
+        _mark_read(ctx, conversation, row.name, row.updated_at)
     names = [n for n in links(f"{row.description}\n{row.body}") if n != row.name]
     found: dict[str, str] = {}
     if names:
