@@ -1136,13 +1136,15 @@ async def test_part_of_a_group_is_saved_with_its_category_total_shown(api: Api):
     ]
 
 
-async def test_an_import_that_needs_a_decision_waits_for_review(api: Api):
-    """A gradebook entry of the same name is a decision for the user: the import is not saved,
-    and an item can be switched between assessment and to-do in the review."""
+async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(api: Api):
+    """A gradebook entry of the same name made by hand: the import waits for review with the
+    assignment bound to it, which changes nothing of the assessment and adds no weight; the
+    platform's differing due date then comes as an update to review. Choosing to create one
+    instead brings back the duplicate count; switching to a to-do keeps the assessment fields."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
-    await api.call(
+    made = await api.call(
         "POST", f"/courses/{course}/assessments", json={"title": "Midterm", "weight": 30}
     )
     started = await api.call(
@@ -1150,29 +1152,78 @@ async def test_an_import_that_needs_a_decision_waits_for_review(api: Api):
     )
     assert not started["committed"]
     session = await api.call("GET", f"/imports/{started['session_id']}")
-    assert session["status"] == "ready"
     (item,) = by_type(session, "assessment")
-    assert [i["code"] for i in item["issues"]] == ["import.duplicate_assessment"]
-    # Left out by default, so it adds nothing to the course's weight total.
-    assert item["decision"] == "reject"
+    assert item["issues"] == [
+        {
+            "code": "import.duplicate_assessment",
+            "params": {"title": "Midterm", "assessment_id": made["id"]},
+        }
+    ]
+    assert (item["decision"], item["data"]["existing_assessment_id"]) == ("accept", made["id"])
     assert session["summary"]["weights"] == []
-    ticked = await api.call(
-        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"decision": "accept"}
-    )
-    # Ticked, the total counts what the gradebook has: 30 + 80.
-    assert ticked["summary"]["weights"] == [
+    url = f"/imports/{session['id']}/items/{item['id']}"
+    separate = await api.call("PATCH", url, json={"data": {"existing_assessment_id": None}})
+    # Created separately, the total counts what the gradebook has: 30 + 80.
+    assert separate["summary"]["weights"] == [
         {"course_ref": f"course:{course}", "total": 110.0, "existing": 1, "ok": False}
     ]
-    switched = await api.call(
-        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"type": "task"}
-    )
+    switched = await api.call("PATCH", url, json={"type": "task"})
     task = next(i for i in switched["items"] if i["id"] == item["id"])
     assert (task["type"], task["data"]["title"]) == ("task", "Midterm")
-    back = await api.call(
-        "PATCH", f"/imports/{session['id']}/items/{item['id']}", json={"type": "assessment"}
-    )
+    back = await api.call("PATCH", url, json={"type": "assessment"})
     restored = next(i for i in back["items"] if i["id"] == item["id"])
-    # The weight and category come back with it.
     assert (restored["data"]["weight"], restored["data"]["category_ref"]) == (
         item["data"]["weight"], item["data"]["category_ref"]
     )  # fmt: skip
+    await api.call("PATCH", url, json={"data": {"existing_assessment_id": made["id"]}})
+    await api.commit(session["id"])
+    book = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
+    assert [(a["title"], a["weight"], a["due_date"], a["source_kind"]) for a in book] == [
+        ("Midterm", 30, None, "lms")
+    ]
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    assert next(a for a in listed["items"] if a["external_id"] == "a3")["imported_as"] == {
+        "kind": "assessment",
+        "id": made["id"],
+    }
+    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
+    assert set(updates["items"][0]["changes"]) == {"due_at", "weight"}
+
+
+async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
+    """Binding from the gradebook: the assessment keeps its own values and follows the assignment
+    from then on; an assignment imported already can't be bound. Unbinding leaves it as made by
+    hand and the assignment free to import again."""
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
+    made = await api.call(
+        "POST",
+        f"/courses/{course}/assessments",
+        json={"title": "Second lab", "weight": 6, "due_date": "2026-02-20", "due_time": "23:59"},
+    )
+    url = f"/assessments/{made['id']}/lms-assignment"
+    await api.call(
+        "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
+    )
+    taken = await api.call("PUT", url, 409, json={"assignment_id": "a1"})
+    assert taken["error"]["code"] == "lms.assignment_already_imported"
+    bound = await api.call("PUT", url, json={"assignment_id": "a2"})
+    assert bound == {"assessment_id": made["id"], "course_id": course, "assignment_id": "a2"}
+    book = await api.call("GET", f"/courses/{course}/assessments")
+    row = next(a for a in book["items"] if a["id"] == made["id"])
+    assert (row["title"], row["weight"], row["source_kind"]) == ("Second lab", 6, "lms")
+    again = await api.call("PUT", url, 409, json={"assignment_id": "a3"})
+    assert again["error"]["code"] == "lms.assessment_already_bound"
+    # Same due time; the group's weight differs (30 of the 20 % Labs): offered for review.
+    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
+    (change,) = [u for u in updates["items"] if u["external_id"] == "a2"]
+    assert change["changes"] == {"weight": {"old": 6, "new": 15.0}}
+
+    await api.call("DELETE", url)
+    book = await api.call("GET", f"/courses/{course}/assessments")
+    assert next(a for a in book["items"] if a["id"] == made["id"])["source_kind"] is None
+    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
+    assert next(a for a in listed["items"] if a["external_id"] == "a2")["imported_as"] is None
+    gone = await api.call("DELETE", url, 409)
+    assert gone["error"]["code"] == "lms.assessment_not_bound"

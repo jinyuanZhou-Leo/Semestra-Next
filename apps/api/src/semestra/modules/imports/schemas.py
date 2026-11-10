@@ -225,6 +225,12 @@ class AssessmentData(BaseModel):
     points_possible: Annotated[float, Field(gt=0, le=100000)] | None = Field(
         default=None, description="Points possible, with points_earned"
     )
+    existing_assessment_id: Id | None = Field(
+        default=None,
+        description="An assessment of the course made by hand that this item is bound to "
+        "instead of being created (an item with a source_ref whose title matches it). Only its "
+        "source is set; differing values come later as reviewed updates",
+    )
     # Fields of the other kind (M09).
     held: dict[str, Any] | None = Field(default=None, description=HELD)
 

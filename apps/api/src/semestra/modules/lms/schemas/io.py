@@ -567,6 +567,25 @@ class AssignmentImportInput(AssignmentsImportInput):
     )
 
 
+class AssessmentRef(BaseModel):
+    assessment_id: Id = Field(description="Assessment id (grading.assessment.find)")
+
+
+class AssignmentBindInput(AssessmentRef):
+    assignment_id: AssignmentId = Field(
+        description="An assignment of the assessment's course not imported yet (`ref` or "
+        "`external_id` of lms.assignment.list)"
+    )
+
+
+class AssignmentBinding(BaseModel):
+    assessment_id: str
+    course_id: str
+    assignment_id: str | None = Field(
+        description="External id of the assignment it is bound to; null once unbound"
+    )
+
+
 class FieldUpdate(BaseModel):
     old: Any = None
     new: Any = None

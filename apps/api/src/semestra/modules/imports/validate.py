@@ -21,12 +21,24 @@ from semestra.modules.imports.models import ImportsItem
 CATEGORY_TOLERANCE = 0.5
 
 
+@dataclass(frozen=True)
+class ExistingAssessment:
+    """An assessment the course already has, by normalised title."""
+
+    id: str
+    title: str
+    # Not from an LMS assignment: an imported item from a source can be bound to it.
+    bindable: bool
+
+
 @dataclass
 class ValidationContext:
     target_kind: str
     target_term_id: str | None
-    # Existing course id → normalised titles of its assessments.
-    existing_assessments: dict[str, set[str]] = field(default_factory=lambda: {})
+    # Existing course id → its assessments by normalised title.
+    existing_assessments: dict[str, dict[str, ExistingAssessment]] = field(
+        default_factory=lambda: {}
+    )
     # Existing course id → weights of its counted assessments (from the gradebook, M03).
     existing_weights: dict[str, list[float]] = field(default_factory=lambda: {})
     # Existing course id → how many terms it has.
@@ -96,7 +108,12 @@ def validate(
     issues = {i.id: _item_issues(i, by_id, ctx) for i in items}
     groups: defaultdict[str, list[ImportsItem]] = defaultdict(list)
     for item in items:
-        if item.type == "assessment" and item.decision != "reject":
+        # One bound to an existing assessment adds no weight: that one counts already.
+        if (
+            item.type == "assessment"
+            and item.decision != "reject"
+            and not item.data.get("existing_assessment_id")
+        ):
             groups[str(item.data.get("course_ref", ""))].append(item)
     for item in items:
         item.issues = issues[item.id]
@@ -133,9 +150,9 @@ def _item_issues(
             found.append(_issue("import.date_unresolved", text=data["due_text"]))
         ref = str(data.get("course_ref", ""))
         if ref.startswith("course:"):
-            titles = ctx.existing_assessments.get(ref.removeprefix("course:"), set())
-            if norm_title(str(data.get("title", ""))) in titles:
-                found.append(_issue("import.duplicate_assessment"))
+            titles = ctx.existing_assessments.get(ref.removeprefix("course:"), {})
+            if same := titles.get(norm_title(str(data.get("title", "")))):
+                found.append(_duplicate(item, same))
     if item.type == "task" and data.get("due_text") and not data.get("due_date"):
         found.append(_issue("import.date_unresolved", text=data["due_text"]))
     if item.type == "event" and not data.get("date"):
@@ -147,6 +164,14 @@ def _item_issues(
     if dated and day and _outside_terms(day, item, by_id, ctx):
         found.append(_issue("import.date_outside_term", date=day.isoformat()))
     return found
+
+
+def _duplicate(item: ImportsItem, same: ExistingAssessment) -> dict[str, Any]:
+    """The course has an assessment of this title. An item from a source (a platform assignment)
+    can be bound to it instead (`assessment_id`), when it is not bound to another one yet."""
+    if same.bindable and item.data.get("source_ref"):
+        return _issue("import.duplicate_assessment", title=same.title, assessment_id=same.id)
+    return _issue("import.duplicate_assessment", title=same.title)
 
 
 def _outside_terms(

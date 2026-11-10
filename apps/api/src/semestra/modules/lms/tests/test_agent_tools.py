@@ -27,6 +27,7 @@ AGENT_TOOLS = {
     "lms.content.search", "lms.content.read", "lms.course.outline", "lms.activity.list",
     "lms.assignment.list", "lms.course.list", "lms.course.link.set", "lms.file.save_to_course",
     "lms.course.import", "lms.assignment.import", "lms.syllabus.import", "lms.change.import",
+    "lms.assignment.bind", "lms.assignment.unbind",
 }  # fmt: skip
 
 

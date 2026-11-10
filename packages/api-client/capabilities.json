@@ -601,6 +601,14 @@
       "plugin_id": null
     },
     {
+      "name": "lms__assignment__bind",
+      "capability": "lms.assignment.bind",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Bind an assessment made by hand to an LMS assignment of its course not imported yet.",
+      "plugin_id": null
+    },
+    {
       "name": "lms__assignment__import",
       "capability": "lms.assignment.import",
       "module": "lms",
@@ -614,6 +622,14 @@
       "module": "lms",
       "effect": "read",
       "summary": "Assignments and graded quizzes of a linked course on the LMS (Canvas), with the user's scores and the course total, marked when imported.",
+      "plugin_id": null
+    },
+    {
+      "name": "lms__assignment__unbind",
+      "capability": "lms.assignment.unbind",
+      "module": "lms",
+      "effect": "write",
+      "summary": "Stop an assessment from following its LMS assignment; it stays as it is.",
       "plugin_id": null
     },
     {

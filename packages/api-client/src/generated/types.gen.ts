@@ -1007,6 +1007,38 @@ export type Assignment = {
 };
 
 /**
+ * AssignmentBindInputBody
+ */
+export type AssignmentBindInputBody = {
+    /**
+     * Assignment Id
+     *
+     * An assignment of the assessment's course not imported yet (`ref` or `external_id` of lms.assignment.list)
+     */
+    assignment_id: string;
+};
+
+/**
+ * AssignmentBinding
+ */
+export type AssignmentBinding = {
+    /**
+     * Assessment Id
+     */
+    assessment_id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Assignment Id
+     *
+     * External id of the assignment it is bound to; null once unbound
+     */
+    assignment_id: string | null;
+};
+
+/**
  * AssignmentImportInputBody
  */
 export type AssignmentImportInputBody = {
@@ -17407,6 +17439,70 @@ export type LmsAssignmentAddToGradebookResponses = {
 };
 
 export type LmsAssignmentAddToGradebookResponse = LmsAssignmentAddToGradebookResponses[keyof LmsAssignmentAddToGradebookResponses];
+
+export type LmsAssignmentUnbindData = {
+    body?: never;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id (grading.assessment.find)
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}/lms-assignment';
+};
+
+export type LmsAssignmentUnbindErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentUnbindError = LmsAssignmentUnbindErrors[keyof LmsAssignmentUnbindErrors];
+
+export type LmsAssignmentUnbindResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentBinding;
+};
+
+export type LmsAssignmentUnbindResponse = LmsAssignmentUnbindResponses[keyof LmsAssignmentUnbindResponses];
+
+export type LmsAssignmentBindData = {
+    body: AssignmentBindInputBody;
+    path: {
+        /**
+         * Assessment Id
+         *
+         * Assessment id (grading.assessment.find)
+         */
+        assessment_id: string;
+    };
+    query?: never;
+    url: '/assessments/{assessment_id}/lms-assignment';
+};
+
+export type LmsAssignmentBindErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAssignmentBindError = LmsAssignmentBindErrors[keyof LmsAssignmentBindErrors];
+
+export type LmsAssignmentBindResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssignmentBinding;
+};
+
+export type LmsAssignmentBindResponse = LmsAssignmentBindResponses[keyof LmsAssignmentBindResponses];
 
 export type LmsAssignmentImportData = {
     body: AssignmentImportInputBody;
