@@ -1,5 +1,29 @@
 # @semestra/web
 
+## 2.0.0-beta.7
+
+### Minor Changes
+
+- 9375f05: <!-- area: files -->
+  <!-- en -->
+  The file preview is larger, with the file's contents on the left, a search for this file, page and zoom controls, and a recognized-text view for PDFs.
+  <!-- zh -->
+  文件预览更大了：左侧显示文件目录，可在当前文件中搜索，支持翻页与缩放，PDF 还可切换查看识别出的文字。
+
+### Patch Changes
+
+- 1af5abc: <!-- area: canvas -->
+  <!-- en -->
+  Long assignment names in the Canvas tab now stay on one line next to their icon instead of pushing it onto its own line.
+  <!-- zh -->
+  Canvas 页签中过长的作业名称现在与图标保持在同一行，不再把图标挤到单独一行。
+- a1c1c00: <!-- area: courses -->
+  <!-- en -->
+  The LMS line on the course info card now fits on one line, and the card size switcher no longer has a squared-off edge.
+  <!-- zh -->
+  课程信息卡片中的 LMS 一行现在只占一行，卡片尺寸切换条也不再有被裁成直角的边缘。
+- @semestra/api-client@2.0.0-beta.7
+
 ## 2.0.0-beta.6
 
 ### Patch Changes
