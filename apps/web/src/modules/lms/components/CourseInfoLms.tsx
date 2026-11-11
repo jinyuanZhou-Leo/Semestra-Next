@@ -7,30 +7,32 @@ import { Badge } from '@/ui/badge'
 import { externalLabel } from '../external'
 import { useProviderName } from '../providers'
 
-/** On the course info card of a linked course: the platform, its course and a link to it. */
+/** On the course info card of a linked course: one line with the platform and its course, linked. */
 export function CourseInfoLms({ courseId, Row }: CourseInfoRowProps) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link
   const providerName = useProviderName(link?.provider)
   if (!link) return null
   const provider = providerName ?? link.provider
+  const label = externalLabel({ code: link.external_code, name: link.external_name ?? '' })
   return (
     <Row label={m.lms_course_info_label()}>
-      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <Badge variant="secondary">{provider}</Badge>
-        <span className="truncate">
-          {externalLabel({ code: link.external_code, name: link.external_name ?? '' })}
-        </span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        <Badge variant="secondary" className="shrink-0">
+          {provider}
+        </Badge>
         {link.web_url ? (
           <a
             href={link.web_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-primary hover:underline"
+            className="inline-flex min-w-0 items-center gap-1 text-primary hover:underline"
           >
-            {m.lms_open_in({ provider })}
+            <span className="truncate">{label}</span>
             <ExternalLink aria-hidden className="size-3 shrink-0" />
           </a>
-        ) : null}
+        ) : (
+          <span className="truncate">{label}</span>
+        )}
       </span>
     </Row>
   )
