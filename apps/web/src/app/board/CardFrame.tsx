@@ -228,7 +228,7 @@ export function CardFrame({
           )}
         >
           {contribution.sizes.length > 1 ? (
-            <ButtonGroup>
+            <div>
               <ToggleGroup
                 aria-label={m.board_card_size({ card: title })}
                 size="sm"
@@ -242,7 +242,7 @@ export function CardFrame({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-            </ButtonGroup>
+            </div>
           ) : null}
           {contribution.sizes.length > 1 ? <ButtonGroupSeparator /> : null}
           {contribution.settings ? (
