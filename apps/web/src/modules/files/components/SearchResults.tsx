@@ -19,11 +19,11 @@ import { snippetParts } from '../highlight'
 import { pageRangeLabel } from './Citation'
 import { FileIcon } from './FileIcon'
 
-/** Content search over a Program's files (M07 §3.2); the scope narrows it. */
+/** Content search over a Program's files (M07 §3.2); the scope narrows it (to one file in the preview). */
 export function useContentSearch(
   programId: string,
   query: string,
-  scope: { courseIds?: string[]; termId?: string },
+  scope: { courseIds?: string[]; termId?: string; itemIds?: string[] },
 ) {
   const q = query.trim()
   return useQuery({
@@ -35,6 +35,7 @@ export function useContentSearch(
         q,
         courseIds: scope.courseIds,
         termId: scope.termId,
+        itemIds: scope.itemIds,
       },
     ],
     queryFn: async ({ signal }) => {
@@ -44,6 +45,7 @@ export function useContentSearch(
           query: q,
           course_ids: scope.courseIds ?? null,
           term_id: scope.termId ?? null,
+          item_ids: scope.itemIds ?? null,
           top_k: 12,
           mode: 'hybrid',
         },
@@ -57,7 +59,7 @@ export function useContentSearch(
   })
 }
 
-function Snippet({ text }: { text: string }) {
+export function Snippet({ text }: { text: string }) {
   return (
     <>
       {snippetParts(text).map((part, index) =>

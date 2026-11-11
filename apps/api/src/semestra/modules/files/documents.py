@@ -9,7 +9,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.files import service
-from semestra.modules.files.chunking import HEADING
+from semestra.modules.files.chunking import heading
 from semestra.modules.files.models import FilesDocument, FilesDocumentPage, FilesItem
 from semestra.modules.files.schemas import (
     MAX_READ_PAGES,
@@ -129,8 +129,8 @@ async def outline(ctx: Ctx, item_id: str) -> DocumentOutline:
         for line in markdown.split("\n"):
             if line.lstrip().startswith("```"):
                 fenced = not fenced
-            elif not fenced and (match := HEADING.match(line)):
-                entries.append(OutlineEntry(level=len(match[1]), title=match[2], page=page_no))
+            elif not fenced and (found := heading(line)):
+                entries.append(OutlineEntry(level=found[0], title=found[1], page=page_no))
     return DocumentOutline(
         item_id=item.id,
         display_name=item.display_name,

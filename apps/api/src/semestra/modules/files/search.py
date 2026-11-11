@@ -16,6 +16,7 @@ from semestra.core.jobs import enqueue
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
 from semestra.modules.files import service
+from semestra.modules.files.chunking import plain_text
 from semestra.modules.files.embeddings import embed_query
 from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
 from semestra.modules.files.schemas import (
@@ -297,7 +298,7 @@ def _mark(text: str, needles: Sequence[str]) -> str:
 
 def make_snippet(chunk_text: str, needles: Sequence[str]) -> str:
     """About `SNIPPET_CHARS` characters around the first match, matches in <mark></mark>."""
-    plain = re.sub(r"</?mark>", "", chunk_text)
+    plain = re.sub(r"</?mark>", "", plain_text(chunk_text))
     plain = re.sub(r"\s+", " ", plain).strip()
     lowered = plain.lower()
     hits = [i for i in (lowered.find(n.lower()) for n in needles if n) if i != -1]

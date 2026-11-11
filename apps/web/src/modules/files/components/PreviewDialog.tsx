@@ -1,10 +1,16 @@
-import type { ItemOut } from '@semestra/api-client'
-import { filesContentOptions, filesDocumentReadOptions } from '@semestra/api-client/react-query'
+import type { ItemOut, SearchHit } from '@semestra/api-client'
+import { filesContentOptions, filesDocumentOutlineOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileX, SquareArrowOutUpRight } from 'lucide-react'
-import { Suspense, useEffect, useState } from 'react'
+import { useParams } from '@tanstack/react-router'
+import { Download, FileX, Search, SquareArrowOutUpRight, X } from 'lucide-react'
+import { Suspense, useRef, useState } from 'react'
+import { formatHotkey, useHotkey } from '@/app/hotkeys'
+import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { useDebounced } from '@/hooks/use-debounced'
 import { formatBytes } from '@/lib/format'
+import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -15,20 +21,27 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/ui/input-group'
+import { Kbd } from '@/ui/kbd'
 import { Spinner } from '@/ui/spinner'
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { searchTerms } from '../highlight'
 import { fileKindName, previewKind } from '../kinds'
+import { type PageTarget, pageTarget } from '../page-target'
 import { contentUrl, useFileItem } from '../queries'
+import { DocumentText } from './DocumentText'
+import { FileIcon } from './FileIcon'
 import { LazyPdfViewer } from './LazyPdfViewer'
 import { Markdown } from './Markdown'
-import { FileIcon } from './FileIcon'
+import { PreviewOutline, PreviewSearchHits } from './PreviewPanels'
 import { PreviewShell } from './PreviewShell'
+import { useContentSearch } from './SearchResults'
 
 // pdf.js is large; load it only when a PDF is opened.
 
 /** What to show: a file, optionally a page in it and words to highlight (a search hit). */
 export type PreviewTarget = { itemId: string; page?: number; terms?: readonly string[] }
-
-const READ_WINDOW = 30
 
 function TextPreview({ item, markdown }: { item: ItemOut; markdown: boolean }) {
   const query = useQuery({
@@ -40,72 +53,23 @@ function TextPreview({ item, markdown }: { item: ItemOut; markdown: boolean }) {
     staleTime: Infinity,
   })
   return (
-    <AsyncBoundary query={query}>
-      {(text) =>
-        markdown ? (
-          <Markdown>{String(text)}</Markdown>
-        ) : (
-          <pre className="text-sm whitespace-pre-wrap break-words">{String(text)}</pre>
-        )
-      }
-    </AsyncBoundary>
-  )
-}
-
-/** Word, PowerPoint, Excel and HTML files: the text the pipeline extracted, page by page. */
-function DocumentPreview({ item, page = 1 }: { item: ItemOut; page?: number }) {
-  const [from, setFrom] = useState(Math.max(1, page - 2))
-  const query = useQuery({
-    ...filesDocumentReadOptions({
-      path: { item_id: item.id },
-      query: { page_from: from, page_to: from + READ_WINDOW - 1 },
-    }),
-    staleTime: Infinity,
-  })
-  // Bring the requested page into view once it has rendered.
-  useEffect(() => {
-    if (query.data) document.getElementById(`files-page-${item.id}-${page}`)?.scrollIntoView()
-  }, [query.data, item.id, page])
-
-  return (
-    <AsyncBoundary query={query}>
-      {(doc) => (
-        <div className="space-y-6">
-          {from > 1 ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFrom(Math.max(1, from - READ_WINDOW))}
-            >
-              {m.files_preview_earlier_pages()}
-            </Button>
-          ) : null}
-          {doc.pages.map((p) => (
-            <section
-              key={p.page_no}
-              id={`files-page-${item.id}-${p.page_no}`}
-              className="space-y-2"
-            >
-              <p className="text-xs text-muted-foreground">
-                {m.files_preview_page_label({ page: p.page_no })}
-              </p>
-              <Markdown>{p.markdown}</Markdown>
-            </section>
-          ))}
-          {doc.next_page ? (
-            <Button variant="outline" size="sm" onClick={() => setFrom(doc.next_page ?? from)}>
-              {m.files_preview_later_pages()}
-            </Button>
-          ) : null}
-        </div>
-      )}
-    </AsyncBoundary>
+    <div className="min-h-0 flex-1 overflow-auto bg-background px-8 py-6">
+      <AsyncBoundary query={query}>
+        {(text) =>
+          markdown ? (
+            <Markdown className="mx-auto max-w-3xl">{String(text)}</Markdown>
+          ) : (
+            <pre className="text-sm whitespace-pre-wrap break-words">{String(text)}</pre>
+          )
+        }
+      </AsyncBoundary>
+    </div>
   )
 }
 
 function NoPreview({ item }: { item: ItemOut }) {
   return (
-    <Empty>
+    <Empty className="bg-background">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           {item.doc_status === 'unsupported' ? (
@@ -130,24 +94,57 @@ function NoPreview({ item }: { item: ItemOut }) {
   )
 }
 
-function PreviewBody({ item, target }: { item: ItemOut; target: PreviewTarget }) {
+type View = 'original' | 'text'
+
+/** The file itself: what it is decides how it is shown (`previewKind`). */
+function PreviewBody({
+  item,
+  view,
+  target,
+  terms,
+  onNavigate,
+  onPageChange,
+}: {
+  item: ItemOut
+  view: View
+  target: PageTarget
+  terms: readonly string[]
+  onNavigate: (page: number) => void
+  onPageChange: (page: number) => void
+}) {
   const kind = previewKind(item)
+  if ((kind === 'pdf' && view === 'text') || kind === 'document') {
+    return (
+      <DocumentText
+        itemId={item.id}
+        target={target}
+        terms={terms}
+        onNavigate={onNavigate}
+        onPageChange={onPageChange}
+      />
+    )
+  }
   if (kind === 'pdf') {
     return (
       <Suspense
         fallback={
-          <div className="flex h-64 items-center justify-center">
+          <div className="flex flex-1 items-center justify-center">
             <Spinner />
           </div>
         }
       >
-        <LazyPdfViewer url={contentUrl(item.id)} initialPage={target.page} terms={target.terms} />
+        <LazyPdfViewer
+          url={contentUrl(item.id)}
+          target={target}
+          terms={terms}
+          onPageChange={onPageChange}
+        />
       </Suspense>
     )
   }
   if (kind === 'image') {
     return (
-      <div className="flex justify-center">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
         <img src={contentUrl(item.id)} alt={item.display_name} className="max-h-full max-w-full" />
       </div>
     )
@@ -155,11 +152,66 @@ function PreviewBody({ item, target }: { item: ItemOut; target: PreviewTarget })
   if (kind === 'text' || kind === 'markdown') {
     return <TextPreview item={item} markdown={kind === 'markdown'} />
   }
-  if (kind === 'document') return <DocumentPreview item={item} page={target.page} />
   return <NoPreview item={item} />
 }
 
-/** Preview of a file (M07 §6.1); `target` null closes it. */
+/** Search box of the preview: ⌘F focuses it, Esc clears it before closing the preview. */
+function SearchBox({
+  value,
+  onChange,
+  enabled,
+}: {
+  value: string
+  onChange: (value: string) => void
+  enabled: boolean
+}) {
+  const input = useRef<HTMLInputElement>(null)
+  useHotkey('mod+f', () => input.current?.focus(), { enabled, allowInInputs: true })
+  return (
+    <InputGroup className="w-72">
+      <InputGroupAddon>
+        <Search aria-hidden />
+      </InputGroupAddon>
+      <InputGroupInput
+        ref={input}
+        type="search"
+        aria-label={m.files_preview_search()}
+        placeholder={m.files_preview_search()}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && value) {
+            event.preventDefault()
+            event.stopPropagation()
+            onChange('')
+          }
+        }}
+      />
+      <InputGroupAddon align="inline-end">
+        {value ? (
+          <InputGroupButton
+            size="icon-xs"
+            aria-label={m.files_search_clear()}
+            onClick={() => {
+              onChange('')
+              input.current?.focus()
+            }}
+          >
+            <X aria-hidden />
+          </InputGroupButton>
+        ) : (
+          <Kbd>{formatHotkey('mod+f')}</Kbd>
+        )}
+      </InputGroupAddon>
+    </InputGroup>
+  )
+}
+
+/**
+ * Preview of a file (M07 §6.1); `target` null closes it. Processed PDFs and documents get their
+ * contents on the left, a search box whose hits open on the right, and (PDFs) a switch between
+ * the original and the text Semestra read from it.
+ */
 export function PreviewDialog({
   target,
   ...props
@@ -169,9 +221,50 @@ export function PreviewDialog({
   onOpenChange: (open: boolean) => void
   onOpenChangeComplete?: (open: boolean) => void
 }) {
-  const shown = target
-  const item = useFileItem(shown?.itemId)
+  const { programId } = useParams({ strict: false }) as { programId?: string }
+  const item = useFileItem(target?.itemId)
   const data = item.data
+  const [contentsOpen, setContentsOpen] = useUiPref('files.preview_contents', true)
+
+  // What the reader is doing in this file; a new target starts over.
+  const [view, setView] = useState<View>('original')
+  const [search, setSearch] = useState('')
+  const [nav, setNav] = useState<PageTarget>(pageTarget(target?.page ?? 1))
+  const [page, setPage] = useState(target?.page ?? 1)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [shown, setShown] = useState(target)
+  if (target !== shown) {
+    setShown(target)
+    if (target) {
+      setView('original')
+      setSearch('')
+      setNav(pageTarget(target.page ?? 1))
+      setPage(target.page ?? 1)
+      setSelected(null)
+    }
+  }
+  const query = useDebounced(search, 300).trim()
+
+  const kind = data ? previewKind(data) : 'none'
+  const readable = data?.doc_status === 'ready' && (kind === 'pdf' || kind === 'document')
+  const outline = useQuery({
+    ...filesDocumentOutlineOptions({ path: { item_id: data?.id ?? '' } }),
+    enabled: readable,
+    staleTime: Infinity,
+  })
+  const entries = readable ? (outline.data?.entries ?? []) : []
+  const searchable = readable && Boolean(programId)
+  const searching = searchable && query.length >= 2
+  const hits = useContentSearch(programId ?? '', searching ? query : '', {
+    itemIds: data ? [data.id] : [],
+  })
+  const terms = searching ? searchTerms(query) : (target?.terms ?? [])
+  const go = (to: number) => setNav(pageTarget(to))
+  const openHit = (hit: SearchHit) => {
+    setSelected(hit.citation_id)
+    go(hit.page_from)
+  }
+
   return (
     <PreviewShell
       {...props}
@@ -189,19 +282,30 @@ export function PreviewDialog({
               .join(' · ')
           : null
       }
-      footer={
+      actions={
         data && data.kind === 'file' ? (
           <>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    nativeButton={false}
+                    aria-label={m.files_open_new_tab()}
+                    render={
+                      // oxlint-disable-next-line jsx-a11y/control-has-associated-label, jsx-a11y/anchor-has-content -- labelled by aria-label
+                      <a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />
+                    }
+                  />
+                }
+              >
+                <SquareArrowOutUpRight aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
+            </Tooltip>
             <Button
-              variant="outline"
-              nativeButton={false}
-              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
-              render={<a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />}
-            >
-              <SquareArrowOutUpRight aria-hidden />
-              {m.files_open_new_tab()}
-            </Button>
-            <Button
+              size="sm"
               nativeButton={false}
               // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
               render={<a href={contentUrl(data.id, 'attachment')} download />}
@@ -212,11 +316,62 @@ export function PreviewDialog({
           </>
         ) : null
       }
+      tools={
+        searchable ? (
+          <>
+            {kind === 'pdf' ? (
+              <ToggleGroup
+                aria-label={m.files_preview_view()}
+                value={[view]}
+                onValueChange={(next: string[]) => {
+                  const picked = next[0]
+                  if (picked === 'original' || picked === 'text') {
+                    setView(picked)
+                    go(page)
+                  }
+                }}
+                className={cn(SEGMENTED, 'h-9 p-1')}
+              >
+                <ToggleGroupItem value="original" className={SEGMENT}>
+                  {m.files_preview_view_original()}
+                </ToggleGroupItem>
+                <ToggleGroupItem value="text" className={SEGMENT}>
+                  {m.files_preview_view_text()}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            ) : null}
+            <SearchBox value={search} onChange={setSearch} enabled={props.open} />
+          </>
+        ) : null
+      }
+      sidebar={
+        entries.length > 0 ? <PreviewOutline entries={entries} page={page} onOpen={go} /> : null
+      }
+      sidebarOpen={contentsOpen}
+      onSidebarOpenChange={setContentsOpen}
+      aside={
+        searching ? (
+          <PreviewSearchHits
+            hits={hits.data?.results ?? []}
+            loading={hits.isFetching}
+            selected={selected}
+            onOpen={openHit}
+          />
+        ) : null
+      }
     >
-      {shown ? (
+      {target ? (
         <AsyncBoundary query={item}>
           {(loaded) => (
-            <PreviewBody key={`${loaded.id}:${shown.page ?? 1}`} item={loaded} target={shown} />
+            <PreviewBody
+              key={`${loaded.id}:${view}`}
+              item={loaded}
+              view={view}
+              target={nav}
+              terms={terms}
+              onNavigate={go}
+              onPageChange={setPage}
+            />
           )}
         </AsyncBoundary>
       ) : null}

@@ -63,13 +63,18 @@ export function apiError(code: string, status: number, params: Record<string, un
 }
 
 /** Renders `ui` as the index route of a throwaway router (needed by <Link> and navigation). */
-export function renderWithRouter(ui: ReactElement, queryClient = newQueryClient()) {
+export function renderWithRouter(
+  ui: ReactElement,
+  queryClient = newQueryClient(),
+  /** Render under a route with params instead of `/`, e.g. `{ path: '/p/$programId', at: '/p/p1' }`. */
+  route: { path: string; at: string } = { path: '/', at: '/' },
+) {
   const root = createRootRoute({ component: Outlet })
-  const index = createRoute({ getParentRoute: () => root, path: '/', component: () => ui })
+  const index = createRoute({ getParentRoute: () => root, path: route.path, component: () => ui })
   const router = createRouter({
     routeTree: root.addChildren([index]),
-    history: createMemoryHistory({ initialEntries: ['/'] }),
-    // Only `/` exists here; a navigation elsewhere (sign-out to /login, say) leaves this marker,
+    history: createMemoryHistory({ initialEntries: [route.at] }),
+    // Only that route exists here; a navigation elsewhere (sign-out to /login, say) leaves this marker,
     // so a test that ends up somewhere unexpected can see it.
     defaultNotFoundComponent: () => <p data-testid="not-found">Not found</p>,
   })

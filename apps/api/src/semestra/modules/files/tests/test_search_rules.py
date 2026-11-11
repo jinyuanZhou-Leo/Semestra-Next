@@ -29,3 +29,8 @@ def test_snippet_marks_matches_and_trims():
     assert len(snippet) < 300
     assert make_snippet("考试时间", ["考试时", "试时间"]) == "<mark>考试时间</mark>"
     assert "<mark>" not in make_snippet("a <mark>fake</mark> tag", [])
+
+
+def test_snippets_are_plain_text():
+    snippet = make_snippet("## **Squeeze theorem**\nIf *g* ≤ f ≤ h, then `lim f` = L.", ["squeeze"])
+    assert snippet == "<mark>Squeeze</mark> theorem If g ≤ f ≤ h, then lim f = L."

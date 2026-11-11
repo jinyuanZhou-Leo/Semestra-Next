@@ -59,25 +59,30 @@ function TextPreview({ fileId }: { fileId: string }) {
               ? m.canvas_tab_preview_sheet
               : m.canvas_tab_preview_page
         return (
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">{m.canvas_tab_preview_text_only()}</p>
-            {p.pages.map((page, i) => (
-              // Pages have no id; their order never changes.
-              // oxlint-disable-next-line react/no-array-index-key
-              <section key={i} className="space-y-2 rounded-lg border p-4">
-                {p.pages.length > 1 ? (
-                  <h3 className="text-xs font-medium text-muted-foreground">
-                    {label({ number: i + 1 })}
-                  </h3>
-                ) : null}
-                <Markdown>{page}</Markdown>
-              </section>
-            ))}
-            {p.truncated ? (
-              <p className="text-xs text-muted-foreground">
-                {m.canvas_tab_preview_truncated({ count: p.pages.length })}
-              </p>
-            ) : null}
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="mx-auto max-w-3xl space-y-4 p-6">
+              <p className="text-xs text-muted-foreground">{m.canvas_tab_preview_text_only()}</p>
+              {p.pages.map((page, i) => (
+                // Pages have no id; their order never changes.
+                // oxlint-disable-next-line react/no-array-index-key
+                <section
+                  key={i}
+                  className="space-y-2 rounded-xl bg-background p-6 shadow-sm ring-1 ring-border"
+                >
+                  {p.pages.length > 1 ? (
+                    <h3 className="text-xs font-medium text-muted-foreground">
+                      {label({ number: i + 1 })}
+                    </h3>
+                  ) : null}
+                  <Markdown>{page}</Markdown>
+                </section>
+              ))}
+              {p.truncated ? (
+                <p className="text-xs text-muted-foreground">
+                  {m.canvas_tab_preview_truncated({ count: p.pages.length })}
+                </p>
+              ) : null}
+            </div>
           </div>
         )
       }}
@@ -109,7 +114,10 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   })
   if (file.locked) return <LockNote title={m.canvas_tab_item_locked()} />
   return (
-    <CanvasBoundary query={check} skeleton={<Skeleton className="size-full min-h-64 rounded-lg" />}>
+    <CanvasBoundary
+      query={check}
+      skeleton={<Skeleton className="m-6 min-h-64 flex-1 rounded-lg" />}
+    >
       {() => children}
     </CanvasBoundary>
   )
@@ -201,14 +209,15 @@ export function FilePreviewDialog({
       {...props}
       title={name || m.common_loading()}
       meta={details}
-      footer={
+      actions={
         shown ? (
           <>
-            <Button variant="outline" disabled={!meta.data || saving} onClick={save}>
+            <Button variant="outline" size="sm" disabled={!meta.data || saving} onClick={save}>
               <FolderInput aria-hidden />
               {m.canvas_tab_file_save_short()}
             </Button>
             <Button
+              size="sm"
               nativeButton={false}
               render={
                 // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
@@ -251,7 +260,7 @@ function PreviewBody({ file }: { file: FileMeta }) {
   if (kind === 'image') {
     return (
       <ContentCheck file={file}>
-        <div className="flex justify-center">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
           <img src={src} alt={file.name} className="max-h-full max-w-full" />
         </div>
       </ContentCheck>
@@ -262,7 +271,7 @@ function PreviewBody({ file }: { file: FileMeta }) {
       <ContentCheck file={file}>
         {/* The API serves it with `Content-Security-Policy: default-src 'none'`. */}
         {/* oxlint-disable-next-line react/iframe-missing-sandbox */}
-        <iframe src={src} title={file.name} className="size-full rounded-lg border" />
+        <iframe src={src} title={file.name} className="min-h-0 flex-1 bg-background" />
       </ContentCheck>
     )
   }

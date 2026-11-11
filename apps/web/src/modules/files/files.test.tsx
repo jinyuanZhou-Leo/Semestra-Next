@@ -90,6 +90,7 @@ const CORS = {
 let items: ItemOut[] = []
 let uploads: string[] = []
 let prefs: { key: string; body: unknown }[] = []
+let searches: unknown[] = []
 
 beforeEach(() => {
   items = [
@@ -108,6 +109,7 @@ beforeEach(() => {
   ]
   uploads = []
   prefs = []
+  searches = []
   server.use(
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, async ({ request, params }) => {
@@ -141,8 +143,30 @@ beforeEach(() => {
         { headers: CORS },
       )
     }),
-    http.post(`${API}/programs/p1/files\\:search`, () =>
+    http.get(`${API}/files/:id/outline`, ({ params }) =>
       HttpResponse.json({
+        item_id: params.id,
+        display_name: 'syllabus.pdf',
+        page_count: 9,
+        entries: [
+          { level: 1, title: 'Welcome', page: 1 },
+          { level: 2, title: 'Schedule', page: 5 },
+        ],
+      }),
+    ),
+    http.get(`${API}/files/:id/document`, ({ params }) =>
+      HttpResponse.json({
+        item_id: params.id,
+        display_name: 'syllabus.pdf',
+        page_count: 9,
+        pages: [{ page_no: 1, markdown: 'Read from page one', ocr_used: false, citation_id: 'x' }],
+        next_page: null,
+        citations: [],
+      }),
+    ),
+    http.post(`${API}/programs/p1/files\\:search`, async ({ request }) => {
+      searches.push(await request.json())
+      return HttpResponse.json({
         results: [
           {
             item_id: 'i1',
@@ -158,8 +182,8 @@ beforeEach(() => {
         ],
         pending_items: [],
         mode_used: 'keyword',
-      }),
-    ),
+      })
+    }),
   )
 })
 
@@ -307,6 +331,33 @@ test('a citation names the file and pages and opens the preview there', async ()
   const chip = await screen.findByRole('button', { name: /syllabus\.pdf\s*pp\. 4–5/ })
   await userEvent.click(chip)
   expect(await screen.findByText('PDF page 4')).toBeInTheDocument()
+})
+
+const openPreview = async () => {
+  renderWithRouter(<Citation id="i1:p1-1" />, undefined, { path: '/p/$programId', at: '/p/p1' })
+  await userEvent.click(await screen.findByRole('button', { name: /syllabus\.pdf/ }))
+  return screen.findByRole('dialog')
+}
+
+test('the preview goes to a heading of the contents or a match of its search', async () => {
+  const dialog = await openPreview()
+  await userEvent.click(await within(dialog).findByRole('button', { name: /^Schedule/ }))
+  expect(await within(dialog).findByText('PDF page 5')).toBeInTheDocument()
+
+  await userEvent.type(
+    within(dialog).getByRole('searchbox', { name: 'Search this file' }),
+    'midterm',
+  )
+  const hit = await within(dialog).findByRole('button', { name: /^Grading\s*p\. 3/ })
+  expect(searches.at(-1)).toMatchObject({ query: 'midterm', item_ids: ['i1'] })
+  await userEvent.click(hit)
+  expect(await within(dialog).findByText('PDF page 3')).toBeInTheDocument()
+})
+
+test('a PDF can be read as the text Semestra recognized in it', async () => {
+  const dialog = await openPreview()
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Recognized text' }))
+  expect(await within(dialog).findByText('Read from page one')).toBeInTheDocument()
 })
 
 test('the grid shows page images only for PDFs and images, and falls back to the icon', async () => {
