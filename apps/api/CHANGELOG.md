@@ -1,5 +1,20 @@
 # @semestra/api
 
+## 2.0.0-beta.7
+
+### Patch Changes
+
+- 9375f05: <!-- area: files -->
+  <!-- en -->
+  Headings and search snippets from PDFs no longer show Markdown symbols such as asterisks.
+  <!-- zh -->
+  PDF 的标题和搜索摘要不再显示星号等 Markdown 符号。
+- eff4c90: <!-- area: grades -->
+  <!-- en -->
+  Grade forecasts are steadier when a category has only a few scores so far.
+  <!-- zh -->
+  成绩预测在分类里分数较少时更稳定。
+
 ## 2.0.0-beta.6
 
 No changes in this release.

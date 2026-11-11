@@ -3,6 +3,19 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.7 (2026-11-11)
+
+### New
+
+- **Files:** The file preview is larger, with the file's contents on the left, a search for this file, page and zoom controls, and a recognized-text view for PDFs.
+
+### Fixed
+
+- **Terms & courses:** The LMS line on the course info card now fits on one line, and the card size switcher no longer has a squared-off edge.
+- **Grades:** Grade forecasts are steadier when a category has only a few scores so far.
+- **Files:** Headings and search snippets from PDFs no longer show Markdown symbols such as asterisks.
+- **Canvas:** Long assignment names in the Canvas tab now stay on one line next to their icon instead of pushing it onto its own line.
+
 ## 2.0.0-beta.6 (2026-11-10)
 
 ### Fixed
