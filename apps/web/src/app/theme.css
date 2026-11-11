@@ -610,3 +610,9 @@
   background-color: color-mix(in oklch, var(--primary) 25%, transparent);
   color: var(--foreground);
 }
+
+/* Search terms in a file preview's text view (`files/components/DocumentText.tsx`). */
+::highlight(files-preview-search) {
+  background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+  color: var(--foreground);
+}

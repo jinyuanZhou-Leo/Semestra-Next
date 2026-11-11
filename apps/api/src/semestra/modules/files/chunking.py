@@ -24,8 +24,29 @@ MIN_SECTION_TOKENS = 120
 _CJK = re.compile(r"[぀-ヿ㐀-鿿가-힯]")
 _WORD = re.compile(r"[^\W_]+")
 # A markdown heading line (also how documents.py builds the outline).
-HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+_HEADING_HASHES = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+# Inline marks around words: **bold**, *italic*, _italic_, `code`. Underscores inside words
+# (snake_case, __init__) are left alone.
+_INLINE = re.compile(r"\*\*(.+?)\*\*|\*([^*\s][^*]*?)\*|(?<!\w)_([^_\s][^_]*?)_(?!\w)|`([^`]+)`")
 _SENTENCE_END = re.compile(r"(?<=[.!?。！？；;])\s*")  # noqa: RUF001
+
+
+def _unmark(text: str) -> str:
+    return _INLINE.sub(lambda m: next(g for g in m.groups() if g is not None), text)
+
+
+def plain_text(markdown: str) -> str:
+    """Markdown without heading hashes and inline marks, for snippets shown as text."""
+    return _unmark(_HEADING_HASHES.sub("", markdown))
+
+
+def heading(line: str) -> tuple[int, str] | None:
+    """A markdown heading's level and plain-text title (PDF headings arrive as `## **Title**`)."""
+    match = _HEADING.match(line)
+    if not match:
+        return None
+    return len(match[1]), _unmark(match[2]).strip()
 
 
 def estimate_tokens(text: str) -> int:
@@ -75,10 +96,10 @@ def _events(markdown: str) -> Iterator[_Heading | str]:
         if fence:
             buffer.append(line)
             continue
-        heading = HEADING.match(line)
-        if heading:
+        found = heading(line)
+        if found:
             yield from flush()
-            yield _Heading(len(heading[1]), heading[2])
+            yield _Heading(*found)
         elif not line.strip():
             yield from flush()
         else:

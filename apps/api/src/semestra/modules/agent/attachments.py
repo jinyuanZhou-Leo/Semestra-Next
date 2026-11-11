@@ -5,7 +5,6 @@ pages with `agent.attachment.read`; imports take the original file by id (`open_
 Pages are not chunked or indexed; saving the attachment to a course's files does that (M07).
 """
 
-import re
 from collections.abc import AsyncIterator
 from contextlib import aclosing
 from dataclasses import dataclass, field
@@ -24,6 +23,7 @@ from semestra.core.storage import delete_after_commit
 from semestra.modules.agent import service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import service as files
+from semestra.modules.files.chunking import heading
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
 from semestra.modules.files.parse.detect import Detected
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
@@ -54,7 +54,6 @@ SCANNED_NOTE = (
 # Uploads no message refers to (removed from the composer, the page closed before sending) are
 # deleted after this long, with their file, so they stop counting against the storage quota.
 UNSENT_RETENTION = timedelta(hours=24)
-_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 
 
 @dataclass
@@ -154,8 +153,8 @@ def outline(rows: list[AgentAttachmentPage]) -> list[tuple[int, int, str]]:
         for line in row.markdown.split("\n"):
             if line.lstrip().startswith("```"):
                 fenced = not fenced
-            elif not fenced and (match := _HEADING.match(line)):
-                entries.append((len(match[1]), row.page_no, match[2]))
+            elif not fenced and (found := heading(line)):
+                entries.append((found[0], row.page_no, found[1]))
     return entries
 
 

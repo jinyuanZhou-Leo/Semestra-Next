@@ -9,6 +9,7 @@ from semestra.modules.files.chunking import (
     TARGET_TOKENS,
     chunk_pages,
     estimate_tokens,
+    heading,
     split_block,
 )
 
@@ -94,3 +95,11 @@ def test_code_fences_and_tables_stay_whole():
 def test_no_pages_no_chunks():
     assert chunk_pages([]) == []
     assert chunk_pages([(1, "   \n\n  ")]) == []
+
+
+def test_headings_are_read_as_plain_text():
+    # pymupdf4llm marks bold PDF headings as `## **Title**`.
+    assert heading("## **Squeeze theorem**") == (2, "Squeeze theorem")
+    assert heading("# The `max_pages` *option* #") == (1, "The max_pages option")
+    assert heading("snake_case_name is not a heading") is None
+    assert heading("## __init__ and _italic_ text") == (2, "__init__ and italic text")
