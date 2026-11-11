@@ -155,6 +155,19 @@
         {"id": "q3", "category": "quiz", "weight": 60, "score": null}
       ],
       "expect": {"predictions": {"q3": 70}, "forecast_percentage": 70, "locked_contribution": 28}
+    },
+    {
+      "name": "forecast: a category with one score is pulled toward the course average",
+      "items": [
+        {"id": "q1", "category": "quiz", "weight": 10, "score": 100},
+        {"id": "e1", "category": "exam", "weight": 30, "score": 60},
+        {"id": "q2", "category": "quiz", "weight": 20, "score": null},
+        {"id": "e2", "category": "exam", "weight": 40, "score": null}
+      ],
+      "expect": {
+        "predictions": {"q2": 77.5, "e2": 67.5}, "forecast_percentage": 70.5,
+        "locked_contribution": 28
+      }
     }
   ],
   "suggest_cases": [
