@@ -40,8 +40,9 @@ const NO_TERMS: readonly string[] = []
 /**
  * The whole document as one vertical scroll, fitted to the width and zoomable, with search terms
  * highlighted (M07 §6.1). Only the pages near the viewport are rendered; every page's size comes
- * from its shape (height / width, read when the document opens), so the layout is known before
- * pdf.js draws anything and a new width keeps the reader where they were. The page bar floats at
+ * from its shape (height / width: the first page's at once, each page's own once read in the
+ * background), so the layout is known before pdf.js draws anything and a new width or shape
+ * keeps the reader where they were. The page bar floats at
  * the bottom; `target` scrolls to a page, `onPageChange` reports the page being read.
  */
 export function PdfViewer({
@@ -152,19 +153,27 @@ export function PdfViewer({
           externalLinkRel="noopener noreferrer"
           suspense={false}
           onLoadSuccess={(pdf) => {
-            // Lay the pages out once their shapes are known, so opening on a later page lands
-            // there. A page that can't be read keeps the default shape (and shows its error).
-            const shapeOf = (n: number) =>
+            // Lay every page out in the first page's shape at once, so the document shows (and
+            // opens on a later page) without reading the rest; their own shapes follow in the
+            // background, and the reader keeps their place when they arrive. A page that can't be
+            // read keeps the first page's shape (and shows its error).
+            const shapeOf = (n: number, fallback: number) =>
               pdf.getPage(n).then(
                 (page) => {
                   const { width: w, height: h } = page.getViewport({ scale: 1 })
-                  return w > 0 && h > 0 ? h / w : DEFAULT_RATIO
+                  return w > 0 && h > 0 ? h / w : fallback
                 },
-                () => DEFAULT_RATIO,
+                () => fallback,
               )
-            void Promise.all(Array.from({ length: pdf.numPages }, (_, n) => shapeOf(n + 1))).then(
-              setShapes,
-            )
+            void shapeOf(1, DEFAULT_RATIO).then((first) => {
+              setShapes(Array.from({ length: pdf.numPages }, () => first))
+              if (pdf.numPages === 1) return
+              void Promise.all(
+                Array.from({ length: pdf.numPages }, (_, n) => shapeOf(n + 1, first)),
+              ).then((all) => {
+                if (all.some((shape) => shape !== first)) setShapes(all)
+              })
+            })
           }}
           loading={
             <div className="flex h-64 items-center justify-center">
