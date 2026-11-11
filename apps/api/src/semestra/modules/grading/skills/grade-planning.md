@@ -24,7 +24,8 @@ summary:
   safe.
 - `reachable: false`: even 100% on everything left is not enough. Say so plainly.
 - `locked_contribution` is the grade if everything left scored 0; `forecast_percentage` assumes
-  the student keeps doing as well in each category as so far.
+  the student keeps doing as well in each category as so far, with categories that have only a
+  few scores pulled toward the course average.
 - `weights_ok: false`: the weights do not add up to 100, so there are no figures. Report
   `weight_gap` and offer to fix the weights.
 

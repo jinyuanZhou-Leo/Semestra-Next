@@ -207,6 +207,20 @@ def _weighted_mean(items: Sequence[Item]) -> float | None:
     return sum(i.weight * (i.score or 0) for i in graded) / weight
 
 
+def _expected_score(same_category: Sequence[Item], overall: float) -> float:
+    """What an ungraded item is expected to score: its category's average so far, shrunk toward
+    the course's average with weight `SHRINK_K`, so one lucky or unlucky score does not stand for
+    the whole category. A category with no scores gets the course average."""
+    category_mean = _weighted_mean(same_category)
+    if category_mean is None:
+        return overall
+    # Zero-weight scores do not move the average, so they are no evidence either (unless that is
+    # all there is, where `_weighted_mean` falls back to a plain average).
+    counted = [i for i in same_category if i.score is not None and i.weight > 0]
+    n = len(counted) or len(same_category)
+    return (n * category_mean + SHRINK_K * overall) / (n + SHRINK_K)
+
+
 def category_breakdown(items: Sequence[Item]) -> tuple[CategoryCalc, ...]:
     """Per category, in order of first appearance; dropped items do not count."""
     groups: dict[str | None, list[Item]] = {}
@@ -281,16 +295,15 @@ def compute_course(
         by_category: dict[str | None, list[Item]] = {}
         for item in graded:
             by_category.setdefault(item.category, []).append(item)
-        # A category without a score yet is predicted from the course's average so far.
+        # Each item is predicted from its category's scores so far, pulled toward the course's
+        # average; a category without a score yet takes the course's average.
         overall = _weighted_mean(graded)
         for item in remaining:
-            history = _weighted_mean(by_category.get(item.category, []))
-            if history is None:
-                if item.category not in missing:
-                    missing.append(item.category)
-                history = overall
-            if history is not None:
-                predictions[item.id] = history
+            same = by_category.get(item.category, [])
+            if not same and item.category not in missing:
+                missing.append(item.category)
+            if overall is not None:
+                predictions[item.id] = _expected_score(same, overall)
         if overall is not None:
             forecast = contribution + sum(i.weight * predictions[i.id] for i in remaining) / 100
 
@@ -380,13 +393,8 @@ def suggest_scores(items: Sequence[Item], target_percentage: float) -> Suggestio
         overall = target_percentage  # nothing graded yet: start from "equally good everywhere"
     baselines: dict[str, float] = {}
     for item in remaining:
-        same = [g for g in graded if g.category == item.category]
-        category_mean = _weighted_mean(same)
-        n = len(same)
-        baselines[item.id] = (
-            overall
-            if category_mean is None
-            else (n * category_mean + SHRINK_K * overall) / (n + SHRINK_K)
+        baselines[item.id] = _expected_score(
+            [g for g in graded if g.category == item.category], overall
         )
 
     def final_with(shift: float, *, rounded: bool) -> float:
