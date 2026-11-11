@@ -193,17 +193,19 @@ function NameCell({ row }: CellProps) {
   const { assignment: a } = row.original
   const why = a.lock_explanation || m.canvas_tab_item_locked()
   return (
-    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+    <span className="flex items-center gap-2">
       <KindIcon row={row.original} />
-      <span className="font-medium">{a.name}</span>
+      <span className="min-w-0 truncate font-medium" title={a.name}>
+        {a.name}
+      </span>
       {a.locked ? (
         <Tooltip>
           <TooltipTrigger
-            className="inline-flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="inline-flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             aria-label={why}
             onClick={(event) => event.stopPropagation()}
           >
-            <Lock aria-hidden className="size-3.5 text-muted-foreground" />
+            <Lock aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">{why}</TooltipContent>
         </Tooltip>
@@ -736,13 +738,7 @@ function AssignmentTable({ rows: data, focused }: { rows: Row[]; focused?: strin
                                 }
                               >
                                 {row.getAllCells().map((cell) => (
-                                  <TableCell
-                                    key={cell.id}
-                                    className={cn(
-                                      'py-2',
-                                      cell.column.id === 'name' && 'whitespace-normal',
-                                    )}
-                                  >
+                                  <TableCell key={cell.id} className="py-2">
                                     <table.FlexRender cell={cell} />
                                   </TableCell>
                                 ))}
