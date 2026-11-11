@@ -211,10 +211,13 @@ def _expected_score(same_category: Sequence[Item], overall: float) -> float:
     """What an ungraded item is expected to score: its category's average so far, shrunk toward
     the course's average with weight `SHRINK_K`, so one lucky or unlucky score does not stand for
     the whole category. A category with no scores gets the course average."""
-    n = len(same_category)
     category_mean = _weighted_mean(same_category)
     if category_mean is None:
         return overall
+    # Zero-weight scores do not move the average, so they are no evidence either (unless that is
+    # all there is, where `_weighted_mean` falls back to a plain average).
+    counted = [i for i in same_category if i.score is not None and i.weight > 0]
+    n = len(counted) or len(same_category)
     return (n * category_mean + SHRINK_K * overall) / (n + SHRINK_K)
 
 

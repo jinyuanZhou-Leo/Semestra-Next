@@ -168,6 +168,16 @@
         "predictions": {"q2": 77.5, "e2": 67.5}, "forecast_percentage": 70.5,
         "locked_contribution": 28
       }
+    },
+    {
+      "name": "forecast: zero-weight scores do not count as evidence for a category",
+      "items": [
+        {"id": "q0", "category": "quiz", "weight": 0, "score": 0},
+        {"id": "q1", "category": "quiz", "weight": 10, "score": 100},
+        {"id": "e1", "category": "exam", "weight": 30, "score": 60},
+        {"id": "q2", "category": "quiz", "weight": 60, "score": null}
+      ],
+      "expect": {"predictions": {"q2": 77.5}}
     }
   ],
   "suggest_cases": [
