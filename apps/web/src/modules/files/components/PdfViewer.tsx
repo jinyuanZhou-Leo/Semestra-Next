@@ -1,7 +1,7 @@
 import 'react-pdf/dist/Page/TextLayer.css'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
-import { measureElement, observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useRef, useState } from 'react'
+import { observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
@@ -30,15 +30,18 @@ const OPTIONS = {
 const MAX_WIDTH = 960
 const PADDING = 16
 const GAP = 16
-// A4 portrait until the first page says otherwise.
+// Room for the floating page bar under the last page.
+const PADDING_END = PADDING + 64
+// A4 portrait until the pages say otherwise.
 const DEFAULT_RATIO = 297 / 210
 // Stable, so a page's text renderer keeps its identity across scroll renders.
 const NO_TERMS: readonly string[] = []
 
 /**
  * The whole document as one vertical scroll, fitted to the width and zoomable, with search terms
- * highlighted (M07 §6.1). Only the pages near the viewport are rendered; the rest hold their
- * estimated height (from the first page's shape) until they are measured. The page bar floats at
+ * highlighted (M07 §6.1). Only the pages near the viewport are rendered; every page's size comes
+ * from its shape (height / width, read when the document opens), so the layout is known before
+ * pdf.js draws anything and a new width keeps the reader where they were. The page bar floats at
  * the bottom; `target` scrolls to a page, `onPageChange` reports the page being read.
  */
 export function PdfViewer({
@@ -52,16 +55,25 @@ export function PdfViewer({
   terms?: readonly string[]
   onPageChange?: (page: number) => void
 }) {
-  const [pageCount, setPageCount] = useState(0)
-  const [ratio, setRatio] = useState(DEFAULT_RATIO)
+  // Each page's height / width.
+  const [shapes, setShapes] = useState<readonly number[]>([])
+  const pageCount = shapes.length
   const [width, setWidth] = useState<number>()
   const [zoom, setZoom] = useState(1)
   const scroller = useRef<HTMLDivElement>(null)
-  // The page to stay on while the zoom changes every page's size.
-  const keep = useRef<number | null>(null)
+  // The page at the top of the view and how far into it, as of the last scroll.
+  const anchor = useRef<{ index: number; fraction: number } | null>(null)
   const fit = Math.min(Math.max((width ?? 0) - 2 * PADDING, 240), MAX_WIDTH)
   const pageWidth = Math.round(fit * zoom)
-  const pageHeight = Math.round(pageWidth * ratio)
+  const heightOf = (index: number) => Math.round(pageWidth * (shapes[index] ?? DEFAULT_RATIO))
+  // Where each page starts in the scroll.
+  const starts: number[] = []
+  let totalSize = PADDING
+  for (let index = 0; index < pageCount; index++) {
+    starts.push(totalSize)
+    totalSize += heightOf(index) + GAP
+  }
+  totalSize += PADDING_END
 
   // The React Compiler leaves this component uncompiled: the virtualizer is one mutable object
   // that re-renders it on scroll, and cached reads from it would go stale.
@@ -69,14 +81,10 @@ export function PdfViewer({
   const virtualizer = useVirtualizer({
     count: pageCount,
     getScrollElement: () => scroller.current,
-    estimateSize: () => pageHeight + GAP,
+    estimateSize: (index) => heightOf(index) + GAP,
     overscan: 2,
     paddingStart: PADDING,
-    // Room for the floating page bar under the last page.
-    paddingEnd: PADDING + 64,
-    // A page with no layout (in tests) keeps its estimate instead of collapsing to 0.
-    measureElement: (element, entry, instance) =>
-      measureElement(element, entry, instance) || pageHeight + GAP,
+    paddingEnd: PADDING_END,
     // A scroller with no height yet (or no layout at all, as in tests) counts as the window's.
     observeElementRect: (instance, onChange) =>
       observeElementRect(instance, (rect) => {
@@ -96,14 +104,16 @@ export function PdfViewer({
     virtualizer.scrollToIndex(Math.min(Math.max(page, 1), pageCount) - 1, { align: 'start' })
   }
 
-  // A new width, zoom or page shape changes every estimate; a zoom stays on the same page.
-  useEffect(() => {
+  // A new width (zoom, a panel opening beside the file) or the pages' shapes resize every page;
+  // the reader stays on the same spot of the same page. Before paint, so nothing jumps.
+  useLayoutEffect(() => {
     virtualizer.measure()
-    if (keep.current !== null) {
-      virtualizer.scrollToIndex(keep.current, { align: 'start' })
-      keep.current = null
-    }
-  }, [virtualizer, pageHeight])
+    const at = anchor.current
+    const element = scroller.current
+    if (!at || !element || at.index >= pageCount) return
+    element.scrollTop = (starts[at.index] ?? 0) + at.fraction * (heightOf(at.index) + GAP)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `starts` and `heightOf` follow these
+  }, [virtualizer, pageWidth, shapes])
 
   // Go to the requested page (the one the preview opened on, a contents entry, a search hit)
   // once the pages are laid out.
@@ -119,7 +129,22 @@ export function PdfViewer({
 
   return (
     <>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-auto">
+      <div
+        ref={scroller}
+        className="min-h-0 flex-1 overflow-auto"
+        onScroll={(event) => {
+          const top = event.currentTarget.scrollTop
+          const index = Math.max(
+            starts.findLastIndex((start) => start <= top),
+            0,
+          )
+          const size = heightOf(index) + GAP
+          anchor.current =
+            pageCount > 0
+              ? { index, fraction: Math.min(Math.max((top - (starts[index] ?? 0)) / size, 0), 1) }
+              : null
+        }}
+      >
         <Document
           file={url}
           options={OPTIONS}
@@ -127,18 +152,18 @@ export function PdfViewer({
           externalLinkRel="noopener noreferrer"
           suspense={false}
           onLoadSuccess={(pdf) => {
-            // Estimate every page from the first one's shape before laying them out, so opening
-            // on a later page lands there; rendered pages are measured.
-            const laidOut = (shape = DEFAULT_RATIO) => {
-              setRatio(shape)
-              setPageCount(pdf.numPages)
-            }
-            pdf.getPage(1).then(
-              (first) => {
-                const { width: w, height: h } = first.getViewport({ scale: 1 })
-                laidOut(w > 0 && h > 0 ? h / w : undefined)
-              },
-              () => laidOut(),
+            // Lay the pages out once their shapes are known, so opening on a later page lands
+            // there. A page that can't be read keeps the default shape (and shows its error).
+            const shapeOf = (n: number) =>
+              pdf.getPage(n).then(
+                (page) => {
+                  const { width: w, height: h } = page.getViewport({ scale: 1 })
+                  return w > 0 && h > 0 ? h / w : DEFAULT_RATIO
+                },
+                () => DEFAULT_RATIO,
+              )
+            void Promise.all(Array.from({ length: pdf.numPages }, (_, n) => shapeOf(n + 1))).then(
+              setShapes,
             )
           }}
           loading={
@@ -155,7 +180,7 @@ export function PdfViewer({
           <div
             className="relative"
             style={{
-              height: virtualizer.getTotalSize(),
+              height: totalSize,
               // Zoomed past the window, the pages scroll sideways too.
               width: Math.max(pageWidth + 2 * PADDING, width ?? 0),
             }}
@@ -164,14 +189,17 @@ export function PdfViewer({
               <div
                 key={item.key}
                 data-index={item.index}
-                ref={virtualizer.measureElement}
                 className="absolute top-0 left-0 flex w-full justify-center"
-                style={{ transform: `translateY(${item.start}px)`, paddingBottom: GAP }}
+                style={{
+                  transform: `translateY(${item.start}px)`,
+                  height: item.size,
+                  paddingBottom: GAP,
+                }}
               >
                 <PdfPage
                   pageNumber={item.index + 1}
                   width={pageWidth}
-                  height={pageHeight}
+                  height={heightOf(item.index)}
                   terms={terms}
                 />
               </div>
@@ -185,10 +213,7 @@ export function PdfViewer({
           total={pageCount}
           onPage={show}
           zoom={zoom}
-          onZoom={(next) => {
-            keep.current = current
-            setZoom(next)
-          }}
+          onZoom={setZoom}
         />
       ) : null}
     </>

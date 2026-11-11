@@ -84,10 +84,21 @@ export function DocumentText({
     }
   }, [terms, query.data])
 
-  // Bring the requested page into view once it has rendered.
+  // Bring each requested page into view once, when it has rendered (not again on a refetch).
+  const scrolledTo = useRef<PageTarget | undefined>(undefined)
   useEffect(() => {
-    if (query.data && target) document.getElementById(pageId(itemId, target.page))?.scrollIntoView()
+    if (!query.data || !target || target === scrolledTo.current) return
+    const section = document.getElementById(pageId(itemId, target.page))
+    if (!section) return
+    section.scrollIntoView()
+    scrolledTo.current = target
   }, [query.data, itemId, target])
+
+  // Earlier or later pages: load them from `page` and show that page.
+  const turnTo = (page: number) => {
+    setFrom(page)
+    onNavigate(page)
+  }
 
   // The page being read is the topmost one in view.
   useEffect(() => {
@@ -123,7 +134,7 @@ export function DocumentText({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setFrom(Math.max(1, from - READ_WINDOW))}
+                  onClick={() => turnTo(Math.max(1, from - READ_WINDOW))}
                 >
                   {m.files_preview_earlier_pages()}
                 </Button>
@@ -142,7 +153,7 @@ export function DocumentText({
                 </section>
               ))}
               {doc.next_page ? (
-                <Button variant="outline" size="sm" onClick={() => setFrom(doc.next_page ?? from)}>
+                <Button variant="outline" size="sm" onClick={() => turnTo(doc.next_page ?? from)}>
                   {m.files_preview_later_pages()}
                 </Button>
               ) : null}
