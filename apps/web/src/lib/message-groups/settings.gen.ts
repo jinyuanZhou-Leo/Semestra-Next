@@ -225,6 +225,8 @@ export const settingsMessages = {
   settings_tasks_default_priority_option_none: m.settings_tasks_default_priority_option_none,
   settings_tasks_show_completed_in_lists_description: m.settings_tasks_show_completed_in_lists_description,
   settings_tasks_show_completed_in_lists_label: m.settings_tasks_show_completed_in_lists_label,
+  settings_tasks_smart_parsing_description: m.settings_tasks_smart_parsing_description,
+  settings_tasks_smart_parsing_label: m.settings_tasks_smart_parsing_label,
   settings_theme_dark: m.settings_theme_dark,
   settings_theme_label: m.settings_theme_label,
   settings_theme_light: m.settings_theme_light,

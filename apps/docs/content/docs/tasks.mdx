@@ -1,0 +1,34 @@
+---
+title: Tasks
+description: Add tasks by typing; dates, times, priority marks and course codes in the title are recognized.
+icon: ListTodo
+---
+
+**New task**, or the empty circle at the end of a list, opens a new task in place: its title,
+notes, and chips for the due date, time, priority, course and flag. A new task starts from the
+list it is added to, so one added in **Today** is due today and one added on a course's page is
+in that course. **Enter** adds it and leaves the row open for the next one; **Esc** drops it.
+
+## Typing dates, priorities and courses
+
+Write the details into the title and the chips follow as you type:
+
+| You type | It sets |
+|---|---|
+| `Fri`, `tomorrow 5pm`, `next Monday 11:59pm`, `Nov 20`, `in 3 days` | The due date, and the time if there is one |
+| `!`, `!!`, `!!!` | Low, medium or high priority |
+| A course code, such as `APS105` or `aps 105h1` | The course |
+
+`Fri 5pm APS105 lab report !!!` adds "lab report", due Friday at 5:00 PM, in APS105H1, with
+high priority. Chinese works too: `明天下午3点 复习 !!`.
+
+- The recognized words are highlighted, and the chips they set are highlighted the same way. They
+  are left out of the saved title.
+- Click a highlighted word to keep it as plain text.
+- Picking a chip by hand overrides the title.
+- Dates count from today in the program's time zone.
+- A course code is recognized when it matches one course: `MAT135` names nothing if you have
+  both MAT135H1 and MAT135H5. On a course's page the course is already set.
+- A title that is only a date, such as `tomorrow`, stays as typed.
+- Only new tasks are read this way. Renaming a task never changes its date.
+- To turn it off, go to program settings → **Tasks → Smart parsing**.

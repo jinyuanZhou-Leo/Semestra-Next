@@ -30,6 +30,10 @@ function chipClass(set: boolean) {
   return cn('rounded-full font-normal', !set && 'text-muted-foreground')
 }
 
+/** The tint of the words read from a new task's title and of the chips they set (as Sem's references). */
+export const TITLE_TINT =
+  'bg-primary/12 text-primary hover:bg-primary/18 dark:bg-primary/35 dark:text-foreground dark:hover:bg-primary/45'
+
 /** What the chips show and change: a saved task, or a new one being typed. */
 export type ChipValues = Pick<Task, 'due_date' | 'due_time' | 'priority' | 'course_id' | 'flagged'>
 
@@ -44,6 +48,7 @@ export function TaskChips({
   hideCourse,
   overdue = false,
   managed = false,
+  fromTitle,
   onChange,
 }: {
   task: ChipValues
@@ -55,6 +60,8 @@ export function TaskChips({
   overdue?: boolean
   /** An assessment's task follows it: date, time and course change in the gradebook. */
   managed?: boolean
+  /** Chips set by a new task's title, tinted like the words in it. */
+  fromTitle?: { date?: boolean; time?: boolean; priority?: boolean; course?: boolean }
   onChange: (body: TaskUpdateInputBody) => void
 }) {
   const [dateOpen, setDateOpen] = useState(false)
@@ -70,7 +77,11 @@ export function TaskChips({
               type="button"
               variant={task.due_date ? 'secondary' : 'outline'}
               size="xs"
-              className={cn(chipClass(task.due_date !== null), overdue && 'text-destructive')}
+              className={cn(
+                chipClass(task.due_date !== null),
+                overdue && 'text-destructive',
+                fromTitle?.date && TITLE_TINT,
+              )}
             />
           }
         >
@@ -107,7 +118,9 @@ export function TaskChips({
           ) : null}
         </PopoverContent>
       </Popover>
-      {task.due_date ? <TimeChip task={task} disabled={managed} onChange={onChange} /> : null}
+      {task.due_date ? (
+        <TimeChip task={task} disabled={managed} tinted={fromTitle?.time} onChange={onChange} />
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -115,7 +128,7 @@ export function TaskChips({
               type="button"
               variant={shown === 'none' ? 'outline' : 'secondary'}
               size="xs"
-              className={chipClass(shown !== 'none')}
+              className={cn(chipClass(shown !== 'none'), fromTitle?.priority && TITLE_TINT)}
             />
           }
         >
@@ -149,7 +162,11 @@ export function TaskChips({
                 type="button"
                 variant={course ? 'secondary' : 'outline'}
                 size="xs"
-                className={cn(chipClass(course !== undefined), 'max-w-48')}
+                className={cn(
+                  chipClass(course !== undefined),
+                  'max-w-48',
+                  fromTitle?.course && TITLE_TINT,
+                )}
               />
             }
           >
@@ -225,10 +242,12 @@ export function CourseMenuItems({
 function TimeChip({
   task,
   disabled,
+  tinted = false,
   onChange,
 }: {
   task: ChipValues
   disabled: boolean
+  tinted?: boolean
   onChange: (body: TaskUpdateInputBody) => void
 }) {
   const current = task.due_time?.slice(0, 5) ?? ''
@@ -273,7 +292,7 @@ function TimeChip({
       type="button"
       variant={current ? 'secondary' : 'outline'}
       size="xs"
-      className={chipClass(current !== '')}
+      className={cn(chipClass(current !== ''), tinted && TITLE_TINT)}
       disabled={disabled}
       onClick={() => setDraft(current)}
     >

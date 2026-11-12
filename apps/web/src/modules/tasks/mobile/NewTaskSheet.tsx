@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/ui/drawer'
-import { Input } from '@/ui/input'
 import { Textarea } from '@/ui/textarea'
-import { type ChipValues, TaskChips } from '../components/TaskChips'
+import { TaskChips } from '../components/TaskChips'
+import { TitleInput } from '../components/TitleInput'
+import { useNewTaskDraft } from '../draft'
 import { type NewTaskPlace, newTaskBody } from '../new-task'
 
 /**
@@ -19,6 +20,8 @@ export function NewTaskSheet({
   place,
   courses,
   today,
+  timezone,
+  smartParsing,
   onAdd,
 }: {
   open: boolean
@@ -26,22 +29,27 @@ export function NewTaskSheet({
   place: NewTaskPlace
   courses: readonly Course[]
   today: string
+  timezone: string
+  smartParsing: boolean
   onAdd: (body: TaskCreateInputBody) => Promise<unknown>
 }) {
-  const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
-  const [values, setValues] = useState<ChipValues>(place.initial)
+  const draft = useNewTaskDraft(place.initial, {
+    courses,
+    timezone,
+    readCourse: true,
+    enabled: smartParsing,
+  })
   const reset = () => {
-    setTitle('')
+    draft.reset()
     setNotes('')
-    setValues(place.initial)
   }
   const add = () => {
-    const next = title.trim()
-    if (!next) return false
-    const body = newTaskBody(place, { title: next, notes, values })
+    const typed = draft.title
+    if (!draft.savedTitle) return false
+    const body = newTaskBody(place, { title: draft.savedTitle, notes, values: draft.values })
     reset()
-    void onAdd(body).catch(() => setTitle((current) => current || next))
+    void onAdd(body).catch(() => draft.setTitle((current) => current || typed))
     return true
   }
   return (
@@ -67,16 +75,18 @@ export function NewTaskSheet({
           }}
         >
           <div className="flex flex-col gap-1">
-            <Input
+            <TitleInput
               // oxlint-disable-next-line jsx-a11y/no-autofocus -- the drawer opens to type a task
               autoFocus
-              value={title}
+              value={draft.title}
+              tokens={draft.tokens}
+              onKeep={draft.keep}
               maxLength={300}
               enterKeyHint="next"
               placeholder={m.tasks_new_row()}
               aria-label={m.tasks_new_row()}
-              className="h-11 border-0 bg-transparent px-0 text-lg font-medium shadow-none focus-visible:ring-0 dark:bg-transparent"
-              onChange={(event) => setTitle(event.target.value)}
+              className="block h-11 w-full bg-transparent p-0 text-lg font-medium outline-none placeholder:text-muted-foreground"
+              onChange={(event) => draft.setTitle(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
                 event.preventDefault()
@@ -93,13 +103,14 @@ export function NewTaskSheet({
             />
           </div>
           <TaskChips
-            task={values}
+            task={draft.values}
             courses={courses}
             today={today}
-            overdue={values.due_date !== null && values.due_date < today}
-            onChange={(body) => setValues((current) => ({ ...current, ...body }) as ChipValues)}
+            fromTitle={draft.fromTitle}
+            overdue={draft.values.due_date !== null && draft.values.due_date < today}
+            onChange={draft.change}
           />
-          <Button type="submit" className="h-11" disabled={!title.trim()}>
+          <Button type="submit" className="h-11" disabled={!draft.savedTitle}>
             {m.mobile_task_add()}
           </Button>
         </form>

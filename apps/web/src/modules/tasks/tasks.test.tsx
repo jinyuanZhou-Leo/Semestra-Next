@@ -345,6 +345,54 @@ test('the empty row at the end adds tasks one after another', async () => {
   expect(log.creates).toHaveLength(1)
 })
 
+test('a new title sets the date, priority and course it names; a pressed word stays text', async () => {
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await screen.findByText('Lab report')
+  await userEvent.click(screen.getAllByRole('button', { name: 'New task' })[0]!)
+  const input = screen.getByRole('textbox', { name: 'New task' })
+  await userEvent.type(input, 'Fri 5pm aps105 lab report !!!')
+  const row = within(input.closest('li')!)
+  // The date reader loads on first use.
+  expect(await row.findByRole('button', { name: /5:00/ })).toBeTruthy()
+  expect(row.getByRole('button', { name: /High/ })).toBeTruthy()
+  expect(row.getByRole('button', { name: /APS105H1/ })).toBeTruthy()
+  await userEvent.type(input, '{Enter}')
+  await waitFor(() => expect(log.creates).toHaveLength(1))
+  expect(log.creates[0]).toMatchObject({
+    title: 'lab report',
+    due_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    due_time: '17:00',
+    priority: 'high',
+    course_id: 'c1',
+  })
+
+  // The words are tinted on a copy laid over the field, hidden from screen readers.
+  await userEvent.type(input, 'Fri lab report !!')
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Keep “Fri” as text', hidden: true }),
+  )
+  await userEvent.type(input, '{Enter}')
+  await waitFor(() => expect(log.creates).toHaveLength(2))
+  expect(log.creates[1]).toEqual({ title: 'Fri lab report', priority: 'medium' })
+})
+
+test('with smart parsing off the title is saved as typed', async () => {
+  server.use(
+    http.get(`${API}/me/settings/tasks`, () =>
+      HttpResponse.json({ namespace: 'tasks', values: { smart_parsing: false }, inherited: {} }),
+    ),
+  )
+  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  await screen.findByText('Lab report')
+  await userEvent.click(screen.getAllByRole('button', { name: 'New task' })[0]!)
+  await userEvent.type(
+    screen.getByRole('textbox', { name: 'New task' }),
+    'Fri lab report !!!{Enter}',
+  )
+  await waitFor(() => expect(log.creates).toHaveLength(1))
+  expect(log.creates[0]).toEqual({ title: 'Fri lab report !!!' })
+})
+
 test('"Edit details" opens the side panel, and saving closes it', async () => {
   renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
   await userEvent.click(await screen.findByRole('button', { name: 'More actions for Lab report' }))

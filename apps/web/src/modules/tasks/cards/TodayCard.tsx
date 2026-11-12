@@ -6,13 +6,14 @@ import { useTaskActions } from '../actions'
 import { CompactTasks } from '../components/CompactTasks'
 import { NewTaskRow } from '../components/NewTaskRow'
 import { closeNewTask, newTaskPlace, useNewTaskOpen } from '../new-task'
-import { useProgramToday, useTaskSettings, useTodayTasks } from '../queries'
+import { useProgramTimezone, useProgramToday, useTaskSettings, useTodayTasks } from '../queries'
 
 /** Tasks due today and overdue ones; the header's add button adds one due today (M05 §5.3). */
 export default function TodayCard({ scope, instanceId }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
   const tasks = useTodayTasks(scope.programId, termId).data?.items
   const { actions } = useTaskActions()
+  const timezone = useProgramTimezone(scope.programId)
   const today = useProgramToday(scope.programId)
   const settings = useTaskSettings(scope.programId)
   const openKey = useNewTaskOpen(instanceId)
@@ -37,6 +38,8 @@ export default function TodayCard({ scope, instanceId }: CardProps) {
               )}
               courses={courses ?? []}
               today={today}
+              timezone={timezone}
+              smartParsing={settings.smart_parsing}
               onAdd={(body) => actions.create(scope.programId, body)}
             />
           )
