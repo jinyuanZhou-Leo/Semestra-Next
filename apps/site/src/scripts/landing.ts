@@ -4,6 +4,7 @@
 const nav = document.getElementById('nav')
 const stage = document.querySelector<HTMLElement>('.stage')
 const tilt = document.getElementById('tilt')
+const floats = [...document.querySelectorAll<HTMLElement>('.float')]
 const layers = [...document.querySelectorAll<HTMLElement>('[data-depth]')]
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -38,14 +39,32 @@ if (track && prev && next) {
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v))
 
 // Start the entrance only when the hero images are ready, so its first frames are not spent decoding.
+// Each lifted piece then waits until most of it is in view: on a short screen the lower ones are
+// still below the fold. One that comes in later, by scrolling, lifts at once instead of after the
+// staggered delay it has on load.
 if (stage) {
   const imgs = [...stage.querySelectorAll('img')].filter((i) => i.offsetParent !== null)
-  void Promise.all(imgs.map((i) => i.decode().catch(() => undefined))).then(() =>
-    stage.classList.add('go'),
-  )
+  void Promise.all(imgs.map((i) => i.decode().catch(() => undefined))).then(() => {
+    stage.classList.add('go')
+    const start = performance.now()
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue
+          const piece = e.target as HTMLElement
+          if (performance.now() - start > 500)
+            (piece.firstElementChild as HTMLElement).style.animationDelay = '0s'
+          piece.classList.add('up')
+          seen.unobserve(piece)
+        }
+      },
+      { threshold: 0.6 },
+    )
+    floats.forEach((f) => seen.observe(f))
+  })
 }
 
-// Browsers without scroll-driven animations get the same lean from here, one transform per frame.
+// Browsers without scroll-driven animations get the same lean and depth from here, one transform each.
 const tiltByScript = !reduce && tilt !== null && !CSS.supports('animation-timeline: scroll()')
 
 function frame() {
@@ -56,6 +75,8 @@ function frame() {
     const p = clamp(scrollY / (vh * 0.7))
     const [deg, s] = innerWidth < 900 ? [14, 0.94] : [24, 0.9]
     tilt.style.transform = `rotateX(${deg * (1 - p)}deg) scale(${s + (1 - s) * p})`
+    for (const f of floats)
+      f.style.transform = `translate3d(0, 0, calc(var(--z) * ${1 - 0.55 * p}))`
   }
   // Layered panels drift at different speeds while they cross the viewport.
   for (const el of layers) {
