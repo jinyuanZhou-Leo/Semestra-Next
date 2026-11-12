@@ -2492,7 +2492,7 @@
   "lms_sync_field_weight": "权重",
   "lms_sync_field_score": "成绩",
   "lms_sync_change": "{title} {field}",
-  "lms_sync_different": "与 {provider} 不同 {count} 项",
+  "lms_sync_different": "与 {provider} 不同",
   "lms_sync_different_values": "你的：{mine} · {provider}：{platform}",
   "lms_sync_follow": "改回 {provider} 的值",
   "lms_sync_follow_value": "改回 {provider} 的值：{value}",

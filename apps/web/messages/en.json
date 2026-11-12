@@ -2492,7 +2492,7 @@
   "lms_sync_field_weight": "weight",
   "lms_sync_field_score": "grade",
   "lms_sync_change": "{title} {field}",
-  "lms_sync_different": "{count} different from {provider}",
+  "lms_sync_different": "Different from {provider}",
   "lms_sync_different_values": "Yours: {mine} · {provider}: {platform}",
   "lms_sync_follow": "Use the {provider} value",
   "lms_sync_follow_value": "Use the {provider} value: {value}",

@@ -211,11 +211,11 @@ test('a field set apart from the platform takes its value back from the panel', 
     }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  await userEvent.click(await screen.findByRole('button', { name: '1 different from Canvas' }))
+  await userEvent.click(await screen.findByRole('button', { name: /^Different from Canvas\s*1$/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Use the Canvas value' }))
   await waitFor(() => expect(sent).toHaveBeenCalledWith({ field: 'due_at' }))
   await waitFor(() =>
-    expect(screen.queryByRole('button', { name: /different from Canvas/ })).not.toBeInTheDocument(),
+    expect(screen.queryByRole('button', { name: /Different from Canvas/ })).not.toBeInTheDocument(),
   )
 })
 

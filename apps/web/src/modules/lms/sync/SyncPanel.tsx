@@ -326,7 +326,10 @@ function Panel({
               }
             >
               <ChevronRight aria-hidden className="transition-transform" />
-              {m.lms_sync_different({ provider, count: status.different.length })}
+              {m.lms_sync_different({ provider })}
+              <span className="text-muted-foreground/70 tabular-nums">
+                {status.different.length}
+              </span>
             </CollapsibleTrigger>
             <CollapsibleContent className="flex flex-col gap-2">
               {byCourse(status.different).map((group) => (
