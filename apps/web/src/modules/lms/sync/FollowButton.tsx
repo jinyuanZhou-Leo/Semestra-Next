@@ -35,9 +35,7 @@ export function FollowButton({ targetId, field, onApply }: FieldOriginProps) {
         <CloudDownload aria-hidden />
       </TooltipTrigger>
       <TooltipContent>
-        {differs.platform === null
-          ? m.lms_sync_follow_empty({ provider })
-          : m.lms_sync_follow_value({ provider, value: formatValue(field, differs.platform) })}
+        {m.lms_sync_follow_value({ provider, value: formatValue(field, differs.platform) })}
       </TooltipContent>
     </Tooltip>
   )

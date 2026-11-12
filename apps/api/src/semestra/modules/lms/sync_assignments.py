@@ -32,7 +32,7 @@ from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
-from semestra.modules.lms.rules import Action, diverged, held, merge, platform_value, same
+from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
@@ -109,8 +109,8 @@ def differences(
     ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo
 ) -> list[tuple[SyncField, Any, Any]]:
     """The fields of an imported object that the user set apart from the platform and nobody is
-    asked about: `(field, mine, platform)`, the platform value being the last one seen (empty
-    too: a due date, weight or grade the user filled in where the platform has none)."""
+    asked about: `(field, mine, platform)`, the platform value being the last one seen. A field
+    the platform leaves empty (no due date, no grade yet, no weight) is the user's to fill in."""
     out: list[tuple[SyncField, Any, Any]] = []
     for name in FIELDS[ref.target_kind or "task"]:
         if name in ref.conflicts:
@@ -355,7 +355,6 @@ async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
         if choice != "platform" or name not in found:
             raise lms_error("lms.sync_nothing_to_resolve")
         mine, p = found[name]
-        p = held(name, p)
         await write(ctx, ref, name, p)
         await _log(ctx, ref, name, mine, p, title)
     await ctx.db.flush()

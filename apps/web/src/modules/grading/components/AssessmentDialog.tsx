@@ -110,14 +110,8 @@ function AssessmentForm({
         field={field}
         onApply={(value: OriginValue) => {
           if (field === 'title') setTitle(String(value))
-          else if (field === 'weight') setWeight(String(value ?? 0))
-          else if (value === null) {
-            // The source has none: no due date, no grade.
-            if (field === 'due_at') {
-              setDueDate('')
-              setDueTime('')
-            } else setScore('')
-          } else if (field === 'due_at' && typeof value === 'object' && 'date' in value) {
+          else if (field === 'weight') setWeight(String(value))
+          else if (field === 'due_at' && typeof value === 'object' && 'date' in value) {
             setDueDate(value.date)
             setDueTime(value.time?.slice(0, 5) ?? '')
           } else if (field === 'score' && typeof value === 'object' && !('date' in value)) {

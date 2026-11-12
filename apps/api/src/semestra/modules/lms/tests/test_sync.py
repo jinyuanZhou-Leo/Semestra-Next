@@ -511,7 +511,7 @@ async def test_due_times_compare_to_the_minute(api: Api, fake: FakeProvider):
     assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-07"
 
 
-async def test_a_grade_taken_back_on_the_platform_is_no_longer_asked_about(
+async def test_a_grade_taken_back_on_the_platform_is_no_longer_offered(
     api: Api, fake: FakeProvider
 ):
     program_id, course = await _course(api, "a2")
@@ -524,17 +524,7 @@ async def test_a_grade_taken_back_on_the_platform_is_no_longer_asked_about(
     labs[1] = labs[1].model_copy(update={"submission": None})
     status = await api.sync(program_id)
     assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
-    # The grade the user entered where the platform has none is set apart, and can be cleared.
-    [entered] = status["different"]
-    assert (entered["field"], entered["mine"], entered["platform"]) == (
-        "score",
-        {"score_percentage": 50},
-        None,
-    )
-    path = f"/lms/sync/items/{entered['id']}/fields/score:resolve"
-    status = await api.call("POST", path, json={"choice": "platform"})
     assert status["different"] == []
-    assert (await _assessments(api, course))["a2"]["score_percentage"] is None
 
 
 async def test_editing_an_imported_item_refreshes_the_sync_panel(api: Api, app: FastAPI):

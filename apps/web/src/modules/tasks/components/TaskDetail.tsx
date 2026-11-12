@@ -220,9 +220,7 @@ export function TaskDetail({
                   targetId={task.id}
                   field="due_at"
                   onApply={(value) => {
-                    if (value === null) {
-                      setDraft((c) => ({ ...c, due_date: null, due_time: null }))
-                    } else if (typeof value === 'object' && 'date' in value) {
+                    if (typeof value === 'object' && 'date' in value) {
                       setDraft((c) => ({
                         ...c,
                         due_date: value.date,

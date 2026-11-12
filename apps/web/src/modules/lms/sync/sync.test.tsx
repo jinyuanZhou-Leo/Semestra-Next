@@ -253,30 +253,3 @@ test('editing an assessment puts the platform value of a field that differs into
     ),
   )
 })
-
-test('a due date filled in where the platform has none is cleared from the form', async () => {
-  const saved = vi.fn<(body: unknown) => void>()
-  server.use(
-    ...handlers(status({ different: [{ ...MOVED, platform: null }] })),
-    http.patch(`${API}/assessments/a3`, async ({ request }) => {
-      saved(await request.json())
-      return HttpResponse.json(assessment({ id: 'a3' }))
-    }),
-  )
-  renderWithRouter(
-    <AssessmentDialog
-      open
-      onOpenChange={() => undefined}
-      courseId="c1"
-      categories={[]}
-      assessment={assessment({ id: 'a3', due_date: '2026-11-04', due_time: '23:59' })}
-    />,
-    undefined,
-    IN_PROGRAM,
-  )
-  await userEvent.click(await screen.findByRole('button', { name: 'Use the Canvas value' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  await waitFor(() =>
-    expect(saved).toHaveBeenCalledWith(expect.objectContaining({ due_date: null })),
-  )
-})
