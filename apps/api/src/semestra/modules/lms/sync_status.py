@@ -19,7 +19,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
-from semestra.modules.lms.sync_assignments import local_values
+from semestra.modules.lms.sync_assignments import local_values, toggleable
 
 # How long the panel lists what the sync changed (and the user can put it back).
 CHANGES_KEPT = timedelta(days=14)
@@ -126,6 +126,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             .limit(RECENT_MAX)
         )
     ).all()
+    can_toggle = await toggleable(ctx, [(change, ref) for change, ref in rows])
     recent = [
         SyncChange(
             id=change.id,
@@ -137,6 +138,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             new=change.new,
             at=change.at,
             reverted=change.reverted_at is not None,
+            toggleable=change.id in can_toggle,
         )
         for change, ref in rows
     ]

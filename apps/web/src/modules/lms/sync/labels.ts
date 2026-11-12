@@ -1,4 +1,4 @@
-import type { SyncChange, SyncItem } from '@semestra/api-client'
+import type { SyncItem } from '@semestra/api-client'
 import { formatDate, formatPercent, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
@@ -34,25 +34,6 @@ export function formatValue(field: string, value: unknown): string {
     return score.score_percentage != null ? formatPercent(score.score_percentage / 100) : '—'
   }
   return String(value)
-}
-
-/** "A2 due date · Quiz 3 grade · 3 more": the first changes, for a toast. */
-export function summarizeChanges(changes: readonly SyncChange[], max = 2): string {
-  const named = changes
-    .slice(0, max)
-    .map((c) => m.lms_sync_change({ title: c.title, field: fieldLabel(c.field) }))
-  if (changes.length > max) named.push(m.lms_sync_and_more({ count: changes.length - max }))
-  return named.join(' · ')
-}
-
-/** "CSC148 A3, Lab 9 · MAT137 PS7": new items by course. */
-export function summarizeItems(items: readonly SyncItem[]): string {
-  return byCourse(items)
-    .map(
-      (group) =>
-        `${group.items[0]?.course ?? ''} ${group.items.map((i) => i.title).join(m.common_list_separator())}`,
-    )
-    .join(' · ')
 }
 
 /** New items grouped by course, in the order they come (soonest due first). */

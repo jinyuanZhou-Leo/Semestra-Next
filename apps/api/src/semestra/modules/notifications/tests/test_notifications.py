@@ -369,7 +369,12 @@ async def test_events_become_notifications_unless_turned_off(
 
 
 async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
-    app: FastAPI, client: AsyncClient, user: UserHandle, push: respx.MockRouter
+    app: FastAPI,
+    client: AsyncClient,
+    user: UserHandle,
+    push: respx.MockRouter,
+    clock: Clock,
+    run_jobs: Callable[[], Awaitable[None]],
 ) -> None:
     browser = Browser()
     await call(client, "POST", "/me/notifications/devices", json=browser.subscription())
@@ -390,6 +395,8 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
             {"change_id": "c1", "name": "Lab 1", "field": "score"},
             {"change_id": "c2", "name": "Lab 1", "field": "due_at"},
             {"change_id": "c3", "name": "Midterm", "field": "due_at"},
+            # A weight alone is not told (a new assignment in a group moves all of them).
+            {"change_id": "c4", "name": "Quiz 2", "field": "weight"},
         ]
         notices = [{"kind": "announcement", "external_id": "n1", "title": "Room change"}]
         data = {"course_id": course_id, "program_id": program_id, "applied": applied,
@@ -408,6 +415,16 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "all"}})
     told = await synced()
     assert told["New announcement in APS105H1"]["hidden_only"] is False
+    # In quiet hours (it is 07:00 in Toronto) the news waits until they end.
+    quiet = {"quiet_hours": True, "quiet_start": "06:00", "quiet_end": "08:00"}
+    await call(client, "PATCH", "/me/settings/notifications", json={"values": quiet})
+    assert await synced() == {}
+    before = len(received(push, browser))
+    await run_jobs()
+    assert len(received(push, browser)) == before
+    clock.advance(hours=1, minutes=1)
+    await run_jobs()
+    assert len(received(push, browser)) == before + 3
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "off"}})
     assert await synced() == {}
 

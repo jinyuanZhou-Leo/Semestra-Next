@@ -5,6 +5,7 @@ user, and the scheduler syncs what is due."""
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -15,6 +16,7 @@ from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import Announcement, Submission
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
+from semestra.modules.notifications import service as notifications
 from semestra.testing import Clock, collect_events
 
 pytestmark = pytest.mark.usefixtures("fake")
@@ -67,6 +69,11 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
     status = await api.call("POST", f"/lms/sync/changes/{title['id']}:revert")
     assert next(c for c in status["recent"] if c["id"] == title["id"])["reverted"]
     assert (await _assessments(api, course))["a1"]["title"] == "Lab 1"
+    # ...and putting it back can be undone too.
+    status = await api.call("POST", f"/lms/sync/changes/{title['id']}:reapply")
+    assert not next(c for c in status["recent"] if c["id"] == title["id"])["reverted"]
+    assert (await _assessments(api, course))["a1"]["title"] == "Lab 1 (revised)"
+    await api.call("POST", f"/lms/sync/changes/{title['id']}:revert")
     clock.advance(minutes=1)
     status = await api.sync(program_id)
     assert status["pending"] == []  # the platform did not change it again
@@ -99,6 +106,44 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
         "POST", f"/lms/sync/items/{asked['id']}:resolve", 409, json={"choice": "platform"}
     )
     assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+
+async def test_what_changed_again_since_is_neither_asked_about_nor_undone(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    program_id, course = await _course(api, "a1")
+    labs = fake.course_assignments["101"]
+    original = labs[0]
+    lab = (await _assessments(api, course))["a1"]
+    # Both sides renamed it: asked. The platform took its name back: nothing left to ask.
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"title": "Lab 1 (mine)"})
+    labs[0] = original.model_copy(update={"name": "Lab 1 (v2)"})
+
+    def asked(status: dict[str, Any]) -> list[dict[str, Any]]:
+        return [i for i in status["pending"] if i["kind"] == "conflict"]
+
+    assert len(asked(await api.sync(program_id))) == 1
+    labs[0] = original
+    assert asked(await api.sync(program_id)) == []
+
+    # Moved twice: only the newer move can be undone, and not once the user moved it too.
+    labs[0] = original.model_copy(update={"due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)})
+    await api.sync(program_id)
+    clock.advance(minutes=1)
+    labs[0] = original.model_copy(update={"due_at": datetime(2026, 2, 14, 4, 59, tzinfo=UTC)})
+    status = await api.sync(program_id)
+    first, second = sorted(
+        (c for c in status["recent"] if c["field"] == "due_at"), key=lambda c: c["at"]
+    )
+    assert (first["toggleable"], second["toggleable"]) == (False, True)
+    err = await api.call("POST", f"/lms/sync/changes/{first['id']}:revert", 409)
+    assert err["error"]["code"] == "lms.sync_change_outdated"
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"due_date": "2026-02-20"})
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert not next(c for c in status["recent"] if c["id"] == second["id"])["toggleable"]
+    err = await api.call("POST", f"/lms/sync/changes/{second['id']}:revert", 409)
+    assert err["error"]["code"] == "lms.sync_change_outdated"
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-20"
 
 
 async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake: FakeProvider):
@@ -304,15 +349,28 @@ async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Cl
     # Opening the app syncs what was not synced in the last half hour.
     queued = await api.call("POST", f"/programs/{program_id}/lms/sync", json={})
     assert queued["queued"] == 0
-    # An account not used for weeks is left until it comes back.
+    # An account not used for weeks is left until it comes back, unless it hears of the
+    # platform's news on a device.
     clock.advance(days=15)
-    async with system_ctx(app.state) as ctx:
-        await sync.sync_due(ctx)
-        await ctx.db.commit()
-    async with system_ctx(app.state) as ctx:
-        assert not await ctx.db.scalar(
-            sync.select(sync.CoreJob.id).where(sync.CoreJob.status == "pending")
-        )
+
+    async def queued_while_away() -> bool:
+        async with system_ctx(app.state) as ctx:
+            await sync.sync_due(ctx)
+            await ctx.db.commit()
+        async with system_ctx(app.state) as ctx:
+            found = await ctx.db.scalar(
+                sync.select(sync.CoreJob.id).where(
+                    sync.CoreJob.kind == sync.JOB, sync.CoreJob.status == "pending"
+                )
+            )
+        await api.run_jobs()
+        return found is not None
+
+    assert not await queued_while_away()
+    with patch.object(
+        notifications, "users_with_devices", AsyncMock(side_effect=lambda _c, u: set(u))
+    ):
+        assert await queued_while_away()
 
 
 async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clock: Clock):

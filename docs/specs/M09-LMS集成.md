@@ -123,12 +123,12 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ### 4.1 后台同步（2026-11-12，迁移 0046）
 - **任务**：每门课一个任务 `lms.course.sync`（去重键 `lms.course.sync:<course_id>`，`listed=False`：不进状态栏的任务列表，同步有自己的状态行）。按顺序跑注册的阶段（`sync.register_sync_stage(name, run, order, enabled)`）：`course`（0，刷新关联的外部元数据）、`assignments`（20）、`announcements`（40）；M07 的文件同步以后作为新阶段加入。每个阶段先读平台、再在自己的事务里写；出错的阶段把错误码记进 `lms_course_links.sync_errors`，其余阶段照跑；只有第一个阶段失败（读不到课程本身，多半是连接坏了）才结束这次同步。全部跑完后推进 `synced_at`，发 `lms.course.synced`（`{course_id, program_id, manual, applied[{change_id, name, field}], notices[{kind, external_id, title}], pending, errors}`）与 `lms.sync.updated {program_id}`。连接错误照常由 `service.attempt` 记到连接上（替代原来每 6 小时的 `lms.refresh_status`）。
-- **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多排 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用的账户、`sync_enabled`、连接有凭证、学期在进行/未开始/结束不到 30 天的课程。② 打开学业项目时前端请求一次（`lms.sync.request`，不带 `force`）：只排 30 分钟内没同步过的。③ 用户手动（状态行面板“立即同步”、命令面板“同步学习平台”、课程设置的“立即同步”，`force=true`）：全部排上。
+- **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多排 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用的账户（离开更久但开着学习平台通知、有推送设备的账户照常同步，否则通知收不到），`sync_enabled`、连接有凭证、学期在进行/未开始/结束不到 30 天的课程。② 打开学业项目时前端请求一次（`lms.sync.request`，不带 `force`）：只排 30 分钟内没同步过的。③ 用户手动（状态行面板“立即同步”、命令面板“同步学习平台”、课程设置的“立即同步”，`force=true`）：全部排上。
 - **频率**：`lms.sync_every` ∈ 15m / 30m / 1h / 6h（默认）/ 1d。环境变量 `SEMESTRA_LMS_SYNC_MIN_INTERVAL`（默认 `15m`）是下限：设置表单经 `register_settings(adapt=…)` 只列出不短于下限的选项，已存的更短值按下限执行。托管版设为 `1h`。
-- **作业怎样跟随**（`sync_assignments.py`）：字段为标题、截止、权重（按作业组推算的实际权重）和成绩（只对考核）。对每个字段比较平台值 p、快照 s 与本地值 mine：p = mine → 推进快照；p = s → 平台没改，保留用户的值；mine = s（或权重从没设过）→ 写入 p（经 `grading.assessment.update` / `tasks.item.update`），记一条 `lms_sync_changes`，推进快照；否则两边都改过 → 记进 `conflicts` 等用户决定。平台上不见了的已导入项记 `removed_at`（作业列表被截断时不判断）。还没导入、截止在未来的作业建一条没有 target 的记录，作为“新作业”提醒；过了截止、或在平台上消失的未忽略记录直接删掉。`lms.assignment.bind` 绑定手动添加的考核时快照用 `bound_snapshot`（截止、权重、成绩记为未见），所以下一次同步补上考核缺的值、两边都有且不同的作为冲突询问。
-- **用户的回答**：`lms.sync.resolve`（`choice`：冲突 `platform`/`mine`，删除项 `keep`/`delete`）、`lms.sync.dismiss`（忽略或重新提醒新作业）、`lms.sync.change.revert`（撤销一条变更：写回旧值，快照保持平台值，所以下次不会再改回去）。三者都返回最新的 `SyncStatus`。
+- **作业怎样跟随**（`sync_assignments.py`）：字段为标题、截止、权重（按作业组推算的实际权重）和成绩（只对考核）。对每个字段比较平台值 p、快照 s 与本地值 mine：p = mine → 推进快照；p = s → 平台没改，保留用户的值；mine = s（或权重从没设过）→ 写入 p（经 `grading.assessment.update` / `tasks.item.update`），记一条 `lms_sync_changes`，推进快照；否则两边都改过 → 记进 `conflicts` 等用户决定。p = s 时同时清掉这个字段旧的冲突：用户已经把值改成别的或平台改回去了，就不再询问。平台上不见了的已导入项记 `removed_at`（作业列表被截断时不判断）。还没导入、截止在未来的作业建一条没有 target 的记录，作为“新作业”提醒；过了截止、或在平台上消失的未忽略记录直接删掉。`lms.assignment.bind` 绑定手动添加的考核时快照用 `bound_snapshot`（截止、权重、成绩记为未见），所以下一次同步补上考核缺的值、两边都有且不同的作为冲突询问。
+- **用户的回答**：`lms.sync.resolve`（`choice`：冲突 `platform`/`mine`，删除项 `keep`/`delete`）、`lms.sync.dismiss`（忽略或重新提醒新作业）、`lms.sync.change.revert`（撤销一条变更：写回旧值，快照保持平台值，所以下次不会再改回去）。`lms.sync.change.reapply` 撤销还原（再写回新值）。两者都只对同一字段最新的那条、该字段没有待回答的冲突、且本地值仍是上一步留下的值（未还原时是新值，已还原时是旧值）有效（`SyncChange.toggleable`，面板只给这些行按钮）；否则 `lms.sync_change_outdated`（409），免得覆盖用户之后改的值。这些接口都返回最新的 `SyncStatus`。
 - **状态**（`sync_status.py`，只读库）：`lms.sync.status` 返回连接错误、频率、课程数、最早的 `synced_at`、是否在同步、待处理（冲突、删除、新作业，按截止排序）、已忽略、最近 14 天的变更（最多 50 条）和各课程的阶段错误。
-- **通知**（M18）：`notifications/watch.py` 订阅 `lms.course.synced`：新成绩与变更用 `hidden_only`，新公告只在 `notifications.lms = all` 时发。公告“新”看 `watched_at` 之后发布的；`watched_at` 为空或早于 2 天前时这次只记下现状、不报。
+- **通知**（M18）：`notifications/watch.py` 订阅 `lms.course.synced`：新成绩与变更用 `hidden_only`，新公告只在 `notifications.lms = all` 时发。只改了权重的不单独通知。免打扰时段内的留到时段结束再发（M18 §4.4）。公告“新”看 `watched_at` 之后发布的；`watched_at` 为空或早于 2 天前时这次只记下现状、不报。
 - **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
 
 ## 5. Capabilities
@@ -168,6 +168,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.sync.resolve` | write | POST /lms/sync/items/{id}:resolve | 回答冲突或删除项；没有可回答的 → `lms.sync_nothing_to_resolve`（409）；只开放 HTTP |
 | `lms.sync.dismiss` | write | POST /programs/{id}/lms/sync:dismiss | `{item_ids, dismissed}` 忽略或重新提醒新作业；只开放 HTTP |
 | `lms.sync.change.revert` | write | POST /lms/sync/changes/{id}:revert | 撤销同步写入的一个字段；只开放 HTTP |
+| `lms.sync.change.reapply` | write | POST /lms/sync/changes/{id}:reapply | 撤销还原，再写回同步的值；只开放 HTTP |
 | `lms.course.outline` | read | GET /courses/{id}/lms/outline | Agent 用（第 8 节）：模块与全部条目（ref、锁定原因）、开放的栏目、外部工具、不在模块里的页面；`cursor` 分页 |
 | `lms.content.search` | read | GET /courses/{id}/lms/search | Agent 用：搜页面正文、公告、作业、测验、讨论、大纲、文件名和链接 |
 | `lms.content.read` | read | GET /courses/{id}/lms/content | Agent 用：按 ref 或 LMS 地址读任意条目的全文（Markdown），`offset` 分段 |
@@ -196,10 +197,10 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ### 7.2 导入流程
 - 学期向导、学期页和 Program 页的"从 LMS 导入课程"：勾选外部课程（默认只显示当前学期，可切换显示全部），选择目标学期，进入 M08 审核，提交后课程与关联同时创建。
-- 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。
-- 同步的界面（`modules/lms/sync/`，owner 2026-11-12）：不占页面空间，全部是浮层。
-  - **状态行**（`statusItems` 的 `lms.sync`，M10 §5.6）：学业项目绑定了平台就一直在。连接坏了是 `error`（“重新连接 {平台}”）；有待处理是 `attention`（`BellDot`，强调色，“{平台} · N 项待处理”）；同步中转圈；否则 `idle`（“{平台} · M 分钟前同步”）。点开是面板 `SyncPanel`：标题行（平台、上次同步与频率、“立即同步”），连接错误 Alert（“打开设置”），各课程的阶段错误，“待处理”（新作业按课程一行：忽略 / 导入；冲突：保留我的 / 用平台的；平台上已删除：保留 / 删除（确认）），“最近更新”（悬停出现“撤销”），可折叠的“已忽略”（重新提醒 / 导入）。
-  - **提醒**（`SyncToasts`，manifest `overlays`）：打开学业项目时请求一次同步。有用户还没被告知的待处理项时弹一个不自动消失的 toast（只有新作业时“{平台} 上有新作业”+ 导入 / 忽略，否则“{平台}：N 项待处理”+ 查看 / 忽略），同步写入了东西时弹一个 8 秒的“已从 {平台} 更新”+ 查看；手动同步什么也没找到时说“{平台} 已是最新”。告知过的 id 记在 `useUiPref('lms.sync_told_pending' / 'lms.sync_told_changes', scope=programId)`，所以忽略 toast 不会在下次打开时重复，但新出现的项会再提醒。“查看”经 `openStatusPanel('lms.sync')` 打开状态行面板。
+- 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。同步面板里的“导入”走同一个接口，作业组到成绩分类的自动匹配不变。
+- 同步的界面（`modules/lms/sync/`，owner 2026-11-12）：只有状态行和它的面板，不弹 toast，也不占页面空间。
+  - **状态行**（`statusItems` 的 `lms.sync`，M10 §5.6）：学业项目绑定了平台就一直在。连接坏了是 `error`（“重新连接 {平台}”）；有待处理是 `attention`（`BellDot`，强调色，“{平台} · N 项待处理”）；同步中转圈；否则 `idle`（“{平台} · M 分钟前同步”）。点开是面板 `SyncPanel`：标题行（平台、上次同步与频率、“立即同步”），连接错误 Alert（“打开设置”），各课程的阶段错误，“待处理”（新作业按课程一行：忽略 / 导入；冲突：保留 / 更新；平台上已删除：保留 / 删除（确认）），“最近更新”（可切换的行悬停出现“还原”；还原过的显示“已还原”，悬停出现“撤销还原”），可折叠的“已忽略”（重新提醒 / 导入）。
+  - **打开时同步**（`SyncOnOpen`，manifest `overlays`）：打开学业项目时请求一次同步。同步的结果只体现在状态行上，不弹 toast（owner 2026-11-12：有状态行就够了）。
   - **命令面板**：“同步学习平台”（绑定了平台时可用），打开面板并强制同步。
 - 作业导入可以接着做：同一门课（同一关联）还有等待审核的作业导入（`source_meta.lms.kind == "assignments"`、状态 `ready`）时，再次导入不新建会话，只把还不在其中的作业补进去（作业组对应的分类按 `source_meta.lms.groups` 复用），没有新作业就直接返回那个会话，前端打开它的审核。
 - 未设置作业组权重的课程：导入的考核没有权重，带 `import.weight_missing`，所以会打开审核让用户填写（不按分值占比推算：课程总分变化后占比就过时了）。

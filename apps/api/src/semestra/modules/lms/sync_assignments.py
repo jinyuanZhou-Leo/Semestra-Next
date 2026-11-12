@@ -186,7 +186,9 @@ async def _follow(
             snap[name] = platform[name]
             conflicts.pop(name, None)
         elif same(name, p, s):
-            continue  # the platform did not change it: the user's value stays
+            # The platform did not change it: the user's value stays, and a conflict asked about
+            # a platform value since taken back has nothing left to ask.
+            conflicts.pop(name, None)
         elif same(name, mine, s) or (name == "weight" and s is None and not mine):
             # Untouched (a weight never set counts as untouched: it is 0 until set).
             await write(ctx, ref, name, p)
@@ -331,19 +333,62 @@ async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
     return link.program_id
 
 
-async def revert(ctx: Ctx, change_id: str) -> str:
-    """Puts back what the sync changed. The field then counts as the user's own: the
-    platform's next change to it asks instead of replacing it."""
+async def toggleable(ctx: Ctx, changes: list[tuple[LmsSyncChange, LmsImportedRef]]) -> set[str]:
+    """The changes that can still be put back, or applied again once put back: the newest of
+    their field, no question open about the field, and the field still holding what the change
+    (or putting it back) left there, so no later sync or edit is overwritten."""
+    newest: dict[tuple[str, str], LmsSyncChange] = {}
+    for change, _ in changes:
+        key = (change.ref_id, change.field)
+        if key not in newest or change.at > newest[key].at:
+            newest[key] = change
+    refs = {ref.id: ref for _, ref in changes if ref.target_id is not None}
+    if not refs:
+        return set()
+    link_ids = {ref.link_id for ref in refs.values()}
+    links = list(await ctx.db.scalars(select(LmsCourseLink).where(LmsCourseLink.id.in_(link_ids))))
+    programs = {li.id: await academics.get_program_row(ctx, li.program_id) for li in links}
+    local: dict[str, dict[str, Any]] = {}
+    for link_id, program in programs.items():
+        tz = ZoneInfo(program.timezone)
+        mine = [r for r in refs.values() if r.link_id == link_id]
+        local.update(await local_values(ctx, mine, tz))
+    return {
+        change.id
+        for change in newest.values()
+        if change.ref_id in local
+        and change.field not in refs[change.ref_id].conflicts
+        and same(
+            change.field,
+            local[change.ref_id].get(change.field),
+            change.old if change.reverted_at is not None else change.new,
+        )
+    }
+
+
+async def revert(ctx: Ctx, change_id: str, *, undone: bool = True) -> str:
+    """Puts back what the sync changed (`undone`), or applies it again. Put back, the field
+    counts as the user's own: the platform's next change to it asks instead of replacing it.
+    Only the newest change of a field, while the field still holds what the last step left."""
     change = await ctx.db.get(LmsSyncChange, change_id)
     if change is None or change.user_id != ctx.user_id:
         raise not_found("lms_change", change_id)
     ref, link = await _ref(ctx, change.ref_id)
-    if change.reverted_at is not None:
+    if (change.reverted_at is not None) == undone:
         return link.program_id
     if ref.target_id is None:
         raise lms_error("lms.sync_nothing_to_resolve")
-    await write(ctx, ref, change.field, change.old)
-    change.reverted_at = ctx.now
+    later = await ctx.db.scalar(
+        select(LmsSyncChange.id).where(
+            LmsSyncChange.ref_id == ref.id,
+            LmsSyncChange.field == change.field,
+            LmsSyncChange.at > change.at,
+        )
+    )
+    if later is not None or change.id not in await toggleable(ctx, [(change, ref)]):
+        raise lms_error("lms.sync_change_outdated")
+    await write(ctx, ref, change.field, change.old if undone else change.new)
+    change.reverted_at = ctx.now if undone else None
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id

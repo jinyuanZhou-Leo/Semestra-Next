@@ -3,7 +3,8 @@ notification per course and kind: new grades, changed assignments, new announcem
 decides what is new and tells it once.
 
 Grades and changes show only while no Semestra tab is in front: the app tells those itself.
-Announcements show always: the app does not."""
+Announcements show always: the app does not. All are held through quiet hours (sent when they
+end), since the sync does not tell them again."""
 
 from typing import Any
 
@@ -22,10 +23,14 @@ def _kind(base: str, n: int) -> str:
 
 
 def _names(applied: list[dict[str, Any]], graded: bool) -> list[str]:
-    """Each item once, in the order the sync changed them."""
+    """Each item once, in the order the sync changed them. A weight alone is not told: one
+    assignment added to a group changes the weight of all the others in it."""
     out: list[str] = []
     for a in applied:
-        if (a.get("field") == "score") == graded and a.get("name") and a["name"] not in out:
+        field = a.get("field")
+        if field == "weight" or (field == "score") != graded:
+            continue
+        if a.get("name") and a["name"] not in out:
             out.append(str(a["name"]))
     return out
 
@@ -55,6 +60,7 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
                     params={"course": name, "items": texts.listing(locale, names)},
                     url=f"{page}/grades",
                     tag=f"{base}:{course_id}",
+                    held=True,
                 )
             )
     found = [n for n in data.get("notices") or [] if n.get("kind") == "announcement"]
@@ -74,6 +80,7 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
                 url=url,
                 hidden_only=False,
                 tag=f"lms_announcements:{course_id}",
+                held=True,
             )
         )
     for message in messages:

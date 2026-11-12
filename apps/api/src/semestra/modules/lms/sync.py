@@ -34,6 +34,7 @@ from semestra.modules.lms import service
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.settings import account, interval
+from semestra.modules.notifications import service as notifications
 
 log = structlog.get_logger()
 
@@ -44,7 +45,9 @@ UPDATED = "lms.sync.updated"
 # Grades come in a while after a term's last day (the final exam), so a term that ended within
 # this is still synced.
 RECENT = timedelta(days=30)
-# Accounts not used for this long are not synced on a schedule; opening the app syncs them.
+# Accounts not used for this long are not synced on a schedule (opening the app syncs them),
+# unless they hear of the platform's news by notification (final grades come out after the
+# term, when students rarely open the app).
 INACTIVE = timedelta(days=14)
 # Opening a Program syncs its courses not synced for this long.
 ON_OPEN = timedelta(minutes=30)
@@ -291,14 +294,17 @@ async def sync_due(ctx: Ctx) -> None:
         )
     ).all()
     active = await auth.active_user_ids(ctx, list(users), ctx.now - INACTIVE)
+    listening = await notifications.users_with_devices(ctx, [u for u in users if u not in active])
     room = PER_TICK
     for user_id in users:
-        if room <= 0 or user_id not in active:
+        if room <= 0 or (user_id not in active and user_id not in listening):
             continue
         queued = 0
 
-        async def due(sys: Ctx, room: int = room) -> None:
+        async def due(sys: Ctx, room: int = room, listens: bool = user_id in listening) -> None:
             nonlocal queued
+            if listens and (await notifications.settings_of(sys)).lms == "off":
+                return  # away and not told: nothing to sync for
             every = interval(sys, await account(sys))
             links = [
                 li

@@ -907,3 +907,18 @@ instead of replacing it.""",
 async def sync_revert(ctx: Ctx, inp: SyncChangeRef) -> SyncStatus:
     program_id = await sync_assignments.revert(ctx, inp.change_id)
     return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.change.reapply",
+    summary="Apply again a sync change that was put back.",
+    description="""Undoes `lms.sync.change.revert`: the field gets the platform's value
+again.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/changes/{change_id}:reapply"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_reapply(ctx: Ctx, inp: SyncChangeRef) -> SyncStatus:
+    program_id = await sync_assignments.revert(ctx, inp.change_id, undone=False)
+    return await sync_status.status(ctx, program_id)

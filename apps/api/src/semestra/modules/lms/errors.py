@@ -37,6 +37,9 @@ STATUS = {
     # The pending sync item was resolved meanwhile (another tab, the next sync), or the choice
     # does not fit it (keep/delete for a conflict).
     "lms.sync_nothing_to_resolve": 409,
+    # The field changed again since that sync change (another sync, the user): undoing it would
+    # overwrite the newer value.
+    "lms.sync_change_outdated": 409,
     # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
     "lms.writes_disabled": 409,
     "lms.file_too_large": 413,

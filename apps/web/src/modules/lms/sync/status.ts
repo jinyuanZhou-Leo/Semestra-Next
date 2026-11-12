@@ -36,6 +36,15 @@ export function useSync(programId: string | undefined): {
   return { status, provider }
 }
 
+/** Whether the Program's sync has a status line (and so a panel): bound, with something to sync. */
+export function hasSyncLine(status: SyncStatus | undefined): status is SyncStatus {
+  return (
+    status !== undefined &&
+    Boolean(status.provider) &&
+    (status.courses > 0 || status.pending.length > 0)
+  )
+}
+
 const JUST_NOW_MS = 60_000
 
 /** "12 minutes ago", or "just now" in the first minute (not "now", which reads as a promise). */
@@ -52,7 +61,7 @@ export function useSyncLine(): StatusItem | null {
   const programId = useProgramId()
   const { status, provider } = useSync(programId)
   const now = useNow()
-  if (!status || !provider || (status.courses === 0 && status.pending.length === 0)) return null
+  if (!hasSyncLine(status) || !provider) return null
   const line = { rank: 'idle', icon: School, Panel: SyncPanel } as const
   if (status.connection_error) {
     return {

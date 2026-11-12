@@ -55,7 +55,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { invalidateLms } from '../queries'
-import { markManualSync } from '../sync/manual'
 import { ERROR_LABEL, LogoTile } from './ConnectionsSection'
 import { useOpenConnections } from './ProgramLmsSection'
 
@@ -173,7 +172,6 @@ function LinkedCourse({
   // Runs in the background; the sync's status line and reminders tell how it went.
   const sync = useMutation({
     ...lmsSyncRequestMutation(),
-    onMutate: () => markManualSync(link.program_id),
     onError: toastError,
   })
   const syncNow = () =>

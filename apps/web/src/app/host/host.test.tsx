@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Timer } from 'lucide-react'
 import { http, HttpResponse } from 'msw'
@@ -8,7 +8,7 @@ import template from '@/modules/_template/manifest'
 import { FakeEventSource } from '@/test-event-source'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { SidebarProvider } from '@/ui/sidebar'
-import type { Scope } from '../extensions'
+import type { Scope, StatusItem, StatusRank } from '../extensions'
 import { useRealtime } from '../realtime'
 import { ModuleRegistry, useExtensions } from '../registry'
 import { CardGrid } from './CardGrid'
@@ -255,18 +255,24 @@ test('extension points collect contributions from every module', () => {
   expect(screen.getByText('grade')).toBeInTheDocument()
 })
 
-test('past three lines the last one names the rest, ranked by what needs the user', async () => {
+function shownLines(bar: HTMLElement) {
+  return [...bar.querySelectorAll<HTMLElement>('li[data-shown="true"]')]
+    .sort((x, y) => Number(x.style.order) - Number(y.style.order))
+    .map((li) => li.textContent)
+}
+
+function renderLines(Panel?: StatusItem['Panel']) {
   server.use(http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })))
-  const line = (id: string, label: string, rank?: 'error' | 'attention' | 'idle') => ({
+  const line = (id: string, label: string, rank?: StatusRank, panel?: StatusItem['Panel']) => ({
     id,
     order: 1,
-    useStatus: () => ({ icon: Timer, label, rank }),
+    useStatus: () => ({ icon: Timer, label, rank, Panel: panel }),
   })
   const lines = {
     ...template,
     id: 'lines',
     statusItems: [
-      line('a', 'Synced', 'idle'),
+      line('a', 'Synced', 'idle', Panel),
       line('b', 'Timer'),
       line('c', '2 to review', 'attention'),
       line('d', 'Reconnect', 'error'),
@@ -279,12 +285,34 @@ test('past three lines the last one names the rest, ranked by what needs the use
       </SidebarProvider>
     </ModuleRegistry>,
   )
-  const bar = await screen.findByRole('list', { name: 'In progress' })
+  return screen.findByRole('list', { name: 'In progress' })
+}
+
+const OVERFLOWED = ['Reconnect', '2 to review', '2 more · Timer, Synced']
+
+test('past three lines the last one names the rest, ranked by what needs the user', async () => {
+  const bar = await renderLines()
+  await waitFor(() => expect(shownLines(bar)).toEqual(OVERFLOWED))
+})
+
+test('a line in the overflow opens its own panel, and the bar moves again once it closes', async () => {
+  const user = userEvent.setup()
+  const bar = await renderLines(({ onClose }) => (
+    <button type="button" onClick={onClose}>
+      Done
+    </button>
+  ))
+  await waitFor(() => expect(shownLines(bar)).toEqual(OVERFLOWED))
+  await user.click(screen.getByRole('button', { name: /2 more/ }))
+  const more = (await screen.findByText('Also in progress')).parentElement as HTMLElement
+  await user.click(within(more).getByRole('button', { name: 'Synced' }))
+  await waitFor(() => expect(shownLines(bar)).toContain('Synced'))
+  // Closed by the panel itself, not by the popover.
+  await user.click(await screen.findByRole('button', { name: 'Done' }))
   await waitFor(() =>
-    expect(
-      [...bar.querySelectorAll<HTMLElement>('li[data-shown="true"]')]
-        .sort((x, y) => Number(x.style.order) - Number(y.style.order))
-        .map((li) => li.textContent),
-    ).toEqual(['Reconnect', '2 to review', '2 more · Timer, Synced']),
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument(),
   )
+  await user.hover(bar)
+  await user.unhover(bar)
+  await waitFor(() => expect(shownLines(bar)).toEqual(OVERFLOWED))
 })

@@ -10121,6 +10121,12 @@ export type SyncChange = {
      * Reverted
      */
     reverted: boolean;
+    /**
+     * Toggleable
+     *
+     * Can be put back, or applied again once put back: the newest change of its field, the field not changed since
+     */
+    toggleable: boolean;
 };
 
 /**
@@ -19118,6 +19124,38 @@ export type LmsSyllabusImportResponses = {
 };
 
 export type LmsSyllabusImportResponse = LmsSyllabusImportResponses[keyof LmsSyllabusImportResponses];
+
+export type LmsSyncChangeReapplyData = {
+    body?: never;
+    path: {
+        /**
+         * Change Id
+         *
+         * A recent change's id
+         */
+        change_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/changes/{change_id}:reapply';
+};
+
+export type LmsSyncChangeReapplyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncChangeReapplyError = LmsSyncChangeReapplyErrors[keyof LmsSyncChangeReapplyErrors];
+
+export type LmsSyncChangeReapplyResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncChangeReapplyResponse = LmsSyncChangeReapplyResponses[keyof LmsSyncChangeReapplyResponses];
 
 export type LmsSyncChangeRevertData = {
     body?: never;

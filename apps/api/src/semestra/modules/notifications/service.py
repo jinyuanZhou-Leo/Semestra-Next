@@ -6,11 +6,12 @@ still valid. Nothing is sent for a user without devices."""
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import structlog
+from pydantic import BaseModel
 from sqlalchemy import Select, delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from starlette.datastructures import State
@@ -18,6 +19,7 @@ from starlette.datastructures import State
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.events import spawn
+from semestra.core.jobs import JobCtx, enqueue, job_handler
 from semestra.modules.academics import service as academics
 from semestra.modules.auth.models import AuthSession
 from semestra.modules.notifications import texts, webpush
@@ -76,6 +78,19 @@ def live(ctx: Ctx) -> Select[NotificationsDevice]:
 async def has_devices(ctx: Ctx) -> bool:
     query = live(ctx).where(NotificationsDevice.user_id == ctx.user_id).limit(1)
     return await ctx.db.scalar(query) is not None
+
+
+async def users_with_devices(ctx: Ctx, user_ids: list[str]) -> set[str]:
+    """Of these users, the ones with a live device: they hear of things while away."""
+    if not user_ids:
+        return set()
+    query = (
+        live(ctx)
+        .with_only_columns(NotificationsDevice.user_id)
+        .where(NotificationsDevice.user_id.in_(user_ids))
+        .distinct()
+    )
+    return set((await ctx.db.scalars(query)).all())
 
 
 def _check_subscription(inp: DeviceIn) -> None:
@@ -151,6 +166,9 @@ class Message:
     # A later message with the same tag replaces the earlier one on the device.
     tag: str | None = None
     urgency: Literal["normal", "high"] = "normal"
+    # News that stays news (a grade, an announcement): held through quiet hours and sent when
+    # they end, instead of dropped.
+    held: bool = False
 
 
 async def zone_of(ctx: Ctx) -> ZoneInfo:
@@ -171,10 +189,22 @@ def in_quiet_hours(cfg: NotificationsSettings, local: datetime) -> bool:
     return start <= now < end if start < end else (now >= start or now < end)
 
 
+def quiet_until(cfg: NotificationsSettings, local: datetime) -> datetime | None:
+    """When the quiet hours `local` falls in end; None outside them."""
+    if not in_quiet_hours(cfg, local):
+        return None
+    end = datetime.combine(local.date(), time.fromisoformat(cfg.quiet_end), tzinfo=local.tzinfo)
+    return end if end > local else end + timedelta(days=1)
+
+
+def _wanted(cfg: NotificationsSettings, message: Message) -> bool:
+    setting = CATEGORY.get(message.kind)
+    return setting is None or getattr(cfg, setting) not in (False, "off")
+
+
 async def allowed(ctx: Ctx, message: Message, cfg: NotificationsSettings | None = None) -> bool:
     cfg = cfg or await settings_of(ctx)
-    setting = CATEGORY.get(message.kind)
-    if setting is not None and getattr(cfg, setting) in (False, "off"):
+    if not _wanted(cfg, message):
         return False
     return not in_quiet_hours(cfg, ctx.now.astimezone(await zone_of(ctx)))
 
@@ -223,9 +253,15 @@ def notify_after_commit(
     async def send() -> None:
         try:
             async with system_ctx(state, user_id) as own:
-                if own.user is None or not await allowed(own, message):
+                if own.user is None:
                     return
-                await deliver(own, message, exclude_session=exclude_session)
+                cfg = await settings_of(own)
+                until = quiet_until(cfg, own.now.astimezone(await zone_of(own)))
+                if message.held and until is not None and _wanted(cfg, message):
+                    later = Later(message=_dump(message), exclude_session=exclude_session)
+                    await enqueue(own, LATER, later, run_after=until)
+                elif await allowed(own, message, cfg):
+                    await deliver(own, message, exclude_session=exclude_session)
                 await own.db.commit()
         except Exception:
             log.exception("notification_failed", kind=message.kind)
@@ -234,3 +270,39 @@ def notify_after_commit(
         spawn(state, send())
 
     ctx.after_commit.append(start)
+
+
+# --- held through quiet hours ---------------------------------------------------------------
+
+LATER = "notifications.later"
+
+
+class Later(BaseModel):
+    message: dict[str, Any]
+    exclude_session: str | None = None
+
+
+class Sent(BaseModel):
+    devices: int
+
+
+def _dump(message: Message) -> dict[str, Any]:
+    return {
+        "kind": message.kind,
+        "params": message.params,
+        "url": message.url,
+        "hidden_only": message.hidden_only,
+        "tag": message.tag,
+        "urgency": message.urgency,
+    }
+
+
+# Not in the status bar's job list: the user never started it.
+@job_handler(LATER, max_attempts=1, listed=False)
+async def send_later(ctx: JobCtx, payload: Later) -> Sent:
+    """A held message, once the quiet hours are over: sent if still wanted (the settings may
+    have changed meanwhile)."""
+    message = Message(**payload.message)
+    if ctx.user is None or not await allowed(ctx, message):
+        return Sent(devices=0)
+    return Sent(devices=await deliver(ctx, message, exclude_session=payload.exclude_session))

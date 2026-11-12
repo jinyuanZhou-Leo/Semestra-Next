@@ -23,9 +23,8 @@ import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
-import { markManualSync } from './sync/manual'
-import { SYNC_LINE, syncStatusOptions, useSyncLine } from './sync/status'
-import { SyncToasts } from './sync/SyncToasts'
+import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
+import { SyncOnOpen } from './sync/SyncOnOpen'
 import { openStatusPanel } from '@/app/host/StatusBar'
 import { toastError } from '@/lib/errors'
 
@@ -78,7 +77,7 @@ export default defineModule({
   name: m.lms_name,
   description: m.lms_description,
   icon: School,
-  overlays: [SyncToasts],
+  overlays: [SyncOnOpen],
   statusItems: [{ id: SYNC_LINE, order: 40, useStatus: useSyncLine }],
   commands: [
     {
@@ -88,11 +87,10 @@ export default defineModule({
       icon: RefreshCw,
       isAvailable: ({ programId, queryClient }) =>
         Boolean(
-          programId && queryClient.getQueryData(syncStatusOptions(programId).queryKey)?.provider,
+          programId && hasSyncLine(queryClient.getQueryData(syncStatusOptions(programId).queryKey)),
         ),
       run: async ({ programId }) => {
         if (!programId) return
-        markManualSync(programId)
         openStatusPanel(SYNC_LINE)
         try {
           await lmsSyncRequest({

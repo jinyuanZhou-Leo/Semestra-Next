@@ -149,6 +149,7 @@ export const errorMessages = {
   error_lms_sign_in_failed: m.error_lms_sign_in_failed,
   error_lms_sign_in_https_required: m.error_lms_sign_in_https_required,
   error_lms_sign_in_unavailable: m.error_lms_sign_in_unavailable,
+  error_lms_sync_change_outdated: m.error_lms_sync_change_outdated,
   error_lms_sync_nothing_to_resolve: m.error_lms_sync_nothing_to_resolve,
   error_lms_unreachable: m.error_lms_unreachable,
   error_lms_writes_disabled: m.error_lms_writes_disabled,

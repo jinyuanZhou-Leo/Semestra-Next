@@ -59,6 +59,10 @@ class SyncChange(BaseModel):
     new: Any
     at: datetime
     reverted: bool
+    toggleable: bool = Field(
+        description="Can be put back, or applied again once put back: the newest change of its "
+        "field, the field not changed since"
+    )
 
 
 class SyncCourseError(BaseModel):

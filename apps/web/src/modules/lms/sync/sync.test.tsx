@@ -1,12 +1,11 @@
 import type { SyncItem, SyncStatus } from '@semestra/api-client'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
-import { Toaster } from '@/ui/sonner'
 import SyncPanel from './SyncPanel'
-import { SyncToasts } from './SyncToasts'
+import { SyncOnOpen } from './SyncOnOpen'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -66,7 +65,7 @@ function handlers(current: SyncStatus) {
   ]
 }
 
-test('opening a Program syncs it; new assignments come as a toast that can be ignored', async () => {
+test('opening a Program syncs it; new assignments wait in the panel and can be ignored', async () => {
   const current = status({
     pending: [item({ id: 'r1', title: 'A3' }), item({ id: 'r2', title: 'Lab 9' })],
   })
@@ -85,18 +84,18 @@ test('opening a Program syncs it; new assignments come as a toast that can be ig
   )
   renderWithRouter(
     <>
-      <Toaster />
-      <SyncToasts />
+      <SyncOnOpen />
+      <SyncPanel onClose={() => undefined} />
     </>,
     undefined,
     IN_PROGRAM,
   )
-  expect(await screen.findByText('New assignments on Canvas')).toBeInTheDocument()
-  expect(screen.getByText('CSC148 A3, Lab 9')).toBeInTheDocument()
-  expect(requested).toHaveBeenCalledWith({})
-  // A click alone: sonner's swipe handling needs pointer capture, which jsdom lacks.
-  fireEvent.click(screen.getByRole('button', { name: 'Ignore' }))
-  await waitFor(() => expect(dismissed).toHaveBeenCalledWith({ item_ids: ['r1', 'r2'] }))
+  expect(await screen.findByText('A3, Lab 9')).toBeInTheDocument()
+  await waitFor(() => expect(requested).toHaveBeenCalledWith({}))
+  await userEvent.click(screen.getByRole('button', { name: 'Ignore' }))
+  await waitFor(() =>
+    expect(dismissed).toHaveBeenCalledWith({ item_ids: ['r1', 'r2'], dismissed: true }),
+  )
 })
 
 test('a value changed on both sides is settled from the panel', async () => {
@@ -116,8 +115,41 @@ test('a value changed on both sides is settled from the panel', async () => {
   )
   renderWithRouter(<SyncPanel onClose={() => undefined} />, undefined, IN_PROGRAM)
   expect(await screen.findByText('Yours: 10% · Canvas: 15%')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Keep mine' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
   await waitFor(() => expect(resolved).toHaveBeenCalledWith({ choice: 'mine' }))
   expect(await screen.findByText('Nothing changed in the last 14 days')).toBeInTheDocument()
   expect(screen.queryByText('To review')).not.toBeInTheDocument()
+})
+
+test('a change the sync made is undone from the panel, and so is undoing it', async () => {
+  const change = {
+    id: 'ch1',
+    course_id: 'c1',
+    course: 'CSC148',
+    title: 'A3',
+    field: 'title',
+    old: 'A3',
+    new: 'A3 (revised)',
+    at: new Date().toISOString(),
+    reverted: false,
+    toggleable: true,
+  }
+  const calls = vi.fn<(url: string) => void>()
+  server.use(
+    ...handlers(status({ recent: [change] })),
+    http.post(`${API}/lms/sync/changes/ch1\\:revert`, ({ request }) => {
+      calls(request.url)
+      return HttpResponse.json(status({ recent: [{ ...change, reverted: true }] }))
+    }),
+    http.post(`${API}/lms/sync/changes/ch1\\:reapply`, ({ request }) => {
+      calls(request.url)
+      return HttpResponse.json(status({ recent: [change] }))
+    }),
+  )
+  renderWithRouter(<SyncPanel onClose={() => undefined} />, undefined, IN_PROGRAM)
+  await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+  expect(await screen.findByText('Undone')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Redo' }))
+  await waitFor(() => expect(screen.queryByText('Undone')).not.toBeInTheDocument())
+  expect(calls.mock.calls.map(([url]) => url.split(':').at(-1))).toEqual(['revert', 'reapply'])
 })

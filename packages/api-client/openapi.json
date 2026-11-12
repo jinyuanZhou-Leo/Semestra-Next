@@ -12679,6 +12679,59 @@
         }
       }
     },
+    "/lms/sync/changes/{change_id}:reapply": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Apply again a sync change that was put back.",
+        "description": "Undoes `lms.sync.change.revert`: the field gets the platform's value\nagain.",
+        "operationId": "lmsSyncChangeReapply",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A recent change's id",
+              "title": "Change Id"
+            },
+            "description": "A recent change's id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/lms/sync/changes/{change_id}:revert": {
       "post": {
         "tags": [
@@ -35100,6 +35153,11 @@
           "reverted": {
             "type": "boolean",
             "title": "Reverted"
+          },
+          "toggleable": {
+            "type": "boolean",
+            "title": "Toggleable",
+            "description": "Can be put back, or applied again once put back: the newest change of its field, the field not changed since"
           }
         },
         "type": "object",
@@ -35112,7 +35170,8 @@
           "old",
           "new",
           "at",
-          "reverted"
+          "reverted",
+          "toggleable"
         ],
         "title": "SyncChange",
         "description": "A field the sync changed on an imported item."

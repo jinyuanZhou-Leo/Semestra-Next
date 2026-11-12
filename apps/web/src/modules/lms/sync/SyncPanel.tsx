@@ -1,5 +1,6 @@
 import type { SyncChange, SyncItem, SyncStatus } from '@semestra/api-client'
 import {
+  lmsSyncChangeReapplyMutation,
   lmsSyncChangeRevertMutation,
   lmsSyncDismissMutation,
   lmsSyncRequestMutation,
@@ -33,7 +34,6 @@ import {
 import { Spinner } from '@/ui/spinner'
 import { importAssignments } from '../import/assignments'
 import { ERROR_LABEL } from '../settings/ConnectionsSection'
-import { markManualSync } from './manual'
 import { byCourse, fieldLabel, formatValue } from './labels'
 import { syncedAgo, useProgramId, useSync } from './status'
 
@@ -104,7 +104,7 @@ function Row({
 /**
  * The panel of the LMS status line (M09 §4.1): when the courses last synced, "Sync now", what
  * waits for the user (new assignments, values both sides changed, items deleted on the
- * platform), what the sync changed lately (each can be undone) and the ignored new items.
+ * platform), what the sync changed lately (the latest change of a value the user has not changed since can be undone) and the ignored new items.
  */
 export default function SyncPanel({ onClose }: { onClose: () => void }) {
   const programId = useProgramId()
@@ -135,7 +135,6 @@ function Panel({
 
   const request = useMutation({
     ...lmsSyncRequestMutation(),
-    onMutate: () => markManualSync(programId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
     onError: toastError,
   })
@@ -153,6 +152,12 @@ function Panel({
   })
   const revert = useMutation({
     ...lmsSyncChangeRevertMutation(),
+    onSuccess: updated,
+    onError: toastError,
+    onSettled: settled,
+  })
+  const reapply = useMutation({
+    ...lmsSyncChangeReapplyMutation(),
     onSuccess: updated,
     onError: toastError,
     onSettled: settled,
@@ -299,9 +304,10 @@ function Panel({
                 change={change}
                 now={now}
                 busy={busy !== null}
-                onUndo={() => {
+                onToggle={() => {
                   setBusy(change.id)
-                  revert.mutate({ path: { change_id: change.id } })
+                  const action = change.reverted ? reapply : revert
+                  action.mutate({ path: { change_id: change.id } })
                 }}
               />
             ))}
@@ -419,10 +425,10 @@ function AskedRow({
       actions={
         <>
           <Button size="xs" variant="ghost" disabled={busy} onClick={() => onSettle('mine')}>
-            {m.lms_sync_keep_mine()}
+            {m.lms_sync_keep()}
           </Button>
           <Button size="xs" disabled={busy} onClick={() => onSettle('platform')}>
-            {m.lms_sync_use_platform({ provider })}
+            {m.lms_sync_update()}
           </Button>
         </>
       }
@@ -434,13 +440,25 @@ function ChangeRow({
   change,
   now,
   busy,
-  onUndo,
+  onToggle,
 }: {
   change: SyncChange
   now: number
   busy: boolean
-  onUndo: () => void
+  /** Puts the change back, or applies it again once put back. */
+  onToggle: () => void
 }) {
+  const toggle = change.toggleable ? (
+    <Button
+      size="xs"
+      variant="ghost"
+      disabled={busy}
+      className="opacity-0 group-hover/sync-row:opacity-100 focus-visible:opacity-100"
+      onClick={onToggle}
+    >
+      {change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()}
+    </Button>
+  ) : null
   return (
     <Row
       title={`${change.course} ${m.lms_sync_change({ title: change.title, field: fieldLabel(change.field) })}`}
@@ -448,17 +466,12 @@ function ChangeRow({
       className={cn(change.reverted && 'text-muted-foreground')}
       actions={
         change.reverted ? (
-          <span className="text-xs text-muted-foreground">{m.lms_sync_undone()}</span>
+          <>
+            {toggle}
+            <span className="text-xs text-muted-foreground">{m.lms_sync_undone()}</span>
+          </>
         ) : (
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={busy}
-            className="opacity-0 group-hover/sync-row:opacity-100 focus-visible:opacity-100"
-            onClick={onUndo}
-          >
-            {m.lms_sync_undo()}
-          </Button>
+          toggle
         )
       }
     />

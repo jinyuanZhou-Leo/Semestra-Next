@@ -98,6 +98,8 @@ export type LineEntry = {
   icon: LucideIcon
   tone?: StatusItem['tone']
   to?: string
+  /** It opens a panel: the overflow list opens it in its place. */
+  panel?: boolean
 }
 
 /**
@@ -124,9 +126,15 @@ const same = (a: LineEntry, b: LineEntry) =>
   (Object.keys(a) as (keyof LineEntry)[]).every((key) => a[key] === b[key]) &&
   Object.keys(a).length === Object.keys(b).length
 
-/** The lines' entries, written by each line as it changes and read by the bar. */
+type LinesState = {
+  entries: ReadonlyMap<string, LineEntry>
+  /** The line whose panel is open, however it was opened or closed. */
+  open: string | null
+}
+
+/** What each line shows and whether its panel is open, written by the lines, read by the bar. */
 class Lines {
-  private entries: ReadonlyMap<string, LineEntry> = new Map()
+  private state: LinesState = { entries: new Map(), open: null }
   private readonly listeners = new Set<() => void>()
 
   subscribe = (listener: () => void) => {
@@ -134,33 +142,40 @@ class Lines {
     return () => void this.listeners.delete(listener)
   }
 
-  get = () => this.entries
+  get = () => this.state
+
+  private update(next: Partial<LinesState>) {
+    this.state = { ...this.state, ...next }
+    for (const listener of this.listeners) listener()
+  }
 
   set(id: string, entry: LineEntry | null) {
-    const current = this.entries.get(id)
+    const current = this.state.entries.get(id)
     if (entry === null ? current === undefined : current !== undefined && same(current, entry)) {
       return
     }
-    const next = new Map(this.entries)
-    if (entry) next.set(id, entry)
-    else next.delete(id)
-    this.entries = next
-    for (const listener of this.listeners) listener()
+    const entries = new Map(this.state.entries)
+    if (entry) entries.set(id, entry)
+    else entries.delete(id)
+    this.update({ entries })
+  }
+
+  opened(id: string) {
+    if (this.state.open !== id) this.update({ open: id })
+  }
+
+  closed(id: string) {
+    if (this.state.open === id) this.update({ open: null })
   }
 }
 
-type Bar = {
-  lines: Lines
-  shown: readonly string[]
-  /** A line's popover opened or closed: the bar holds still while one is open. */
-  setOpen: (id: string, open: boolean) => void
-}
+type Bar = { lines: Lines; shown: readonly string[] }
 
 const BarContext = createContext<Bar | null>(null)
 
 const panelRequests = new EventTarget()
 
-/** Opens the panel of a status line (e.g. from a toast's "View"), if the line is there. */
+/** Opens the panel of a status line (e.g. from a command), if the line is there. */
 export function openStatusPanel(id: string) {
   panelRequests.dispatchEvent(new CustomEvent<string>('open', { detail: id }))
 }
@@ -243,16 +258,23 @@ function Slot({
   const { state } = useSidebar()
   const rank = item ? rankOf(item) : null
   const { label, icon, tone, to } = item ?? {}
+  const hasPanel = panel !== undefined
   useEffect(() => {
     if (!lines || !report) return
     lines.set(
       id,
       rank !== null && label !== undefined && icon !== undefined
-        ? { rank, order, label, icon, tone, to }
+        ? { rank, order, label, icon, tone, to, panel: hasPanel }
         : null,
     )
-  }, [lines, report, id, rank, order, label, icon, tone, to])
+  }, [lines, report, id, rank, order, label, icon, tone, to, hasPanel])
   useEffect(() => () => lines?.set(id, null), [lines, id])
+  // The bar follows `open` itself, so a panel closed by its own buttons or a link counts too.
+  useEffect(() => {
+    if (!lines || !open) return
+    lines.opened(id)
+    return () => lines.closed(id)
+  }, [lines, id, open])
   useEffect(() => {
     if (!onOpenChange) return
     const onRequest = (event: Event) => {
@@ -270,15 +292,10 @@ function Slot({
   const place = report ? (bar?.shown.indexOf(id) ?? -1) : item ? MAX_LINES - 1 : -1
   const shown = place >= 0 && content !== null
 
-  const changeOpen = (next: boolean) => {
-    bar?.setOpen(id, next)
-    onOpenChange?.(next)
-  }
-
   let button: ReactNode = null
   if (content && panel) {
     button = (
-      <Popover open={open} onOpenChange={changeOpen}>
+      <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger render={<SidebarMenuButton tooltip={content.label} size="sm" />}>
           <LineFace {...content} />
         </PopoverTrigger>
@@ -535,8 +552,11 @@ function JobsLine() {
   )
 }
 
-/** The last place when more lines want to show than fit: "N more · names", opening their list. */
-function MoreLine({ entries }: { entries: readonly LineEntry[] }) {
+/**
+ * The last place when more lines want to show than fit: "N more · names", opening their list.
+ * A line there that has a panel opens it in its own place; one with a link follows it.
+ */
+function MoreLine({ entries }: { entries: readonly (LineEntry & { id: string })[] }) {
   const [open, setOpen] = useState(false)
   const names = entries.map((entry) => entry.label).join(m.common_list_separator())
   const item: StatusItem | null =
@@ -555,8 +575,8 @@ function MoreLine({ entries }: { entries: readonly LineEntry[] }) {
         <>
           <p className="text-xs font-medium text-muted-foreground">{m.status_more_title()}</p>
           <ItemGroup className="gap-0">
-            {entries.map(({ icon: Icon, label, to, tone }, index) => (
-              <Fragment key={label}>
+            {entries.map(({ id, icon: Icon, label, to, tone, panel }, index) => (
+              <Fragment key={id}>
                 {index > 0 ? <ItemSeparator className="my-0" /> : null}
                 <Item render={<li />} size="xs" className="gap-2 px-0">
                   <Icon
@@ -576,6 +596,17 @@ function MoreLine({ entries }: { entries: readonly LineEntry[] }) {
                         >
                           {label}
                         </Link>
+                      ) : panel ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpen(false)
+                            openStatusPanel(id)
+                          }}
+                          className="truncate text-left hover:underline"
+                        >
+                          {label}
+                        </button>
                       ) : (
                         <span className="truncate">{label}</span>
                       )}
@@ -601,37 +632,39 @@ function MoreLine({ entries }: { entries: readonly LineEntry[] }) {
 export function StatusBar({ className }: { className?: string }) {
   const items = useStatusItems()
   const [lines] = useState(() => new Lines())
-  const entries = useSyncExternalStore(lines.subscribe, lines.get)
+  const { entries, open } = useSyncExternalStore(lines.subscribe, lines.get)
   const [pinned, setPinned] = useState<string | null>(null)
   const live = placeLines(entries, pinned)
   const [hovering, setHovering] = useState(false)
-  const [openId, setOpenId] = useState<string | null>(null)
   const [frozen, setFrozen] = useState<typeof live | null>(null)
+  // Nothing comes or goes while the pointer is over the bar or a panel is open.
+  const holding = hovering || open !== null
+  if (holding && frozen === null) setFrozen(live)
+  if (!holding && frozen !== null) setFrozen(null)
+  // A line pinned for its panel goes back to its place once the panel closes.
+  const [lastOpen, setLastOpen] = useState(open)
+  if (open !== lastOpen) {
+    setLastOpen(open)
+    if (open === null) setPinned(null)
+  }
   const placement = frozen ?? live
 
   useEffect(() => {
-    const onRequest = (event: Event) => setPinned((event as CustomEvent<string>).detail)
+    const onRequest = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail
+      if (!lines.get().entries.get(id)?.panel) return
+      setPinned(id)
+      // Placed again, with the pinned line in it, when the panel opens.
+      setFrozen(null)
+    }
     panelRequests.addEventListener('open', onRequest)
     return () => panelRequests.removeEventListener('open', onRequest)
-  }, [])
+  }, [lines])
 
-  const bar: Bar = {
-    lines,
-    shown: placement.shown,
-    setOpen: (id, open) => {
-      if (open) {
-        setOpenId(id)
-        setFrozen((current) => current ?? live)
-        return
-      }
-      setOpenId(null)
-      setPinned(null)
-      if (!hovering) setFrozen(null)
-    },
-  }
+  const bar: Bar = { lines, shown: placement.shown }
   const hidden = placement.hidden.flatMap((id) => {
     const entry = entries.get(id)
-    return entry ? [entry] : []
+    return entry ? [{ ...entry, id }] : []
   })
 
   return (
@@ -639,14 +672,8 @@ export function StatusBar({ className }: { className?: string }) {
       <SidebarMenu
         aria-label={m.status_bar_label()}
         className={cn('gap-0', className)}
-        onPointerEnter={() => {
-          setHovering(true)
-          setFrozen((current) => current ?? live)
-        }}
-        onPointerLeave={() => {
-          setHovering(false)
-          if (openId === null) setFrozen(null)
-        }}
+        onPointerEnter={() => setHovering(true)}
+        onPointerLeave={() => setHovering(false)}
       >
         <JobsLine />
         {items.map((contribution) => (
