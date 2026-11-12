@@ -76,11 +76,10 @@ async def content_read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
     name="lms.activity.list",
     untrusted=True,
     summary="What is new on the LMS (Canvas) for a course or a whole term: announcements, "
-    "grades, new assignments and changed imported ones.",
-    description="""Newest first, the last 7 days unless `since`. A `change` is an imported
-assignment that changed on the LMS (due date, points, a grade the gradebook lacks): put the
-changes up for the user's review with lms.change.import. Read an item in full with
-lms.content.read.""",
+    "grades and new assignments.",
+    description="""Newest first, the last 7 days unless `since`. Imported assignments follow the
+LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the
+user in the app's sync panel. Read an item in full with lms.content.read.""",
     effect="read",
     http=Http("GET", "/me/lms/activity"),
     expose=AGENTS,

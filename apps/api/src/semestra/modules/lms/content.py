@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import files, imports, reads, refs, service
+from semestra.modules.lms import files, reads, refs, service
 from semestra.modules.lms import search as ranking
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.markdown import to_markdown
@@ -671,16 +671,12 @@ async def activity(ctx: Ctx, inp: LmsActivityInput) -> LmsActivityList:
             if exc.code not in _SKIPPABLE and inp.course_id is not None:
                 raise
             skipped.append(LmsSkipped(source=label, reason=exc.code))
-    # Changes come first and are never cut: they are what the user acts on (lms.change.import).
-    changes = [i for i in items if i.kind == "change"]
-    rest = sorted(
-        (i for i in items if i.kind != "change"),
-        key=lambda i: i.at.timestamp() if i.at else 0.0,
-        reverse=True,
-    )
-    room = max(ACTIVITY_MAX - len(changes), 0)
+    items.sort(key=lambda i: i.at.timestamp() if i.at else 0.0, reverse=True)
     return LmsActivityList(
-        since=since, items=[*changes, *rest[:room]], skipped=skipped, truncated=len(rest) > room
+        since=since,
+        items=items[:ACTIVITY_MAX],
+        skipped=skipped,
+        truncated=len(items) > ACTIVITY_MAX,
     )
 
 
@@ -748,7 +744,4 @@ async def _course_activity(
             updated = _dt(a.get("updated_at"))
             if a["external_id"] in fresh and updated and updated >= since:
                 add("assignment", ref, a["name"], updated, None, due_at=_dt(a.get("due_at")))
-        for change in (await imports.check_updates(ctx, course_id, refresh)).items:
-            fields = ", ".join(f"{k}: {v.old} → {v.new}" for k, v in change.changes.items())
-            add("change", refs.make("assignment", change.external_id), change.name, None, fields)
     return out

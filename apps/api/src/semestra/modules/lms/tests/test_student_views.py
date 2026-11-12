@@ -1,5 +1,5 @@
 """Reads and writes behind the Canvas tab's student views (feedback, folders, previews, the
-read state of announcements) and grades offered as updates, with the fake provider."""
+read state of announcements) and grades following the platform, with the fake provider."""
 
 from typing import Any
 
@@ -81,8 +81,10 @@ async def test_preview_refuses_large_files(api: Api, settings: Settings):
     assert err["error"]["code"] == "lms.file_too_large"
 
 
-async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
-    course = await linked_course(api)
+async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
+    program_id, term_id, _ = await setup_program(api)
+    course = await api.course(program_id, term_id)
+    await api.link(course, "101")
     lab1 = fake.course_assignments["101"][0]
     # Graded before the import: the grade comes along with it.
     fake.course_assignments["101"][0] = lab1.model_copy(
@@ -99,47 +101,50 @@ async def test_grades_are_offered_as_updates(api: Api, fake: FakeProvider):
     data = next(i for i in back["items"] if i["id"] == first["id"])["data"]
     assert (data["points_earned"], data["points_possible"]) == (8, 10)
     assert (await api.commit(started["session_id"]))["failed"] == 0
-    assessments = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
-    lab = next(a for a in assessments if a["title"] == "Lab 1")
-    assert (lab["points_earned"], lab["points_possible"]) == (8, 10)
-    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
 
-    # A regrade is offered again; one the user turned down is not.
+    async def asked() -> list[dict[str, Any]]:
+        status = await api.sync(program_id)
+        return [i for i in status["pending"] if i["kind"] == "conflict"]
+
+    async def grades() -> dict[str, dict[str, Any]]:
+        items = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
+        return {a["title"]: a for a in items}
+
+    lab = (await grades())["Lab 1"]
+    assert (lab["points_earned"], lab["points_possible"]) == (8, 10)
+    assert (await api.sync(program_id))["recent"] == []
+
+    # A regrade replaces a grade the user left alone.
     fake.course_assignments["101"][0] = lab1.model_copy(
         update={"submission": Submission(state="graded", score=9)}
     )
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    assert updates["items"][0]["changes"]["score"]["old"] == {
-        "points_earned": 8.0,
-        "points_possible": 10.0,
-    }
-    review = await api.call("POST", f"/courses/{course}/lms/updates:review")
-    session = await api.call("GET", f"/imports/{review['session_id']}")
-    [item] = by_type(session, "assessment_patch")
-    await api.call(
-        "POST", f"/imports/{review['session_id']}/items:decide",
-        json={"item_ids": [item["id"]], "decision": "reject"},
-    )  # fmt: skip
-    await api.commit(review["session_id"])
-    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
+    [change] = (await api.sync(program_id))["recent"]
+    assert (change["field"], change["old"]) == (
+        "score",
+        {"points_earned": 8.0, "points_possible": 10.0},
+    )
+    assert (await grades())["Lab 1"]["points_earned"] == 9
 
-    # A score the gradebook already has (as a percentage) is not offered.
+    # A grade the gradebook already has (as a percentage) changes nothing...
+    lab2 = (await grades())["Lab 2"]
+    await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 50})
     fake.course_assignments["101"][1] = fake.course_assignments["101"][1].model_copy(
         update={"submission": Submission(state="graded", score=15)}
     )
-    lab2 = next(a for a in assessments if a["title"] == "Lab 2")
-    await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 50})
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    assert updates["count"] == 0
-    # ...and a later hand edit does not bring that same grade back.
+    assert await asked() == []
+    assert len((await api.call("GET", f"/programs/{program_id}/lms/sync"))["recent"]) == 1
+    # ...and a later hand edit stays while the platform keeps that grade.
     await api.call("PATCH", f"/assessments/{lab2['id']}", json={"score_percentage": 60})
-    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
-
-    # A different percentage is offered, with the percentage as the old value.
+    assert await asked() == []
+    # A regrade then asks, with the user's percentage against the platform's points.
     fake.course_assignments["101"][1] = fake.course_assignments["101"][1].model_copy(
         update={"submission": Submission(state="graded", score=21)}
     )
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    [change] = [u["changes"]["score"] for u in updates["items"]]
-    assert change["old"] == {"score_percentage": 60.0}
-    assert change["new"]["points_earned"] == 21.0
+    [conflict] = await asked()
+    assert conflict["conflicts"] == [
+        {
+            "field": "score",
+            "mine": {"score_percentage": 60.0},
+            "platform": {"points_earned": 21.0, "points_possible": 30.0},
+        }
+    ]

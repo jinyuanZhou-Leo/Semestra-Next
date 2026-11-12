@@ -8,12 +8,17 @@ course finds its term and Program through `set_scope_resolver`.
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from semestra.core.config import Settings
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
+
+# Narrows a namespace's JSON schema to what this server offers (choices the deployment does not
+# allow are left out of the form); gets the server settings and the schema, returns the schema.
+SchemaHook = Callable[[Settings, dict[str, Any]], dict[str, Any]]
 
 ScopeType = Literal["account", "program", "term", "course"]
 # Lowest priority first: a deeper level overrides the ones before it.
@@ -29,6 +34,11 @@ class SettingsDef:
     levels: tuple[ScopeType, ...]
     plugin_id: str | None
     agent_writable: bool = True
+    adapt: SchemaHook | None = None
+
+    def json_schema(self, settings: Settings) -> dict[str, Any]:
+        schema = self.schema.model_json_schema()
+        return self.adapt(settings, schema) if self.adapt is not None else schema
 
 
 class SettingsRegistry:
@@ -60,6 +70,7 @@ def register_settings(
     levels: tuple[ScopeType, ...] = ("account",),
     plugin_id: str | None = None,
     agent_writable: bool = True,
+    adapt: SchemaHook | None = None,
     target: SettingsRegistry | None = None,
 ) -> None:
     """Declare a configuration namespace.
@@ -69,7 +80,9 @@ def register_settings(
     namespaces are `plugin.<plugin_id>` so that uninstalling with purge can find them.
     `agent_writable=False` keeps Sem and MCP clients from changing the namespace: use it for
     switches that widen what they may do (letting Semestra write to an LMS, turning memory on),
-    which only the user should flip in the settings page.
+    which only the user should flip in the settings page. `adapt` narrows the schema the form
+    is built from to what the server allows (values outside it stay valid; the module decides
+    what they mean).
     """
     if not _NAMESPACE.fullmatch(namespace):
         raise ValueError(f"invalid settings namespace {namespace!r}")
@@ -89,6 +102,7 @@ def register_settings(
             tuple(sorted(set(levels), key=LEVELS.index)),
             plugin_id,
             agent_writable,
+            adapt,
         )
     )
 

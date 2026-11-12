@@ -73,7 +73,7 @@ Do not use to read current values; use settings.value.get.""",
     tags=("settings",),
 )
 async def schemas_list(ctx: Ctx, inp: NoInput) -> SettingsSchemaList:
-    return service.list_schemas()
+    return service.list_schemas(ctx.settings)
 
 
 @capability(

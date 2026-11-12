@@ -91,6 +91,25 @@ async def user_by_id(db: AsyncSession, user_id: str) -> AuthUser | None:
     return await db.get(AuthUser, user_id)
 
 
+async def active_user_ids(ctx: Ctx, user_ids: list[str], since: datetime) -> set[str]:
+    """Which of these users used Semestra since `since`: a session or an access token of theirs
+    was used (background work for an abandoned account can wait until it comes back)."""
+    if not user_ids:
+        return set()
+    sessions = await ctx.db.scalars(
+        select(AuthSession.user_id).where(
+            AuthSession.user_id.in_(user_ids), AuthSession.last_used_at >= since
+        )
+    )
+    tokens = await ctx.db.scalars(
+        select(AuthPersonalAccessToken.user_id).where(
+            AuthPersonalAccessToken.user_id.in_(user_ids),
+            AuthPersonalAccessToken.last_used_at >= since,
+        )
+    )
+    return {*sessions, *tokens}
+
+
 async def user_by_email(db: AsyncSession, email: str) -> AuthUser | None:
     return (
         await db.execute(

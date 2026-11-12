@@ -3,7 +3,15 @@ through agents or MCP clients."""
 
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
-from semestra.modules.lms import imports, previews, reads, service
+from semestra.modules.lms import (
+    imports,
+    previews,
+    reads,
+    service,
+    sync,
+    sync_assignments,
+    sync_status,
+)
 from semestra.modules.lms.schemas.dto import (
     FileMeta,
     FolderListing,
@@ -53,7 +61,6 @@ from semestra.modules.lms.schemas.io import (
     ModuleItemList,
     ModuleItemsInput,
     ModuleList,
-    NewAssignmentList,
     PageGetInput,
     PageList,
     ProgramBinding,
@@ -67,8 +74,14 @@ from semestra.modules.lms.schemas.io import (
     SubmissionInput,
     TermAnnouncementList,
     TermAnnouncementsInput,
-    TermNewAssignmentsInput,
-    UpdatesOutput,
+)
+from semestra.modules.lms.schemas.sync import (
+    SyncChangeRef,
+    SyncDismissInput,
+    SyncQueued,
+    SyncRequestInput,
+    SyncResolveInput,
+    SyncStatus,
 )
 
 HTTP_ONLY = ("http",)
@@ -85,7 +98,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "last_synced_at", "last_error_code",
+    "external_term", "sync_enabled", "synced_at", "sync_errors",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 
@@ -343,21 +356,6 @@ async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
 
 
 @capability(
-    name="lms.course.link.sync",
-    summary="Refresh the linked LMS course's code, name and term.",
-    description="""Changes only the link, never the course itself. Use when the course was renamed
-or moved on the LMS and the link still shows the old code, name or term.""",
-    effect="write",
-    http=Http("POST", "/courses/{course_id}/lms-link:sync"),
-    expose=HTTP_ONLY,
-    tags=TAGS,
-    agent_output_fields=_LINK_FIELDS,
-)
-async def link_sync(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
-    return await service.sync_link(ctx, inp.course_id)
-
-
-@capability(
     name="lms.course.link.delete",
     summary="Unlink a course from its LMS course.",
     description="""Imported assessments, tasks and files stay; LMS reads, calendar overlay and
@@ -488,20 +486,6 @@ lms.assignment.import, never the gradebook or task capabilities directly.""",
 )
 async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
     return await reads.assignments(ctx, inp)
-
-
-@capability(
-    name="lms.term.new_assignments",
-    summary="Assignments of a term's LMS-linked courses that are due later and not imported.",
-    description="""From the cached lists, per course (the "today" page's prompt). Not for agents:
-they read one course with lms.assignment.list (`new_ids`).""",
-    effect="read",
-    http=Http("GET", "/terms/{term_id}/lms/new-assignments"),
-    expose=HTTP_ONLY,
-    tags=TAGS,
-)
-async def term_new_assignments(ctx: Ctx, inp: TermNewAssignmentsInput) -> NewAssignmentList:
-    return await reads.term_new_assignments(ctx, inp.term_id)
 
 
 @capability(
@@ -812,7 +796,7 @@ async def add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStart
     summary="Bind an assessment made by hand to an LMS assignment of its course not imported yet.",
     description="""The assessment then follows the assignment as if imported from it (updates,
 handed-in to-do). Nothing of it changes now: the platform's differing due date, weight and grade
-come as changes for the user's review (lms.activity.list, lms.change.import). Importing an
+are offered to the user to take or keep in the app. Importing an
 assignment whose title matches an assessment made by hand binds them already.""",
     effect="write",
     http=Http("PUT", "/assessments/{assessment_id}/lms-assignment"),
@@ -850,32 +834,76 @@ async def import_syllabus(ctx: Ctx, inp: CourseRef) -> ImportStarted:
     return await imports.import_syllabus(ctx, inp.course_id)
 
 
+# --- background sync (M09 §4.8) -------------------------------------------------------------
+
+
 @capability(
-    name="lms.course.check_updates",
-    summary="Imported assignments whose title, due, points, weight or grade changed on the LMS.",
-    description="""A `score` change is a grade the gradebook does not have yet. Put them up for
-the user's review with lms.change.import.""",
+    name="lms.sync.status",
+    summary="How the Program's LMS sync stands: when it last ran, what it changed and what waits.",
+    description="""The status line, its panel and the reminders read this. Not for agents.""",
     effect="read",
-    http=Http("GET", "/courses/{course_id}/lms/updates"),
+    http=Http("GET", "/programs/{program_id}/lms/sync"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def check_updates(ctx: Ctx, inp: CourseReadInput) -> UpdatesOutput:
-    return await imports.check_updates(ctx, inp.course_id, inp.refresh)
+async def sync_get(ctx: Ctx, inp: ProgramRef) -> SyncStatus:
+    return await sync_status.status(ctx, inp.program_id)
 
 
 @capability(
-    name="lms.change.import",
-    summary="Import what changed on the LMS for a course's imported assignments (due dates, "
-    "points, weights, new grades), for the user's review.",
-    description="""The changes are the `change` items of lms.activity.list. Creates an import of
-them and changes nothing itself: they are written when the import is committed
-(imports.session.commit) after the user reviewed it; the result's count says how many.
-Nothing changed: import.no_content.""",
+    name="lms.sync.request",
+    summary="Sync the Program's linked courses (or one of them) with the LMS now.",
+    description="""Without `force` only the courses not synced in the last half hour (the app
+asks on opening); with it all of them (the user's "Sync now"). Runs in the background.""",
     effect="write",
-    http=Http("POST", "/courses/{course_id}/lms/updates:review"),
-    preview=previews.preview_apply_updates,
+    http=Http("POST", "/programs/{program_id}/lms/sync"),
+    expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def queue_updates(ctx: Ctx, inp: CourseRef) -> ImportStarted:
-    return await imports.review_updates(ctx, inp.course_id)
+async def sync_request(ctx: Ctx, inp: SyncRequestInput) -> SyncQueued:
+    queued = await sync.request_sync(ctx, inp.program_id, inp.course_id, force=inp.force)
+    return SyncQueued(queued=queued)
+
+
+@capability(
+    name="lms.sync.resolve",
+    summary="Settle what the sync asks about an imported item.",
+    description="""A conflict: take the platform's values or keep the user's. An item gone from
+the platform: delete it here or keep it as made by hand.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/items/{item_id}:resolve"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_resolve(ctx: Ctx, inp: SyncResolveInput) -> SyncStatus:
+    program_id = await sync_assignments.resolve(ctx, inp.item_id, inp.choice)
+    return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.dismiss",
+    summary="Ignore new LMS items (no longer offered), or offer ignored ones again.",
+    description="Ignored items stay listed in the sync panel, where they can still be imported.",
+    effect="write",
+    http=Http("POST", "/programs/{program_id}/lms/sync:dismiss"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_dismiss(ctx: Ctx, inp: SyncDismissInput) -> SyncStatus:
+    await sync_assignments.dismiss(ctx, inp.program_id, inp.item_ids, inp.dismissed)
+    return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
+    name="lms.sync.change.revert",
+    summary="Put back what the sync changed on an imported item.",
+    description="""The field then counts as the user's: the platform's next change to it asks
+instead of replacing it.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/changes/{change_id}:revert"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_revert(ctx: Ctx, inp: SyncChangeRef) -> SyncStatus:
+    program_id = await sync_assignments.revert(ctx, inp.change_id)
+    return await sync_status.status(ctx, program_id)

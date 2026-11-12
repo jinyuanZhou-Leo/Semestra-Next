@@ -34,6 +34,9 @@ STATUS = {
     "lms.assessment_already_bound": 409,
     "lms.assessment_not_bound": 409,
     "lms.credentials_missing": 409,
+    # The pending sync item was resolved meanwhile (another tab, the next sync), or the choice
+    # does not fit it (keep/delete for a conflict).
+    "lms.sync_nothing_to_resolve": 409,
     # The account setting `lms.allow_writes` is off: nothing is changed on the platform.
     "lms.writes_disabled": 409,
     "lms.file_too_large": 413,

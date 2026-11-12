@@ -20,7 +20,7 @@ from sqlalchemy import delete, func, select, update
 from starlette.datastructures import State
 
 from semestra.core.config import Settings
-from semestra.core.context import Ctx, run_as_system, system_ctx
+from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.http import safe_client
@@ -422,43 +422,6 @@ async def _record_failure(ctx: Ctx, connection_id: str, code: str) -> None:
         log.exception("lms_record_failure_failed")
 
 
-async def refresh_all(ctx: Ctx) -> None:
-    """Periodic check of every connection (M09 §4), each in a transaction of its own: the
-    platform is asked first, then the row is read again and written, so the round holds no
-    transaction while platforms answer, and a connection deleted or given new credentials
-    meanwhile is left alone (its new state is not the old credentials' result)."""
-    rows = await ctx.db.execute(
-        select(LmsConnection.id, LmsConnection.user_id).where(
-            LmsConnection.credentials_encrypted.is_not(None)
-        )
-    )
-    for connection_id, user_id in rows.all():
-
-        async def check(sys: Ctx, connection_id: str = connection_id) -> None:
-            row = await sys.db.get(LmsConnection, connection_id)
-            if row is None or not row.credentials_encrypted:
-                return
-            sealed = row.credentials_encrypted
-            try:
-                await _check_saved(sys, await bound(sys, row))
-                code = None
-            except AppError as exc:
-                code = exc.code
-            latest = await sys.db.scalar(
-                select(LmsConnection)
-                .where(LmsConnection.id == connection_id)
-                .execution_options(populate_existing=True)
-            )
-            if latest is not None and latest.credentials_encrypted == sealed:
-                await _record(sys, latest, code)
-
-        try:
-            await run_as_system(ctx.state, user_id, check)
-        except Exception:
-            # One broken connection (old config, a provider bug) must not stop the round.
-            log.exception("lms.refresh_failed", connection_id=connection_id)
-
-
 # --- calling providers ----------------------------------------------------------------------
 
 
@@ -782,8 +745,8 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         external_term=row.external_term,
         web_url=row.web_url,
         sync_enabled=row.sync_enabled,
-        last_synced_at=row.last_synced_at,
-        last_error_code=row.last_error_code,
+        synced_at=row.synced_at,
+        sync_errors=row.sync_errors,
         created_at=row.created_at,
     )
 
@@ -936,8 +899,8 @@ async def create_link(
         ctx.db.add(link)
     link.sync_enabled = sync_enabled
     _apply_meta(link, external)
-    link.last_synced_at = ctx.now
-    link.last_error_code = None
+    # Not synced yet: the scheduler's next round picks it up first.
+    link.synced_at, link.sync_errors = None, {}
     link.updated_at = ctx.now
     await ctx.db.flush()
     # The link is written first, so this transaction holds the write lock: a binding change
@@ -1003,28 +966,20 @@ async def update_link(ctx: Ctx, course_id: str, sync_enabled: bool) -> CourseLin
     return await link_state(ctx, course_id)
 
 
-async def sync_link(ctx: Ctx, course_id: str) -> CourseLinkState:
-    """Refreshes the external course's code, name, term and address; the course is untouched.
-    A failure is recorded on the link rather than raised."""
-    link, b = await require_link(ctx, course_id)
-    try:
-        external, _ = await call(
-            ctx, b, lambda i: b.provider.get_course(i, b.cfg, b.creds, link.external_course_id)
-        )
-    except AppError as exc:
-        link.last_error_code = exc.code
-    else:
-        _apply_meta(link, external.model_dump(mode="json"))
-        link.last_error_code = None
-        link.last_synced_at = ctx.now
-        # Only what shows the course's own details; its content is not affected.
-        key = cache.cache_key(
-            ctx.user_id, b.row.id, "overview", {"course": link.external_course_id}
-        )
-        await cache.drop(ctx, key)
+async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
+    """The course stage of the sync: the external course's code, name, term and address (the
+    course itself is untouched). Reading it also tells whether the connection works."""
+    external, _ = await call(
+        ctx, b, lambda i: b.provider.get_course(i, b.cfg, b.creds, link.external_course_id)
+    )
+    _apply_meta(link, external.model_dump(mode="json"))
     link.updated_at = ctx.now
-    await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
-    return await link_state(ctx, course_id)
+    # Only what shows the course's own details; its content is not affected.
+    key = cache.cache_key(ctx.user_id, b.row.id, "overview", {"course": link.external_course_id})
+    await cache.drop(ctx, key)
+    if b.row.status != "connected" or b.row.last_error_code is not None:
+        await _record(ctx, b.row, None)
+    await events.publish(ctx, "lms.course.link_updated", {"course_id": link.course_id})
 
 
 async def _remove_link(ctx: Ctx, link: LmsCourseLink) -> None:

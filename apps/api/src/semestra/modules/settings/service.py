@@ -7,6 +7,7 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from sqlalchemy import delete, or_, select
 
 from semestra.core.capability import registry
+from semestra.core.config import Settings
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import events
@@ -307,7 +308,7 @@ async def check_update(ctx: Ctx, inp: ValuesUpdateInput) -> None:
         raise AppError("settings.user_only", 403, namespace=inp.namespace)
 
 
-def list_schemas() -> SettingsSchemaList:
+def list_schemas(settings: Settings) -> SettingsSchemaList:
     return SettingsSchemaList(
         items=[
             SettingsSchemaOut(
@@ -315,7 +316,7 @@ def list_schemas() -> SettingsSchemaList:
                 levels=list(d.levels),
                 plugin_id=d.plugin_id,
                 agent_writable=d.agent_writable,
-                json_schema=d.schema.model_json_schema(),
+                json_schema=d.json_schema(settings),
             )
             for d in settings_registry.list()
         ]
