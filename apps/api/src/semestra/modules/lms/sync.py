@@ -42,6 +42,7 @@ JOB = "lms.course.sync"
 SYNCED = "lms.course.synced"
 # The status line and panel of a Program refetch on it (enqueued, finished, decided).
 UPDATED = "lms.sync.updated"
+events.coalesce(UPDATED)
 # Grades come in a while after a term's last day (the final exam), so a term that ended within
 # this is still synced.
 RECENT = timedelta(days=30)

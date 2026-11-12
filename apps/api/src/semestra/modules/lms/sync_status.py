@@ -117,25 +117,6 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
                 for name, c in ref.conflicts.items()
             ]
             pending.append(asked)
-    different = sorted(
-        (
-            SyncDifference(
-                id=ref.id,
-                course_id=by_link[ref.link_id].course_id,
-                course=label(by_link[ref.link_id].course_id),
-                title=str(ref.snapshot.get("title") or ""),
-                field=name,
-                mine=mine,
-                platform=platform,
-                target_kind="assessment" if ref.target_kind == "assessment" else "task",
-                target_id=str(ref.target_id),
-            )
-            for ref in imported
-            if ref.id in local
-            for name, mine, platform in differences(ref, local[ref.id], tz)
-        ),
-        key=lambda d: (d.course, d.title.casefold(), d.field),
-    )
     order = {"conflict": 0, "removed": 1, "new": 2}
     pending.sort(
         key=lambda i: (order[i.kind], i.due_at or datetime.max.replace(tzinfo=ctx.now.tzinfo))
@@ -154,6 +135,32 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         )
     ).all()
     can_toggle = await toggleable(ctx, [(change, ref) for change, ref in rows])
+    # A field whose change was put back is offered there ("redo"), not again as different.
+    put_back = {
+        (ref.id, change.field)
+        for change, ref in rows
+        if change.reverted_at is not None and change.id in can_toggle
+    }
+    different = sorted(
+        (
+            SyncDifference(
+                id=ref.id,
+                course_id=by_link[ref.link_id].course_id,
+                course=label(by_link[ref.link_id].course_id),
+                title=str(ref.snapshot.get("title") or ""),
+                field=name,
+                mine=mine,
+                platform=platform,
+                target_kind="assessment" if ref.target_kind == "assessment" else "task",
+                target_id=str(ref.target_id),
+            )
+            for ref in imported
+            if ref.id in local
+            for name, mine, platform in differences(ref, local[ref.id], tz)
+            if (ref.id, name) not in put_back
+        ),
+        key=lambda d: (d.course, d.title.casefold(), d.field),
+    )
     recent = [
         SyncChange(
             id=change.id,

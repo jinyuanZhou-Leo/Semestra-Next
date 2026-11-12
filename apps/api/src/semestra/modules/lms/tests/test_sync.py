@@ -451,8 +451,10 @@ async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
     [change] = status["recent"]
     assert (change["field"], change["toggleable"]) == ("due_at", True)
     status = await api.call("POST", f"/lms/sync/changes/{change['id']}:revert")
-    assert [d["field"] for d in status["different"]] == ["due_at"]
     assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-04"
+    # Put back, it is offered once: as the change to apply again, not also as different.
+    assert status["different"] == []
+    assert next(c for c in status["recent"] if c["id"] == change["id"])["reverted"]
 
     # A field the platform asks about is pending, not listed; one that matches has nothing to do.
     labs = fake.course_assignments["101"]
@@ -464,3 +466,56 @@ async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
         "POST", f"/lms/sync/items/{moved['id']}:follow", 409, json={"field": "title"}
     )
     assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+
+async def test_due_times_compare_to_the_minute(api: Api, fake: FakeProvider):
+    """Canvas's default due time is 23:59:59; Semestra keeps no seconds."""
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 7, 4, 59, 59, tzinfo=UTC)})
+    program_id, course = await _course(api, "a1")
+    lab = (await _assessments(api, course))["a1"]
+    # Saved again as the edit dialog sends it.
+    await api.call(
+        "PATCH", f"/assessments/{lab['id']}", json={"due_date": "2026-02-06", "due_time": "23:59"}
+    )
+    status = await api.sync(program_id)
+    assert status["different"] == []
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 8, 4, 59, 59, tzinfo=UTC)})
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-07"
+
+
+async def test_a_grade_taken_back_on_the_platform_is_no_longer_offered(
+    api: Api, fake: FakeProvider
+):
+    program_id, course = await _course(api, "a2")
+    lab = (await _assessments(api, course))["a2"]
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"score_percentage": 50})
+    labs = fake.course_assignments["101"]
+    labs[1] = labs[1].model_copy(update={"submission": Submission(state="graded", score=27)})
+    [asked] = [i for i in (await api.sync(program_id))["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in asked["conflicts"]] == ["score"]
+    labs[1] = labs[1].model_copy(update={"submission": None})
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert status["different"] == []
+
+
+async def test_editing_an_imported_item_refreshes_the_sync_panel(api: Api, app: FastAPI):
+    program_id, course = await _course(api, "a1")
+    user_id = (await api.call("GET", "/account/me"))["id"]
+    lab = (await _assessments(api, course))["a1"]
+
+    def told(messages: list[dict[str, Any]]) -> list[Any]:
+        return [m["data"] for m in messages if m["type"] == sync.UPDATED]
+
+    with collect_events(app, user_id) as messages:
+        await api.call("PATCH", f"/assessments/{lab['id']}", json={"note": "bring a calculator"})
+    assert told(messages) == []
+    with collect_events(app, user_id) as messages:
+        await api.call("PATCH", f"/assessments/{lab['id']}", json={"title": "Lab one"})
+    assert told(messages) == [{"program_id": program_id}]
+    with collect_events(app, user_id) as messages:
+        await api.call("DELETE", f"/assessments/{lab['id']}")
+    assert told(messages) == [{"program_id": program_id}]

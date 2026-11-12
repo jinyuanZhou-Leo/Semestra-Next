@@ -1018,9 +1018,23 @@ async def forget_program(ctx: Ctx, program_id: str) -> None:
     await ctx.db.flush()
 
 
-async def forget_target(ctx: Ctx, target_kind: str, target_id: str) -> None:
-    await ctx.db.execute(
+async def forget_target(ctx: Ctx, target_kind: str, target_id: str) -> bool:
+    """Forgets what was imported as this object; whether anything was."""
+    result = await ctx.db.execute(
         delete(LmsImportedRef).where(
             LmsImportedRef.target_kind == target_kind, LmsImportedRef.target_id == target_id
         )
     )
+    return bool(getattr(result, "rowcount", 0))
+
+
+async def is_imported(ctx: Ctx, target_kind: str, target_id: str) -> bool:
+    return (
+        await ctx.db.scalar(
+            select(LmsImportedRef.id).where(
+                LmsImportedRef.user_id == ctx.user_id,
+                LmsImportedRef.target_kind == target_kind,
+                LmsImportedRef.target_id == target_id,
+            )
+        )
+    ) is not None

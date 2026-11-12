@@ -9,7 +9,8 @@ field the user changed too is a conflict the user settles (`resolve`); an assign
 the platform is kept or deleted by the user. Assignments not imported yet that are due later
 are kept as new items until the user imports or ignores them.
 
-All values are compared in the Program's time zone and kept in one form, which is also what the
+All values are compared in the Program's time zone, due times to the minute (Semestra keeps no
+seconds; Canvas's default is 23:59:59), and kept in one form, which is also what the
 change log and conflicts hold: a due date is `{date, time}` (time null for a date only), a grade
 `{points_earned, points_possible}` or `{score_percentage}`, a weight a number, a title a string.
 """
@@ -52,7 +53,7 @@ def _due(raw: str | None, tz: ZoneInfo) -> dict[str, str | None] | None:
     if not raw:
         return None
     local = datetime.fromisoformat(raw).astimezone(tz)
-    at = local.time().replace(microsecond=0).isoformat()
+    at = local.time().replace(second=0, microsecond=0).isoformat()
     return {"date": local.date().isoformat(), "time": at}
 
 
@@ -89,7 +90,9 @@ def _assessment_values(row: GradingAssessment, tz: ZoneInfo) -> dict[str, Any]:
     due = None
     if row.due_at is not None:
         local = row.due_at.astimezone(tz)
-        time = local.time().replace(microsecond=0).isoformat() if row.due_has_time else None
+        time = (
+            local.time().replace(second=0, microsecond=0).isoformat() if row.due_has_time else None
+        )
         due = {"date": local.date().isoformat(), "time": time}
     if row.points_earned is not None and row.points_possible is not None:
         score: dict[str, float] | None = {
@@ -106,7 +109,7 @@ def _assessment_values(row: GradingAssessment, tz: ZoneInfo) -> dict[str, Any]:
 def _task_values(row: TasksItem) -> dict[str, Any]:
     due = None
     if row.due_date is not None:
-        time = row.due_time.replace(microsecond=0).isoformat() if row.due_time else None
+        time = row.due_time.replace(second=0, microsecond=0).isoformat() if row.due_time else None
         due = {"date": row.due_date.isoformat(), "time": time}
     return {"title": row.title, "due_at": due}
 
@@ -217,7 +220,11 @@ async def _follow(
             continue
         p = platform_value(name, platform[name], tz)
         if p is None and name in ("weight", "score"):
-            continue  # an unweighted course, an assignment not graded: nothing to follow
+            # An unweighted course, an assignment not graded (or its grade taken back): nothing
+            # to follow, and nothing left to offer of what the platform had before.
+            snap[name] = None
+            conflicts.pop(name, None)
+            continue
         s = platform_value(name, snap.get(name), tz)
         mine = local.get(name)
         if same(name, p, mine):
