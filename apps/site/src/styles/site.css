@@ -179,13 +179,16 @@ body::before {
   color: var(--foreground);
 }
 
-/* The hero is the app itself. On load the window rises into place, then three real pieces of it
-   lift off the screen one after another: the week's deadlines, Sem's proposal, and an LMS sync toast
-   that slides in from the edge the way a toast does. While the page scrolls, the window leans back
-   less and less until it lies flat, and the lifted pieces, which sit in front of it, shift with it.
-   Only `transform` and `opacity` move (no animated custom properties, no opacity on 3D containers),
-   so the browser can run all of it on the compositor. The entrance waits for the images to decode
-   (`.go`, set by landing.ts) so its first frames are not spent decoding. */
+/* The hero is the app itself. On load the window rises into place; then, as each of three real
+   pieces of it comes into view, it lifts off the screen: the week's deadlines and Sem's proposal come
+   forward from where they sit, and an LMS sync toast slides in from the edge the way a toast does.
+   While the page scrolls, the window leans back less and less until it lies flat, and the pieces
+   sink back toward it so they stay inside the page. Only `transform` and `opacity` move, so the
+   browser runs all of it on the compositor: the lean and the depth are scroll-driven animations
+   (landing.ts writes the same transforms where those are missing), the entrance waits for the
+   images to decode (`.go`), and each piece waits until it is in view (`.up`).
+   Scroll timelines go in their own, more specific rule: the `animation` shorthand resets them, and
+   the minifier would otherwise fold them into a shorthand that browsers reject. */
 .stage {
   position: relative;
   margin: 64px auto 0;
@@ -196,21 +199,6 @@ body::before {
 .tilt {
   transform-style: preserve-3d;
   transform-origin: 50% 0%;
-}
-@supports (animation-timeline: scroll()) {
-  .tilt {
-    animation: tilt linear both;
-    animation-timeline: scroll(root);
-    animation-range: 0 70vh;
-  }
-}
-@keyframes tilt {
-  from {
-    transform: rotateX(24deg) scale(0.9);
-  }
-  to {
-    transform: none;
-  }
 }
 .win {
   position: relative;
@@ -240,14 +228,46 @@ body::before {
 }
 .float {
   position: absolute;
+  transform-style: preserve-3d;
   transform: translate3d(0, 0, var(--z));
-  animation: lift 1.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@supports (animation-timeline: scroll()) {
+  .tilt {
+    animation: tilt linear both;
+  }
+  .float {
+    animation: depth linear both;
+  }
+  .stage .tilt,
+  .stage .float {
+    animation-timeline: scroll(root);
+    animation-range: 0 70vh;
+  }
+}
+@keyframes tilt {
+  from {
+    transform: rotateX(24deg) scale(0.9);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes depth {
+  from {
+    transform: translate3d(0, 0, var(--z));
+  }
+  to {
+    transform: translate3d(0, 0, calc(var(--z) * 0.45));
+  }
 }
 /* Each piece starts flat on the screen, where it is, and comes forward to its own depth. */
+.float > * {
+  animation: lift 1.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
 @keyframes lift {
   from {
     opacity: 0;
-    transform: translate3d(0, 0, 0) scale(0.96);
+    transform: translate3d(0, 0, calc(var(--z) * -1)) scale(0.96);
   }
   35% {
     opacity: 1;
@@ -256,32 +276,48 @@ body::before {
 .float.a {
   --z: 140px;
   width: 31%;
-  left: -6%;
+  left: -4%;
   top: 46%;
+}
+.float.a > * {
   animation-delay: 0.8s;
 }
 .float.b {
   --z: 220px;
   width: 50%;
-  right: -7%;
+  right: -4%;
   top: 72%;
+}
+.float.b > * {
   animation-delay: 1.05s;
 }
 .float.c {
   --z: 300px;
   width: 28%;
-  right: -3%;
+  right: 0;
   top: 9%;
+}
+.float.c > * {
   animation: toast 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.6s backwards;
 }
 @keyframes toast {
   from {
     opacity: 0;
-    transform: translate3d(64px, 0, var(--z));
+    transform: translate3d(64px, 0, 0);
+  }
+}
+/* Where the page has no margin left beside the window, the pieces stay within its edges. */
+@media (max-width: 1360px) {
+  .float.a {
+    left: 0;
+  }
+  .float.b {
+    right: 0;
   }
 }
 .js .stage:not(.go) .win,
-.js .stage:not(.go) .win * {
+.js .stage:not(.go) .screen,
+.js .float:not(.up) > * {
   animation-play-state: paused;
 }
 .stage-gap {
@@ -898,6 +934,7 @@ footer .legal {
   .win,
   .win .screen,
   .float,
+  .float > *,
   .layered > div {
     transform: none !important;
     animation: none !important;
