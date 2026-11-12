@@ -2342,7 +2342,6 @@
   "settings_assistant_ai_suggestions_label": "个性化推荐问题",
   "settings_assistant_ai_suggestions_description": "用轻量任务模型，根据截止、成绩和最近的对话改写推荐问题，每天最多两次。",
   "settings_lms_sync_every_label": "检查频率",
-  "settings_lms_sync_every_description": "打开学业项目时也会检查一次。",
   "settings_lms_sync_every_option_15m": "每 15 分钟",
   "settings_lms_sync_every_option_30m": "每 30 分钟",
   "settings_lms_sync_every_option_1h": "每小时",

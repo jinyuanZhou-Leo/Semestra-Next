@@ -100,7 +100,6 @@ export const settingsMessages = {
   settings_lms_follow_score_label: m.settings_lms_follow_score_label,
   settings_lms_follow_title_label: m.settings_lms_follow_title_label,
   settings_lms_follow_weight_label: m.settings_lms_follow_weight_label,
-  settings_lms_sync_every_description: m.settings_lms_sync_every_description,
   settings_lms_sync_every_label: m.settings_lms_sync_every_label,
   settings_lms_sync_every_option_15m: m.settings_lms_sync_every_option_15m,
   settings_lms_sync_every_option_1d: m.settings_lms_sync_every_option_1d,

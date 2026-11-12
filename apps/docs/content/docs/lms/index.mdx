@@ -3,18 +3,18 @@ title: Connect Canvas
 description: Link Semestra to your Canvas account, a program and its courses.
 ---
 
-Semestra connects to learning platforms through providers. Canvas is the only provider today.
+Semestra connects to an LMS (learning management system) through providers. Canvas is the only provider today.
 A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
-unless you turn on **Allow changes on the platform** under global settings → **Learning platforms →
+unless you turn on **Allow changes on the platform** under global settings → **LMS →
 Platform access**; for now that only marks an announcement read on Canvas when you open it in Semestra.
 
 There are three levels, each set up once:
 
 | Level      | Where                                                     | What it holds                                         |
 | ---------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| Connection | Global settings → **Learning platforms → LMS connections**      | Canvas address and credentials. You can have several  |
-| Program    | Program settings → **Learning platforms → LMS**                 | Which connection this program's courses use           |
-| Course     | Course settings → **Learning platforms → LMS**                  | Which Canvas course this course is linked to          |
+| Connection | Global settings → **LMS → LMS connections**               | Canvas address and credentials. You can have several  |
+| Program    | Program settings → **LMS → LMS**                          | Which connection this program's courses use           |
+| Course     | Course settings → **LMS → LMS**                           | Which Canvas course this course is linked to          |
 
 During onboarding, a new account can add a connection before its first term; it becomes the new
 program's connection, and the term wizard can then import courses from Canvas.
@@ -95,7 +95,7 @@ program is linked, the binding cannot be changed or removed.
 ## 3. Link courses
 
 Either [import courses from Canvas](./imports.mdx), which links them as they are created, or
-pick the Canvas course in an existing course's settings → **Learning platforms → LMS**. A Canvas course
+pick the Canvas course in an existing course's settings → **LMS → LMS**. A Canvas course
 can be linked to only one course per program, and a year-long course has a single link. The same
 place syncs the course now, links a different course or unlinks it.
 
@@ -107,7 +107,7 @@ the course.
 
 Linked courses sync in the background, so you don't have to open a page for Semestra to notice
 what changed on Canvas. They sync every six hours by default; pick another interval under global
-settings → **Learning platforms → Background sync**. Opening a program also syncs its
+settings → **LMS → Background sync**. Opening a program also syncs its
 courses that haven't synced in the last half hour. The shortest interval on offer is set by the
 server ([`SEMESTRA_LMS_SYNC_MIN_INTERVAL`](/docs/self-hosting/configuration) when you host it
 yourself).
@@ -115,7 +115,7 @@ yourself).
 - **Imported assignments follow Canvas.** When an assignment's name, due date, weight or grade
   changes on Canvas, Semestra updates it here, unless you changed that value yourself. If both
   sides changed, it asks which one to keep. To look over a kind of change first, turn it off
-  under global settings → **Learning platforms → Update automatically** (names, due dates,
+  under global settings → **LMS → Update automatically** (names, due dates,
   weights, grades): those changes then wait for you to keep or update.
 - **New assignments are offered, not added.** Assignments due later that you haven't imported wait
   in the status line's panel, where you can **Import** or **Ignore** them.
@@ -124,8 +124,8 @@ yourself).
 
 The status line at the bottom of the sidebar shows the sync: when it last ran, or how many items
 wait for you. Click it for the details: **Sync now**, the items to review, recent updates and the
-assignments you ignored, which you can import later or be reminded of again. **Sync learning
-platform** in the command palette does the same. Nothing pops up over the page: the status line is
+assignments you ignored, which you can import later or be reminded of again. **Sync LMS** in the command
+palette does the same. Nothing pops up over the page: the status line is
 where the sync tells you things.
 
 A recent update (kept for 14 days) can be undone, and undoing it can be redone, as long as it is
@@ -149,7 +149,7 @@ stays yours: if Canvas changes it again, you're asked which to keep.
   its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
   assignment is checked off once, so a to-do you uncheck stays open. Semestra checks on each
   sync. Turn it off under
-  global settings → **Learning platforms → To-dos**.
+  global settings → **LMS → To-dos**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can search and read the course (see below and [MCP tools](/docs/mcp/tools)).
 

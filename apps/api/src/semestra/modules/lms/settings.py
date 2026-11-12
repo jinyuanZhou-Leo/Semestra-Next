@@ -24,9 +24,7 @@ class LmsSettings(BaseModel):
     """`follow_<field>`: a change on the platform to that field of an imported assignment is
     applied without asking when the user has not changed it here; off, the sync asks first."""
 
-    sync_every: SyncInterval = Field(
-        default="6h", description="How often linked courses are synced in the background"
-    )
+    sync_every: SyncInterval = "6h"
     follow_title: bool = True
     follow_due_at: bool = True
     follow_weight: bool = True
