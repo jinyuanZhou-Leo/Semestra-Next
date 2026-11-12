@@ -74,7 +74,8 @@ export function TitleInput({
           aria-hidden
           className={cn(
             className,
-            'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre',
+            // Centred like the field's own line, which a fixed height (the phone's) leaves room around.
+            'pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre',
           )}
         >
           {parts}

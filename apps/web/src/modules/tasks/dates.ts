@@ -36,7 +36,16 @@ export function readDates(text: string, now: Date, locale: string): ReadDate[] {
         words === found.text
           ? found.start
           : parser.parse(words, now, { forwardDate: true })[0]?.start
-      if (!start) continue
+      // A bare hour ("一点", "at 3") or month ("3月") is too often just words.
+      if (
+        !start ||
+        !(
+          start.isCertain('day') ||
+          start.isCertain('weekday') ||
+          (start.isCertain('hour') && start.isCertain('meridiem'))
+        )
+      )
+        continue
       dates.push({
         index: found.index,
         text: words,

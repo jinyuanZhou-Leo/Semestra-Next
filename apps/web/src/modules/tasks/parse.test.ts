@@ -43,6 +43,21 @@ test('a date that runs into a course code stops before it', () => {
   })
 })
 
+test('a bare hour or month is not a date', () => {
+  for (const text of ['学一点线代', '准备两点讲演', 'Email prof at 3', '3月计划']) {
+    expect(read(text, /[a-z]/i.test(text) ? 'en' : 'zh-CN').tokens).toEqual([])
+  }
+  expect(read('周五 tonight 复习', 'zh-CN').tokens).toMatchObject([{ kind: 'date' }])
+})
+
+test('two or three marks right after Chinese set the priority; one is punctuation', () => {
+  expect(read('交作业！！', 'zh-CN')).toMatchObject({
+    title: '交作业',
+    tokens: [{ kind: 'priority', priority: 'medium' }],
+  })
+  expect(read('太好了！', 'zh-CN').tokens).toEqual([])
+})
+
 test('a date without a time leaves the time empty', () => {
   expect(read('Read chapter 3 next Monday').tokens).toMatchObject([
     { kind: 'date', due_date: '2026-11-16', due_time: null },

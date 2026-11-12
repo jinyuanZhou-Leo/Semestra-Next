@@ -13,7 +13,9 @@ export type TokenKind = Token['kind']
 
 // As in Apple Reminders: one mark is low, two medium, three high.
 const MARKS: Record<number, Priority> = { 1: 'low', 2: 'medium', 3: 'high' }
-const MARK = /(?<=^|\s)[!！]{1,3}(?=\s|$)/g
+// Chinese puts no space before them, so two or three right after a character count too; one
+// would read every "太好了！" as low priority.
+const MARK = /(?<=^|\s)[!！]{1,3}(?=\s|$)|(?<=\p{Script=Han})[!！]{2,3}(?=\s|$)/gu
 // A course code as typed: letters then digits, maybe a space between and a suffix ("APS105H1",
 // "aps 105"), not inside a longer word. Chinese may follow it directly ("APS105作业").
 const CODE = /(?<![A-Za-z0-9])[A-Za-z]{2,}\s?\d{2,}[A-Za-z0-9]*(?![A-Za-z0-9])/g
