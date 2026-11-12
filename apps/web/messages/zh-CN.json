@@ -2398,7 +2398,7 @@
   "lms_settings_sync": "后台同步",
   "lms_settings_sync_description": "定期检查已关联的课程是否存在更新。",
   "lms_settings_follow": "自动更新",
-  "lms_settings_follow_description": "已导入作业在学习平台上的变更，会自动同步到你未修改过的字段；关闭的类型需你确认后再更新。",
+  "lms_settings_follow_description": "自动同步学习平台上的作业更新，关闭的项需要你确认。",
   "lms_settings_todos": "待办",
   "lms_settings_writes": "平台权限",
   "lms_settings_writes_description": "Semestra 默认只读取学习平台。",
