@@ -12848,14 +12848,14 @@
         }
       }
     },
-    "/lms/sync/items/{item_id}:follow": {
+    "/lms/sync/items/{item_id}/fields/{field}:resolve": {
       "post": {
         "tags": [
           "lms"
         ],
-        "summary": "Give a field the user changed the platform's value again.",
-        "description": "For a field listed in `lms.sync.status` `different`: it gets the platform's\nvalue and follows the platform again. Logged as a recent change, so it can be put back.",
-        "operationId": "lmsSyncFollow",
+        "summary": "Answer about one field of an imported item.",
+        "description": "For a field the sync asks about: take the platform's value or keep the\nuser's. For a field listed in `lms.sync.status` `different`: take the platform's value back.\nA value taken from the platform is logged as a recent change, so it can be put back.",
+        "operationId": "lmsSyncFieldResolve",
         "security": [
           {
             "sessionCookie": []
@@ -12875,6 +12875,23 @@
               "title": "Item Id"
             },
             "description": "An imported item's id"
+          },
+          {
+            "name": "field",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "title",
+                "due_at",
+                "weight",
+                "score"
+              ],
+              "type": "string",
+              "description": "A field asked about, or listed in `different`",
+              "title": "Field"
+            },
+            "description": "A field asked about, or listed in `different`"
           }
         ],
         "requestBody": {
@@ -12882,7 +12899,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SyncFollowInputBody"
+                "$ref": "#/components/schemas/SyncFieldResolveInputBody"
               }
             }
           }
@@ -13030,8 +13047,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Settle what the sync asks about an imported item.",
-        "description": "A conflict: take the platform's values or keep the user's. An item gone from\nthe platform: delete it here or keep it as made by hand.",
+        "summary": "Settle an imported item gone from the platform.",
+        "description": "Delete it here, or keep it as made by hand.",
         "operationId": "lmsSyncResolve",
         "security": [
           {
@@ -13048,10 +13065,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "A pending item's id (conflict or removed)",
+              "description": "An item gone from the platform",
               "title": "Item Id"
             },
-            "description": "A pending item's id (conflict or removed)"
+            "description": "An item gone from the platform"
           }
         ],
         "requestBody": {
@@ -35231,8 +35248,13 @@
         "properties": {
           "field": {
             "type": "string",
-            "title": "Field",
-            "description": "title, due_at, weight or score"
+            "enum": [
+              "title",
+              "due_at",
+              "weight",
+              "score"
+            ],
+            "title": "Field"
           },
           "mine": {
             "title": "Mine",
@@ -35378,25 +35400,23 @@
         ],
         "title": "SyncDismissInputBody"
       },
-      "SyncFollowInputBody": {
+      "SyncFieldResolveInputBody": {
         "properties": {
-          "field": {
+          "choice": {
             "type": "string",
             "enum": [
-              "title",
-              "due_at",
-              "weight",
-              "score"
+              "platform",
+              "mine"
             ],
-            "title": "Field",
-            "description": "A field that differs from the platform"
+            "title": "Choice",
+            "description": "platform takes the platform's value; mine keeps the user's (asked-about fields only)"
           }
         },
         "type": "object",
         "required": [
-          "field"
+          "choice"
         ],
-        "title": "SyncFollowInputBody"
+        "title": "SyncFieldResolveInputBody"
       },
       "SyncItem": {
         "properties": {
@@ -35509,13 +35529,11 @@
           "choice": {
             "type": "string",
             "enum": [
-              "platform",
-              "mine",
               "delete",
               "keep"
             ],
             "title": "Choice",
-            "description": "conflict: platform or mine; removed: delete or keep"
+            "description": "delete it here, or keep it as made by hand"
           }
         },
         "type": "object",

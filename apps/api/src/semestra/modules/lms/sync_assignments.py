@@ -1,18 +1,17 @@
 """The assignments stage of the course sync (M09 §4.1), and the user's answers to what it asks.
 
 Imported assignments follow the platform field by field (title, due date, weight, grade; a to-do
-only title and due date). A field whose Semestra value still equals its snapshot (the platform
-value last applied) was not changed by the user: a new platform value replaces it, and the
-change is logged (`LmsSyncChange`, which the user can put back), unless the user turned
-following that field off (settings `lms.follow_*`): then it is asked about like a conflict. A
-field the user changed too is a conflict the user settles (`resolve`); an assignment gone from
-the platform is kept or deleted by the user. Assignments not imported yet that are due later
-are kept as new items until the user imports or ignores them.
+only title and due date), each field decided by `rules.merge` from its snapshot (the platform
+value last applied), its Semestra value and the platform value now. Values the sync writes are
+logged (`LmsSyncChange`, which the user can put back); the user answers what it asks field by
+field (`answer`), and keeps or deletes an assignment gone from the platform (`resolve`).
+Assignments not imported yet that are due later are kept as new items until the user imports or
+ignores them.
 
-All values are compared in the Program's time zone, due times to the minute (Semestra keeps no
-seconds; Canvas's default is 23:59:59), and kept in one form, which is also what the
-change log and conflicts hold: a due date is `{date, time}` (time null for a date only), a grade
-`{points_earned, points_possible}` or `{score_percentage}`, a weight a number, a title a string.
+All values are compared in the Program's time zone and kept in one form (`rules.platform_value`),
+which is also what the change log and conflicts hold: a due date is `{date, time}` (time null for
+a date only), a grade `{points_earned, points_possible}` or `{score_percentage}`, a weight a
+number, a title a string.
 """
 
 from datetime import datetime
@@ -33,6 +32,7 @@ from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
+from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
@@ -43,47 +43,9 @@ FIELDS: dict[str, tuple[SyncField, ...]] = {
     "assessment": ("title", "due_at", "weight", "score"),
     "task": ("title", "due_at"),
 }
-TITLE_MAX = 200
 
 
 # --- values ----------------------------------------------------------------------------------
-
-
-def _due(raw: str | None, tz: ZoneInfo) -> dict[str, str | None] | None:
-    if not raw:
-        return None
-    local = datetime.fromisoformat(raw).astimezone(tz)
-    at = local.time().replace(second=0, microsecond=0).isoformat()
-    return {"date": local.date().isoformat(), "time": at}
-
-
-def platform_value(name: str, raw: Any, tz: ZoneInfo) -> Any:
-    """A snapshot (platform) value in the common form."""
-    if name == "due_at":
-        return _due(raw, tz)
-    if name == "title":
-        return str(raw)[:TITLE_MAX] if raw is not None else None
-    return raw
-
-
-def _percent(score: dict[str, Any] | None) -> float | None:
-    if not score:
-        return None
-    if score.get("points_earned") is not None and score.get("points_possible"):
-        return 100 * float(score["points_earned"]) / float(score["points_possible"])
-    pct = score.get("score_percentage")
-    return float(pct) if pct is not None else None
-
-
-def same(name: str, a: Any, b: Any) -> bool:
-    if a is None or b is None:
-        return a is None and b is None
-    if name == "weight":
-        return abs(float(a) - float(b)) < 0.005
-    if name == "score":
-        pa, pb = _percent(a), _percent(b)
-        return pa is not None and pb is not None and abs(pa - pb) < 0.005
-    return a == b
 
 
 def _assessment_values(row: GradingAssessment, tz: ZoneInfo) -> dict[str, Any]:
@@ -153,13 +115,15 @@ def differences(
     for name in FIELDS[ref.target_kind or "task"]:
         if name in ref.conflicts:
             continue
-        p = platform_value(name, ref.snapshot.get(name), tz)
-        if p is None:
-            continue
-        mine = local.get(name)
-        # Set apart by the user, not by a change of the Program's zone since (the next sync
-        # follows that).
-        if not same(name, platform_value(name, ref.snapshot.get(name), taken_in(ref, tz)), mine):
+        raw = ref.snapshot.get(name)
+        # Its base is the value as first taken (in the zone of then), so a change of the
+        # Program's zone since is not taken for the user's own (the next sync follows that).
+        base, p, mine = (
+            platform_value(name, raw, taken_in(ref, tz)),
+            platform_value(name, raw, tz),
+            local.get(name),
+        )
+        if diverged(name, base, mine, p):
             out.append((name, mine, p))
     return out
 
@@ -213,39 +177,35 @@ async def _follow(
     title: str,
     follow: frozenset[str],
 ) -> list[Applied]:
-    """Brings one imported object's fields up to the platform (see the module docstring).
-    A field the user turned off in `follow` is asked about instead of written."""
+    """Brings one imported object's fields up to the platform, as `rules.merge` decides.
+    `follow` holds the fields whose automatic update is on."""
     applied: list[Applied] = []
     snap, conflicts = dict(ref.snapshot), dict(ref.conflicts)
     for name in FIELDS[ref.target_kind or "task"]:
         if name not in platform:
             continue
         p = platform_value(name, platform[name], tz)
-        if p is None and name in ("weight", "score"):
-            # An unweighted course, an assignment not graded (or its grade taken back): nothing
-            # to follow, and nothing left to offer of what the platform had before.
-            snap[name] = None
-            conflicts.pop(name, None)
-            continue
         s = platform_value(name, snap.get(name), taken_in(ref, tz))
         mine = local.get(name)
-        if same(name, p, mine):
-            advance(snap, ref.target_kind, name, platform[name], tz)
-            conflicts.pop(name, None)
-        elif same(name, p, s):
-            # The platform did not change it: the user's value stays, and a conflict asked about
-            # a platform value since taken back has nothing left to ask.
-            conflicts.pop(name, None)
-        elif not (same(name, mine, s) or (name == "weight" and s is None and not mine)):
-            conflicts[name] = {"value": p, "raw": platform[name], "edited": True}
-        elif name not in follow:
-            conflicts[name] = {"value": p, "raw": platform[name], "edited": False}
-        else:
-            # Untouched (a weight never set counts as untouched: it is 0 until set).
-            await write(ctx, ref, name, p)
-            applied.append(await _log(ctx, ref, name, mine, p, title))
-            advance(snap, ref.target_kind, name, platform[name], tz)
-            conflicts.pop(name, None)
+        match merge(name, s, mine, p, name in follow):
+            case Action.CLEAR:
+                # Nothing to follow, and nothing left to offer of what the platform had before.
+                snap[name] = None
+                conflicts.pop(name, None)
+            case Action.AGREE:
+                advance(snap, ref.target_kind, name, platform[name], tz)
+                conflicts.pop(name, None)
+            case Action.KEEP:
+                # A question about a platform value since taken back has nothing left to ask.
+                conflicts.pop(name, None)
+            case Action.CONFLICT | Action.ASK as action:
+                edited = action is Action.CONFLICT
+                conflicts[name] = {"value": p, "raw": platform[name], "edited": edited}
+            case Action.APPLY:
+                await write(ctx, ref, name, p)
+                applied.append(await _log(ctx, ref, name, mine, p, title))
+                advance(snap, ref.target_kind, name, platform[name], tz)
+                conflicts.pop(name, None)
     if snap != ref.snapshot:
         ref.snapshot = snap
     if conflicts != ref.conflicts:
@@ -347,66 +307,56 @@ async def _changed(ctx: Ctx, link: LmsCourseLink) -> None:
 
 
 async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
-    """Settles what the sync asks about an imported item. A conflict: `platform` takes the
-    platform's values, `mine` keeps the user's (the platform's next change asks again). An item
-    gone from the platform: `delete` deletes its object, `keep` keeps it as made by hand."""
+    """Settles an imported item gone from the platform: `delete` deletes its object, `keep`
+    keeps it as made by hand."""
     ref, link = await _ref(ctx, ref_id)
-    if ref.target_id is None:
+    if ref.target_id is None or ref.removed_at is None or choice not in ("delete", "keep"):
         raise lms_error("lms.sync_nothing_to_resolve")
-    if ref.removed_at is not None:
-        if choice == "delete":
-            name = (
-                "grading.assessment.delete"
-                if ref.target_kind == "assessment"
-                else ("tasks.item.delete")
-            )
-            kind = ref.target_kind
-            await ctx.db.delete(ref)
-            await ctx.db.flush()
-            await deps.call(ctx, name, {f"{kind}_id": ref.target_id})
-        elif choice == "keep":
-            if ref.target_kind == "assessment":
-                await grading.set_source(ctx, ref.target_id, None)
-            await ctx.db.delete(ref)
-        else:
-            raise lms_error("lms.sync_nothing_to_resolve")
+    if choice == "delete":
+        kind = ref.target_kind
+        name = "grading.assessment.delete" if kind == "assessment" else "tasks.item.delete"
+        await ctx.db.delete(ref)
         await ctx.db.flush()
-        await _changed(ctx, link)
-        return link.program_id
-    if not ref.conflicts or choice not in ("platform", "mine"):
-        raise lms_error("lms.sync_nothing_to_resolve")
-    snap = dict(ref.snapshot)
-    program = await academics.get_program_row(ctx, link.program_id)
-    tz = ZoneInfo(program.timezone)
-    if choice == "platform":
-        local = (await local_values(ctx, [ref], tz)).get(ref.id, {})
-        title = str(ref.snapshot.get("title") or "")
-        for name, conflict in ref.conflicts.items():
-            await write(ctx, ref, name, conflict["value"])
-            await _log(ctx, ref, name, local.get(name), conflict["value"], title)
-    for name, conflict in ref.conflicts.items():
-        advance(snap, ref.target_kind, name, conflict["raw"], tz)
-    ref.snapshot, ref.conflicts = snap, {}
+        await deps.call(ctx, name, {f"{kind}_id": ref.target_id})
+    else:
+        if ref.target_kind == "assessment":
+            await grading.set_source(ctx, ref.target_id, None)
+        await ctx.db.delete(ref)
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id
 
 
-async def follow(ctx: Ctx, ref_id: str, name: str) -> str:
-    """Gives a field the user set apart from the platform the platform's value again, so it
-    follows the platform once more. Logged like a sync change, so it can be put back."""
+async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
+    """Answers about one field of an imported item. Asked about (a conflict): `platform` takes
+    the platform's value, `mine` keeps the user's (the platform's next change asks again). Set
+    apart from the platform (`differences`): `platform` takes the platform's value back.
+    A value taken from the platform is logged like a sync change, so it can be put back."""
     ref, link = await _ref(ctx, ref_id)
     if ref.target_id is None or ref.removed_at is not None:
         raise lms_error("lms.sync_nothing_to_resolve")
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
     local = (await local_values(ctx, [ref], tz)).get(ref.id)
-    found = {f: (mine, p) for f, mine, p in differences(ref, local or {}, tz)}
-    if local is None or name not in found:
+    if local is None:
         raise lms_error("lms.sync_nothing_to_resolve")
-    mine, p = found[name]
-    await write(ctx, ref, name, p)
-    await _log(ctx, ref, name, mine, p, str(ref.snapshot.get("title") or ""))
+    title = str(ref.snapshot.get("title") or "")
+    conflict = ref.conflicts.get(name)
+    if conflict is not None:
+        if choice == "platform":
+            await write(ctx, ref, name, conflict["value"])
+            await _log(ctx, ref, name, local.get(name), conflict["value"], title)
+        snap = dict(ref.snapshot)
+        advance(snap, ref.target_kind, name, conflict["raw"], tz)
+        ref.snapshot = snap
+        ref.conflicts = {f: c for f, c in ref.conflicts.items() if f != name}
+    else:
+        found = {f: (mine, p) for f, mine, p in differences(ref, local, tz)}
+        if choice != "platform" or name not in found:
+            raise lms_error("lms.sync_nothing_to_resolve")
+        mine, p = found[name]
+        await write(ctx, ref, name, p)
+        await _log(ctx, ref, name, mine, p, title)
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id

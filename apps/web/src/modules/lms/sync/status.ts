@@ -8,6 +8,7 @@ import { useNow } from '@/hooks/use-now'
 import { formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { useProviderName } from '../providers'
+import { pendingCount } from './labels'
 
 /** The id of the sync's status line, for `openStatusPanel`. */
 export const SYNC_LINE = 'lms.sync'
@@ -78,7 +79,7 @@ export function useSyncLine(): StatusItem | null {
       rank: 'attention',
       icon: BellDot,
       tone: 'accent',
-      label: m.lms_sync_line_pending({ provider, count: status.pending.length }),
+      label: m.lms_sync_line_pending({ provider, count: pendingCount(status.pending) }),
     }
   }
   if (status.syncing) return { ...line, spin: true, label: m.lms_sync_line_syncing({ provider }) }

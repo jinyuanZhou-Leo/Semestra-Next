@@ -121,19 +121,24 @@ test('a value changed on both sides is settled from the panel', async () => {
     id: 'r1',
     title: 'A3',
     kind: 'conflict',
-    conflicts: [{ field: 'weight', mine: 10, platform: 15, edited: true }],
+    conflicts: [
+      { field: 'title', mine: 'A3', platform: 'A3 (revised)', edited: false },
+      { field: 'weight', mine: 10, platform: 15, edited: true },
+    ],
   })
   const resolved = vi.fn<(body: unknown) => void>()
   server.use(
     ...handlers(status({ pending: [conflict] })),
-    http.post(`${API}/lms/sync/items/r1\\:resolve`, async ({ request }) => {
+    http.post(`${API}/lms/sync/items/r1/fields/weight\\:resolve`, async ({ request }) => {
       resolved(await request.json())
       return HttpResponse.json(status())
     }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByText('You changed this')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+  // One row, and one answer counted, per field.
+  expect(screen.getByRole('heading', { name: /^To review\s*2$/ })).toBeInTheDocument()
+  await userEvent.click(screen.getAllByRole('button', { name: 'Keep' })[1]!)
   await waitFor(() => expect(resolved).toHaveBeenCalledWith({ choice: 'mine' }))
   // Folded away, then gone.
   await waitFor(() => expect(screen.queryByText('To review')).not.toBeInTheDocument())
@@ -205,7 +210,7 @@ test('a field set apart from the platform takes its value back from the panel', 
   const sent = vi.fn<(body: unknown) => void>()
   server.use(
     ...handlers(status({ different: [MOVED] })),
-    http.post(`${API}/lms/sync/items/r1\\:follow`, async ({ request }) => {
+    http.post(`${API}/lms/sync/items/r1/fields/due_at\\:resolve`, async ({ request }) => {
       sent(await request.json())
       return HttpResponse.json(status())
     }),
@@ -213,7 +218,7 @@ test('a field set apart from the platform takes its value back from the panel', 
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   await userEvent.click(await screen.findByRole('button', { name: /^Different from Canvas\s*1$/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Use the Canvas value' }))
-  await waitFor(() => expect(sent).toHaveBeenCalledWith({ field: 'due_at' }))
+  await waitFor(() => expect(sent).toHaveBeenCalledWith({ choice: 'platform' }))
   await waitFor(() =>
     expect(screen.queryByRole('button', { name: /Different from Canvas/ })).not.toBeInTheDocument(),
   )

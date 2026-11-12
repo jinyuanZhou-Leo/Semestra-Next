@@ -10123,10 +10123,8 @@ export type SyncChange = {
 export type SyncConflict = {
     /**
      * Field
-     *
-     * title, due_at, weight or score
      */
-    field: string;
+    field: 'title' | 'due_at' | 'weight' | 'score';
     /**
      * Mine
      *
@@ -10241,15 +10239,15 @@ export type SyncDismissInputBody = {
 };
 
 /**
- * SyncFollowInputBody
+ * SyncFieldResolveInputBody
  */
-export type SyncFollowInputBody = {
+export type SyncFieldResolveInputBody = {
     /**
-     * Field
+     * Choice
      *
-     * A field that differs from the platform
+     * platform takes the platform's value; mine keeps the user's (asked-about fields only)
      */
-    field: 'title' | 'due_at' | 'weight' | 'score';
+    choice: 'platform' | 'mine';
 };
 
 /**
@@ -10333,9 +10331,9 @@ export type SyncResolveInputBody = {
     /**
      * Choice
      *
-     * conflict: platform or mine; removed: delete or keep
+     * delete it here, or keep it as made by hand
      */
-    choice: 'platform' | 'mine' | 'delete' | 'keep';
+    choice: 'delete' | 'keep';
 };
 
 /**
@@ -19286,8 +19284,8 @@ export type LmsSyncDismissResponses = {
 
 export type LmsSyncDismissResponse = LmsSyncDismissResponses[keyof LmsSyncDismissResponses];
 
-export type LmsSyncFollowData = {
-    body: SyncFollowInputBody;
+export type LmsSyncFieldResolveData = {
+    body: SyncFieldResolveInputBody;
     path: {
         /**
          * Item Id
@@ -19295,28 +19293,34 @@ export type LmsSyncFollowData = {
          * An imported item's id
          */
         item_id: string;
+        /**
+         * Field
+         *
+         * A field asked about, or listed in `different`
+         */
+        field: 'title' | 'due_at' | 'weight' | 'score';
     };
     query?: never;
-    url: '/lms/sync/items/{item_id}:follow';
+    url: '/lms/sync/items/{item_id}/fields/{field}:resolve';
 };
 
-export type LmsSyncFollowErrors = {
+export type LmsSyncFieldResolveErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type LmsSyncFollowError = LmsSyncFollowErrors[keyof LmsSyncFollowErrors];
+export type LmsSyncFieldResolveError = LmsSyncFieldResolveErrors[keyof LmsSyncFieldResolveErrors];
 
-export type LmsSyncFollowResponses = {
+export type LmsSyncFieldResolveResponses = {
     /**
      * Successful Response
      */
     200: SyncStatus;
 };
 
-export type LmsSyncFollowResponse = LmsSyncFollowResponses[keyof LmsSyncFollowResponses];
+export type LmsSyncFieldResolveResponse = LmsSyncFieldResolveResponses[keyof LmsSyncFieldResolveResponses];
 
 export type LmsSyncStatusData = {
     body?: never;
@@ -19388,7 +19392,7 @@ export type LmsSyncResolveData = {
         /**
          * Item Id
          *
-         * A pending item's id (conflict or removed)
+         * An item gone from the platform
          */
         item_id: string;
     };
