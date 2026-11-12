@@ -1,9 +1,9 @@
 """Imports from the LMS through M08 (M09 §4, §5): courses, assignments, syllabus and updates.
 
-Everything goes through an M08 session; nothing is written before its commit. Assignments the
-user picked are committed at once when nothing needs a decision (`commit_if_clean`); the rest
-waits for the user's review. What the commit needs to know about the LMS (which external course
-a course item is, which assignment an assessment came from) is kept in the session's
+Everything goes through an M08 session; nothing is written before its commit, and every import
+waits for the user's review (destination category, weight and type can be changed there). What
+the commit needs to know about the LMS (which external course a course item is, which assignment
+an assessment came from) is kept in the session's
 `source_meta.lms.items`, keyed by item id. The commit hook writes course links and imported refs
 in the commit's transaction.
 """
@@ -234,7 +234,7 @@ def to_gradebook(
 
 async def import_assignments(ctx: Ctx, inp: AssignmentsImportInput) -> ImportStarted:
     """The one import of assignments (M09 §4): those worth points become assessments (each with
-    its to-do, M05), the others to-dos. Saved at once unless something needs a decision."""
+    its to-do, M05), the others to-dos. The user reviews it before anything is written."""
     return await _import(ctx, inp.course_id, inp.external_ids, gradebook=False)
 
 
@@ -352,11 +352,7 @@ async def _import(
         )
     lms = dict(row.source_meta.get("lms") or {})
     row.source_meta = {**row.source_meta, "lms": {**lms, "groups": groups}}
-    started = await _fill(ctx, row, new, refs[:50], by_key)
-    counts = await imports.commit_if_clean(ctx, row)
-    if counts is None:
-        return started
-    return started.model_copy(update={"committed": True, "failed": counts["failed"]})
+    return await _fill(ctx, row, new, refs[:50], by_key)
 
 
 async def _group_categories(

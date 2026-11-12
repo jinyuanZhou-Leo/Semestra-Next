@@ -237,8 +237,7 @@ async def test_import_takes_refs_and_moves_tasks_into_the_gradebook(api: Api, fa
         "POST", f"/courses/{course}/lms/imports:assignments",
         json={"external_ids": ["assignment:a1"]},
     )  # fmt: skip
-    if not started["committed"]:
-        await api.commit(started["session_id"])
+    await api.commit(started["session_id"])
     listed = await api.call("GET", f"/courses/{course}/lms/assignments")
     assert listed["items"][0]["imported_as"]["kind"] == "task"
     fake.course_assignments["101"][0].points = 10
@@ -246,8 +245,7 @@ async def test_import_takes_refs_and_moves_tasks_into_the_gradebook(api: Api, fa
         "POST", f"/courses/{course}/lms/imports:assignments",
         json={"external_ids": ["assignment:a1"], "into": "gradebook"},
     )  # fmt: skip
-    if not moved["committed"]:
-        await api.commit(moved["session_id"])
+    await api.commit(moved["session_id"])
     listed = await api.call("GET", f"/courses/{course}/lms/assignments")
     assert listed["items"][0]["imported_as"]["kind"] == "assessment"
 
@@ -383,8 +381,7 @@ async def test_moving_tasks_into_the_gradebook_counts_them_on_the_card(
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
-    if not started["committed"]:
-        await api.commit(started["session_id"])
+    await api.commit(started["session_id"])
     user_id = (await api.call("GET", "/account/me"))["id"]
     cards: list[dict[str, Any]] = []
 

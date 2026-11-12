@@ -2,9 +2,7 @@ import type { ImportSession, ImportSessionDetail } from '@semestra/api-client'
 import { importsSessionListOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
 import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
@@ -12,13 +10,6 @@ import type { ImportOutcome, ImportRequest } from '../types'
 import { ExtractionDone, SessionView } from './SessionView'
 import { SourcePicker } from './SourcePicker'
 import { isReading } from '../status'
-
-/** What a commit saved, without the categories that came with the assessments. */
-function savedCount(session: ImportSessionDetail): number {
-  return session.items.filter(
-    (i) => i.type !== 'category' && i.result != null && !i.result.error_code,
-  ).length
-}
 
 /**
  * The unfinished import this request opened before (same source and target, still reading or
@@ -92,15 +83,9 @@ export function ImportDialog({
         ? { title: request.title, hint: null }
         : SOURCES[request.source]
 
-  // A picker's import that needed no decision was saved at once: nothing to review.
-  const started = async (detail: ImportSessionDetail) => {
+  const started = (detail: ImportSessionDetail) => {
     storeSession(queryClient, detail)
-    if (detail.status !== 'committed' || detail.summary.failed) {
-      setSessionId(detail.id)
-      return
-    }
-    onClose({ session: detail })
-    toast.success(m.imports_saved({ count: savedCount(detail) }))
+    setSessionId(detail.id)
   }
 
   return (
@@ -137,7 +122,7 @@ export function ImportDialog({
             onDone={(done) => onClose(done ? { session: done } : null)}
           />
         ) : sessionId || request.source === 'session' ? null : request.source === 'picker' ? (
-          <request.picker.component onStarted={(detail) => void started(detail)} />
+          <request.picker.component onStarted={started} />
         ) : null}
       </DialogContent>
     </Dialog>

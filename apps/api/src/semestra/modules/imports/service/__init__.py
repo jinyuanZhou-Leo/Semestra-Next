@@ -7,7 +7,6 @@ needs), `uploads`, `create`, `review`, `committing` and `retention`.
 from semestra.modules.imports.service.committing import (
     CommitHook,
     commit,
-    commit_if_clean,
     register_commit_hook,
 )
 from semestra.modules.imports.service.context import build_context, revalidate
@@ -50,7 +49,6 @@ __all__ = [
     "bulk_decide",
     "cleanup",
     "commit",
-    "commit_if_clean",
     "commit_preview",
     "create_session",
     "detail",

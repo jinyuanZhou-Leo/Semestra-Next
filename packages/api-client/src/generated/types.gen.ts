@@ -5402,18 +5402,6 @@ export type ImportStarted = {
      * Items in the import
      */
     count: number;
-    /**
-     * Committed
-     *
-     * Saved at once (nothing needed a decision); otherwise it waits for review
-     */
-    committed?: boolean;
-    /**
-     * Failed
-     *
-     * Items that could not be saved, when committed (see the import)
-     */
-    failed?: number;
 };
 
 /**

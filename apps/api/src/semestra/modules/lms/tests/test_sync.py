@@ -28,11 +28,12 @@ async def _course(api: Api, *external_ids: str) -> tuple[str, str]:
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
     if external_ids:
-        await api.call(
+        started = await api.call(
             "POST",
             f"/courses/{course}/lms/imports:assignments",
             json={"external_ids": list(external_ids)},
         )
+        await api.commit(started["session_id"])
     return program_id, course
 
 
@@ -216,9 +217,10 @@ async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     assert [i["title"] for i in status["pending"]] == ["Lab 2", "Midterm"]
 
     # Importing one takes it off the list; one gone from the platform goes too.
-    await api.call(
+    started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a3"]}
     )
+    await api.commit(started["session_id"])
     assert [i["id"] for i in (await api.call("GET", f"/programs/{program_id}/lms/sync"))[
         "pending"
     ]] == [lab2["id"]]  # fmt: skip

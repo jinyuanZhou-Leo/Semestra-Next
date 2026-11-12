@@ -334,8 +334,8 @@ async def test_import_assignments_once(api: Api, app: FastAPI, fake: FakeProvide
             "POST", f"/courses/{course}/lms/imports:assignments",
             json={"external_ids": ["a1", "a2", "a3"]},
         )  # fmt: skip
-    # Nothing needed a decision: saved at once.
-    assert (started["committed"], started["failed"]) == (True, 0)
+        # Nothing is written before the review's commit.
+        await api.commit(started["session_id"])
     # The course's "new on the platform" list changed with it.
     recorded = [m["data"] for m in messages if m["type"] == "lms.course.imports_recorded"]
     assert recorded == [{"course_id": course}]
@@ -654,7 +654,6 @@ async def test_point_changes_of_an_unweighted_course_change_nothing(api: Api, fa
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
     # Without group weights there is no weight to take: the import waits for one.
-    assert not started["committed"]
     session = await api.call("GET", f"/imports/{started['session_id']}")
     (item,) = by_type(session, "assessment")
     assert [i["code"] for i in item["issues"]] == ["import.weight_missing"]
@@ -715,7 +714,8 @@ async def test_a_group_goes_where_its_assignments_were_moved(api: Api):
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
     path = f"/courses/{course}/lms/imports:assignments"
-    assert (await api.call("POST", path, json={"external_ids": ["a1"]}))["committed"]
+    first = await api.call("POST", path, json={"external_ids": ["a1"]})
+    await api.commit(first["session_id"])
     book = await api.call("GET", f"/courses/{course}/gradebook")
     project = next(c["id"] for c in book["categories"] if c["key"] == "project")
     [lab1] = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
@@ -851,8 +851,7 @@ async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: Fa
         "POST", f"/courses/{course}/lms/imports:assignments",
         json={"external_ids": ["a1", "a2", "a3"]},
     )  # fmt: skip
-    assert started["committed"]
-    assert started["failed"] == 0
+    await api.commit(started["session_id"])
 
     async def open_titles() -> list[str]:
         page = await api.call("GET", f"/programs/{program_id}/tasks")
@@ -910,8 +909,9 @@ async def test_an_assignment_handed_in_before_its_import_has_its_to_do_finished(
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
-    assert started["committed"]
-    # The assessment's to-do exists by the commit, so the read's hand-in check finds it.
+    await api.commit(started["session_id"])
+    # The assessment's to-do exists by the commit, so the next read's hand-in check finds it.
+    await api.call("GET", f"/courses/{course}/lms/assignments")
     page = await api.call("GET", f"/programs/{program_id}/tasks", params={"completed": "only"})
     assert [t["title"] for t in page["items"]] == ["APS105H1 · Lab 1"]
 
@@ -923,7 +923,6 @@ async def test_importing_again_resumes_the_import_waiting_for_review(api: Api):
     await api.call("POST", f"/courses/{course}/assessments", json={"title": "Lab 1", "weight": 5})
     path = f"/courses/{course}/lms/imports:assignments"
     first = await api.call("POST", path, json={"external_ids": ["a1"]})
-    assert not first["committed"]
     # Closed and imported again: the same review, with only what is new added to it.
     again = await api.call("POST", path, json={"external_ids": ["a1"]})
     assert (again["session_id"], again["count"]) == (first["session_id"], 0)
@@ -946,15 +945,7 @@ async def held_for_review(
 ) -> dict[str, Any]:
     """Starts an assignment import that waits for review (as one with an open issue would), to
     act on it before its commit."""
-    from semestra.modules.imports import service as imports_service
-
-    async def held(*_: Any) -> None:
-        return None
-
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(imports_service, "commit_if_clean", held)
-        started = await api.call("POST", path, json={"external_ids": external_ids})
-    assert not started["committed"]
+    started = await api.call("POST", path, json={"external_ids": external_ids})
     if switch_to_task:
         session = await api.call("GET", f"/imports/{started['session_id']}")
         for item in by_type(session, "assessment"):
@@ -979,7 +970,7 @@ async def test_one_import_puts_each_assignment_in_one_place(api: Api, fake: Fake
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a3", "a4"]}
     )
-    assert started["committed"]
+    await api.commit(started["session_id"])
 
     async def state() -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
         listed = await api.call("GET", f"/courses/{course}/lms/assignments")
@@ -1010,7 +1001,6 @@ async def test_one_import_puts_each_assignment_in_one_place(api: Api, fake: Fake
         "POST", f"/courses/{course}/lms/imports:gradebook", json={"external_ids": ["a4"]}
     )
     # Worth no points, so no weight to take: the review asks for one.
-    assert not added["committed"]
     session = await api.call("GET", f"/imports/{added['session_id']}")
     (item,) = by_type(session, "assessment")
     await api.call(
@@ -1036,9 +1026,8 @@ async def test_an_undated_to_do_added_to_the_gradebook_goes(api: Api, fake: Fake
     await api.link(course, "101")
     fake.course_assignments["101"].append(Assignment(external_id="a5", name="Reading", points=0))
     path = f"/courses/{course}/lms/imports"
-    assert (await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]}))[
-        "committed"
-    ]
+    first = await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]})
+    await api.commit(first["session_id"])
     added = await api.call("POST", f"{path}:gradebook", json={"external_ids": ["a5"]})
     session = await api.call("GET", f"/imports/{added['session_id']}")
     (item,) = by_type(session, "assessment")
@@ -1060,7 +1049,7 @@ async def test_part_of_a_group_is_saved_with_its_category_total_shown(api: Api):
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
-    assert started["committed"]
+    await api.commit(started["session_id"])
     session = await api.call("GET", f"/imports/{started['session_id']}")
     (category,) = by_type(session, "category")
     assert session["summary"]["category_weights"] == [
@@ -1082,7 +1071,6 @@ async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(ap
     started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a3"]}
     )
-    assert not started["committed"]
     session = await api.call("GET", f"/imports/{started['session_id']}")
     (item,) = by_type(session, "assessment")
     assert item["issues"] == [
@@ -1168,7 +1156,8 @@ async def test_adding_a_to_do_to_the_gradebook_bound_to_an_assessment_keeps_one_
                    due_at=datetime(2026, 3, 6, 4, 59, tzinfo=UTC))
     )  # fmt: skip
     path = f"/courses/{course}/lms/imports"
-    await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]})
+    first = await api.call("POST", f"{path}:assignments", json={"external_ids": ["a5"]})
+    await api.commit(first["session_id"])
     made = await api.call(
         "POST",
         f"/courses/{course}/assessments",
@@ -1203,9 +1192,10 @@ async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
         json={"title": "Second lab", "weight": 6, "due_date": "2026-02-20", "due_time": "23:59"},
     )
     url = f"/assessments/{made['id']}/lms-assignment"
-    await api.call(
+    started = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
     )
+    await api.commit(started["session_id"])
     taken = await api.call("PUT", url, 409, json={"assignment_id": "a1"})
     assert taken["error"]["code"] == "lms.assignment_already_imported"
     bound = await api.call("PUT", url, json={"assignment_id": "a2"})

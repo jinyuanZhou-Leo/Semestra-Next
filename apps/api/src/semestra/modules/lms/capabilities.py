@@ -762,8 +762,7 @@ async def import_courses(ctx: Ctx, inp: CoursesImportInput) -> ImportStarted:
     description="""Assignments from lms.assignment.list (`ref`s). With `into` auto (default),
 those worth points become assessments (each gets its task), the others tasks; ones imported
 before are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`
-task) become assessments and keep their to-do. Saved at once when nothing needs a decision
-(`committed`); otherwise the user reviews it, then commit it like any import
+task) become assessments and keep their to-do. The user reviews it, then commit it like any import
 (imports.session.commit).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:assignments"),

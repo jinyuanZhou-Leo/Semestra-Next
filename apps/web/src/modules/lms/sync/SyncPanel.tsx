@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils'
 import { courseColor } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
-import { Alert, AlertAction, AlertDescription } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
@@ -144,11 +143,18 @@ function Panel({
   const busy = leaving.length > 0 || toggling !== null
   const syncing = status.syncing || request.isPending
   const every = EVERY[status.every]()
-  const subtitle = syncing
-    ? m.lms_sync_subtitle_syncing({ count: status.courses })
-    : status.synced_at
-      ? m.lms_sync_subtitle({ ago: syncedAgo(status.synced_at, now), every })
-      : m.lms_sync_subtitle_never({ every })
+  const broken = status.connection_error
+    ? errorMessage({ error: { code: status.connection_error } })
+    : null
+  const subtitle = broken
+    ? status.synced_at
+      ? m.lms_sync_subtitle_broken({ reason: broken, ago: syncedAgo(status.synced_at, now) })
+      : broken
+    : syncing
+      ? m.lms_sync_subtitle_syncing({ count: status.courses })
+      : status.synced_at
+        ? m.lms_sync_subtitle({ ago: syncedAgo(status.synced_at, now), every })
+        : m.lms_sync_subtitle_never({ every })
   const groupProps = (courseId: string) => ({ color: colors.get(courseId) })
 
   return (
@@ -156,41 +162,36 @@ function Panel({
       <div className="flex items-start gap-3 border-b p-4 pb-3">
         <PopoverHeader className="min-w-0 flex-1 gap-0.5">
           <PopoverTitle className="truncate text-sm">{provider}</PopoverTitle>
-          <PopoverDescription className="text-xs">{subtitle}</PopoverDescription>
+          <PopoverDescription className={cn('text-xs', broken && 'text-destructive')}>
+            {subtitle}
+          </PopoverDescription>
         </PopoverHeader>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={syncing || Boolean(status.connection_error)}
-          onClick={() => request.mutate({ path: { program_id: programId }, body: { force: true } })}
-        >
-          {syncing ? <Spinner aria-hidden /> : <RefreshCw aria-hidden />}
-          {m.lms_sync_now()}
-        </Button>
+        {broken ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              onClose()
+              settings.open({ level: 'account', group: 'lms' })
+            }}
+          >
+            {m.lms_sync_reconnect()}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={syncing}
+            onClick={() =>
+              request.mutate({ path: { program_id: programId }, body: { force: true } })
+            }
+          >
+            {syncing ? <Spinner aria-hidden /> : <RefreshCw aria-hidden />}
+            {m.lms_sync_now()}
+          </Button>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 pt-3">
-        {status.connection_error ? (
-          <Alert variant="destructive">
-            <CircleAlert aria-hidden />
-            <AlertDescription>
-              {errorMessage({ error: { code: status.connection_error } })}
-            </AlertDescription>
-            <AlertAction>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => {
-                  onClose()
-                  settings.open({ level: 'account', group: 'lms' })
-                }}
-              >
-                {m.lms_sync_open_settings()}
-              </Button>
-            </AlertAction>
-          </Alert>
-        ) : null}
-
         {status.errors.length > 0 && !status.connection_error ? (
           <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
             {status.errors.map((e) => (
@@ -244,7 +245,11 @@ function Panel({
                           >
                             {m.lms_sync_ignore()}
                           </Button>
-                          <Button size="xs" onClick={() => void importItems(fresh)}>
+                          <Button
+                            size="xs"
+                            disabled={Boolean(broken)}
+                            onClick={() => void importItems(fresh)}
+                          >
                             {m.lms_sync_import()}
                           </Button>
                         </ItemActions>
@@ -335,7 +340,11 @@ function Panel({
                           >
                             {m.lms_sync_remind()}
                           </Button>
-                          <Button size="xs" onClick={() => void importItems([item])}>
+                          <Button
+                            size="xs"
+                            disabled={Boolean(broken)}
+                            onClick={() => void importItems([item])}
+                          >
                             {m.lms_sync_import()}
                           </Button>
                         </ItemActions>
