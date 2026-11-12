@@ -31,11 +31,11 @@ from semestra.modules.imports import deps
 from semestra.modules.lms import reads
 from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.imports import snapshot, weights_of
+from semestra.modules.lms.imports import advance, snapshot, taken_in, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
 from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync import UPDATED, Applied, StageResult, register_sync_stage
+from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
 from semestra.modules.tasks.models import TasksItem
 
 KIND = "assignment"
@@ -157,7 +157,9 @@ def differences(
         if p is None:
             continue
         mine = local.get(name)
-        if not same(name, p, mine):
+        # Set apart by the user, not by a change of the Program's zone since (the next sync
+        # follows that).
+        if not same(name, platform_value(name, ref.snapshot.get(name), taken_in(ref, tz)), mine):
             out.append((name, mine, p))
     return out
 
@@ -225,10 +227,10 @@ async def _follow(
             snap[name] = None
             conflicts.pop(name, None)
             continue
-        s = platform_value(name, snap.get(name), tz)
+        s = platform_value(name, snap.get(name), taken_in(ref, tz))
         mine = local.get(name)
         if same(name, p, mine):
-            snap[name] = platform[name]
+            advance(snap, ref.target_kind, name, platform[name], tz)
             conflicts.pop(name, None)
         elif same(name, p, s):
             # The platform did not change it: the user's value stays, and a conflict asked about
@@ -242,7 +244,7 @@ async def _follow(
             # Untouched (a weight never set counts as untouched: it is 0 until set).
             await write(ctx, ref, name, p)
             applied.append(await _log(ctx, ref, name, mine, p, title))
-            snap[name] = platform[name]
+            advance(snap, ref.target_kind, name, platform[name], tz)
             conflicts.pop(name, None)
     if snap != ref.snapshot:
         ref.snapshot = snap
@@ -253,6 +255,7 @@ async def _follow(
 
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     data, truncated = await reads.raw_assignments(ctx, link.course_id, True, linked=(link, b))
+    await hold(ctx, link)
     by_id = {str(a["external_id"]): a for a in data}
     weights = weights_of(data)
     program = await academics.get_program_row(ctx, link.program_id)
@@ -324,11 +327,17 @@ register_sync_stage("assignments", run, order=20, enabled=_enabled)
 
 
 async def _ref(ctx: Ctx, ref_id: str) -> tuple[LmsImportedRef, LmsCourseLink]:
+    """The item an answer is about, read again once the write lock is held (`hold`), so a sync
+    of the course committing meanwhile is seen rather than written over."""
     ref = await ctx.db.get(LmsImportedRef, ref_id)
     if ref is None or ref.user_id != ctx.user_id:
         raise not_found("lms_item", ref_id)
     link = await ctx.db.get(LmsCourseLink, ref.link_id)
     assert link is not None
+    await hold(ctx, link)
+    ref = await ctx.db.get(LmsImportedRef, ref_id, populate_existing=True)
+    if ref is None:
+        raise not_found("lms_item", ref_id)
     return ref, link
 
 
@@ -367,16 +376,16 @@ async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
     if not ref.conflicts or choice not in ("platform", "mine"):
         raise lms_error("lms.sync_nothing_to_resolve")
     snap = dict(ref.snapshot)
+    program = await academics.get_program_row(ctx, link.program_id)
+    tz = ZoneInfo(program.timezone)
     if choice == "platform":
-        program = await academics.get_program_row(ctx, link.program_id)
-        tz = ZoneInfo(program.timezone)
         local = (await local_values(ctx, [ref], tz)).get(ref.id, {})
         title = str(ref.snapshot.get("title") or "")
         for name, conflict in ref.conflicts.items():
             await write(ctx, ref, name, conflict["value"])
             await _log(ctx, ref, name, local.get(name), conflict["value"], title)
     for name, conflict in ref.conflicts.items():
-        snap[name] = conflict["raw"]
+        advance(snap, ref.target_kind, name, conflict["raw"], tz)
     ref.snapshot, ref.conflicts = snap, {}
     await ctx.db.flush()
     await _changed(ctx, link)
@@ -444,6 +453,9 @@ async def revert(ctx: Ctx, change_id: str, *, undone: bool = True) -> str:
     if change is None or change.user_id != ctx.user_id:
         raise not_found("lms_change", change_id)
     ref, link = await _ref(ctx, change.ref_id)
+    change = await ctx.db.get(LmsSyncChange, change_id, populate_existing=True)
+    if change is None:
+        raise not_found("lms_change", change_id)
     if (change.reverted_at is not None) == undone:
         return link.program_id
     if ref.target_id is None:

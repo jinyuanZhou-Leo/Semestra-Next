@@ -403,6 +403,28 @@ def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
     }
 
 
+# The zone a to-do's due date was last taken from the platform in (M09 §4.1). A to-do keeps its
+# due as a wall-clock date and time, unlike an assessment (an instant): what the sync wrote is
+# that wall-clock time in the Program's zone of the day, so a later change of zone changes what
+# the platform's due reads as, which the sync then follows like any platform change.
+ZONE = "zone"
+
+
+def advance(snap: dict[str, Any], kind: str | None, name: str, raw: Any, tz: ZoneInfo) -> None:
+    """Records `raw` as the platform value last taken into the object (and, for a to-do's due,
+    the zone it was read in)."""
+    snap[name] = raw
+    if name == "due_at" and kind == "task":
+        snap[ZONE] = tz.key
+
+
+def taken_in(ref: LmsImportedRef, tz: ZoneInfo) -> ZoneInfo:
+    """The zone to read the snapshot's due in: the one it was taken in for a to-do, the
+    Program's current one for an assessment."""
+    zone = ref.snapshot.get(ZONE) if ref.target_kind == "task" else None
+    return ZoneInfo(zone) if isinstance(zone, str) else tz
+
+
 def bound_snapshot(platform: dict[str, Any]) -> dict[str, Any]:
     """The import record of an assignment bound to an assessment made by hand: binding itself
     changes nothing. Due date, weight and grade count as never set from the platform, so the
@@ -595,6 +617,10 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             # items.
             raise lms_error("lms.course_not_linked")
         links[link_id] = link
+    zones = {
+        li.program_id: ZoneInfo((await academics.get_program_row(ctx, li.program_id)).timezone)
+        for li in links.values()
+    }
     for item_id, info in meta.items():
         item = items.get(item_id)
         if item is None:
@@ -606,6 +632,8 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
         # What the sync compares later: a to-do has no grade to follow (an item may have been
         # switched in the review).
         snap = {**info["snapshot"], **({} if item.type == "assessment" else {"score": None})}
+        if item.type == "task":
+            snap[ZONE] = zones[link.program_id].key
         if str(item.data.get("existing_assessment_id")) in bound:
             snap = bound_snapshot(info["snapshot"])
         ref = await _item_ref(ctx, link.id, info["external_id"])

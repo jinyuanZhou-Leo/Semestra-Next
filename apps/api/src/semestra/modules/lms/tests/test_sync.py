@@ -519,3 +519,28 @@ async def test_editing_an_imported_item_refreshes_the_sync_panel(api: Api, app: 
     with collect_events(app, user_id) as messages:
         await api.call("DELETE", f"/assessments/{lab['id']}")
     assert told(messages) == [{"program_id": program_id}]
+
+
+async def test_a_to_do_follows_its_due_when_the_program_changes_zone(api: Api, fake: FakeProvider):
+    """A to-do keeps a wall-clock due; the platform's due is an instant."""
+    from semestra.modules.lms.schemas.dto import Assignment
+
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a4", name="Reading 9", points=0,
+                   due_at=datetime(2026, 3, 6, 4, 59, tzinfo=UTC))
+    )  # fmt: skip
+    program_id, course = await _course(api, "a4")
+    del course
+    tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    [reading] = [t for t in tasks if t["title"] == "Reading 9"]
+    assert (reading["due_date"], reading["due_time"]) == ("2026-03-05", "23:59:00")
+    await api.call("PATCH", f"/programs/{program_id}", json={"timezone": "America/Vancouver"})
+    # Not something the user set apart; the sync takes the new reading of the due.
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert status["different"] == []
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert [(c["title"], c["field"]) for c in status["recent"]] == [("Reading 9", "due_at")]
+    reading = await api.call("GET", f"/tasks/{reading['id']}")
+    assert (reading["due_date"], reading["due_time"]) == ("2026-03-05", "20:59:00")
+    assert (await api.sync(program_id))["different"] == []
