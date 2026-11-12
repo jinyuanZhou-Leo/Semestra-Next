@@ -93,7 +93,8 @@ def merge(name: str, base: Any, ours: Any, theirs: Any, follows: bool) -> Action
 
 def diverged(name: str, base: Any, ours: Any, theirs: Any) -> bool:
     """Whether the user set the field apart from the platform value `theirs` and can take that
-    value back. An empty platform value is the user's to fill in, so it is never offered."""
+    value back. An empty platform value (no due date, weight or grade) is the user's to fill in,
+    so it is never offered (owner 2026-11-12)."""
     return theirs is not None and merge(name, base, ours, theirs, False) in (
         Action.KEEP,
         Action.CONFLICT,

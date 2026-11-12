@@ -47,6 +47,10 @@ CASES: list[tuple[str, Any, Any, Any, Action, Action]] = [
     ("weight", None, 5, 10, Action.CONFLICT, Action.CONFLICT),
     # A first grade from the platform.
     ("score", None, None, {"score_percentage": 90}, Action.APPLY, Action.ASK),
+    # The user filled in what the platform leaves empty: theirs to keep, never listed as different.
+    ("due_at", None, {"date": "2026-11-04", "time": None}, None, Action.KEEP, Action.KEEP),
+    ("weight", None, 10, None, Action.CLEAR, Action.CLEAR),
+    ("score", None, {"score_percentage": 85}, None, Action.CLEAR, Action.CLEAR),
 ]
 
 
