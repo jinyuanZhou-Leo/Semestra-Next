@@ -224,7 +224,7 @@ function Panel({
                 >
                   {fresh.length > 0 ? (
                     <Fold leaving={fresh.every((i) => leaving.includes(i.id))}>
-                      <Item size="xs" className="px-0">
+                      <Item size="xs" className="px-0 py-1.5">
                         <ItemContent className="min-w-0">
                           <ItemTitle className="w-full">
                             <span className="truncate">
@@ -317,7 +317,7 @@ function Panel({
                 >
                   {group.items.map((item) => (
                     <Fold key={item.id} leaving={leaving.includes(item.id)}>
-                      <Item size="xs" className="px-0">
+                      <Item size="xs" className="px-0 py-1.5">
                         <ItemContent className="min-w-0">
                           <ItemTitle className="w-full">
                             <span className="truncate">{item.title}</span>
@@ -383,7 +383,7 @@ function CourseGroup({
         />
         <span className="truncate">{course}</span>
       </div>
-      <ItemGroup aria-label={course} className="gap-0 pl-4">
+      <ItemGroup aria-label={course} className="gap-0 pl-4 has-data-[size=xs]:gap-0">
         {children}
       </ItemGroup>
     </div>
@@ -418,10 +418,10 @@ function Values({
   struck?: boolean
 }) {
   return (
-    <span className="inline-flex min-w-0 items-center gap-1">
-      <span>{formatValue(field, from)}</span>
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">
+      <span className="whitespace-nowrap">{formatValue(field, from)}</span>
       <ArrowRight aria-label="→" className="size-3 shrink-0" />
-      <span className={cn(struck ? 'line-through' : 'text-foreground')}>
+      <span className={cn('whitespace-nowrap', struck ? 'line-through' : 'text-foreground')}>
         {formatValue(field, to)}
       </span>
     </span>
@@ -442,7 +442,7 @@ function AskedRow({
   const removed = item.kind === 'removed'
   const fields = item.conflicts ?? []
   return (
-    <Item size="xs" className="px-0">
+    <Item size="xs" className="px-0 py-1.5">
       <ItemContent className="min-w-0">
         <ItemTitle className="w-full">
           <span className="truncate">
@@ -518,7 +518,7 @@ function ChangeRow({
   const label = change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()
   const Icon = change.reverted ? Redo2 : Undo2
   return (
-    <Item size="xs" className={cn('px-0', change.reverted && 'text-muted-foreground')}>
+    <Item size="xs" className={cn('px-0 py-1.5', change.reverted && 'text-muted-foreground')}>
       <ItemContent className="min-w-0">
         <ItemTitle className="w-full">
           <span className="truncate">
