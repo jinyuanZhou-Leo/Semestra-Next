@@ -2,6 +2,7 @@ import {
   ArrowDownToLine,
   ExternalLink,
   Link2,
+  ListChecks,
   Megaphone,
   RefreshCw,
   School,
@@ -49,14 +50,19 @@ const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
 
-/** The `lms` namespace shows as three sections: background sync, what follows the platform, writes. */
-const FOLLOW_FIELDS = [
-  'follow_title',
-  'follow_due_at',
-  'follow_weight',
-  'follow_score',
-  'complete_submitted',
-] as const
+/**
+ * The `lms` namespace shows as four sections: background sync, what follows the platform without
+ * asking, to-dos, writes. Each hides the fields of the others.
+ */
+const LMS_FIELDS = {
+  sync: ['sync_every'],
+  follow: ['follow_title', 'follow_due_at', 'follow_weight', 'follow_score'],
+  todos: ['complete_submitted'],
+  writes: ['allow_writes'],
+} as const
+const showOnly = (part: keyof typeof LMS_FIELDS) => ({
+  hidden: Object.entries(LMS_FIELDS).flatMap(([key, fields]) => (key === part ? [] : fields)),
+})
 
 const onboardingSteps: readonly OnboardingStep[] = [
   {
@@ -141,7 +147,7 @@ export default defineModule({
       icon: RefreshCw,
       order: 20,
       namespace: 'lms',
-      fields: { hidden: [...FOLLOW_FIELDS, 'allow_writes'] },
+      fields: showOnly('sync'),
     },
     {
       id: 'lms-follow',
@@ -152,7 +158,17 @@ export default defineModule({
       icon: ArrowDownToLine,
       order: 30,
       namespace: 'lms',
-      fields: { hidden: ['sync_every', 'allow_writes'] },
+      fields: showOnly('follow'),
+    },
+    {
+      id: 'lms-todos',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_todos,
+      icon: ListChecks,
+      order: 35,
+      namespace: 'lms',
+      fields: showOnly('todos'),
     },
     {
       id: 'lms-writes',
@@ -163,7 +179,7 @@ export default defineModule({
       icon: ShieldCheck,
       order: 40,
       namespace: 'lms',
-      fields: { hidden: ['sync_every', ...FOLLOW_FIELDS] },
+      fields: showOnly('writes'),
     },
     {
       id: 'program-lms',
