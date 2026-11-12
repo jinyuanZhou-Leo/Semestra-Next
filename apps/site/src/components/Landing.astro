@@ -93,6 +93,8 @@ const login = `${APP_URL}/login`
       apply()
       q.addEventListener('change', apply)
       document.documentElement.classList.add('js')
+      // The hero's entrance waits for its images (landing.ts); never longer than this.
+      setTimeout(() => document.querySelector('.stage')?.classList.add('go'), 2500)
     </script>
   </head>
   <body>
@@ -115,11 +117,13 @@ const login = `${APP_URL}/login`
         </div>
         <div class="wrap">
           <div class="stage">
-            <div class="win" id="win">
-              <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
-              <Shot class="float a" cut z={140} src="parts/upcoming" lang={lang} width={1128} height={680} eager />
-              <Shot class="float b" cut z={220} src="parts/proposal" lang={lang} width={1496} height={428} eager />
-              <Shot class="float c" cut z={300} src="parts/lmstoast" lang={lang} width={720} height={124} eager />
+            <div class="tilt" id="tilt">
+              <div class="win">
+                <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
+                <Shot class="float a" cut src="parts/upcoming" lang={lang} width={1128} height={680} eager />
+                <Shot class="float b" cut src="parts/proposal" lang={lang} width={1496} height={428} eager />
+                <Shot class="float c" cut src="parts/lmstoast" lang={lang} width={720} height={124} eager />
+              </div>
             </div>
           </div>
         </div>

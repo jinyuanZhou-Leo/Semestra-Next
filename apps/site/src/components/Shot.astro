@@ -14,14 +14,13 @@ interface Props {
   class?: string
   style?: string
   depth?: number
-  z?: number
   eager?: boolean
 }
-const { src, lang, width, height, cut, dark, class: className, style, depth, z, eager } = Astro.props
+const { src, lang, width, height, cut, dark, class: className, style, depth, eager } = Astro.props
 const l = shotLang(lang)
 const loading = eager ? 'eager' : 'lazy'
 ---
-<div class:list={[cut ? 'cut' : 'shot', className]} style={style} data-depth={depth} data-z={z}>
+<div class:list={[cut ? 'cut' : 'shot', className]} style={style} data-depth={depth}>
   {
     dark ? (
       <img src={asset(`/${src}-dark-${l}.webp`)} alt="" width={width} height={height} decoding="async" loading={loading} />

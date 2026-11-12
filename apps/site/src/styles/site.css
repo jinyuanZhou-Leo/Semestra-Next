@@ -179,30 +179,13 @@ body::before {
   color: var(--foreground);
 }
 
-/* The window rises out of a steep tilt when the page opens, then leans back and straightens as it
-   scrolls in; three real pieces of UI fly in from in front of it and hang at different depths. It
-   also turns a little toward the pointer. `--enter` runs from 1 to 0 on load (`--enter-f` for each
-   piece, staggered); `--rx`/`--s` come from scrolling and `--px`/`--py` from the pointer. */
-@property --enter {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-@property --enter-f {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-@keyframes enter {
-  from {
-    --enter: 1;
-  }
-}
-@keyframes enter-f {
-  from {
-    --enter-f: 1;
-  }
-}
+/* The hero is the app itself. On load the window rises into place, then three real pieces of it
+   lift off the screen one after another: the week's deadlines, Sem's proposal, and an LMS sync toast
+   that slides in from the edge the way a toast does. While the page scrolls, the window leans back
+   less and less until it lies flat, and the lifted pieces, which sit in front of it, shift with it.
+   Only `transform` and `opacity` move (no animated custom properties, no opacity on 3D containers),
+   so the browser can run all of it on the compositor. The entrance waits for the images to decode
+   (`.go`, set by landing.ts) so its first frames are not spent decoding. */
 .stage {
   position: relative;
   margin: 64px auto 0;
@@ -210,20 +193,45 @@ body::before {
   perspective: 1600px;
   perspective-origin: 50% 0%;
 }
+.tilt {
+  transform-style: preserve-3d;
+  transform-origin: 50% 0%;
+}
+@supports (animation-timeline: scroll()) {
+  .tilt {
+    animation: tilt linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 70vh;
+  }
+}
+@keyframes tilt {
+  from {
+    transform: rotateX(24deg) scale(0.9);
+  }
+  to {
+    transform: none;
+  }
+}
 .win {
   position: relative;
   transform-style: preserve-3d;
   transform-origin: 50% 0%;
-  transform: translate3d(0, calc(var(--enter) * 160px), calc(var(--enter) * -260px))
-    rotateX(calc(var(--rx, 0deg) + var(--enter) * 24deg + var(--py, 0) * -3deg))
-    rotateY(calc(var(--px, 0) * 4deg)) scale(var(--s, 1));
-  opacity: calc(1 - var(--enter) * 0.9);
-  will-change: transform;
-  animation: enter 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+  animation: win 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+}
+@keyframes win {
+  from {
+    transform: translate3d(0, 120px, -200px) rotateX(14deg);
+  }
 }
 .win .screen {
   border-radius: 16px;
   box-shadow: var(--window-shadow);
+  animation: show 0.9s ease-out 0.1s backwards;
+}
+@keyframes show {
+  from {
+    opacity: 0;
+  }
 }
 .win .screen img {
   width: 100%;
@@ -232,32 +240,49 @@ body::before {
 }
 .float {
   position: absolute;
-  transform: translate3d(
-    calc(var(--fx, 0px) + var(--px, 0) * var(--z, 0) * 0.12px),
-    calc(var(--fy, 0px) + var(--py, 0) * var(--z, 0) * 0.08px + var(--enter-f) * 90px),
-    calc(var(--fz, 0px) + var(--enter-f) * 520px)
-  );
-  opacity: calc(1 - var(--enter-f));
-  will-change: transform;
-  animation: enter-f 1.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transform: translate3d(0, 0, var(--z));
+  animation: lift 1.1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+/* Each piece starts flat on the screen, where it is, and comes forward to its own depth. */
+@keyframes lift {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.96);
+  }
+  35% {
+    opacity: 1;
+  }
 }
 .float.a {
+  --z: 140px;
   width: 31%;
   left: -6%;
   top: 46%;
-  animation-delay: 0.75s;
+  animation-delay: 0.8s;
 }
 .float.b {
+  --z: 220px;
   width: 50%;
   right: -7%;
   top: 72%;
-  animation-delay: 0.95s;
+  animation-delay: 1.05s;
 }
 .float.c {
+  --z: 300px;
   width: 28%;
   right: -3%;
   top: 9%;
-  animation-delay: 1.15s;
+  animation: toast 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.6s backwards;
+}
+@keyframes toast {
+  from {
+    opacity: 0;
+    transform: translate3d(64px, 0, var(--z));
+  }
+}
+.js .stage:not(.go) .win,
+.js .stage:not(.go) .win * {
+  animation-play-state: paused;
 }
 .stage-gap {
   height: 120px;
@@ -804,6 +829,14 @@ footer .legal {
   .float.c {
     display: none;
   }
+  @keyframes tilt {
+    from {
+      transform: rotateX(14deg) scale(0.94);
+    }
+    to {
+      transform: none;
+    }
+  }
   .lms-toast {
     width: 62%;
     right: -2%;
@@ -861,7 +894,9 @@ footer .legal {
     transform: none;
     transition: none;
   }
+  .tilt,
   .win,
+  .win .screen,
   .float,
   .layered > div {
     transform: none !important;
