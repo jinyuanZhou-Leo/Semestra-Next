@@ -48,6 +48,7 @@ import { TaskListsColumn, TasksViewMenu, useTaskSelection } from '../components/
 import { type ScrollRequest, VirtualTaskList } from '../components/VirtualTaskList'
 import { newTaskPlace } from '../new-task'
 import {
+  useProgramTimezone,
   useProgramToday,
   useTaskCounts,
   useTaskLists,
@@ -128,6 +129,7 @@ export default function TasksPage({ scope }: PageProps) {
     { sort: 'created', completed: 'only', limit: doneOpen ? doneLimit : 1 },
     ready && !completedView,
   )
+  const timezone = useProgramTimezone(programId)
   const today = useProgramToday(programId)
   const listRef = useRef<HTMLElement>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -268,7 +270,9 @@ export default function TasksPage({ scope }: PageProps) {
       place={place}
       courses={courses}
       today={today}
+      timezone={timezone}
       hideCourse={hideCourse}
+      smartParsing={settings.smart_parsing}
       onAdd={(body) => actions.create(programId, body)}
     />
   )

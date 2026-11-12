@@ -6,7 +6,7 @@ import { useTaskActions } from '../actions'
 import { CompactTasks } from '../components/CompactTasks'
 import { NewTaskRow } from '../components/NewTaskRow'
 import { closeNewTask, newTaskPlace, useNewTaskOpen } from '../new-task'
-import { useProgramToday, useTaskSettings, useTasks } from '../queries'
+import { useProgramTimezone, useProgramToday, useTaskSettings, useTasks } from '../queries'
 import { parseSelection } from '../types'
 import type { ListCardSettings } from './schema'
 
@@ -18,6 +18,7 @@ export default function ListCard({ scope, instanceId, settings }: CardProps<List
   const selection = parseSelection(settings.source)
   const tasks = useTasks(taskScope, selection, { sort: 'manual', completed: 'hide' })
   const { actions } = useTaskActions()
+  const timezone = useProgramTimezone(scope.programId)
   const today = useProgramToday(scope.programId)
   const taskSettings = useTaskSettings(scope.programId)
   const openKey = useNewTaskOpen(instanceId)
@@ -44,6 +45,8 @@ export default function ListCard({ scope, instanceId, settings }: CardProps<List
               })}
               courses={courses ?? []}
               today={today}
+              timezone={timezone}
+              smartParsing={taskSettings.smart_parsing}
               hideCourse={Boolean(courseId)}
               onAdd={(body) => actions.create(scope.programId, body)}
             />

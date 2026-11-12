@@ -142,11 +142,13 @@ export type { Task }
 export type TaskSettings = {
   default_priority: Task['priority']
   show_completed_in_lists: boolean
+  smart_parsing: boolean
 }
 
 export const DEFAULT_TASK_SETTINGS: TaskSettings = {
   default_priority: 'none',
   show_completed_in_lists: false,
+  smart_parsing: true,
 }
 
 /** The `tasks` namespace (M11), resolved for a Program. */

@@ -11,7 +11,13 @@ import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from '@/ui/nat
 import { Skeleton } from '@/ui/skeleton'
 import { useTaskActions } from '../actions'
 import { newTaskPlace } from '../new-task'
-import { useProgramToday, useTaskLists, useTaskSettings, useTasks } from '../queries'
+import {
+  useProgramTimezone,
+  useProgramToday,
+  useTaskLists,
+  useTaskSettings,
+  useTasks,
+} from '../queries'
 import { INBOX, SMART_VIEWS, parseSelection, selectionKey } from '../types'
 import { NewTaskSheet } from './NewTaskSheet'
 import { TaskSections, groupByDue } from './TaskSections'
@@ -38,6 +44,7 @@ export default function TasksMobilePage({ scope }: PageProps) {
         : parsed
   // Not with the default list first: wait for the remembered one.
   const tasks = useTasks({ programId }, selection, { sort: 'due', completed: 'hide' }, keyLoaded)
+  const timezone = useProgramTimezone(programId)
   const today = useProgramToday(programId)
   const { actions } = useTaskActions()
   const items = tasks.data?.items
@@ -113,6 +120,8 @@ export default function TasksMobilePage({ scope }: PageProps) {
         place={newTaskPlace(selection, { today, priority: settings.default_priority })}
         courses={courses}
         today={today}
+        timezone={timezone}
+        smartParsing={settings.smart_parsing}
         onAdd={(body) => actions.create(programId, body)}
       />
     </MobilePage>

@@ -4,7 +4,9 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { type NewTaskPlace, newTaskBody } from '../new-task'
 import { focusAt, useEditorExit } from './editor-exit'
-import { type ChipValues, TaskChips } from './TaskChips'
+import { useNewTaskDraft } from '../draft'
+import { TaskChips } from './TaskChips'
+import { TitleInput } from './TitleInput'
 
 type Props = {
   /** Set while the row is open; a new value starts a fresh task. */
@@ -16,7 +18,11 @@ type Props = {
   courses: readonly Course[]
   /** The Program's today, for "Today"/"Tomorrow" labels. */
   today: string
+  /** The Program's time zone, which dates typed in the title are read in. */
+  timezone: string
   hideCourse?: boolean
+  /** The `smart_parsing` setting: read dates, priority marks and course codes in the title. */
+  smartParsing: boolean
   /** Smaller, for board cards. */
   compact?: boolean
   onAdd: (body: TaskCreateInputBody) => Promise<unknown>
@@ -71,28 +77,34 @@ function NewTaskEditor({
   place,
   courses,
   today,
+  timezone,
   hideCourse,
+  smartParsing,
   compact,
   onAdd,
 }: Omit<Props, 'openKey' | 'onOpen'> & { circle: React.ReactNode }) {
   const rowRef = useRef<HTMLLIElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const closed = useRef(false)
-  const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
-  const [values, setValues] = useState<ChipValues>(place.initial)
+  const draft = useNewTaskDraft(place.initial, {
+    courses,
+    timezone,
+    readCourse: !hideCourse,
+    enabled: smartParsing,
+  })
   useEffect(() => {
     focusAt(titleRef.current)
   }, [])
   // Not blocked while an earlier add is saving, so tasks can be typed one after another.
   const add = () => {
-    const next = title.trim()
-    if (!next) return
-    const body = newTaskBody(place, { title: next, notes, values })
-    setTitle('')
+    const typed = draft.title
+    if (!draft.savedTitle) return
+    const body = newTaskBody(place, { title: draft.savedTitle, notes, values: draft.values })
+    draft.reset()
     setNotes('')
-    setValues(place.initial)
-    void onAdd(body).catch(() => setTitle((current) => current || next))
+    // What was typed comes back, so the words read from it are read again.
+    void onAdd(body).catch(() => draft.setTitle((current) => current || typed))
   }
   const finish = (save: boolean) => {
     if (closed.current) return
@@ -120,17 +132,19 @@ function NewTaskEditor({
     >
       {circle}
       <div className="min-w-0 flex-1 space-y-0.5">
-        <input
+        <TitleInput
           ref={titleRef}
+          tokens={draft.tokens}
+          onKeep={draft.keep}
           aria-label={m.tasks_new_row()}
           placeholder={m.tasks_new_row()}
           className={cn(
             'block w-full bg-transparent p-0 font-medium outline-none placeholder:text-muted-foreground',
             compact ? 'text-sm' : 'text-base',
           )}
-          value={title}
+          value={draft.title}
           maxLength={300}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => draft.setTitle(event.target.value)}
           onKeyDown={(event) => keys(event, true)}
         />
         <textarea
@@ -148,12 +162,13 @@ function NewTaskEditor({
         />
         <div className="pt-1.5 pb-0.5">
           <TaskChips
-            task={values}
+            task={draft.values}
+            fromTitle={draft.fromTitle}
             courses={courses}
             today={today}
             hideCourse={hideCourse}
-            overdue={values.due_date !== null && values.due_date < today}
-            onChange={(body) => setValues((current) => ({ ...current, ...body }) as ChipValues)}
+            overdue={draft.values.due_date !== null && draft.values.due_date < today}
+            onChange={draft.change}
           />
         </div>
       </div>

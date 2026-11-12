@@ -16,6 +16,10 @@ class TasksSettings(BaseModel):
     show_completed_in_lists: bool = Field(
         default=False, description="Keep completed tasks visible in lists and smart lists"
     )
+    smart_parsing: bool = Field(
+        default=True,
+        description="Read dates, priority marks and course codes typed in a new task's title",
+    )
 
     @field_validator("default_priority", mode="before")
     @classmethod
