@@ -31,7 +31,9 @@ export const FRONT_PAGE_REF = '@front'
 /** A course whose home is a page (`wiki`); the modules when it has no front page. */
 function FrontPage() {
   const { courseId } = useCanvasPage()
-  const front = useQuery(lmsPageGetOptions({ path: { course_id: courseId, ref: FRONT_PAGE_REF } }))
+  const front = useQuery({
+    ...lmsPageGetOptions({ path: { course_id: courseId, ref: FRONT_PAGE_REF } }),
+  })
   if (front.isError && errorCode(front.error) === 'lms.not_found') return <ModulesView />
   return <PageView pageRef={FRONT_PAGE_REF} />
 }

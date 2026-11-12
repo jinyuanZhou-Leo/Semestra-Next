@@ -76,7 +76,8 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
     ...lmsCourseOverviewOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
-  const fetching = useIsFetching({ predicate: isCourseContent(courseId) }) > 0
+  const fetching =
+    useIsFetching({ predicate: isCourseContent(courseId) }) > 0 || overview.isFetching
   const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.canvas-tab' } }))
   const [picked, setDisplay] = useState<CanvasDisplay | null>(null)
   const display: CanvasDisplay =

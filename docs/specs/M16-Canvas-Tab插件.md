@@ -85,6 +85,7 @@ defineModule({
 - 课程 Page 路由（`_authed.p.$programId.c.$courseId.$page`）现在保留所有字符串 search 参数，属于 Page 自己；插件用 `?tab=&ref=`。`tab` 是原生视图名（`announcements` 等），外部工具和未知页签是 `tab:<external_id>`；原生视图即使在 Canvas 里隐藏了也能打开（单元条目可能指向它），找不到的页签回到首页。
 - 位置同时存 `useUiPref('canvas-tab.location.<courseId>')`；URL 里有位置时以 URL 为准并记下来，没有时把记住的位置写回 URL（replace）。`canvas-tab.` 加入了 UI 状态预取前缀，避免先闪一下首页。
 - "刷新"调用一次 `lms.course.refresh`（服务端清掉这门课的缓存），然后让这门课的 LMS 查询和 M09 的状态查询重新请求；查询键里不带 `refresh`，之后的读取照常走缓存（2026-10-23 评审修复，之前是切换为永久 `refresh=true`）。单元列表带了条目时直接显示，不再逐个单元请求。
+- **先显示上次的内容**（2026-11-12）：概览和各视图的读取（公告、作业与测验、单元及条目、页面、首页、大纲、文件夹、提交）由 M09 前端的 `keepLmsReads(queryClient)`（`modules/lms/persist.ts`，在 `main.tsx` 里按 operationId 用 `setQueryDefaults` 声明 persister，读同一数据的卡片、选择器也共用同一份；TanStack Query 的 `experimental_createQueryPersister` + IndexedDB `idb-keyval`，保留两周，只存数据不存错误，`buster` 是应用版本，升级后旧版本存的数据直接丢弃）保存在浏览器里。再次打开时先显示保存的数据，过了 `staleTime` 就在后台重新请求；菜单底部的刷新图标在概览或本课内容请求期间转动。存储属于一个账户：登录后 `AuthProvider` 调 `claimLmsCache(userId)`，换了账户先清空，确认前不读不写；退出登录 `forgetLmsCache()` 全部删除。文件预览与搜索不保存。`CanvasBoundary` 在已有数据时请求失败，把提示放在原内容上方，不再用提示替换内容。
 - `default_view` 为空或未知时首页显示单元。`wiki` 首页用 `lms.page.get` 的保留 ref `@front`（M09 映射到 Canvas `GET /courses/:id/front_page`，一次请求，学生不能列出页面时也能用）；课程没有首页 page（`common.not_found`）时显示单元。
 - 外部工具与未知页签的链接：Canvas Tab 对象的 `html_url` 是相对路径，M09 按连接的 `base_url` 补成绝对地址。
 
