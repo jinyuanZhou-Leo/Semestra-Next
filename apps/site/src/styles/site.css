@@ -568,6 +568,21 @@ section.s {
   border-radius: 16px;
 }
 
+/* LMS: the Canvas tab, with the new-assignments toast over its corner */
+.lms-stage {
+  position: relative;
+  margin-top: 48px;
+}
+.lms-stage > .shot {
+  border-radius: 16px;
+}
+.lms-toast {
+  position: absolute;
+  width: 34%;
+  right: -3%;
+  bottom: -5%;
+}
+
 /* Everyday */
 .mini {
   display: grid;
@@ -746,6 +761,11 @@ footer .legal {
   }
   .float.a {
     display: none;
+  }
+  .lms-toast {
+    width: 62%;
+    right: -2%;
+    bottom: -8%;
   }
   .float.b {
     width: 78%;

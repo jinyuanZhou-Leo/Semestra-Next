@@ -15,12 +15,21 @@ const ctx = await b.newContext({
 })
 const p = await ctx.newPage()
 await p.clock.setFixedTime(NOW)
+// Toasts (such as the LMS's new assignments) are not part of these shots.
+await p.addInitScript(() =>
+  document.addEventListener('DOMContentLoaded', () => {
+    const style = document.createElement('style')
+    style.textContent = '[data-sonner-toaster] { display: none !important }'
+    document.head.append(style)
+  }),
+)
 await p.goto(`${WEB}/p/${ids.prog}/assistant`)
 await p.waitForLoadState('networkidle')
 await p.waitForTimeout(1000)
-const box = p.locator('textarea').first()
-await box.fill(msg)
-await box.press('Enter')
+// The message box is a rich-text editor.
+await p.locator('[contenteditable=true]').first().click()
+await p.keyboard.type(msg)
+await p.keyboard.press('Enter')
 await p
   .locator('button', { hasText: /^(Approve|批准|允许|同意)$/ })
   .first()
@@ -41,17 +50,22 @@ if (process.env.APPROVE) {
 }
 await p.screenshot({ path: `${OUT}/out/${out}-${scheme}-${locale}.png` })
 if (process.env.APPROVE) {
-  // The conversation column, from the question to the end of the answer.
+  // The conversation, from the question to the end of the answer, without the chat list beside it.
   const question = await p.getByText(msg).first().boundingBox()
+  const thought = await p
+    .getByText(/^(Thought for|思考了)/)
+    .first()
+    .boundingBox()
   const copy = await p
     .locator('main button')
     .filter({ has: p.locator('svg.lucide-copy') })
     .last()
     .boundingBox()
+  const left = thought.x - 24
   await part(p, `answer-${tag}`, {
-    x: question.x - 520,
+    x: left,
     y: question.y - 12,
-    width: question.width + 540,
+    width: question.x + question.width + 20 - left,
     height: copy.y + copy.height - question.y + 24,
   })
 }
