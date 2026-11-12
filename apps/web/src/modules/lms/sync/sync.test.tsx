@@ -168,3 +168,19 @@ test('a change the sync made is undone from the panel, and so is undoing it', as
   await waitFor(() => expect(screen.queryByText('Undone')).not.toBeInTheDocument())
   expect(calls.mock.calls.map(([url]) => url.split(':').at(-1))).toEqual(['revert', 'reapply'])
 })
+
+test('a connection that stopped working says so and goes to its settings from the panel', async () => {
+  server.use(
+    ...handlers(
+      status({
+        connection_error: 'lms.invalid_credentials',
+        pending: [item({ id: 'r1', title: 'A3' })],
+      }),
+    ),
+  )
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument()
+  // What waits is shown but cannot be acted on until the connection works again.
+  expect(screen.getByText('A3').closest('[inert]')).not.toBeNull()
+})

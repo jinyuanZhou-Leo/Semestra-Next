@@ -11,7 +11,7 @@ import type { MeetingImportSource } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { openImport } from './launcher'
 import { SOURCES } from './sources'
-import type { CourseData, ImportOutcome, ImportRequest, ImportSourceKind } from './types'
+import type { CourseData, ImportRequest, ImportSourceKind } from './types'
 
 /**
  * The import sources M08 contributes to other modules' extension points (M08 §6.1). Each one
@@ -19,30 +19,6 @@ import type { CourseData, ImportOutcome, ImportRequest, ImportSourceKind } from 
  */
 
 type Extras = { importSessionId: string; importItemId: string }
-
-/**
- * After an import that saves at once when nothing needs a decision (M08 §5, e.g. assignments
- * picked on Canvas): either it was saved (its writes' events refetch what they changed) and a
- * toast says so, or the review opens. Resolves when that is done.
- */
-export async function reviewIfNeeded({
-  programId,
-  sessionId,
-  committed,
-  saved,
-  title,
-}: {
-  programId: string
-  sessionId: string
-  committed: boolean
-  saved: () => string
-  title: () => string
-}): Promise<ImportOutcome> {
-  if (!committed)
-    return openImport({ programId, mode: 'direct', source: 'session', sessionId, title })
-  toast.success(saved())
-  return null
-}
 
 export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
   return wizardImportSource({

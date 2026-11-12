@@ -440,7 +440,7 @@ test('an invalid token leads to the connection settings', async () => {
   ).toBeInTheDocument()
 })
 
-function assignmentHandlers(body: (path: string, body: unknown) => void, committed: boolean) {
+function assignmentHandlers(body: (path: string, body: unknown) => void) {
   return [
     http.get(`${API}/courses/c1/lms/assignments`, () =>
       HttpResponse.json({
@@ -481,16 +481,14 @@ function assignmentHandlers(body: (path: string, body: unknown) => void, committ
         session_id: 's1',
         program_id: 'p1',
         count: 1,
-        committed,
-        failed: 0,
       })
     }),
   ]
 }
 
-test('ticked assignments are imported at once when nothing needs a decision', async () => {
+test('ticked assignments open the import review', async () => {
   const body = vi.fn<(path: string, body: unknown) => void>()
-  server.use(...assignmentHandlers(body, true))
+  server.use(...assignmentHandlers(body))
   renderPage('/?tab=assignments')
   expect(await screen.findByText('Weight 20%')).toBeInTheDocument()
   // An imported row says where it is in Semestra, linking there, and cannot be ticked again.
@@ -510,12 +508,14 @@ test('ticked assignments are imported at once when nothing needs a decision', as
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 1' }))
   await userEvent.click(screen.getByRole('button', { name: 'Import 1' }))
   await waitFor(() => expect(body).toHaveBeenCalledWith('assignments', { external_ids: ['x1'] }))
-  expect(openImport).not.toHaveBeenCalled()
+  expect(openImport).toHaveBeenCalledWith(
+    expect.objectContaining({ programId: 'p1', source: 'session', sessionId: 's1' }),
+  )
 })
 
-test('an import that needs a decision opens the review, and a to-do can join the gradebook', async () => {
+test('a to-do can join the gradebook through the review', async () => {
   const body = vi.fn<(path: string, body: unknown) => void>()
-  server.use(...assignmentHandlers(body, false))
+  server.use(...assignmentHandlers(body))
   renderPage('/?tab=assignments')
   const reading = (await screen.findByText('Reading')).closest('tr')!
   expect(within(reading).getByRole('link', { name: 'In to-dos' })).toHaveAttribute(

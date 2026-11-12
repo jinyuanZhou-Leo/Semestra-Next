@@ -18,7 +18,7 @@
 - 出站请求防 SSRF；凭证加密存储并带版本号。
 
 新增：
-- 一个“导入”：有分值的作业成为**考核**（有截止日期就带待办），没有分值的成为**待办**；没有冲突时直接保存，有冲突才进 M08 审核（审核里仍可切换类型）。只成为待办的作业可以“加入成绩簿”，待办保留。
+- 一个“导入”：有分值的作业成为**考核**（有截止日期就带待办），没有分值的成为**待办**；导入一律先进 M08 审核（可改分类、权重，也可切换类型），确认后才写入。只成为待办的作业可以“加入成绩簿”，待办保留。
 - LMS 文件可以"保存到课程文件"，进入 M07 文档管线，之后可被检索和抽取。
 - LMS syllabus 一键交给 M08 智能抽取。
 - 后台同步（§4.1）：已导入的作业自动跟随平台，平台上的新作业、两边都改过的值和平台上已删除的项才询问用户。
@@ -160,7 +160,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | 文件内容代理 | — | GET /courses/{id}/lms/files/{file_id}/content | `routes.py`，流式代理，用于预览和下载 |
 | `lms.file.save_to_course` | write | POST /courses/{id}/lms/files/{file_id}:save | 调用 M07 `save_bytes_as_file`，`source_kind='lms'`，`source_ref={provider, connection_id, file_id}` |
 | `lms.course.import` | write | POST /programs/{id}/lms/imports:courses | 选中的外部课程（可选目标学期）→ M08 session（course items，带关联信息），返回 session id |
-| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 课程已有分类或新分类，规则见 M08 的分类映射；权重按 group weight 推算，无法推算时留空），没有分值的成为待办；`imports.commit_if_clean` 没有冲突就直接提交（返回 `committed`、`failed`），否则留给审核 |
+| `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 课程已有分类或新分类，规则见 M08 的分类映射；权重按 group weight 推算，无法推算时留空），没有分值的成为待办 ；session 留给审核，由用户（或 Agent 经 `imports.session.commit`）提交 |
 | `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
 | `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
 | `lms.sync.status` | read | GET /programs/{id}/lms/sync | 后台同步的状态（§4.1）；只开放 HTTP |
@@ -197,7 +197,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 
 ### 7.2 导入流程
 - 学期向导、学期页和 Program 页的"从 LMS 导入课程"：勾选外部课程（默认只显示当前学期，可切换显示全部），选择目标学期，进入 M08 审核，提交后课程与关联同时创建。
-- 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。同步面板里的“导入”走同一个接口，作业组到成绩分类的自动匹配不变。
+- 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；一律打开 M08 审核（2026-11-12 起不再无冲突直接保存，owner 决定）。同步面板里的“导入”走同一个接口，作业组到成绩分类的自动匹配不变。
 - 同步的界面（`modules/lms/sync/`，owner 2026-11-12）：只有状态行和它的面板，不弹 toast，也不占页面空间。
   - **状态行**（`statusItems` 的 `lms.sync`，M10 §5.6）：学业项目绑定了平台就一直在。连接坏了是 `error`（“重新连接 {平台}”）；有待处理是 `attention`（`BellDot`，强调色，“{平台} · N 项待处理”）；同步中转圈；否则 `idle`（“{平台} · M 分钟前同步”）。点开是面板 `SyncPanel`：标题行（平台、上次同步与频率、“立即同步”），连接错误 Alert（“打开设置”），各课程的阶段错误，头部（平台、上次同步与频率或“正在同步 N 门课程…”、“立即同步”）固定，下面滚动；“待处理”“最近更新”“已忽略”都按课程分组（色点 + 课程代码），行是 shadcn `Item`。待处理：新作业每门课一行（outline 忽略 / 实心导入）；冲突“旧值 → 新值”（箭头是 `ArrowRight` 图标，新值正文色，`edited` 时加“你改过这一项”）：outline 保留 / 实心更新；平台上已删除：outline 保留 / destructive 删除（确认）。回答后的行 200 ms 高度收起，失败则展开回来。最近更新：可切换的行右侧是常驻的 outline 图标按钮（`Undo2` 还原 / `Redo2` 撤销还原，带 tooltip）；还原过的行变灰、新值删除线、副标题以“已还原 ·”开头。可折叠的“已忽略”（恢复提醒 / 导入）。（UI 评审 v3，owner 2026-11-12 批准。）
   - **打开时同步**（`SyncOnOpen`，manifest `overlays`）：打开学业项目时请求一次同步。同步的结果只体现在状态行上，不弹 toast（owner 2026-11-12：有状态行就够了）。
@@ -238,7 +238,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - Provider 契约测试套件 `tests/lms/provider_contract.py`：每个 provider 都必须通过（以后新增 provider 时直接复用）。用一个假 provider 测试模块本身的逻辑，与 Canvas 无关。
 - Canvas：用 respx mock Canvas API，覆盖分页 `Link` 头、401、429、重定向到私网地址被拒、base_url 规范化用例（与旧版前端规则一致）。
 - 绑定规则：有关联时不能更换绑定；关联必须使用 Program 的绑定连接；关联唯一性。
-- 导入：同一作业只对应一个对象（考核或待办）；没有冲突直接保存、有冲突等审核；加入成绩簿保留待办；导入课程同时创建关联且在同一事务中；更新检测。
+- 导入：同一作业只对应一个对象（考核或待办）；一律等审核；加入成绩簿保留待办；导入课程同时创建关联且在同一事务中；更新检测。
 - 日历：`sync_enabled=false` 的课程不出现；只显示平台日历事件；多课程合并为一次请求。
 - HTML 清洗：去掉 script/style/事件属性；内部链接改写。
 - 凭证：任何响应和日志中都不出现明文。

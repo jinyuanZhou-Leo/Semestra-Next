@@ -10009,7 +10009,7 @@
           "lms"
         ],
         "summary": "Import a linked course's assignments: worth points into the gradebook, else as tasks.",
-        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. Saved at once when nothing needs a decision\n(`committed`); otherwise the user reviews it, then commit it like any import\n(imports.session.commit).",
+        "description": "Assignments from lms.assignment.list (`ref`s). With `into` auto (default),\nthose worth points become assessments (each gets its task), the others tasks; ones imported\nbefore are left out. With `into` gradebook, assignments imported as tasks (`imported_as.kind`\ntask) become assessments and keep their to-do. The user reviews it, then commit it like any import\n(imports.session.commit).",
         "operationId": "lmsAssignmentImport",
         "security": [
           {
@@ -26848,18 +26848,6 @@
             "type": "integer",
             "title": "Count",
             "description": "Items in the import"
-          },
-          "committed": {
-            "type": "boolean",
-            "title": "Committed",
-            "description": "Saved at once (nothing needed a decision); otherwise it waits for review",
-            "default": false
-          },
-          "failed": {
-            "type": "integer",
-            "title": "Failed",
-            "description": "Items that could not be saved, when committed (see the import)",
-            "default": 0
           }
         },
         "type": "object",

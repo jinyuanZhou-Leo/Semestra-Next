@@ -48,7 +48,7 @@ defineModule({
 |---|---|---|
 | 首页 | `overview.default_view` | `wiki` → 首页 page；`modules` / `syllabus` / `assignments` → 对应视图；`feed` → 公告列表 |
 | 公告 | `lms.announcement.list` | 列表（标题、作者、时间、未读点），详情显示清洗后的 HTML |
-| 作业 | `lms.assignment.list` | 表格（名称、分组、截止、分值、提交状态、Semestra），按分组折叠；多选"导入"，没有冲突直接保存，否则 M08 审核；行点击显示描述 |
+| 作业 | `lms.assignment.list` | 表格（名称、分组、截止、分值、提交状态、Semestra），按分组折叠；多选"导入"，M08 审核；行点击显示描述 |
 | 成绩 | `lms.grade.list` | Canvas 得分列表；顶部推荐卡片"在成绩簿中计算 GPA 与目标"，跳转到 M03 成绩 Page |
 | 单元 | `lms.module.list` + `lms.module_item.list`（展开时懒加载） | 可展开的模块列表；条目内联渲染：页面（应用内打开）、文件（M07 预览组件 + 下载 + "保存到课程文件"）、外部链接（打开前确认）、作业（跳到作业视图对应行）、测验（跳到测验视图） |
 | 页面 | `lms.page.list` / `lms.page.get` | 列表与详情；内部链接改写后在插件内跳转 |
@@ -126,4 +126,4 @@ defineModule({
   - **统一页面头**：各视图用 `views/common.tsx` 的 `ViewHeader`（标题取 Canvas 菜单里的名称；右侧依次是工具、显示方式图标菜单、在 Canvas 中打开图标，最后是唯一的主按钮）；详情页是返回按钮 + `ViewHeader`。
   - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`，文案前缀改为 `files_kind_*`。
   - M08 导入会话失败（例如没有可导入的内容）时，`SessionView` 显示 `Empty` + 原因 + “关闭”，不再是撑满对话框的红色 `Alert`。
-- 课程作业打通第 3 步（2026-11-07，PR #255）：导入只剩一个"导入 N 项"按钮（`importAssignments`，没有冲突直接保存并 toast，否则打开 M08 审核）；"Semestra"一列用文字写去向："已加入成绩簿"（链接到成绩簿并定位该考核）/"已加入待办"（链接到课程待办页）/灰色"未加入"，练习测验留空（2026-11-08 起，此前是图标与待办勾选圈，用户看不懂）；行末 `RowMenu`："加入成绩簿"（仅导入为待办的作业，`lms.assignment.add_to_gradebook`）、"在 Canvas 中打开"。页面顶部（更新提示下）显示 M09 的新作业提示。
+- 课程作业打通第 3 步（2026-11-07，PR #255）：导入只剩一个"导入 N 项"按钮（`importAssignments`，打开 M08 审核）；"Semestra"一列用文字写去向："已加入成绩簿"（链接到成绩簿并定位该考核）/"已加入待办"（链接到课程待办页）/灰色"未加入"，练习测验留空（2026-11-08 起，此前是图标与待办勾选圈，用户看不懂）；行末 `RowMenu`："加入成绩簿"（仅导入为待办的作业，`lms.assignment.add_to_gradebook`）、"在 Canvas 中打开"。页面顶部（更新提示下）显示 M09 的新作业提示。

@@ -503,13 +503,6 @@ class ImportStarted(BaseModel):
     session_id: str
     program_id: str
     count: int = Field(description="Items in the import")
-    committed: bool = Field(
-        default=False,
-        description="Saved at once (nothing needed a decision); otherwise it waits for review",
-    )
-    failed: int = Field(
-        default=0, description="Items that could not be saved, when committed (see the import)"
-    )
 
 
 class CoursesImportInput(BaseModel):

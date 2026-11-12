@@ -489,19 +489,6 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
     return await detail(ctx, row, item_ids=failed if for_agent(ctx) else None), counts
 
 
-async def commit_if_clean(ctx: Ctx, row: ImportsSession) -> dict[str, int] | None:
-    """Commits a ready session at once when none of its items has an issue (M08 §5): an import
-    of structured data the user picked (assignments on Canvas) was confirmed by starting it, so
-    it is only reviewed when something needs a decision. A duplicate left out by default still
-    opens the review, so the user sees why it was skipped. Returns the commit's counts, or None
-    when the session is left for review."""
-    items = await session_items(ctx, row.id)
-    if row.status != "ready" or any(i.issues for i in items):
-        return None
-    _, counts = await commit(ctx, CommitInput(session_id=row.id))
-    return counts
-
-
 async def _claim(ctx: Ctx, row: ImportsSession) -> None:
     """Claims the session with a conditional write: a second commit sent at the same time (a
     double click, a repeated tool call) finds it taken instead of writing every item again.
