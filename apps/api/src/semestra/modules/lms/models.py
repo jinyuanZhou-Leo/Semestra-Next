@@ -69,17 +69,24 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     external_term: Mapped[str | None] = mapped_column(String, default=None)
     web_url: Mapped[str | None] = mapped_column(String, default=None)
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_synced_at: Mapped[datetime | None] = mapped_column(default=None)
-    last_error_code: Mapped[str | None] = mapped_column(String, default=None)
-    # When the background check for update notifications last looked (M18); until its first
-    # look nothing is reported, so linking a course or turning notifications on is quiet.
+    # When the course was last synced (`sync.py`): every stage ran, failed or not. The
+    # scheduler compares it with the account's interval.
+    synced_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Error code of each stage whose last run failed, by stage name; a stage that ran cleanly
+    # is left out.
+    sync_errors: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    # Announcements posted up to this time were looked at (the announcements stage); until the
+    # first look nothing is reported, so linking a course is quiet.
     watched_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsImportedRef(Base, OwnedMixin):
-    """A platform item that was imported, to skip it next time and detect updates. One item is
-    one Semestra object: an assignment worth points is an assessment (with its to-do), else a
-    to-do, which may later move into the gradebook (the ref then points at the assessment)."""
+    """A platform item Semestra keeps track of, one row per item. Imported: one Semestra object
+    (`target_*`), whose fields follow the platform through the sync (an assignment worth points
+    is an assessment with its to-do, else a to-do, which may later move into the gradebook).
+    Not imported (`target_*` null): a new item waiting for the user, or one the user ignored
+    (`dismissed_at`). `external_kind` is free text: `assignment` here, files and folders for
+    the file sync."""
 
     __tablename__ = "lms_imported_refs"
     __table_args__ = (
@@ -92,19 +99,42 @@ class LmsImportedRef(Base, OwnedMixin):
     link_id: Mapped[str] = mapped_column(
         String, ForeignKey("lms_course_links.id", ondelete="CASCADE"), index=True
     )
-    external_kind: Mapped[str] = mapped_column(String)  # 'assignment' | 'calendar_event'
+    external_kind: Mapped[str] = mapped_column(String)
     external_id: Mapped[str] = mapped_column(String)
-    target_kind: Mapped[str] = mapped_column(String)  # 'assessment' | 'task' | 'event'
-    target_id: Mapped[str] = mapped_column(String, index=True)
-    # What the item looked like when imported: {title, due_at, points} (update detection).
+    target_kind: Mapped[str | None] = mapped_column(String, default=None)
+    target_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
+    # The platform's values as last applied or seen, by field ({title, due_at, points, weight,
+    # score}): a local field still equal to its snapshot was not changed by the user, so a new
+    # platform value replaces it; a null field was never set from the platform.
     snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    imported_at: Mapped[datetime] = mapped_column()
+    imported_at: Mapped[datetime | None] = mapped_column(default=None)
     # When the platform first showed the assignment handed in (its to-do was finished then, if
     # the account allows it): once per assignment, so a to-do opened again by hand stays open.
     submitted_at: Mapped[datetime | None] = mapped_column(default=None)
-    # Platform values of the changes the background check already reported, by field
-    # (`watch.py`): each change is told once, whether or not the user reviews it.
-    reported: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # Platform values the user changed too, by field: the user picks one (`sync.resolve`).
+    conflicts: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # When an imported item was first missing from the platform: the user keeps or deletes it.
+    removed_at: Mapped[datetime | None] = mapped_column(default=None)
+    # A new item the user chose not to import: not offered again, still listed as ignored.
+    dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class LmsSyncChange(Base, OwnedMixin):
+    """A field the sync changed on an imported item (the status panel's "recent updates", kept
+    `CHANGES_KEPT`), which the user can put back."""
+
+    __tablename__ = "lms_sync_changes"
+    __table_args__ = (Index("ix_lms_sync_changes_user_at", "user_id", "at"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    ref_id: Mapped[str] = mapped_column(
+        String, ForeignKey("lms_imported_refs.id", ondelete="CASCADE"), index=True
+    )
+    field: Mapped[str] = mapped_column(String)
+    old: Mapped[Any] = mapped_column(JSON, nullable=True, default=None)
+    new: Mapped[Any] = mapped_column(JSON, nullable=True, default=None)
+    at: Mapped[datetime] = mapped_column()
+    reverted_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsCache(Base, OwnedMixin):

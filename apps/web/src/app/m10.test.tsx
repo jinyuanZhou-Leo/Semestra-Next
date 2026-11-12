@@ -494,7 +494,12 @@ test('a failed job stays listed while its list is open and goes once it closes',
   await new Promise((resolve) => setTimeout(resolve, 50))
   expect(screen.getByText('Background tasks')).toBeInTheDocument()
   await user.keyboard('{Escape}')
+  // The bar holds still while the pointer is over it; once it leaves, the line closes.
+  await user.unhover(screen.getByRole('list', { name: 'In progress' }))
   await waitFor(() =>
-    expect(screen.queryByRole('button', { name: /failed/ })).not.toBeInTheDocument(),
+    expect(document.querySelector('[data-status-line="jobs"]')).toHaveAttribute(
+      'data-shown',
+      'false',
+    ),
   )
 })

@@ -3,7 +3,9 @@
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links
 and imported refs follow the id map of Programs, courses, assessments and tasks. The cache is
-not exported. Registered at the bottom with M13's `register_portability`.
+not exported, nor is what the background sync keeps for itself (its change log, its
+conflicts, the new items it offers): the first sync after an import finds them again; only the
+new items the user ignored are kept. Registered at the bottom with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
@@ -26,6 +28,7 @@ from semestra.modules.lms.models import (
     LmsCourseLink,
     LmsImportedRef,
     LmsProgramBinding,
+    LmsSyncChange,
 )
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
@@ -79,11 +82,13 @@ class RefRow(BaseModel):
     link_id: str
     external_kind: str
     external_id: str
-    target_kind: str
-    target_id: str
+    # None: a new item the user ignored (`dismissed_at`).
+    target_kind: str | None = None
+    target_id: str | None = None
     snapshot: dict[str, Any] = {}
-    imported_at: datetime
+    imported_at: datetime | None = None
     submitted_at: datetime | None = None
+    dismissed_at: datetime | None = None
 
 
 class LmsPayload(BaseModel):
@@ -105,7 +110,12 @@ async def export(ctx: Ctx, writer: Writer) -> None:
     conns = await ctx.db.scalars(select(LmsConnection).where(LmsConnection.user_id == uid))
     binds = await ctx.db.scalars(select(LmsProgramBinding).where(LmsProgramBinding.user_id == uid))
     links = list(await ctx.db.scalars(select(LmsCourseLink).where(LmsCourseLink.user_id == uid)))
-    refs = await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.user_id == uid))
+    refs = await ctx.db.scalars(
+        select(LmsImportedRef).where(
+            LmsImportedRef.user_id == uid,
+            LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
+        )
+    )
     writer.write_json(
         LmsPayload(
             connections=[
@@ -208,10 +218,10 @@ async def import_(
         links[li.id] = row.id
         report.imported["links"] += 1
     for r in data.refs:
-        target_id = id_map.get(r.target_id)
-        if r.link_id not in links or target_id is None:
+        target_id = id_map.get(r.target_id) if r.target_id is not None else None
+        if r.link_id not in links or (target_id is None and r.target_id is not None):
             link = next((li for li in data.links if li.id == r.link_id), None)
-            skip("refs", r.target_id, *((link.course_id, link.program_id) if link else ()))
+            skip("refs", r.target_id or "", *((link.course_id, link.program_id) if link else ()))
             continue
         ctx.db.add(
             LmsImportedRef(
@@ -224,6 +234,7 @@ async def import_(
                 snapshot=r.snapshot,
                 imported_at=r.imported_at,
                 submitted_at=r.submitted_at,
+                dismissed_at=r.dismissed_at,
             )
         )
         report.imported["refs"] += 1
@@ -243,7 +254,14 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
 
 async def purge(ctx: Ctx) -> None:
     uid = ctx.user_id
-    for model in (LmsImportedRef, LmsCourseLink, LmsProgramBinding, LmsCache, LmsConnection):
+    for model in (
+        LmsSyncChange,
+        LmsImportedRef,
+        LmsCourseLink,
+        LmsProgramBinding,
+        LmsCache,
+        LmsConnection,
+    ):
         await ctx.db.execute(delete(model).where(model.user_id == uid))
 
 
@@ -261,6 +279,7 @@ register_portability(
         LmsProgramBinding.__tablename__,
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
+        LmsSyncChange.__tablename__,
         LmsCache.__tablename__,
     ),
 )

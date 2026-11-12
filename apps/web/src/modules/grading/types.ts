@@ -38,14 +38,6 @@ export type AssessmentImportSource = {
 
 export const ASSESSMENT_IMPORT_SOURCES = 'grading.assessmentImportSources'
 
-/** Notices above a course's gradebook, e.g. M09's "assignments changed on the LMS". */
-export type CourseGradesBanner = {
-  id: string
-  component: ComponentType<{ programId: string; courseId: string }>
-}
-
-export const COURSE_GRADES_BANNERS = 'grading.courseGradesBanners'
-
 /**
  * A column of the gradebook from another module (M05's to-do column), before the row menu. Its
  * cell loads what it shows itself: rows that read the same query share one request.

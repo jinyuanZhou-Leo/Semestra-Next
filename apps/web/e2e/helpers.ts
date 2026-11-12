@@ -49,7 +49,7 @@ export async function onboard(
   // AI and the learning platform come before the term, so its wizard can use them.
   await expect(page.getByRole('heading', { name: 'Connect AI' })).toBeVisible()
   await page.getByRole('button', { name: 'Skip' }).click()
-  await expect(page.getByRole('heading', { name: 'Connect a learning platform' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Connect an LMS' })).toBeVisible()
   await page.getByRole('button', { name: 'Skip' }).click()
 
   // The 1st of this month to the 15th of the next: the calendar opens on this month and shows

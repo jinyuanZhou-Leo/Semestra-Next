@@ -58,19 +58,21 @@ becomes an assessment and keeps its to-do.
 
 When an assessment you added by hand has a different name on Canvas, open its row menu on the
 Grades page and choose **Bind Canvas assignment…**, then pick one of the course's assignments
-not imported yet. Binding changes nothing in the assessment: where its due date, weight or grade
-differ from Canvas, they show up as [changes](#changes-after-an-import) to review. From then on
-it behaves like an imported assessment (changes, the to-do finished when you hand in on Canvas).
+not imported yet. Binding changes nothing in the assessment by itself: the next
+[sync](./index.mdx#background-sync) fills in a due date, weight or grade it doesn't have yet, and
+asks where it has one that differs from Canvas. From then on it behaves like an imported assessment
+(it follows Canvas, and its to-do is finished when you hand in on Canvas).
 **Unbind from Canvas** in the same menu keeps the assessment as it is and frees the assignment to
 import or bind again; it works for imported assessments too.
 
 ## Changes after an import
 
-Imports are one-time copies, not a mirror. Semestra compares what you imported with Canvas, and
-when a name or due date changes, the weight of a weighted assessment changes (including
-through its points), or an assessment is graded or regraded on Canvas, the Grades page and the Canvas tab show a "changed assignments" notice. Reviewing it opens another import review; your data changes only
-when you commit. With [notifications](/docs/notifications) on, new grades and changes are also
-sent as a notification.
+Imported assignments follow Canvas through the [background sync](./index.mdx#background-sync):
+a new name, due date, weight (including one that changes through the points) or grade on Canvas
+is applied here unless you changed that value yourself, and anything both sides changed is asked
+about. Each update can be undone from the sidebar's status line. With
+[notifications](/docs/notifications) on, new grades and updates are also sent as a notification
+while the app isn't open.
 
 ## Syllabus
 

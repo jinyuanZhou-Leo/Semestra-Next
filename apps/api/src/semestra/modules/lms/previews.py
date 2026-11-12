@@ -222,15 +222,6 @@ async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:
     return {"target": await _course(ctx, inp.course_id), "changes": changes}
 
 
-async def preview_apply_updates(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
-    changes: list[dict[str, Any]] = []
-    with suppress(AppError, service.NotCached), service.cache_only():
-        updates = await imports.check_updates(ctx, inp.course_id, acknowledge=False)
-        names = [u.name for u in updates.items]
-        changes.append(_counted("lms_updates", names, len(names)))
-    return {"target": await _course(ctx, inp.course_id), "changes": changes}
-
-
 async def _assessment(ctx: Ctx, assessment_id: str) -> tuple[str, str | None, str | None]:
     """The assessment's title and course, and the name of the assignment it follows."""
     row = (await grading.find_assessment_rows(ctx, [assessment_id])).get(assessment_id)

@@ -35,8 +35,6 @@ from semestra.modules.lms.schemas.io import (
     GradeList,
     ModuleItemList,
     ModuleList,
-    NewAssignmentList,
-    NewAssignments,
     PageList,
     QuizList,
     TermAnnouncement,
@@ -288,13 +286,15 @@ async def _imported_targets(
     out: dict[str, dict[str, dict[str, str]]] = {}
     refs = await ctx.db.scalars(
         select(LmsImportedRef).where(
-            LmsImportedRef.link_id.in_(link_ids), LmsImportedRef.external_kind == "assignment"
+            LmsImportedRef.link_id.in_(link_ids),
+            LmsImportedRef.external_kind == "assignment",
+            LmsImportedRef.target_id.is_not(None),
         )
     )
     for ref in refs:
         out.setdefault(ref.link_id, {})[ref.external_id] = {
-            "kind": ref.target_kind,
-            "id": ref.target_id,
+            "kind": ref.target_kind or "",
+            "id": ref.target_id or "",
         }
     return out
 
@@ -415,61 +415,6 @@ def _wanted(
             return (sub or {}).get("score") is not None or (sub or {}).get("state") == "graded"
         case None:
             return True
-
-
-async def term_new_assignments(ctx: Ctx, term_id: str) -> NewAssignmentList:
-    """New assignments of every synced, linked course of a term (the "today" page's prompt),
-    from the cached lists only: asking the platform course after course would hold the page
-    up. Courses not in the cache are listed in `unread` for the page to read side by side."""
-    term = await academics.get_term_row(ctx, term_id)
-    links = {li.course_id: li for li in await service.program_links(ctx, term.program_id)}
-    program = await academics.get_program_row(ctx, term.program_id)
-    rows = await academics.courses_by_id(
-        ctx, [li.course_id for li in links.values() if li.sync_enabled]
-    )
-    courses = [
-        c
-        for c in sorted(
-            await academics.courses_out(ctx, program, rows),
-            key=lambda c: (c.code or c.title).lower(),
-        )
-        if term_id in c.term_ids
-    ]
-    connections: dict[str, Bound | None] = {}
-    for connection_id in {links[c.id].connection_id for c in courses}:
-        try:
-            b = await service.bound(ctx, await service.get_connection_row(ctx, connection_id))
-            service.require_feature(b, "assignments")
-        except AppError:
-            b = None  # credentials gone, platform without assignments: its courses are left out
-        connections[connection_id] = b
-    targets = await _imported_targets(ctx, [links[c.id].id for c in courses])
-    items: list[NewAssignments] = []
-    unread: list[str] = []
-    for course in courses:
-        link = links[course.id]
-        b = connections[link.connection_id]
-        if b is None:
-            continue
-        try:
-            with service.cache_only():
-                data, _ = await raw_assignments(ctx, course.id, False, linked=(link, b))
-        except service.NotCached:
-            unread.append(course.id)
-            continue
-        except AppError:
-            continue
-        found = new_ids(ctx, data, targets.get(link.id, {}))
-        if found:
-            names = {a["external_id"]: str(a["name"]) for a in data}
-            items.append(
-                NewAssignments(
-                    course_id=course.id, external_ids=found, names=[names[i] for i in found]
-                )
-            )
-    return NewAssignmentList(
-        items=items, total=sum(len(i.external_ids) for i in items), unread=unread
-    )
 
 
 async def grades(ctx: Ctx, course_id: str, refresh: bool) -> GradeList:

@@ -13,7 +13,7 @@ import { Switch } from '@/ui/switch'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, SETTLED } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
-import type { FieldChange, TargetPatchData } from '../types'
+import type { CoursePatchData, FieldChange } from '../types'
 import { ConfidenceDot, EvidenceButton } from './Evidence'
 
 type Values = Record<string, unknown>
@@ -49,7 +49,7 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
           ))}
         </ul>
       ) : null}
-      {item.type.endsWith('_patch') ? (
+      {item.type === 'course_patch' ? (
         <PatchEditor item={item} editable={editable} />
       ) : bound ? null : (
         <FieldsEditor key={`${item.id}:${item.type}`} item={item} editable={editable} />
@@ -206,12 +206,12 @@ function FieldInput({
 }
 
 /**
- * A change to an existing course, assessment or task: old → new per field, each one can be left
- * out (`changes[field].apply`, M08 §6.2).
+ * A change to an existing course: old → new per field, each one can be left out
+ * (`changes[field].apply`, M08 §6.2).
  */
 export function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const save = useItemUpdate({ onError: toastError })
-  const { changes } = item.data as TargetPatchData
+  const { changes } = item.data as CoursePatchData
   const toggle = (field: string, change: FieldChange, apply: boolean) =>
     trackEdit(
       save
@@ -252,18 +252,6 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
 
 function display(value: unknown): string {
   if (value == null) return ''
-  if (typeof value === 'object' && 'score_percentage' in value) {
-    // A grade entered as a percentage, shown as the old value of a platform grade (M09).
-    return `${String((value as { score_percentage: unknown }).score_percentage)}%`
-  }
-  if (typeof value === 'object' && 'points_earned' in value) {
-    // A grade from the platform (M09): {points_earned, points_possible}.
-    const { points_earned: earned, points_possible: possible } = value as {
-      points_earned: unknown
-      points_possible?: unknown
-    }
-    return possible == null ? String(earned) : `${String(earned)} / ${String(possible)}`
-  }
   if (Array.isArray(value)) {
     return value
       .map((v) =>

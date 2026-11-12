@@ -1,4 +1,4 @@
-import { type ImportSessionDetail, lmsChangeImport } from '@semestra/api-client'
+import type { ImportSessionDetail } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { ClipboardList, School } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
@@ -95,19 +95,4 @@ export const assignmentSource: AssessmentImportSource = {
     })
     return []
   },
-}
-
-/** The review of changed assignments: the session already exists when the dialog opens. */
-export async function reviewUpdates(programId: string, courseId: string) {
-  const { data } = await lmsChangeImport({
-    path: { course_id: courseId },
-    throwOnError: true,
-  })
-  return openImport({
-    programId,
-    mode: 'direct',
-    source: 'session',
-    sessionId: data.session_id,
-    title: m.lms_updates_title,
-  })
 }

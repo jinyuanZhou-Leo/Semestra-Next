@@ -58,7 +58,7 @@ async def test_sync_keeps_the_course_content_cached(api: Api, fake: FakeProvider
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
     await api.call("GET", f"/courses/{course}/lms/assignments")
-    await api.call("POST", f"/courses/{course}/lms-link:sync")
+    await api.sync(program_id, course)
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/assignments")
     assert fake.calls == []

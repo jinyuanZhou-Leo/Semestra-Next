@@ -5,10 +5,10 @@ import {
   lmsCourseLinkDeleteMutation,
   lmsCourseLinkGetOptions,
   lmsCourseLinkSetMutation,
-  lmsCourseLinkSyncMutation,
   lmsCourseLinkUpdateMutation,
   lmsCourseListOptions,
   lmsProgramBindingGetOptions,
+  lmsSyncRequestMutation,
 } from '@semestra/api-client/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink, Link2, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
@@ -169,17 +169,16 @@ function LinkedCourse({
     onSuccess: refresh,
     onError: toastError,
   })
+  // Runs in the background; the sync's status line and reminders tell how it went.
   const sync = useMutation({
-    ...lmsCourseLinkSyncMutation(),
-    onSuccess: async (out) => {
-      // Only the link's own details change (its content stays cached).
-      await refresh()
-      const code = out.link?.last_error_code
-      if (code) toast.error(errorMessage({ error: { code } }))
-      else toast.success(m.lms_course_synced())
-    },
+    ...lmsSyncRequestMutation(),
     onError: toastError,
   })
+  const syncNow = () =>
+    sync.mutate({
+      path: { program_id: link.program_id },
+      body: { course_id: courseId, force: true },
+    })
   const remove = useMutation({
     ...lmsCourseLinkDeleteMutation(),
     onSuccess: async () => {
@@ -188,7 +187,8 @@ function LinkedCourse({
     },
     onError: (err) => (setUnlinking(false), toastError(err)),
   })
-  const code = link.last_error_code
+  // The first stage that failed: the course itself, else what the course holds.
+  const code = Object.values(link.sync_errors)[0] ?? null
   const title = externalLabel({ code: link.external_code, name: link.external_name ?? '' })
 
   return (
@@ -213,8 +213,8 @@ function LinkedCourse({
               ) : (
                 <Badge variant="secondary">{m.lms_connection_ok()}</Badge>
               )}
-              {/* The last successful refresh: next to an error it would read as when it broke. */}
-              {link.last_synced_at && !code ? formatTimeAgo(link.last_synced_at, now) : null}
+              {/* The last successful sync: next to an error it would read as when it broke. */}
+              {link.synced_at && !code ? formatTimeAgo(link.synced_at, now) : null}
             </span>
             {link.web_url ? (
               <Tooltip>
@@ -239,12 +239,9 @@ function LinkedCourse({
               </Tooltip>
             ) : null}
             <RowMenu label={m.lms_course_actions({ course: title })}>
-              <DropdownMenuItem
-                disabled={sync.isPending}
-                onClick={() => sync.mutate({ path: { course_id: courseId } })}
-              >
+              <DropdownMenuItem disabled={sync.isPending} onClick={syncNow}>
                 <RefreshCw aria-hidden />
-                {m.lms_course_sync_now()}
+                {m.lms_sync_now()}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onChange}>
                 <Link2 aria-hidden />
@@ -284,12 +281,7 @@ function LinkedCourse({
                 {m.lms_course_open_connections()}
               </Button>
             ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={sync.isPending}
-                onClick={() => sync.mutate({ path: { course_id: courseId } })}
-              >
+              <Button size="sm" variant="outline" disabled={sync.isPending} onClick={syncNow}>
                 {m.common_retry()}
               </Button>
             )}

@@ -347,8 +347,9 @@ def fake() -> Iterator[FakeProvider]:
 
 
 class Api:
-    def __init__(self, client: AsyncClient) -> None:
+    def __init__(self, client: AsyncClient, run_jobs: Callable[[], Awaitable[None]]) -> None:
         self.client = client
+        self.run_jobs = run_jobs
 
     async def call(self, method: str, url: str, status: int = 200, **kwargs: Any) -> Any:
         r = await self.client.request(method, url, **kwargs)
@@ -390,11 +391,23 @@ class Api:
     async def commit(self, session_id: str, status: int = 200, **body: Any) -> Any:
         return await self.call("POST", f"/imports/{session_id}:commit", status, json=body)
 
+    async def sync(self, program_id: str, course_id: str | None = None) -> dict[str, Any]:
+        """Syncs now, as the user's "Sync now" does, and returns the sync status after it."""
+        body = {"force": True, "course_id": course_id}
+        await self.call("POST", f"/programs/{program_id}/lms/sync", json=body)
+        await self.run_jobs()
+        return await self.call("GET", f"/programs/{program_id}/lms/sync")
+
 
 @pytest.fixture
-async def api(client: AsyncClient, make_user: MakeUser, login_as: LoginAs) -> Api:
+async def api(
+    client: AsyncClient,
+    make_user: MakeUser,
+    login_as: LoginAs,
+    run_jobs: Callable[[], Awaitable[None]],
+) -> Api:
     await login_as(client, await make_user())
-    return Api(client)
+    return Api(client, run_jobs)
 
 
 @pytest.fixture

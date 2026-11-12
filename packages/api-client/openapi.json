@@ -8691,9 +8691,7 @@
                       "category",
                       "assessment",
                       "task",
-                      "course_patch",
-                      "assessment_patch",
-                      "task_patch"
+                      "course_patch"
                     ],
                     "type": "string"
                   }
@@ -9533,8 +9531,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and changed imported ones.",
-        "description": "Newest first, the last 7 days unless `since`. A `change` is an imported\nassignment that changed on the LMS (due date, points, a grade the gradebook lacks): put the\nchanges up for the user's review with lms.change.import. Read an item in full with\nlms.content.read.",
+        "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
+        "description": "Newest first, the last 7 days unless `since`. Imported assignments follow the\nLMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the\nuser in the app's sync panel. Read an item in full with lms.content.read.",
         "operationId": "lmsActivityList",
         "security": [
           {
@@ -9891,7 +9889,7 @@
           "lms"
         ],
         "summary": "Bind an assessment made by hand to an LMS assignment of its course not imported yet.",
-        "description": "The assessment then follows the assignment as if imported from it (updates,\nhanded-in to-do). Nothing of it changes now: the platform's differing due date, weight and grade\ncome as changes for the user's review (lms.activity.list, lms.change.import). Importing an\nassignment whose title matches an assessment made by hand binds them already.",
+        "description": "The assessment then follows the assignment as if imported from it (updates,\nhanded-in to-do). Nothing of it changes now: the platform's differing due date, weight and grade\nare offered to the user to take or keep in the app. Importing an\nassignment whose title matches an assessment made by hand binds them already.",
         "operationId": "lmsAssignmentBind",
         "security": [
           {
@@ -10238,62 +10236,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/semestra__modules__lms__schemas__io__AssignmentList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/lms/updates:review": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Import what changed on the LMS for a course's imported assignments (due dates, points, weights, new grades), for the user's review.",
-        "description": "The changes are the `change` items of lms.activity.list. Creates an import of\nthem and changes nothing itself: they are written when the import is committed\n(imports.session.commit) after the user reviewed it; the result's count says how many.\nNothing changed: import.no_content.",
-        "operationId": "lmsChangeImport",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          },
-          {
-            "personalAccessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportStarted"
                 }
               }
             }
@@ -10865,71 +10807,6 @@
         }
       }
     },
-    "/courses/{course_id}/lms/updates": {
-      "get": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Imported assignments whose title, due, points, weight or grade changed on the LMS.",
-        "description": "A `score` change is a grade the gradebook does not have yet. Put them up for\nthe user's review with lms.change.import.",
-        "operationId": "lmsCourseCheckUpdates",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id (must be linked)",
-              "title": "Course Id"
-            },
-            "description": "Course id (must be linked)"
-          },
-          {
-            "name": "refresh",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Skip the 5-minute cache and ask again",
-              "default": false,
-              "title": "Refresh"
-            },
-            "description": "Skip the 5-minute cache and ask again"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdatesOutput"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/programs/{program_id}/lms/imports:courses": {
       "post": {
         "tags": [
@@ -11261,59 +11138,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CourseLinkList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/courses/{course_id}/lms-link:sync": {
-      "post": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Refresh the linked LMS course's code, name and term.",
-        "description": "Changes only the link, never the course itself. Use when the course was renamed\nor moved on the LMS and the link still shows the old code, name or term.",
-        "operationId": "lmsCourseLinkSync",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "course_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Course id",
-              "title": "Course Id"
-            },
-            "description": "Course id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CourseLinkState"
                 }
               }
             }
@@ -12855,6 +12679,352 @@
         }
       }
     },
+    "/lms/sync/changes/{change_id}:reapply": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Apply again a sync change that was put back.",
+        "description": "Undoes `lms.sync.change.revert`: the field gets the platform's value\nagain.",
+        "operationId": "lmsSyncChangeReapply",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A recent change's id",
+              "title": "Change Id"
+            },
+            "description": "A recent change's id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/lms/sync/changes/{change_id}:revert": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Put back what the sync changed on an imported item.",
+        "description": "The field then counts as the user's: the platform's next change to it asks\ninstead of replacing it.",
+        "operationId": "lmsSyncChangeRevert",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A recent change's id",
+              "title": "Change Id"
+            },
+            "description": "A recent change's id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/lms/sync:dismiss": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Ignore new LMS items (no longer offered), or offer ignored ones again.",
+        "description": "Ignored items stay listed in the sync panel, where they can still be imported.",
+        "operationId": "lmsSyncDismiss",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncDismissInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/lms/sync": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Sync the Program's linked courses (or one of them) with the LMS now.",
+        "description": "Without `force` only the courses not synced in the last half hour (the app\nasks on opening); with it all of them (the user's \"Sync now\"). Runs in the background.",
+        "operationId": "lmsSyncRequest",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequestInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncQueued"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "How the Program's LMS sync stands: when it last ran, what it changed and what waits.",
+        "description": "The status line, its panel and the reminders read this. Not for agents.",
+        "operationId": "lmsSyncStatus",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/lms/sync/items/{item_id}:resolve": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Settle what the sync asks about an imported item.",
+        "description": "A conflict: take the platform's values or keep the user's. An item gone from\nthe platform: delete it here or keep it as made by hand.",
+        "operationId": "lmsSyncResolve",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A pending item's id (conflict or removed)",
+              "title": "Item Id"
+            },
+            "description": "A pending item's id (conflict or removed)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncResolveInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/terms/{term_id}/lms/announcements": {
       "get": {
         "tags": [
@@ -12903,59 +13073,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TermAnnouncementList"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/terms/{term_id}/lms/new-assignments": {
-      "get": {
-        "tags": [
-          "lms"
-        ],
-        "summary": "Assignments of a term's LMS-linked courses that are due later and not imported.",
-        "description": "From the cached lists, per course (the \"today\" page's prompt). Not for agents:\nthey read one course with lms.assignment.list (`new_ids`).",
-        "operationId": "lmsTermNewAssignments",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "term_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Term id",
-              "title": "Term Id"
-            },
-            "description": "Term id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NewAssignmentList"
                 }
               }
             }
@@ -19599,37 +19716,6 @@
         ],
         "title": "AssignmentParamsInputBody"
       },
-      "AssignmentUpdate": {
-        "properties": {
-          "external_id": {
-            "type": "string",
-            "title": "External Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "target": {
-            "$ref": "#/components/schemas/ImportTarget"
-          },
-          "changes": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/FieldUpdate"
-            },
-            "type": "object",
-            "title": "Changes",
-            "description": "title, due_at, points, weight and/or score (the grade on the platform)"
-          }
-        },
-        "type": "object",
-        "required": [
-          "external_id",
-          "name",
-          "target",
-          "changes"
-        ],
-        "title": "AssignmentUpdate"
-      },
       "AssignmentUpdateInputBody": {
         "properties": {
           "purpose": {
@@ -20211,9 +20297,7 @@
                     "category",
                     "assessment",
                     "task",
-                    "course_patch",
-                    "assessment_patch",
-                    "task_patch"
+                    "course_patch"
                   ]
                 },
                 "type": "array"
@@ -22447,7 +22531,7 @@
             "type": "boolean",
             "title": "Sync Enabled"
           },
-          "last_synced_at": {
+          "synced_at": {
             "anyOf": [
               {
                 "type": "string",
@@ -22457,18 +22541,16 @@
                 "type": "null"
               }
             ],
-            "title": "Last Synced At"
+            "title": "Synced At",
+            "description": "Last background sync of the course"
           },
-          "last_error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error Code"
+          "sync_errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Sync Errors",
+            "description": "Error code of each sync stage whose last run failed (course, assignments, announcements, ...)"
           },
           "created_at": {
             "type": "string",
@@ -22489,8 +22571,8 @@
           "external_term",
           "web_url",
           "sync_enabled",
-          "last_synced_at",
-          "last_error_code",
+          "synced_at",
+          "sync_errors",
           "created_at"
         ],
         "title": "CourseLink"
@@ -24845,18 +24927,6 @@
         ],
         "title": "FeedUpdateInputBody"
       },
-      "FieldUpdate": {
-        "properties": {
-          "old": {
-            "title": "Old"
-          },
-          "new": {
-            "title": "New"
-          }
-        },
-        "type": "object",
-        "title": "FieldUpdate"
-      },
       "FileList": {
         "properties": {
           "items": {
@@ -26167,9 +26237,7 @@
               "category",
               "assessment",
               "task",
-              "course_patch",
-              "assessment_patch",
-              "task_patch"
+              "course_patch"
             ],
             "title": "Type"
           },
@@ -27529,11 +27597,10 @@
             "enum": [
               "announcement",
               "grade",
-              "assignment",
-              "change"
+              "assignment"
             ],
             "title": "Kind",
-            "description": "change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)"
+            "description": "announcement; grade (newly graded); assignment (new: not imported, due later)"
           },
           "ref": {
             "anyOf": [
@@ -29566,67 +29633,6 @@
           "hidden"
         ],
         "title": "NavUpdateInputBody"
-      },
-      "NewAssignmentList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/NewAssignments"
-            },
-            "type": "array",
-            "title": "Items",
-            "description": "Per linked course with new assignments"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "unread": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Unread",
-            "description": "Synced linked courses whose assignments are not cached: read them with lms.assignment.list (its `new_ids`)"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "total"
-        ],
-        "title": "NewAssignmentList"
-      },
-      "NewAssignments": {
-        "properties": {
-          "course_id": {
-            "type": "string",
-            "title": "Course Id"
-          },
-          "external_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "External Ids",
-            "description": "Not imported and due later, soonest first"
-          },
-          "names": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Names",
-            "description": "Their names, in the same order"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_id",
-          "external_ids",
-          "names"
-        ],
-        "title": "NewAssignments"
       },
       "NewMeeting": {
         "properties": {
@@ -35111,6 +35117,399 @@
         ],
         "title": "SuggestionList"
       },
+      "SyncChange": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course": {
+            "type": "string",
+            "title": "Course"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "old": {
+            "title": "Old"
+          },
+          "new": {
+            "title": "New"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "reverted": {
+            "type": "boolean",
+            "title": "Reverted"
+          },
+          "toggleable": {
+            "type": "boolean",
+            "title": "Toggleable",
+            "description": "Can be put back, or applied again once put back: the newest change of its field, the field not changed since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "course",
+          "title",
+          "field",
+          "old",
+          "new",
+          "at",
+          "reverted",
+          "toggleable"
+        ],
+        "title": "SyncChange",
+        "description": "A field the sync changed on an imported item."
+      },
+      "SyncConflict": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "title, due_at, weight or score"
+          },
+          "mine": {
+            "title": "Mine",
+            "description": "The value in Semestra"
+          },
+          "platform": {
+            "title": "Platform",
+            "description": "The value on the platform"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "Changed in Semestra too; otherwise asked only because the user turned off following this field (settings `lms.follow_*`)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "mine",
+          "platform",
+          "edited"
+        ],
+        "title": "SyncConflict"
+      },
+      "SyncCourseError": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course": {
+            "type": "string",
+            "title": "Course"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "course",
+          "stage",
+          "code"
+        ],
+        "title": "SyncCourseError"
+      },
+      "SyncDismissInputBody": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Item Ids",
+            "description": "New items"
+          },
+          "dismissed": {
+            "type": "boolean",
+            "title": "Dismissed",
+            "description": "False offers them again",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_ids"
+        ],
+        "title": "SyncDismissInputBody"
+      },
+      "SyncItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course": {
+            "type": "string",
+            "title": "Course",
+            "description": "The course's code or title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "new",
+              "conflict",
+              "removed"
+            ],
+            "title": "Kind",
+            "description": "new: not imported yet; conflict: the user and the platform both changed it; removed: imported, gone from the platform"
+          },
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/SyncConflict"
+            },
+            "type": "array",
+            "title": "Conflicts",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "course",
+          "kind",
+          "external_id",
+          "title"
+        ],
+        "title": "SyncItem",
+        "description": "Something the sync asks the user about, or a new item the user ignored."
+      },
+      "SyncQueued": {
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "title": "Queued",
+            "description": "How many courses were queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued"
+        ],
+        "title": "SyncQueued"
+      },
+      "SyncRequestInputBody": {
+        "properties": {
+          "course_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Id",
+            "description": "Only this course of the Program"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "description": "Sync even the courses synced in the last half hour (the user asked)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SyncRequestInputBody"
+      },
+      "SyncResolveInputBody": {
+        "properties": {
+          "choice": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "mine",
+              "delete",
+              "keep"
+            ],
+            "title": "Choice",
+            "description": "conflict: platform or mine; removed: delete or keep"
+          }
+        },
+        "type": "object",
+        "required": [
+          "choice"
+        ],
+        "title": "SyncResolveInputBody"
+      },
+      "SyncStatus": {
+        "properties": {
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "The bound connection's provider, if any"
+          },
+          "connection_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Name"
+          },
+          "connection_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Error",
+            "description": "Why the connection does not work"
+          },
+          "every": {
+            "type": "string",
+            "enum": [
+              "15m",
+              "30m",
+              "1h",
+              "6h",
+              "1d"
+            ],
+            "title": "Every",
+            "description": "How often courses sync in the background"
+          },
+          "courses": {
+            "type": "integer",
+            "title": "Courses",
+            "description": "How many courses sync"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At",
+            "description": "When the least recently synced one synced"
+          },
+          "syncing": {
+            "type": "boolean",
+            "title": "Syncing"
+          },
+          "pending": {
+            "items": {
+              "$ref": "#/components/schemas/SyncItem"
+            },
+            "type": "array",
+            "title": "Pending",
+            "description": "What waits for the user, newest first"
+          },
+          "ignored": {
+            "items": {
+              "$ref": "#/components/schemas/SyncItem"
+            },
+            "type": "array",
+            "title": "Ignored"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/SyncChange"
+            },
+            "type": "array",
+            "title": "Recent",
+            "description": "What the sync changed lately, newest first"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/SyncCourseError"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "program_id",
+          "provider",
+          "connection_name",
+          "connection_error",
+          "every",
+          "courses",
+          "synced_at",
+          "syncing",
+          "pending",
+          "ignored",
+          "recent",
+          "errors"
+        ],
+        "title": "SyncStatus"
+      },
       "Task": {
         "properties": {
           "id": {
@@ -37606,32 +38005,6 @@
           "items"
         ],
         "title": "UpcomingAssessments"
-      },
-      "UpdatesOutput": {
-        "properties": {
-          "course_id": {
-            "type": "string",
-            "title": "Course Id"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AssignmentUpdate"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "course_id",
-          "count",
-          "items"
-        ],
-        "title": "UpdatesOutput"
       },
       "Upload": {
         "properties": {

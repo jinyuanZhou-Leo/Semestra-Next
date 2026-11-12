@@ -10,7 +10,6 @@ from sqlalchemy import select
 
 from semestra.core.context import system_ctx
 from semestra.core.errors import AppError
-from semestra.modules.imports.service import committing as imports_committing
 from semestra.modules.lms import imports as lms_imports
 from semestra.modules.lms import service
 from semestra.modules.lms.errors import lms_error
@@ -140,8 +139,9 @@ async def test_binding_and_link_rules(api: Api):
     assert len(past["items"]) == 3
 
     # Sync, toggle and unlink.
-    state = await api.call("POST", f"/courses/{course_a}/lms-link:sync")
-    assert state["link"]["last_error_code"] is None
+    await api.sync(program_id, course_a)
+    state = await api.call("GET", f"/courses/{course_a}/lms-link")
+    assert (state["link"]["sync_errors"], state["link"]["synced_at"] is not None) == ({}, True)
     state = await api.call("PATCH", f"/courses/{course_a}/lms-link", json={"sync_enabled": False})
     assert state["link"]["sync_enabled"] is False
     state = await api.call("DELETE", f"/courses/{course_a}/lms-link")
@@ -324,7 +324,7 @@ async def test_a_link_is_refused_when_the_binding_moved_during_the_lookup(
     assert state["link"] is None
 
 
-async def test_import_assignments_once_and_updates(api: Api, app: FastAPI, fake: FakeProvider):
+async def test_import_assignments_once(api: Api, app: FastAPI, fake: FakeProvider):
     program_id, term_id, conn = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
@@ -371,54 +371,8 @@ async def test_import_assignments_once_and_updates(api: Api, app: FastAPI, fake:
     )  # fmt: skip
     assert err["error"]["code"] == "import.no_content"
 
-    # No changes, then the due date and the name of Lab 1 change on the LMS.
-    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
-    fake.course_assignments["101"][0] = fake.course_assignments["101"][0].model_copy(
-        update={"name": "Lab 1 (revised)", "points": 20,
-                "due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)}
-    )  # fmt: skip
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    # Lab 2 changed nothing itself, but its share of the Labs' points fell: 15% -> 12%.
-    assert updates["count"] == 2
-    assert set(updates["items"][0]["changes"]) == {"title", "due_at", "points", "weight"}
-    assert updates["items"][1]["changes"] == {"weight": {"old": 15, "new": 12}}
-    review = await api.call("POST", f"/courses/{course}/lms/updates:review")
-    patch = await api.call("GET", f"/imports/{review['session_id']}")
-    item, lab2_item = patch["items"]
-    assert lab2_item["data"]["changes"]["weight"] == {"old": 15, "new": 12, "apply": True}
-    assert item["type"] == "assessment_patch"
-    assert item["data"]["changes"]["due_date"] == {
-        "old": "2026-02-06",
-        "new": "2026-02-12",
-        "apply": True,
-    }
-    # 20 of the Labs' 50 points: 8% of the grade instead of the 5% it has now.
-    assert item["data"]["changes"]["weight"] == {"old": 5, "new": 8, "apply": True}
-    done = await api.commit(review["session_id"])
-    assert done["failed"] == 0
-    lab = next(a for a in (await api.call("GET", f"/courses/{course}/assessments"))["items"]
-               if a["title"].startswith("Lab 1"))  # fmt: skip
-    assert lab["title"] == "Lab 1 (revised)"
-    assert lab["due_date"] == "2026-02-12"
-    assert (await api.call("GET", f"/courses/{course}/lms/updates"))["count"] == 0
-
-    # A patch that fails to apply keeps the change on offer.
-    fake.course_assignments["101"][2] = fake.course_assignments["101"][2].model_copy(
-        update={"name": "Midterm (moved)"}
-    )
-    review = await api.call("POST", f"/courses/{course}/lms/updates:review")
-
-    async def broken(*_: Any) -> dict[str, Any]:
-        raise AppError("grading.assessment_not_found", 404)
-
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setattr(imports_committing, "_write", broken)
-        done = await api.commit(review["session_id"])
-    assert done["failed"] == 1
-    updates = await api.call("GET", f"/courses/{course}/lms/updates")
-    assert [set(u["changes"]) for u in updates["items"]] == [{"title"}]
-
     # Deleting the assessment lets the assignment be imported again.
+    lab = next(a for a in gradebook["items"] if a["title"] == "Lab 1")
     await api.call("DELETE", f"/assessments/{lab['id']}")
     again = await api.call(
         "POST", f"/courses/{course}/lms/imports:assignments", json={"external_ids": ["a1"]}
@@ -496,7 +450,7 @@ async def test_import_snapshot_helpers():
     assert lms_imports.course_code("APS105H1 S LEC0101") == "APS105H1"
     assert lms_imports.course_code("csc 108") == "CSC108"
     assert lms_imports.course_code("Intro Seminar") == "Intro Seminar"
-    assert lms_imports._weights(  # pyright: ignore[reportPrivateUsage]
+    assert lms_imports.weights_of(
         [
             {"external_id": "x", "group_id": "g", "group_weight": 30, "points": 0},
             {"external_id": "y", "group_id": "g", "group_weight": 30, "points": 0},
@@ -598,47 +552,6 @@ async def test_saved_token_never_goes_to_a_new_address(api: Api, fake: FakeProvi
     assert updated["config"]["base_url"] == "https://typo.example.com"
 
 
-async def test_refresh_survives_a_broken_connection(
-    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
-):
-    first = await api.connection(display_name="Broken")
-    second = await api.connection(display_name="Fine")
-    original = type(fake).validate
-
-    async def flaky(self: FakeProvider, io: Any, cfg: Any, creds: Any) -> Any:
-        if not flaky.failed:
-            flaky.failed = True
-            raise RuntimeError("provider bug")
-        return await original(self, io, cfg, creds)
-
-    flaky.failed = False
-    monkeypatch.setattr(type(fake), "validate", flaky)
-    fake.valid_tokens.clear()  # the second check records an error
-    async with system_ctx(app.state) as ctx:
-        await service.refresh_all(ctx)
-        await ctx.db.commit()
-        rows = {r.id: r for r in await ctx.db.scalars(select(LmsConnection))}
-    assert rows[first["id"]].status == "connected"
-    assert rows[second["id"]].last_error_code == "lms.invalid_credentials"
-
-
-async def test_a_saved_address_that_stops_being_the_api_breaks_the_connection(
-    api: Api, app: FastAPI, fake: FakeProvider, monkeypatch: pytest.MonkeyPatch
-):
-    conn = await api.connection()
-
-    async def moved(*_: Any) -> Any:
-        raise lms_error("lms.invalid_config", field="base_url", reason="redirect")
-
-    monkeypatch.setattr(fake, "validate", moved)
-    async with system_ctx(app.state) as ctx:
-        await service.refresh_all(ctx)
-        await ctx.db.commit()
-        row = await ctx.db.get(LmsConnection, conn["id"])
-        assert row is not None
-        assert (row.status, row.last_error_code) == ("error", "lms.invalid_config")
-
-
 async def test_course_import_links_only_through_the_current_binding(api: Api):
     program_id, term_id, _ = await setup_program(api)
     started = await api.call(
@@ -731,7 +644,7 @@ async def test_check_results_announce_error_changes_within_a_status(
     ]
 
 
-async def test_point_changes_of_an_unweighted_course_are_not_updates(api: Api, fake: FakeProvider):
+async def test_point_changes_of_an_unweighted_course_change_nothing(api: Api, fake: FakeProvider):
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
     await api.link(course, "101")
@@ -747,7 +660,8 @@ async def test_point_changes_of_an_unweighted_course_are_not_updates(api: Api, f
     assert [i["code"] for i in item["issues"]] == ["import.weight_missing"]
     await api.commit(started["session_id"])
     items[0] = items[0].model_copy(update={"points": 99})
-    assert (await api.call("GET", f"/courses/{course}/lms/updates?refresh=true"))["count"] == 0
+    status = await api.sync(program_id)
+    assert (status["recent"], [i for i in status["pending"] if i["kind"] != "new"]) == ([], [])
 
 
 async def test_a_refused_resource_leaves_the_connection_alone(
@@ -924,10 +838,7 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
     assert conn not in str(cleared)
 
 
-async def test_handed_in_assignments_finish_their_to_dos_once(
-    api: Api, fake: FakeProvider, app: FastAPI
-):
-    from semestra.core.jobs import run_periodic
+async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: FakeProvider):
     from semestra.modules.lms.schemas.dto import Submission
 
     program_id, term_id, _ = await setup_program(api)
@@ -975,11 +886,11 @@ async def test_handed_in_assignments_finish_their_to_dos_once(
     await api.call("PATCH", "/me/settings/lms", json={"values": {"complete_submitted": False}})
     hand_in("a2")
     await api.call("GET", f"/courses/{course}/lms/assignments?refresh=true")
-    await run_periodic(app.state, "lms.complete_submitted")
+    await api.sync(program_id)
     assert await open_titles() == ["APS105H1 · Lab 1", "APS105H1 · Lab 2"]
-    # ... and turned on again, the hourly round catches up without anyone opening the course.
+    # ... and turned on again, the background sync catches up without anyone opening the course.
     await api.call("PATCH", "/me/settings/lms", json={"values": {"complete_submitted": True}})
-    await run_periodic(app.state, "lms.complete_submitted")
+    await api.sync(program_id)
     assert await open_titles() == ["APS105H1 · Lab 1"]
 
 
@@ -1003,21 +914,6 @@ async def test_an_assignment_handed_in_before_its_import_has_its_to_do_finished(
     # The assessment's to-do exists by the commit, so the read's hand-in check finds it.
     page = await api.call("GET", f"/programs/{program_id}/tasks", params={"completed": "only"})
     assert [t["title"] for t in page["items"]] == ["APS105H1 · Lab 1"]
-
-
-async def test_a_terms_new_assignments_come_from_the_cache(api: Api):
-    program_id, term_id, _ = await setup_program(api)
-    course = await api.course(program_id, term_id)
-    await api.link(course, "101")
-    path = f"/terms/{term_id}/lms/new-assignments"
-    # Not read yet: the page reads that course itself instead of waiting here.
-    assert await api.call("GET", path) == {"items": [], "total": 0, "unread": [course]}
-    listed = await api.call("GET", f"/courses/{course}/lms/assignments")
-    found = await api.call("GET", path)
-    assert found["unread"] == []
-    assert [(i["course_id"], i["external_ids"]) for i in found["items"]] == [
-        (course, listed["new_ids"])
-    ]
 
 
 async def test_importing_again_resumes_the_import_waiting_for_review(api: Api):
@@ -1174,8 +1070,8 @@ async def test_part_of_a_group_is_saved_with_its_category_total_shown(api: Api):
 
 async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(api: Api):
     """A gradebook entry of the same name made by hand: the import waits for review with the
-    assignment bound to it, which changes nothing of the assessment and adds no weight; the
-    platform's differing due date then comes as an update to review. Choosing to create one
+    assignment bound to it, which changes nothing of the assessment and adds no weight; the sync
+    then fills in the due date it lacks and asks about the differing weight. Choosing to create one
     instead brings back the duplicate count; switching to a to-do keeps the assessment fields."""
     program_id, term_id, _ = await setup_program(api)
     course = await api.course(program_id, term_id)
@@ -1222,8 +1118,10 @@ async def test_an_assignment_named_like_a_hand_made_assessment_is_bound_to_it(ap
         "kind": "assessment",
         "id": made["id"],
     }
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    assert set(updates["items"][0]["changes"]) == {"due_at", "weight"}
+    status = await api.sync(program_id)
+    assert [c["field"] for c in status["recent"]] == ["due_at"]
+    [asked] = [i for i in status["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in asked["conflicts"]] == ["weight"]
 
 
 async def test_only_one_assignment_is_offered_binding_to_an_assessment(
@@ -1317,10 +1215,10 @@ async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
     assert (row["title"], row["weight"], row["source_kind"]) == ("Second lab", 6, "lms")
     again = await api.call("PUT", url, 409, json={"assignment_id": "a3"})
     assert again["error"]["code"] == "lms.assessment_already_bound"
-    # Same due time; the group's weight differs (30 of the 20 % Labs): offered for review.
-    updates = await api.call("GET", f"/courses/{course}/lms/updates?refresh=true")
-    (change,) = [u for u in updates["items"] if u["external_id"] == "a2"]
-    assert change["changes"] == {"weight": {"old": 6, "new": 15.0}}
+    # Same due time; the group's weight differs (30 of the 20 % Labs): asked.
+    status = await api.sync(program_id)
+    (asked,) = [i for i in status["pending"] if i["external_id"] == "a2"]
+    assert asked["conflicts"] == [{"field": "weight", "mine": 6, "platform": 15.0, "edited": True}]
 
     await api.call("DELETE", url)
     book = await api.call("GET", f"/courses/{course}/assessments")

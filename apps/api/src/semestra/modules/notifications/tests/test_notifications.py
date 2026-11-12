@@ -368,6 +368,67 @@ async def test_events_become_notifications_unless_turned_off(
     assert len(received(push, browser)) == 1
 
 
+async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
+    app: FastAPI,
+    client: AsyncClient,
+    user: UserHandle,
+    push: respx.MockRouter,
+    clock: Clock,
+    run_jobs: Callable[[], Awaitable[None]],
+) -> None:
+    browser = Browser()
+    await call(client, "POST", "/me/notifications/devices", json=browser.subscription())
+    body = {"name": "BASc", "timezone": "America/Toronto"}
+    program_id = (await call(client, "POST", "/programs", json=body))["id"]
+    term = {"name": "Winter 2026", "start_date": "2026-01-05", "end_date": "2026-04-24"}
+    term = await call(client, "POST", f"/programs/{program_id}/terms", json=term)
+    course = {
+        "title": "Computer Fundamentals",
+        "code": "APS105H1",
+        "term_ids": [term["term"]["id"]],
+    }
+    course_id = (await call(client, "POST", f"/programs/{program_id}/courses", json=course))["id"]
+
+    async def synced() -> dict[str, dict[str, Any]]:
+        before = len(received(push, browser))
+        applied = [
+            {"change_id": "c1", "name": "Lab 1", "field": "score"},
+            {"change_id": "c2", "name": "Lab 1", "field": "due_at"},
+            {"change_id": "c3", "name": "Midterm", "field": "due_at"},
+            # A weight alone is not told (a new assignment in a group moves all of them).
+            {"change_id": "c4", "name": "Quiz 2", "field": "weight"},
+        ]
+        notices = [{"kind": "announcement", "external_id": "n1", "title": "Room change"}]
+        data = {"course_id": course_id, "program_id": program_id, "applied": applied,
+                "notices": notices, "pending": 0, "errors": {}, "manual": False}  # fmt: skip
+        await events.dispatch(app.state, Event("lms.course.synced", data, user.id))
+        await drain(app.state)
+        # Each goes out in a task of its own: in no set order.
+        return {m["title"]: m for m in received(push, browser)[before:]}
+
+    told = await synced()
+    # The app shows grades and changes itself; announcements only when asked for, and always.
+    assert {t: (m["body"], m["hidden_only"]) for t, m in told.items()} == {
+        "New grade in APS105H1": ("Lab 1", True),
+        "Assignment changed in APS105H1": ("Midterm", True),
+    }
+    await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "all"}})
+    told = await synced()
+    assert told["New announcement in APS105H1"]["hidden_only"] is False
+    # In quiet hours (it is 07:00 in Toronto) the news waits until they end.
+    quiet = {"quiet_hours": True, "quiet_start": "06:00", "quiet_end": "08:00"}
+    await call(client, "PATCH", "/me/settings/notifications", json={"values": quiet})
+    assert await synced() == {}
+    before = len(received(push, browser))
+    await run_jobs()
+    assert len(received(push, browser)) == before
+    clock.advance(hours=1, minutes=1)
+    await run_jobs()
+    assert len(received(push, browser)) == before + 3
+    await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "off"}})
+    assert await synced() == {}
+
+
 async def test_a_new_sign_in_is_told_to_the_other_devices(
     app: FastAPI,
     client: AsyncClient,

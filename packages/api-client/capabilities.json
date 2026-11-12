@@ -597,7 +597,7 @@
       "capability": "lms.activity.list",
       "module": "lms",
       "effect": "read",
-      "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades, new assignments and changed imported ones.",
+      "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
       "plugin_id": null
     },
     {
@@ -630,14 +630,6 @@
       "module": "lms",
       "effect": "write",
       "summary": "Stop an assessment from following its LMS assignment; it stays as it is.",
-      "plugin_id": null
-    },
-    {
-      "name": "lms__change__import",
-      "capability": "lms.change.import",
-      "module": "lms",
-      "effect": "write",
-      "summary": "Import what changed on the LMS for a course's imported assignments (due dates, points, weights, new grades), for the user's review.",
       "plugin_id": null
     },
     {
@@ -1236,9 +1228,9 @@
       "name": "use-lms",
       "title": {
         "en": "Use the LMS",
-        "zh-CN": "使用学习平台"
+        "zh-CN": "使用 LMS"
       },
-      "description": "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments, changes or a syllabus into the app.",
+      "description": "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app.",
       "tools": [
         "lms__content__search",
         "lms__content__read",
@@ -1251,7 +1243,6 @@
         "lms__course__import",
         "lms__assignment__import",
         "lms__syllabus__import",
-        "lms__change__import",
         "imports__session__get",
         "imports__item__update",
         "imports__item__decide_many",

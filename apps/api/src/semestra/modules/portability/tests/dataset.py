@@ -50,6 +50,7 @@ from semestra.modules.lms.models import (
     LmsCourseLink,
     LmsImportedRef,
     LmsProgramBinding,
+    LmsSyncChange,
 )
 from semestra.modules.plugins.models import PluginsDefaultOffer, PluginsInstallation
 from semestra.modules.plugins_builtin.habit_streak.models import HabitCheckin
@@ -276,7 +277,7 @@ async def populate(
                 sha256="0" * 64,
                 created_at=NOW,
             ),
-            LmsImportedRef(
+            lms_ref := LmsImportedRef(
                 **u,
                 link_id=course_link.id,
                 external_kind="assignment",
@@ -355,6 +356,10 @@ async def populate(
                 mode="focus",
             ),
         ]
+    )
+    await db.flush()
+    db.add(
+        LmsSyncChange(**u, ref_id=lms_ref.id, field="title", old="Midterm", new="Midterm 1", at=NOW)
     )
     if singletons:
         db.add_all(

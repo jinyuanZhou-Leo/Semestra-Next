@@ -1,19 +1,18 @@
 """Assignments handed in on the platform finish their to-dos (M09 §4.6).
 
-Whenever the module reads a course's assignments (the Canvas tab, update checks, imports, or the
-hourly round in `__init__`), the imported ones the platform shows handed in for the first time
+Whenever the module reads a course's assignments (the Canvas tab, imports, or the background
+sync in `sync.py`), the imported ones the platform shows handed in for the first time
 get their to-do finished: the task they were imported as, or the task of the assessment they
 were imported as. Each assignment counts once (`LmsImportedRef.submitted_at`), so a to-do the
 user opens again stays open. The account setting `lms.complete_submitted` turns this off; while
 it is off nothing is recorded, so turning it on catches up with what was handed in meanwhile."""
 
-from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
 
 from semestra.core.context import Ctx, run_as_system
-from semestra.modules.lms.models import LmsConnection, LmsCourseLink, LmsImportedRef
+from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.settings import completes_submitted
 from semestra.modules.tasks import service as tasks
 
@@ -40,6 +39,7 @@ async def complete(ctx: Ctx, link_id: str, submitted: set[str]) -> None:
                 LmsImportedRef.link_id == link_id,
                 LmsImportedRef.external_kind == "assignment",
                 LmsImportedRef.submitted_at.is_(None),
+                LmsImportedRef.target_id.is_not(None),
                 LmsImportedRef.external_id.in_(submitted),
             )
         )
@@ -50,8 +50,8 @@ async def complete(ctx: Ctx, link_id: str, submitted: set[str]) -> None:
         ref.submitted_at = ctx.now
     await tasks.complete_open(
         ctx,
-        task_ids=[r.target_id for r in refs if r.target_kind == "task"],
-        assessment_ids=[r.target_id for r in refs if r.target_kind == "assessment"],
+        task_ids=[r.target_id for r in refs if r.target_kind == "task" and r.target_id],
+        assessment_ids=[r.target_id for r in refs if r.target_kind == "assessment" and r.target_id],
     )
     await ctx.db.flush()
 
@@ -67,37 +67,3 @@ def after_read(ctx: Ctx, link_id: str, assignments: list[dict[str, Any]]) -> Non
         await run_as_system(state, user_id, lambda sys: complete(sys, link_id, submitted))
 
     ctx.after_commit.append(run)
-
-
-# How long after its due date an assignment is still worth asking about: a late hand-in comes
-# within days; one never handed in must not have its course read every hour for good.
-LATE_WINDOW = timedelta(days=14)
-
-
-async def courses_to_check(ctx: Ctx) -> dict[str, list[str]]:
-    """Per user, the synced courses with imported assignments not handed in yet that are due
-    later or were due recently (one without a due date is left to the reads)."""
-    rows = (
-        await ctx.db.execute(
-            select(LmsCourseLink.user_id, LmsCourseLink.course_id, LmsImportedRef.snapshot)
-            .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
-            .join(LmsImportedRef, LmsImportedRef.link_id == LmsCourseLink.id)
-            .where(
-                LmsCourseLink.sync_enabled,
-                LmsConnection.credentials_encrypted.is_not(None),
-                LmsImportedRef.external_kind == "assignment",
-                LmsImportedRef.submitted_at.is_(None),
-            )
-            .order_by(LmsCourseLink.user_id)
-        )
-    ).all()
-    since = ctx.now - LATE_WINDOW
-    courses: dict[str, list[str]] = {}
-    for user_id, course_id, snapshot in rows:
-        due = (snapshot or {}).get("due_at")
-        if not due or datetime.fromisoformat(due) < since:
-            continue
-        listed = courses.setdefault(user_id, [])
-        if course_id not in listed:
-            listed.append(course_id)
-    return courses

@@ -66,6 +66,7 @@ export function usePomodoroStatus(): StatusItem | null {
   return {
     icon: Timer,
     label,
+    rank: 'timer',
     to: active.path,
     progress: total ? Math.round((1 - left / total) * 100) : undefined,
   }

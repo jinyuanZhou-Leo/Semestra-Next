@@ -2,7 +2,7 @@ import type { Query, QueryClient } from '@tanstack/react-query'
 
 /**
  * Generated query ids of the LMS state: connections, bindings, links, the platform's course
- * list, update checks, a course's overview and the term's new assignments. Refetched after any
+ * list, a course's overview and the Program's sync status. Refetched after any
  * LMS change (and via SSE), so a relinked course or edited connection never shows the old state.
  */
 export const LMS_STATE_QUERIES = [
@@ -11,9 +11,8 @@ export const LMS_STATE_QUERIES = [
   'lmsCourseList',
   'lmsCourseLinkGet',
   'lmsCourseLinkList',
-  'lmsCourseCheckUpdates',
   'lmsCourseOverview',
-  'lmsTermNewAssignments',
+  'lmsSyncStatus',
 ]
 
 /** What linked courses hold on the platform: refetched for one course, not on every change. */

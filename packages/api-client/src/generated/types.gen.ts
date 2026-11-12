@@ -1174,29 +1174,6 @@ export type AssignmentParamsInputBody = {
 };
 
 /**
- * AssignmentUpdate
- */
-export type AssignmentUpdate = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Name
-     */
-    name: string;
-    target: ImportTarget;
-    /**
-     * Changes
-     *
-     * title, due_at, points, weight and/or score (the grade on the platform)
-     */
-    changes: {
-        [key: string]: FieldUpdate;
-    };
-};
-
-/**
  * AssignmentUpdateInputBody
  */
 export type AssignmentUpdateInputBody = {
@@ -1557,7 +1534,7 @@ export type BulkDecideInputBody = {
      *
      * Only items of these types
      */
-    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
     /**
      * Issue Codes
      *
@@ -2919,13 +2896,19 @@ export type CourseLink = {
      */
     sync_enabled: boolean;
     /**
-     * Last Synced At
+     * Synced At
+     *
+     * Last background sync of the course
      */
-    last_synced_at: string | null;
+    synced_at: string | null;
     /**
-     * Last Error Code
+     * Sync Errors
+     *
+     * Error code of each sync stage whose last run failed (course, assignments, announcements, ...)
      */
-    last_error_code: string | null;
+    sync_errors: {
+        [key: string]: string;
+    };
     /**
      * Created At
      */
@@ -4279,20 +4262,6 @@ export type FeedUpdateInputBody = {
 };
 
 /**
- * FieldUpdate
- */
-export type FieldUpdate = {
-    /**
-     * Old
-     */
-    old?: unknown;
-    /**
-     * New
-     */
-    new?: unknown;
-};
-
-/**
  * FileList
  */
 export type FileList = {
@@ -5109,7 +5078,7 @@ export type ImportItem = {
     /**
      * Type
      */
-    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch';
+    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch';
     /**
      * Data
      *
@@ -5849,9 +5818,9 @@ export type LmsActivityItem = {
     /**
      * Kind
      *
-     * change (an imported assignment changed on the LMS: lms.change.import; listed first); announcement; grade (newly graded); assignment (new: not imported, due later)
+     * announcement; grade (newly graded); assignment (new: not imported, due later)
      */
-    kind: 'announcement' | 'grade' | 'assignment' | 'change';
+    kind: 'announcement' | 'grade' | 'assignment';
     /**
      * Ref
      */
@@ -6972,50 +6941,6 @@ export type NavUpdateInputBody = {
      * Page ids to hide
      */
     hidden: Array<string>;
-};
-
-/**
- * NewAssignmentList
- */
-export type NewAssignmentList = {
-    /**
-     * Items
-     *
-     * Per linked course with new assignments
-     */
-    items: Array<NewAssignments>;
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Unread
-     *
-     * Synced linked courses whose assignments are not cached: read them with lms.assignment.list (its `new_ids`)
-     */
-    unread?: Array<string>;
-};
-
-/**
- * NewAssignments
- */
-export type NewAssignments = {
-    /**
-     * Course Id
-     */
-    course_id: string;
-    /**
-     * External Ids
-     *
-     * Not imported and due later, soonest first
-     */
-    external_ids: Array<string>;
-    /**
-     * Names
-     *
-     * Their names, in the same order
-     */
-    names: Array<string>;
 };
 
 /**
@@ -10155,6 +10080,280 @@ export type SuggestionList = {
 };
 
 /**
+ * SyncChange
+ *
+ * A field the sync changed on an imported item.
+ */
+export type SyncChange = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Field
+     */
+    field: string;
+    /**
+     * Old
+     */
+    old: unknown;
+    /**
+     * New
+     */
+    new: unknown;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Reverted
+     */
+    reverted: boolean;
+    /**
+     * Toggleable
+     *
+     * Can be put back, or applied again once put back: the newest change of its field, the field not changed since
+     */
+    toggleable: boolean;
+};
+
+/**
+ * SyncConflict
+ */
+export type SyncConflict = {
+    /**
+     * Field
+     *
+     * title, due_at, weight or score
+     */
+    field: string;
+    /**
+     * Mine
+     *
+     * The value in Semestra
+     */
+    mine: unknown;
+    /**
+     * Platform
+     *
+     * The value on the platform
+     */
+    platform: unknown;
+    /**
+     * Edited
+     *
+     * Changed in Semestra too; otherwise asked only because the user turned off following this field (settings `lms.follow_*`)
+     */
+    edited: boolean;
+};
+
+/**
+ * SyncCourseError
+ */
+export type SyncCourseError = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Stage
+     */
+    stage: string;
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
+ * SyncDismissInputBody
+ */
+export type SyncDismissInputBody = {
+    /**
+     * Item Ids
+     *
+     * New items
+     */
+    item_ids: Array<string>;
+    /**
+     * Dismissed
+     *
+     * False offers them again
+     */
+    dismissed?: boolean;
+};
+
+/**
+ * SyncItem
+ *
+ * Something the sync asks the user about, or a new item the user ignored.
+ */
+export type SyncItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     *
+     * The course's code or title
+     */
+    course: string;
+    /**
+     * Kind
+     *
+     * new: not imported yet; conflict: the user and the platform both changed it; removed: imported, gone from the platform
+     */
+    kind: 'new' | 'conflict' | 'removed';
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Conflicts
+     */
+    conflicts?: Array<SyncConflict>;
+};
+
+/**
+ * SyncQueued
+ */
+export type SyncQueued = {
+    /**
+     * Queued
+     *
+     * How many courses were queued
+     */
+    queued: number;
+};
+
+/**
+ * SyncRequestInputBody
+ */
+export type SyncRequestInputBody = {
+    /**
+     * Course Id
+     *
+     * Only this course of the Program
+     */
+    course_id?: string | null;
+    /**
+     * Force
+     *
+     * Sync even the courses synced in the last half hour (the user asked)
+     */
+    force?: boolean;
+};
+
+/**
+ * SyncResolveInputBody
+ */
+export type SyncResolveInputBody = {
+    /**
+     * Choice
+     *
+     * conflict: platform or mine; removed: delete or keep
+     */
+    choice: 'platform' | 'mine' | 'delete' | 'keep';
+};
+
+/**
+ * SyncStatus
+ */
+export type SyncStatus = {
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Provider
+     *
+     * The bound connection's provider, if any
+     */
+    provider: string | null;
+    /**
+     * Connection Name
+     */
+    connection_name: string | null;
+    /**
+     * Connection Error
+     *
+     * Why the connection does not work
+     */
+    connection_error: string | null;
+    /**
+     * Every
+     *
+     * How often courses sync in the background
+     */
+    every: '15m' | '30m' | '1h' | '6h' | '1d';
+    /**
+     * Courses
+     *
+     * How many courses sync
+     */
+    courses: number;
+    /**
+     * Synced At
+     *
+     * When the least recently synced one synced
+     */
+    synced_at: string | null;
+    /**
+     * Syncing
+     */
+    syncing: boolean;
+    /**
+     * Pending
+     *
+     * What waits for the user, newest first
+     */
+    pending: Array<SyncItem>;
+    /**
+     * Ignored
+     */
+    ignored: Array<SyncItem>;
+    /**
+     * Recent
+     *
+     * What the sync changed lately, newest first
+     */
+    recent: Array<SyncChange>;
+    /**
+     * Errors
+     */
+    errors: Array<SyncCourseError>;
+};
+
+/**
  * Task
  */
 export type Task = {
@@ -11618,24 +11817,6 @@ export type UpcomingAssessments = {
      * Ungraded, with a deadline, soonest first
      */
     items: Array<Assessment>;
-};
-
-/**
- * UpdatesOutput
- */
-export type UpdatesOutput = {
-    /**
-     * Course Id
-     */
-    course_id: string;
-    /**
-     * Count
-     */
-    count: number;
-    /**
-     * Items
-     */
-    items: Array<AssignmentUpdate>;
 };
 
 /**
@@ -16852,7 +17033,7 @@ export type ImportsSessionGetData = {
          *
          * Only items of these types
          */
-        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
         /**
          * Fields
          *
@@ -17605,38 +17786,6 @@ export type LmsAssignmentListResponses = {
 
 export type LmsAssignmentListResponse = LmsAssignmentListResponses[keyof LmsAssignmentListResponses];
 
-export type LmsChangeImportData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms/updates:review';
-};
-
-export type LmsChangeImportErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsChangeImportError = LmsChangeImportErrors[keyof LmsChangeImportErrors];
-
-export type LmsChangeImportResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImportStarted;
-};
-
-export type LmsChangeImportResponse = LmsChangeImportResponses[keyof LmsChangeImportResponses];
-
 export type LmsConnectionListData = {
     body?: never;
     path?: never;
@@ -17922,45 +18071,6 @@ export type LmsContentSearchResponses = {
 
 export type LmsContentSearchResponse = LmsContentSearchResponses[keyof LmsContentSearchResponses];
 
-export type LmsCourseCheckUpdatesData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id (must be linked)
-         */
-        course_id: string;
-    };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
-    url: '/courses/{course_id}/lms/updates';
-};
-
-export type LmsCourseCheckUpdatesErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsCourseCheckUpdatesError = LmsCourseCheckUpdatesErrors[keyof LmsCourseCheckUpdatesErrors];
-
-export type LmsCourseCheckUpdatesResponses = {
-    /**
-     * Successful Response
-     */
-    200: UpdatesOutput;
-};
-
-export type LmsCourseCheckUpdatesResponse = LmsCourseCheckUpdatesResponses[keyof LmsCourseCheckUpdatesResponses];
-
 export type LmsCourseImportData = {
     body: CoursesImportInputBody;
     path: {
@@ -18152,38 +18262,6 @@ export type LmsCourseLinkListResponses = {
 };
 
 export type LmsCourseLinkListResponse = LmsCourseLinkListResponses[keyof LmsCourseLinkListResponses];
-
-export type LmsCourseLinkSyncData = {
-    body?: never;
-    path: {
-        /**
-         * Course Id
-         *
-         * Course id
-         */
-        course_id: string;
-    };
-    query?: never;
-    url: '/courses/{course_id}/lms-link:sync';
-};
-
-export type LmsCourseLinkSyncErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsCourseLinkSyncError = LmsCourseLinkSyncErrors[keyof LmsCourseLinkSyncErrors];
-
-export type LmsCourseLinkSyncResponses = {
-    /**
-     * Successful Response
-     */
-    200: CourseLinkState;
-};
-
-export type LmsCourseLinkSyncResponse = LmsCourseLinkSyncResponses[keyof LmsCourseLinkSyncResponses];
 
 export type LmsCourseListData = {
     body?: never;
@@ -19053,6 +19131,198 @@ export type LmsSyllabusImportResponses = {
 
 export type LmsSyllabusImportResponse = LmsSyllabusImportResponses[keyof LmsSyllabusImportResponses];
 
+export type LmsSyncChangeReapplyData = {
+    body?: never;
+    path: {
+        /**
+         * Change Id
+         *
+         * A recent change's id
+         */
+        change_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/changes/{change_id}:reapply';
+};
+
+export type LmsSyncChangeReapplyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncChangeReapplyError = LmsSyncChangeReapplyErrors[keyof LmsSyncChangeReapplyErrors];
+
+export type LmsSyncChangeReapplyResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncChangeReapplyResponse = LmsSyncChangeReapplyResponses[keyof LmsSyncChangeReapplyResponses];
+
+export type LmsSyncChangeRevertData = {
+    body?: never;
+    path: {
+        /**
+         * Change Id
+         *
+         * A recent change's id
+         */
+        change_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/changes/{change_id}:revert';
+};
+
+export type LmsSyncChangeRevertErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncChangeRevertError = LmsSyncChangeRevertErrors[keyof LmsSyncChangeRevertErrors];
+
+export type LmsSyncChangeRevertResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncChangeRevertResponse = LmsSyncChangeRevertResponses[keyof LmsSyncChangeRevertResponses];
+
+export type LmsSyncDismissData = {
+    body: SyncDismissInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync:dismiss';
+};
+
+export type LmsSyncDismissErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncDismissError = LmsSyncDismissErrors[keyof LmsSyncDismissErrors];
+
+export type LmsSyncDismissResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncDismissResponse = LmsSyncDismissResponses[keyof LmsSyncDismissResponses];
+
+export type LmsSyncStatusData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync';
+};
+
+export type LmsSyncStatusErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncStatusError = LmsSyncStatusErrors[keyof LmsSyncStatusErrors];
+
+export type LmsSyncStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncStatusResponse = LmsSyncStatusResponses[keyof LmsSyncStatusResponses];
+
+export type LmsSyncRequestData = {
+    body: SyncRequestInputBody;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/lms/sync';
+};
+
+export type LmsSyncRequestErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncRequestError = LmsSyncRequestErrors[keyof LmsSyncRequestErrors];
+
+export type LmsSyncRequestResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncQueued;
+};
+
+export type LmsSyncRequestResponse = LmsSyncRequestResponses[keyof LmsSyncRequestResponses];
+
+export type LmsSyncResolveData = {
+    body: SyncResolveInputBody;
+    path: {
+        /**
+         * Item Id
+         *
+         * A pending item's id (conflict or removed)
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/items/{item_id}:resolve';
+};
+
+export type LmsSyncResolveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncResolveError = LmsSyncResolveErrors[keyof LmsSyncResolveErrors];
+
+export type LmsSyncResolveResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncResolveResponse = LmsSyncResolveResponses[keyof LmsSyncResolveResponses];
+
 export type LmsTermAnnouncementListData = {
     body?: never;
     path: {
@@ -19091,38 +19361,6 @@ export type LmsTermAnnouncementListResponses = {
 };
 
 export type LmsTermAnnouncementListResponse = LmsTermAnnouncementListResponses[keyof LmsTermAnnouncementListResponses];
-
-export type LmsTermNewAssignmentsData = {
-    body?: never;
-    path: {
-        /**
-         * Term Id
-         *
-         * Term id
-         */
-        term_id: string;
-    };
-    query?: never;
-    url: '/terms/{term_id}/lms/new-assignments';
-};
-
-export type LmsTermNewAssignmentsErrors = {
-    /**
-     * Default Response
-     */
-    default: ErrorResponse;
-};
-
-export type LmsTermNewAssignmentsError = LmsTermNewAssignmentsErrors[keyof LmsTermNewAssignmentsErrors];
-
-export type LmsTermNewAssignmentsResponses = {
-    /**
-     * Successful Response
-     */
-    200: NewAssignmentList;
-};
-
-export type LmsTermNewAssignmentsResponse = LmsTermNewAssignmentsResponses[keyof LmsTermNewAssignmentsResponses];
 
 export type NotificationsConfigGetData = {
     body?: never;

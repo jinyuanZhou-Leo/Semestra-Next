@@ -151,6 +151,24 @@ export function academicsHandlers(world: World) {
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     // No AI configured (the shell's Sem entry and AI actions ask).
     http.get(`${API}/ai/status`, () => HttpResponse.json({ items: [] })),
+    // No learning platform bound: the shell's LMS sync line and reminders stay away.
+    http.get(`${API}/programs/:id/lms/sync`, ({ params }) =>
+      HttpResponse.json({
+        program_id: params.id,
+        provider: null,
+        connection_name: null,
+        connection_error: null,
+        every: '6h',
+        courses: 0,
+        synced_at: null,
+        syncing: false,
+        pending: [],
+        ignored: [],
+        recent: [],
+        errors: [],
+      }),
+    ),
+    http.post(`${API}/programs/:id/lms/sync`, () => HttpResponse.json({ queued: 0 })),
     http.get(`${API}/programs`, () => HttpResponse.json({ items: world.programs })),
     http.get(`${API}/programs/:id`, ({ params }) => {
       const found = world.programs.find((p) => p.id === params.id)

@@ -188,16 +188,14 @@ class LmsActivityInput(BaseModel):
         return self
 
 
-ActivityKind = Literal["announcement", "grade", "assignment", "change"]
+ActivityKind = Literal["announcement", "grade", "assignment"]
 
 
 class LmsActivityItem(BaseModel):
     course_id: str
     course: str = Field(description="The course's code or title")
     kind: ActivityKind = Field(
-        description="change (an imported assignment changed on the LMS: lms.change.import; "
-        "listed first); announcement; grade (newly graded); assignment (new: not imported, due "
-        "later)"
+        description="announcement; grade (newly graded); assignment (new: not imported, due later)"
     )
     ref: str | None = None
     title: str

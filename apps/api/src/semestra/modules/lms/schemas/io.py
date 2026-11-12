@@ -215,8 +215,11 @@ class CourseLink(BaseModel):
     external_term: str | None
     web_url: str | None
     sync_enabled: bool
-    last_synced_at: datetime | None
-    last_error_code: str | None
+    synced_at: datetime | None = Field(description="Last background sync of the course")
+    sync_errors: dict[str, str] = Field(
+        description="Error code of each sync stage whose last run failed (course, assignments, "
+        "announcements, ...)"
+    )
     created_at: datetime
 
 
@@ -369,26 +372,6 @@ class AssignmentList(BaseModel):
         description="The course total as the LMS shows it, with `include_total`",
     )
     truncated: bool
-
-
-class NewAssignments(BaseModel):
-    course_id: str
-    external_ids: list[str] = Field(description="Not imported and due later, soonest first")
-    names: list[str] = Field(description="Their names, in the same order")
-
-
-class NewAssignmentList(BaseModel):
-    items: list[NewAssignments] = Field(description="Per linked course with new assignments")
-    total: int
-    unread: list[str] = Field(
-        default_factory=list,
-        description="Synced linked courses whose assignments are not cached: read them with "
-        "lms.assignment.list (its `new_ids`)",
-    )
-
-
-class TermNewAssignmentsInput(BaseModel):
-    term_id: Id = Field(description="Term id")
 
 
 class GradeList(BaseModel):
@@ -584,23 +567,3 @@ class AssignmentBinding(BaseModel):
     assignment_id: str | None = Field(
         description="External id of the assignment it is bound to; null once unbound"
     )
-
-
-class FieldUpdate(BaseModel):
-    old: Any = None
-    new: Any = None
-
-
-class AssignmentUpdate(BaseModel):
-    external_id: str
-    name: str
-    target: ImportTarget
-    changes: dict[str, FieldUpdate] = Field(
-        description="title, due_at, points, weight and/or score (the grade on the platform)"
-    )
-
-
-class UpdatesOutput(BaseModel):
-    course_id: str
-    count: int
-    items: list[AssignmentUpdate]

@@ -288,6 +288,8 @@ class JobHandler:
     stages: tuple[tuple[str, float], ...]
     lane: Lane = "default"
     on_failure: OnFailure | None = None
+    # False: left out of `core.job.list` (the status bar's list); its module shows it its own way.
+    listed: bool = True
 
 
 OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
@@ -301,6 +303,7 @@ def job_handler(
     stages: Sequence[tuple[str, float]] = (),
     lane: Lane = "default",
     on_failure: OnFailure | None = None,
+    listed: bool = True,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -320,7 +323,7 @@ def job_handler(
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
         _handlers[kind] = JobHandler(
-            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure
+            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure, listed
         )
         return fn
 
@@ -364,10 +367,16 @@ async def _on_failure(ctx: Ctx, job: CoreJob) -> None:
 
 
 async def enqueue(
-    ctx: Ctx, kind: str, payload: BaseModel, *, dedupe_key: str | None = None
+    ctx: Ctx,
+    kind: str,
+    payload: BaseModel,
+    *,
+    dedupe_key: str | None = None,
+    run_after: datetime | None = None,
 ) -> CoreJob:
     """Add a job for the ctx user. With `dedupe_key`, an unfinished job with the same key is
-    returned instead of adding a new one. Runs once the caller's transaction commits."""
+    returned instead of adding a new one. Runs once the caller's transaction commits, or not
+    before `run_after`."""
     handler = _handlers.get(kind)
     if handler is None:
         raise ValueError(f"no job handler for {kind!r}")
@@ -378,7 +387,7 @@ async def enqueue(
         "kind": kind,
         "payload": payload.model_dump(mode="json"),
         "max_attempts": handler.max_attempts,
-        "run_after": ctx.now,
+        "run_after": run_after or ctx.now,
         "created_at": ctx.now,
         "dedupe_key": dedupe_key,
     }
@@ -864,6 +873,8 @@ async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
         query = query.where(CoreJob.status == inp.status)
     if inp.kind is not None:
         query = query.where(CoreJob.kind == inp.kind)
+    elif unlisted := [h.kind for h in _handlers.values() if not h.listed]:
+        query = query.where(CoreJob.kind.not_in(unlisted))
     if inp.cursor is not None:
         query = query.where(CoreJob.id < inp.cursor)
     rows = (await ctx.db.scalars(query.order_by(CoreJob.id.desc()).limit(inp.limit + 1))).all()

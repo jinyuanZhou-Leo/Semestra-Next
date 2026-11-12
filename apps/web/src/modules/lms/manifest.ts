@@ -1,4 +1,14 @@
-import { ExternalLink, Link2, Megaphone, RefreshCw, School } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ExternalLink,
+  Link2,
+  ListChecks,
+  Megaphone,
+  RefreshCw,
+  School,
+  ShieldCheck,
+} from 'lucide-react'
+import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
 import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
 import {
@@ -11,23 +21,21 @@ import {
   type OnboardingStep,
   TERM_WIZARD_IMPORT_SOURCES,
 } from '@/modules/academics/types'
-import {
-  ASSESSMENT_ACTIONS,
-  ASSESSMENT_IMPORT_SOURCES,
-  COURSE_GRADES_BANNERS,
-} from '@/modules/grading/types'
+import { ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { bindAction, unbindAction } from './binding/actions'
 import { CalendarMark, CalendarOpenLabel } from './components/CalendarMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
-import { NewAssignmentsToast } from './components/NewAssignmentsToast'
-import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
+import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
+import { SyncOnOpen } from './sync/SyncOnOpen'
+import { openStatusPanel } from '@/app/host/StatusBar'
+import { toastError } from '@/lib/errors'
 
 // A connection's change can change what every course reads; the rest only the LMS state.
 const CONNECTION_EVENTS = [
@@ -41,6 +49,20 @@ const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
+
+/**
+ * The `lms` namespace shows as four sections: background sync, what follows the platform without
+ * asking, to-dos, writes. Each hides the fields of the others.
+ */
+const LMS_FIELDS = {
+  sync: ['sync_every'],
+  follow: ['follow_title', 'follow_due_at', 'follow_weight', 'follow_score'],
+  todos: ['complete_submitted'],
+  writes: ['allow_writes'],
+} as const
+const showOnly = (part: keyof typeof LMS_FIELDS) => ({
+  hidden: Object.entries(LMS_FIELDS).flatMap(([key, fields]) => (key === part ? [] : fields)),
+})
 
 const onboardingSteps: readonly OnboardingStep[] = [
   {
@@ -78,7 +100,33 @@ export default defineModule({
   name: m.lms_name,
   description: m.lms_description,
   icon: School,
-  overlays: [NewAssignmentsToast],
+  overlays: [SyncOnOpen],
+  statusItems: [{ id: SYNC_LINE, order: 40, useStatus: useSyncLine }],
+  commands: [
+    {
+      id: 'lms.sync',
+      title: m.lms_sync_command_title,
+      keywords: ['lms', 'canvas', 'sync', '同步'],
+      icon: RefreshCw,
+      isAvailable: ({ programId, queryClient }) =>
+        Boolean(
+          programId && hasSyncLine(queryClient.getQueryData(syncStatusOptions(programId).queryKey)),
+        ),
+      run: async ({ programId }) => {
+        if (!programId) return
+        openStatusPanel(SYNC_LINE)
+        try {
+          await lmsSyncRequest({
+            path: { program_id: programId },
+            body: { force: true },
+            throwOnError: true,
+          })
+        } catch (error) {
+          toastError(error)
+        }
+      },
+    },
+  ],
   settingsSections: [
     {
       id: 'lms-connections',
@@ -99,6 +147,39 @@ export default defineModule({
       icon: RefreshCw,
       order: 20,
       namespace: 'lms',
+      fields: showOnly('sync'),
+    },
+    {
+      id: 'lms-follow',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_follow,
+      description: m.lms_settings_follow_description,
+      icon: ArrowDownToLine,
+      order: 30,
+      namespace: 'lms',
+      fields: showOnly('follow'),
+    },
+    {
+      id: 'lms-todos',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_todos,
+      icon: ListChecks,
+      order: 35,
+      namespace: 'lms',
+      fields: showOnly('todos'),
+    },
+    {
+      id: 'lms-writes',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_writes,
+      description: m.lms_settings_writes_description,
+      icon: ShieldCheck,
+      order: 40,
+      namespace: 'lms',
+      fields: showOnly('writes'),
     },
     {
       id: 'program-lms',
@@ -158,7 +239,6 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
-    [COURSE_GRADES_BANNERS]: [{ id: 'lms.updates', component: LmsUpdatesBanner }],
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: TaskSubmission },
     ] satisfies TaskDetailSection[],
@@ -170,6 +250,18 @@ export default defineModule({
     ...Object.fromEntries(
       LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
     ),
+    // The sync was queued, ran or was answered: its status line, panel and reminders.
+    'lms.sync.updated': [
+      (data) => [{ _id: 'lmsSyncStatus', path: { program_id: data.program_id } }],
+    ],
+    // A course synced: its link (when, errors) and the assignments the sync read afresh.
+    'lms.course.synced': [
+      (data) => [
+        'lmsCourseLinkList',
+        { _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } },
+        { _id: 'lmsAssignmentList', path: { course_id: data.course_id } },
+      ],
+    ],
     // An import committed: what the course reports as new, and its assignments' "imported as".
     'lms.course.imports_recorded': [
       (data) => [
