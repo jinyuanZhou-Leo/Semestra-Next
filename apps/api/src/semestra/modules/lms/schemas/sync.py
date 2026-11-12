@@ -26,6 +26,10 @@ class SyncConflict(BaseModel):
     field: str = Field(description="title, due_at, weight or score")
     mine: Any = Field(description="The value in Semestra")
     platform: Any = Field(description="The value on the platform")
+    edited: bool = Field(
+        description="Changed in Semestra too; otherwise asked only because the user turned off "
+        "following this field (settings `lms.follow_*`)"
+    )
 
 
 SyncItemKind = Literal["new", "conflict", "removed"]

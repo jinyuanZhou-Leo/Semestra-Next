@@ -24,6 +24,22 @@ class LmsSettings(BaseModel):
     sync_every: SyncInterval = Field(
         default="6h", description="How often linked courses are synced in the background"
     )
+    follow_title: bool = Field(
+        default=True,
+        description="Apply a new name from the platform without asking, when not changed here",
+    )
+    follow_due_at: bool = Field(
+        default=True,
+        description="Apply a new due date from the platform without asking, when not changed here",
+    )
+    follow_weight: bool = Field(
+        default=True,
+        description="Apply a new weight from the platform without asking, when not changed here",
+    )
+    follow_score: bool = Field(
+        default=True,
+        description="Apply a new grade from the platform without asking, when not changed here",
+    )
     complete_submitted: bool = Field(
         default=True,
         description="Finish an imported assignment's to-do when the platform shows it handed in",
@@ -48,6 +64,13 @@ def offered(settings: Settings, schema: dict[str, Any]) -> dict[str, Any]:
 async def account(ctx: Ctx) -> LmsSettings:
     resolved = await settings_service.get_values(ctx, "lms", "account", None)
     return LmsSettings.model_validate(resolved.values)
+
+
+def followed(cfg: LmsSettings) -> frozenset[str]:
+    """The fields the sync applies without asking when the user has not changed them."""
+    return frozenset(
+        name for name in ("title", "due_at", "weight", "score") if getattr(cfg, f"follow_{name}")
+    )
 
 
 def interval(ctx: Ctx, cfg: LmsSettings) -> timedelta:

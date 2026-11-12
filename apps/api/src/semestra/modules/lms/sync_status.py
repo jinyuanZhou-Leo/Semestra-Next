@@ -105,7 +105,12 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             mine = local.get(ref.id, {})
             asked = item("conflict")
             asked.conflicts = [
-                SyncConflict(field=name, mine=mine.get(name), platform=c["value"])
+                SyncConflict(
+                    field=name,
+                    mine=mine.get(name),
+                    platform=c["value"],
+                    edited=c.get("edited", True),
+                )
                 for name, c in ref.conflicts.items()
             ]
             pending.append(asked)

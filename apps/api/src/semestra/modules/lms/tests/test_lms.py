@@ -1218,7 +1218,7 @@ async def test_an_assessment_is_bound_to_an_assignment_and_unbound(api: Api):
     # Same due time; the group's weight differs (30 of the 20 % Labs): asked.
     status = await api.sync(program_id)
     (asked,) = [i for i in status["pending"] if i["external_id"] == "a2"]
-    assert asked["conflicts"] == [{"field": "weight", "mine": 6, "platform": 15.0}]
+    assert asked["conflicts"] == [{"field": "weight", "mine": 6, "platform": 15.0, "edited": True}]
 
     await api.call("DELETE", url)
     book = await api.call("GET", f"/courses/{course}/assessments")

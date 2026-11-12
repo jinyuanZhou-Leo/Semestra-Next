@@ -146,5 +146,6 @@ async def test_grades_follow_the_platform(api: Api, fake: FakeProvider):
             "field": "score",
             "mine": {"score_percentage": 60.0},
             "platform": {"points_earned": 21.0, "points_possible": 30.0},
+            "edited": True,
         }
     ]

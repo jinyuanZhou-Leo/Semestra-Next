@@ -10151,6 +10151,12 @@ export type SyncConflict = {
      * The value on the platform
      */
     platform: unknown;
+    /**
+     * Edited
+     *
+     * Changed in Semestra too; otherwise asked only because the user turned off following this field (settings `lms.follow_*`)
+     */
+    edited: boolean;
 };
 
 /**

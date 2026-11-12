@@ -35190,13 +35190,19 @@
           "platform": {
             "title": "Platform",
             "description": "The value on the platform"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "description": "Changed in Semestra too; otherwise asked only because the user turned off following this field (settings `lms.follow_*`)"
           }
         },
         "type": "object",
         "required": [
           "field",
           "mine",
-          "platform"
+          "platform",
+          "edited"
         ],
         "title": "SyncConflict"
       },

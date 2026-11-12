@@ -1,4 +1,3 @@
-import type { SyncItem } from '@semestra/api-client'
 import { formatDate, formatPercent, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
@@ -36,10 +35,15 @@ export function formatValue(field: string, value: unknown): string {
   return String(value)
 }
 
-/** New items grouped by course, in the order they come (soonest due first). */
-export function byCourse(items: readonly SyncItem[]): { courseId: string; items: SyncItem[] }[] {
-  const groups = new Map<string, SyncItem[]>()
-  for (const item of items)
-    groups.set(item.course_id, [...(groups.get(item.course_id) ?? []), item])
-  return [...groups].map(([courseId, grouped]) => ({ courseId, items: grouped }))
+/** Rows grouped by course, groups in the order their first row comes. */
+export function byCourse<T extends { course_id: string; course: string }>(
+  rows: readonly T[],
+): { courseId: string; course: string; items: T[] }[] {
+  const groups = new Map<string, T[]>()
+  for (const row of rows) groups.set(row.course_id, [...(groups.get(row.course_id) ?? []), row])
+  return [...groups].map(([courseId, items]) => ({
+    courseId,
+    course: items[0]?.course ?? '',
+    items,
+  }))
 }

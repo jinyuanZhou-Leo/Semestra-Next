@@ -81,7 +81,9 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
     status = await api.sync(program_id)
     [asked] = status["pending"]
     assert asked["kind"] == "conflict"
-    assert asked["conflicts"] == [{"field": "title", "mine": "Lab 1", "platform": "Lab 1 (final)"}]
+    assert asked["conflicts"] == [
+        {"field": "title", "mine": "Lab 1", "platform": "Lab 1 (final)", "edited": True}
+    ]
     status = await api.call(
         "POST", f"/lms/sync/items/{asked['id']}:resolve", json={"choice": "platform"}
     )
@@ -106,6 +108,29 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
         "POST", f"/lms/sync/items/{asked['id']}:resolve", 409, json={"choice": "platform"}
     )
     assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+
+async def test_fields_the_user_does_not_follow_are_asked_about(api: Api, fake: FakeProvider):
+    program_id, course = await _course(api, "a1")
+    await api.call("PATCH", "/me/settings/lms", json={"values": {"follow_due_at": False}})
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(
+        update={"name": "Lab 1 (revised)", "due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)}
+    )
+    status = await api.sync(program_id)
+    assert [c["field"] for c in status["recent"]] == ["title"]
+    [asked] = [i for i in status["pending"] if i["kind"] == "conflict"]
+    assert asked["conflicts"] == [
+        {
+            "field": "due_at",
+            "mine": {"date": "2026-02-06", "time": "23:59:00"},
+            "platform": {"date": "2026-02-12", "time": "23:59:00"},
+            "edited": False,
+        }
+    ]
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-06"
+    await api.call("POST", f"/lms/sync/items/{asked['id']}:resolve", json={"choice": "platform"})
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-12"
 
 
 async def test_what_changed_again_since_is_neither_asked_about_nor_undone(

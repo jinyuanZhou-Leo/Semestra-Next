@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
+import { Popover, PopoverContent } from '@/ui/popover'
 import SyncPanel from './SyncPanel'
 import { SyncOnOpen } from './SyncOnOpen'
 
@@ -12,6 +13,17 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 const IN_PROGRAM = { path: '/p/$programId', at: '/p/p1' }
+
+/** The panel where the status line shows it. */
+function InPopover() {
+  return (
+    <Popover open>
+      <PopoverContent>
+        <SyncPanel onClose={() => undefined} />
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function item(overrides: Partial<SyncItem> & Pick<SyncItem, 'id' | 'title'>): SyncItem {
   return {
@@ -62,6 +74,9 @@ function handlers(current: SyncStatus) {
     ),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
   ]
 }
 
@@ -85,7 +100,7 @@ test('opening a Program syncs it; new assignments wait in the panel and can be i
   renderWithRouter(
     <>
       <SyncOnOpen />
-      <SyncPanel onClose={() => undefined} />
+      <InPopover />
     </>,
     undefined,
     IN_PROGRAM,
@@ -103,7 +118,7 @@ test('a value changed on both sides is settled from the panel', async () => {
     id: 'r1',
     title: 'A3',
     kind: 'conflict',
-    conflicts: [{ field: 'weight', mine: 10, platform: 15 }],
+    conflicts: [{ field: 'weight', mine: 10, platform: 15, edited: true }],
   })
   const resolved = vi.fn<(body: unknown) => void>()
   server.use(
@@ -113,12 +128,12 @@ test('a value changed on both sides is settled from the panel', async () => {
       return HttpResponse.json(status())
     }),
   )
-  renderWithRouter(<SyncPanel onClose={() => undefined} />, undefined, IN_PROGRAM)
-  expect(await screen.findByText('Yours: 10% · Canvas: 15%')).toBeInTheDocument()
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  expect(await screen.findByText('You changed this')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
   await waitFor(() => expect(resolved).toHaveBeenCalledWith({ choice: 'mine' }))
-  expect(await screen.findByText('Nothing changed in the last 14 days')).toBeInTheDocument()
-  expect(screen.queryByText('To review')).not.toBeInTheDocument()
+  // Folded away, then gone.
+  await waitFor(() => expect(screen.queryByText('To review')).not.toBeInTheDocument())
 })
 
 test('a change the sync made is undone from the panel, and so is undoing it', async () => {
@@ -146,7 +161,7 @@ test('a change the sync made is undone from the panel, and so is undoing it', as
       return HttpResponse.json(status({ recent: [change] }))
     }),
   )
-  renderWithRouter(<SyncPanel onClose={() => undefined} />, undefined, IN_PROGRAM)
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
   expect(await screen.findByText('Undone')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Redo' }))

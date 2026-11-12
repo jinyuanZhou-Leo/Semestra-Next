@@ -3,10 +3,11 @@
 Imported assignments follow the platform field by field (title, due date, weight, grade; a to-do
 only title and due date). A field whose Semestra value still equals its snapshot (the platform
 value last applied) was not changed by the user: a new platform value replaces it, and the
-change is logged (`LmsSyncChange`, which the user can put back). A field the user changed too is
-a conflict the user settles (`resolve`); an assignment gone from the platform is kept or deleted
-by the user. Assignments not imported yet that are due later are kept as new items until the
-user imports or ignores them.
+change is logged (`LmsSyncChange`, which the user can put back), unless the user turned
+following that field off (settings `lms.follow_*`): then it is asked about like a conflict. A
+field the user changed too is a conflict the user settles (`resolve`); an assignment gone from
+the platform is kept or deleted by the user. Assignments not imported yet that are due later
+are kept as new items until the user imports or ignores them.
 
 All values are compared in the Program's time zone and kept in one form, which is also what the
 change log and conflicts hold: a due date is `{date, time}` (time null for a date only), a grade
@@ -27,6 +28,7 @@ from semestra.modules.grading import service as grading
 from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.imports import deps
 from semestra.modules.lms import reads
+from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import snapshot, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
@@ -170,8 +172,10 @@ async def _follow(
     local: dict[str, Any],
     tz: ZoneInfo,
     title: str,
+    follow: frozenset[str],
 ) -> list[Applied]:
-    """Brings one imported object's fields up to the platform (see the module docstring)."""
+    """Brings one imported object's fields up to the platform (see the module docstring).
+    A field the user turned off in `follow` is asked about instead of written."""
     applied: list[Applied] = []
     snap, conflicts = dict(ref.snapshot), dict(ref.conflicts)
     for name in FIELDS[ref.target_kind or "task"]:
@@ -189,14 +193,16 @@ async def _follow(
             # The platform did not change it: the user's value stays, and a conflict asked about
             # a platform value since taken back has nothing left to ask.
             conflicts.pop(name, None)
-        elif same(name, mine, s) or (name == "weight" and s is None and not mine):
+        elif not (same(name, mine, s) or (name == "weight" and s is None and not mine)):
+            conflicts[name] = {"value": p, "raw": platform[name], "edited": True}
+        elif name not in follow:
+            conflicts[name] = {"value": p, "raw": platform[name], "edited": False}
+        else:
             # Untouched (a weight never set counts as untouched: it is 0 until set).
             await write(ctx, ref, name, p)
             applied.append(await _log(ctx, ref, name, mine, p, title))
             snap[name] = platform[name]
             conflicts.pop(name, None)
-        else:
-            conflicts[name] = {"value": p, "raw": platform[name]}
     if snap != ref.snapshot:
         ref.snapshot = snap
     if conflicts != ref.conflicts:
@@ -218,6 +224,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     )
     imported = [r for r in refs if r.target_id is not None]
+    follow = lms_settings.followed(await lms_settings.account(ctx))
     local = await local_values(ctx, imported, tz)
     result = StageResult()
     for ref in refs:
@@ -241,7 +248,9 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         platform = snapshot(a, weights.get(ref.external_id))
         if ref.target_kind != "assessment":
             platform.pop("score", None)
-        result.applied += await _follow(ctx, ref, platform, local[ref.id], tz, str(a["name"]))
+        result.applied += await _follow(
+            ctx, ref, platform, local[ref.id], tz, str(a["name"]), follow
+        )
         result.pending += len(ref.conflicts)
     known = {r.external_id for r in refs}
     for external_id, a in by_id.items():
