@@ -21,25 +21,16 @@ assert tuple(INTERVALS) == get_args(SyncInterval)
 
 
 class LmsSettings(BaseModel):
+    """`follow_<field>`: a change on the platform to that field of an imported assignment is
+    applied without asking when the user has not changed it here; off, the sync asks first."""
+
     sync_every: SyncInterval = Field(
         default="6h", description="How often linked courses are synced in the background"
     )
-    follow_title: bool = Field(
-        default=True,
-        description="Apply a new name from the platform without asking, when not changed here",
-    )
-    follow_due_at: bool = Field(
-        default=True,
-        description="Apply a new due date from the platform without asking, when not changed here",
-    )
-    follow_weight: bool = Field(
-        default=True,
-        description="Apply a new weight from the platform without asking, when not changed here",
-    )
-    follow_score: bool = Field(
-        default=True,
-        description="Apply a new grade from the platform without asking, when not changed here",
-    )
+    follow_title: bool = True
+    follow_due_at: bool = True
+    follow_weight: bool = True
+    follow_score: bool = True
     complete_submitted: bool = Field(
         default=True,
         description="Finish an imported assignment's to-do when the platform shows it handed in",

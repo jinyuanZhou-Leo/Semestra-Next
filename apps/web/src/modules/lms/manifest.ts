@@ -1,4 +1,12 @@
-import { ExternalLink, Link2, Megaphone, RefreshCw, School } from 'lucide-react'
+import {
+  ArrowDownToLine,
+  ExternalLink,
+  Link2,
+  Megaphone,
+  RefreshCw,
+  School,
+  ShieldCheck,
+} from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
 import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
@@ -40,6 +48,15 @@ const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
 
 const sections = () => import('./settings/sections')
+
+/** The `lms` namespace shows as three sections: background sync, what follows the platform, writes. */
+const FOLLOW_FIELDS = [
+  'follow_title',
+  'follow_due_at',
+  'follow_weight',
+  'follow_score',
+  'complete_submitted',
+] as const
 
 const onboardingSteps: readonly OnboardingStep[] = [
   {
@@ -124,6 +141,29 @@ export default defineModule({
       icon: RefreshCw,
       order: 20,
       namespace: 'lms',
+      fields: { hidden: [...FOLLOW_FIELDS, 'allow_writes'] },
+    },
+    {
+      id: 'lms-follow',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_follow,
+      description: m.lms_settings_follow_description,
+      icon: ArrowDownToLine,
+      order: 30,
+      namespace: 'lms',
+      fields: { hidden: ['sync_every', 'allow_writes'] },
+    },
+    {
+      id: 'lms-writes',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_writes,
+      description: m.lms_settings_writes_description,
+      icon: ShieldCheck,
+      order: 40,
+      namespace: 'lms',
+      fields: { hidden: ['sync_every', ...FOLLOW_FIELDS] },
     },
     {
       id: 'program-lms',

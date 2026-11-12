@@ -6,7 +6,7 @@ description: Link Semestra to your Canvas account, a program and its courses.
 Semestra connects to learning platforms through providers. Canvas is the only provider today.
 A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
 unless you turn on **Allow changes on the platform** under global settings → **Learning platforms →
-Sync**; for now that only marks an announcement read on Canvas when you open it in Semestra.
+Platform access**; for now that only marks an announcement read on Canvas when you open it in Semestra.
 
 There are three levels, each set up once:
 
@@ -107,16 +107,16 @@ the course.
 
 Linked courses sync in the background, so you don't have to open a page for Semestra to notice
 what changed on Canvas. They sync every six hours by default; pick another interval under global
-settings → **Learning platforms → Sync → Background sync**. Opening a program also syncs its
+settings → **Learning platforms → Background sync → Check for changes**. Opening a program also syncs its
 courses that haven't synced in the last half hour. The shortest interval on offer is set by the
 server ([`SEMESTRA_LMS_SYNC_MIN_INTERVAL`](/docs/self-hosting/configuration) when you host it
 yourself).
 
 - **Imported assignments follow Canvas.** When an assignment's name, due date, weight or grade
   changes on Canvas, Semestra updates it here, unless you changed that value yourself. If both
-  sides changed, it asks which one to keep. To look over a kind of change first, turn off
-  **Update names / due dates / weights / grades without asking** under global settings →
-  **Learning platforms → Sync**: those changes then wait for you to keep or update.
+  sides changed, it asks which one to keep. To look over a kind of change first, turn it off
+  under global settings → **Learning platforms → Update automatically** (assignment names, due
+  dates, weights, grades): those changes then wait for you to keep or update.
 - **New assignments are offered, not added.** Assignments due later that you haven't imported wait
   in the status line's panel, where you can **Import** or **Ignore** them.
 - **Deleted on Canvas**: an imported assignment that is gone from Canvas is kept until you choose
@@ -149,7 +149,7 @@ stays yours: if Canvas changes it again, you're asked which to keep.
   its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
   assignment is checked off once, so a to-do you uncheck stays open. Semestra checks on each
   sync. Turn it off under
-  global settings → **Learning platforms → Sync**.
+  global settings → **Learning platforms → Update automatically**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can search and read the course (see below and [MCP tools](/docs/mcp/tools)).
 
