@@ -93,8 +93,13 @@ def merge(name: str, base: Any, ours: Any, theirs: Any, follows: bool) -> Action
 
 def diverged(name: str, base: Any, ours: Any, theirs: Any) -> bool:
     """Whether the user set the field apart from the platform value `theirs` and can take that
-    value back. An empty platform value is the user's to fill in, so it is never offered."""
-    return theirs is not None and merge(name, base, ours, theirs, False) in (
-        Action.KEEP,
-        Action.CONFLICT,
-    )
+    value back, including a value filled in where the platform has none (owner 2026-11-12)."""
+    action = merge(name, base, ours, theirs, False)
+    if action is Action.CLEAR:
+        return not _untouched(name, None, ours)
+    return action in (Action.KEEP, Action.CONFLICT)
+
+
+def held(name: str, value: Any) -> Any:
+    """What Semestra holds for a value in the common form: an empty weight is 0 there."""
+    return 0.0 if name == "weight" and value is None else value

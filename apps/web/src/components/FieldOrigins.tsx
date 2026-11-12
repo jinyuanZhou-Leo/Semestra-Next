@@ -6,9 +6,11 @@ export type OriginField = 'title' | 'due_at' | 'weight' | 'score'
 
 /**
  * `title` a string, `due_at` `{ date, time }` (time `HH:MM:SS` or null), `weight` a number,
- * `score` `{ points_earned, points_possible }` or `{ score_percentage }`.
+ * `score` `{ points_earned, points_possible }` or `{ score_percentage }`; null where the source
+ * has none (no due date, weight or grade).
  */
 export type OriginValue =
+  | null
   | string
   | number
   | { date: string; time: string | null }

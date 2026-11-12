@@ -47,7 +47,17 @@ CASES: list[tuple[str, Any, Any, Any, Action, Action]] = [
     ("weight", None, 5, 10, Action.CONFLICT, Action.CONFLICT),
     # A first grade from the platform.
     ("score", None, None, {"score_percentage": 90}, Action.APPLY, Action.ASK),
+    # The user filled in what the platform leaves empty.
+    ("due_at", None, {"date": "2026-11-04", "time": None}, None, Action.KEEP, Action.KEEP),
+    ("weight", None, 10, None, Action.CLEAR, Action.CLEAR),
+    ("weight", None, 0, None, Action.CLEAR, Action.CLEAR),
+    ("score", None, {"score_percentage": 85}, None, Action.CLEAR, Action.CLEAR),
+    ("score", None, None, None, Action.CLEAR, Action.CLEAR),
 ]
+
+# The cases (by index) whose field is listed as different from the platform: the user's value
+# differs from the platform's, and nobody is asked about it.
+LISTED = {2, 4, 6, 7, 8, 11, 13, 14, 16}
 
 
 @pytest.mark.parametrize(("name", "base", "ours", "theirs", "on", "off"), CASES)
@@ -56,13 +66,12 @@ def test_merge(name: str, base: Any, ours: Any, theirs: Any, on: Action, off: Ac
     assert merge(name, base, ours, theirs, False) is off
 
 
-@pytest.mark.parametrize(("name", "base", "ours", "theirs", "on", "off"), CASES)
+@pytest.mark.parametrize(("index", "case"), list(enumerate(CASES)))
 def test_the_different_list_is_what_the_user_set_apart(
-    name: str, base: Any, ours: Any, theirs: Any, on: Action, off: Action
+    index: int, case: tuple[str, Any, Any, Any, Action, Action]
 ):
-    del on
-    expected = theirs is not None and off in (Action.KEEP, Action.CONFLICT)
-    assert diverged(name, base, ours, theirs) is expected
+    name, base, ours, theirs, _, _ = case
+    assert diverged(name, base, ours, theirs) is (index in LISTED)
 
 
 @pytest.mark.parametrize(
