@@ -39,7 +39,7 @@ await p.close()
 
 // Tall enough that the week grid needs no inner scrolling.
 p = await open(`${P}/t/${ids.fall}/calendar`, 1700)
-await part(p, `week-${tag}`, p.locator('.fc').first())
+await part(p, `week-${tag}`, p.locator('.semestra-calendar').first())
 await part(
   p,
   `filters-${tag}`,
@@ -47,15 +47,31 @@ await part(
 )
 await p.close()
 
-p = await open(P + '/tasks')
-const add = await p.locator('input[data-slot=input]').first().boundingBox()
-await part(p, `tasklist-${tag}`, { x: add.x - 8, y: add.y - 6, width: add.width + 16, height: 380 })
+// A new task being added in place, under the last few tasks of the list.
+p = await open(P + '/tasks', 1400)
+await p
+  .getByRole('button', { name: /^(New task|新待办)$/ })
+  .first()
+  .click()
+await p.waitForTimeout(600)
+await p.keyboard.type(
+  locale === 'zh-CN' ? 'ECE216 期中复习：Laplace 变换' : 'ECE216 midterm review: Laplace',
+)
+await p.waitForTimeout(800)
+// The row being written, with its date, priority, course and flag chips.
+const editor = p.locator(':focus').locator('xpath=ancestor::li[1]')
+const rows = p.locator('main li')
+const count = await rows.count()
+const list = await around(rows.nth(Math.max(0, count - 4)), editor)
+// Less margin on top, where the row above would peek in.
+await part(p, `tasklist-${tag}`, { ...list, y: list.y + 14, height: list.height - 14 }, { pad: 20 })
 await p.close()
 
 p = await open(`${P}/c/${ids.courses.ECE244H1}/grades`)
 await exitPlan(p)
 const gpa = p.locator('aside section').first()
 await part(p, `gpa-${tag}`, gpa, { cut: true })
+await part(p, `forecast-${tag}`, p.locator('aside section').nth(1), { cut: true })
 await part(
   p,
   `gradebook-${tag}`,
@@ -84,6 +100,30 @@ await part(
   p.locator('main div:has(> table), main [data-slot=table-container]').first(),
   { cut: true },
 )
+await p.close()
+
+// Notification reminders: the settings group, as the settings dialog shows it.
+p = await open(`${P}/today?settings=account/notifications`)
+await part(
+  p,
+  `reminders-${tag}`,
+  p.locator('#notifications-reminders').locator('xpath=(.//*[contains(@class, "rounded")])[1]'),
+  { cut: true },
+)
+await p.close()
+
+// The file preview with its outline, searching inside the lecture slides.
+p = await open(`${P}/c/${ids.courses.ECE216H1}/files`, 1000)
+await p.getByText('Lecture 9').first().click()
+await p.waitForTimeout(2500)
+await p
+  .getByRole('dialog')
+  .getByRole('searchbox')
+  .or(p.getByRole('dialog').locator('input'))
+  .first()
+  .fill('transfer function')
+await p.waitForTimeout(2500)
+await part(p, `preview-${tag}`, p.getByRole('dialog').first(), { cut: true })
 await p.close()
 
 console.log('parts', tag)

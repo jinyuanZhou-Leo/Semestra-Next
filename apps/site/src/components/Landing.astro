@@ -4,29 +4,38 @@ import {
   ArrowUpDown,
   ArrowUpRight,
   Blocks,
+  BellRing,
   Bookmark,
   CalendarDays,
-  Check,
   ChevronLeft,
   ChevronRight,
   Clock,
   Code,
+  Cpu,
   Download,
-  FileText,
+  FolderOpen,
   Flag,
   GraduationCap,
   Import,
   Keyboard,
+  LayoutGrid,
   Link,
   ListChecks,
-  Moon,
+  MoonStar,
   Plug,
-  School,
+  Megaphone,
+  Smartphone,
   Search,
   SlidersHorizontal,
   Sparkles,
   Sun,
   Target,
+  CircleCheck,
+  Layers,
+  ClipboardList,
+  Scale,
+  School,
+  BookOpen,
 } from 'lucide-react'
 import { Nav } from '@/components/Nav'
 import { ExploreButton, GitHubButton, StartButton, StartLink } from '@/components/Cta'
@@ -50,14 +59,16 @@ const integrations = [
   'Model Context Protocol',
 ]
 const todayIcons = [Clock, Flag]
-const tasksIcons = [Keyboard, Check]
+const tasksIcons = [CircleCheck, Layers, CalendarDays]
+const notifyIcons = [Clock, Megaphone, MoonStar]
 const paletteIcons = [Search, ArrowUpDown]
+const lmsIcons = [ClipboardList, Scale, BookOpen]
 const more = [
-  [Blocks, t.more.plugins],
-  [FileText, t.more.files],
-  [School, t.more.canvas],
-  [Moon, t.more.theme],
+  [Cpu, t.more.local],
   [Code, t.more.open],
+  [Smartphone, t.more.mobile],
+  [Blocks, t.more.plugins],
+  [LayoutGrid, t.more.layout],
   [Download, t.more.data],
 ] as const
 const login = `${APP_URL}/login`
@@ -107,7 +118,8 @@ const login = `${APP_URL}/login`
             <div class="win" id="win">
               <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
               <Shot class="float a" cut z={140} src="parts/upcoming" lang={lang} width={1128} height={680} eager />
-              <Shot class="float b" cut z={220} src="parts/proposal" lang={lang} width={1480} height={366} eager />
+              <Shot class="float b" cut z={220} src="parts/proposal" lang={lang} width={1496} height={428} eager />
+              <Shot class="float c" cut z={300} src="parts/lmstoast" lang={lang} width={720} height={124} eager />
             </div>
           </div>
         </div>
@@ -156,11 +168,11 @@ const login = `${APP_URL}/login`
           <div class="bento">
             <div class="card span2 row2" data-reveal>
               <div class="t"><h3>{t.calendar.week[0]}</h3><p>{t.calendar.week[1]}</p></div>
-              <div class="peek"><Shot src="parts/week" lang={lang} width={1600} height={1154} /></div>
+              <div class="peek"><Shot src="parts/week" lang={lang} width={1600} height={1368} /></div>
             </div>
             <div class="card" data-reveal style="--d: 1">
               <div class="t"><h3>{t.calendar.filters[0]}</h3><p>{t.calendar.filters[1]}</p></div>
-              <div class="peek"><Shot style="width: 72%" src="parts/filters" lang={lang} width={480} height={744} /></div>
+              <div class="peek"><Shot style="width: 72%" src="parts/filters" lang={lang} width={480} height={690} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 2">
               <div class="t"><h3>{t.calendar.subscribe[0]}</h3><p>{t.calendar.subscribe[1]}</p></div>
@@ -168,7 +180,7 @@ const login = `${APP_URL}/login`
             </div>
             <div class="card span2" data-reveal>
               <div class="t"><h3>{t.calendar.meetings[0]}</h3><p>{t.calendar.meetings[1]}</p></div>
-              <div class="peek center"><Shot cut src="parts/meetings" lang={lang} width={1600} height={292} /></div>
+              <div class="peek center"><Shot cut src="parts/meetings" lang={lang} width={1600} height={315} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 1">
               <div class="t"><h3>{t.calendar.import[0]}</h3><p>{t.calendar.import[1]}</p></div>
@@ -200,12 +212,16 @@ const login = `${APP_URL}/login`
               <div class="peek fit"><Shot cut src="parts/gpa" lang={lang} width={648} height={684} /></div>
             </div>
             <div class="card">
+              <div class="t"><h3>{t.grades.forecast[0]}</h3><p>{t.grades.forecast[1]}</p></div>
+              <div class="peek fit"><Shot cut src="parts/forecast" lang={lang} width={648} height={688} /></div>
+            </div>
+            <div class="card">
               <div class="t"><h3>{t.grades.book[0]}</h3><p>{t.grades.book[1]}</p></div>
-              <div class="peek"><Shot cut src="parts/gradebook" lang={lang} width={1592} height={1178} /></div>
+              <div class="peek"><Shot cut src="parts/gradebook" lang={lang} width={1592} height={990} /></div>
             </div>
             <div class="card">
               <div class="t"><h3>{t.grades.plan[0]}</h3><p>{t.grades.plan[1]}</p></div>
-              <div class="peek fit"><Shot src="parts/gpaplan" lang={lang} width={704} height={1112} /></div>
+              <div class="peek fit"><Shot src="parts/gpaplan" lang={lang} width={704} height={1530} /></div>
             </div>
             <div class="card">
               <div class="t"><h3>{t.grades.scales[0]}</h3><p>{t.grades.scales[1]}</p></div>
@@ -224,7 +240,7 @@ const login = `${APP_URL}/login`
           <div class="bento">
             <div class="card span2" data-reveal>
               <div class="t"><h3>{t.sem.run[0]}</h3><p>{t.sem.run[1]}</p></div>
-              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1600} height={708} /></div>
+              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1576} height={lang === 'en' ? 808 : 762} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 1">
               <div class="t"><h3>{t.sem.memory[0]}</h3><p>{t.sem.memory[1]}</p></div>
@@ -236,7 +252,7 @@ const login = `${APP_URL}/login`
             </div>
             <div class="card span2" data-reveal style="--d: 1">
               <div class="t"><h3>{t.sem.hitl[0]}</h3><p>{t.sem.hitl[1]}</p></div>
-              <div class="peek center"><Shot cut dark src="parts/proposal" lang={lang} width={1480} height={366} /></div>
+              <div class="peek center"><Shot cut dark src="parts/proposal" lang={lang} width={1496} height={428} /></div>
             </div>
           </div>
           <div class="showcase">
@@ -268,7 +284,65 @@ const login = `${APP_URL}/login`
             <div class="words-cta"><StartLink label={t.tasks.cta} /></div>
           </div>
           <div class="panel layered" data-reveal style="--d: 1">
-            <Shot depth={-40} style="left: 8%; top: 14%; width: 125%" src="parts/tasklist" lang={lang} width={1600} height={584} />
+            <Shot depth={-40} style="left: 8%; top: 14%; width: 125%" src="parts/tasklist" lang={lang} width={1600} height={566} />
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="lms">
+        <div class="wrap">
+          <span class="eyebrow" data-reveal><School aria-hidden="true" />{t.lms.eyebrow}</span>
+          <h2 class="h2" data-reveal style="--d: 1">{t.lms.h2}</h2>
+          <p class="sub" data-reveal style="--d: 2">{t.lms.sub}</p>
+          <div class="lms-stage" data-reveal style="--d: 2">
+            <Shot src="parts/lms" lang={lang} width={1600} height={919} />
+            <Shot cut class="lms-toast" src="parts/lmstoast" lang={lang} width={720} height={124} />
+          </div>
+          <div class="mini">
+            {t.lms.cards.map(([title, text], i) => {
+              const Icon = lmsIcons[i]!
+              return (
+                <div class="card" data-reveal style={`--d: ${i}`}>
+                  <span class="ic"><Icon aria-hidden="true" /></span>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="files">
+        <div class="wrap">
+          <span class="eyebrow" data-reveal><FolderOpen aria-hidden="true" />{t.files.eyebrow}</span>
+          <h2 class="h2" data-reveal style="--d: 1">{t.files.h2}</h2>
+          <p class="sub" data-reveal style="--d: 2">{t.files.sub}</p>
+          <div class="showcase" data-reveal style="--d: 2">
+            <Shot cut src="parts/preview" lang={lang} width={1600} height={1096} />
+          </div>
+        </div>
+      </section>
+
+      <section class="s" id="notifications">
+        <div class="wrap split">
+          <div class="words">
+            <span class="eyebrow" data-reveal><BellRing aria-hidden="true" />{t.notify.eyebrow}</span>
+            <h2 class="h2" data-reveal style="--d: 1">{t.notify.h2}</h2>
+            <ul class="bullets">
+              {t.notify.bullets.map(([title, text], i) => {
+                const Icon = notifyIcons[i]!
+                return (
+                  <li data-reveal style={`--d: ${i + 2}`}>
+                    <span class="ic"><Icon aria-hidden="true" /></span>
+                    <div><b>{title}</b><span>{text}</span></div>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+          <div class="panel layered" data-reveal style="--d: 1">
+            <Shot cut depth={-40} style="left: 9%; top: 22%; width: 86%" src="parts/reminders" lang={lang} width={1544} height={546} />
           </div>
         </div>
       </section>
@@ -337,6 +411,7 @@ const login = `${APP_URL}/login`
             <li><a href="#calendar">{t.footer.calendar}</a></li>
             <li><a href="#grades">{t.footer.grades}</a></li>
             <li><a href="#sem">Sem</a></li>
+            <li><a href="#lms">{t.footer.lms}</a></li>
           </ul>
         </div>
         <div>

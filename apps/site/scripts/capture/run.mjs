@@ -1,6 +1,7 @@
 // Captures every product shot the site shows, from the real app, in both languages and themes.
-// Needs: a fresh local database, `pnpm dev` running with SEMESTRA_ALLOW_PRIVATE_EGRESS=true, and the
-// scripted model (`python3 server.py`) on 127.0.0.1:9999. See README.md.
+// Needs: a fresh local database, the API (with its clock pinned, see README) and the web dev server,
+// the scripted model (`python3 server.py`) on 127.0.0.1:9999 and the stand-in Canvas
+// (`python3 canvas.py`) on 127.0.0.1:9998. See README.md.
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
@@ -15,6 +16,7 @@ if (!existsSync(OUT + '/ids.json')) {
   node('seed.mjs')
   node('fixcat.mjs')
   node('ai.mjs')
+  node('lecture.mjs')
 }
 const ask = {
   'en-US': 'Help me prep for the ECE216 midterm around my other deadlines.',
@@ -35,5 +37,8 @@ for (const [scheme, locale] of combos) {
     env: { ...process.env, APPROVE: '1' },
   })
 }
+// The LMS last: once it is connected, its new-assignments toast shows up on every page.
+node('lms.mjs')
+for (const [scheme, locale] of combos) node('lmsparts.mjs', scheme, locale)
 
 await import('./convert.mjs')

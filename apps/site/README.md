@@ -24,8 +24,9 @@
 
 应用界面改版后重新截取：
 
-1. 用一个空的本地数据库启动应用：`SEMESTRA_ALLOW_PRIVATE_EGRESS=true pnpm dev`（脚本模型跑在 127.0.0.1，需要放开私有地址）。
+1. 用一个空的本地数据库启动应用，并把后端的时钟拨到截图时刻：在 `apps/api` 下 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true PYTHONPATH=../site/scripts/capture/clock uv run --with time-machine semestra dev`（`clock/sitecustomize.py` 用 time-machine 从 `CAPTURE_NOW` 前一小时开始走时：后端的“今天”和浏览器一致，截图过程中在后端发生的事（处理文件、读取 Canvas）又都早于浏览器的“现在”，否则刚完成的任务会一直留在状态栏里。启动后一小时内跑完截图；脚本模型和替身 Canvas 跑在 127.0.0.1，需要放开私有地址），另开一个终端 `pnpm --filter @semestra/web dev`。
 2. 启动脚本模型：`python3 apps/site/scripts/capture/server.py`。它是一个只给截图用的 OpenAI 兼容服务，按固定剧本让 Sem 走完真实的工具调用和确认流程（`script.py`），不进生产代码。
-3. `pnpm --filter @semestra/site capture`：创建示例账户 Maya Chen（UofT 计算机工程，5 门课）并灌入数据，接上脚本模型，截取中英 × 深浅色全部画面和局部，转成 WebP 写进 `public/`。只重截某一部分时，单独跑对应脚本后再跑 `node scripts/capture/convert.mjs`。
+3. 启动替身 Canvas：`python3 apps/site/scripts/capture/canvas.py`（127.0.0.1:9998）。它只实现应用读取的几个 Canvas REST 接口，数据是 Maya 这学期的 5 门课，ECE244 有本周新发布的作业。
+4. `pnpm --filter @semestra/site capture`：创建示例账户 Maya Chen（UofT 计算机工程，5 门课）并灌入数据，上传 ECE216 的课件（`lecture.py` 生成），接上脚本模型，截取中英 × 深浅色全部画面和局部；最后（`lms.mjs`）连接替身 Canvas，截取 Canvas 页与新作业提示（`lmsparts.mjs`，放在最后是因为连上之后每个页面都会弹出这个提示），转成 WebP 写进 `public/`。只重截某一部分时，单独跑对应脚本后再跑 `node scripts/capture/convert.mjs`。
 
 截图时间固定在 2026-10-21 08:40（多伦多时间，第 7 周周三）。浏览器时区也固定为 America/Toronto：Playwright 的假时钟和 `@date-fns/tz` 一起用时，浏览器时区和学业项目时区不同会让日历整体错位。中间文件在 `scripts/capture/.out/`（不提交）；再次运行会复用已灌好的账户，要重来就删掉这个目录并重置数据库。

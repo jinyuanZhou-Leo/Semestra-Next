@@ -4,9 +4,18 @@ const OUTBOX = REPO + '/apps/api/data/dev-outbox.jsonl'
 const api0 = API
 const web = WEB
 const email = 'maya.chen@mail.utoronto.ca'
-const code = () => {
+const outbox = () => {
   try {
-    for (const l of readFileSync(OUTBOX, 'utf8').trim().split('\n').reverse()) {
+    return readFileSync(OUTBOX, 'utf8').trim().split('\n').filter(Boolean)
+  } catch {
+    return []
+  }
+}
+// Only mail sent after this point: an earlier run may have left older codes for the same address.
+const seen = outbox().length
+const signInCode = () => {
+  try {
+    for (const l of outbox().slice(seen).reverse()) {
       const m = JSON.parse(l)
       if (m.to === email) return /\b(\d{6})\b/.exec(m.text)[1]
     }
@@ -19,8 +28,8 @@ const page = await ctx.newPage()
 await page.goto(web + '/login')
 await page.getByLabel('Email').fill(email)
 await page.getByRole('button', { name: 'Continue' }).click()
-for (let i = 0; i < 50 && !code(); i++) await page.waitForTimeout(200)
-await page.keyboard.type(code())
+for (let i = 0; i < 50 && !signInCode(); i++) await page.waitForTimeout(200)
+await page.keyboard.type(signInCode())
 await page.getByLabel('Name').fill('Maya Chen')
 await page.getByRole('button', { name: 'Create account' }).click()
 await page.waitForURL(/onboarding/)
@@ -35,6 +44,10 @@ const api = async (method, path, data) => {
   return r.status() === 204 ? null : r.json()
 }
 const soft = (p) => p.catch((e) => console.error(String(e).slice(0, 300)))
+
+// The "What's new" dialog would cover every shot.
+const { version } = JSON.parse(readFileSync(REPO + '/apps/web/package.json', 'utf8'))
+await api('PUT', '/me/ui-state/release.last_seen', { value: version })
 
 const prog = await api('POST', '/programs', {
   name: 'Computer Engineering',
@@ -93,33 +106,48 @@ for (const [code, title, palette] of [
   })
 }
 
-const meet = (code, type, sec, wd, s, e, loc) =>
+// One section per row, with all its weekly times.
+const section = (code, type, sec, times) =>
   soft(
-    api('POST', `/courses/${fallCourses[code].id}/meetings`, {
-      term_id: fall.id,
-      type_code: type,
-      section_code: sec,
-      weekday: wd,
-      start_time: s,
-      end_time: e,
-      location: loc,
+    api('POST', `/courses/${fallCourses[code].id}/sections:batch`, {
+      sections: [
+        {
+          term_id: fall.id,
+          type_code: type,
+          section_code: sec,
+          meetings: times.map(([weekday, start_time, end_time, location]) => ({
+            weekday,
+            start_time,
+            end_time,
+            location,
+          })),
+        },
+      ],
     }),
   )
-await meet('ECE244H1', 'LEC', 'LEC0101', 1, '09:00', '10:00', 'BA 1130')
-await meet('ECE244H1', 'LEC', 'LEC0101', 3, '09:00', '10:00', 'BA 1130')
-await meet('ECE244H1', 'LEC', 'LEC0101', 4, '11:00', '12:00', 'BA 1130')
-await meet('ECE244H1', 'PRA', 'PRA0103', 2, '15:00', '18:00', 'SF 2204')
-await meet('MAT290H1', 'LEC', 'LEC0102', 1, '11:00', '12:00', 'MB 128')
-await meet('MAT290H1', 'LEC', 'LEC0102', 3, '11:00', '12:00', 'MB 128')
-await meet('MAT290H1', 'TUT', 'TUT0104', 5, '10:00', '11:00', 'GB 119')
-await meet('ECE216H1', 'LEC', 'LEC0101', 2, '10:00', '11:00', 'SF 1105')
-await meet('ECE216H1', 'LEC', 'LEC0101', 4, '10:00', '11:00', 'SF 1105')
-await meet('ECE216H1', 'TUT', 'TUT0102', 1, '16:00', '17:00', 'BA 2165')
-await meet('ECE231H1', 'LEC', 'LEC0101', 2, '13:00', '14:00', 'GB 248')
-await meet('ECE231H1', 'LEC', 'LEC0101', 5, '13:00', '14:00', 'GB 248')
-await meet('ECE231H1', 'PRA', 'PRA0102', 4, '14:00', '17:00', 'SF 2102')
-await meet('ECE297H1', 'LEC', 'LEC0101', 3, '14:00', '15:00', 'BA 1180')
-await meet('ECE297H1', 'TUT', 'TUT0101', 5, '15:00', '17:00', 'GB 404')
+await section('ECE244H1', 'LEC', 'LEC0101', [
+  [1, '09:00', '10:00', 'BA 1130'],
+  [3, '09:00', '10:00', 'BA 1130'],
+  [4, '11:00', '12:00', 'BA 1130'],
+])
+await section('ECE244H1', 'PRA', 'PRA0103', [[2, '15:00', '18:00', 'SF 2204']])
+await section('MAT290H1', 'LEC', 'LEC0102', [
+  [1, '11:00', '12:00', 'MB 128'],
+  [3, '11:00', '12:00', 'MB 128'],
+])
+await section('MAT290H1', 'TUT', 'TUT0104', [[5, '10:00', '11:00', 'GB 119']])
+await section('ECE216H1', 'LEC', 'LEC0101', [
+  [2, '10:00', '11:00', 'SF 1105'],
+  [4, '10:00', '11:00', 'SF 1105'],
+])
+await section('ECE216H1', 'TUT', 'TUT0102', [[1, '16:00', '17:00', 'BA 2165']])
+await section('ECE231H1', 'LEC', 'LEC0101', [
+  [2, '13:00', '14:00', 'GB 248'],
+  [5, '13:00', '14:00', 'GB 248'],
+])
+await section('ECE231H1', 'PRA', 'PRA0102', [[4, '14:00', '17:00', 'SF 2102']])
+await section('ECE297H1', 'LEC', 'LEC0101', [[3, '14:00', '15:00', 'BA 1180']])
+await section('ECE297H1', 'TUT', 'TUT0101', [[5, '15:00', '17:00', 'GB 404']])
 
 for (const [title, code, d, h, loc] of [
   ['ECE216 Midterm', 'ECE216H1', '2026-10-27', 18, 'EX 100'],
