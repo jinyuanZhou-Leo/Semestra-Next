@@ -2,17 +2,14 @@ import type {
   Connection,
   CourseLink,
   ExternalCourse,
-  ImportItem,
   ImportSessionDetail,
 } from '@semestra/api-client'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
-import { ItemEditor } from '@/modules/imports/components/ItemEditor'
 import { API, apiError, renderWithRouter, server } from '@/test-utils'
 import AnnouncementsCard from './cards/AnnouncementsCard'
-import { LmsUpdatesBanner } from './components/LmsUpdatesBanner'
 import { groupByTerm } from './external'
 import { CoursePicker } from './import/CoursePicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
@@ -69,8 +66,8 @@ function link(overrides: Partial<CourseLink> = {}): CourseLink {
     external_term: '2026 Fall',
     web_url: 'https://q.utoronto.ca/courses/101',
     sync_enabled: true,
-    last_synced_at: '2026-09-02T10:00:00Z',
-    last_error_code: null,
+    synced_at: '2026-09-02T10:00:00Z',
+    sync_errors: {},
     created_at: '2026-09-01T10:00:00Z',
     ...overrides,
   }
@@ -363,7 +360,7 @@ test('course settings: guidance without a binding, then the calendar switch and 
     'href',
     'https://q.utoronto.ca/courses/101',
   )
-  await userEvent.click(screen.getByRole('switch', { name: 'Calendar and assignment changes' }))
+  await userEvent.click(screen.getByRole('switch', { name: 'Sync this course' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ sync_enabled: false }))
   await userEvent.click(screen.getByRole('button', { name: /^Actions for/ }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Unlink…' }))
@@ -452,70 +449,6 @@ test('the course picker skips linked courses and starts an import into the term'
     start_date: '2026-09-08',
     end_date: '2026-12-08',
   })
-})
-
-test('the updates banner shows changed assignments of a synced course', async () => {
-  server.use(
-    http.get(`${API}/courses/c1/lms-link`, () =>
-      HttpResponse.json({ course_id: 'c1', link: link(), program_connection_id: 'k1' }),
-    ),
-    http.get(`${API}/courses/c1/lms/updates`, () =>
-      HttpResponse.json({
-        course_id: 'c1',
-        count: 2,
-        items: [
-          {
-            external_id: '1',
-            name: 'Lab 1',
-            target: { kind: 'assessment', id: 'a1' },
-            changes: {},
-          },
-          { external_id: '2', name: 'Quiz 2', target: { kind: 'task', id: 't1' }, changes: {} },
-        ],
-      }),
-    ),
-  )
-  renderWithRouter(<LmsUpdatesBanner programId="p1" courseId="c1" />)
-  expect(
-    await screen.findByText('2 imported assignments have changes or new grades on Canvas'),
-  ).toBeInTheDocument()
-  expect(screen.getByText('Lab 1 · Quiz 2')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Review changes' })).toBeInTheDocument()
-})
-
-function importItem(
-  overrides: Partial<ImportItem> & Pick<ImportItem, 'type' | 'data'>,
-): ImportItem {
-  return {
-    id: 'i1',
-    session_id: 's1',
-    evidence: {},
-    confidence: {},
-    decision: 'accept',
-    issues: [],
-    depends_on: [],
-    result: null,
-    position: 0,
-    ...overrides,
-  }
-}
-
-test('a changed assignment shows its old → new values', async () => {
-  renderWithRouter(
-    <ItemEditor
-      item={importItem({
-        type: 'assessment_patch',
-        data: {
-          assessment_id: 'a1',
-          label: 'Lab 1',
-          changes: { due_date: { old: '2026-02-07', new: '2026-02-12' } },
-        },
-      })}
-      editable
-    />,
-  )
-  expect(await screen.findByText('2026-02-07')).toBeInTheDocument()
-  expect(screen.getByText('2026-02-12')).toBeInTheDocument()
 })
 
 test('editing the address asks for the token again', async () => {

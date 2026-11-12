@@ -1,4 +1,4 @@
-"""Inputs and outputs of the sync capabilities (M09 §4.8)."""
+"""Inputs and outputs of the sync capabilities (M09 §4.1)."""
 
 from datetime import datetime
 from typing import Any, Literal

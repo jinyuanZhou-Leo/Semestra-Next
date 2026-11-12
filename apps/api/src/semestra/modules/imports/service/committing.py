@@ -32,8 +32,6 @@ log = structlog.get_logger()
 TYPE_ORDER = {
     "course": 0,
     "course_patch": 0,
-    "assessment_patch": 2,
-    "task_patch": 2,
     "category": 1,
     "assessment": 2,
     "meeting": 2,
@@ -419,32 +417,6 @@ def _shared_source_ref(item: ImportsItem, course_id: str | None) -> str:
     return ref
 
 
-async def _write_patch(c: _Commit, item: ImportsItem) -> dict[str, Any]:
-    """Applies the accepted changes to an existing assessment or task."""
-    ctx, data = c.ctx, item.data
-    kind = item.type.removesuffix("_patch")
-    target_id = data[f"{kind}_id"]
-    changes = {
-        name: change.get("new")
-        for name, change in data["changes"].items()
-        if change.get("apply", True)
-    }
-    if not changes:
-        return {"updated_id": target_id, "reused": True}
-    if "due_date" in changes or "due_time" in changes:
-        old = {n: ch.get("old") for n, ch in data["changes"].items()}
-        changes.setdefault("due_date", old.get("due_date"))
-        changes.setdefault("due_time", old.get("due_time"))
-        if not changes["due_date"]:
-            changes["due_time"] = None
-    if "score" in changes:  # {points_earned, points_possible}, or None to clear
-        score = changes.pop("score") or {"points_earned": None, "points_possible": None}
-        changes.update(score)
-    name = "grading.assessment.update" if kind == "assessment" else "tasks.item.update"
-    out = await deps.call(ctx, name, {f"{kind}_id": target_id, **changes})
-    return {"updated_id": out.get("id", target_id)}
-
-
 async def _write_task(c: _Commit, item: ImportsItem) -> dict[str, Any]:
     """Creates a task, or reuses the one with the same source."""
     ctx, data, program_id = c.ctx, item.data, c.row.program_id
@@ -474,8 +446,6 @@ _WRITERS: dict[str, Callable[[_Commit, ImportsItem], Awaitable[dict[str, Any]]]]
     "assessment": _write_assessment,
     "meeting": _write_meeting,
     "event": _write_event,
-    "assessment_patch": _write_patch,
-    "task_patch": _write_patch,
     "task": _write_task,
 }
 

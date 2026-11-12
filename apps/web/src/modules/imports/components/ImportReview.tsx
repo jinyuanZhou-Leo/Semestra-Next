@@ -30,17 +30,7 @@ import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
 import { ItemEditor } from './ItemEditor'
 
-const TYPE_ORDER = [
-  'course',
-  'course_patch',
-  'category',
-  'assessment',
-  'assessment_patch',
-  'meeting',
-  'event',
-  'task',
-  'task_patch',
-]
+const TYPE_ORDER = ['course', 'course_patch', 'category', 'assessment', 'meeting', 'event', 'task']
 
 /** Items of an open session can be edited; after a commit only the ones that failed. */
 export function isEditable(session: ImportSessionDetail, item: ImportItem): boolean {

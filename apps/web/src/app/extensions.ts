@@ -396,12 +396,26 @@ export type StatusItem = {
   progress?: number
   /** Where clicking the line goes. */
   to?: string
-  tone?: 'default' | 'success' | 'error'
+  /** `accent`: something waits for the user. */
+  tone?: 'default' | 'success' | 'error' | 'accent'
+  /** A spinner instead of the icon. */
+  spin?: boolean
+  /**
+   * Where the line ranks when more want to show than fit (M10 §5.6): errors, then what waits
+   * for the user, running work, timers and resting states. By default `error` for an error
+   * tone, otherwise `running`. A line keeps its rank while its state changes in place.
+   */
+  rank?: StatusRank
+  /** Opened in a popover from the line, instead of following `to`. */
+  Panel?: ComponentType<{ onClose: () => void }>
 }
+
+export type StatusRank = 'error' | 'attention' | 'running' | 'timer' | 'idle'
 
 /**
  * Rendered at the bottom of the sidebar by the host (M10): a running timer, a background or AI
- * task. Not for notifications. `useStatus` is a hook; returning null hides the line.
+ * task, a sync's state. Not for notifications. `useStatus` is a hook; returning null hides the
+ * line. `order` breaks ties between lines of the same rank.
  */
 export type StatusItemContribution = {
   id: string

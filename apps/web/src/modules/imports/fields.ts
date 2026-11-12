@@ -52,14 +52,10 @@ export const FIELDS: Record<Exclude<ItemType, `${string}_patch`>, readonly Field
 
 /** Labels of the fields a `*_patch` item can change (a course's, or an assessment's or task's). */
 export const PATCH_LABELS: Record<string, () => string> = {
-  due_date: m.imports_field_due_date,
-  due_time: m.imports_field_due_time,
-  weight: m.imports_field_weight,
   code: m.imports_field_code,
   title: m.imports_field_title,
   credits: m.imports_field_credits,
   instructors: m.imports_field_instructors,
   description: m.imports_field_description,
   website_url: m.imports_field_website,
-  score: m.imports_field_score,
 }

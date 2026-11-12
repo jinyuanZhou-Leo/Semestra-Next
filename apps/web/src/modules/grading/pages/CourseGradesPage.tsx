@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
-import { useExtensions } from '@/app/registry'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { omitKey } from '@/lib/omit'
@@ -17,7 +16,6 @@ import { ManualGrade } from '../components/ManualGrade'
 import { CourseTarget } from '../components/CourseTarget'
 import type { AssessmentFilter } from '../filter'
 import { useGradebook } from '../queries'
-import { COURSE_GRADES_BANNERS, type CourseGradesBanner } from '../types'
 import { usePlanSimulation } from '../use-plan'
 import { DEFAULT_WHATIF, type WhatIf, activeScores } from '../whatif'
 
@@ -43,24 +41,14 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [filter, setFilter] = useState<AssessmentFilter>('all')
   const [search, setSearch] = useState('')
   const queryClient = useQueryClient()
-  const banners = useExtensions<CourseGradesBanner>(COURSE_GRADES_BANNERS)
   const { result, summary } = gradebook
   const canPlan = summary.weights_ok
   const planning = whatIf.plan && canPlan
   const state = { scores: whatIf.scores, plan: planning }
   const planned = usePlanSimulation(gradebook, state)
 
-  const notices = banners.map((banner) => (
-    <banner.component key={banner.id} programId={programId} courseId={courseId} />
-  ))
-
   if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
-    return (
-      <div className="space-y-4">
-        {notices}
-        <ManualGrade gradebook={gradebook} />
-      </div>
-    )
+    return <ManualGrade gradebook={gradebook} />
   }
 
   const assumed = activeScores(gradebook.assessments, whatIf.scores)
@@ -84,7 +72,6 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   return (
     <div className="space-y-4">
-      {notices}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <AssessmentTable
           programId={programId}

@@ -238,7 +238,8 @@ test('the status bar shows running jobs and module items, and hides empty lines'
   const bar = await screen.findByRole('list', { name: 'In progress' })
   expect(await screen.findByText('1 running, 1 waiting')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: '12:00 left' })).toHaveAttribute('href', '/')
-  expect(bar.querySelectorAll('li')).toHaveLength(2)
+  // Lines with nothing to show stay in place, closed (they open with a height transition).
+  expect(bar.querySelectorAll('li[data-shown="true"]')).toHaveLength(2)
 })
 
 test('extension points collect contributions from every module', () => {
@@ -252,4 +253,38 @@ test('extension points collect contributions from every module', () => {
     </ModuleRegistry>,
   )
   expect(screen.getByText('grade')).toBeInTheDocument()
+})
+
+test('past three lines the last one names the rest, ranked by what needs the user', async () => {
+  server.use(http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })))
+  const line = (id: string, label: string, rank?: 'error' | 'attention' | 'idle') => ({
+    id,
+    order: 1,
+    useStatus: () => ({ icon: Timer, label, rank }),
+  })
+  const lines = {
+    ...template,
+    id: 'lines',
+    statusItems: [
+      line('a', 'Synced', 'idle'),
+      line('b', 'Timer'),
+      line('c', '2 to review', 'attention'),
+      line('d', 'Reconnect', 'error'),
+    ],
+  }
+  renderWithRouter(
+    <ModuleRegistry value={[lines]}>
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
+    </ModuleRegistry>,
+  )
+  const bar = await screen.findByRole('list', { name: 'In progress' })
+  await waitFor(() =>
+    expect(
+      [...bar.querySelectorAll<HTMLElement>('li[data-shown="true"]')]
+        .sort((x, y) => Number(x.style.order) - Number(y.style.order))
+        .map((li) => li.textContent),
+    ).toEqual(['Reconnect', '2 to review', '2 more · Timer, Synced']),
+  )
 })

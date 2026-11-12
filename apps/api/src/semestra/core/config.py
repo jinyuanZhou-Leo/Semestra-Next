@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # Self-hosting only: connect Canvas by signing in on the school's own login page, through
     # the Canvas mobile app's OAuth client, for a refresh token that does not expire (M09 §2.3).
     lms_canvas_sign_in: bool = False
-    # The shortest background LMS sync interval users may pick (M09 §4.8): shorter choices are
+    # The shortest background LMS sync interval users may pick (M09 §4.1): shorter choices are
     # left out of the settings form, and a stored shorter one syncs at this interval.
     lms_sync_min_interval: Literal["15m", "30m", "1h", "6h", "1d"] = "15m"
 

@@ -55,7 +55,7 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
             errors = [{"loc": ["data", name], "code": "extra_forbidden"} for name in unknown]
             raise AppError("common.validation", 422, errors=errors)
         merged = {**item.data, **inp.data}
-        if item.type.endswith("_patch") and "changes" in inp.data:
+        if item.type == "course_patch" and "changes" in inp.data:
             merged["changes"] = {**item.data.get("changes", {}), **inp.data["changes"]}
         for name in ("course_ref", "category_ref"):
             ref = merged.get(name)

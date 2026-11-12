@@ -1534,7 +1534,7 @@ export type BulkDecideInputBody = {
      *
      * Only items of these types
      */
-    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+    types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
     /**
      * Issue Codes
      *
@@ -5078,7 +5078,7 @@ export type ImportItem = {
     /**
      * Type
      */
-    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch';
+    type: 'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch';
     /**
      * Data
      *
@@ -17021,7 +17021,7 @@ export type ImportsSessionGetData = {
          *
          * Only items of these types
          */
-        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch' | 'assessment_patch' | 'task_patch'> | null;
+        types?: Array<'course' | 'meeting' | 'event' | 'category' | 'assessment' | 'task' | 'course_patch'> | null;
         /**
          * Fields
          *

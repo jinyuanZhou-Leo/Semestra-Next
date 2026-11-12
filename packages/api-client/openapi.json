@@ -8691,9 +8691,7 @@
                       "category",
                       "assessment",
                       "task",
-                      "course_patch",
-                      "assessment_patch",
-                      "task_patch"
+                      "course_patch"
                     ],
                     "type": "string"
                   }
@@ -20246,9 +20244,7 @@
                     "category",
                     "assessment",
                     "task",
-                    "course_patch",
-                    "assessment_patch",
-                    "task_patch"
+                    "course_patch"
                   ]
                 },
                 "type": "array"
@@ -26188,9 +26184,7 @@
               "category",
               "assessment",
               "task",
-              "course_patch",
-              "assessment_patch",
-              "task_patch"
+              "course_patch"
             ],
             "title": "Type"
           },

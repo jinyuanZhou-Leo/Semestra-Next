@@ -24,8 +24,8 @@ export type CourseData = {
 }
 
 export type FieldChange = { old?: unknown; new?: unknown; apply?: boolean }
-/** `assessment_patch` / `task_patch` (M09 LMS updates); `label` names the item. */
-export type TargetPatchData = { label?: string; changes: Record<string, FieldChange> }
+/** `course_patch`: the existing course and its changed fields. */
+export type CoursePatchData = { course_id: string; changes: Record<string, FieldChange> }
 
 export type MeetingData = {
   course_ref: string

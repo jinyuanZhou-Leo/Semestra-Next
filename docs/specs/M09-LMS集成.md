@@ -21,7 +21,7 @@
 - 一个“导入”：有分值的作业成为**考核**（有截止日期就带待办），没有分值的成为**待办**；没有冲突时直接保存，有冲突才进 M08 审核（审核里仍可切换类型）。只成为待办的作业可以“加入成绩簿”，待办保留。
 - LMS 文件可以"保存到课程文件"，进入 M07 文档管线，之后可被检索和抽取。
 - LMS syllabus 一键交给 M08 智能抽取。
-- 导入后检测更新：截止时间或分值变化时提示"有 N 项更新"。
+- 后台同步（§4.1）：已导入的作业自动跟随平台，平台上的新作业、两边都改过的值和平台上已删除的项才询问用户。
 - 公告卡片。
 
 ## 2. Provider 框架
@@ -93,13 +93,18 @@ lms_program_bindings                 # Program 绑定的连接（本模块自有
 lms_course_links
   id, user_id, course_id (unique), program_id, connection_id,
   external_course_id, external_code?, external_name?, external_term?, web_url?,
-  sync_enabled (default true), last_synced_at?, last_error_code?, created_at, updated_at
+  sync_enabled (default true), synced_at?, sync_errors {阶段: 错误码}, watched_at?,
+  created_at, updated_at
   UNIQUE(program_id, connection_id, external_course_id)
 
-lms_imported_refs                    # 已导入的作业/事件，用于去重和更新检测
+lms_imported_refs                    # 平台上的作业与它在 Semestra 里的对象（同步的依据）
   id, user_id, link_id, external_kind ('assignment'|'calendar_event'), external_id,
-  target_kind ('assessment'|'task'|'event'), target_id, imported_at, snapshot, submitted_at?
+  target_kind? ('assessment'|'task'|'event'), target_id?, imported_at?,   # 都为空 = 还没导入的新作业
+  snapshot, conflicts {字段: {value, raw}}, removed_at?, dismissed_at?, submitted_at?
   UNIQUE(link_id, external_kind, external_id)   # 一个外部项只对应一个 Semestra 对象
+
+lms_sync_changes                     # 同步写过的字段，面板里可撤销，保留 14 天
+  id, user_id, ref_id → lms_imported_refs (CASCADE), field, old?, new?, at, reverted_at?
 
 lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ```
@@ -110,15 +115,21 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - 年课（跨多个学期的一门课程）只有一个关联，这与 M02 的课程模型一致。
 
 ## 4. 同步语义
-- **不做持续镜像**：
-  - 浏览类数据（公告、单元、页面等）实时读取，有缓存。
-  - **课程同步**（`lms.course.link.sync`，旧 `sync_course_link`）只刷新关联本身的外部元数据（代码、名称、学期、web_url），不修改课程本身。
-  - 作业导入是一次性的。之后 `lms.course.check_updates` 对比 `lms_imported_refs.snapshot`，如果截止时间、分值、权重、名称或成绩变化，在成绩页和 Canvas Tab 显示"有 N 项更新"。用户确认后生成一个 M08 session，其 items 为更新类 item，审核后才写入。
-  - 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
-  - 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、更新检测、导入，以及每小时的 `lms.complete_submitted` 定时任务，它只读还有未提交导入作业的同步课程，走 5 分钟缓存）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
-- `sync_enabled=false`：该课程不出现在日历叠加中，也不做更新检测和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
-- 更新通知（`lms/watch.py`，M18 §4.4 调用）：`watched_links(ctx)` 列出要看的课程，`new_announcements(ctx, link_ids, as_of)` 每个连接一次请求取回这些课程自上次查看以来的公告（不进缓存），`course_news(ctx, link_id, posted, as_of)` 先读平台（不写库）再记录，调用方每门课提交一次；看 `sync_enabled`、连接有凭证、学期在进行、未开始或结束不到 30 天的已关联课程，返回每门课新出的成绩、其他变更（名称、截止、权重）和新公告。“新”只出现一次：`lms_imported_refs.reported` 记着已报过、仍与导入时不同的平台值（按字段，与 `snapshot` 无关，用户审不审核都不再报；平台改回去后这个字段从中删掉，再改一次会再报），公告看 `lms_course_links.watched_at` 之后发布的；`watched_at` 为空（刚关联、刚开启或从备份恢复）或早于 2 天前时这次只记下现状、不报。读取失败的课程不推进 `watched_at`，下次接着看。两个字段不进备份。迁移 0038。
-- 定时任务 `lms.refresh_status`（每 6 小时）：验证所有连接是否仍然有效，失效时标记为 error 并通过 SSE 发出 `lms.connection.status_changed`。
+- 浏览类数据（公告、单元、页面等）实时读取，有缓存。
+- 作业由后台同步（§4.1）跟随平台；课程本身（名称、学分等）不跟随，同步只刷新关联的外部元数据（代码、名称、学期、web_url）。
+- 日历叠加：`lms.events` 日历源实时读取 `sync_enabled=true` 的已关联课程（每个连接合并为一次 `calendar_events` 调用）。只有平台的日历事件，作业不在这里出现，所以不需要与考核或待办去重。
+- 提交后完成待办（`lms/submissions.py`，账户设置 `lms.complete_submitted`，默认开）：每次读取课程作业（Canvas Tab、导入、后台同步）后，在单独的事务里把平台上第一次显示已提交（`submission.submitted_at`）的导入作业记入 `lms_imported_refs.submitted_at`，并完成对应待办：导入成待办的就是该待办，导入成考核的就是考核的待办（M05 `service.complete_open`）。每个作业只做一次，用户之后取消勾选不会再被勾上；设置关闭时什么也不记，重新打开后补上期间提交的。
+- `sync_enabled=false`（课程设置的“同步这门课”）：该课程不出现在日历叠加中，也不做后台同步和提交后完成待办；读取接口和 Canvas Tab 仍然可用。
+
+### 4.1 后台同步（2026-11-12，迁移 0046）
+- **任务**：每门课一个任务 `lms.course.sync`（去重键 `lms.course.sync:<course_id>`，`listed=False`：不进状态栏的任务列表，同步有自己的状态行）。按顺序跑注册的阶段（`sync.register_sync_stage(name, run, order, enabled)`）：`course`（0，刷新关联的外部元数据）、`assignments`（20）、`announcements`（40）；M07 的文件同步以后作为新阶段加入。每个阶段先读平台、再在自己的事务里写；出错的阶段把错误码记进 `lms_course_links.sync_errors`，其余阶段照跑；只有第一个阶段失败（读不到课程本身，多半是连接坏了）才结束这次同步。全部跑完后推进 `synced_at`，发 `lms.course.synced`（`{course_id, program_id, manual, applied[{change_id, name, field}], notices[{kind, external_id, title}], pending, errors}`）与 `lms.sync.updated {program_id}`。连接错误照常由 `service.attempt` 记到连接上（替代原来每 6 小时的 `lms.refresh_status`）。
+- **什么时候同步**：① 定时任务 `lms.sync_due`（每 5 分钟一轮，每轮最多排 20 门课，最久没同步的先排）排上次同步早于账户设置 `lms.sync_every` 的课程；只看 14 天内用过应用的账户、`sync_enabled`、连接有凭证、学期在进行/未开始/结束不到 30 天的课程。② 打开学业项目时前端请求一次（`lms.sync.request`，不带 `force`）：只排 30 分钟内没同步过的。③ 用户手动（状态行面板“立即同步”、命令面板“同步学习平台”、课程设置的“立即同步”，`force=true`）：全部排上。
+- **频率**：`lms.sync_every` ∈ 15m / 30m / 1h / 6h（默认）/ 1d。环境变量 `SEMESTRA_LMS_SYNC_MIN_INTERVAL`（默认 `15m`）是下限：设置表单经 `register_settings(adapt=…)` 只列出不短于下限的选项，已存的更短值按下限执行。托管版设为 `1h`。
+- **作业怎样跟随**（`sync_assignments.py`）：字段为标题、截止、权重（按作业组推算的实际权重）和成绩（只对考核）。对每个字段比较平台值 p、快照 s 与本地值 mine：p = mine → 推进快照；p = s → 平台没改，保留用户的值；mine = s（或权重从没设过）→ 写入 p（经 `grading.assessment.update` / `tasks.item.update`），记一条 `lms_sync_changes`，推进快照；否则两边都改过 → 记进 `conflicts` 等用户决定。平台上不见了的已导入项记 `removed_at`（作业列表被截断时不判断）。还没导入、截止在未来的作业建一条没有 target 的记录，作为“新作业”提醒；过了截止、或在平台上消失的未忽略记录直接删掉。`lms.assignment.bind` 绑定手动添加的考核时快照用 `bound_snapshot`（截止、权重、成绩记为未见），所以下一次同步补上考核缺的值、两边都有且不同的作为冲突询问。
+- **用户的回答**：`lms.sync.resolve`（`choice`：冲突 `platform`/`mine`，删除项 `keep`/`delete`）、`lms.sync.dismiss`（忽略或重新提醒新作业）、`lms.sync.change.revert`（撤销一条变更：写回旧值，快照保持平台值，所以下次不会再改回去）。三者都返回最新的 `SyncStatus`。
+- **状态**（`sync_status.py`，只读库）：`lms.sync.status` 返回连接错误、频率、课程数、最早的 `synced_at`、是否在同步、待处理（冲突、删除、新作业，按截止排序）、已忽略、最近 14 天的变更（最多 50 条）和各课程的阶段错误。
+- **通知**（M18）：`notifications/watch.py` 订阅 `lms.course.synced`：新成绩与变更用 `hidden_only`，新公告只在 `notifications.lms = all` 时发。公告“新”看 `watched_at` 之后发布的；`watched_at` 为空或早于 2 天前时这次只记下现状、不报。
+- **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
 
 ## 5. Capabilities
 | name | effect | http | 说明 |
@@ -136,12 +147,10 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.course.link.list` | read | GET /programs/{id}/lms-links | 该 Program 所有课程的关联（`items`），课程页标签判断可用性时一次取全，不按课程逐个请求；`expose=("http",)` |
 | `lms.course.link.set` | write | PUT /courses/{id}/lms-link | 参数 external_course_id、sync_enabled；冲突 → `lms.course_already_linked`（params: course_id） |
 | `lms.course.link.update` | write | PATCH /courses/{id}/lms-link | 修改 sync_enabled |
-| `lms.course.link.sync` | write | POST /courses/{id}/lms-link:sync | 刷新外部元数据 |
 | `lms.course.link.delete` | write | DELETE /courses/{id}/lms-link | |
 | `lms.course.overview` | read | GET /courses/{id}/lms | 课程信息、导航、default_view、provider、功能标志 |
 | `lms.announcement.list` | read | GET /courses/{id}/lms/announcements | |
 | `lms.assignment.list` | read | GET /courses/{id}/lms/assignments | 每项的 `imported_as`（`{kind: assessment\|task, id}` 或空）；`new_ids`：未导入且未过截止的作业，按截止排序 |
-| `lms.term.new_assignments` | read | GET /terms/{id}/lms/new-assignments | 学期内各关联课程的新作业（`items[{course_id, external_ids, names}]`、`total`）；只开放 HTTP，供今天页提示 |
 | `lms.grade.list` | read | GET /courses/{id}/lms/grades | |
 | `lms.module.list` / `lms.module_item.list` | read | GET /courses/{id}/lms/modules[/{module_id}/items] | |
 | `lms.page.list` / `lms.page.get` | read | GET /courses/{id}/lms/pages[/{ref}] | 返回清洗后的 HTML |
@@ -154,19 +163,22 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 | `lms.assignment.import` | write | POST /courses/{id}/lms/imports:assignments | 选中的作业 → M08 session：有分值的成为考核（assignment group → 课程已有分类或新分类，规则见 M08 的分类映射；权重按 group weight 推算，无法推算时留空），没有分值的成为待办；`imports.commit_if_clean` 没有冲突就直接提交（返回 `committed`、`failed`），否则留给审核 |
 | `lms.assignment.add_to_gradebook` | write | POST /courses/{id}/lms/imports:gradebook | 已导入为待办的作业 → 考核（同一流程）；M05 让新考核接管同来源的待办，导入记录改指向考核 |
 | `lms.syllabus.import` | write | POST /courses/{id}/lms/imports:syllabus | syllabus HTML → M08 文本抽取 session |
-| `lms.course.check_updates` | read | GET /courses/{id}/lms/updates | |
-| `lms.change.import` | write | POST /courses/{id}/lms/updates:review | 生成 M08 更新 session（原 `lms.course.queue_updates`） |
+| `lms.sync.status` | read | GET /programs/{id}/lms/sync | 后台同步的状态（§4.1）；只开放 HTTP |
+| `lms.sync.request` | write | POST /programs/{id}/lms/sync | `{course_id?, force}` 排同步任务，返回 `queued`；只开放 HTTP |
+| `lms.sync.resolve` | write | POST /lms/sync/items/{id}:resolve | 回答冲突或删除项；没有可回答的 → `lms.sync_nothing_to_resolve`（409）；只开放 HTTP |
+| `lms.sync.dismiss` | write | POST /programs/{id}/lms/sync:dismiss | `{item_ids, dismissed}` 忽略或重新提醒新作业；只开放 HTTP |
+| `lms.sync.change.revert` | write | POST /lms/sync/changes/{id}:revert | 撤销同步写入的一个字段；只开放 HTTP |
 | `lms.course.outline` | read | GET /courses/{id}/lms/outline | Agent 用（第 8 节）：模块与全部条目（ref、锁定原因）、开放的栏目、外部工具、不在模块里的页面；`cursor` 分页 |
 | `lms.content.search` | read | GET /courses/{id}/lms/search | Agent 用：搜页面正文、公告、作业、测验、讨论、大纲、文件名和链接 |
 | `lms.content.read` | read | GET /courses/{id}/lms/content | Agent 用：按 ref 或 LMS 地址读任意条目的全文（Markdown），`offset` 分段 |
-| `lms.activity.list` | read | GET /me/lms/activity | Agent 用：一门课或整个学期的新公告、新成绩、新作业和已导入作业的变化 |
+| `lms.activity.list` | read | GET /me/lms/activity | Agent 用：一门课或整个学期的新公告、新成绩和新作业 |
 
 - 课程级读取接口要求该课程已关联（否则 `lms.course_not_linked`），并检查 provider 功能标志（否则 `lms.feature_unsupported`）。
 - M08 提交时，item 的 `data.lms_ref` 带回外部引用。本模块订阅 `imports.session.committed`，写入 `lms_imported_refs`。导入课程时也在同一个提交里创建 `lms_course_links`（M08 的 course item 带 `data.lms_link`，本模块在 `imports.session.committing` 钩子里写入，保证在同一事务中）。
 
 ## 6. 事件与扩展
 - 订阅：`academics.course.deleting`（删除关联与导入记录）、`academics.program.deleting`（删除绑定）、`grading.assessment.deleting` / `tasks.task.deleting`（删除对应的导入记录，之后可以再次导入）。
-- 发出：`lms.connection.status_changed`、`lms.course.linked`、`lms.course.unlinked`、`lms.course.imports_recorded`（`{course_id}`，M08 提交钩子记下导入的作业或更新的快照之后，前端据此刷新“平台上的新作业”和作业列表的“已导入为”）。
+- 发出：`lms.course.synced`、`lms.sync.updated`（§4.1）、`lms.connection.status_changed`、`lms.course.linked`、`lms.course.unlinked`、`lms.course.imports_recorded`（`{course_id}`，M08 提交钩子记下导入的作业或更新的快照之后，前端据此刷新“平台上的新作业”和作业列表的“已导入为”）。
 - 贡献：
   - 日历源 `lms.events`（M04 `calendarSources`）：在日历筛选面板中按连接显示；事件描述默认以纯文本显示，用户可以在源设置中开启"渲染 HTML 描述"（清洗后，开启前确认，与旧版一致）。
   - `academics.termWizardImportSources`：学期向导中的"从 LMS 导入课程"（要求 Program 已绑定连接，否则引导绑定）。
@@ -178,29 +190,30 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 ## 7. 前端
 ### 7.1 设置
 - **全局设置 → 学习平台 → LMS 连接**（旧 `LmsIntegrationManager`）：`SettingsTable` 两列，与 AI 服务商一致。名称列是平台 logo 小方块（Canvas 用 `simple-icons`）+ 显示名，第二行「平台 · 实例地址 · 账户名」（不显示令牌尾号）；状态列一行：短徽标（正常 / 凭证失效 / 缺少凭证 / 没有权限 / 无法连接 / 平台繁忙 / 地址有误 / 出错，完整原因在 Tooltip）+ 相对检查时间。行尾 `⋯` 菜单：测试连接、编辑、删除。"添加连接"对话框：只有一个平台时直接打开它的表单，多于一个才先选平台（可返回）；Canvas 表单：自托管开启学校登录时先选「学校账号 / API 令牌」（编辑时直接进入连接所用的方式，返回可重选）。令牌路径是一个表单：实例地址、访问令牌 + 获取令牌的 3 步说明（第 1 步链接到 `https://<地址>/profile/settings`）。学校账号路径先显示风险提示（是否使用由用户自行决定，本应用不承担后果；已有学校登录的连接重新登录时不再显示），确认后分 3 步，每步只做一件事：① 填地址，继续时取登录链接（错误显示在这一步）；② 点真实链接打开登录页（请求之后再 `window.open` 会被浏览器拦截），在学校页面完成 SSO/MFA，最后停在 `sso.canvaslms.com/canvas/login?code=…`（手机 App 才拦截这个地址，浏览器里是 404 页面，属正常，文案要说明）；③ 粘贴回调地址、填名称、保存。编辑已有的学校登录时先显示地址和名称，可直接保存，也可“重新登录”进入这 3 步。分步由 `ConfigForm` 通过 `frame(fields, step)` 声明，表单外框仍在 `ConnectionForm`。最后验证并保存。手机上使用抽屉。
-- **全局设置 → 学习平台 → 同步**：命名空间 `lms` 自动生成的表单：“作业提交后完成待办”（`complete_submitted`）与“允许在平台上做修改”（`allow_writes`）。
+- **全局设置 → 学习平台 → 同步**：命名空间 `lms` 自动生成的表单：“后台同步”（`sync_every`）、“作业提交后完成待办”（`complete_submitted`）与“允许在平台上做修改”（`allow_writes`）。
 - **Program 设置 → LMS**：选择绑定的连接；已有关联时禁用更换，并说明原因和关联数量。
-- **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：已关联时显示一行（provider 图标块、外部代码与名称、学期与连接名、状态 Badge + 相对时间、"在平台中打开"图标按钮、⋯ 菜单："刷新课程信息"（即 `lms.course.link.sync`，只刷新外部课程元数据）/ 更换课程… / 解除关联…），下方是"日历与作业变化"开关（即 `sync_enabled`）；关联出错时显示 Alert，令牌/权限类错误给"打开 LMS 连接"，其余给"重试"。未关联时是一个可搜索的 Combobox，选中即关联（只认点击/回车选中，触发器上的键入联想不算），课程代码匹配的排在"建议"组，其余按学期分组，已被其它课程关联的项禁用并注明是哪门课程，底部 Checkbox"包括往期课程"；更换时当前课程禁用，选中后先确认。Program 未绑定连接时显示引导；账户里一个连接都没有时直接引导去添加连接。
+- **课程设置 → LMS**（旧 `CourseSettingsPanel` 中的 LMS 部分）：已关联时显示一行（provider 图标块、外部代码与名称、学期与连接名、状态 Badge + 相对时间、"在平台中打开"图标按钮、⋯ 菜单："立即同步"（`lms.sync.request` 带 `course_id`、`force`）/ 更换课程… / 解除关联…），下方是"同步这门课"开关（即 `sync_enabled`）；状态 Badge 取 `sync_errors` 的第一个错误，时间是 `synced_at`；关联出错时显示 Alert，令牌/权限类错误给"打开 LMS 连接"，其余给"重试"。未关联时是一个可搜索的 Combobox，选中即关联（只认点击/回车选中，触发器上的键入联想不算），课程代码匹配的排在"建议"组，其余按学期分组，已被其它课程关联的项禁用并注明是哪门课程，底部 Checkbox"包括往期课程"；更换时当前课程禁用，选中后先确认。Program 未绑定连接时显示引导；账户里一个连接都没有时直接引导去添加连接。
 
 ### 7.2 导入流程
 - 学期向导、学期页和 Program 页的"从 LMS 导入课程"：勾选外部课程（默认只显示当前学期，可切换显示全部），选择目标学期，进入 M08 审核，提交后课程与关联同时创建。
 - 成绩页的"从 LMS 导入作业"与 Canvas Tab 的"导入"：作业列表多选 → `lms.assignment.import`；没有冲突时直接保存并 toast，有冲突打开 M08 审核（`reviewIfNeeded`）。
-- 新作业提醒 `NewAssignmentsToast`（manifest `overlays`，不占页面空间，owner 2026-11-07）：在学业项目里时读当前学期的 `lms.term.new_assignments`（只读缓存，没缓存的课程列在 `unread`，由前端并行读 `lms.assignment.list` 补上），有新作业时弹出一次 toast「Canvas 上有 N 个新作业」，按钮「导入」（逐门课 `importAssignments`，需要决定的先打开审核）与「忽略」（把当前所有新作业的 `课程id:作业id` 写进 `useUiPref('lms.newAssignmentsIgnored', scope=programId)`，之后只有新出现的作业会再提醒）。`lmsTermNewAssignments` 属于 `LMS_STATE_QUERIES`。Canvas 页签里不再有横幅。
+- 同步的界面（`modules/lms/sync/`，owner 2026-11-12）：不占页面空间，全部是浮层。
+  - **状态行**（`statusItems` 的 `lms.sync`，M10 §5.6）：学业项目绑定了平台就一直在。连接坏了是 `error`（“重新连接 {平台}”）；有待处理是 `attention`（`BellDot`，强调色，“{平台} · N 项待处理”）；同步中转圈；否则 `idle`（“{平台} · M 分钟前同步”）。点开是面板 `SyncPanel`：标题行（平台、上次同步与频率、“立即同步”），连接错误 Alert（“打开设置”），各课程的阶段错误，“待处理”（新作业按课程一行：忽略 / 导入；冲突：保留我的 / 用平台的；平台上已删除：保留 / 删除（确认）），“最近更新”（悬停出现“撤销”），可折叠的“已忽略”（重新提醒 / 导入）。
+  - **提醒**（`SyncToasts`，manifest `overlays`）：打开学业项目时请求一次同步。有用户还没被告知的待处理项时弹一个不自动消失的 toast（只有新作业时“{平台} 上有新作业”+ 导入 / 忽略，否则“{平台}：N 项待处理”+ 查看 / 忽略），同步写入了东西时弹一个 8 秒的“已从 {平台} 更新”+ 查看；手动同步什么也没找到时说“{平台} 已是最新”。告知过的 id 记在 `useUiPref('lms.sync_told_pending' / 'lms.sync_told_changes', scope=programId)`，所以忽略 toast 不会在下次打开时重复，但新出现的项会再提醒。“查看”经 `openStatusPanel('lms.sync')` 打开状态行面板。
+  - **命令面板**：“同步学习平台”（绑定了平台时可用），打开面板并强制同步。
 - 作业导入可以接着做：同一门课（同一关联）还有等待审核的作业导入（`source_meta.lms.kind == "assignments"`、状态 `ready`）时，再次导入不新建会话，只把还不在其中的作业补进去（作业组对应的分类按 `source_meta.lms.groups` 复用），没有新作业就直接返回那个会话，前端打开它的审核。
 - 未设置作业组权重的课程：导入的考核没有权重，带 `import.weight_missing`，所以会打开审核让用户填写（不按分值占比推算：课程总分变化后占比就过时了）。
-- 提交检测的小时轮询只看截止在 14 天内（`submissions.LATE_WINDOW`）或之后的已导入作业，没有截止日期的不查；打开课程的作业列表时照常检测。
-- 更新提示条（成绩页与 Canvas Tab 共用组件 `<LmsUpdatesBanner courseId>`，由本模块导出）。
 
 ## 8. Agent 集成
-Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台接口一个工具（2026-11-08 重新设计，分析见资料库 `2026-11-08-LMS工具重新设计.md`；原则见 Anthropic《Writing effective tools for agents》、OpenAI function calling 最佳实践与 MCP 规范）：
+Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台接口一个工具（2026-11-08 重新设计，分析见资料库 `2026-11-08-LMS工具重新设计.md`；原则见 Anthropic《Writing effective tools for agents》、OpenAI function calling 最佳实践与 MCP 规范）：
 
 | 用途 | 工具 |
 |---|---|
 | 读 | `lms.content.search`、`lms.content.read`、`lms.course.outline`、`lms.activity.list`、`lms.assignment.list` |
 | 关联 | `lms.course.list`、`lms.course.link.set` |
-| 写（走提案确认与 M08 审核） | `lms.file.save_to_course`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import`、`lms.change.import` |
+| 写（走提案确认与 M08 审核） | `lms.file.save_to_course`、`lms.course.import`、`lms.assignment.import`、`lms.syllabus.import` |
 
-其余 capability（逐个平台接口的读取、绑定、关联维护、`lms.assignment.add_to_gradebook`、`lms.course.check_updates`）只开放 HTTP，供 Canvas Tab 与设置页使用。
+其余 capability（逐个平台接口的读取、绑定、关联维护、`lms.assignment.add_to_gradebook`、`lms.sync.*`）只开放 HTTP，供 Canvas Tab 与设置页使用。
 
 - **ref**（`refs.py`）：`<kind>:<id>`，kind 为 page、announcement、assignment、quiz、discussion、file，外加 `syllabus`。由服务端生成，模型原样传回；页面用 slug（可达 600 字符），其它用平台 id。LMS 文本的 Markdown 里平台内链写成 `lms:<ref>`。`lms.content.read` 也接受 LMS 地址（`rewrite_internal_link`）。导入与文件工具的 id 参数同样接受 ref。
 - **`lms.area_hidden` 要导航确认**：读整个栏目的列表被拒（`lms.not_found` / `lms.forbidden`）时，只有课程导航里没有该栏目或标为隐藏，才报 `lms.area_hidden`；否则保留原错误（课程在平台上被删、学生被移出课程也会被拒）。
@@ -208,7 +221,7 @@ Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台�
 - **不带时区的时间**（`since`、`due_after`、`due_before`）按 Program 时区解释。
 - **outline / search 只读开放的栏目**：从课程导航得出开放的栏目（`open_areas`），页面、文件、测验、讨论栏目被隐藏时不请求它们的列表（Canvas 会返回 404），在结果的 `skipped` 里注明 `hidden`；模块里的页面仍逐页读取。没有导航功能的平台视为全部开放。
 - **搜索**（`search.py`，方案 A：读缓存 + 本地匹配，不建索引）：文档来自模块条目、页面正文（每次最多 60 页，`reads.read_many` 并发 4 个请求；页面列表给出了 `updated_at` 的按它做缓存键、保留 14 天，只能从模块得知的页面缓存 1 小时）、公告、作业、测验、讨论、大纲和按名搜索的文件。按词匹配：英文词匹配词首，中日文按两字切分；先按命中的不同词数排序，再按得分（标题权重 4、短语加分）和日期。单个来源失败只记进 `skipped`，凭证类错误整体失败。
-- **`lms.activity.list`**：默认最近 7 天；`change` 项来自 `check_updates`，排在最前且不参与截断，用 `lms.change.import` 交给用户审核；`assignment` 项只算“新作业”（未导入且未到截止、最近有改动）。
+- **`lms.activity.list`**：默认最近 7 天；`assignment` 项只算“新作业”（未导入且未到截止、最近有改动）。已导入作业的变化由后台同步处理，用户在同步面板里回答（2026-11-12 起不再有 `change` 项与 `lms.change.import`）。
 - **`lms.assignment.list`**：每项带 `ref`；`status`（upcoming / missing / graded；missing 以平台的 missing 标志为准，没有提交记录时才按截止日期推断，且排除纸质等不需在线提交的类型）、`due_after` / `due_before` 过滤；`include_total` 附带课程总分。`lms.assignment.import` 的 `into: gradebook` 即原 `add_to_gradebook`。
 - **课程来源**：academics 新增扩展点 `register_course_source(name, linked)`，`academics.course.find` 的结果带 `sources`，本模块对已关联课程贡献 `lms`，让 Sem 知道课程资料还有 LMS 这一处。
 - 讨论：provider 契约新增 `discussions`、`discussion`（功能标志 `discussions`），Canvas 的公告也按讨论读取（带回复，最多 100 条）。
@@ -235,6 +248,8 @@ Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台�
 - 用假 provider 跑通全部模块测试，证明新增 provider 不需要修改模块代码。
 
 ## 实现说明（M09 落地时补充）
+
+> 2026-11-12 的后台同步（§4.1）取代了下面关于 `check_updates`、更新审核、`reported`、`lms.refresh_status`、`lms.complete_submitted` 定时任务、`LmsUpdatesBanner`、`NewAssignmentsToast` 与 `lms.term.new_assignments` 的记载，这些接口和组件已删除；这里保留当时的记录。
 以下是实现时做出的取舍与对上文的细化，以代码为准。
 
 **后端**
@@ -256,7 +271,7 @@ Agent 与 MCP 只看到 12 个按任务设计的工具，而不是每个平台�
 **前端**
 - 全局设置"学习平台"组下的"LMS 连接"沿用 AI 服务商分区的列表行样式（`Item` 行 + 行内按钮），没有用表格；手机端仍是对话框，没有做抽屉。删除正在使用的连接时确认框说明会解除多少关联，确认后以 `detach_all=true` 删除。
 - 学业项目设置与课程设置的 LMS 分区都在"学习平台"组（`lms`）。更换关联课程前有确认框：旧关联的导入记录会被清除（之后不再检测这些作业的变化）。课程设置里选择外部课程按平台学期分组（当前学期在前），被其它课程关联的项灰显并写明是哪门课程。
-- 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, description?, summary?, ConfigForm, isComplete }`；`description` 是选择服务商时名称下的一行说明，`summary(config)` 给出连接行上除名称外的标识，Canvas 是实例地址）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）、`grading.courseGradesBanners`（成绩页顶部提示，`LmsUpdatesBanner` 挂在这里）。
+- 新扩展点：`lms.providerUi`（本模块定义，`{ kind, label, logo, description?, summary?, ConfigForm, isComplete }`；`description` 是选择服务商时名称下的一行说明，`summary(config)` 给出连接行上除名称外的标识，Canvas 是实例地址）、`academics.courseInfoRows`（课程信息卡片的额外行，用于显示服务商徽章和"在 Canvas 中打开"）（`grading.courseGradesBanners` 随更新提示条在 2026-11-12 删除）。
 - M08 的 `openImport` 新增两种请求：`source: 'picker'`（来源自己创建 session 的第一步，例如 LMS 课程/作业选择）和 `source: 'session'`（已有 session 直接进入审核，例如作业变更）。学期向导的来源用 M08 导出的 `wizardImportSource` 包装，所以 LMS 课程也走"向导创建课程 → 提交 session"的流程，关联在提交时创建。向导路径下课程只带课程号和名称，平台上的课程全名（alias）和网址不会写入。
 - **前端不写死 Canvas**（UIUX 第三轮）：连接列表每行显示服务商图标与名称（`useProviderName`：provider UI 的 `label`，没有前端贡献时退回后端 `lms.provider.list` 的 `display_name`）；"添加连接"对话框第一步总是选服务商（服务商列表随连接列表预取，加载中是一行 Skeleton，没有可用服务商时显示 Empty；列出后端提供、且前端有 `lms.providerUi` 贡献的服务商，目前只有 Canvas 也照样走这一步），第二步是该服务商贡献的表单，可"返回"重选，标题为"添加 {provider} 连接"；编辑时服务商固定。学业项目设置的连接下拉也带服务商图标。通用文案都从服务商名称取："从 {provider} 导入课程"、"{provider} 作业"、"{provider} 课程"、"{provider} 上没有课程/作业"、"在 {provider} 中打开"、变更提示条。学期向导与成绩页"导入"菜单里的名称依赖当前学业项目绑定的服务商，因此 M02 的 `TermWizardImportSource` 和 M03 的 `AssessmentImportSource` 新增可选 `Title` 组件（拿到 `programId`/`courseId` 后渲染）和 `query`（宿主随页面预取 `Title` 要读的数据，打开菜单时名称不再从 LMS 变成 Canvas），M08 的 `ImportPicker` 新增可选 `Title`；没有绑定或加载中时退回"从 LMS 导入课程"。命令面板的命令名称是静态字符串，仍是"从 LMS 导入课程"。
 - "从 LMS 导入课程"目前入口是学期向导和学期页的命令面板（命令 `lms.import-courses`），学期页和学业项目页上没有单独的按钮。

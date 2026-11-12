@@ -1,4 +1,4 @@
-"""The background course sync (M09 §4.8) with the fake provider: imported assignments follow the
+"""The background course sync (M09 §4.1) with the fake provider: imported assignments follow the
 platform, what the user changed too is asked about, new and removed assignments wait for the
 user, and the scheduler syncs what is due."""
 
@@ -294,6 +294,8 @@ async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Cl
         return int(status["syncing"])
 
     assert await due() == 1  # never synced
+    # The status line shows it, not the list of jobs.
+    assert (await api.call("GET", "/jobs?with_active=true"))["items"] == []
     clock.advance(hours=1)
     assert await due() == 0  # every 6 hours by default
     await api.call("PATCH", "/me/settings/lms", json={"values": {"sync_every": "1h"}})

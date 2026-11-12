@@ -1,4 +1,4 @@
-"""The assignments stage of the course sync (M09 §4.8), and the user's answers to what it asks.
+"""The assignments stage of the course sync (M09 §4.1), and the user's answers to what it asks.
 
 Imported assignments follow the platform field by field (title, due date, weight, grade; a to-do
 only title and due date). A field whose Semestra value still equals its snapshot (the platform

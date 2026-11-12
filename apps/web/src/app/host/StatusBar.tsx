@@ -3,8 +3,25 @@ import { coreJobCancel } from '@semestra/api-client'
 import { coreJobListOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { CircleAlert, CircleCheck, Clock3, LoaderCircle, X } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import {
+  CircleAlert,
+  CircleCheck,
+  Clock3,
+  Ellipsis,
+  LoaderCircle,
+  type LucideIcon,
+  X,
+} from 'lucide-react'
+import {
+  Fragment,
+  type ReactNode,
+  Suspense,
+  createContext,
+  use,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { JobProgress } from '@/components/JobProgress'
 import { jobIsWaiting, jobStageLabel } from '@/hooks/use-job'
 import { useNow } from '@/hooks/use-now'
@@ -27,7 +44,13 @@ import { Progress } from '@/ui/progress'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/ui/sidebar'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import type { JobKindContribution, StatusItem, StatusItemContribution } from '../extensions'
+import {
+  type JobKindContribution,
+  preload,
+  type StatusItem,
+  type StatusItemContribution,
+  type StatusRank,
+} from '../extensions'
 import { useModules, useStatusItems } from '../registry'
 import { useUiPref } from '../ui-pref'
 
@@ -59,21 +82,109 @@ function jobTitle(job: JobOut, kinds: readonly JobKindContribution[]): string {
   return kinds.find((k) => k.kind === job.kind)?.title() ?? jobStageLabel(job)
 }
 
+/** At most this many lines show; past it the last one sums up the rest (M10 §5.6). */
+export const MAX_LINES = 3
+
+const RANKS: Record<StatusRank, number> = { error: 0, attention: 1, running: 2, timer: 3, idle: 4 }
+
+const rankOf = (item: StatusItem) =>
+  RANKS[item.rank ?? (item.tone === 'error' ? 'error' : 'running')]
+
+/** What the bar knows of a line to place it, and to name it on the overflow line. */
+export type LineEntry = {
+  rank: number
+  order: number
+  label: string
+  icon: LucideIcon
+  tone?: StatusItem['tone']
+  to?: string
+}
+
+/**
+ * Which lines show, in order: by rank, then `order`. When more want to show than fit, the last
+ * place goes to a line that sums up the rest (`hidden`). `pinned` (a line whose panel was asked
+ * for) always shows.
+ */
+export function placeLines(
+  entries: ReadonlyMap<string, LineEntry>,
+  pinned: string | null = null,
+  max = MAX_LINES,
+): { shown: string[]; hidden: string[] } {
+  const ids = [...entries.keys()].sort((a, b) => {
+    const x = entries.get(a)
+    const y = entries.get(b)
+    if (!x || !y) return 0
+    return a === pinned ? -1 : b === pinned ? 1 : x.rank - y.rank || x.order - y.order
+  })
+  if (ids.length <= max) return { shown: ids, hidden: [] }
+  return { shown: ids.slice(0, max - 1), hidden: ids.slice(max - 1) }
+}
+
+const same = (a: LineEntry, b: LineEntry) =>
+  (Object.keys(a) as (keyof LineEntry)[]).every((key) => a[key] === b[key]) &&
+  Object.keys(a).length === Object.keys(b).length
+
+/** The lines' entries, written by each line as it changes and read by the bar. */
+class Lines {
+  private entries: ReadonlyMap<string, LineEntry> = new Map()
+  private readonly listeners = new Set<() => void>()
+
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener)
+    return () => void this.listeners.delete(listener)
+  }
+
+  get = () => this.entries
+
+  set(id: string, entry: LineEntry | null) {
+    const current = this.entries.get(id)
+    if (entry === null ? current === undefined : current !== undefined && same(current, entry)) {
+      return
+    }
+    const next = new Map(this.entries)
+    if (entry) next.set(id, entry)
+    else next.delete(id)
+    this.entries = next
+    for (const listener of this.listeners) listener()
+  }
+}
+
+type Bar = {
+  lines: Lines
+  shown: readonly string[]
+  /** A line's popover opened or closed: the bar holds still while one is open. */
+  setOpen: (id: string, open: boolean) => void
+}
+
+const BarContext = createContext<Bar | null>(null)
+
+const panelRequests = new EventTarget()
+
+/** Opens the panel of a status line (e.g. from a toast's "View"), if the line is there. */
+export function openStatusPanel(id: string) {
+  panelRequests.dispatchEvent(new CustomEvent<string>('open', { detail: id }))
+}
+
 /** The icon and text of a line; the text is clipped (never wrapped) while the rail narrows. */
-function LineFace({ icon: Icon, label, tone, spin }: StatusItem & { spin?: boolean }) {
+function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
   const iconClass = cn(
+    'animate-in duration-150 fade-in-0 motion-reduce:animate-none',
     tone === 'error'
       ? 'text-destructive'
       : tone === 'success'
         ? 'text-success'
-        : 'text-muted-foreground',
+        : tone === 'accent'
+          ? 'text-primary'
+          : 'text-muted-foreground',
   )
+  // Keyed by the icon's state: a new state fades in where the old one was.
+  const key = `${spin ? 'spin' : Icon.displayName}:${tone ?? ''}`
   return (
     <>
       {spin ? (
-        <Spinner aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
+        <Spinner key={key} aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
       ) : (
-        <Icon aria-hidden="true" className={iconClass} />
+        <Icon key={key} aria-hidden="true" className={iconClass} />
       )}
       <span>{label}</span>
     </>
@@ -99,33 +210,151 @@ function LineProgress({ label, tone, progress, waiting }: StatusItem & { waiting
   )
 }
 
-function StatusLine({ item }: { item: StatusItem }) {
-  return (
-    <SidebarMenuItem>
-      {item.to ? (
-        <SidebarMenuButton tooltip={item.label} size="sm" render={<Link to={item.to} />}>
-          <LineFace {...item} />
-        </SidebarMenuButton>
-      ) : (
-        <SidebarMenuButton
-          tooltip={item.label}
-          size="sm"
-          className="cursor-default"
-          render={<div />}
+const signatureOf = (item: StatusItem | null) =>
+  item ? [item.label, item.tone, item.rank, item.progress, item.to, item.spin].join('\u0000') : ''
+
+/**
+ * One place in the bar. It tells the bar what it shows (`report`), opens and closes with a 200 ms
+ * height transition, and keeps its last content while it closes. Its button follows `to`, opens
+ * `panel` in a popover, or does nothing.
+ */
+function Slot({
+  id,
+  order,
+  item,
+  panel,
+  open = false,
+  onOpenChange,
+  waiting,
+  report = true,
+}: {
+  id: string
+  order: number
+  item: StatusItem | null
+  panel?: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  waiting?: boolean
+  report?: boolean
+}) {
+  const bar = use(BarContext)
+  // The store outlives the bar's renders; the effects depend on it, not on the bar object.
+  const lines = bar?.lines
+  const { state } = useSidebar()
+  const rank = item ? rankOf(item) : null
+  const { label, icon, tone, to } = item ?? {}
+  useEffect(() => {
+    if (!lines || !report) return
+    lines.set(
+      id,
+      rank !== null && label !== undefined && icon !== undefined
+        ? { rank, order, label, icon, tone, to }
+        : null,
+    )
+  }, [lines, report, id, rank, order, label, icon, tone, to])
+  useEffect(() => () => lines?.set(id, null), [lines, id])
+  useEffect(() => {
+    if (!onOpenChange) return
+    const onRequest = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === id) onOpenChange(true)
+    }
+    panelRequests.addEventListener('open', onRequest)
+    return () => panelRequests.removeEventListener('open', onRequest)
+  }, [id, onOpenChange])
+
+  // What it showed last, kept while it closes (a line that just ended still reads as itself).
+  const signature = signatureOf(item)
+  const [last, setLast] = useState({ signature, item })
+  if (item && signature !== last.signature) setLast({ signature, item })
+  const content = item ?? last.item
+  const place = report ? (bar?.shown.indexOf(id) ?? -1) : item ? MAX_LINES - 1 : -1
+  const shown = place >= 0 && content !== null
+
+  const changeOpen = (next: boolean) => {
+    bar?.setOpen(id, next)
+    onOpenChange?.(next)
+  }
+
+  let button: ReactNode = null
+  if (content && panel) {
+    button = (
+      <Popover open={open} onOpenChange={changeOpen}>
+        <PopoverTrigger render={<SidebarMenuButton tooltip={content.label} size="sm" />}>
+          <LineFace {...content} />
+        </PopoverTrigger>
+        <PopoverContent
+          side={state === 'collapsed' ? 'right' : 'top'}
+          align="start"
+          className="w-96"
         >
-          <LineFace {...item} />
-        </SidebarMenuButton>
+          <Suspense fallback={<Spinner className="mx-auto" />}>{panel}</Suspense>
+        </PopoverContent>
+      </Popover>
+    )
+  } else if (content?.to) {
+    button = (
+      <SidebarMenuButton tooltip={content.label} size="sm" render={<Link to={content.to} />}>
+        <LineFace {...content} />
+      </SidebarMenuButton>
+    )
+  } else if (content) {
+    button = (
+      <SidebarMenuButton
+        tooltip={content.label}
+        size="sm"
+        className="cursor-default"
+        render={<div />}
+      >
+        <LineFace {...content} />
+      </SidebarMenuButton>
+    )
+  }
+
+  return (
+    <SidebarMenuItem
+      data-status-line={id}
+      data-shown={shown}
+      inert={!shown}
+      style={{ order: shown ? place : MAX_LINES }}
+      className={cn(
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none',
+        shown ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
       )}
-      <LineProgress {...item} />
+    >
+      <div className="min-h-0 overflow-hidden">
+        <div className="pb-0.5">
+          {button}
+          {content ? <LineProgress {...content} waiting={waiting} /> : null}
+        </div>
+      </div>
     </SidebarMenuItem>
   )
 }
 
-function Contribution({ contribution }: { contribution: StatusItemContribution }) {
+function Contribution({
+  contribution,
+  order,
+}: {
+  contribution: StatusItemContribution
+  order: number
+}) {
   // Keyed by id, so each instance always calls the same contribution's hook.
   // oxlint-disable-next-line react/rules-of-hooks
   const item = contribution.useStatus()
-  return item ? <StatusLine item={item} /> : null
+  const [open, setOpen] = useState(false)
+  const Panel = item?.Panel
+  // Loaded with the line, so opening it does not wait.
+  useEffect(() => void preload(Panel), [Panel])
+  return (
+    <Slot
+      id={contribution.id}
+      order={order}
+      item={item}
+      open={open}
+      onOpenChange={Panel ? setOpen : undefined}
+      panel={Panel ? <Panel onClose={() => setOpen(false)} /> : undefined}
+    />
+  )
 }
 
 function JobRow({
@@ -194,7 +423,6 @@ function JobRow({
  * the list has been opened.
  */
 function JobsLine() {
-  const { state } = useSidebar()
   // The newest jobs, plus every active one however many finished after it.
   const all =
     useQuery(coreJobListOptions({ query: { limit: 20, with_active: true } })).data?.items ?? []
@@ -231,10 +459,10 @@ function JobsLine() {
     setOpen(false)
   }
 
-  if (jobs.length === 0) return null
-
-  let item: StatusItem & { spin?: boolean; waiting?: boolean }
-  if (only && only.status === 'failed') {
+  let item: StatusItem | null = null
+  if (jobs.length === 0) {
+    item = null
+  } else if (only && only.status === 'failed') {
     item = {
       icon: CircleAlert,
       tone: 'error',
@@ -252,7 +480,6 @@ function JobsLine() {
       label: m.status_job_waiting({ name: jobTitle(only, kinds) }),
       // A queued job has not started: no bar yet.
       progress: only.status === 'running' ? progress : undefined,
-      waiting: true,
     }
   } else if (only) {
     item = {
@@ -280,23 +507,19 @@ function JobsLine() {
   }
 
   return (
-    <SidebarMenuItem>
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          if (!next) return close()
-          setHeld(jobs.map((job) => job.id))
-          setOpen(true)
-        }}
-      >
-        <PopoverTrigger render={<SidebarMenuButton tooltip={item.label} size="sm" />}>
-          <LineFace {...item} />
-        </PopoverTrigger>
-        <PopoverContent
-          side={state === 'collapsed' ? 'right' : 'top'}
-          align="start"
-          className="w-80"
-        >
+    <Slot
+      id="jobs"
+      order={-1}
+      item={item}
+      waiting={onlyWaits}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) return close()
+        setHeld(jobs.map((job) => job.id))
+        setOpen(true)
+      }}
+      panel={
+        <>
           <p className="text-xs font-medium text-muted-foreground">{m.status_jobs_title()}</p>
           <ItemGroup className="gap-0">
             {jobs.map((job, index) => (
@@ -306,26 +529,135 @@ function JobsLine() {
               </Fragment>
             ))}
           </ItemGroup>
-        </PopoverContent>
-      </Popover>
-      <LineProgress {...item} />
-    </SidebarMenuItem>
+        </>
+      }
+    />
+  )
+}
+
+/** The last place when more lines want to show than fit: "N more · names", opening their list. */
+function MoreLine({ entries }: { entries: readonly LineEntry[] }) {
+  const [open, setOpen] = useState(false)
+  const names = entries.map((entry) => entry.label).join(m.common_list_separator())
+  const item: StatusItem | null =
+    entries.length > 0
+      ? { icon: Ellipsis, label: m.status_more({ count: entries.length, names }) }
+      : null
+  return (
+    <Slot
+      id="more"
+      order={0}
+      item={item}
+      report={false}
+      open={open}
+      onOpenChange={setOpen}
+      panel={
+        <>
+          <p className="text-xs font-medium text-muted-foreground">{m.status_more_title()}</p>
+          <ItemGroup className="gap-0">
+            {entries.map(({ icon: Icon, label, to, tone }, index) => (
+              <Fragment key={label}>
+                {index > 0 ? <ItemSeparator className="my-0" /> : null}
+                <Item render={<li />} size="xs" className="gap-2 px-0">
+                  <Icon
+                    aria-hidden
+                    className={cn(
+                      'size-4 shrink-0',
+                      tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
+                    )}
+                  />
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="w-full">
+                      {to ? (
+                        <Link
+                          to={to}
+                          onClick={() => setOpen(false)}
+                          className="truncate hover:underline"
+                        >
+                          {label}
+                        </Link>
+                      ) : (
+                        <span className="truncate">{label}</span>
+                      )}
+                    </ItemTitle>
+                  </ItemContent>
+                </Item>
+              </Fragment>
+            ))}
+          </ItemGroup>
+        </>
+      }
+    />
   )
 }
 
 /**
- * Bottom of the sidebar, above settings and the account menu (M10 §5.6): background jobs, then
- * the modules' `statusItems` by `order`. It is a sidebar menu, so the icon rail shows icons only,
- * with the text as a tooltip. Takes no space while every line is empty.
+ * Bottom of the sidebar, above settings and the account menu (M10 §5.6): background jobs and the
+ * modules' `statusItems`, at most `MAX_LINES`, by rank (errors first). Lines open and close with
+ * a height transition, so what is around the bar moves smoothly; while the pointer is over it or
+ * a panel is open, nothing comes or goes. It is a sidebar menu, so the icon rail shows icons
+ * only, with the text as a tooltip.
  */
 export function StatusBar({ className }: { className?: string }) {
   const items = useStatusItems()
+  const [lines] = useState(() => new Lines())
+  const entries = useSyncExternalStore(lines.subscribe, lines.get)
+  const [pinned, setPinned] = useState<string | null>(null)
+  const live = placeLines(entries, pinned)
+  const [hovering, setHovering] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [frozen, setFrozen] = useState<typeof live | null>(null)
+  const placement = frozen ?? live
+
+  useEffect(() => {
+    const onRequest = (event: Event) => setPinned((event as CustomEvent<string>).detail)
+    panelRequests.addEventListener('open', onRequest)
+    return () => panelRequests.removeEventListener('open', onRequest)
+  }, [])
+
+  const bar: Bar = {
+    lines,
+    shown: placement.shown,
+    setOpen: (id, open) => {
+      if (open) {
+        setOpenId(id)
+        setFrozen((current) => current ?? live)
+        return
+      }
+      setOpenId(null)
+      setPinned(null)
+      if (!hovering) setFrozen(null)
+    },
+  }
+  const hidden = placement.hidden.flatMap((id) => {
+    const entry = entries.get(id)
+    return entry ? [entry] : []
+  })
+
   return (
-    <SidebarMenu aria-label={m.status_bar_label()} className={cn('empty:hidden', className)}>
-      <JobsLine />
-      {items.map((contribution) => (
-        <Contribution key={contribution.id} contribution={contribution} />
-      ))}
-    </SidebarMenu>
+    <BarContext value={bar}>
+      <SidebarMenu
+        aria-label={m.status_bar_label()}
+        className={cn('gap-0', className)}
+        onPointerEnter={() => {
+          setHovering(true)
+          setFrozen((current) => current ?? live)
+        }}
+        onPointerLeave={() => {
+          setHovering(false)
+          if (openId === null) setFrozen(null)
+        }}
+      >
+        <JobsLine />
+        {items.map((contribution) => (
+          <Contribution
+            key={contribution.id}
+            contribution={contribution}
+            order={contribution.order}
+          />
+        ))}
+        <MoreLine entries={hidden} />
+      </SidebarMenu>
+    </BarContext>
   )
 }

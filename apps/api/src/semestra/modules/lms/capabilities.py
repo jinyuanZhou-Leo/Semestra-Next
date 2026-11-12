@@ -834,7 +834,7 @@ async def import_syllabus(ctx: Ctx, inp: CourseRef) -> ImportStarted:
     return await imports.import_syllabus(ctx, inp.course_id)
 
 
-# --- background sync (M09 §4.8) -------------------------------------------------------------
+# --- background sync (M09 §4.1) -------------------------------------------------------------
 
 
 @capability(

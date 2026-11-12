@@ -20,7 +20,6 @@ import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
-import { LmsUpdatesBanner } from '@/modules/lms/components/LmsUpdatesBanner'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -107,15 +106,12 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
       <div className="flex flex-col gap-4">
         <CanvasBoundary query={overview} skeleton={<PageSkeleton />}>
           {(data) => (
-            <>
-              <LmsUpdatesBanner programId={programId} courseId={courseId} />
-              <Body
-                overview={data}
-                location={location}
-                fetching={fetching || refreshing}
-                onRefresh={reload}
-              />
-            </>
+            <Body
+              overview={data}
+              location={location}
+              fetching={fetching || refreshing}
+              onRefresh={reload}
+            />
           )}
         </CanvasBoundary>
       </div>

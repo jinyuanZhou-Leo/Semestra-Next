@@ -43,8 +43,8 @@ saved token is never sent to a different server.
 </Step>
 </Steps>
 
-Connections are re-checked every six hours. A connection whose token was revoked or expired is
-marked with an error until you update it.
+Each sync also checks the connection. A connection whose token was revoked or expired is marked
+with an error, and the sidebar's status line asks you to reconnect, until you update it.
 
 ### Sign in with a school account
 
@@ -97,11 +97,34 @@ program is linked, the binding cannot be changed or removed.
 Either [import courses from Canvas](./imports.mdx), which links them as they are created, or
 pick the Canvas course in an existing course's settings → **Learning platforms → LMS**. A Canvas course
 can be linked to only one course per program, and a year-long course has a single link. The same
-place refreshes the course's details from Canvas, links a different course or unlinks it.
+place syncs the course now, links a different course or unlinks it.
 
-Each link has a **Calendar and assignment changes** switch. When it is off, the course's Canvas
-calendar events leave the calendar and assignment changes are no longer detected; the Canvas tab and
-Sem can still read the course.
+Each link has a **Sync this course** switch. When it is off, the course no longer syncs in the
+background and its Canvas calendar events leave the calendar; the Canvas tab and Sem can still read
+the course.
+
+## Background sync
+
+Linked courses sync in the background, so you don't have to open a page for Semestra to notice
+what changed on Canvas. They sync every six hours by default; pick another interval under global
+settings → **Learning platforms → Sync → Background sync**. Opening a program also syncs its
+courses that haven't synced in the last half hour. The shortest interval on offer is set by the
+server ([`SEMESTRA_LMS_SYNC_MIN_INTERVAL`](/docs/self-hosting/configuration) when you host it
+yourself).
+
+- **Imported assignments follow Canvas.** When an assignment's name, due date, weight or grade
+  changes on Canvas, Semestra updates it here, unless you changed that value yourself. If both
+  sides changed, it asks which one to keep.
+- **New assignments are offered, not added.** Assignments due later that you haven't imported show
+  up in a notice where you can **Import** or **Ignore** them.
+- **Deleted on Canvas**: an imported assignment that is gone from Canvas is kept until you choose
+  to keep or delete it.
+
+The status line at the bottom of the sidebar shows the sync: when it last ran, or how many items
+wait for you. Click it for the details: **Sync now**, the items to review, recent updates (each
+can be undone for 14 days) and the assignments you ignored, which you can import later or be
+reminded of again. **Sync learning platform** in the command palette does the same. Notices float
+over the page and never take up room in it.
 
 ## What you get from a link
 
@@ -113,13 +136,13 @@ Sem can still read the course.
   default; **Canvas style** keeps their colors and layout from Canvas (except styles from the
   school's theme files). The menu next to the title switches for the moment; the default is under
   **Settings → Plugins → Canvas tab**.
-- **Calendar**: Canvas calendar events of courses with **Calendar and assignment changes** on
+- **Calendar**: Canvas calendar events of courses with **Sync this course** on
   appear in the term calendar with a Canvas mark, and their details offer **Open in Canvas**.
   Assignments appear once you import them, as to-dos.
 - **To-dos that follow submissions**: when an imported assignment shows as submitted in Canvas,
   its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
-  assignment is checked off once, so a to-do you uncheck stays open. Semestra checks about
-  every hour, for assignments due in the past two weeks or later. Turn it off under
+  assignment is checked off once, so a to-do you uncheck stays open. Semestra checks on each
+  sync. Turn it off under
   global settings → **Learning platforms → Sync**.
 - **Announcements card** for course and term boards.
 - **Sem and MCP** can search and read the course (see below and [MCP tools](/docs/mcp/tools)).

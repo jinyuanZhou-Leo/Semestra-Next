@@ -1,4 +1,4 @@
-"""Background sync of linked courses (M09 §4.8).
+"""Background sync of linked courses (M09 §4.1).
 
 One job per course, `lms.course.sync`, runs the registered stages in order (course details,
 assignments, announcements; the file sync adds its own). Each stage reads the platform first and
@@ -128,7 +128,8 @@ class _Unlinked(Exception):
     """The course was unlinked or paused since the job was queued."""
 
 
-@job_handler(JOB, stages=[("syncing", 1)], max_attempts=1)
+# Not in the status bar's job list: the sync has its own status line (M09 §4.1).
+@job_handler(JOB, stages=[("syncing", 1)], max_attempts=1, listed=False)
 async def sync_job(ctx: JobCtx, payload: SyncPayload) -> SyncOutcome:
     async def progress(done: int, total: int) -> None:
         await ctx.stage("syncing", current=done, total=total)

@@ -32,8 +32,6 @@ ItemType = Literal[
     "assessment",
     "task",
     "course_patch",
-    "assessment_patch",
-    "task_patch",
 ]
 Decision = Literal["accept", "reject", "pending"]
 Confidence = Literal["high", "medium", "low"]
@@ -108,23 +106,6 @@ PatchField = Literal[
 class CoursePatchData(BaseModel):
     course_id: Id = Field(description="The existing course")
     changes: dict[PatchField, FieldChange] = Field(description="Changed fields by name")
-
-
-class AssessmentPatchData(BaseModel):
-    """Changes to an existing assessment (M09 LMS updates)."""
-
-    assessment_id: Id
-    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
-    # `score` is {points_earned, points_possible} (the grade on the platform).
-    changes: dict[Literal["title", "due_date", "due_time", "weight", "score"], FieldChange]
-
-
-class TaskPatchData(BaseModel):
-    """Changes to an existing task (M09 LMS updates)."""
-
-    task_id: Id
-    label: Annotated[str, Field(max_length=200)] = ""  # names the item in the review
-    changes: dict[Literal["title", "due_date", "due_time"], FieldChange]
 
 
 class MeetingData(BaseModel):
@@ -257,8 +238,6 @@ class TaskData(BaseModel):
 DATA_MODELS: dict[str, type[BaseModel]] = {
     "course": CourseData,
     "course_patch": CoursePatchData,
-    "assessment_patch": AssessmentPatchData,
-    "task_patch": TaskPatchData,
     "meeting": MeetingData,
     "event": EventData,
     "category": CategoryData,
@@ -599,20 +578,10 @@ class TaskFields(TaskData, _Strict):
     pass
 
 
-class AssessmentPatchFields(AssessmentPatchData, _Strict):
-    pass
-
-
-class TaskPatchFields(TaskPatchData, _Strict):
-    pass
-
-
 # What `imports.item.update` checks a changed item against: the same strict models as add_many.
 STRICT_MODELS: dict[str, type[BaseModel]] = {
     "course": CourseFields,
     "course_patch": CoursePatchFields,
-    "assessment_patch": AssessmentPatchFields,
-    "task_patch": TaskPatchFields,
     "meeting": MeetingFields,
     "event": EventFields,
     "category": CategoryFields,

@@ -1,4 +1,4 @@
-"""What the app shows about a Program's sync (M09 §4.8): the status line, its panel and the
+"""What the app shows about a Program's sync (M09 §4.1): the status line, its panel and the
 reminders. Read from the database only, so it answers at once while courses sync."""
 
 from datetime import datetime, timedelta

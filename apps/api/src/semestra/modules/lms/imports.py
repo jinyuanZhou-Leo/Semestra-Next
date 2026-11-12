@@ -395,7 +395,7 @@ async def _group_categories(
 
 
 def snapshot(a: dict[str, Any], weight: float | None = None) -> dict[str, Any]:
-    """What update detection compares (M09 §4). The weight is the effective one from the
+    """What the sync compares (M09 §4.1). The weight is the effective one from the
     assignment's group, so a group weight or sibling change shows up as an update too. The
     score is the grade on the platform, so a new or changed grade is offered once."""
     return {
@@ -470,8 +470,8 @@ async def _ref_of(ctx: Ctx, assessment_id: str) -> LmsImportedRef | None:
 async def bind_assignment(ctx: Ctx, inp: AssignmentBindInput) -> AssignmentBinding:
     """Binds an assessment made by hand to an assignment of its course not imported yet (M09 §4):
     it becomes that assignment's one Semestra object, as if imported, and follows it from then
-    on. Binding changes nothing of the assessment; the first update check offers the platform's
-    differing due date, weight and grade for review (`bound_snapshot`)."""
+    on. Binding changes nothing of the assessment; the next sync fills in what it lacks and asks
+    where its due date, weight or grade differs from the platform's (`bound_snapshot`)."""
     row = await _assessment(ctx, inp.assessment_id)
     link, b = await service.require_link(ctx, row.course_id)
     service.require_feature(b, "assignments")

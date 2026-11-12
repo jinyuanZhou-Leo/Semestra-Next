@@ -1,4 +1,4 @@
-"""The course and announcements stages of the course sync (M09 §4.8); assignments are in
+"""The course and announcements stages of the course sync (M09 §4.1); assignments are in
 `sync_assignments.py`."""
 
 from datetime import timedelta

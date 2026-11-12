@@ -288,6 +288,8 @@ class JobHandler:
     stages: tuple[tuple[str, float], ...]
     lane: Lane = "default"
     on_failure: OnFailure | None = None
+    # False: left out of `core.job.list` (the status bar's list); its module shows it its own way.
+    listed: bool = True
 
 
 OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
@@ -301,6 +303,7 @@ def job_handler(
     stages: Sequence[tuple[str, float]] = (),
     lane: Lane = "default",
     on_failure: OnFailure | None = None,
+    listed: bool = True,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -320,7 +323,7 @@ def job_handler(
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
         _handlers[kind] = JobHandler(
-            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure
+            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure, listed
         )
         return fn
 
@@ -864,6 +867,8 @@ async def job_list(ctx: Ctx, inp: JobListInput) -> JobPage:
         query = query.where(CoreJob.status == inp.status)
     if inp.kind is not None:
         query = query.where(CoreJob.kind == inp.kind)
+    elif unlisted := [h.kind for h in _handlers.values() if not h.listed]:
+        query = query.where(CoreJob.kind.not_in(unlisted))
     if inp.cursor is not None:
         query = query.where(CoreJob.id < inp.cursor)
     rows = (await ctx.db.scalars(query.order_by(CoreJob.id.desc()).limit(inp.limit + 1))).all()
