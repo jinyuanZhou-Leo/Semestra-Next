@@ -19,7 +19,10 @@ export function MobilePage({
 }) {
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-6">
+      {/* Children of a scrolling column keep their height (`shrink-0`): one that sets `min-height: 0`
+          itself, like an animated group of rows, would otherwise be squeezed once the page is
+          taller than the screen and the next heading would be drawn over its last row. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-6 *:shrink-0">
         <header className="flex items-end justify-between gap-3 px-5 pt-[max(env(safe-area-inset-top),3rem)] pb-3">
           <div className="min-w-0">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">{title}</h1>
