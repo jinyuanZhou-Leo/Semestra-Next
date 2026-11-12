@@ -2398,7 +2398,7 @@
   "lms_settings_sync": "Background sync",
   "lms_settings_sync_description": "Checks linked courses for changes on the platform.",
   "lms_settings_follow": "Update automatically",
-  "lms_settings_follow_description": "When an assignment changes on the platform and you haven’t edited it here, Semestra updates it. For anything turned off, Semestra asks first.",
+  "lms_settings_follow_description": "Changes to imported assignments on the platform are applied to fields you haven’t edited. Types turned off need your confirmation first.",
   "lms_settings_todos": "To-dos",
   "lms_settings_writes": "Platform access",
   "lms_settings_writes_description": "By default, Semestra only reads your learning platform.",
