@@ -3,6 +3,7 @@ import {
   type PersistedQuery,
   experimental_createQueryPersister,
 } from '@tanstack/query-persist-client-core'
+import type { QueryClient } from '@tanstack/react-query'
 import { type UseStore, clear, createStore, del, entries, get, set } from 'idb-keyval'
 
 /** How long a course's platform reads are kept in the browser after they were last fetched. */
@@ -46,6 +47,8 @@ const storage: AsyncStorage<PersistedQuery> = {
 const persister = experimental_createQueryPersister<PersistedQuery>({
   storage: typeof indexedDB === 'undefined' ? null : storage,
   maxAge: MAX_AGE,
+  // A release may change a read's shape: what an older version kept is dropped, not shown.
+  buster: SEMESTRA_VERSION,
   prefix: 'lms',
   serialize: (query) => ({
     ...query,
@@ -55,11 +58,31 @@ const persister = experimental_createQueryPersister<PersistedQuery>({
   deserialize: (query) => query,
 })
 
+/** The reads the Canvas tab shows (M16), by generated operation id. */
+const KEPT_READS = [
+  'lmsCourseOverview',
+  'lmsAnnouncementList',
+  'lmsAssignmentList',
+  'lmsQuizList',
+  'lmsSubmissionGet',
+  'lmsModuleList',
+  'lmsModuleItemList',
+  'lmsPageList',
+  'lmsPageGet',
+  'lmsSyllabusGet',
+  'lmsFolderGet',
+]
+
 /**
- * Keeps an LMS read in the browser (M16 §4): a view opened again shows what it showed last time
- * at once and fetches the platform's current state behind it. Pass it as a query's `persister`.
+ * Keeps the Canvas tab's reads in the browser (M16 §4): a view opened again shows what it showed
+ * last time at once and fetches the platform's current state behind it. Declared as query
+ * defaults, so every component reading the same data (cards, pickers) keeps the same copy.
  */
-export const lmsPersister = persister.persisterFn
+export function keepLmsReads(queryClient: QueryClient): void {
+  for (const id of KEPT_READS) {
+    queryClient.setQueryDefaults([{ _id: id }], { persister: persister.persisterFn })
+  }
+}
 
 /**
  * Called once the signed-in account is known: reads kept for another account are deleted

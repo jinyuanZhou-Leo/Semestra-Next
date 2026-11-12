@@ -1,7 +1,6 @@
 import { lmsPageGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { errorCode } from '@/lib/errors'
-import { lmsPersister } from '@/modules/lms/persist'
 import { useCanvasPage } from '../context'
 import { homeView } from '../navigation'
 import { AnnouncementsView } from './AnnouncementsView'
@@ -34,7 +33,6 @@ function FrontPage() {
   const { courseId } = useCanvasPage()
   const front = useQuery({
     ...lmsPageGetOptions({ path: { course_id: courseId, ref: FRONT_PAGE_REF } }),
-    persister: lmsPersister,
   })
   if (front.isError && errorCode(front.error) === 'lms.not_found') return <ModulesView />
   return <PageView pageRef={FRONT_PAGE_REF} />

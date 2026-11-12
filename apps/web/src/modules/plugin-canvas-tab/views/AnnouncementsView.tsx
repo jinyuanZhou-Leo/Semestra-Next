@@ -9,7 +9,6 @@ import { Megaphone } from 'lucide-react'
 import { useEffect } from 'react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
@@ -67,7 +66,6 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
   const { title, courseId, go } = useCanvasPage()
   const list = useQuery({
     ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined

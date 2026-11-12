@@ -2,7 +2,6 @@ import { lmsPageGetOptions, lmsPageListOptions } from '@semestra/api-client/reac
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { FileText, Lock } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
-import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
@@ -21,7 +20,6 @@ function PageList() {
   const { title, courseId, go } = useCanvasPage()
   const list = useQuery({
     ...lmsPageListOptions({ path: { course_id: courseId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (
@@ -83,7 +81,6 @@ export function PageView({ pageRef, withBack }: { pageRef: string; withBack?: bo
   const { courseId, go } = useCanvasPage()
   const page = useQuery({
     ...lmsPageGetOptions({ path: { course_id: courseId, ref: pageRef } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (

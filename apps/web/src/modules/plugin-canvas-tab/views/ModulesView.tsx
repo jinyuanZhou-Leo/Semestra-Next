@@ -22,7 +22,6 @@ import { type ReactNode, useState } from 'react'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import {
   AlertDialog,
@@ -56,7 +55,6 @@ export function ModulesView({ selected }: { selected?: string }) {
   const confirmUrl = useDialogTarget<string>()
   const list = useQuery({
     ...lmsModuleListOptions({ path: { course_id: courseId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (
@@ -230,7 +228,6 @@ function ModuleItems({
   const { courseId } = useCanvasPage()
   const items = useQuery({
     ...lmsModuleItemListOptions({ path: { course_id: courseId, module_id: moduleId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (

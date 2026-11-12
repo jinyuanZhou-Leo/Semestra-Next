@@ -5,12 +5,14 @@ import { createRoot } from 'react-dom/client'
 import './app/api'
 import { QUERY_DEFAULTS } from './app/query-client'
 import { initSentry } from './app/sentry'
+import { keepLmsReads } from './modules/lms/persist'
 import './app/theme.css'
 import { routeTree } from './routeTree.gen'
 
 void initSentry()
 
 const queryClient = new QueryClient({ defaultOptions: QUERY_DEFAULTS })
+keepLmsReads(queryClient)
 const router = createRouter({
   routeTree,
   context: { queryClient },

@@ -35,7 +35,6 @@ import { errorCode, toastError } from '@/lib/errors'
 import { formatDateTime, formatPercent } from '@/lib/format'
 import { coursePath } from '@/modules/academics/paths'
 import { addToGradebook, importAssignments } from '@/modules/lms/import/assignments'
-import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
@@ -376,14 +375,12 @@ export function AssignmentsView({ selected }: { selected?: string }) {
   const { courseId } = useCanvasPage()
   const list = useQuery({
     ...lmsAssignmentListOptions({ path: { course_id: courseId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   // Without it the table still shows; quizzes then look like plain assignments. A course whose
   // quizzes the instructor hid answers `lms.area_hidden` every time: not asked again.
   const quizzes = useQuery({
     ...lmsQuizListOptions({ path: { course_id: courseId } }),
-    persister: lmsPersister,
     placeholderData: keepPreviousData,
     retry: (failures, error) => errorCode(error) !== 'lms.area_hidden' && failures < 3,
   }).data?.items
