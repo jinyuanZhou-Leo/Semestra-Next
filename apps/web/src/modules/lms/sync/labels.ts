@@ -1,3 +1,4 @@
+import type { SyncItem } from '@semestra/api-client'
 import { formatDate, formatPercent, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
@@ -33,6 +34,17 @@ export function formatValue(field: string, value: unknown): string {
     return score.score_percentage != null ? formatPercent(score.score_percentage / 100) : '—'
   }
   return String(value)
+}
+
+/**
+ * How many answers wait: one per field asked about, one per removed or new item (what the sync
+ * counts, M09 §4.1).
+ */
+export function pendingCount(items: readonly SyncItem[]): number {
+  return items.reduce(
+    (n, item) => n + (item.kind === 'conflict' ? (item.conflicts ?? []).length : 1),
+    0,
+  )
 }
 
 /** Rows grouped by course, groups in the order their first row comes. */

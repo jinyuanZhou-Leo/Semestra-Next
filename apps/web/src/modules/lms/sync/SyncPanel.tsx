@@ -42,7 +42,7 @@ import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { importAssignments } from '../import/assignments'
 import { ERROR_LABEL } from '../settings/ConnectionsSection'
-import { byCourse, fieldLabel, formatValue } from './labels'
+import { byCourse, fieldLabel, formatValue, pendingCount } from './labels'
 import { syncedAgo, useProgramId, useSync } from './status'
 
 const EVERY: Record<SyncStatus['every'], () => string> = {
@@ -231,7 +231,9 @@ function Panel({
           <section className="flex flex-col gap-2">
             <h3 className="text-xs text-muted-foreground">
               {m.lms_sync_pending()}{' '}
-              <span className="text-muted-foreground/70 tabular-nums">{status.pending.length}</span>
+              <span className="text-muted-foreground/70 tabular-nums">
+                {pendingCount(status.pending)}
+              </span>
             </h3>
             {byCourse(status.pending).map((group) => {
               const fresh = group.items.filter((i) => i.kind === 'new')

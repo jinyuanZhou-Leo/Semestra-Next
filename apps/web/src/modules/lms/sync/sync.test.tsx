@@ -121,7 +121,10 @@ test('a value changed on both sides is settled from the panel', async () => {
     id: 'r1',
     title: 'A3',
     kind: 'conflict',
-    conflicts: [{ field: 'weight', mine: 10, platform: 15, edited: true }],
+    conflicts: [
+      { field: 'title', mine: 'A3', platform: 'A3 (revised)', edited: false },
+      { field: 'weight', mine: 10, platform: 15, edited: true },
+    ],
   })
   const resolved = vi.fn<(body: unknown) => void>()
   server.use(
@@ -133,7 +136,9 @@ test('a value changed on both sides is settled from the panel', async () => {
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByText('You changed this')).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+  // One row, and one answer counted, per field.
+  expect(screen.getByRole('heading', { name: /^To review\s*2$/ })).toBeInTheDocument()
+  await userEvent.click(screen.getAllByRole('button', { name: 'Keep' })[1]!)
   await waitFor(() => expect(resolved).toHaveBeenCalledWith({ choice: 'mine' }))
   // Folded away, then gone.
   await waitFor(() => expect(screen.queryByText('To review')).not.toBeInTheDocument())
