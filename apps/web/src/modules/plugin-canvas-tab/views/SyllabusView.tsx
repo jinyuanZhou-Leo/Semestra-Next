@@ -7,6 +7,7 @@ import { AiAction } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
 import { errorMessage } from '@/lib/errors'
 import { openImport } from '@/modules/imports/launcher'
+import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { CanvasBoundary } from '../CanvasBoundary'
@@ -55,6 +56,7 @@ export function SyllabusView() {
   const { courseId, title } = useCanvasPage()
   const syllabus = useQuery({
     ...lmsSyllabusGetOptions({ path: { course_id: courseId } }),
+    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (

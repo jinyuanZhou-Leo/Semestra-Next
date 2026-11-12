@@ -45,63 +45,71 @@ export function CanvasBoundary<T>({
   skeleton?: ReactNode
   children: (data: T) => ReactNode
 }) {
+  if (query.isPending) return skeleton ?? <ListSkeleton />
+  // A failed refetch keeps what was shown (kept or loaded before) under the notice.
+  const failure = query.isError ? <Failure query={query} /> : null
+  if (query.data === undefined) return failure
+  return (
+    <>
+      {failure}
+      {isEmpty?.(query.data) && empty ? empty : children(query.data)}
+    </>
+  )
+}
+
+function Failure({ query }: { query: UseQueryResult<unknown, unknown> }) {
   const settings = useSettingsDialog()
   const queryClient = useQueryClient()
   const { courseId } = useCanvasPage()
-  if (query.isPending) return skeleton ?? <ListSkeleton />
-  if (query.isError) {
-    const code = errorCode(query.error)
-    if (code === 'lms.forbidden' || code === 'lms.area_hidden') {
-      const hidden = code === 'lms.area_hidden'
-      return (
-        <Alert>
-          <Lock aria-hidden />
-          <AlertTitle>
-            {hidden ? m.canvas_tab_hidden_title() : m.canvas_tab_forbidden_title()}
-          </AlertTitle>
-          <AlertDescription>
-            {hidden ? m.canvas_tab_hidden_hint() : m.canvas_tab_forbidden_hint()}
-          </AlertDescription>
-          <AlertAction>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void openLinkedCourse(queryClient, courseId)}
-            >
-              {m.canvas_tab_open_in_canvas()}
-            </Button>
-          </AlertAction>
-        </Alert>
-      )
-    }
-    const credentials = CREDENTIAL_ERRORS.has(code)
+  const code = errorCode(query.error)
+  if (code === 'lms.forbidden' || code === 'lms.area_hidden') {
+    const hidden = code === 'lms.area_hidden'
     return (
-      <Alert variant={credentials ? 'default' : 'destructive'}>
-        {credentials ? (
-          <KeyRound aria-hidden />
-        ) : code === 'lms.rate_limited' ? (
-          <Clock aria-hidden />
-        ) : (
-          <CircleAlert aria-hidden />
-        )}
-        <AlertTitle>{credentials ? errorMessage(query.error) : m.common_load_failed()}</AlertTitle>
+      <Alert>
+        <Lock aria-hidden />
+        <AlertTitle>
+          {hidden ? m.canvas_tab_hidden_title() : m.canvas_tab_forbidden_title()}
+        </AlertTitle>
         <AlertDescription>
-          {credentials ? m.canvas_tab_credentials_hint() : errorMessage(query.error)}
+          {hidden ? m.canvas_tab_hidden_hint() : m.canvas_tab_forbidden_hint()}
         </AlertDescription>
         <AlertAction>
-          {credentials ? (
-            <Button size="sm" onClick={() => settings.open({ level: 'account', group: 'lms' })}>
-              {m.canvas_tab_open_connections()}
-            </Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={() => void query.refetch()}>
-              {m.common_retry()}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void openLinkedCourse(queryClient, courseId)}
+          >
+            {m.canvas_tab_open_in_canvas()}
+          </Button>
         </AlertAction>
       </Alert>
     )
   }
-  if (isEmpty?.(query.data) && empty) return empty
-  return children(query.data)
+  const credentials = CREDENTIAL_ERRORS.has(code)
+  return (
+    <Alert variant={credentials ? 'default' : 'destructive'}>
+      {credentials ? (
+        <KeyRound aria-hidden />
+      ) : code === 'lms.rate_limited' ? (
+        <Clock aria-hidden />
+      ) : (
+        <CircleAlert aria-hidden />
+      )}
+      <AlertTitle>{credentials ? errorMessage(query.error) : m.common_load_failed()}</AlertTitle>
+      <AlertDescription>
+        {credentials ? m.canvas_tab_credentials_hint() : errorMessage(query.error)}
+      </AlertDescription>
+      <AlertAction>
+        {credentials ? (
+          <Button size="sm" onClick={() => settings.open({ level: 'account', group: 'lms' })}>
+            {m.canvas_tab_open_connections()}
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => void query.refetch()}>
+            {m.common_retry()}
+          </Button>
+        )}
+      </AlertAction>
+    </Alert>
+  )
 }

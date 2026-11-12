@@ -770,6 +770,27 @@ test('Refresh drops the course cache once; later reads use the cache again', asy
   expect(reads).toEqual(['', ''])
 })
 
+test('a refresh that fails keeps what the view showed under the notice', async () => {
+  let fail = false
+  server.use(
+    http.post(`${API}/courses/c1/lms\\:refresh`, () =>
+      HttpResponse.json({ course_id: 'c1', link: LINK, program_connection_id: 'k1' }),
+    ),
+    http.get(`${API}/courses/c1/lms/announcements`, () => {
+      if (!fail) return HttpResponse.json(ANNOUNCEMENTS)
+      const { status, body } = apiError('lms.rate_limited', 429)
+      return HttpResponse.json(body, { status })
+    }),
+  )
+  renderPage('/?tab=announcements')
+  await screen.findByRole('button', { name: /^Unread Midterm room change/ })
+  fail = true
+  const nav = screen.getByRole('navigation', { name: 'Course menu' })
+  await userEvent.click(within(nav).getByRole('button', { name: 'Refresh' }))
+  expect(await screen.findByRole('button', { name: 'Retry' })).toBeVisible()
+  expect(screen.getByRole('button', { name: /^Unread Midterm room change/ })).toBeVisible()
+})
+
 test('the files tab browses folders and searches by name', async () => {
   const root = {
     external_id: 'f0',

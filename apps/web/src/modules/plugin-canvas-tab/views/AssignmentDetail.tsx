@@ -14,6 +14,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { formatDateTime } from '@/lib/format'
+import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { cn } from '@/lib/utils'
@@ -113,6 +114,7 @@ function Feedback({ assignment: a }: { assignment: AssignmentOut }) {
   const { courseId } = useCanvasPage()
   const submission = useQuery({
     ...lmsSubmissionGetOptions({ path: { course_id: courseId, assignment_id: a.external_id } }),
+    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (

@@ -7,6 +7,7 @@ import { clearCollapsedMirror } from '@/app/boot'
 import { setSignedIn } from '@/app/session-expiry'
 import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
+import { claimLmsCache, forgetLmsCache } from '@/modules/lms/persist'
 import { forgetDevice } from '@/modules/notifications/push'
 import { dropCompletions, flushCompletions } from '@/modules/tasks/completion'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
@@ -23,6 +24,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSignedIn(user !== undefined)
   }, [user])
+  // Kept Canvas reads belong to one account: another one signing in here drops them first.
+  const userId = user?.id
+  useEffect(() => {
+    if (userId) claimLmsCache(userId)
+  }, [userId])
 
   // The React Compiler memoizes this; no manual useMemo.
   const value: AuthState = {
@@ -48,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSignedIn(false)
       void forgetDevice()
+      void forgetLmsCache()
       clearCollapsedMirror()
       queryClient.clear()
       resetUiPrefs(queryClient)

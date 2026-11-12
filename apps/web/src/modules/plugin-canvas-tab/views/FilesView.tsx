@@ -30,6 +30,7 @@ import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useDebounced } from '@/hooks/use-debounced'
+import { lmsPersister } from '@/modules/lms/persist'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -190,6 +191,7 @@ function FolderView({ folderId }: { folderId?: string }) {
       path: { course_id: courseId },
       query: { folder_id: folderId },
     }),
+    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
   return (

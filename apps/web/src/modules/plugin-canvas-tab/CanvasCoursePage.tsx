@@ -21,6 +21,7 @@ import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
 import { LmsUpdatesBanner } from '@/modules/lms/components/LmsUpdatesBanner'
+import { lmsPersister } from '@/modules/lms/persist'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -74,9 +75,11 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
   const file = useDialogTarget<string>()
   const overview = useQuery({
     ...lmsCourseOverviewOptions({ path: { course_id: courseId } }),
+    persister: lmsPersister,
     placeholderData: keepPreviousData,
   })
-  const fetching = useIsFetching({ predicate: isCourseContent(courseId) }) > 0
+  const fetching =
+    useIsFetching({ predicate: isCourseContent(courseId) }) > 0 || overview.isFetching
   const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.canvas-tab' } }))
   const [picked, setDisplay] = useState<CanvasDisplay | null>(null)
   const display: CanvasDisplay =
