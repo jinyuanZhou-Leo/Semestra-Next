@@ -8,6 +8,7 @@ import { Clock2 } from 'lucide-react'
 import { type FormEvent, useId, useState } from 'react'
 import { SettingRow, SettingsGroup } from '@/app/settings'
 import { DateField } from '@/components/DateField'
+import { FieldOrigins, type OriginValue } from '@/components/FieldOrigins'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -101,6 +102,31 @@ function AssessmentForm({
   const [note, setNote] = useState(assessment?.note ?? '')
   const [touched, setTouched] = useState(false)
 
+  /** Puts another source's value of a field (the LMS's) into the form. */
+  const origin = (field: 'title' | 'due_at' | 'weight' | 'score') =>
+    assessment ? (
+      <FieldOrigins
+        targetId={assessment.id}
+        field={field}
+        onApply={(value: OriginValue) => {
+          if (field === 'title') setTitle(String(value))
+          else if (field === 'weight') setWeight(String(value))
+          else if (field === 'due_at' && typeof value === 'object' && 'date' in value) {
+            setDueDate(value.date)
+            setDueTime(value.time?.slice(0, 5) ?? '')
+          } else if (field === 'score' && typeof value === 'object' && !('date' in value)) {
+            setScore(
+              scoreText({
+                score_percentage: value.score_percentage ?? null,
+                points_earned: value.points_earned ?? null,
+                points_possible: value.points_possible ?? null,
+              }),
+            )
+          }
+        }}
+      />
+    ) : null
+
   const done = async () => {
     await invalidateGrading(queryClient)
     onDone()
@@ -176,14 +202,17 @@ function AssessmentForm({
               ) : null
             }
           >
-            <Input
-              id={`${id}-title`}
-              className="w-72"
-              aria-invalid={touched && titleMissing ? true : undefined}
-              aria-describedby={touched && titleMissing ? `${id}-title-error` : undefined}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              {origin('title')}
+              <Input
+                id={`${id}-title`}
+                className="w-72"
+                aria-invalid={touched && titleMissing ? true : undefined}
+                aria-describedby={touched && titleMissing ? `${id}-title-error` : undefined}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </div>
           </SettingRow>
           <SettingRow label={m.grading_assessment_category()} htmlFor={`${id}-category`}>
             <Select
@@ -206,15 +235,16 @@ function AssessmentForm({
             </Select>
           </SettingRow>
           <SettingRow label={m.grading_assessment_due()} htmlFor={`${id}-due`}>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              {origin('due_at')}
               <DateField
                 id={`${id}-due`}
-                className="w-44"
+                className="w-40"
                 value={dueDate}
                 onChange={setDueDate}
                 placeholder={m.grading_assessment_due_date_placeholder()}
               />
-              <InputGroup className="w-32" data-disabled={dueDate === '' || undefined}>
+              <InputGroup className="w-28" data-disabled={dueDate === '' || undefined}>
                 <InputGroupInput
                   type="time"
                   aria-label={m.grading_assessment_due_time()}
@@ -240,20 +270,23 @@ function AssessmentForm({
               ) : null
             }
           >
-            <Input
-              id={`${id}-weight`}
-              className="w-28"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min={0}
-              max={100}
-              placeholder="0"
-              value={weight}
-              aria-invalid={touched && weightInvalid ? true : undefined}
-              aria-describedby={touched && weightInvalid ? `${id}-weight-error` : undefined}
-              onChange={(event) => setWeight(event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              {origin('weight')}
+              <Input
+                id={`${id}-weight`}
+                className="w-28"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={0}
+                max={100}
+                placeholder="0"
+                value={weight}
+                aria-invalid={touched && weightInvalid ? true : undefined}
+                aria-describedby={touched && weightInvalid ? `${id}-weight-error` : undefined}
+                onChange={(event) => setWeight(event.target.value)}
+              />
+            </div>
           </SettingRow>
           <SettingRow
             label={m.grading_assessment_score()}
@@ -265,15 +298,20 @@ function AssessmentForm({
               ) : null
             }
           >
-            <Input
-              id={`${id}-score`}
-              className="w-28"
-              placeholder="82"
-              value={score}
-              aria-invalid={touched && scoreInvalid ? true : undefined}
-              aria-describedby={touched && scoreInvalid ? `${id}-score-error` : `${id}-score-hint`}
-              onChange={(event) => setScore(event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              {origin('score')}
+              <Input
+                id={`${id}-score`}
+                className="w-28"
+                placeholder="82"
+                value={score}
+                aria-invalid={touched && scoreInvalid ? true : undefined}
+                aria-describedby={
+                  touched && scoreInvalid ? `${id}-score-error` : `${id}-score-hint`
+                }
+                onChange={(event) => setScore(event.target.value)}
+              />
+            </div>
           </SettingRow>
           <SettingRow
             label={m.grading_assessment_dropped()}

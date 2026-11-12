@@ -78,6 +78,7 @@ from semestra.modules.lms.schemas.io import (
 from semestra.modules.lms.schemas.sync import (
     SyncChangeRef,
     SyncDismissInput,
+    SyncFollowInput,
     SyncQueued,
     SyncRequestInput,
     SyncResolveInput,
@@ -891,6 +892,21 @@ async def sync_resolve(ctx: Ctx, inp: SyncResolveInput) -> SyncStatus:
 async def sync_dismiss(ctx: Ctx, inp: SyncDismissInput) -> SyncStatus:
     await sync_assignments.dismiss(ctx, inp.program_id, inp.item_ids, inp.dismissed)
     return await sync_status.status(ctx, inp.program_id)
+
+
+@capability(
+    name="lms.sync.follow",
+    summary="Give a field the user changed the platform's value again.",
+    description="""For a field listed in `lms.sync.status` `different`: it gets the platform's
+value and follows the platform again. Logged as a recent change, so it can be put back.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/items/{item_id}:follow"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_follow(ctx: Ctx, inp: SyncFollowInput) -> SyncStatus:
+    program_id = await sync_assignments.follow(ctx, inp.item_id, inp.field)
+    return await sync_status.status(ctx, program_id)
 
 
 @capability(

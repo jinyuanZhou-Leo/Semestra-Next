@@ -32,6 +32,8 @@ class SyncConflict(BaseModel):
     )
 
 
+SyncField = Literal["title", "due_at", "weight", "score"]
+
 SyncItemKind = Literal["new", "conflict", "removed"]
 
 
@@ -69,6 +71,21 @@ class SyncChange(BaseModel):
     )
 
 
+class SyncDifference(BaseModel):
+    """A field of an imported item the user set apart from the platform, not asked about: it
+    stays the user's until the platform changes it or the user takes the platform's value."""
+
+    id: str = Field(description="The item's id")
+    course_id: str
+    course: str
+    title: str = Field(description="The item's title on the platform")
+    field: SyncField
+    mine: Any = Field(description="The value in Semestra")
+    platform: Any = Field(description="The value on the platform when last synced")
+    target_kind: Literal["assessment", "task"]
+    target_id: str
+
+
 class SyncCourseError(BaseModel):
     course_id: str
     course: str
@@ -88,6 +105,9 @@ class SyncStatus(BaseModel):
     pending: list[SyncItem] = Field(description="What waits for the user, newest first")
     ignored: list[SyncItem]
     recent: list[SyncChange] = Field(description="What the sync changed lately, newest first")
+    different: list[SyncDifference] = Field(
+        description="Fields the user set apart from the platform, by course and title"
+    )
     errors: list[SyncCourseError]
 
 
@@ -102,6 +122,11 @@ class SyncDismissInput(BaseModel):
     program_id: Id = Field(description="Program id")
     item_ids: list[Id] = Field(min_length=1, max_length=200, description="New items")
     dismissed: bool = Field(default=True, description="False offers them again")
+
+
+class SyncFollowInput(BaseModel):
+    item_id: Id = Field(description="An imported item's id")
+    field: SyncField = Field(description="A field that differs from the platform")
 
 
 class SyncChangeRef(BaseModel):

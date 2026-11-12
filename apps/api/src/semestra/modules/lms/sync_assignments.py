@@ -32,12 +32,16 @@ from semestra.modules.lms import settings as lms_settings
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.imports import snapshot, weights_of
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsSyncChange
+from semestra.modules.lms.schemas.sync import SyncField
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import UPDATED, Applied, StageResult, register_sync_stage
 from semestra.modules.tasks.models import TasksItem
 
 KIND = "assignment"
-FIELDS = {"assessment": ("title", "due_at", "weight", "score"), "task": ("title", "due_at")}
+FIELDS: dict[str, tuple[SyncField, ...]] = {
+    "assessment": ("title", "due_at", "weight", "score"),
+    "task": ("title", "due_at"),
+}
 TITLE_MAX = 200
 
 
@@ -114,14 +118,44 @@ async def local_values(
     assessments = await grading.find_assessment_rows(
         ctx, [r.target_id for r in refs if r.target_kind == "assessment" and r.target_id]
     )
+    task_ids = [r.target_id for r in refs if r.target_kind == "task" and r.target_id]
+    tasks = (
+        {
+            t.id: t
+            for t in await ctx.db.scalars(
+                select(TasksItem).where(
+                    TasksItem.user_id == ctx.user_id, TasksItem.id.in_(task_ids)
+                )
+            )
+        }
+        if task_ids
+        else {}
+    )
     out: dict[str, dict[str, Any]] = {}
     for ref in refs:
         if ref.target_kind == "assessment" and ref.target_id in assessments:
             out[ref.id] = _assessment_values(assessments[ref.target_id], tz)
-        elif ref.target_kind == "task" and ref.target_id:
-            task = await ctx.db.get(TasksItem, ref.target_id)
-            if task is not None and task.user_id == ctx.user_id:
-                out[ref.id] = _task_values(task)
+        elif ref.target_kind == "task" and ref.target_id in tasks:
+            out[ref.id] = _task_values(tasks[ref.target_id])
+    return out
+
+
+def differences(
+    ref: LmsImportedRef, local: dict[str, Any], tz: ZoneInfo
+) -> list[tuple[SyncField, Any, Any]]:
+    """The fields of an imported object that the user set apart from the platform and nobody is
+    asked about: `(field, mine, platform)`, the platform value being the last one seen. A field
+    the platform leaves empty (no due date, no grade yet, no weight) is the user's to fill in."""
+    out: list[tuple[SyncField, Any, Any]] = []
+    for name in FIELDS[ref.target_kind or "task"]:
+        if name in ref.conflicts:
+            continue
+        p = platform_value(name, ref.snapshot.get(name), tz)
+        if p is None:
+            continue
+        mine = local.get(name)
+        if not same(name, p, mine):
+            out.append((name, mine, p))
     return out
 
 
@@ -337,6 +371,26 @@ async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
     for name, conflict in ref.conflicts.items():
         snap[name] = conflict["raw"]
     ref.snapshot, ref.conflicts = snap, {}
+    await ctx.db.flush()
+    await _changed(ctx, link)
+    return link.program_id
+
+
+async def follow(ctx: Ctx, ref_id: str, name: str) -> str:
+    """Gives a field the user set apart from the platform the platform's value again, so it
+    follows the platform once more. Logged like a sync change, so it can be put back."""
+    ref, link = await _ref(ctx, ref_id)
+    if ref.target_id is None or ref.removed_at is not None:
+        raise lms_error("lms.sync_nothing_to_resolve")
+    program = await academics.get_program_row(ctx, link.program_id)
+    tz = ZoneInfo(program.timezone)
+    local = (await local_values(ctx, [ref], tz)).get(ref.id)
+    found = {f: (mine, p) for f, mine, p in differences(ref, local or {}, tz)}
+    if local is None or name not in found:
+        raise lms_error("lms.sync_nothing_to_resolve")
+    mine, p = found[name]
+    await write(ctx, ref, name, p)
+    await _log(ctx, ref, name, mine, p, str(ref.snapshot.get("title") or ""))
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id

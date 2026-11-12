@@ -419,3 +419,48 @@ async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clo
         await sync.sync_due(ctx)
         await ctx.db.commit()
     assert not (await api.call("GET", f"/programs/{program_id}/lms/sync"))["syncing"]
+
+
+async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
+    api: Api, fake: FakeProvider
+):
+    program_id, course = await _course(api, "a1")
+    lab = (await _assessments(api, course))["a1"]
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"due_date": "2026-02-04"})
+    status = await api.sync(program_id)
+    assert all(i["kind"] == "new" for i in status["pending"])
+    [moved] = status["different"]
+    assert moved == {
+        "id": moved["id"],
+        "course_id": course,
+        "course": moved["course"],
+        "title": "Lab 1",
+        "field": "due_at",
+        "mine": {"date": "2026-02-04", "time": "23:59:00"},
+        "platform": {"date": "2026-02-06", "time": "23:59:00"},
+        "target_kind": "assessment",
+        "target_id": lab["id"],
+    }
+
+    status = await api.call(
+        "POST", f"/lms/sync/items/{moved['id']}:follow", json={"field": "due_at"}
+    )
+    assert status["different"] == []
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-06"
+    # Taking the platform's value is a change like the sync's, so it can be put back.
+    [change] = status["recent"]
+    assert (change["field"], change["toggleable"]) == ("due_at", True)
+    status = await api.call("POST", f"/lms/sync/changes/{change['id']}:revert")
+    assert [d["field"] for d in status["different"]] == ["due_at"]
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-04"
+
+    # A field the platform asks about is pending, not listed; one that matches has nothing to do.
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)})
+    status = await api.sync(program_id)
+    assert [i["kind"] for i in status["pending"] if i["kind"] != "new"] == ["conflict"]
+    assert status["different"] == []
+    err = await api.call(
+        "POST", f"/lms/sync/items/{moved['id']}:follow", 409, json={"field": "title"}
+    )
+    assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
