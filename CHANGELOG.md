@@ -3,6 +3,21 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.8 (2026-11-12)
+
+### New
+
+- **Tasks:** New tasks recognize dates, times, priority marks and course codes typed in the title, such as “Fri 5pm APS105 lab report !!!”.
+- **Canvas:** The Canvas tab shows what you last saw right away and updates it in the background.
+- **Canvas:** Linked courses now sync in the background: imported assignments follow Canvas, and you're only asked about new assignments, values changed on both sides, and the kinds of change you choose to review first. The sync's status, updates you can undo and a manual sync are in the sidebar.
+- **Canvas:** Values you changed that no longer match Canvas are now easy to find and restore, from the sync panel or right where you edit them.
+
+### Fixed
+
+- **Tasks:** Fixed section headings overlapping the previous group's last task on phones.
+- **Canvas:** Importing assignments from Canvas always opens the import review first, so you can choose each one's category and edit it before anything is saved. The sync panel also shows a clear Reconnect button when the connection has expired.
+- **Canvas:** Sync questions are now answered one field at a time, and a value you keep can still be restored to the Canvas value later.
+
 ## 2.0.0-beta.7 (2026-11-11)
 
 ### New

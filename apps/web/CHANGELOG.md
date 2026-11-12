@@ -1,5 +1,69 @@
 # @semestra/web
 
+## 2.0.0-beta.8
+
+### Minor Changes
+
+- 3cb1352: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab shows what you last saw right away and updates it in the background.
+  <!-- zh -->
+  Canvas 页签打开即显示上次的内容，并在后台更新为最新版本。
+- f0dafdd: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Linked courses now sync in the background: imported assignments follow Canvas, and you're only asked about new assignments, values changed on both sides, and the kinds of change you choose to review first. The sync's status, updates you can undo and a manual sync are in the sidebar.
+
+  <!-- zh -->
+
+  已关联的课程现在在后台同步：导入的作业自动跟随 Canvas，只有新作业、两边都改过的内容和你选择先过目的变化才会询问你。同步状态、可撤销的更新和手动同步都在侧边栏。
+
+- d9a7988: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Values you changed that no longer match Canvas are now easy to find and restore, from the sync panel or right where you edit them.
+
+  <!-- zh -->
+
+  自己改过、和 Canvas 不一致的值现在一目了然，可以在同步面板或编辑处一键改回。
+
+- 44ad318: <!-- area: tasks -->
+  <!-- en -->
+  New tasks recognize dates, times, priority marks and course codes typed in the title, such as “Fri 5pm APS105 lab report !!!”.
+  <!-- zh -->
+  新建待办时会识别标题里的日期、时间、优先级记号和课号，例如“周五下午5点 APS105 lab 报告 !!!”。
+
+### Patch Changes
+
+- 720ae3b: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Importing assignments from Canvas always opens the import review first, so you can choose each one's category and edit it before anything is saved. The sync panel also shows a clear Reconnect button when the connection has expired.
+
+  <!-- zh -->
+
+  从 Canvas 导入作业时始终先打开导入审核，可以先选好每个作业的分类并修改，确认后才保存。连接失效时，同步面板也会直接给出「重新连接」按钮。
+
+- 0e8790e: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Sync questions are now answered one field at a time, and a value you keep can still be restored to the Canvas value later.
+
+  <!-- zh -->
+
+  同步询问改为逐个字段回答，保留的值之后仍可改回 Canvas 的值。
+
+- 4fa1812: <!-- area: tasks -->
+  <!-- en -->
+  Fixed section headings overlapping the previous group's last task on phones.
+  <!-- zh -->
+  修复手机上分组标题压住上一组最后一个待办的问题。
+- @semestra/api-client@2.0.0-beta.8
+
 ## 2.0.0-beta.7
 
 ### Minor Changes
