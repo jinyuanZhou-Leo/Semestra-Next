@@ -2470,7 +2470,6 @@
   "lms_sync_now": "Sync now",
   "lms_sync_reconnect": "Reconnect",
   "lms_sync_subtitle_broken": "{reason} · synced {ago}",
-  "lms_sync_pending_locked": "available after reconnecting",
   "lms_sync_course_failed": "{course} didn't sync: {reason}",
   "lms_sync_pending": "To review",
   "lms_sync_recent": "Recent updates",

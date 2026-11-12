@@ -191,14 +191,7 @@ function Panel({
         )}
       </div>
 
-      {/* Without a connection what waits is shown but cannot be acted on. */}
-      <div
-        inert={Boolean(broken)}
-        className={cn(
-          'flex min-h-0 flex-col gap-4 overflow-y-auto p-4 pt-3 transition-opacity',
-          broken && 'opacity-50',
-        )}
-      >
+      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 pt-3">
         {status.errors.length > 0 && !status.connection_error ? (
           <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
             {status.errors.map((e) => (
@@ -220,7 +213,6 @@ function Panel({
             <h3 className="text-xs text-muted-foreground">
               {m.lms_sync_pending()}{' '}
               <span className="text-muted-foreground/70 tabular-nums">{status.pending.length}</span>
-              {broken ? ` · ${m.lms_sync_pending_locked()}` : null}
             </h3>
             {byCourse(status.pending).map((group) => {
               const fresh = group.items.filter((i) => i.kind === 'new')
@@ -253,7 +245,11 @@ function Panel({
                           >
                             {m.lms_sync_ignore()}
                           </Button>
-                          <Button size="xs" onClick={() => void importItems(fresh)}>
+                          <Button
+                            size="xs"
+                            disabled={Boolean(broken)}
+                            onClick={() => void importItems(fresh)}
+                          >
                             {m.lms_sync_import()}
                           </Button>
                         </ItemActions>
@@ -344,7 +340,11 @@ function Panel({
                           >
                             {m.lms_sync_remind()}
                           </Button>
-                          <Button size="xs" onClick={() => void importItems([item])}>
+                          <Button
+                            size="xs"
+                            disabled={Boolean(broken)}
+                            onClick={() => void importItems([item])}
+                          >
                             {m.lms_sync_import()}
                           </Button>
                         </ItemActions>

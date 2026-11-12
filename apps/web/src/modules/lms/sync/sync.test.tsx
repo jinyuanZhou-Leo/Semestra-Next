@@ -181,6 +181,7 @@ test('a connection that stopped working says so and goes to its settings from th
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   expect(await screen.findByRole('button', { name: 'Reconnect' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Sync now' })).not.toBeInTheDocument()
-  // What waits is shown but cannot be acted on until the connection works again.
-  expect(screen.getByText('A3').closest('[inert]')).not.toBeNull()
+  // Importing needs the platform; deciding what already waits does not.
+  expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Ignore' })).toBeEnabled()
 })

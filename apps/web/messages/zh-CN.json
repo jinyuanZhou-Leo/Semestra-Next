@@ -2470,7 +2470,6 @@
   "lms_sync_now": "立即同步",
   "lms_sync_reconnect": "重新连接",
   "lms_sync_subtitle_broken": "{reason} · {ago}同步",
-  "lms_sync_pending_locked": "重新连接后可处理",
   "lms_sync_course_failed": "{course} 没有同步：{reason}",
   "lms_sync_pending": "待处理",
   "lms_sync_recent": "最近更新",
