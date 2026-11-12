@@ -22,8 +22,11 @@ class SyncQueued(BaseModel):
     queued: int = Field(description="How many courses were queued")
 
 
+SyncField = Literal["title", "due_at", "weight", "score"]
+
+
 class SyncConflict(BaseModel):
-    field: str = Field(description="title, due_at, weight or score")
+    field: SyncField
     mine: Any = Field(description="The value in Semestra")
     platform: Any = Field(description="The value on the platform")
     edited: bool = Field(
@@ -31,8 +34,6 @@ class SyncConflict(BaseModel):
         "following this field (settings `lms.follow_*`)"
     )
 
-
-SyncField = Literal["title", "due_at", "weight", "score"]
 
 SyncItemKind = Literal["new", "conflict", "removed"]
 
@@ -112,9 +113,9 @@ class SyncStatus(BaseModel):
 
 
 class SyncResolveInput(BaseModel):
-    item_id: Id = Field(description="A pending item's id (conflict or removed)")
-    choice: Literal["platform", "mine", "delete", "keep"] = Field(
-        description="conflict: platform or mine; removed: delete or keep"
+    item_id: Id = Field(description="An item gone from the platform")
+    choice: Literal["delete", "keep"] = Field(
+        description="delete it here, or keep it as made by hand"
     )
 
 
@@ -124,9 +125,13 @@ class SyncDismissInput(BaseModel):
     dismissed: bool = Field(default=True, description="False offers them again")
 
 
-class SyncFollowInput(BaseModel):
+class SyncFieldResolveInput(BaseModel):
     item_id: Id = Field(description="An imported item's id")
-    field: SyncField = Field(description="A field that differs from the platform")
+    field: SyncField = Field(description="A field asked about, or listed in `different`")
+    choice: Literal["platform", "mine"] = Field(
+        description="platform takes the platform's value; mine keeps the user's (asked-about "
+        "fields only)"
+    )
 
 
 class SyncChangeRef(BaseModel):

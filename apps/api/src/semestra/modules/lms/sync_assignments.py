@@ -3,9 +3,10 @@
 Imported assignments follow the platform field by field (title, due date, weight, grade; a to-do
 only title and due date), each field decided by `rules.merge` from its snapshot (the platform
 value last applied), its Semestra value and the platform value now. Values the sync writes are
-logged (`LmsSyncChange`, which the user can put back); conflicts are settled by the user
-(`resolve`); an assignment gone from the platform is kept or deleted by the user. Assignments not
-imported yet that are due later are kept as new items until the user imports or ignores them.
+logged (`LmsSyncChange`, which the user can put back); the user answers what it asks field by
+field (`answer`), and keeps or deletes an assignment gone from the platform (`resolve`).
+Assignments not imported yet that are due later are kept as new items until the user imports or
+ignores them.
 
 All values are compared in the Program's time zone and kept in one form (`rules.platform_value`),
 which is also what the change log and conflicts hold: a due date is `{date, time}` (time null for
@@ -306,66 +307,56 @@ async def _changed(ctx: Ctx, link: LmsCourseLink) -> None:
 
 
 async def resolve(ctx: Ctx, ref_id: str, choice: str) -> str:
-    """Settles what the sync asks about an imported item. A conflict: `platform` takes the
-    platform's values, `mine` keeps the user's (the platform's next change asks again). An item
-    gone from the platform: `delete` deletes its object, `keep` keeps it as made by hand."""
+    """Settles an imported item gone from the platform: `delete` deletes its object, `keep`
+    keeps it as made by hand."""
     ref, link = await _ref(ctx, ref_id)
-    if ref.target_id is None:
+    if ref.target_id is None or ref.removed_at is None or choice not in ("delete", "keep"):
         raise lms_error("lms.sync_nothing_to_resolve")
-    if ref.removed_at is not None:
-        if choice == "delete":
-            name = (
-                "grading.assessment.delete"
-                if ref.target_kind == "assessment"
-                else ("tasks.item.delete")
-            )
-            kind = ref.target_kind
-            await ctx.db.delete(ref)
-            await ctx.db.flush()
-            await deps.call(ctx, name, {f"{kind}_id": ref.target_id})
-        elif choice == "keep":
-            if ref.target_kind == "assessment":
-                await grading.set_source(ctx, ref.target_id, None)
-            await ctx.db.delete(ref)
-        else:
-            raise lms_error("lms.sync_nothing_to_resolve")
+    if choice == "delete":
+        kind = ref.target_kind
+        name = "grading.assessment.delete" if kind == "assessment" else "tasks.item.delete"
+        await ctx.db.delete(ref)
         await ctx.db.flush()
-        await _changed(ctx, link)
-        return link.program_id
-    if not ref.conflicts or choice not in ("platform", "mine"):
-        raise lms_error("lms.sync_nothing_to_resolve")
-    snap = dict(ref.snapshot)
-    program = await academics.get_program_row(ctx, link.program_id)
-    tz = ZoneInfo(program.timezone)
-    if choice == "platform":
-        local = (await local_values(ctx, [ref], tz)).get(ref.id, {})
-        title = str(ref.snapshot.get("title") or "")
-        for name, conflict in ref.conflicts.items():
-            await write(ctx, ref, name, conflict["value"])
-            await _log(ctx, ref, name, local.get(name), conflict["value"], title)
-    for name, conflict in ref.conflicts.items():
-        advance(snap, ref.target_kind, name, conflict["raw"], tz)
-    ref.snapshot, ref.conflicts = snap, {}
+        await deps.call(ctx, name, {f"{kind}_id": ref.target_id})
+    else:
+        if ref.target_kind == "assessment":
+            await grading.set_source(ctx, ref.target_id, None)
+        await ctx.db.delete(ref)
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id
 
 
-async def follow(ctx: Ctx, ref_id: str, name: str) -> str:
-    """Gives a field the user set apart from the platform (`differences`) the platform's value
-    again. Logged like a sync change, so it can be put back."""
+async def answer(ctx: Ctx, ref_id: str, name: str, choice: str) -> str:
+    """Answers about one field of an imported item. Asked about (a conflict): `platform` takes
+    the platform's value, `mine` keeps the user's (the platform's next change asks again). Set
+    apart from the platform (`differences`): `platform` takes the platform's value back.
+    A value taken from the platform is logged like a sync change, so it can be put back."""
     ref, link = await _ref(ctx, ref_id)
     if ref.target_id is None or ref.removed_at is not None:
         raise lms_error("lms.sync_nothing_to_resolve")
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
     local = (await local_values(ctx, [ref], tz)).get(ref.id)
-    found = {f: (mine, p) for f, mine, p in differences(ref, local or {}, tz)}
-    if local is None or name not in found:
+    if local is None:
         raise lms_error("lms.sync_nothing_to_resolve")
-    mine, p = found[name]
-    await write(ctx, ref, name, p)
-    await _log(ctx, ref, name, mine, p, str(ref.snapshot.get("title") or ""))
+    title = str(ref.snapshot.get("title") or "")
+    conflict = ref.conflicts.get(name)
+    if conflict is not None:
+        if choice == "platform":
+            await write(ctx, ref, name, conflict["value"])
+            await _log(ctx, ref, name, local.get(name), conflict["value"], title)
+        snap = dict(ref.snapshot)
+        advance(snap, ref.target_kind, name, conflict["raw"], tz)
+        ref.snapshot = snap
+        ref.conflicts = {f: c for f, c in ref.conflicts.items() if f != name}
+    else:
+        found = {f: (mine, p) for f, mine, p in differences(ref, local, tz)}
+        if choice != "platform" or name not in found:
+            raise lms_error("lms.sync_nothing_to_resolve")
+        mine, p = found[name]
+        await write(ctx, ref, name, p)
+        await _log(ctx, ref, name, mine, p, title)
     await ctx.db.flush()
     await _changed(ctx, link)
     return link.program_id

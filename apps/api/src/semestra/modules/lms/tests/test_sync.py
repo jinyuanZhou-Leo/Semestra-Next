@@ -86,7 +86,7 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
         {"field": "title", "mine": "Lab 1", "platform": "Lab 1 (final)", "edited": True}
     ]
     status = await api.call(
-        "POST", f"/lms/sync/items/{asked['id']}:resolve", json={"choice": "platform"}
+        "POST", f"/lms/sync/items/{asked['id']}/fields/title:resolve", json={"choice": "platform"}
     )
     assert status["pending"] == []
     assert (await _assessments(api, course))["a1"]["title"] == "Lab 1 (final)"
@@ -102,36 +102,57 @@ async def test_imported_assignments_follow_the_platform(api: Api, fake: FakeProv
     # Keeping their value when the platform renames it too: not asked again until it changes.
     labs[2] = labs[2].model_copy(update={"name": "Midterm (room B)"})
     [asked] = (await api.sync(program_id))["pending"]
-    await api.call("POST", f"/lms/sync/items/{asked['id']}:resolve", json={"choice": "mine"})
-    assert (await api.sync(program_id))["pending"] == []
-    assert (await _assessments(api, course))["a3"]["title"] == "Midterm (mine)"
-    err = await api.call(
-        "POST", f"/lms/sync/items/{asked['id']}:resolve", 409, json={"choice": "platform"}
+    await api.call(
+        "POST", f"/lms/sync/items/{asked['id']}/fields/title:resolve", json={"choice": "mine"}
     )
-    assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
+    status = await api.sync(program_id)
+    assert status["pending"] == []
+    assert (await _assessments(api, course))["a3"]["title"] == "Midterm (mine)"
+    # Kept, it is set apart from the platform, so its value can still be taken back.
+    assert [(d["title"], d["field"]) for d in status["different"]] == [
+        ("Midterm (room B)", "title")
+    ]
 
 
-async def test_fields_the_user_does_not_follow_are_asked_about(api: Api, fake: FakeProvider):
+async def test_fields_the_user_does_not_follow_are_asked_about_one_by_one(
+    api: Api, fake: FakeProvider
+):
     program_id, course = await _course(api, "a1")
-    await api.call("PATCH", "/me/settings/lms", json={"values": {"follow_due_at": False}})
+    await api.call(
+        "PATCH",
+        "/me/settings/lms",
+        json={"values": {"follow_due_at": False, "follow_title": False}},
+    )
     labs = fake.course_assignments["101"]
     labs[0] = labs[0].model_copy(
         update={"name": "Lab 1 (revised)", "due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)}
     )
     status = await api.sync(program_id)
-    assert [c["field"] for c in status["recent"]] == ["title"]
+    assert status["recent"] == []
     [asked] = [i for i in status["pending"] if i["kind"] == "conflict"]
     assert asked["conflicts"] == [
+        {"field": "title", "mine": "Lab 1", "platform": "Lab 1 (revised)", "edited": False},
         {
             "field": "due_at",
             "mine": {"date": "2026-02-06", "time": "23:59:00"},
             "platform": {"date": "2026-02-12", "time": "23:59:00"},
             "edited": False,
-        }
+        },
     ]
     assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-06"
-    await api.call("POST", f"/lms/sync/items/{asked['id']}:resolve", json={"choice": "platform"})
-    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-12"
+    # Each field is answered on its own; the other one still waits.
+    status = await api.call(
+        "POST", f"/lms/sync/items/{asked['id']}/fields/due_at:resolve", json={"choice": "platform"}
+    )
+    [still] = [i for i in status["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in still["conflicts"]] == ["title"]
+    status = await api.call(
+        "POST", f"/lms/sync/items/{asked['id']}/fields/title:resolve", json={"choice": "mine"}
+    )
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    lab = (await _assessments(api, course))["a1"]
+    assert (lab["title"], lab["due_date"]) == ("Lab 1", "2026-02-12")
+    assert (await api.sync(program_id))["pending"] == status["pending"]
 
 
 async def test_what_changed_again_since_is_neither_asked_about_nor_undone(
@@ -442,9 +463,10 @@ async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
         "target_id": lab["id"],
     }
 
-    status = await api.call(
-        "POST", f"/lms/sync/items/{moved['id']}:follow", json={"field": "due_at"}
-    )
+    # Nothing asks about it, so there is no keeping it: it only can take the platform's back.
+    path = f"/lms/sync/items/{moved['id']}/fields/due_at:resolve"
+    await api.call("POST", path, 409, json={"choice": "mine"})
+    status = await api.call("POST", path, json={"choice": "platform"})
     assert status["different"] == []
     assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-06"
     # Taking the platform's value is a change like the sync's, so it can be put back.
@@ -463,7 +485,10 @@ async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
     assert [i["kind"] for i in status["pending"] if i["kind"] != "new"] == ["conflict"]
     assert status["different"] == []
     err = await api.call(
-        "POST", f"/lms/sync/items/{moved['id']}:follow", 409, json={"field": "title"}
+        "POST",
+        f"/lms/sync/items/{moved['id']}/fields/title:resolve",
+        409,
+        json={"choice": "platform"},
     )
     assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
 

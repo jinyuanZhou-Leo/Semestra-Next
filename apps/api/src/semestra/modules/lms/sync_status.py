@@ -20,7 +20,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
-from semestra.modules.lms.sync_assignments import differences, local_values, toggleable
+from semestra.modules.lms.sync_assignments import FIELDS, differences, local_values, toggleable
 
 # How long the panel lists what the sync changed (and the user can put it back).
 CHANGES_KEPT = timedelta(days=14)
@@ -111,10 +111,11 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
                 SyncConflict(
                     field=name,
                     mine=mine.get(name),
-                    platform=c["value"],
-                    edited=c.get("edited", True),
+                    platform=ref.conflicts[name]["value"],
+                    edited=ref.conflicts[name].get("edited", True),
                 )
-                for name, c in ref.conflicts.items()
+                for name in FIELDS[ref.target_kind or "task"]
+                if name in ref.conflicts
             ]
             pending.append(asked)
     order = {"conflict": 0, "removed": 1, "new": 2}

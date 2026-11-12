@@ -1,9 +1,15 @@
-import type { SyncChange, SyncDifference, SyncItem, SyncStatus } from '@semestra/api-client'
+import type {
+  SyncChange,
+  SyncConflict,
+  SyncDifference,
+  SyncItem,
+  SyncStatus,
+} from '@semestra/api-client'
 import {
   lmsSyncChangeReapply,
   lmsSyncChangeRevert,
   lmsSyncDismiss,
-  lmsSyncFollow,
+  lmsSyncFieldResolve,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
@@ -49,8 +55,6 @@ const EVERY: Record<SyncStatus['every'], () => string> = {
 
 /** How long an answered row takes to fold away (M10 §5.6 uses the same). */
 const FOLD_MS = 200
-
-type Choice = 'platform' | 'mine' | 'keep' | 'delete'
 
 /**
  * The panel of the LMS status line (M09 §4.1). The header (platform, last sync, "Sync now")
@@ -110,9 +114,14 @@ function Panel({
     if (next) updated(next)
     setLeaving((current) => current.filter((id) => !ids.includes(id)))
   }
-  const settle = (item: SyncItem, choice: Choice) =>
+  const settle = (item: SyncItem, choice: 'keep' | 'delete') =>
     void answer([item.id], () =>
       lmsSyncResolve({ path: { item_id: item.id }, body: { choice }, throwOnError: true }),
+    )
+  /** Answers about one field: the platform's value, or (asked about only) the user's. */
+  const resolveField = (id: string, field: SyncConflict['field'], choice: 'platform' | 'mine') =>
+    void answer([`${id}:${field}`], () =>
+      lmsSyncFieldResolve({ path: { item_id: id, field }, body: { choice }, throwOnError: true }),
     )
   const setDismissed = (items: SyncItem[], dismissed: boolean) => {
     const ids = items.map((i) => i.id)
@@ -124,11 +133,6 @@ function Panel({
       }),
     )
   }
-  const differenceKey = (d: SyncDifference) => `${d.id}:${d.field}`
-  const follow = (d: SyncDifference) =>
-    void answer([differenceKey(d)], () =>
-      lmsSyncFollow({ path: { item_id: d.id }, body: { field: d.field }, throwOnError: true }),
-    )
   const toggle = async (change: SyncChange) => {
     setToggling(change.id)
     const call = change.reverted ? lmsSyncChangeReapply : lmsSyncChangeRevert
@@ -271,18 +275,33 @@ function Panel({
                       </Item>
                     </Fold>
                   ) : null}
-                  {asked.map((item) => (
-                    <Fold key={item.id} leaving={leaving.includes(item.id)}>
-                      <AskedRow
-                        item={item}
-                        provider={provider}
-                        busy={busy}
-                        onSettle={(choice) =>
-                          choice === 'delete' ? deleting.show(item) : settle(item, choice)
-                        }
-                      />
-                    </Fold>
-                  ))}
+                  {asked.map((item) =>
+                    item.kind === 'removed' ? (
+                      <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                        <RemovedRow
+                          item={item}
+                          provider={provider}
+                          busy={busy}
+                          onKeep={() => settle(item, 'keep')}
+                          onDelete={() => deleting.show(item)}
+                        />
+                      </Fold>
+                    ) : (
+                      (item.conflicts ?? []).map((conflict) => (
+                        <Fold
+                          key={`${item.id}:${conflict.field}`}
+                          leaving={leaving.includes(`${item.id}:${conflict.field}`)}
+                        >
+                          <ConflictRow
+                            title={item.title}
+                            conflict={conflict}
+                            busy={busy}
+                            onResolve={(choice) => resolveField(item.id, conflict.field, choice)}
+                          />
+                        </Fold>
+                      ))
+                    ),
+                  )}
                 </CourseGroup>
               )
             })}
@@ -339,12 +358,15 @@ function Panel({
                   {...groupProps(group.courseId)}
                 >
                   {group.items.map((d) => (
-                    <Fold key={differenceKey(d)} leaving={leaving.includes(differenceKey(d))}>
+                    <Fold
+                      key={`${d.id}:${d.field}`}
+                      leaving={leaving.includes(`${d.id}:${d.field}`)}
+                    >
                       <DifferenceRow
                         difference={d}
                         provider={provider}
                         busy={busy}
-                        onFollow={() => follow(d)}
+                        onFollow={() => resolveField(d.id, d.field, 'platform')}
                       />
                     </Fold>
                   ))}
@@ -492,76 +514,75 @@ function Values({
   )
 }
 
-function AskedRow({
+function RemovedRow({
   item,
   provider,
   busy,
-  onSettle,
+  onKeep,
+  onDelete,
 }: {
   item: SyncItem
   provider: string
   busy: boolean
-  onSettle: (choice: Choice) => void
+  onKeep: () => void
+  onDelete: () => void
 }) {
-  const removed = item.kind === 'removed'
-  const fields = item.conflicts ?? []
+  return (
+    <Item size="xs" className="px-0 py-1.5">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          <span className="truncate">{item.title}</span>
+        </ItemTitle>
+        <ItemDescription className="text-xs">{m.lms_sync_removed({ provider })}</ItemDescription>
+      </ItemContent>
+      <ItemActions className="gap-1.5">
+        <Button size="xs" variant="outline" disabled={busy} onClick={onKeep}>
+          {m.lms_sync_keep()}
+        </Button>
+        <Button size="xs" variant="destructive" disabled={busy} onClick={onDelete}>
+          {m.lms_sync_delete()}
+        </Button>
+      </ItemActions>
+    </Item>
+  )
+}
+
+function ConflictRow({
+  title,
+  conflict,
+  busy,
+  onResolve,
+}: {
+  title: string
+  conflict: SyncConflict
+  busy: boolean
+  onResolve: (choice: 'platform' | 'mine') => void
+}) {
   return (
     <Item size="xs" className="px-0 py-1.5">
       <ItemContent className="min-w-0">
         <ItemTitle className="w-full">
           <span className="truncate">
-            {removed
-              ? item.title
-              : m.lms_sync_change({
-                  title: item.title,
-                  field: fields.map((c) => fieldLabel(c.field)).join(m.common_list_separator()),
-                })}
+            {m.lms_sync_change({ title, field: fieldLabel(conflict.field) })}
           </span>
         </ItemTitle>
         <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
-          {removed ? (
-            m.lms_sync_removed({ provider })
-          ) : (
+          <Values field={conflict.field} from={conflict.mine} to={conflict.platform} />
+          {conflict.edited ? (
             <>
-              {fields.map((c, index) => (
-                <span key={c.field} className="inline-flex items-center gap-1">
-                  {index > 0 ? <span aria-hidden>·</span> : null}
-                  <Values field={c.field} from={c.mine} to={c.platform} />
-                </span>
-              ))}
-              {fields.some((c) => c.edited) ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>{m.lms_sync_yours_changed()}</span>
-                </>
-              ) : null}
+              <span aria-hidden>·</span>
+              <span>{m.lms_sync_yours_changed()}</span>
             </>
-          )}
+          ) : null}
         </ItemDescription>
       </ItemContent>
       <ItemActions className="gap-1.5">
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={busy}
-          onClick={() => onSettle(removed ? 'keep' : 'mine')}
-        >
+        <Button size="xs" variant="outline" disabled={busy} onClick={() => onResolve('mine')}>
           {m.lms_sync_keep()}
         </Button>
-        {removed ? (
-          <Button
-            size="xs"
-            variant="destructive"
-            disabled={busy}
-            onClick={() => onSettle('delete')}
-          >
-            {m.lms_sync_delete()}
-          </Button>
-        ) : (
-          <Button size="xs" disabled={busy} onClick={() => onSettle('platform')}>
-            {m.lms_sync_update()}
-          </Button>
-        )}
+        <Button size="xs" disabled={busy} onClick={() => onResolve('platform')}>
+          {m.lms_sync_update()}
+        </Button>
       </ItemActions>
     </Item>
   )

@@ -78,7 +78,7 @@ from semestra.modules.lms.schemas.io import (
 from semestra.modules.lms.schemas.sync import (
     SyncChangeRef,
     SyncDismissInput,
-    SyncFollowInput,
+    SyncFieldResolveInput,
     SyncQueued,
     SyncRequestInput,
     SyncResolveInput,
@@ -867,9 +867,8 @@ async def sync_request(ctx: Ctx, inp: SyncRequestInput) -> SyncQueued:
 
 @capability(
     name="lms.sync.resolve",
-    summary="Settle what the sync asks about an imported item.",
-    description="""A conflict: take the platform's values or keep the user's. An item gone from
-the platform: delete it here or keep it as made by hand.""",
+    summary="Settle an imported item gone from the platform.",
+    description="Delete it here, or keep it as made by hand.",
     effect="write",
     http=Http("POST", "/lms/sync/items/{item_id}:resolve"),
     expose=HTTP_ONLY,
@@ -895,17 +894,18 @@ async def sync_dismiss(ctx: Ctx, inp: SyncDismissInput) -> SyncStatus:
 
 
 @capability(
-    name="lms.sync.follow",
-    summary="Give a field the user changed the platform's value again.",
-    description="""For a field listed in `lms.sync.status` `different`: it gets the platform's
-value and follows the platform again. Logged as a recent change, so it can be put back.""",
+    name="lms.sync.field.resolve",
+    summary="Answer about one field of an imported item.",
+    description="""For a field the sync asks about: take the platform's value or keep the
+user's. For a field listed in `lms.sync.status` `different`: take the platform's value back.
+A value taken from the platform is logged as a recent change, so it can be put back.""",
     effect="write",
-    http=Http("POST", "/lms/sync/items/{item_id}:follow"),
+    http=Http("POST", "/lms/sync/items/{item_id}/fields/{field}:resolve"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def sync_follow(ctx: Ctx, inp: SyncFollowInput) -> SyncStatus:
-    program_id = await sync_assignments.follow(ctx, inp.item_id, inp.field)
+async def sync_field_resolve(ctx: Ctx, inp: SyncFieldResolveInput) -> SyncStatus:
+    program_id = await sync_assignments.answer(ctx, inp.item_id, inp.field, inp.choice)
     return await sync_status.status(ctx, program_id)
 
 
