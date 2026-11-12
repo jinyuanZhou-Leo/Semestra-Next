@@ -42,11 +42,20 @@ const card = approve.locator('xpath=ancestor::*[contains(@class, "border")][1]')
 const tag = `${scheme}-${locale}`
 await part(p, `proposal-${tag}`, card, { cut: true })
 if (process.env.APPROVE) {
-  await p
-    .locator('button', { hasText: /^(Approve|批准|允许|同意)$/ })
-    .first()
-    .click()
-  await p.waitForTimeout(4000)
+  // One card per change: approve each as it comes up.
+  const cards = p.locator('button', { hasText: /^(Approve|批准|允许|同意)$/ })
+  for (let i = 0; i < 5; i++) {
+    if (
+      !(await cards
+        .first()
+        .isVisible()
+        .catch(() => false))
+    )
+      break
+    await cards.first().click()
+    await p.waitForTimeout(2500)
+  }
+  await p.waitForTimeout(2000)
 }
 await p.screenshot({ path: `${OUT}/out/${out}-${scheme}-${locale}.png` })
 if (process.env.APPROVE) {

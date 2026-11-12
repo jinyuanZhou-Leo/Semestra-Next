@@ -31,7 +31,7 @@ import {
   Sun,
   Target,
   CircleCheck,
-  Plus,
+  Layers,
   ClipboardList,
   Scale,
   School,
@@ -59,7 +59,7 @@ const integrations = [
   'Model Context Protocol',
 ]
 const todayIcons = [Clock, Flag]
-const tasksIcons = [Plus, CircleCheck, CalendarDays]
+const tasksIcons = [CircleCheck, Layers, CalendarDays]
 const notifyIcons = [Clock, Megaphone, MoonStar]
 const paletteIcons = [Search, ArrowUpDown]
 const lmsIcons = [ClipboardList, Scale, BookOpen]
@@ -119,6 +119,7 @@ const login = `${APP_URL}/login`
               <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
               <Shot class="float a" cut z={140} src="parts/upcoming" lang={lang} width={1128} height={680} eager />
               <Shot class="float b" cut z={220} src="parts/proposal" lang={lang} width={1496} height={428} eager />
+              <Shot class="float c" cut z={300} src="parts/lmstoast" lang={lang} width={720} height={124} eager />
             </div>
           </div>
         </div>
@@ -167,11 +168,11 @@ const login = `${APP_URL}/login`
           <div class="bento">
             <div class="card span2 row2" data-reveal>
               <div class="t"><h3>{t.calendar.week[0]}</h3><p>{t.calendar.week[1]}</p></div>
-              <div class="peek"><Shot src="parts/week" lang={lang} width={1600} height={1154} /></div>
+              <div class="peek"><Shot src="parts/week" lang={lang} width={1600} height={1368} /></div>
             </div>
             <div class="card" data-reveal style="--d: 1">
               <div class="t"><h3>{t.calendar.filters[0]}</h3><p>{t.calendar.filters[1]}</p></div>
-              <div class="peek"><Shot style="width: 72%" src="parts/filters" lang={lang} width={480} height={744} /></div>
+              <div class="peek"><Shot style="width: 72%" src="parts/filters" lang={lang} width={480} height={690} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 2">
               <div class="t"><h3>{t.calendar.subscribe[0]}</h3><p>{t.calendar.subscribe[1]}</p></div>
@@ -179,7 +180,7 @@ const login = `${APP_URL}/login`
             </div>
             <div class="card span2" data-reveal>
               <div class="t"><h3>{t.calendar.meetings[0]}</h3><p>{t.calendar.meetings[1]}</p></div>
-              <div class="peek center"><Shot cut src="parts/meetings" lang={lang} width={1600} height={292} /></div>
+              <div class="peek center"><Shot cut src="parts/meetings" lang={lang} width={1600} height={315} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 1">
               <div class="t"><h3>{t.calendar.import[0]}</h3><p>{t.calendar.import[1]}</p></div>
@@ -216,11 +217,11 @@ const login = `${APP_URL}/login`
             </div>
             <div class="card">
               <div class="t"><h3>{t.grades.book[0]}</h3><p>{t.grades.book[1]}</p></div>
-              <div class="peek"><Shot cut src="parts/gradebook" lang={lang} width={1592} height={1178} /></div>
+              <div class="peek"><Shot cut src="parts/gradebook" lang={lang} width={1592} height={990} /></div>
             </div>
             <div class="card">
               <div class="t"><h3>{t.grades.plan[0]}</h3><p>{t.grades.plan[1]}</p></div>
-              <div class="peek fit"><Shot src="parts/gpaplan" lang={lang} width={704} height={1112} /></div>
+              <div class="peek fit"><Shot src="parts/gpaplan" lang={lang} width={704} height={1530} /></div>
             </div>
             <div class="card">
               <div class="t"><h3>{t.grades.scales[0]}</h3><p>{t.grades.scales[1]}</p></div>
@@ -239,7 +240,7 @@ const login = `${APP_URL}/login`
           <div class="bento">
             <div class="card span2" data-reveal>
               <div class="t"><h3>{t.sem.run[0]}</h3><p>{t.sem.run[1]}</p></div>
-              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1576} height={808} /></div>
+              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1576} height={lang === 'en' ? 808 : 762} /></div>
             </div>
             <div class="card text" data-reveal style="--d: 1">
               <div class="t"><h3>{t.sem.memory[0]}</h3><p>{t.sem.memory[1]}</p></div>

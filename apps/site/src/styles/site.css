@@ -179,7 +179,30 @@ body::before {
   color: var(--foreground);
 }
 
-/* The window leans back and straightens as it scrolls in; two real cards float in front of it. */
+/* The window rises out of a steep tilt when the page opens, then leans back and straightens as it
+   scrolls in; three real pieces of UI fly in from in front of it and hang at different depths. It
+   also turns a little toward the pointer. `--enter` runs from 1 to 0 on load (`--enter-f` for each
+   piece, staggered); `--rx`/`--s` come from scrolling and `--px`/`--py` from the pointer. */
+@property --enter {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@property --enter-f {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes enter {
+  from {
+    --enter: 1;
+  }
+}
+@keyframes enter-f {
+  from {
+    --enter-f: 1;
+  }
+}
 .stage {
   position: relative;
   margin: 64px auto 0;
@@ -191,8 +214,12 @@ body::before {
   position: relative;
   transform-style: preserve-3d;
   transform-origin: 50% 0%;
-  transform: rotateX(var(--rx, 0deg)) scale(var(--s, 1));
+  transform: translate3d(0, calc(var(--enter) * 160px), calc(var(--enter) * -260px))
+    rotateX(calc(var(--rx, 0deg) + var(--enter) * 24deg + var(--py, 0) * -3deg))
+    rotateY(calc(var(--px, 0) * 4deg)) scale(var(--s, 1));
+  opacity: calc(1 - var(--enter) * 0.9);
   will-change: transform;
+  animation: enter 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
 }
 .win .screen {
   border-radius: 16px;
@@ -205,18 +232,32 @@ body::before {
 }
 .float {
   position: absolute;
-  transform: translate3d(var(--fx, 0), var(--fy, 0), var(--fz, 0));
+  transform: translate3d(
+    calc(var(--fx, 0px) + var(--px, 0) * var(--z, 0) * 0.12px),
+    calc(var(--fy, 0px) + var(--py, 0) * var(--z, 0) * 0.08px + var(--enter-f) * 90px),
+    calc(var(--fz, 0px) + var(--enter-f) * 520px)
+  );
+  opacity: calc(1 - var(--enter-f));
   will-change: transform;
+  animation: enter-f 1.3s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .float.a {
   width: 31%;
   left: -6%;
   top: 46%;
+  animation-delay: 0.75s;
 }
 .float.b {
   width: 50%;
   right: -7%;
   top: 72%;
+  animation-delay: 0.95s;
+}
+.float.c {
+  width: 28%;
+  right: -3%;
+  top: 9%;
+  animation-delay: 1.15s;
 }
 .stage-gap {
   height: 120px;
@@ -759,7 +800,8 @@ footer .legal {
   .hero {
     padding-top: 56px;
   }
-  .float.a {
+  .float.a,
+  .float.c {
     display: none;
   }
   .lms-toast {
@@ -823,6 +865,7 @@ footer .legal {
   .float,
   .layered > div {
     transform: none !important;
+    animation: none !important;
   }
 }
 

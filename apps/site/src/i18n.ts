@@ -95,8 +95,8 @@ export const copy = {
         '记住你的偏好与学习习惯，并在后台定期整理。每一条记忆，都由你查看和删除。',
       ] as Item,
       mcp: [
-        '在你常用的工具里，也能用',
-        '通过 MCP，在 Claude Code、Cursor、VS Code、Codex 等客户端中直接使用 Semestra。',
+        '你熟悉的 AI，也懂你的学业',
+        '通过 MCP，把课表、成绩、待办与课程资料作为上下文，交给 Claude Code、Cursor、VS Code、Codex 等你常用的 AI 工具。',
       ] as Item,
       hitl: [
         'Human in the loop',
@@ -111,8 +111,8 @@ export const copy = {
       eyebrow: '待办',
       h2: '让待办，不再待办。',
       bullets: [
-        ['就地添加', '在列表里直接写，截止日期、优先级、课程与标记一并设好。'],
-        ['自己会打勾', '每项考核都有对应待办，出分即完成；在 LMS 上交了作业，同样自动勾选。'],
+        ['交完即勾', '每项考核都有对应待办，出分即完成；在 LMS 上交了作业，同样自动勾选。'],
+        ['按课程归位', '待办按课程与截止日自动归入对应学期，在学业项目、学期与课程页都能看到。'],
         ['排进日历', '待办出现在日历中，拖一下改期，点一下完成。'],
       ] as Item[],
       cta: '开始使用',
@@ -282,8 +282,8 @@ export const copy = {
         'Sem remembers your preferences and study habits and tidies its notes in the background. Every memory is yours to review or delete.',
       ] as Item,
       mcp: [
-        'Right inside your other tools.',
-        'Use Semestra from Claude Code, Cursor, VS Code, Codex and other clients through MCP.',
+        'Your AI tools, fluent in your semester.',
+        'Through MCP, give Claude Code, Cursor, VS Code, Codex and the other AI tools you use your schedule, grades, tasks and course files as context.',
       ] as Item,
       hitl: [
         'Human in the loop',
@@ -299,12 +299,12 @@ export const copy = {
       h2: 'Jot it down. Watch it check itself off.',
       bullets: [
         [
-          'Add in place',
-          'Type right into the list and set the due date, priority, course and flag as you go.',
+          'Submitted means done',
+          'Every assessment gets a task that completes when the grade comes in, or as soon as you submit on your LMS.',
         ],
         [
-          'Checks itself off',
-          'Every assessment gets a task that completes when the grade comes in, or as soon as you submit on your LMS.',
+          'Sorted by course',
+          'Tasks land in the right term from their course and due date, and show up on program, term and course pages.',
         ],
         [
           'On your calendar',

@@ -17,7 +17,7 @@ const list = async (path) => {
 const sessions = await list('/agent/sessions')
 for (const s of sessions) await p.request.delete(API + '/agent/sessions/' + s.id, { headers })
 const tasks = (await list(`/programs/${ids.prog}/tasks?limit=200`)).filter((t) =>
-  /2025/.test(t.title),
+  /2025|formula sheet|公式表/.test(t.title),
 )
 for (const t of tasks) await p.request.delete(API + '/tasks/' + t.id, { headers })
 console.log('deleted', sessions.length, 'sessions', tasks.length, 'tasks')
