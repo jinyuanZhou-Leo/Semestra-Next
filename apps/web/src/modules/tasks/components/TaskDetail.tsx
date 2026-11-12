@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useHotkey } from '@/app/hotkeys'
 import { useExtensions } from '@/app/registry'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FieldOrigins } from '@/components/FieldOrigins'
 import { formatDate, formatTime } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { dayDate, isoDay } from '@/lib/day'
@@ -128,14 +129,21 @@ export function TaskDetail({
             // Title, due date and course follow the assessment: shown, changed in the gradebook.
             <p className="text-base font-medium">{task.title}</p>
           ) : (
-            <Input
-              aria-label={m.tasks_title_label()}
-              className="h-9 text-base font-medium"
-              value={draft.title}
-              maxLength={300}
-              aria-invalid={!valid}
-              onChange={(event) => set('title', event.target.value)}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label={m.tasks_title_label()}
+                className="h-9 text-base font-medium"
+                value={draft.title}
+                maxLength={300}
+                aria-invalid={!valid}
+                onChange={(event) => set('title', event.target.value)}
+              />
+              <FieldOrigins
+                targetId={task.id}
+                field="title"
+                onApply={(value) => set('title', String(value))}
+              />
+            </div>
           )}
           <Field>
             <FieldLabel htmlFor="task-notes">{m.tasks_notes_label()}</FieldLabel>
@@ -208,6 +216,19 @@ export function TaskDetail({
                     <TooltipContent>{m.tasks_due_clear()}</TooltipContent>
                   </Tooltip>
                 ) : null}
+                <FieldOrigins
+                  targetId={task.id}
+                  field="due_at"
+                  onApply={(value) => {
+                    if (typeof value === 'object' && 'date' in value) {
+                      setDraft((c) => ({
+                        ...c,
+                        due_date: value.date,
+                        due_time: value.time?.slice(0, 5) ?? null,
+                      }))
+                    }
+                  }}
+                />
               </div>
             </Field>
           )}

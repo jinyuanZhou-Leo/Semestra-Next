@@ -419,3 +419,128 @@ async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clo
         await sync.sync_due(ctx)
         await ctx.db.commit()
     assert not (await api.call("GET", f"/programs/{program_id}/lms/sync"))["syncing"]
+
+
+async def test_a_field_set_apart_from_the_platform_can_follow_it_again(
+    api: Api, fake: FakeProvider
+):
+    program_id, course = await _course(api, "a1")
+    lab = (await _assessments(api, course))["a1"]
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"due_date": "2026-02-04"})
+    status = await api.sync(program_id)
+    assert all(i["kind"] == "new" for i in status["pending"])
+    [moved] = status["different"]
+    assert moved == {
+        "id": moved["id"],
+        "course_id": course,
+        "course": moved["course"],
+        "title": "Lab 1",
+        "field": "due_at",
+        "mine": {"date": "2026-02-04", "time": "23:59:00"},
+        "platform": {"date": "2026-02-06", "time": "23:59:00"},
+        "target_kind": "assessment",
+        "target_id": lab["id"],
+    }
+
+    status = await api.call(
+        "POST", f"/lms/sync/items/{moved['id']}:follow", json={"field": "due_at"}
+    )
+    assert status["different"] == []
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-06"
+    # Taking the platform's value is a change like the sync's, so it can be put back.
+    [change] = status["recent"]
+    assert (change["field"], change["toggleable"]) == ("due_at", True)
+    status = await api.call("POST", f"/lms/sync/changes/{change['id']}:revert")
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-04"
+    # Put back, it is offered once: as the change to apply again, not also as different.
+    assert status["different"] == []
+    assert next(c for c in status["recent"] if c["id"] == change["id"])["reverted"]
+
+    # A field the platform asks about is pending, not listed; one that matches has nothing to do.
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 13, 4, 59, tzinfo=UTC)})
+    status = await api.sync(program_id)
+    assert [i["kind"] for i in status["pending"] if i["kind"] != "new"] == ["conflict"]
+    assert status["different"] == []
+    err = await api.call(
+        "POST", f"/lms/sync/items/{moved['id']}:follow", 409, json={"field": "title"}
+    )
+    assert err["error"]["code"] == "lms.sync_nothing_to_resolve"
+
+
+async def test_due_times_compare_to_the_minute(api: Api, fake: FakeProvider):
+    """Canvas's default due time is 23:59:59; Semestra keeps no seconds."""
+    labs = fake.course_assignments["101"]
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 7, 4, 59, 59, tzinfo=UTC)})
+    program_id, course = await _course(api, "a1")
+    lab = (await _assessments(api, course))["a1"]
+    # Saved again as the edit dialog sends it.
+    await api.call(
+        "PATCH", f"/assessments/{lab['id']}", json={"due_date": "2026-02-06", "due_time": "23:59"}
+    )
+    status = await api.sync(program_id)
+    assert status["different"] == []
+    labs[0] = labs[0].model_copy(update={"due_at": datetime(2026, 2, 8, 4, 59, 59, tzinfo=UTC)})
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert (await _assessments(api, course))["a1"]["due_date"] == "2026-02-07"
+
+
+async def test_a_grade_taken_back_on_the_platform_is_no_longer_offered(
+    api: Api, fake: FakeProvider
+):
+    program_id, course = await _course(api, "a2")
+    lab = (await _assessments(api, course))["a2"]
+    await api.call("PATCH", f"/assessments/{lab['id']}", json={"score_percentage": 50})
+    labs = fake.course_assignments["101"]
+    labs[1] = labs[1].model_copy(update={"submission": Submission(state="graded", score=27)})
+    [asked] = [i for i in (await api.sync(program_id))["pending"] if i["kind"] == "conflict"]
+    assert [c["field"] for c in asked["conflicts"]] == ["score"]
+    labs[1] = labs[1].model_copy(update={"submission": None})
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert status["different"] == []
+
+
+async def test_editing_an_imported_item_refreshes_the_sync_panel(api: Api, app: FastAPI):
+    program_id, course = await _course(api, "a1")
+    user_id = (await api.call("GET", "/account/me"))["id"]
+    lab = (await _assessments(api, course))["a1"]
+
+    def told(messages: list[dict[str, Any]]) -> list[Any]:
+        return [m["data"] for m in messages if m["type"] == sync.UPDATED]
+
+    with collect_events(app, user_id) as messages:
+        await api.call("PATCH", f"/assessments/{lab['id']}", json={"note": "bring a calculator"})
+    assert told(messages) == []
+    with collect_events(app, user_id) as messages:
+        await api.call("PATCH", f"/assessments/{lab['id']}", json={"title": "Lab one"})
+    assert told(messages) == [{"program_id": program_id}]
+    with collect_events(app, user_id) as messages:
+        await api.call("DELETE", f"/assessments/{lab['id']}")
+    assert told(messages) == [{"program_id": program_id}]
+
+
+async def test_a_to_do_follows_its_due_when_the_program_changes_zone(api: Api, fake: FakeProvider):
+    """A to-do keeps a wall-clock due; the platform's due is an instant."""
+    from semestra.modules.lms.schemas.dto import Assignment
+
+    fake.course_assignments["101"].append(
+        Assignment(external_id="a4", name="Reading 9", points=0,
+                   due_at=datetime(2026, 3, 6, 4, 59, tzinfo=UTC))
+    )  # fmt: skip
+    program_id, course = await _course(api, "a4")
+    del course
+    tasks = (await api.call("GET", f"/programs/{program_id}/tasks"))["items"]
+    [reading] = [t for t in tasks if t["title"] == "Reading 9"]
+    assert (reading["due_date"], reading["due_time"]) == ("2026-03-05", "23:59:00")
+    await api.call("PATCH", f"/programs/{program_id}", json={"timezone": "America/Vancouver"})
+    # Not something the user set apart; the sync takes the new reading of the due.
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert status["different"] == []
+    status = await api.sync(program_id)
+    assert [i for i in status["pending"] if i["kind"] == "conflict"] == []
+    assert [(c["title"], c["field"]) for c in status["recent"]] == [("Reading 9", "due_at")]
+    reading = await api.call("GET", f"/tasks/{reading['id']}")
+    assert (reading["due_date"], reading["due_time"]) == ("2026-03-05", "20:59:00")
+    assert (await api.sync(program_id))["different"] == []

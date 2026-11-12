@@ -12848,6 +12848,69 @@
         }
       }
     },
+    "/lms/sync/items/{item_id}:follow": {
+      "post": {
+        "tags": [
+          "lms"
+        ],
+        "summary": "Give a field the user changed the platform's value again.",
+        "description": "For a field listed in `lms.sync.status` `different`: it gets the platform's\nvalue and follows the platform again. Logged as a recent change, so it can be put back.",
+        "operationId": "lmsSyncFollow",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "An imported item's id",
+              "title": "Item Id"
+            },
+            "description": "An imported item's id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncFollowInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/lms/sync": {
       "post": {
         "tags": [
@@ -35222,6 +35285,72 @@
         ],
         "title": "SyncCourseError"
       },
+      "SyncDifference": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The item's id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "course": {
+            "type": "string",
+            "title": "Course"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The item's title on the platform"
+          },
+          "field": {
+            "type": "string",
+            "enum": [
+              "title",
+              "due_at",
+              "weight",
+              "score"
+            ],
+            "title": "Field"
+          },
+          "mine": {
+            "title": "Mine",
+            "description": "The value in Semestra"
+          },
+          "platform": {
+            "title": "Platform",
+            "description": "The value on the platform when last synced"
+          },
+          "target_kind": {
+            "type": "string",
+            "enum": [
+              "assessment",
+              "task"
+            ],
+            "title": "Target Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "course",
+          "title",
+          "field",
+          "mine",
+          "platform",
+          "target_kind",
+          "target_id"
+        ],
+        "title": "SyncDifference",
+        "description": "A field of an imported item the user set apart from the platform, not asked about: it\nstays the user's until the platform changes it or the user takes the platform's value."
+      },
       "SyncDismissInputBody": {
         "properties": {
           "item_ids": {
@@ -35248,6 +35377,26 @@
           "item_ids"
         ],
         "title": "SyncDismissInputBody"
+      },
+      "SyncFollowInputBody": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "title",
+              "due_at",
+              "weight",
+              "score"
+            ],
+            "title": "Field",
+            "description": "A field that differs from the platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field"
+        ],
+        "title": "SyncFollowInputBody"
       },
       "SyncItem": {
         "properties": {
@@ -35473,6 +35622,14 @@
             "title": "Recent",
             "description": "What the sync changed lately, newest first"
           },
+          "different": {
+            "items": {
+              "$ref": "#/components/schemas/SyncDifference"
+            },
+            "type": "array",
+            "title": "Different",
+            "description": "Fields the user set apart from the platform, by course and title"
+          },
           "errors": {
             "items": {
               "$ref": "#/components/schemas/SyncCourseError"
@@ -35494,6 +35651,7 @@
           "pending",
           "ignored",
           "recent",
+          "different",
           "errors"
         ],
         "title": "SyncStatus"

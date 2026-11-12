@@ -10170,6 +10170,59 @@ export type SyncCourseError = {
 };
 
 /**
+ * SyncDifference
+ *
+ * A field of an imported item the user set apart from the platform, not asked about: it
+ * stays the user's until the platform changes it or the user takes the platform's value.
+ */
+export type SyncDifference = {
+    /**
+     * Id
+     *
+     * The item's id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     *
+     * The item's title on the platform
+     */
+    title: string;
+    /**
+     * Field
+     */
+    field: 'title' | 'due_at' | 'weight' | 'score';
+    /**
+     * Mine
+     *
+     * The value in Semestra
+     */
+    mine: unknown;
+    /**
+     * Platform
+     *
+     * The value on the platform when last synced
+     */
+    platform: unknown;
+    /**
+     * Target Kind
+     */
+    target_kind: 'assessment' | 'task';
+    /**
+     * Target Id
+     */
+    target_id: string;
+};
+
+/**
  * SyncDismissInputBody
  */
 export type SyncDismissInputBody = {
@@ -10185,6 +10238,18 @@ export type SyncDismissInputBody = {
      * False offers them again
      */
     dismissed?: boolean;
+};
+
+/**
+ * SyncFollowInputBody
+ */
+export type SyncFollowInputBody = {
+    /**
+     * Field
+     *
+     * A field that differs from the platform
+     */
+    field: 'title' | 'due_at' | 'weight' | 'score';
 };
 
 /**
@@ -10335,6 +10400,12 @@ export type SyncStatus = {
      * What the sync changed lately, newest first
      */
     recent: Array<SyncChange>;
+    /**
+     * Different
+     *
+     * Fields the user set apart from the platform, by course and title
+     */
+    different: Array<SyncDifference>;
     /**
      * Errors
      */
@@ -19214,6 +19285,38 @@ export type LmsSyncDismissResponses = {
 };
 
 export type LmsSyncDismissResponse = LmsSyncDismissResponses[keyof LmsSyncDismissResponses];
+
+export type LmsSyncFollowData = {
+    body: SyncFollowInputBody;
+    path: {
+        /**
+         * Item Id
+         *
+         * An imported item's id
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/items/{item_id}:follow';
+};
+
+export type LmsSyncFollowErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncFollowError = LmsSyncFollowErrors[keyof LmsSyncFollowErrors];
+
+export type LmsSyncFollowResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncFollowResponse = LmsSyncFollowResponses[keyof LmsSyncFollowResponses];
 
 export type LmsSyncStatusData = {
     body?: never;

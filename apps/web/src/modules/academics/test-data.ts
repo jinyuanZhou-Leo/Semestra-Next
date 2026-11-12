@@ -165,6 +165,7 @@ export function academicsHandlers(world: World) {
         pending: [],
         ignored: [],
         recent: [],
+        different: [],
         errors: [],
       }),
     ),

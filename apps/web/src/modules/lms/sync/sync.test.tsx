@@ -6,6 +6,8 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, renderWithRouter, server } from '@/test-utils'
 import { Popover, PopoverContent } from '@/ui/popover'
 import SyncPanel from './SyncPanel'
+import { AssessmentDialog } from '@/modules/grading/components/AssessmentDialog'
+import { assessment } from '@/modules/grading/test-data'
 import { SyncOnOpen } from './SyncOnOpen'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
@@ -50,6 +52,7 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     pending: [],
     ignored: [],
     recent: [],
+    different: [],
     errors: [],
     ...overrides,
   }
@@ -184,4 +187,64 @@ test('a connection that stopped working says so and goes to its settings from th
   // Importing needs the platform; deciding what already waits does not.
   expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Ignore' })).toBeEnabled()
+})
+
+const MOVED = {
+  id: 'r1',
+  course_id: 'c1',
+  course: 'CSC148',
+  title: 'A3',
+  field: 'due_at' as const,
+  mine: { date: '2026-11-04', time: '23:59:00' },
+  platform: { date: '2026-11-06', time: '23:59:00' },
+  target_kind: 'assessment' as const,
+  target_id: 'a3',
+}
+
+test('a field set apart from the platform takes its value back from the panel', async () => {
+  const sent = vi.fn<(body: unknown) => void>()
+  server.use(
+    ...handlers(status({ different: [MOVED] })),
+    http.post(`${API}/lms/sync/items/r1\\:follow`, async ({ request }) => {
+      sent(await request.json())
+      return HttpResponse.json(status())
+    }),
+  )
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  await userEvent.click(await screen.findByRole('button', { name: /^Different from Canvas\s*1$/ }))
+  await userEvent.click(screen.getByRole('button', { name: 'Use the Canvas value' }))
+  await waitFor(() => expect(sent).toHaveBeenCalledWith({ field: 'due_at' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /Different from Canvas/ })).not.toBeInTheDocument(),
+  )
+})
+
+test('editing an assessment puts the platform value of a field that differs into the form', async () => {
+  const saved = vi.fn<(body: unknown) => void>()
+  server.use(
+    ...handlers(status({ different: [MOVED] })),
+    http.patch(`${API}/assessments/a3`, async ({ request }) => {
+      saved(await request.json())
+      return HttpResponse.json(assessment({ id: 'a3' }))
+    }),
+  )
+  renderWithRouter(
+    <AssessmentDialog
+      open
+      onOpenChange={() => undefined}
+      courseId="c1"
+      categories={[]}
+      assessment={assessment({ id: 'a3', due_date: '2026-11-04', due_time: '23:59' })}
+    />,
+    undefined,
+    IN_PROGRAM,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: 'Use the Canvas value' }))
+  expect(screen.queryByRole('button', { name: 'Use the Canvas value' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(saved).toHaveBeenCalledWith(
+      expect.objectContaining({ due_date: '2026-11-06', due_time: '23:59' }),
+    ),
+  )
 })

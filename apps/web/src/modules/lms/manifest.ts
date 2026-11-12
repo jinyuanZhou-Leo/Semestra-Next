@@ -34,6 +34,8 @@ import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
+import { FollowButton } from './sync/FollowButton'
+import { FIELD_ORIGINS, type FieldOrigin } from '@/components/FieldOrigins'
 import { openStatusPanel } from '@/app/host/StatusBar'
 import { toastError } from '@/lib/errors'
 
@@ -238,6 +240,7 @@ export default defineModule({
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: TaskSubmission },

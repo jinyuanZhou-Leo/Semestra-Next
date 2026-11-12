@@ -14,12 +14,13 @@ from semestra.modules.lms.schemas.sync import (
     SyncChange,
     SyncConflict,
     SyncCourseError,
+    SyncDifference,
     SyncItem,
     SyncItemKind,
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
-from semestra.modules.lms.sync_assignments import local_values, toggleable
+from semestra.modules.lms.sync_assignments import differences, local_values, toggleable
 
 # How long the panel lists what the sync changed (and the user can put it back).
 CHANGES_KEPT = timedelta(days=14)
@@ -46,6 +47,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         pending=[],
         ignored=[],
         recent=[],
+        different=[],
         errors=[],
     )
     if binding is None:
@@ -77,8 +79,9 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     )
     paused = {li.id for li in by_link.values() if not li.sync_enabled}
     refs = [r for r in refs if r.link_id not in paused]
-    asking = [r for r in refs if r.target_id is not None and r.conflicts and r.removed_at is None]
-    local = await local_values(ctx, asking, ZoneInfo(program.timezone))
+    tz = ZoneInfo(program.timezone)
+    imported = [r for r in refs if r.target_id is not None and r.removed_at is None]
+    local = await local_values(ctx, imported, tz)
     pending: list[SyncItem] = []
     ignored: list[SyncItem] = []
     for ref in refs:
@@ -132,6 +135,32 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         )
     ).all()
     can_toggle = await toggleable(ctx, [(change, ref) for change, ref in rows])
+    # A field whose change was put back is offered there ("redo"), not again as different.
+    put_back = {
+        (ref.id, change.field)
+        for change, ref in rows
+        if change.reverted_at is not None and change.id in can_toggle
+    }
+    different = sorted(
+        (
+            SyncDifference(
+                id=ref.id,
+                course_id=by_link[ref.link_id].course_id,
+                course=label(by_link[ref.link_id].course_id),
+                title=str(ref.snapshot.get("title") or ""),
+                field=name,
+                mine=mine,
+                platform=platform,
+                target_kind="assessment" if ref.target_kind == "assessment" else "task",
+                target_id=str(ref.target_id),
+            )
+            for ref in imported
+            if ref.id in local
+            for name, mine, platform in differences(ref, local[ref.id], tz)
+            if (ref.id, name) not in put_back
+        ),
+        key=lambda d: (d.course, d.title.casefold(), d.field),
+    )
     recent = [
         SyncChange(
             id=change.id,
@@ -165,6 +194,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "pending": pending,
             "ignored": ignored,
             "recent": recent,
+            "different": different,
             "errors": errors,
         }
     )

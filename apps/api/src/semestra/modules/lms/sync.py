@@ -21,7 +21,7 @@ from datetime import timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, run_as_system
@@ -42,6 +42,7 @@ JOB = "lms.course.sync"
 SYNCED = "lms.course.synced"
 # The status line and panel of a Program refetch on it (enqueued, finished, decided).
 UPDATED = "lms.sync.updated"
+events.coalesce(UPDATED)
 # Grades come in a while after a term's last day (the final exam), so a term that ended within
 # this is still synced.
 RECENT = timedelta(days=30)
@@ -103,12 +104,27 @@ def register_sync_stage(
     name: str, run: StageRun, *, order: int, enabled: StageEnabled | None = None
 ) -> None:
     """Adds a stage to every course sync. `run(ctx, link, b)` reads the platform, then writes in
-    `ctx`'s transaction (committed after it returns; rolled back if it raises). An `AppError` is
+    `ctx`'s transaction (committed after it returns; rolled back if it raises), taking the write
+    lock with `hold` before it reads what it compares. An `AppError` is
     recorded as the stage's error; the other stages still run. `enabled(ctx, link, b)` skips the
     stage for a course (its settings, the provider's features)."""
     if name in _stages:
         raise ValueError(f"duplicate sync stage {name!r}")
     _stages[name] = SyncStage(name, order, run, enabled)
+
+
+async def hold(ctx: Ctx, link: LmsCourseLink) -> None:
+    """Takes the database's write lock for the rest of `ctx`'s transaction, so that what is read
+    next stays as read until it commits. SQLite (pysqlite) opens a transaction only at the first
+    write, so a sync stage and the user's answer about the same course could each read before
+    the other's commit and then write over it. A stage calls it after reading the platform (not
+    before: the lock would stop every write while it waits on the network), the user's answers
+    before reading what they change."""
+    await ctx.db.execute(
+        update(LmsCourseLink)
+        .where(LmsCourseLink.id == link.id)
+        .values(updated_at=LmsCourseLink.updated_at)
+    )
 
 
 def stages() -> list[SyncStage]:

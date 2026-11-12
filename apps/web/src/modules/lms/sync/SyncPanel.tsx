@@ -1,13 +1,22 @@
-import type { SyncChange, SyncItem, SyncStatus } from '@semestra/api-client'
+import type { SyncChange, SyncDifference, SyncItem, SyncStatus } from '@semestra/api-client'
 import {
   lmsSyncChangeReapply,
   lmsSyncChangeRevert,
   lmsSyncDismiss,
+  lmsSyncFollow,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, ChevronRight, CircleAlert, Redo2, RefreshCw, Undo2 } from 'lucide-react'
+import {
+  ArrowRight,
+  ChevronRight,
+  CircleAlert,
+  CloudDownload,
+  Redo2,
+  RefreshCw,
+  Undo2,
+} from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -47,7 +56,8 @@ type Choice = 'platform' | 'mine' | 'keep' | 'delete'
  * The panel of the LMS status line (M09 §4.1). The header (platform, last sync, "Sync now")
  * stays put while the rest scrolls: what waits for the user (new assignments, values both sides
  * changed, items deleted on the platform), what the sync changed lately (each can be put back,
- * and that undone) and the ignored new items, every list grouped by course.
+ * and that undone), the fields the user set apart from the platform (each can take the
+ * platform's value again) and the ignored new items, every list grouped by course.
  */
 export default function SyncPanel({ onClose }: { onClose: () => void }) {
   const programId = useProgramId()
@@ -114,6 +124,11 @@ function Panel({
       }),
     )
   }
+  const differenceKey = (d: SyncDifference) => `${d.id}:${d.field}`
+  const follow = (d: SyncDifference) =>
+    void answer([differenceKey(d)], () =>
+      lmsSyncFollow({ path: { item_id: d.id }, body: { field: d.field }, throwOnError: true }),
+    )
   const toggle = async (change: SyncChange) => {
     setToggling(change.id)
     const call = change.reverted ? lmsSyncChangeReapply : lmsSyncChangeRevert
@@ -298,6 +313,46 @@ function Panel({
             <p className="text-xs text-muted-foreground">{m.lms_sync_recent_empty()}</p>
           )}
         </section>
+
+        {status.different.length > 0 ? (
+          <Collapsible className="flex flex-col gap-2">
+            <CollapsibleTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
+                />
+              }
+            >
+              <ChevronRight aria-hidden className="transition-transform" />
+              {m.lms_sync_different({ provider })}
+              <span className="text-muted-foreground/70 tabular-nums">
+                {status.different.length}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-2">
+              {byCourse(status.different).map((group) => (
+                <CourseGroup
+                  key={group.courseId}
+                  course={group.course}
+                  {...groupProps(group.courseId)}
+                >
+                  {group.items.map((d) => (
+                    <Fold key={differenceKey(d)} leaving={leaving.includes(differenceKey(d))}>
+                      <DifferenceRow
+                        difference={d}
+                        provider={provider}
+                        busy={busy}
+                        onFollow={() => follow(d)}
+                      />
+                    </Fold>
+                  ))}
+                </CourseGroup>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
 
         {status.ignored.length > 0 ? (
           <Collapsible className="flex flex-col gap-2">
@@ -570,6 +625,57 @@ function ChangeRow({
           </Tooltip>
         </ItemActions>
       ) : null}
+    </Item>
+  )
+}
+
+/** A field the user set apart from the platform: both values, and taking the platform's back. */
+function DifferenceRow({
+  difference: d,
+  provider,
+  busy,
+  onFollow,
+}: {
+  difference: SyncDifference
+  provider: string
+  busy: boolean
+  onFollow: () => void
+}) {
+  const label = m.lms_sync_follow({ provider })
+  return (
+    <Item size="xs" className="px-0 py-1.5">
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          <span className="truncate">
+            {m.lms_sync_change({ title: d.title, field: fieldLabel(d.field) })}
+          </span>
+        </ItemTitle>
+        <ItemDescription className="text-xs">
+          {m.lms_sync_different_values({
+            mine: formatValue(d.field, d.mine),
+            provider,
+            platform: formatValue(d.field, d.platform),
+          })}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-xs"
+                variant="outline"
+                aria-label={label}
+                disabled={busy}
+                onClick={onFollow}
+              />
+            }
+          >
+            <CloudDownload aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      </ItemActions>
     </Item>
   )
 }
