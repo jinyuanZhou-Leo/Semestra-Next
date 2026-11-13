@@ -7,7 +7,6 @@ import pytest
 from fastapi import FastAPI
 
 from semestra.modules.agent import attachment_context
-
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
 from semestra.modules.files.tests.conftest import make_pdf
 
@@ -206,8 +205,10 @@ async def test_files_picked_with_at_reach_the_model(
     syllabus = next(p for p in parts if "syllabus.pdf" in p and "course file" in p)
     assert "Late work loses 10% a day." in syllabus
     notes = next(i for i, p in enumerate(parts) if "notes.pdf" in p and "course file" in p)
-    assert "--- page 2 ---" in parts[notes] and "--- page 3 ---" not in parts[notes]
-    assert "files__document__read" in parts[notes + 1] and "Week 7" in parts[notes + 1]
+    assert "--- page 2 ---" in parts[notes]
+    assert "--- page 3 ---" not in parts[notes]
+    assert "files__document__read" in parts[notes + 1]
+    assert "Week 7" in parts[notes + 1]
     assert "files__document__read" in model.tools_of(0)
 
 

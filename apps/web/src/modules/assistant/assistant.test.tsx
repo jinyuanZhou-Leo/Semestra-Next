@@ -890,7 +890,12 @@ test('editing a message sends the new text and drops what came after it', async 
 test('a sent message shows its skills and references as chips, and editing keeps them', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [
-      { type: 'skill', name: 'record-grades', title: { en: 'Record grades' }, label: 'Record grades' },
+      {
+        type: 'skill',
+        name: 'record-grades',
+        title: { en: 'Record grades' },
+        label: 'Record grades',
+      },
       { type: 'text', text: '/Record grades Lab 3 of @MAT188H1 was 90' },
       { type: 'reference', kind: 'course', id: 'c2', label: 'MAT188H1' },
     ]),
