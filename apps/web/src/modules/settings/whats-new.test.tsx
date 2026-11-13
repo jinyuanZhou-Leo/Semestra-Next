@@ -165,5 +165,5 @@ test('counts the versions left out of the dialog', async () => {
   )
   const dialog = await screen.findByRole('dialog')
   expect(dialog).toHaveTextContent('5 updates since you last opened Semestra')
-  expect(dialog).toHaveTextContent('Older updates are listed under Settings › About.')
+  expect(dialog).toHaveTextContent('Older updates are listed in Settings → About.')
 })

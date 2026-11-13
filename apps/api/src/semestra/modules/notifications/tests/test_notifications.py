@@ -342,7 +342,7 @@ async def test_the_daily_summary_counts_today_and_is_skipped_on_an_empty_day(
     clock.advance(hours=6)  # 08:00 on the 16th
     await reminders.send_due(app.state)
     [message] = received(push, browser)
-    assert (message["title"], message["body"]) == ("Today", "2 to-dos due")
+    assert (message["title"], message["body"]) == ("Today", "2 tasks due")
 
 
 async def test_events_become_notifications_unless_turned_off(

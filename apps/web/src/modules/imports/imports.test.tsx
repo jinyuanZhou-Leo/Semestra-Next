@@ -116,7 +116,7 @@ test('an assessment can be imported as a to-do from its destination', async () =
   renderWithRouter(<SessionView session={session()} mode="direct" onDone={() => {}} />)
   const row = (await screen.findByText('Final exam')).closest('tr')!
   await userEvent.click(within(row).getByRole('button', { name: /Gradebook/ }))
-  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'To-dos' }))
+  await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Tasks' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
 })
 

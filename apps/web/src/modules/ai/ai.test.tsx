@@ -268,7 +268,7 @@ test('adding a provider checks the key; a rejected key is explained in the form'
   await user.click(within(dialog).getByRole('button', { name: /^Anthropic/ }))
   expect(within(dialog).getByRole('heading', { name: 'Connect Anthropic' })).toBeInTheDocument()
   expect(
-    within(dialog).getByRole('link', { name: 'Create a key at console.anthropic.com' }),
+    within(dialog).getByRole('link', { name: 'Create an API key at console.anthropic.com' }),
   ).toHaveAttribute('href', 'https://console.anthropic.com/settings/keys')
   const save = within(dialog).getByRole('button', { name: 'Check and save' })
   expect(save).toBeDisabled()
@@ -547,7 +547,7 @@ test('a task whose provider is failing says so under it', async () => {
   world.providers.push(provider({ last_error_code: 'ai.out_of_credit' }))
   renderWithQuery(<ModelsSection />)
   expect(
-    await screen.findAllByText('Anthropic: Out of credit. This task fails until it is fixed.'),
+    await screen.findAllByText("Anthropic: Out of credit. This won't work until it's fixed."),
   ).toHaveLength(5)
 })
 
@@ -658,7 +658,7 @@ test('a server that allows it runs a Hugging Face model typed into the search bo
   await user.click(await screen.findByRole('option', { name: /Use BAAI\/bge-small-zh from/ }))
   // Files already have vectors from bge-m3: switching asks first.
   const dialog = await screen.findByRole('alertdialog')
-  expect(dialog).toHaveTextContent('files: 3')
+  expect(dialog).toHaveTextContent('Files to index again with the new model: 3')
   expect(requests.some((r) => r.method === 'PUT')).toBe(false)
   await user.click(within(dialog).getByRole('button', { name: 'Change' }))
   await waitFor(() =>

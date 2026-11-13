@@ -453,7 +453,7 @@ test('several jobs that just succeeded read as done, not failed', async () => {
       </SidebarProvider>
     </ModuleRegistry>,
   )
-  expect(await screen.findByRole('button', { name: '2 tasks done' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: '2 done' })).toBeInTheDocument()
 })
 
 test('a failed job stays listed while its list is open and goes once it closes', async () => {
@@ -490,9 +490,9 @@ test('a failed job stays listed while its list is open and goes once it closes',
   )
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: /failed/ }))
-  expect(await screen.findByText('Background tasks')).toBeInTheDocument()
+  expect(await screen.findByText('Background activity')).toBeInTheDocument()
   await new Promise((resolve) => setTimeout(resolve, 50))
-  expect(screen.getByText('Background tasks')).toBeInTheDocument()
+  expect(screen.getByText('Background activity')).toBeInTheDocument()
   await user.keyboard('{Escape}')
   // The bar holds still while the pointer is over it; once it leaves, the line closes.
   await user.unhover(screen.getByRole('list', { name: 'In progress' }))

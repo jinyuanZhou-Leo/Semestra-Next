@@ -1226,7 +1226,7 @@ test('history groups pinned first, then by day', () => {
   ])
 })
 
-test('Sem changes ask every time, by module or all auto-approved', async () => {
+test('Sem changes ask every time, by feature or all auto-approved', async () => {
   const tool = (name: string, effect: string, module = 'grading', confirm = effect !== 'read') => ({
     name,
     module,
@@ -1271,9 +1271,9 @@ test('Sem changes ask every time, by module or all auto-approved', async () => {
   )
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
-  // By module: a table of modules; a backend module without a frontend module is still named.
-  await userEvent.click(segment('By module'))
-  const table = await screen.findByRole('table', { name: 'Auto-approval by module' })
+  // By feature: a table of features; a backend module without a frontend module is still named.
+  await userEvent.click(segment('By feature'))
+  const table = await screen.findByRole('table', { name: 'Auto-approval by feature' })
   expect(within(table).getByText('Pages and cards')).toBeInTheDocument()
   await userEvent.click(
     within(table).getByRole('switch', { name: 'Auto-approve modifications in Pages and cards' }),
