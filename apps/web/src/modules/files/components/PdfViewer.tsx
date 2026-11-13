@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/ui/alert'
 import { Spinner } from '@/ui/spinner'
 import { highlightHtml } from '../highlight'
 import type { PageTarget } from '../page-target'
-import { PageControls } from './PageControls'
+import { clampZoom, PageControls } from './PageControls'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -75,6 +75,20 @@ export function PdfViewer({
     totalSize += heightOf(index) + GAP
   }
   totalSize += PADDING_END
+
+  // Ctrl/⌘ + the wheel (a trackpad pinch arrives the same way) zooms instead of scrolling. The
+  // listener is not passive so the browser's own page zoom can be prevented.
+  useEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      setZoom((z) => clampZoom(z * Math.exp(-event.deltaY * 0.01)))
+    }
+    element.addEventListener('wheel', onWheel, { passive: false })
+    return () => element.removeEventListener('wheel', onWheel)
+  }, [])
 
   // The React Compiler leaves this component uncompiled: the virtualizer is one mutable object
   // that re-renders it on scroll, and cached reads from it would go stale.

@@ -1,7 +1,13 @@
 import type { Course, Occurrence, TermWeek } from '@semestra/api-client'
 import { calendarOccurrenceListOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarArrowDown, Image as ImageIcon, Link2, type LucideIcon } from 'lucide-react'
+import {
+  CalendarArrowDown,
+  GraduationCap,
+  Image as ImageIcon,
+  Link2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { CalendarSourceContribution } from '@/app/extensions'
@@ -550,7 +556,15 @@ function ImagePanel({
                 }}
                 className="space-y-3 bg-background"
               >
-                <h2 className="font-heading text-lg font-semibold">{sheet.title}</h2>
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="font-heading text-lg font-semibold">{sheet.title}</h2>
+                  <div className="flex items-center gap-2 font-heading text-sm font-semibold text-muted-foreground">
+                    <span className="flex size-5.5 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                      <GraduationCap className="size-3.5" aria-hidden />
+                    </span>
+                    Semestra
+                  </div>
+                </div>
                 <WeekGrid
                   days={sheet.days}
                   items={sheet.items}
