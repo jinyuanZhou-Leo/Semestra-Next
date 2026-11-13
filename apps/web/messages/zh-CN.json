@@ -2700,7 +2700,6 @@
   "canvas_tab_submit_none": "无需提交",
   "canvas_tab_item_locked": "在 Canvas 中已锁定",
   "canvas_tab_module_completed": "已完成",
-  "canvas_tab_module_started": "进行中",
   "canvas_tab_module_locked": "未解锁",
   "canvas_tab_module_prerequisites": "需先完成：{names}",
   "canvas_tab_module_sequential": "需按顺序完成",

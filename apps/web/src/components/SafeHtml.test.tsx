@@ -15,3 +15,21 @@ test("a marked image loads from the app and goes back to the platform's address 
   fireEvent.error(img)
   expect(img.getAttribute('src')).toBe(original)
 })
+
+test('editor leftovers get their real structure in the simplified display only', () => {
+  const html =
+    '<p><span><strong>Grade Composition</strong></span></p><p>&nbsp;</p>' +
+    '<table><tbody><tr><td><strong>Item</strong></td><td><strong>Weight</strong></td></tr>' +
+    '<tr><td>Labs</td><td>20%</td></tr></tbody></table>'
+  const { container, rerender } = render(<SafeHtml html={html} />)
+  expect(screen.getByRole('heading', { name: 'Grade Composition' })).toBeTruthy()
+  expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
+    'Item',
+    'Weight',
+  ])
+  expect(container.querySelectorAll('p')).toHaveLength(0)
+
+  rerender(<SafeHtml html={html} original />)
+  expect(screen.queryByRole('heading')).toBeNull()
+  expect(screen.queryAllByRole('columnheader')).toHaveLength(0)
+})

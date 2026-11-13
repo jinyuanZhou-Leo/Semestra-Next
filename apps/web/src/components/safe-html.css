@@ -129,7 +129,10 @@
   --tw-prose-links: color-mix(in oklab, var(--primary), var(--foreground) 40%);
 }
 
-.lms-simplified h1, .lms-simplified h2, .lms-simplified h3, .lms-simplified h4 {
+.lms-simplified h1,
+.lms-simplified h2,
+.lms-simplified h3,
+.lms-simplified h4 {
   font-family: var(--font-heading);
   font-weight: 600;
 }
@@ -162,7 +165,10 @@
 }
 
 /* Headings that are links (a page's own menu) read as headings. */
-.lms-simplified h1 a, .lms-simplified h2 a, .lms-simplified h3 a, .lms-simplified h4 a {
+.lms-simplified h1 a,
+.lms-simplified h2 a,
+.lms-simplified h3 a,
+.lms-simplified h4 a {
   font-weight: 600;
 }
 
@@ -185,7 +191,8 @@
   color: var(--muted-foreground);
   font-weight: 500;
 }
-.lms-simplified th, .lms-simplified td {
+.lms-simplified th,
+.lms-simplified td {
   padding: 0.5em 0.85em;
   line-height: 1.5;
   vertical-align: top;

@@ -2700,7 +2700,6 @@
   "canvas_tab_submit_none": "No submission",
   "canvas_tab_item_locked": "Locked in Canvas",
   "canvas_tab_module_completed": "Completed",
-  "canvas_tab_module_started": "In progress",
   "canvas_tab_module_locked": "Locked",
   "canvas_tab_module_prerequisites": "Finish first: {names}",
   "canvas_tab_module_sequential": "Items must be done in order",

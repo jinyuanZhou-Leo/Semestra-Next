@@ -35,7 +35,7 @@ defineModule({
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
 ## 3. 页面结构
-- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里）：导航栏顶部是"Canvas"小标签与课程代码、学期，底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
+- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里，"Canvas"是页签名，所以导航栏顶部不再重复课程代码、学期和"Canvas"标签）：导航栏底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
 - 导航栏数据：`lms.course.overview.navigation`。显示规则：
   - 内置类型 `home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus` 使用本插件的原生视图。
   - `files`、`discussions` 隐藏（与旧版一致）。
@@ -127,3 +127,8 @@ defineModule({
   - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`，文案前缀改为 `files_kind_*`。
   - M08 导入会话失败（例如没有可导入的内容）时，`SessionView` 显示 `Empty` + 原因 + “关闭”，不再是撑满对话框的红色 `Alert`。
 - 课程作业打通第 3 步（2026-11-07，PR #255）：导入只剩一个"导入 N 项"按钮（`importAssignments`，打开 M08 审核）；"Semestra"一列用文字写去向："已加入成绩簿"（链接到成绩簿并定位该考核）/"已加入待办"（链接到课程待办页）/灰色"未加入"，练习测验留空（2026-11-08 起，此前是图标与待办勾选圈，用户看不懂）；行末 `RowMenu`："加入成绩簿"（仅导入为待办的作业，`lms.assignment.add_to_gradebook`）、"在 Canvas 中打开"。页面顶部（更新提示下）显示 M09 的新作业提示。
+- **阅读排版与单元（2026-11-13）**：
+  - 左侧菜单顶部去掉"Canvas"小标签和课程代码、学期（页面头和页签名已经写了）。
+  - "简洁"显示改用 `@tailwindcss/typography`（`prose`，在 `theme.css` 用 `@plugin` 引入），`components/safe-html.css` 的 `.lms-simplified` 把 prose 的颜色变量映射到主题令牌（暗色下链接混入前景色以保证对比度），标题用 Figtree 并比视图标题低一级；正文每行最多约 72 个字符，表格、图片、代码块可以用满宽度。表格是圆角外框 + 行分隔线 + 浅灰表头，放不下时横向滚动。
+  - `SafeHtml` 在简洁模式下净化后整理一次结构（`restoreStructure`）：去掉只有空白/`&nbsp;`/换行的段落，整段只有一个加粗（不在表格、列表里，不含链接，120 字以内）的段落换成 `h3`，首行单元格全是加粗（或空）且没有表头的表格把首行变成 `thead > th`。Canvas 样式不做这些改动。
+  - 单元：所有单元放在一个圆角列表里（分隔线分开，方案 A）；展开状态提到视图里，标题行右侧有"全部展开/全部收起"。单元标题行右侧显示状态：未解锁是锁 + 解锁日期，完成是对勾 +"已完成"，有完成要求的显示细进度条 + "完成数/总数"，否则是条目数；去掉"已完成/进行中/未解锁"徽章。条目的截止日期只显示月日（悬停看完整时间），已逾期只把文字标红，0 分不显示分值；子标题与条目标题对齐。

@@ -83,7 +83,9 @@ export function ModulesView({ selected }: { selected?: string }) {
         tools={
           modules.length > 1 ? (
             <IconAction
-              label={allOpen ? m.canvas_tab_modules_collapse_all() : m.canvas_tab_modules_expand_all()}
+              label={
+                allOpen ? m.canvas_tab_modules_collapse_all() : m.canvas_tab_modules_expand_all()
+              }
               onClick={() =>
                 setOpened(new Set(allOpen ? [] : modules.map((mod) => mod.external_id)))
               }
@@ -130,7 +132,9 @@ export function ModulesView({ selected }: { selected?: string }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
-            <AlertDialogDescription className="break-all">{confirmUrl.target}</AlertDialogDescription>
+            <AlertDialogDescription className="break-all">
+              {confirmUrl.target}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
@@ -386,8 +390,7 @@ function CompletionMark({ completion, overdue }: { completion: Completion; overd
 }
 
 /**
- * One item: its link (and lock) take the room; the due date and points, the file actions (shown
- * on hover and focus) and the completion check sit at the end, lined up from row to row.
+ * One item: its link (and lock) take the room; the due date and points, the file actions and the completion check sit at the end, lined up from row to row.
  */
 function ModuleItemRow({
   item,
@@ -398,9 +401,7 @@ function ModuleItemRow({
 }) {
   const [now] = useState(Date.now)
   if (item.kind === 'subheader') {
-    return (
-      <p className="px-9 pt-3 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
-    )
+    return <p className="px-9 pt-3 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
   }
   const completion = item.completion
   const overdue =
@@ -425,13 +426,11 @@ function ModuleItemRow({
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <ModuleItemLink item={item} onExternal={onExternal} />
         {item.locked ? <LockIcon explanation={item.lock_explanation} /> : null}
-        {leaves ? <ExternalLink aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+        {leaves ? (
+          <ExternalLink aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        ) : null}
       </div>
-      {file ? (
-        <div className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
-          <FileActions fileId={file} name={item.title} />
-        </div>
-      ) : null}
+      {file ? <FileActions fileId={file} name={item.title} /> : null}
       {meta ? (
         <span
           title={item.due_at ? formatDateTime(item.due_at) : undefined}
@@ -465,7 +464,8 @@ function ModuleItemLink({
       <span className="min-w-0 truncate">{item.title}</span>
     </>
   )
-  const rowClass = 'h-auto min-h-9 min-w-0 justify-start gap-3 px-2 py-1 font-normal hover:bg-transparent'
+  const rowClass =
+    'h-auto min-h-9 min-w-0 justify-start gap-3 px-2 py-1 font-normal hover:bg-transparent'
 
   if (item.kind === 'file' && item.target) {
     const fileId = item.target.ref
