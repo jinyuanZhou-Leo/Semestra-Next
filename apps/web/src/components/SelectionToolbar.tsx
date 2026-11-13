@@ -11,8 +11,8 @@ const LAYER =
 
 /**
  * The part of a table's toolbar that its batch actions replace while rows are checked (M00
- * §4.8): the filters and search (`children`) give way to the count, "Clear selection" and the
- * actions, one button each with the destructive one last. Both sit in one grid cell, so the row
+ * §4.8): the filters and search (`children`) give way to the count, then the actions (one button
+ * each, the destructive one last) and "Clear selection" after them. Both sit in one grid cell, so the row
  * keeps its height and the table never moves; they cross-fade, and the hidden one is `inert`.
  * Esc clears the selection unless `paused` (a dialog of the batch is open).
  */
@@ -59,16 +59,16 @@ export function SelectionToolbar({
           !selecting && 'pointer-events-none translate-y-1 opacity-0',
         )}
       >
-        <span className="font-medium whitespace-nowrap tabular-nums">{countLabel}</span>
+        <span className="mr-2 font-medium whitespace-nowrap tabular-nums">{countLabel}</span>
+        {actions}
         <Tooltip>
-          <TooltipTrigger render={<Button variant="ghost" size="sm" onClick={onClear} />}>
+          <TooltipTrigger render={<Button variant="secondary" size="sm" onClick={onClear} />}>
             {m.common_clear_selection()}
           </TooltipTrigger>
           <TooltipContent>
             <Kbd>Esc</Kbd>
           </TooltipContent>
         </Tooltip>
-        <div className="ml-2 flex items-center gap-2">{actions}</div>
       </div>
     </div>
   )

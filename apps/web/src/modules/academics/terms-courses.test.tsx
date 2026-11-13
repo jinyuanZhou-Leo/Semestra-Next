@@ -134,12 +134,12 @@ test('the term list only selects: its operations live in the title menu, once', 
   }
 })
 
-test('selecting rows puts the batch actions in place of the filters, keeping the search box', async () => {
+test('selecting rows puts the batch actions in place of the search and filters', async () => {
   mount('/p/p1/academics?tab=courses')
   await screen.findByRole('searchbox', { name: 'Search courses' })
   await settle()
   const searchBox = screen.getByRole('searchbox', { name: 'Search courses' })
-  const filters = screen.getByRole('combobox', { name: 'Subject' }).parentElement!
+  const filters = searchBox.closest<HTMLElement>('div:has(> [data-slot=input-group])')!
   const toolbar = screen.getByRole('toolbar', { hidden: true })
   // Both live in one grid cell, so the row keeps its height and the table never moves.
   expect(filters.parentElement).toBe(toolbar.parentElement)
@@ -155,8 +155,7 @@ test('selecting rows puts the batch actions in place of the filters, keeping the
     'data-state',
     'selected',
   )
-  // The search box is not part of the swap.
-  expect(searchBox.closest('[inert]')).toBeNull()
+  expect(searchBox.closest('[inert]')).toBe(filters)
 
   await userEvent.click(within(toolbar).getByRole('button', { name: 'Clear selection' }))
   await waitFor(() => expect(toolbar).toHaveAttribute('inert'))
