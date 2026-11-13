@@ -16,11 +16,14 @@ from semestra.modules.grading.schemas import (
     AssessmentCreateInput,
     AssessmentCreateManyInput,
     AssessmentCreateManyResult,
+    AssessmentDeleteManyInput,
     AssessmentFindInput,
     AssessmentListInput,
     AssessmentPage,
     AssessmentRef,
     AssessmentUpdateInput,
+    AssessmentUpdateManyInput,
+    AssessmentUpdateManyResult,
     CategoryCreateInput,
     CategoryList,
     CategoryOrderInput,
@@ -341,11 +344,47 @@ assessment in the grade, set `dropped` with grading.assessment.update instead. F
 grading.assessment.find.""",
     effect="destructive",
     http=Http("DELETE", "/assessments/{assessment_id}"),
+    expose=("http",),  # Sem and MCP use delete_many, with one id or more
     preview=service.preview_assessment_delete,
     tags=TAGS,
 )
 async def assessment_delete(ctx: Ctx, inp: AssessmentRef) -> Deleted:
     await service.delete_assessment(ctx, inp.assessment_id)
+    return Deleted()
+
+
+@capability(
+    name="grading.assessment.update_many",
+    summary="Give several assessments of a course the same category, weight or dropped state.",
+    description="""Use when the user changes a group of assessments at once ("put all quizzes in
+the Quizzes category", "each lab is worth 2%"). `weight` is each one's share, not their total.
+Only the fields that are sent change; scores are recorded one by one with
+grading.assessment.update. All of them change, or none if one is not the course's.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/assessments:update"),
+    tags=TAGS,
+    preview=service.preview_assessments_update,
+    agent_output_fields=("updated.id", "updated.title"),
+)
+async def assessment_update_many(
+    ctx: Ctx, inp: AssessmentUpdateManyInput
+) -> AssessmentUpdateManyResult:
+    return await service.update_assessments(ctx, inp)
+
+
+@capability(
+    name="grading.assessment.delete_many",
+    summary="Delete one or more assessments of a course from its gradebook.",
+    description="""Irreversible: their scores and their place in the grade are gone. To ignore
+them in the grade, set `dropped` with grading.assessment.update_many instead. Find the ids with
+grading.assessment.find. All of them are deleted, or none if one is not the course's.""",
+    effect="destructive",
+    http=Http("POST", "/courses/{course_id}/assessments:delete"),
+    preview=service.preview_assessments_delete,
+    tags=TAGS,
+)
+async def assessment_delete_many(ctx: Ctx, inp: AssessmentDeleteManyInput) -> Deleted:
+    await service.delete_assessments(ctx, inp)
     return Deleted()
 
 

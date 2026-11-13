@@ -815,6 +815,18 @@ export type AssessmentCreateManyResult = {
 };
 
 /**
+ * AssessmentDeleteManyInputBody
+ */
+export type AssessmentDeleteManyInputBody = {
+    /**
+     * Assessment Ids
+     *
+     * Assessments of this course to delete
+     */
+    assessment_ids: Array<string>;
+};
+
+/**
  * AssessmentFields
  *
  * Fields shared by the creation inputs.
@@ -984,6 +996,52 @@ export type AssessmentUpdateInputBody = {
      * Note, or null to clear
      */
     note?: string | null;
+};
+
+/**
+ * AssessmentUpdateManyInputBody
+ */
+export type AssessmentUpdateManyInputBody = {
+    /**
+     * Assessment Ids
+     *
+     * Assessments of this course to change
+     */
+    assessment_ids: Array<string>;
+    /**
+     * Category Id
+     *
+     * Category id, or null for none
+     */
+    category_id?: string | null;
+    /**
+     * Weight
+     *
+     * Each one's share of the course
+     */
+    weight?: number | null;
+    /**
+     * Total Weight
+     *
+     * The shares of the ones that count (not dropped) together, split evenly among them to 0.01 so they add up exactly; dropped ones keep theirs. Instead of `weight`
+     */
+    total_weight?: number | null;
+    /**
+     * Dropped
+     *
+     * Ignored in every calculation
+     */
+    dropped?: boolean | null;
+};
+
+/**
+ * AssessmentUpdateManyResult
+ */
+export type AssessmentUpdateManyResult = {
+    /**
+     * Updated
+     */
+    updated: Array<Assessment>;
 };
 
 /**
@@ -16288,6 +16346,38 @@ export type GradingAssessmentUpdateResponses = {
 
 export type GradingAssessmentUpdateResponse = GradingAssessmentUpdateResponses[keyof GradingAssessmentUpdateResponses];
 
+export type GradingAssessmentDeleteManyData = {
+    body: AssessmentDeleteManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments:delete';
+};
+
+export type GradingAssessmentDeleteManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentDeleteManyError = GradingAssessmentDeleteManyErrors[keyof GradingAssessmentDeleteManyErrors];
+
+export type GradingAssessmentDeleteManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesAcademicsSchemasDeleted;
+};
+
+export type GradingAssessmentDeleteManyResponse = GradingAssessmentDeleteManyResponses[keyof GradingAssessmentDeleteManyResponses];
+
 export type GradingAssessmentUpcomingData = {
     body?: never;
     path: {
@@ -16338,6 +16428,38 @@ export type GradingAssessmentUpcomingResponses = {
 };
 
 export type GradingAssessmentUpcomingResponse = GradingAssessmentUpcomingResponses[keyof GradingAssessmentUpcomingResponses];
+
+export type GradingAssessmentUpdateManyData = {
+    body: AssessmentUpdateManyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/assessments:update';
+};
+
+export type GradingAssessmentUpdateManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type GradingAssessmentUpdateManyError = GradingAssessmentUpdateManyErrors[keyof GradingAssessmentUpdateManyErrors];
+
+export type GradingAssessmentUpdateManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssessmentUpdateManyResult;
+};
+
+export type GradingAssessmentUpdateManyResponse = GradingAssessmentUpdateManyResponses[keyof GradingAssessmentUpdateManyResponses];
 
 export type GradingCategoryCreateData = {
     body: CategoryCreateInputBody;

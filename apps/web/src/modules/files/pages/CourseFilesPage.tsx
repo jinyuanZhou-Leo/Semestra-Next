@@ -1,15 +1,5 @@
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
-import {
-  FolderInput,
-  FolderOpen,
-  FolderPlus,
-  Link2,
-  Plus,
-  Search,
-  Trash2,
-  Upload,
-  X,
-} from 'lucide-react'
+import { FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -40,8 +30,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
+import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
 import { FileBrowser, type Selection, SortMenu, ViewToggle } from '../components/FileBrowser'
@@ -170,14 +160,30 @@ export function CourseFiles({
     >
       <div className="relative flex flex-col gap-3">
         <div className="flex min-h-9 flex-wrap items-center gap-2">
-          {selecting ? (
-            <SelectionBar
-              count={selected.length}
-              onMove={() => action.show({ kind: 'move', targets: selected })}
-              onDelete={() => action.show({ kind: 'delete', targets: selected })}
-              onClear={clearSelection}
-            />
-          ) : (
+          <SelectionToolbar
+            count={selecting ? selected.length : 0}
+            countLabel={m.common_selected_count({ count: selected.length })}
+            label={m.files_batch_actions()}
+            onClear={clearSelection}
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => action.show({ kind: 'move', targets: selected })}
+                >
+                  {m.files_move_to()}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => action.show({ kind: 'delete', targets: selected })}
+                >
+                  {m.common_delete()}
+                </Button>
+              </>
+            }
+          >
             <InputGroup className="w-64">
               <InputGroupInput
                 type="search"
@@ -190,7 +196,7 @@ export function CourseFiles({
                 <Search aria-hidden />
               </InputGroupAddon>
             </InputGroup>
-          )}
+          </SelectionToolbar>
           <div className="ml-auto flex items-center gap-2">
             {view === 'grid' ? <SortMenu /> : null}
             <ViewToggle />
@@ -400,47 +406,5 @@ function DropCrumb({
     >
       {name}
     </BreadcrumbLink>
-  )
-}
-
-/** Takes the search box's place while entries are selected. */
-function SelectionBar({
-  count,
-  onMove,
-  onDelete,
-  onClear,
-}: {
-  count: number
-  onMove: () => void
-  onDelete: () => void
-  onClear: () => void
-}) {
-  return (
-    <div className="flex h-9 animate-in items-center gap-1 rounded-full bg-muted pr-1 pl-4 text-sm duration-150 fade-in-0">
-      <span className="mr-1 font-medium tabular-nums">{m.files_selected_count({ count })}</span>
-      <Button variant="ghost" size="sm" onClick={onMove}>
-        <FolderInput aria-hidden />
-        {m.files_move_to()}
-      </Button>
-      <Button variant="destructive" size="sm" onClick={onDelete}>
-        <Trash2 aria-hidden />
-        {m.common_delete()}
-      </Button>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={m.files_clear_selection()}
-              onClick={onClear}
-            />
-          }
-        >
-          <X aria-hidden />
-        </TooltipTrigger>
-        <TooltipContent>{m.files_clear_selection()}</TooltipContent>
-      </Tooltip>
-    </div>
   )
 }

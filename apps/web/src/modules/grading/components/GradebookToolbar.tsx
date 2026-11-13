@@ -1,4 +1,4 @@
-import type { CourseResult } from '@semestra/api-client'
+import type { Assessment, AssessmentCategory, CourseResult } from '@semestra/api-client'
 import { gradingCourseResultUpdateMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Calculator, Flag, MoreHorizontal, Search, X } from 'lucide-react'
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -25,8 +26,12 @@ import { invalidateGrading } from '../queries'
 import { AddMenu } from './AddMenu'
 import { PlanBar } from './GradeTableCard'
 import { OfficialGradeDialog } from './OfficialGradeDialog'
+import { BatchActions } from './BatchActions'
 
-/** The header bar of the gradebook table; in plan mode it is the `PlanBar`. */
+/**
+ * The header bar of the gradebook table; in plan mode it is the `PlanBar`, and while assessments
+ * are checked the batch actions take the filters' place (`SelectionToolbar`).
+ */
 export function GradebookToolbar({
   programId,
   result,
@@ -42,6 +47,11 @@ export function GradebookToolbar({
   grouped,
   onGroupedChange,
   onAdd,
+  categories,
+  selected,
+  onBatchWeight,
+  onBatchDelete,
+  onClearSelection,
 }: {
   programId: string
   result: CourseResult
@@ -58,6 +68,12 @@ export function GradebookToolbar({
   grouped: boolean
   onGroupedChange: (grouped: boolean) => void
   onAdd: () => void
+  categories: readonly AssessmentCategory[]
+  /** The checked assessments on screen. */
+  selected: readonly Assessment[]
+  onBatchWeight: () => void
+  onBatchDelete: () => void
+  onClearSelection: () => void
 }) {
   if (planning) {
     return (
@@ -82,30 +98,47 @@ export function GradebookToolbar({
   )
   return (
     <div className="flex h-8 items-center gap-2">
-      <ToggleGroup
-        aria-label={m.grading_filter()}
-        size="sm"
-        className={SEGMENTED}
-        value={[filter]}
-        onValueChange={([next]) => next && onFilterChange(next as AssessmentFilter)}
+      <SelectionToolbar
+        className="mr-auto"
+        count={selected.length}
+        countLabel={m.common_selected_count({ count: selected.length })}
+        label={m.grading_batch_actions()}
+        onClear={onClearSelection}
+        actions={
+          <BatchActions
+            courseId={result.course_id}
+            selected={selected}
+            categories={categories}
+            onWeight={onBatchWeight}
+            onDelete={onBatchDelete}
+          />
+        }
       >
-        {FILTERS.map((f) => (
-          <ToggleGroupItem key={f} value={f} className={SEGMENT}>
-            {filterLabel(f)}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-      <InputGroup className="mr-auto h-8 w-56">
-        <InputGroupInput
-          aria-label={m.grading_search_assessments()}
-          placeholder={m.grading_search_assessments()}
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-        <InputGroupAddon>
-          <Search aria-hidden />
-        </InputGroupAddon>
-      </InputGroup>
+        <ToggleGroup
+          aria-label={m.grading_filter()}
+          size="sm"
+          className={SEGMENTED}
+          value={[filter]}
+          onValueChange={([next]) => next && onFilterChange(next as AssessmentFilter)}
+        >
+          {FILTERS.map((f) => (
+            <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+              {filterLabel(f)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <InputGroup className="h-8 w-56">
+          <InputGroupInput
+            aria-label={m.grading_search_assessments()}
+            placeholder={m.grading_search_assessments()}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
+      </SelectionToolbar>
       {canPlan ? (
         plan
       ) : (

@@ -56,6 +56,11 @@ class Api:
             json={"title": title, "weight": weight, **body},
         )
 
+    async def categories(self, course_id: str) -> dict[str, str]:
+        """The course's category ids by key."""
+        book = await self.gradebook(course_id)
+        return {c["key"]: c["id"] for c in book["categories"]}
+
     async def gradebook(self, course_id: str) -> dict[str, Any]:
         return await self.call("GET", f"/courses/{course_id}/gradebook")
 
@@ -484,6 +489,44 @@ async def test_deleting_assessments(api: Api):
     ids = [(await api.assessment(cid, f"A{n}", 10))["id"] for n in range(3)]
     await api.call("DELETE", f"/assessments/{ids[0]}")
     await api.call("DELETE", f"/assessments/{ids[0]}", 404)
+
+
+async def test_batch_changes_are_all_or_none(api: Api):
+    program, course = await one_course(api)
+    cid = course["id"]
+    labs = [(await api.assessment(cid, f"Lab {n}", 5))["id"] for n in range(3)]
+    quiz = (await api.categories(cid))["quiz"]
+    url = f"/courses/{cid}/assessments:update"
+
+    r = await api.call(
+        "POST", url, json={"assessment_ids": labs, "category_id": quiz, "dropped": True}
+    )
+    assert {(a["category_id"], a["dropped"], a["weight"]) for a in r["updated"]} == {
+        (quiz, True, 5)
+    }
+    # A total is split to the hundredth and adds up exactly.
+    r = await api.call("POST", url, json={"assessment_ids": labs, "total_weight": 20})
+    assert [a["weight"] for a in r["updated"]] == [6.67, 6.67, 6.66]
+    # Dropped ones are left out of the course grade, so the total goes to the ones that count.
+    await api.call("POST", url, json={"assessment_ids": labs[:2], "dropped": False})
+    r = await api.call("POST", url, json={"assessment_ids": labs, "total_weight": 15})
+    assert [a["weight"] for a in r["updated"]] == [7.5, 7.5, 6.66]
+    await api.call("POST", url, 422, json={"assessment_ids": labs, "total_weight": 12.345})
+    await api.call("POST", url, 422, json={"assessment_ids": labs, "weight": 1, "total_weight": 20})
+    await api.call("POST", url, 422, json={"assessment_ids": labs, "weight": None})
+
+    # An assessment of another course changes nothing, here or when deleting.
+    other = await api.course(program["id"], course["term_ids"])
+    stranger = (await api.assessment(other["id"], "Elsewhere", 5))["id"]
+    await api.call("POST", url, 404, json={"assessment_ids": [*labs, stranger], "weight": 1})
+    await api.call(
+        "POST", f"/courses/{cid}/assessments:delete", 404,
+        json={"assessment_ids": [labs[0], stranger]},
+    )  # fmt: skip
+    assert [a["weight"] for a in (await api.gradebook(cid))["assessments"]] == [7.5, 7.5, 6.66]
+
+    await api.call("POST", f"/courses/{cid}/assessments:delete", json={"assessment_ids": labs[:2]})
+    assert [a["id"] for a in (await api.gradebook(cid))["assessments"]] == labs[2:]
 
 
 async def test_events_say_what_changed(api: Api, app: FastAPI):

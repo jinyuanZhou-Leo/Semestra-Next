@@ -422,8 +422,62 @@ test("an assessment's to-do is checked off from its row", async () => {
   const check = await screen.findByRole('checkbox', { name: 'Complete APS105H1 · Final exam' })
   // Quiz 1 has no to-do (no due date): a dash.
   const quiz = screen.getByText('Quiz 1').closest('tr')!
-  expect(within(quiz).queryByRole('checkbox')).toBeNull()
+  expect(within(quiz).queryByRole('checkbox', { name: /^Complete/ })).toBeNull()
   await userEvent.click(check)
   await waitFor(() => expect(completes).toEqual([{ id: 't2', body: { completed: true } }]))
   await waitFor(() => expect(check.getAttribute('aria-checked')).toBe('true'))
+})
+
+test('checked assessments are changed and deleted together, only the ones on screen', async () => {
+  const updates: unknown[] = []
+  const deletes: unknown[] = []
+  server.use(
+    http.post(`${API}/courses/c1/assessments\\:update`, async ({ request }) => {
+      updates.push(await request.json())
+      return HttpResponse.json({ updated: [] })
+    }),
+    http.post(`${API}/courses/c1/assessments\\:delete`, async ({ request }) => {
+      deletes.push(await request.json())
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  mount()
+  await screen.findByRole('textbox', { name: 'Score: Final exam' })
+  const toolbar = screen.getByRole('toolbar', { hidden: true })
+  expect(toolbar).toHaveAttribute('inert')
+
+  // Hidden by the filter: "Select all" leaves the final exam out.
+  await userEvent.click(screen.getByRole('button', { name: 'Graded' }))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+  await waitFor(() => expect(toolbar).not.toHaveAttribute('inert'))
+  expect(within(toolbar).getByText('1 selected')).toBeInTheDocument()
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Category' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Exam' }))
+  await waitFor(() => expect(updates).toEqual([{ assessment_ids: ['a1'], category_id: 'k1' }]))
+
+  await userEvent.click(screen.getByRole('button', { name: 'All' }))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select: Final exam' }))
+  expect(within(toolbar).getByText('2 selected')).toBeInTheDocument()
+  // Esc closes the menu on top, and leaves the selection alone.
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Category' }))
+  await screen.findByRole('menu')
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  expect(within(toolbar).getByText('2 selected')).toBeInTheDocument()
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Weight' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Set weight' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Split a total' }))
+  await userEvent.clear(within(dialog).getByRole('textbox', { name: 'Total weight' }))
+  await userEvent.type(within(dialog).getByRole('textbox', { name: 'Total weight' }), '50')
+  expect(within(dialog).getByText('About 25% each')).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+  await waitFor(() =>
+    expect(updates[1]).toEqual({ assessment_ids: ['a1', 'a2'], total_weight: 50 }),
+  )
+
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Delete' }))
+  const confirm = await screen.findByRole('alertdialog')
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
+  await waitFor(() => expect(deletes).toEqual([{ assessment_ids: ['a1', 'a2'] }]))
+  await waitFor(() => expect(toolbar).toHaveAttribute('inert'))
 })

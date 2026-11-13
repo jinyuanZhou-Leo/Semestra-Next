@@ -9,6 +9,7 @@ import { MoreHorizontal } from 'lucide-react'
 import { createContext, useContext } from 'react'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
+import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +34,17 @@ export const features = tableFeatures({
 })
 const column = createColumnHelper<typeof features, AssessmentRow>()
 
+/** Which rows are checked for a batch action; only rows on screen count. */
+export type AssessmentSelection = {
+  has: (id: string) => boolean
+  /** `'some'` when only part of them are checked. */
+  state: (ids: readonly string[]) => boolean | 'some'
+  /** Checks them all, or unchecks them all when they already are. */
+  toggle: (ids: readonly string[]) => void
+  /** The ids of every row on screen: the header checkbox's rows. */
+  shown: readonly string[]
+}
+
 /**
  * What the cells need from the table. Cells read it from context so the column definitions can
  * live outside the component: a column defined while rendering would be a new component type on
@@ -55,6 +67,7 @@ export type TableActions = {
   edit: (a: Assessment) => void
   toggleDropped: (a: Assessment) => void
   remove: (a: Assessment) => void
+  selection: AssessmentSelection
 }
 
 export const TableActionsContext = createContext<TableActions | null>(null)
@@ -175,6 +188,40 @@ function ExtensionCell({
   const Cell = extensions.get(col.id.slice('ext:'.length))?.Cell
   return Cell ? <Cell assessment={row.original} programId={programId} /> : null
 }
+
+/** A checkbox for a set of rows: one row, a category's rows, or every row shown. */
+export function SelectCheckbox({ ids, label }: { ids: readonly string[]; label: string }) {
+  const { selection } = useActions()
+  const state = selection.state(ids)
+  return (
+    <Checkbox
+      aria-label={label}
+      className="align-middle"
+      checked={state === true}
+      indeterminate={state === 'some'}
+      disabled={ids.length === 0}
+      onCheckedChange={() => selection.toggle(ids)}
+    />
+  )
+}
+
+function SelectAll() {
+  const { selection } = useActions()
+  return <SelectCheckbox ids={selection.shown} label={m.grading_select_all()} />
+}
+
+/** The first column, left out in plan mode: rows are checked for batch actions. */
+export const selectColumn = column.display({
+  id: 'select',
+  header: () => <SelectAll />,
+  cell: ({ row }) => (
+    <SelectCheckbox
+      ids={[row.original.id]}
+      label={`${m.grading_select()}: ${row.original.title}`}
+    />
+  ),
+  enableSorting: false,
+})
 
 /** A contributed column, shown before the row menu. */
 export const extensionColumn = (ext: AssessmentColumn) =>

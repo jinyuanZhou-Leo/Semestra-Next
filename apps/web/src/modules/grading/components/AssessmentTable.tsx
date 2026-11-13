@@ -14,7 +14,7 @@ import {
   ClipboardList,
   SearchX,
 } from 'lucide-react'
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -26,10 +26,17 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { percentText } from '../display'
+import { categoryName, percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
-import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
+import {
+  DEFAULT_SORT,
+  type SortKey,
+  type SortPref,
+  groupByCategory,
+  groupKey,
+  isFolded,
+} from '../sort'
 import { type AssessmentFilter, matchesFilter } from '../filter'
 import {
   ASSESSMENT_ACTIONS,
@@ -41,16 +48,18 @@ import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
   type AssessmentRow,
+  type AssessmentSelection,
+  SelectCheckbox,
   type TableActions,
   TableActionsContext,
   actionsColumn,
   assessmentColumns,
   extensionColumn,
   features,
+  selectColumn,
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
-import { useHighlightedAssessment } from './use-highlight'
 
 /** Columns of figures: their headings line up with the figures on the right. */
 const NUMERIC = new Set(['weight'])
@@ -68,6 +77,7 @@ function fromSorting(sorting: SortingState): SortPref {
  * points), columns sort, and categories can be shown as collapsible groups. In plan mode the
  * score of an ungraded item takes an assumed value that is never saved as a grade, with the
  * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
+ * Outside plan mode rows have checkboxes, and the toolbar acts on the checked ones.
  */
 export function AssessmentTable({
   programId,
@@ -79,9 +89,13 @@ export function AssessmentTable({
   predictions,
   onAssume,
   grouped,
+  collapsed,
+  onToggleGroup,
+  highlighted,
   filter,
   search,
   onClearFilter,
+  selection,
   toolbar,
 }: {
   programId: string
@@ -96,20 +110,24 @@ export function AssessmentTable({
   onAssume: (assessmentId: string, percent: number | null) => void
   /** Show the categories as collapsible groups. */
   grouped: boolean
+  /** The groups (`groupKey`) the user collapsed. */
+  collapsed: ReadonlySet<string>
+  onToggleGroup: (key: string) => void
+  /** The assessment a link points at; its group stays open. */
+  highlighted: string | null
   filter: AssessmentFilter
   search: string
   onClearFilter: () => void
+  selection: AssessmentSelection
   /** The row above the table: filters and actions. */
   toolbar: ReactNode
 }) {
   const queryClient = useQueryClient()
   const [sort, setSort] = useUiPref<SortPref>('grading.sort', DEFAULT_SORT)
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const editing = useDialogTarget<Assessment>()
   const deleting = useDialogTarget<Assessment>()
   const acting = useDialogTarget<{ action: string; assessment: Assessment }>()
   const actions = useExtensions<AssessmentAction>(ASSESSMENT_ACTIONS)
-  const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
     ...gradingAssessmentUpdateMutation(),
@@ -154,7 +172,12 @@ export function AssessmentTable({
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
   const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
-  const columns = [...assessmentColumns, ...contributed.map(extensionColumn), actionsColumn]
+  const columns = [
+    ...(whatIf.plan ? [] : [selectColumn]),
+    ...assessmentColumns,
+    ...contributed.map(extensionColumn),
+    actionsColumn,
+  ]
   const actionsValue: TableActions = {
     programId,
     extensions: new Map(contributed.map((ext) => [ext.id, ext])),
@@ -170,6 +193,7 @@ export function AssessmentTable({
     toggleDropped: (a) =>
       update.mutate({ path: { assessment_id: a.id }, body: { dropped: !a.dropped } }),
     remove: deleting.show,
+    selection,
   }
 
   const table = useTable({
@@ -187,13 +211,6 @@ export function AssessmentTable({
     ? groupByCategory(rows, categories, (r) => r.original.category_id)
     : [{ category: null as AssessmentCategory | null, items: rows }]
   const columnCount = columns.length
-
-  const toggleGroup = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
 
   return (
     <TableActionsContext value={actionsValue}>
@@ -283,25 +300,24 @@ export function AssessmentTable({
                 </TableRow>
               ) : null}
               {groups.map((group) => {
-                const groupId = group.category?.id ?? '__none__'
-                // A linked assessment is shown even when its group is collapsed.
-                const isCollapsed =
-                  grouped &&
-                  collapsed.has(groupId) &&
-                  !group.items.some((row) => row.id === highlighted)
+                const groupId = groupKey(group.category)
+                const ids = group.items.map((row) => row.id)
+                const isCollapsed = grouped && isFolded(group.category, ids, collapsed, highlighted)
                 return (
                   <Fragment key={groupId}>
                     {grouped ? (
                       <GroupRow
                         category={group.category}
                         count={group.items.length}
+                        ids={ids}
+                        selectable={!whatIf.plan}
                         figures={figures.find(
                           (f) => f.category_id === (group.category?.id ?? null),
                         )}
                         collapsed={isCollapsed}
                         planning={whatIf.plan}
                         trailing={contributed.length + 1}
-                        onToggle={() => toggleGroup(groupId)}
+                        onToggle={() => onToggleGroup(groupId)}
                       />
                     ) : null}
                     {isCollapsed
@@ -311,6 +327,7 @@ export function AssessmentTable({
                             key={row.id}
                             data-assessment={row.id}
                             data-highlighted={row.id === highlighted ? true : undefined}
+                            data-state={selection.has(row.id) ? 'selected' : undefined}
                             className={cn(
                               'transition-colors duration-700 data-highlighted:bg-primary/10',
                               row.original.dropped &&
@@ -368,6 +385,8 @@ export function AssessmentTable({
 /** A category's heading row in grouped view: its weight and the average of its real scores. */
 function GroupRow({
   category,
+  ids,
+  selectable,
   count,
   figures,
   collapsed,
@@ -376,6 +395,10 @@ function GroupRow({
   onToggle,
 }: {
   category: AssessmentCategory | null
+  /** The group's rows on screen, checked together from the group's checkbox. */
+  ids: readonly string[]
+  /** Outside plan mode the first column holds checkboxes. */
+  selectable: boolean
   count: number
   /** Missing when none of the group's items count (all dropped). */
   figures: CategorySummary | undefined
@@ -391,6 +414,17 @@ function GroupRow({
   const average = figures?.average ?? null
   return (
     <TableRow className="bg-muted/40 hover:bg-muted/40">
+      {selectable ? (
+        <TableCell className="py-1.5">
+          {/* A collapsed group's rows are off screen, so they cannot be checked. */}
+          {collapsed ? null : (
+            <SelectCheckbox
+              ids={ids}
+              label={`${m.grading_select()}: ${category ? categoryName(category) : m.grading_category_none()}`}
+            />
+          )}
+        </TableCell>
+      ) : null}
       <TableCell colSpan={3} className="py-1.5">
         <Button
           variant="ghost"

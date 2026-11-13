@@ -5,17 +5,22 @@ import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
 import { AssessmentDialog } from '../components/AssessmentDialog'
 import { AssessmentTable } from '../components/AssessmentTable'
+import type { AssessmentSelection } from '../components/assessment-columns'
+import { type BatchTarget, BatchDialogs } from '../components/BatchDialogs'
 import { GradebookToolbar } from '../components/GradebookToolbar'
+import { useHighlightedAssessment } from '../components/use-highlight'
 import { ForecastCard } from '../components/ForecastCard'
 import { GradeComposition } from '../components/GradeComposition'
 import { ManualGrade } from '../components/ManualGrade'
 import { CourseTarget } from '../components/CourseTarget'
-import type { AssessmentFilter } from '../filter'
+import { type AssessmentFilter, matchesFilter } from '../filter'
 import { useGradebook } from '../queries'
+import { groupByCategory, isFolded } from '../sort'
 import { usePlanSimulation } from '../use-plan'
 import { DEFAULT_WHATIF, type WhatIf, activeScores } from '../whatif'
 
@@ -40,6 +45,10 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [adding, setAdding] = useState(false)
   const [filter, setFilter] = useState<AssessmentFilter>('all')
   const [search, setSearch] = useState('')
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const highlighted = useHighlightedAssessment()
+  const batch = useDialogTarget<BatchTarget>()
   const queryClient = useQueryClient()
   const { result, summary } = gradebook
   const canPlan = summary.weights_ok
@@ -49,6 +58,45 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
 
   if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
     return <ManualGrade gradebook={gradebook} />
+  }
+
+  // Only rows on screen are checked: a filter or a collapsed group hides a row from the batch,
+  // plan mode all of them.
+  const matching = gradebook.assessments.filter((a) => matchesFilter(a, filter, search))
+  const shown = planning
+    ? []
+    : grouped
+      ? groupByCategory(matching, gradebook.categories, (a) => a.category_id)
+          .filter(
+            (g) =>
+              !isFolded(
+                g.category,
+                g.items.map((a) => a.id),
+                collapsed,
+                highlighted,
+              ),
+          )
+          .flatMap((g) => g.items)
+      : matching
+  const selected = shown.filter((a) => checked.has(a.id))
+  const clearSelection = () => setChecked(new Set())
+  const selection: AssessmentSelection = {
+    has: (id) => checked.has(id),
+    state: (ids) => {
+      const count = ids.filter((id) => checked.has(id)).length
+      return count === 0 ? false : count === ids.length ? true : 'some'
+    },
+    toggle: (ids) =>
+      setChecked((prev) => {
+        const next = new Set(prev)
+        const all = ids.every((id) => prev.has(id))
+        for (const id of ids) {
+          if (all) next.delete(id)
+          else next.add(id)
+        }
+        return next
+      }),
+    shown: shown.map((a) => a.id),
   }
 
   const assumed = activeScores(gradebook.assessments, whatIf.scores)
@@ -83,12 +131,22 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           predictions={(planning ? planned : null)?.predictions ?? gradebook.summary.predictions}
           onAssume={assume}
           grouped={grouped}
+          collapsed={collapsed}
+          onToggleGroup={(key) =>
+            setCollapsed((prev) => {
+              const next = new Set(prev)
+              if (!next.delete(key)) next.add(key)
+              return next
+            })
+          }
+          highlighted={highlighted}
           filter={filter}
           search={search}
           onClearFilter={() => {
             setFilter('all')
             setSearch('')
           }}
+          selection={selection}
           toolbar={
             <GradebookToolbar
               programId={programId}
@@ -100,11 +158,19 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
               planning={planning}
               canPlan={canPlan}
               hasAssumptions={Object.keys(assumed).length > 0}
-              onPlanningChange={(plan) => setWhatIf({ ...whatIf, plan })}
+              onPlanningChange={(plan) => {
+                clearSelection()
+                setWhatIf({ ...whatIf, plan })
+              }}
               onClearAssumptions={clearAssumptions}
               grouped={grouped}
               onGroupedChange={setGrouped}
               onAdd={() => setAdding(true)}
+              categories={gradebook.categories}
+              selected={selected}
+              onBatchWeight={() => batch.show({ kind: 'weight', assessments: selected })}
+              onBatchDelete={() => batch.show({ kind: 'delete', assessments: selected })}
+              onClearSelection={clearSelection}
             />
           }
         />
@@ -133,6 +199,13 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
         categories={gradebook.categories}
         open={adding}
         onOpenChange={setAdding}
+      />
+      <BatchDialogs
+        {...batch.props}
+        courseId={courseId}
+        target={batch.target}
+        close={batch.close}
+        onDeleted={clearSelection}
       />
     </div>
   )

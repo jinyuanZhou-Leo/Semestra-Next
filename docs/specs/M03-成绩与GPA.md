@@ -108,7 +108,9 @@ grading_assessments
 | `grading.assessment.create` | write | POST /courses/{course_id}/assessments | |
 | `grading.assessment.create_many` | write | POST /courses/{course_id}/assessments:batch | 导入用，按 `source_kind+source_ref` 去重（已存在则跳过并在结果中列出） |
 | `grading.assessment.update` | write | PATCH /assessments/{assessment_id} | 记录分数主要用这个 |
-| `grading.assessment.delete` | destructive | DELETE /assessments/{assessment_id} | |
+| `grading.assessment.delete` | destructive | DELETE /assessments/{assessment_id} | 只给界面（Sem/MCP 用 `delete_many`） |
+| `grading.assessment.update_many` | write | POST /courses/{course_id}/assessments:update | 同一门课的多项考核设相同的分类/权重/dropped，或 `total_weight` 平分（精确到 0.01，总和不变，`engine.split_weight`）；全部成功或全部不改 |
+| `grading.assessment.delete_many` | destructive | POST /courses/{course_id}/assessments:delete | 同一门课的一项或多项考核，全部删除或全部不删 |
 | `grading.assessment.find` | read | （agent/mcp） | 按课程 + 标题模糊查找（"Lab 3"、"期中"），跨课程查找时按 scope 优先 |
 | `grading.simulate.course` | read | POST /courses/{course_id}/gradebook:simulate | 输入 what-if 分数表与目标，返回摘要；计划模式每次改动调用（前端 200ms 防抖） |
 | `grading.score.suggest` | read | POST /courses/{course_id}/gradebook:suggest | 第 3 节第 7 条 |
@@ -204,3 +206,4 @@ grading_assessments
 - 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放，所以标签写成与满分无关的比例：「≥ 满分的 87.5%」「≥ 满分的 75%」。
 - UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
 - 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。
+- 批量管理（2026-11-13）：成绩册首列复选框（分组视图的分类行勾整组，规划模式不显示），勾选后工具栏左侧换成 `SelectionToolbar`：分类▾、权重（对话框：每项 / 平分总权重）、不计入↔计入成绩、删除（确认），走 `update_many` / `delete_many`。只对当前显示的行生效（筛选掉的、折叠分组里的都不算）；进入规划时清空选择。Esc 清空选择，但有对话框、菜单或弹层打开时 Esc 只关闭它。平分总权重只分给计入成绩的项（都不计入时分给全部），不计入的保持原权重，总权重最多两位小数；所选权重不同时输入框留空。

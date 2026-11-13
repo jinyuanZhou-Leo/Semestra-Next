@@ -10,7 +10,7 @@ from hypothesis import example, given
 from hypothesis import strategies as st
 
 from semestra.modules.grading import engine, presets
-from semestra.modules.grading.engine import Band, Item
+from semestra.modules.grading.engine import Band, Item, split_weight
 
 CASES: dict[str, Any] = json.loads(
     (Path(__file__).parent / "fixtures/grading_cases.json").read_text()
@@ -501,3 +501,16 @@ def test_courses_without_terms_join_the_last_cumulative_point() -> None:
     series = engine.program_series(graded, ["t1", "t2"], "end_term")
     assert series[0].cumulative_gpa == 4.0
     assert series[-1].cumulative_gpa == engine.program_aggregate(graded).gpa
+
+
+@pytest.mark.parametrize(
+    ("total", "count", "shares"),
+    [
+        (20, 3, [6.67, 6.67, 6.66]),
+        (100, 7, [14.29] * 4 + [14.28] * 3),
+        (9, 3, [3, 3, 3]),
+        (0, 2, [0, 0]),
+    ],
+)
+def test_split_weight_adds_up_exactly(total: float, count: int, shares: list[float]) -> None:
+    assert split_weight(total, count) == shares
