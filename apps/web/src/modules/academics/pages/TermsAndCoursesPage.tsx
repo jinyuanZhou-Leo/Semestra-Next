@@ -145,7 +145,7 @@ export function TermsAndCoursesPage({
           </TabsTrigger>
         </TabsList>
       </PageHeader>
-      <div className="p-6">
+      <div className="px-6 pt-4 pb-6">
         <AsyncBoundary
           query={terms}
           isEmpty={(page) => page.items.length === 0}
