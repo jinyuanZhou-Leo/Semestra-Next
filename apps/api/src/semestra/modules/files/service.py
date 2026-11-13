@@ -38,6 +38,8 @@ from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
     CourseUsage,
     EntriesDeleteInput,
+    FileMatch,
+    FileSearchInput,
     FilesItemList,
     FilesItemListInput,
     FilesUsageBreakdown,
@@ -48,7 +50,6 @@ from semestra.modules.files.schemas import (
     ItemOut,
     ItemRef,
     ItemUpdateInput,
-    ProgramFile,
     SourceKind,
     TypeUsage,
 )
@@ -313,30 +314,29 @@ async def pinned(ctx: Ctx, program_id: str) -> list[ItemOut]:
     return await item_outs(ctx, rows)
 
 
-async def program_files(ctx: Ctx, program_id: str) -> list[ProgramFile]:
-    await academics.get_program_row(ctx, program_id)
-    course_ids = await program_course_ids(ctx, program_id)
+async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
+    await academics.get_program_row(ctx, inp.program_id)
+    course_ids = await program_course_ids(ctx, inp.program_id)
     if not course_ids:
         return []
-    rows = (
-        await ctx.db.execute(
-            select(
-                FilesItem.id,
-                FilesItem.course_id,
-                FilesItem.display_name,
-                FilesItem.mime_type,
-                FilesItem.updated_at,
-            )
-            .where(
-                FilesItem.user_id == ctx.user_id,
-                FilesItem.kind == "file",
-                FilesItem.course_id.in_(course_ids),
-            )
-            .order_by(FilesItem.updated_at.desc(), FilesItem.id)
-        )
-    ).all()
+    stmt = select(
+        FilesItem.id,
+        FilesItem.course_id,
+        FilesItem.display_name,
+        FilesItem.mime_type,
+        FilesItem.updated_at,
+    ).where(
+        FilesItem.user_id == ctx.user_id,
+        FilesItem.kind == "file",
+        FilesItem.course_id.in_(course_ids),
+    )
+    if query := inp.query.strip().lower():
+        stmt = stmt.where(func.lower(FilesItem.display_name).contains(query, autoescape=True))
+    rows = await ctx.db.execute(
+        stmt.order_by(FilesItem.updated_at.desc(), FilesItem.id).limit(inp.limit)
+    )
     return [
-        ProgramFile(
+        FileMatch(
             id=r.id,
             course_id=r.course_id,
             display_name=r.display_name,

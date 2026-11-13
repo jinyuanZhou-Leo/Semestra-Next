@@ -151,7 +151,7 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         session.scope = body.scope.model_dump()
         session.program_id = body.scope.program_id
 
-    skill_blocks, reference_blocks = await service.chip_blocks(ctx, body.references)
+    skill_blocks, reference_blocks = await service.chip_blocks(ctx, session.id, body.references)
     blocks = [*skill_blocks, *([{"type": "text", "text": text}] if text else []), *reference_blocks]
     owned = {a.id: a for a in await service.attachments(ctx, session.id)}
     for att_id in dict.fromkeys(body.attachment_ids):

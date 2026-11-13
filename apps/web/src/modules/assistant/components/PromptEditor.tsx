@@ -1,10 +1,7 @@
-import type { AgentScope, AgentSkillInfo, Course, ProgramFile, Term } from '@semestra/api-client'
-import {
-  agentSkillListOptions,
-  filesItemListProgramOptions,
-} from '@semestra/api-client/react-query'
+import type { AgentScope, AgentSkillInfo, Course, FileMatch, Term } from '@semestra/api-client'
+import { agentSkillListOptions, filesItemSearchOptions } from '@semestra/api-client/react-query'
 import { Popover } from '@base-ui/react/popover'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Extension, type JSONContent, type Range } from '@tiptap/core'
 import { Document } from '@tiptap/extension-document'
 import { HardBreak } from '@tiptap/extension-hard-break'
@@ -56,13 +53,15 @@ type Option =
   | { id: string; kind: 'skill'; skill: AgentSkillInfo }
   | { id: string; kind: 'course'; course: Course }
   | { id: string; kind: 'term'; term: Term }
-  | { id: string; kind: 'file'; file: ProgramFile; course: Course | undefined }
+  | { id: string; kind: 'file'; file: FileMatch; course: Course | undefined }
 
 /** `start`: nothing but spaces comes before it, so `/compact` can be offered. */
 type OpenMenu = { char: '/' | '@'; query: string; range: Range; start: boolean }
 
 /** At most this many of each group are listed. */
 const PER_GROUP = 4
+/** Files the server sends for a query, ranked here like the rest of the menu. */
+const FILE_MATCHES = 20
 
 const openMenu = (char: '/' | '@', props: { query: string; range: Range }): OpenMenu => ({
   char,
@@ -275,12 +274,15 @@ export function PromptEditor({
   const { terms, courses } = useProgramEntities(programId)
   // Skills already in the input are not offered again.
   const [pickedSkills, setPickedSkills] = useState<string[]>([])
-  // Loaded once `@` is typed, then kept: file events refresh it.
-  const [wantFiles, setWantFiles] = useState(false)
+  // Found by name on the server while `@` is being typed; the last list stays while the next loads.
   const courseFiles =
     useQuery({
-      ...filesItemListProgramOptions({ path: { program_id: programId ?? '' } }),
-      enabled: Boolean(programId) && wantFiles,
+      ...filesItemSearchOptions({
+        path: { program_id: programId ?? '' },
+        query: { query: menu?.char === '@' ? menu.query : '', limit: FILE_MATCHES },
+      }),
+      enabled: Boolean(programId) && menu?.char === '@',
+      placeholderData: keepPreviousData,
     }).data?.items ?? []
 
   // Chinese input methods type `、` for `/` and `＠` for `@` in their punctuation modes.
@@ -294,7 +296,6 @@ export function PromptEditor({
       (menuChar === '@' || (slash && compactNode(state.doc) === null)),
     render: () => ({
       onStart: (props: { query: string; range: Range }) => {
-        if (menuChar === '@') setWantFiles(true)
         setMenu(openMenu(menuChar, props))
         setActive(0)
       },

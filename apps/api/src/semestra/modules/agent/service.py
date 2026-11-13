@@ -77,24 +77,38 @@ async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
 
 
 async def chip_blocks(
-    ctx: Ctx, refs: Sequence[MessageReference]
+    ctx: Ctx,
+    session_id: str,
+    refs: Sequence[MessageReference],
+    previous: Sequence[dict[str, Any]] = (),
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The `skill` and `reference` blocks of what was picked with `/` and `@`, each once.
 
-    A skill brings its workflow and tools; one the user cannot use (now) is refused. A course,
-    term or file that is not the user's (deleted since, or never theirs) is left out: the text
-    still says `@<label>`.
+    A skill brings its workflow and tools; one the user cannot use (now) is refused. A course
+    file is kept as an attachment of the message (`attachments.snapshot_file`), its id in the
+    block. A course, term or file that is not the user's (deleted since, or never theirs) is
+    left out: the text still says `@<label>`. `previous` are the blocks of the message being
+    edited: skills and files it already had keep their blocks (and snapshots), so an edit never
+    fails over a skill that is no longer available or reads a file again.
     """
     from semestra.modules.academics import service as academics
-    from semestra.modules.files import service as files
+    from semestra.modules.agent import attachments as chat_attachments
 
+    kept_skills = {b.get("name"): b for b in previous if b.get("type") == "skill"}
+    kept_files = {
+        b.get("id"): b for b in previous if b.get("type") == "reference" and b.get("kind") == "file"
+    }
     skill_blocks: list[dict[str, Any]] = []
     reference_blocks: list[dict[str, Any]] = []
-    unique = {(r.kind, r.id): r for r in refs}.values()
-    if any(r.kind == "skill" for r in unique):
+    unique = list({(r.kind, r.id): r for r in refs}.values())
+    visible: dict[str, skills.Skill] = {}
+    if any(r.kind == "skill" and r.id not in kept_skills for r in unique):
         visible = {s.name: s for s in skills.visible_skills(await registry.available(ctx, "agent"))}
     for ref in unique:
         if ref.kind == "skill":
+            if (kept := kept_skills.get(ref.id)) is not None:
+                skill_blocks.append({**kept, "label": ref.label})
+                continue
             skill = visible.get(ref.id)
             if skill is None:
                 raise not_found("skill", ref.id)
@@ -108,19 +122,30 @@ async def chip_blocks(
                     "tools": list(skill.tools),
                 }
             )
-            continue
-        get = {
-            "course": academics.get_course_row,
-            "term": academics.get_term_row,
-            "file": files.get_item,
-        }[ref.kind]
-        try:
-            await get(ctx, ref.id)
-        except AppError:
-            continue
-        reference_blocks.append(
-            {"type": "reference", "kind": ref.kind, "id": ref.id, "label": ref.label}
-        )
+        elif ref.kind == "file":
+            if (kept := kept_files.get(ref.id)) is not None:
+                reference_blocks.append({**kept, "label": ref.label})
+                continue
+            att = await chat_attachments.snapshot_file(ctx, session_id, ref.id)
+            if att is not None:
+                reference_blocks.append(
+                    {
+                        "type": "reference",
+                        "kind": "file",
+                        "id": ref.id,
+                        "label": ref.label,
+                        "attachment_id": att.id,
+                    }
+                )
+        else:
+            get = academics.get_course_row if ref.kind == "course" else academics.get_term_row
+            try:
+                await get(ctx, ref.id)
+            except AppError:
+                continue
+            reference_blocks.append(
+                {"type": "reference", "kind": ref.kind, "id": ref.id, "label": ref.label}
+            )
     return skill_blocks, reference_blocks
 
 
@@ -326,7 +351,7 @@ async def edit_message(
         skill_blocks = [b for b in blocks if b.get("type") == "skill"]
         reference_blocks = [b for b in blocks if b.get("type") == "reference"]
     else:
-        skill_blocks, reference_blocks = await chip_blocks(ctx, references)
+        skill_blocks, reference_blocks = await chip_blocks(ctx, session.id, references, blocks)
     rest = [b for b in blocks if b.get("type") not in ("skill", "text", "reference")]
     text_blocks = [{"type": "text", "text": text}] if text else []
     blocks = skill_blocks + text_blocks + reference_blocks + rest
@@ -447,7 +472,8 @@ async def _drop_unreferenced_attachments(
 ) -> None:
     """Attachments only the dropped messages referred to: removed with their files, so they stop
     counting against the storage quota. Unsent uploads (referred to by nothing) stay."""
-    gone = {b.get("attachment_id") for r in dropped for b in r.content} - {None}
+    # The edited message's own earlier blocks too: a file picked with `@` may be gone from it.
+    gone = {b.get("attachment_id") for r in [*kept[-1:], *dropped] for b in r.content} - {None}
     still = {b.get("attachment_id") for r in kept[:-1] for b in r.content}
     still |= {b.get("attachment_id") for b in edited}
     ids = gone - still

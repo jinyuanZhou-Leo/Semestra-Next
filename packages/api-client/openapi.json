@@ -6361,59 +6361,6 @@
         }
       }
     },
-    "/programs/{program_id}/file-names": {
-      "get": {
-        "tags": [
-          "files"
-        ],
-        "summary": "List the files of a Program by name.",
-        "description": "Every file (not links or folders) of the Program's courses, most recently\nchanged first, with just what a picker needs. Used by the assistant's `@` menu.",
-        "operationId": "filesItemListProgram",
-        "security": [
-          {
-            "sessionCookie": []
-          },
-          {
-            "accessToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "program_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Program id",
-              "title": "Program Id"
-            },
-            "description": "Program id"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProgramFiles"
-                }
-              }
-            }
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/files/{item_id}:reprocess": {
       "post": {
         "tags": [
@@ -6450,6 +6397,83 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/file-names": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Find the files of a Program by name.",
+        "description": "Files (not links or folders) of the Program's courses whose name contains the\nquery, most recently changed first, with just what a picker needs. Used by the assistant's `@`\nmenu.",
+        "operationId": "filesItemSearch",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Keep files whose name contains this text (case-insensitive)",
+              "default": "",
+              "title": "Query"
+            },
+            "description": "Keep files whose name contains this text (case-insensitive)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "At most this many",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "At most this many"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileMatches"
                 }
               }
             }
@@ -25081,6 +25105,65 @@
         ],
         "title": "FileList"
       },
+      "FileMatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "course_id",
+          "display_name",
+          "mime_type",
+          "updated_at"
+        ],
+        "title": "FileMatch",
+        "description": "A file as a picker lists it: its name and where it is."
+      },
+      "FileMatches": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FileMatch"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Most recently changed first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "FileMatches"
+      },
       "FileMeta": {
         "properties": {
           "external_id": {
@@ -31545,65 +31628,6 @@
           "timezone"
         ],
         "title": "ProgramCreateInputBody"
-      },
-      "ProgramFile": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "course_id": {
-            "type": "string",
-            "title": "Course Id"
-          },
-          "display_name": {
-            "type": "string",
-            "title": "Display Name"
-          },
-          "mime_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mime Type"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "course_id",
-          "display_name",
-          "mime_type",
-          "updated_at"
-        ],
-        "title": "ProgramFile",
-        "description": "A file as a picker lists it: enough to find it by name and tell where it is."
-      },
-      "ProgramFiles": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ProgramFile"
-            },
-            "type": "array",
-            "title": "Items",
-            "description": "Most recently changed first"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "ProgramFiles"
       },
       "ProgramGrades": {
         "properties": {
