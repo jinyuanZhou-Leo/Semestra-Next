@@ -114,7 +114,6 @@ _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LI
     http=Http("GET", "/lms/providers"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=("items.kind", "items.display_name", "items.features"),
 )
 async def providers_list(ctx: Ctx, inp: NoInput) -> ProviderList:
     return ProviderList(items=service.providers(ctx.settings))
@@ -214,7 +213,6 @@ manages connections in settings.""",
     http=Http("GET", "/programs/{program_id}/lms-binding"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_BINDING_FIELDS,
 )
 async def binding_get(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
     return await service.get_binding(ctx, inp.program_id)
@@ -227,10 +225,8 @@ async def binding_get(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 Afterwards link courses with lms.course.link.set.""",
     effect="write",
     http=Http("PUT", "/programs/{program_id}/lms-binding"),
-    preview=previews.preview_binding_set,
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_BINDING_FIELDS,
 )
 async def binding_set(ctx: Ctx, inp: BindingSetInput) -> ProgramBinding:
     return await service.set_binding(ctx, inp)
@@ -243,10 +239,8 @@ async def binding_set(ctx: Ctx, inp: BindingSetInput) -> ProgramBinding:
 them with lms.course.link.delete first. The connection itself stays.""",
     effect="write",
     http=Http("DELETE", "/programs/{program_id}/lms-binding"),
-    preview=previews.preview_binding_clear,
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_BINDING_FIELDS,
 )
 async def binding_clear(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
     return await service.clear_binding(ctx, inp.program_id)
@@ -257,7 +251,7 @@ async def binding_clear(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 
 @capability(
     name="lms.course.list",
-    summary="The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
+    summary="The user's courses on the Program's LMS, marked when already linked.",
     description="""Current-term courses by default; `include_past` for all of them. To link one
 to a course here: lms.course.link.set; to create courses from them: lms.course.import.""",
     effect="read",
@@ -299,7 +293,6 @@ lms.course.link.set.""",
     http=Http("GET", "/courses/{course_id}/lms-link"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_LINK_FIELDS,
 )
 async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     return await service.link_state(ctx, inp.course_id)
@@ -314,7 +307,6 @@ For one course use lms.course.link.get, which also says which connection the Pro
     http=Http("GET", "/programs/{program_id}/lms-links"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=tuple(f"items.{f}" for f in _LINK),
 )
 async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
     return await service.link_list(ctx, inp.program_id)
@@ -322,7 +314,7 @@ async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
 
 @capability(
     name="lms.course.link.set",
-    summary="Link a course to its course on the Program's LMS (Canvas or another).",
+    summary="Link a course to its course on the Program's LMS.",
     description="""Pick the course from lms.course.list. Uses the Program's bound connection
 (lms.program_not_configured without one: the user connects one in settings).
 An external course can be linked to only one course of the Program
@@ -347,10 +339,8 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
-    preview=previews.preview_link_update,
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_LINK_FIELDS,
 )
 async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
     return await service.update_link(ctx, inp.course_id, inp.sync_enabled)
@@ -364,10 +354,8 @@ update checks stop for this course. Link it again with lms.course.link.set. To p
 keep reading, use lms.course.link.update instead.""",
     effect="write",
     http=Http("DELETE", "/courses/{course_id}/lms-link"),
-    preview=previews.preview_link_delete,
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=_LINK_FIELDS,
 )
 async def link_delete(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     return await service.delete_link(ctx, inp.course_id)
@@ -384,21 +372,6 @@ async def link_delete(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     http=Http("GET", "/courses/{course_id}/lms"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "provider_name",
-        "features",
-        "default_view",
-        "truncated",
-        *(f"link.{f}" for f in _LINK),
-        "course.code",
-        "course.name",
-        "course.term",
-        "course.start_at",
-        "course.end_at",
-        "navigation.kind",
-        "navigation.label",
-        "navigation.hidden",
-    ),
 )
 async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
     return await reads.overview(ctx, inp.course_id, inp.refresh)
@@ -421,14 +394,12 @@ async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 
 @capability(
     name="lms.announcement.list",
-    untrusted=True,
-    summary="Recent announcements of a linked course on Canvas or another LMS, newest first.",
+    summary="Recent announcements of a linked course on its LMS, newest first.",
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_default_fields=("title", "author", "posted_at", "unread"),
 )
 async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementList:
     return await reads.announcements(ctx, inp.course_id, inp.since, inp.refresh)
@@ -436,7 +407,6 @@ async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementL
 
 @capability(
     name="lms.term.announcement.list",
-    untrusted=True,
     summary="Recent announcements of every LMS-linked course of a term, newest first.",
     description="""One request per connection (the term board's card); each item names its
 `course_id`. Not for agents: they read one course with lms.announcement.list.""",
@@ -467,7 +437,7 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Announ
 @capability(
     name="lms.assignment.list",
     untrusted=True,
-    summary="Assignments and graded quizzes of a linked course on the LMS (Canvas), with the "
+    summary="Assignments and graded quizzes of a linked course on its LMS, with the "
     "user's scores and the course total, marked when imported.",
     description="""For "what is due", "what is missing" and "what did I get": filter by `status`
 or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
@@ -491,7 +461,6 @@ async def assignments_list(ctx: Ctx, inp: AssignmentsInput) -> AssignmentList:
 
 @capability(
     name="lms.submission.get",
-    untrusted=True,
     summary="The user's submission of one assignment on the LMS, with the teacher's feedback.",
     description="""Score, attempts, the teacher's comments and the rubric scores (match
 `rubric_scores.criterion_id` with the assignment's `rubric` from lms.assignment.list).""",
@@ -506,7 +475,7 @@ async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
 
 @capability(
     name="lms.grade.list",
-    summary="The user's grades on Canvas or another LMS for a linked course.",
+    summary="The user's grades on its LMS for a linked course.",
     description="""The course total first, then one row per assignment, with score, points possible
 and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
 assignments to it use lms.assignment.import.""",
@@ -514,22 +483,6 @@ assignments to it use lms.assignment.import.""",
     http=Http("GET", "/courses/{course_id}/lms/grades"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        *(
-            f"items.{f}"
-            for f in (
-                "external_id",
-                "name",
-                "score",
-                "points_possible",
-                "grade",
-                "group_name",
-                "graded_at",
-                "kind",
-            )
-        ),
-    ),
 )
 async def grades_list(ctx: Ctx, inp: CourseReadInput) -> GradeList:
     return await reads.grades(ctx, inp.course_id, inp.refresh)
@@ -544,10 +497,6 @@ with their state, unlock date and item count. Items of a module: lms.module_item
     http=Http("GET", "/courses/{course_id}/lms/modules"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        *(f"items.{f}" for f in ("external_id", "name", "state", "unlock_at", "item_count")),
-    ),
 )
 async def modules_list(ctx: Ctx, inp: CourseReadInput) -> ModuleList:
     return await reads.modules(ctx, inp.course_id, inp.refresh)
@@ -563,13 +512,6 @@ file...).""",
     http=Http("GET", "/courses/{course_id}/lms/modules/{module_id}/items"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        *(
-            f"items.{f}"
-            for f in ("external_id", "title", "kind", "indent", "target", "external_url")
-        ),
-    ),
 )
 async def module_items_list(ctx: Ctx, inp: ModuleItemsInput) -> ModuleItemList:
     return await reads.module_items(ctx, inp.course_id, inp.module_id, inp.refresh)
@@ -584,10 +526,6 @@ lms.page.get. The syllabus has its own tool, lms.syllabus.get.""",
     http=Http("GET", "/courses/{course_id}/lms/pages"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        *(f"items.{f}" for f in ("ref", "title", "updated_at", "front_page")),
-    ),
 )
 async def pages_list(ctx: Ctx, inp: CourseReadInput) -> PageList:
     return await reads.pages(ctx, inp.course_id, inp.refresh)
@@ -595,14 +533,12 @@ async def pages_list(ctx: Ctx, inp: CourseReadInput) -> PageList:
 
 @capability(
     name="lms.page.get",
-    untrusted=True,
     summary="One page of a linked course; the assistant gets its body as Markdown.",
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/pages/{ref}"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=("ref", "title", "updated_at", "locked", "html"),
 )
 async def page_get(ctx: Ctx, inp: PageGetInput) -> PageDetail:
     return await reads.page(ctx, inp.course_id, inp.ref, inp.refresh)
@@ -610,7 +546,6 @@ async def page_get(ctx: Ctx, inp: PageGetInput) -> PageDetail:
 
 @capability(
     name="lms.quiz.list",
-    untrusted=True,
     summary="Quizzes of a linked course.",
     description="""Due, unlock and lock dates, points and question count by default; ask for more
 with `fields`. A quiz's score and attempts come with lms.assignment.list (its `assignment_id`);
@@ -619,7 +554,6 @@ questions are not available.""",
     http=Http("GET", "/courses/{course_id}/lms/quizzes"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_default_fields=("title", "due_at", "unlock_at", "lock_at", "points", "question_count"),
 )
 async def quizzes_list(ctx: Ctx, inp: QuizzesInput) -> QuizList:
     return await reads.quizzes(ctx, inp.course_id, inp.refresh)
@@ -627,8 +561,7 @@ async def quizzes_list(ctx: Ctx, inp: QuizzesInput) -> QuizList:
 
 @capability(
     name="lms.syllabus.get",
-    untrusted=True,
-    summary="The syllabus of a linked course on Canvas or another LMS.",
+    summary="The syllabus of a linked course on its LMS.",
     description="To extract its grading scheme use lms.syllabus.import.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/syllabus"),
@@ -648,7 +581,6 @@ lms.file.save_to_course.""",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=("external_id", "name", "mime_type", "size_bytes", "updated_at", "locked"),
 )
 async def file_get(ctx: Ctx, inp: FileInput) -> FileMeta:
     return await reads.file(ctx, inp.course_id, inp.file_id, inp.refresh)
@@ -663,22 +595,6 @@ students fail with lms.forbidden; their files are still reachable through module
     http=Http("GET", "/courses/{course_id}/lms/folders"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        "folder.external_id",
-        "folder.name",
-        "folder.path",
-        "folders.external_id",
-        "folders.name",
-        "folders.files_count",
-        "folders.folders_count",
-        "files.external_id",
-        "files.name",
-        "files.mime_type",
-        "files.size_bytes",
-        "files.updated_at",
-        "files.locked",
-    ),
 )
 async def folder_get(ctx: Ctx, inp: FolderInput) -> FolderListing:
     return await reads.folder(ctx, inp.course_id, inp.folder_id, inp.refresh)
@@ -694,13 +610,6 @@ lms.file.preview, or copy it into the course's files with lms.file.save_to_cours
     http=Http("GET", "/courses/{course_id}/lms/files"),
     expose=HTTP_ONLY,
     tags=TAGS,
-    agent_output_fields=(
-        "truncated",
-        *(
-            f"items.{f}"
-            for f in ("external_id", "name", "mime_type", "size_bytes", "updated_at", "locked")
-        ),
-    ),
 )
 async def file_search(ctx: Ctx, inp: FileSearchInput) -> FileList:
     return await reads.search_files(ctx, inp.course_id, inp.term, inp.refresh)
@@ -708,7 +617,6 @@ async def file_search(ctx: Ctx, inp: FileSearchInput) -> FileList:
 
 @capability(
     name="lms.file.preview",
-    untrusted=True,
     summary="The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
     description="""Reads it without saving it. To search it or cite it, save it with
 lms.file.save_to_course instead.""",
@@ -783,7 +691,6 @@ async def import_assignments(ctx: Ctx, inp: AssignmentImportInput) -> ImportStar
 gradebook.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/imports:gradebook"),
-    preview=previews.preview_add_to_gradebook,
     expose=HTTP_ONLY,
     tags=TAGS,
 )

@@ -331,7 +331,6 @@ For a year-long course whose second term does not exist yet, link the current te
     expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/programs/{program_id}/courses"),
     tags=TAGS,
-    agent_output_fields=("id", "code", "title", "term_ids"),
 )
 async def course_create(ctx: Ctx, inp: CourseCreateInput) -> Course:
     return (await service.create_courses(ctx, inp.program_id, [(inp, inp.term_ids)]))[0]

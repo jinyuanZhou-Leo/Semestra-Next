@@ -11,11 +11,9 @@ from typing import Any
 from semestra.core.context import Ctx
 from semestra.core.events import Event, events
 from semestra.modules.academics import service as academics
+from semestra.modules.lms import pages as lms_pages
 from semestra.modules.notifications import service, texts
 from semestra.modules.notifications.service import Message
-from semestra.modules.plugins import service as plugins
-
-CANVAS_TAB = "canvas-tab"
 
 
 def _kind(base: str, n: int) -> str:
@@ -65,11 +63,9 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
             )
     found = [n for n in data.get("notices") or [] if n.get("kind") == "announcement"]
     if found and cfg.lms == "all":
-        url = page
-        if await plugins.is_installed(ctx, CANVAS_TAB):
-            url = f"{page}/canvas?tab=announcements"
-            if len(found) == 1:
-                url += f"&ref={found[0]['external_id']}"
+        one = str(found[0]["external_id"]) if len(found) == 1 else None
+        path = await lms_pages.announcements_path(ctx, course_id, one)
+        url = f"{page}/{path}" if path else page
         messages.append(
             Message(
                 kind=_kind("lms_announcements", len(found)),

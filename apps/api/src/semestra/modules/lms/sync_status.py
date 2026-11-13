@@ -20,7 +20,13 @@ from semestra.modules.lms.schemas.sync import (
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
-from semestra.modules.lms.sync_assignments import FIELDS, differences, local_values, toggleable
+from semestra.modules.lms.sync_assignments import (
+    FIELDS,
+    KIND,
+    differences,
+    local_values,
+    toggleable,
+)
 
 # How long the panel lists what the sync changed (and the user can put it back).
 CHANGES_KEPT = timedelta(days=14)
@@ -74,6 +80,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             select(LmsImportedRef).where(
                 LmsImportedRef.user_id == ctx.user_id,
                 LmsImportedRef.link_id.in_(list(by_link)),
+                LmsImportedRef.external_kind == KIND,  # the panel lists assignments
             )
         )
     )

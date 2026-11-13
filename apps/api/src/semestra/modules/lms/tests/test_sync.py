@@ -252,6 +252,20 @@ async def test_new_assignments_wait_for_the_user(api: Api, fake: FakeProvider):
     assert midterm["id"] != lab2["id"]
 
 
+async def test_a_cut_off_list_keeps_new_and_ignored_assignments(api: Api, fake: FakeProvider):
+    program_id, _ = await _course(api, "a1")
+    status = await api.sync(program_id)
+    lab2, _ = status["pending"]
+    await api.call(
+        "POST", f"/programs/{program_id}/lms/sync:dismiss", json={"item_ids": [lab2["id"]]}
+    )
+    fake.truncated = True
+    del fake.course_assignments["101"][1:]
+    status = await api.sync(program_id)
+    assert [i["title"] for i in status["pending"]] == ["Midterm"]
+    assert [i["title"] for i in status["ignored"]] == ["Lab 2"]
+
+
 async def test_an_assignment_gone_from_the_platform_is_kept_or_deleted(
     api: Api, fake: FakeProvider
 ):

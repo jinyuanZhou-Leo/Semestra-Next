@@ -234,14 +234,16 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     for ref in refs:
         a = by_id.get(ref.external_id)
         if ref.target_id is None:
-            if a is None or (ref.dismissed_at is None and not _new(a, ctx.now)):
+            if a is None and truncated:
+                pass  # a cut-off list says nothing about what is missing from it
+            elif a is None or (ref.dismissed_at is None and not _new(a, ctx.now)):
                 await ctx.db.delete(ref)  # gone, or no longer new: nothing to offer
+                continue
             else:
                 ref.snapshot = snapshot(a, weights.get(ref.external_id))
-                result.pending += ref.dismissed_at is None
+            result.pending += ref.dismissed_at is None
             continue
         if a is None:
-            # A cut-off list says nothing about what is missing from it.
             if not truncated and ref.removed_at is None:
                 ref.removed_at = ctx.now
             result.pending += ref.removed_at is not None

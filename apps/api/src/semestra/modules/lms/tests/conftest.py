@@ -72,6 +72,7 @@ class FakeProvider:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, Any]] = []
+        self.truncated = False  # assignment lists report a cut-off page
         self.valid_tokens = {"good-token-1", "good-token-2"}
         self.courses = [
             LmsCourse(external_id="101", name="Computer Fundamentals", code="APS105H1 S LEC0101",
@@ -184,6 +185,7 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
     ) -> list[Assignment]:
         self.calls.append(("assignments", course_id))
+        io.truncated |= self.truncated
         return [a.model_copy() for a in self.course_assignments.get(course_id, [])]
 
     async def grade_totals(

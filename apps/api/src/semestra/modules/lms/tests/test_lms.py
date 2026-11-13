@@ -748,7 +748,7 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
     from semestra.core.capability import registry
     from semestra.modules.agent.display import make_preview
 
-    program_id, term_id, conn = await setup_program(api)
+    program_id, term_id, _ = await setup_program(api)
     course_id = await api.course(program_id, term_id)
     connection = await api.call("GET", f"/programs/{program_id}/lms-binding")
     me = await api.call("GET", "/account/me")
@@ -821,14 +821,6 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
         "count": 2,
     }
     assert assignments["target"] == "APS105H1 Computer Fundamentals"
-    unlinked = await card("lms.course.link.delete", {"course_id": course_id})
-    assert unlinked["changes"] == [
-        {
-            "field": "lms_course",
-            "before": "APS105H1 S LEC0101 · Computer Fundamentals · Winter 2026",
-            "after": None,
-        }
-    ]
     saved = await card("lms.file.save_to_course", {"course_id": course_id, "file_id": "f9"})
     assert saved["changes"] == [{"field": "folder", "after": None}]
     await api.call("GET", f"/courses/{course_id}/lms/files/f9")
@@ -837,9 +829,6 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
         {"field": "lms_file", "after": "notes.txt"},
         {"field": "folder", "after": None},
     ]
-    cleared = await card("lms.program.binding.clear", {"program_id": program_id})
-    assert cleared["changes"][0]["before"] == connection["connection"]["display_name"]
-    assert conn not in str(cleared)
 
 
 async def test_handed_in_assignments_finish_their_to_dos_once(api: Api, fake: FakeProvider):

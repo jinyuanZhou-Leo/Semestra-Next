@@ -30,7 +30,6 @@ from semestra.modules.grading.schemas import (
     AssessmentFindInput,
     AssessmentListInput,
     AssessmentPage,
-    AssessmentRef,
     AssessmentUpdateInput,
     AssessmentUpdateManyInput,
     AssessmentUpdateManyResult,
@@ -326,18 +325,6 @@ async def _category_name(ctx: Ctx, category_id: str | None) -> str | None:
         return None
     row = await ctx.db.get(models.GradingCategory, category_id)
     return row.name if row is not None and row.user_id == ctx.user_id else None
-
-
-async def preview_assessment_delete(ctx: Ctx, inp: AssessmentRef) -> dict[str, Any]:
-    """What goes with the assessment: its weight and the score recorded for it."""
-    row = await _get_assessment(ctx, inp.assessment_id)
-    course, _ = await course_and_program(ctx, row.course_id)
-    label = f"{course.code} {course.title}" if course.code else course.title
-    changes: list[dict[str, Any]] = [{"field": "weight", "before": row.weight, "after": None}]
-    for field in ("score_percentage", "points_earned"):
-        if (value := getattr(row, field)) is not None:
-            changes.append({"field": field, "before": value, "after": None})
-    return {"target": f"{row.title} · {label}", "changes": changes}
 
 
 async def preview_category_delete(ctx: Ctx, inp: CategoryRef) -> dict[str, Any]:
