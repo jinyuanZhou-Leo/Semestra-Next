@@ -10,9 +10,13 @@ the app's status line.
 
 Jobs are queued by the scheduler (`lms.sync_due`, every few minutes: courses whose last sync is
 older than the account's interval, `lms.sync_every`), when the app opens a Program whose courses
-were not synced lately, and when the user asks. Only synced courses of a running, upcoming or
-recent term are synced, and only for accounts used in the last weeks; a returning user's courses
-sync when the app opens.
+were not synced lately, and when the user asks. The server's shortest interval
+(`lms_sync_min_interval`) holds for the first two; asking again within `COOLDOWN` of a course's
+last sync does nothing. Jobs run in the `background` lane, so a long queue of them never delays
+the jobs a user waits on. The platform reads of a sync are cached in memory only: nobody reads
+them again soon enough to be worth a write to `lms_cache`. Only synced courses of a running,
+upcoming or recent term are synced, and only for accounts used in the last weeks; a returning
+user's courses sync when the app opens.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
@@ -21,7 +25,7 @@ from datetime import timedelta
 
 import structlog
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, run_as_system
@@ -33,7 +37,7 @@ from semestra.modules.auth import service as auth
 from semestra.modules.lms import service
 from semestra.modules.lms.models import LmsConnection, LmsCourseLink
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.settings import account, interval
+from semestra.modules.lms.settings import account, floor, interval
 from semestra.modules.notifications import service as notifications
 
 log = structlog.get_logger()
@@ -50,8 +54,11 @@ RECENT = timedelta(days=30)
 # unless they hear of the platform's news by notification (final grades come out after the
 # term, when students rarely open the app).
 INACTIVE = timedelta(days=14)
-# Opening a Program syncs its courses not synced for this long.
+# Opening a Program syncs its courses not synced for this long (or the server's shortest
+# interval, when longer).
 ON_OPEN = timedelta(minutes=30)
+# "Sync now" leaves out a course synced this recently.
+COOLDOWN = timedelta(minutes=1)
 # The scheduler's round, and how many courses one round queues (the rest wait for the next).
 TICK = timedelta(minutes=5)
 PER_TICK = 20
@@ -148,7 +155,7 @@ class _Unlinked(Exception):
 
 
 # Not in the status bar's job list: the sync has its own status line (M09 §4.1).
-@job_handler(JOB, stages=[("syncing", 1)], max_attempts=1, listed=False)
+@job_handler(JOB, stages=[("syncing", 1)], max_attempts=1, lane="background", listed=False)
 async def sync_job(ctx: JobCtx, payload: SyncPayload) -> SyncOutcome:
     async def progress(done: int, total: int) -> None:
         await ctx.stage("syncing", current=done, total=total)
@@ -178,7 +185,8 @@ async def sync_course(
             b = await service.bound(sys, await service.get_connection_row(sys, link.connection_id))
             if stage.enabled is not None and not await stage.enabled(sys, link, b):
                 return
-            results.append(await stage.run(sys, link, b))
+            with service.memory_cache():
+                results.append(await stage.run(sys, link, b))
 
         try:
             await run_as_system(state, user_id, run)
@@ -271,13 +279,14 @@ async def request_sync(
     ctx: Ctx, program_id: str, course_id: str | None = None, *, force: bool = False
 ) -> int:
     """A sync the app asks for: of one course or the Program's, those not synced in the last
-    `ON_OPEN` (opening the app) or all of them (`force`: the user asked)."""
+    `ON_OPEN` or the server's shortest interval (opening the app), or in the last `COOLDOWN`
+    (`force`: the user asked)."""
     await academics.get_program_row(ctx, program_id)  # owned, or not found
     links = await syncable_links(ctx, program_id)
     if course_id is not None:
         links = [li for li in links if li.course_id == course_id]
-    if not force:
-        links = [li for li in links if li.synced_at is None or li.synced_at < ctx.now - ON_OPEN]
+    since = ctx.now - (COOLDOWN if force else max(ON_OPEN, floor(ctx)))
+    links = [li for li in links if li.synced_at is None or li.synced_at <= since]
     return await queue(ctx, links, manual=force)
 
 
@@ -300,12 +309,19 @@ async def syncing_courses(ctx: Ctx, course_ids: Sequence[str]) -> set[str]:
 @periodic("lms.sync_due", every=TICK, first_after=timedelta(minutes=1))
 async def sync_due(ctx: Ctx) -> None:
     """Queues the courses whose last sync is older than their account's interval, oldest first,
-    at most `PER_TICK` a round. Reads only the database, so a restart loses nothing."""
+    at most `PER_TICK` a round. Reads only the database, so a restart loses nothing. Only users
+    with a course not synced within the server's shortest interval are looked at: no account
+    syncs more often than that."""
+    since = ctx.now - floor(ctx)
     users = (
         await ctx.db.scalars(
             select(LmsCourseLink.user_id)
             .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
-            .where(LmsCourseLink.sync_enabled, LmsConnection.credentials_encrypted.is_not(None))
+            .where(
+                LmsCourseLink.sync_enabled,
+                LmsConnection.credentials_encrypted.is_not(None),
+                or_(LmsCourseLink.synced_at.is_(None), LmsCourseLink.synced_at <= since),
+            )
             .distinct()
         )
     ).all()

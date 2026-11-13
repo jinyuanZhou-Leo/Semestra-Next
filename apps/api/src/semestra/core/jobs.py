@@ -17,9 +17,12 @@
 * Every state or progress change publishes `core.job.progress` to the job's owner (SSE);
   progress-only updates are throttled to one per 250 ms.
 * `@periodic("core.cleanup", every=timedelta(hours=1))` runs a function in this process.
-* Jobs run in two lanes: `lane="bulk"` (rebuilding every vector, model downloads: minutes to
-  hours) may hold at most `job_bulk_concurrency` workers, so the others stay free for the jobs a
-  user is waiting on (an import, a new file).
+* Jobs run in lanes. `default` is for the jobs a user is waiting on (an import, a new file);
+  `background` for work nobody waits on (the LMS course sync: mostly waiting on the network);
+  `bulk` for minutes to hours of work (rebuilding every vector, model downloads). Each lane but
+  `default` may hold at most its own number of workers (`job_background_concurrency`,
+  `job_bulk_concurrency`), and together they always leave one worker for `default`, so a long
+  queue of syncs or a rebuild never makes a user's upload wait.
 * `async with waiting("ai.rate_limited", until=...)` inside a job tells its owner what the job is
   waiting for (`JobOut.waiting`); kept in memory, as it changes too often to be worth a write.
 """
@@ -31,7 +34,7 @@ import os
 import socket
 import time
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -115,7 +118,7 @@ class CoreJob(Base, OwnedMixin):
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
 
 
-Lane = Literal["default", "bulk"]
+Lane = Literal["default", "background", "bulk"]
 
 
 class JobWaiting(BaseModel):
@@ -485,8 +488,9 @@ def _lane(kind: str) -> Lane:
     return handler.lane if handler else "default"
 
 
-def _bulk_kinds() -> list[str]:
-    return [kind for kind, handler in _handlers.items() if handler.lane == "bulk"]
+def _kinds(lanes: Iterable[Lane]) -> list[str]:
+    wanted = set(lanes)
+    return [kind for kind, handler in _handlers.items() if handler.lane in wanted]
 
 
 async def _ended(state: State, job: CoreJob) -> None:
@@ -521,12 +525,21 @@ def _backoff(attempts: int) -> timedelta:
 class JobRunner:
     """Workers and the periodic scheduler for one process (`app.state.jobs`)."""
 
-    def __init__(self, state: State, concurrency: int = 2, bulk: int = 1) -> None:
+    def __init__(
+        self, state: State, concurrency: int = 3, lanes: Mapping[Lane, int] | None = None
+    ) -> None:
         self.state = state
         self.concurrency = concurrency
-        # Workers bulk jobs may hold; at least one is left for the others (unless there is one).
-        self.bulk = max(1, min(bulk, concurrency - 1))
-        self._bulk_running = 0
+        # Workers each lane other than `default` may hold. Together they leave one worker for
+        # `default` (unless there is only one worker, which then runs everything).
+        self.room = max(1, concurrency - 1)
+        default: dict[Lane, int] = {"background": 1, "bulk": 1}
+        self.caps: dict[Lane, int] = {
+            lane: max(1, min(n, self.room))
+            for lane, n in (lanes or default).items()
+            if lane != "default"
+        }
+        self._running: dict[Lane, int] = dict.fromkeys(self.caps, 0)
         self.owner = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self._wake = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
@@ -575,34 +588,45 @@ class JobRunner:
             except Exception:
                 log.exception("periodic_task_failed", task=task.name)
 
+    def _reserve(self) -> list[Lane]:
+        """The capped lanes this worker may take a job from, a slot taken in each before claiming
+        (no await in between), so two workers polling at once cannot both take the last one;
+        the slots of the lanes the job is not from are given back once it is claimed."""
+        if sum(self._running.values()) >= self.room:
+            return []
+        lanes: list[Lane] = [k for k, cap in self.caps.items() if self._running[k] < cap]
+        for lane in lanes:
+            self._running[lane] += 1
+        return lanes
+
+    def _release(self, lanes: Iterable[Lane]) -> None:
+        for lane in lanes:
+            self._running[lane] -= 1
+
     async def run_one(self) -> bool:
-        # A bulk slot is taken before claiming (no await in between), so two workers polling at
-        # once cannot both start a bulk job; it is given back when the job is not one.
-        held = self._bulk_running < self.bulk
-        bulk_ok = held
-        if held:
-            self._bulk_running += 1
+        held = self._reserve()
         try:
-            job = await self._claim(bulk_ok=bulk_ok)
-            if held and job is not None and _lane(job.kind) != "bulk":
-                self._bulk_running -= 1
-                held = False
+            job = await self._claim(closed=[lane for lane in self.caps if lane not in held])
+            kept: list[Lane] = (
+                [_lane(job.kind)] if job is not None and _lane(job.kind) in held else []
+            )
+            self._release(lane for lane in held if lane not in kept)
+            held = kept
             if job is None:
                 return False
             await self._execute(job)
             return True
         finally:
-            if held:
-                self._bulk_running -= 1
+            self._release(held)
 
-    async def _claim(self, *, bulk_ok: bool = True) -> CoreJob | None:
+    async def _claim(self, *, closed: Sequence[Lane] = ()) -> CoreJob | None:
         now: datetime = self.state.now()
         # A job whose worker died runs again, unless it was asked to stop or is out of attempts:
         # then it ends, each in its own transaction with its `on_failure`.
         lapsed = _lease_lapsed(now)
         due = or_(and_(CoreJob.status == "pending", CoreJob.run_after <= now), lapsed)
-        if not bulk_ok:
-            due = and_(due, CoreJob.kind.not_in(_bulk_kinds()))
+        if closed:
+            due = and_(due, CoreJob.kind.not_in(_kinds(closed)))
         async with self.state.session_factory() as db:
             # Most polls find nothing: check with a read first, so an idle worker does not take
             # SQLite's write lock every POLL_SECONDS.

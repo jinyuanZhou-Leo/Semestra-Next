@@ -599,6 +599,7 @@ class NotCached(Exception):
 
 
 _cache_only: ContextVar[bool] = ContextVar("lms_cache_only", default=False)
+_memory_only: ContextVar[bool] = ContextVar("lms_memory_only", default=False)
 
 
 @contextmanager
@@ -610,6 +611,18 @@ def cache_only() -> Iterator[None]:
         yield
     finally:
         _cache_only.reset(token)
+
+
+@contextmanager
+def memory_cache() -> Iterator[None]:
+    """Reads inside keep what they fetch in the in-process cache only, not in `lms_cache`: the
+    background sync reads whole lists (assignment descriptions included) that nobody reads
+    again before they expire."""
+    token = _memory_only.set(True)
+    try:
+        yield
+    finally:
+        _memory_only.reset(token)
 
 
 async def cached(
@@ -634,7 +647,8 @@ async def cached(
         raise NotCached
     result, truncated = await call(ctx, b, fn)
     data = dump(result)
-    await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated}, scope=scope)
+    entry = {"data": data, "truncated": truncated}
+    await cache.put(ctx, key, b.row.id, entry, scope=scope, persist=not _memory_only.get())
     return data, truncated
 
 

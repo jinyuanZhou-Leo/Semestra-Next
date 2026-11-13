@@ -138,11 +138,14 @@ async def put(
     *,
     scope: str | None = None,
     ttl: timedelta = TTL,
+    persist: bool = True,
 ) -> None:
     """Memory now; `lms_cache` once the request has committed (see the module docstring), all of
-    a request's entries in one transaction."""
+    a request's entries in one transaction. `persist=False` keeps it in memory only."""
     expires = ctx.now + ttl
     runtime(ctx.state).put(key, connection_id, scope, expires, payload)
+    if not persist:
+        return
     store = next((cb for cb in ctx.after_commit if isinstance(cb, _Store)), None)
     if store is None:
         store = _Store(ctx.state)

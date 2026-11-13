@@ -90,6 +90,11 @@ async def bulk(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+@job_handler("test.background", lane="background")
+async def background(ctx: JobCtx, payload: Payload) -> Result:
+    return Result()
+
+
 @job_handler("test.waits")
 async def waits(ctx: JobCtx, payload: Payload) -> Result:
     async with jobs.waiting("ai.provider_busy"), ctx.state.session_factory() as db:
@@ -379,18 +384,30 @@ async def test_finished_at_is_when_the_job_ends(app: FastAPI, make_user: MakeUse
     assert messages[-1]["data"]["status"] == "succeeded"
 
 
-async def test_bulk_jobs_leave_a_worker_for_the_others(app: FastAPI, make_user: MakeUser):
+async def test_lanes_leave_a_worker_for_the_jobs_users_wait_on(app: FastAPI, make_user: MakeUser):
     user = await make_user()
     rebuild = await start(app, user.id, "test.bulk")
+    sync = await start(app, user.id, "test.background")
     upload = await start(app, user.id, "test.ok")
-    runner = JobRunner(app.state, concurrency=2, bulk=1)
-    runner._bulk_running = 1  # another worker is already rebuilding
+    runner = JobRunner(app.state, concurrency=3, lanes={"background": 1, "bulk": 1})
+    runner._running["bulk"] = 1  # another worker is already rebuilding
     assert await runner.run_one() is True
-    assert (await get(app, upload)).status == "succeeded"
-    assert (await get(app, rebuild)).status == "pending"  # older, but waits for the bulk slot
-    runner._bulk_running = 0
+    assert (await get(app, sync)).status == "succeeded"  # its own lane is free
+    runner._running["background"] = 1  # and another one is syncing
     assert await runner.run_one() is True
-    assert (await get(app, rebuild)).status == "succeeded"
+    assert (await get(app, upload)).status == "succeeded"  # the last worker is the user's
+    assert (await get(app, rebuild)).status == "pending"
+    # With two workers, a sync waits while a rebuild holds the one worker lanes may use.
+    sync = await start(app, user.id, "test.background")
+    runner = JobRunner(app.state, concurrency=2, lanes={"background": 1, "bulk": 1})
+    runner._running["bulk"] = 1
+    assert await runner.run_one() is False
+    runner._running["bulk"] = 0
+    assert await runner.run_one() is True
+    assert (await get(app, rebuild)).status == "succeeded"  # oldest first
+    assert await runner.run_one() is True
+    assert (await get(app, sync)).status == "succeeded"
+    assert runner._running == {"background": 0, "bulk": 0}
 
 
 async def test_a_job_shows_what_it_waits_for(app: FastAPI, make_user: MakeUser):

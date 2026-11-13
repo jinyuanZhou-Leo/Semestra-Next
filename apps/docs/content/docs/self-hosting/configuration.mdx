@@ -103,8 +103,9 @@ Only in the default image; see [Images](./images.mdx#local-embedding).
 
 | Variable                   | Default | Meaning                                                       |
 | -------------------------- | ------- | ------------------------------------------------------------- |
-| `SEMESTRA_JOB_CONCURRENCY` | `2`     | Background job workers in the process                         |
-| `SEMESTRA_JOB_BULK_CONCURRENCY` | `1` | Of those, how many may rebuild search vectors or download models at once; at least one stays free for imports and new files |
+| `SEMESTRA_JOB_CONCURRENCY` | `3`     | Background job workers in the process                         |
+| `SEMESTRA_JOB_BACKGROUND_CONCURRENCY` | `1` | Of those, how many may sync LMS courses at once |
+| `SEMESTRA_JOB_BULK_CONCURRENCY` | `1` | Of those, how many may rebuild search vectors or download models at once; together with syncing, at least one stays free for imports and new files |
 | `SEMESTRA_BACKUP_DIR`      | (empty) | Turns on the daily built-in backup into this directory        |
 | `SEMESTRA_BACKUP_KEEP`     | `7`     | Database snapshots kept                                       |
 

@@ -2,7 +2,7 @@
 for the LMS tests (M09 §11)."""
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, ClassVar, cast
 
 import pytest
@@ -11,6 +11,7 @@ from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
+from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
 from semestra.modules.lms.providers.canvas import provider as canvas_module
@@ -409,7 +410,10 @@ async def api(
     make_user: MakeUser,
     login_as: LoginAs,
     run_jobs: Callable[[], Awaitable[None]],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Api:
+    # Tests sync again and again at the same moment; `test_sync.py` checks the cool-down.
+    monkeypatch.setattr(sync, "COOLDOWN", timedelta(0))
     await login_as(client, await make_user())
     return Api(client, run_jobs)
 

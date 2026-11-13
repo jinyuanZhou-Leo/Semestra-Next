@@ -62,9 +62,14 @@ def followed(cfg: LmsSettings) -> frozenset[str]:
     )
 
 
+def floor(ctx: Ctx) -> timedelta:
+    """The server's shortest sync interval: no course syncs on its own more often."""
+    return INTERVALS[ctx.settings.lms_sync_min_interval]
+
+
 def interval(ctx: Ctx, cfg: LmsSettings) -> timedelta:
     """How often the user's courses are synced: their choice, never below the server's floor."""
-    return max(INTERVALS[cfg.sync_every], INTERVALS[ctx.settings.lms_sync_min_interval])
+    return max(INTERVALS[cfg.sync_every], floor(ctx))
 
 
 async def writes_allowed(ctx: Ctx) -> bool:

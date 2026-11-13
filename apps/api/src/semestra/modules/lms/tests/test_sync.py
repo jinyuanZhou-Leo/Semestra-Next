@@ -9,10 +9,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import func, select
 
 from semestra.core.context import system_ctx
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.models import LmsCache
 from semestra.modules.lms.schemas.dto import Announcement, Submission
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -454,6 +456,34 @@ async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clo
         await sync.sync_due(ctx)
         await ctx.db.commit()
     assert not (await api.call("GET", f"/programs/{program_id}/lms/sync"))["syncing"]
+
+
+async def test_the_shortest_interval_holds_when_the_app_asks(
+    api: Api, app: FastAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, _ = await _course(api)
+    monkeypatch.setattr(sync, "COOLDOWN", timedelta(minutes=1))
+    app.state.settings = app.state.settings.model_copy(update={"lms_sync_min_interval": "1h"})
+    path = f"/programs/{program_id}/lms/sync"
+    assert (await api.call("POST", path, json={"force": True}))["queued"] == 1
+    await api.run_jobs()
+    # "Sync now" again right away does nothing; a minute later it syncs.
+    assert (await api.call("POST", path, json={"force": True}))["queued"] == 0
+    clock.advance(minutes=1)
+    assert (await api.call("POST", path, json={"force": True}))["queued"] == 1
+    await api.run_jobs()
+    # Opening the app waits for the server's shortest interval, not just half an hour.
+    clock.advance(minutes=40)
+    assert (await api.call("POST", path, json={}))["queued"] == 0
+    clock.advance(minutes=20)
+    assert (await api.call("POST", path, json={}))["queued"] == 1
+
+
+async def test_a_sync_keeps_what_it_read_in_memory_only(api: Api, app: FastAPI):
+    program_id, _ = await _course(api)
+    await api.sync(program_id)
+    async with system_ctx(app.state) as ctx:
+        assert await ctx.db.scalar(select(func.count()).select_from(LmsCache)) == 0
 
 
 async def test_a_field_set_apart_from_the_platform_can_follow_it_again(

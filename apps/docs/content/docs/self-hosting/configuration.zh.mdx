@@ -101,8 +101,9 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 
 | 变量                       | 默认值 | 含义                                       |
 | -------------------------- | ------ | ------------------------------------------ |
-| `SEMESTRA_JOB_CONCURRENCY` | `2`    | 进程内后台任务的并发数                     |
-| `SEMESTRA_JOB_BULK_CONCURRENCY` | `1` | 其中最多几个用于重建搜索向量、下载模型；至少留一个给导入和新文件 |
+| `SEMESTRA_JOB_CONCURRENCY` | `3`    | 进程内后台任务的并发数                     |
+| `SEMESTRA_JOB_BACKGROUND_CONCURRENCY` | `1` | 其中最多几个用于同步 LMS 课程 |
+| `SEMESTRA_JOB_BULK_CONCURRENCY` | `1` | 其中最多几个用于重建搜索向量、下载模型；同步与这类任务合起来至少留一个给导入和新文件 |
 | `SEMESTRA_BACKUP_DIR`      | （空） | 设置后每天自动备份到这个目录               |
 | `SEMESTRA_BACKUP_KEEP`     | `7`    | 保留的数据库快照数                         |
 
