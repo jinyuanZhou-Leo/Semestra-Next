@@ -2,7 +2,7 @@
 "@semestra/web": patch
 ---
 
-<!-- area: lms -->
+<!-- area: canvas -->
 <!-- en -->
 The sidebar status lines now animate smoothly when their state changes.
 <!-- zh -->
