@@ -19,7 +19,7 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import periodic
-from semestra.core.storage import delete_after_commit
+from semestra.core.storage import charge, delete_after_commit
 from semestra.modules.agent import service
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import service as files
@@ -122,11 +122,13 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
 
 
 async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachment | None:
-    """A course file picked with `@`, kept as an attachment of the message: its text as it was
-    when the message was sent, so the conversation reads the same on every request. It has no
-    stored original (`storage_key` is empty), so it costs no storage; the course file is the
-    original. None when the file is not the user's (any more). A file without readable text yet
-    is kept with the reason in `parse_error`."""
+    """A course file picked with `@`, kept as an attachment of the conversation: its text as it
+    was when the message was sent, so the conversation reads the same on every request. Picked
+    again in the same conversation, the same version of the file is the same attachment. It has
+    no stored original (`storage_key` is empty; the course file is the original), but the copied
+    text counts in `size`, so it is held to the storage quota. None when the file is not the
+    user's (any more). A file without readable text yet is kept with the reason in
+    `parse_error`."""
     from semestra.modules.files import documents
 
     try:
@@ -146,14 +148,29 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
         sent_at=ctx.now,
         doc_kind=files.file_type(item.mime_type),
     )
-    ctx.db.add(row)
-    await ctx.db.flush()
     try:
-        _, page_rows = await documents.snapshot(ctx, item.id)
+        document_id = await documents.active_document_id(ctx, item.id)
     except AppError as exc:
         row.parse_error = exc.code
+        ctx.db.add(row)
+        await ctx.db.flush()
         return row
+    kept = await ctx.db.scalar(
+        select(AgentAttachment).where(
+            AgentAttachment.user_id == ctx.user_id,
+            AgentAttachment.session_id == session_id,
+            AgentAttachment.storage_key == "",
+            AgentAttachment.file_document_id == document_id,
+        )
+    )
+    if kept is not None:
+        return kept
+    _, page_rows = await documents.snapshot(ctx, item.id)
+    row.file_document_id = document_id
     row.page_count = len(page_rows)
+    row.size = sum(len(page.markdown.encode()) for page in page_rows)
+    ctx.db.add(row)
+    await ctx.db.flush()
     for page in page_rows:
         ctx.db.add(
             AgentAttachmentPage(
@@ -164,6 +181,7 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
                 needs_ocr=not page.markdown.strip() and not page.ocr_used,
             )
         )
+    await charge(ctx)
     return row
 
 
