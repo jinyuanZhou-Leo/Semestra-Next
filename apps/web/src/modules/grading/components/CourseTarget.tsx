@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { GPA_MASK, percentText } from '../display'
+import { GRADE_MASK, maskedPercentText, percentText } from '../display'
 import { invalidateGrading, useGradingScale } from '../queries'
 import type { WhatIf } from '../whatif'
 import { requiredText } from './Stat'
@@ -53,7 +53,7 @@ function targetOptions(bands: readonly ScaleBand[], current: number): TargetOpti
 /** A choice as text: "3.7 · A− (≥ 80%)"; with GPA hidden only the threshold shows. */
 function optionLabel(option: TargetOption, hideGpa: boolean): string {
   const threshold = option.min === null ? '' : `≥ ${percentText(option.min)}`
-  if (hideGpa) return threshold || GPA_MASK
+  if (hideGpa) return threshold || GRADE_MASK
   const grade = [formatGpa(option.points, 1), option.letter].filter(Boolean).join(' · ')
   return threshold ? `${grade} (${threshold})` : grade
 }
@@ -131,7 +131,7 @@ export function CourseTarget({
       </Field>
       <p className="text-sm">
         {figures && figures.remaining_weight === 0 ? (
-          <span className="font-medium">{requiredText(figures)}</span>
+          <span className="font-medium">{requiredText(figures, scale.hide_gpa)}</span>
         ) : (
           <>
             <span className="text-muted-foreground">
@@ -140,7 +140,7 @@ export function CourseTarget({
               })}
             </span>{' '}
             <span className="font-medium tabular-nums">
-              {figures ? requiredText(figures) : '—'}
+              {figures ? requiredText(figures, scale.hide_gpa) : '—'}
             </span>
           </>
         )}
@@ -160,7 +160,7 @@ export function CourseTarget({
       {planning && suggest.data && !suggest.data.reachable ? (
         <output className="block text-xs text-destructive">
           {m.grading_autofill_unreachable({
-            best: percentText(suggest.data.resulting_percentage),
+            best: maskedPercentText(suggest.data.resulting_percentage, scale.hide_gpa),
           })}
         </output>
       ) : null}

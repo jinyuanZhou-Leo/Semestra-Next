@@ -1,7 +1,7 @@
 import type { GradebookSummary } from '@semestra/api-client'
 import type { ReactNode } from 'react'
 import { m } from '@/paraglide/messages'
-import { percentText } from '../display'
+import { maskedPercentText } from '../display'
 
 export function Stat({
   label,
@@ -22,9 +22,12 @@ export function Stat({
 }
 
 /** The target in words: what the remaining work has to average, or that it is settled. */
-export function requiredText(s: Pick<GradebookSummary, 'reachable' | 'required_average'>): string {
+export function requiredText(
+  s: Pick<GradebookSummary, 'reachable' | 'required_average'>,
+  hidden: boolean,
+): string {
   if (s.reachable === false) return m.grading_required_unreachable()
   if (s.required_average === null) return '—'
   if (s.required_average <= 0) return m.grading_required_secured()
-  return percentText(s.required_average)
+  return maskedPercentText(s.required_average, hidden)
 }

@@ -8,12 +8,12 @@ import { Badge } from '@/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type CompositionSlice, composition } from '../composition'
-import { categoryColor, categoryName, headline, percentText } from '../display'
-import { AnimatedPercent } from './AnimatedPercent'
+import { GRADE_MASK, categoryColor, categoryName, headline, maskedPercentText } from '../display'
 import { CompositionRing, type RingSlice } from './CompositionRing'
-import { GpaValue } from './GpaValue'
+import { GpaValue, PercentValue } from './GradeValue'
 
-type Datum = CompositionSlice & RingSlice & { name: string }
+/** `hidden`: the Program hides grades, so this category's average and contribution are masked. */
+type Datum = CompositionSlice & RingSlice & { name: string; hidden: boolean }
 
 const sliceKey = (id: string | null) => id ?? '__none__'
 
@@ -22,10 +22,10 @@ function sliceRows(datum: Datum): [string, string][] {
   return [
     [m.grading_slice_weight(), `${formatCredits(datum.weight)}%`],
     [m.grading_slice_graded(), `${formatCredits(datum.graded)}%`],
-    [m.grading_average(), percentText(datum.average)],
+    [m.grading_average(), maskedPercentText(datum.average, datum.hidden)],
     [
       m.grading_slice_contribution(),
-      `${formatCredits(Math.round(datum.contribution * 100) / 100)}%`,
+      datum.hidden ? GRADE_MASK : `${formatCredits(Math.round(datum.contribution * 100) / 100)}%`,
     ],
   ]
 }
@@ -93,7 +93,7 @@ const legendColumns = legendColumn.columns([
   legendColumn.display({
     id: 'average',
     header: () => m.grading_average(),
-    cell: ({ row }) => percentText(row.original.average),
+    cell: ({ row }) => maskedPercentText(row.original.average, row.original.hidden),
   }),
 ])
 
@@ -161,6 +161,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
   const data: Datum[] = composition(s, gradebook.categories).map((slice) => ({
     ...slice,
     key: sliceKey(slice.id),
+    hidden: scale.hide_gpa,
     name: slice.category ? categoryName(slice.category) : m.grading_category_none(),
     color: categoryColor(slice.category?.color ?? 'slate'),
   }))
@@ -187,7 +188,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
           )}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <AnimatedPercent value={actual} />
+            <PercentValue value={actual} hidden={scale.hide_gpa} animated />
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {s.overridden ? (

@@ -4,10 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { ChoiceControl } from '@/app/settings/choice'
-import { percentText } from '../display'
+import { maskedPercentText } from '../display'
 import { parseDecimal } from '../score'
 import { invalidateGrading } from '../queries'
-import { GpaValue } from './GpaValue'
+import { GpaValue } from './GradeValue'
 import { InlineInput } from './InlineInput'
 import { Stat } from './Stat'
 
@@ -63,7 +63,7 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
           className="-ml-3 h-9 w-28 border-input text-left text-2xl font-semibold md:text-2xl"
         />
       </Stat>
-      <Stat label={m.grading_gpa()} hint={percentText(s.final_percentage)}>
+      <Stat label={m.grading_gpa()} hint={maskedPercentText(s.final_percentage, scale.hide_gpa)}>
         <GpaValue value={s.final_points} hidden={scale.hide_gpa} />
       </Stat>
     </div>

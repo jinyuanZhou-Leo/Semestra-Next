@@ -1,12 +1,12 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Bar, BarChart, Cell, LabelList, usePlotArea, XAxis, YAxis } from 'recharts'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { categoryColor, categoryName, percentText } from '../display'
 import type { WhatIf } from '../whatif'
-import { GpaValue } from './GpaValue'
+import { GpaValue, MaskedChart, PercentValue } from './GradeValue'
 
 /** A row: the name and value on one line, the bar under them. */
 const ROW = 34
@@ -117,6 +117,8 @@ export function ForecastCard({
   footer?: ReactNode
 }) {
   const { summary: real, scale } = gradebook
+  const [chartRevealed, setChartRevealed] = useState(false)
+  const masked = scale.hide_gpa && !chartRevealed
   const s = planning ? (planned ?? real) : real
   const categories = new Map(gradebook.categories.map((c) => [c.id, c]))
   // In plan mode assumed scores count as a category's history, so the plan's own list applies.
@@ -161,7 +163,11 @@ export function ForecastCard({
         {planning ? m.grading_planned_grade() : m.grading_forecast()}
       </p>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{percentText(value)}</span>
+        <PercentValue
+          value={value}
+          hidden={scale.hide_gpa}
+          className="text-2xl font-semibold tabular-nums"
+        />
         <span className="flex items-baseline gap-1 text-sm font-semibold tabular-nums">
           {scale.hide_gpa ? (
             <span className="text-xs font-normal text-muted-foreground">{m.grading_gpa()}</span>
@@ -174,7 +180,9 @@ export function ForecastCard({
           />
         </span>
       </div>
-      {data.length > 0 ? (
+      {data.length > 0 && masked ? (
+        <MaskedChart className="mt-3 h-24" onReveal={() => setChartRevealed(true)} />
+      ) : data.length > 0 ? (
         <>
           <ChartContainer
             config={config}

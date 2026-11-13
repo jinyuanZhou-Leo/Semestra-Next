@@ -2,10 +2,9 @@ import type { CourseGrade, TermGrades } from '@semestra/api-client'
 import { useState } from 'react'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { GPA_MASK, percentText } from '../display'
-import { AnimatedPercent } from './AnimatedPercent'
+import { GRADE_MASK, maskedPercentText } from '../display'
 import { CompositionRing, type RingSlice } from './CompositionRing'
-import { GpaValue } from './GpaValue'
+import { GpaValue, PercentValue } from './GradeValue'
 
 type Slice = RingSlice & { name: string; course: CourseGrade }
 
@@ -37,9 +36,9 @@ function SliceDetails({ slice, hideGpa }: { slice: Slice; hideGpa: boolean }) {
     [m.grading_status(), courseStatusLabel(c.status)],
     // An unfinished course has a current average, not a final percentage.
     c.status === 'in_progress'
-      ? [m.grading_current(), percentText(c.current_percentage)]
-      : [m.grading_percentage(), percentText(c.percentage)],
-    [m.grading_gpa(), c.points === null ? '—' : hideGpa ? GPA_MASK : formatGpa(c.points)],
+      ? [m.grading_current(), maskedPercentText(c.current_percentage, hideGpa)]
+      : [m.grading_percentage(), maskedPercentText(c.percentage, hideGpa)],
+    [m.grading_gpa(), c.points === null ? '—' : hideGpa ? GRADE_MASK : formatGpa(c.points)],
   ]
   return (
     <div className="grid min-w-40 gap-1.5">
@@ -101,7 +100,7 @@ export function TermComposition({
           renderDetails={(slice) => <SliceDetails slice={slice} hideGpa={term.hide_gpa} />}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <AnimatedPercent value={term.average_percentage} />
+            <PercentValue value={term.average_percentage} hidden={term.hide_gpa} animated />
           </span>
           <span className="text-xs text-muted-foreground">{m.grading_average()}</span>
         </CompositionRing>

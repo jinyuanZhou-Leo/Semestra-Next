@@ -1,5 +1,5 @@
 import type { Assessment, AssessmentCategory, GradebookSummary } from '@semestra/api-client'
-import { formatDate, formatDateTime, formatPercent } from '@/lib/format'
+import { formatDate, formatPercent } from '@/lib/format'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 import { dayDate } from '@/lib/day'
@@ -40,21 +40,25 @@ export function percentText(value: number | null | undefined): string {
   return value == null ? '—' : formatPercent(value / 100)
 }
 
-/** The mask shown in place of a GPA while `hide_gpa` is on (M03 §5.3). */
-export const GPA_MASK = '•••'
+/** The mask shown in place of a GPA or percentage while `hide_gpa` is on (M03 §5.3). */
+export const GRADE_MASK = '•••'
+
+/** A percentage as running text; with `hidden` the mask (a value that is not there stays "—"). */
+export function maskedPercentText(value: number | null | undefined, hidden: boolean): string {
+  return hidden && value != null ? GRADE_MASK : percentText(value)
+}
 
 /**
- * A deadline as the Program's own calendar shows it. `due_date`/`due_time` are already in the
- * Program's time zone, so they are shown as written instead of converting `due_at` into the
- * browser's zone (which would move the day for someone viewing from another zone).
+ * A deadline as the Program's own calendar shows it, as a compact date ("Nov 20", with the year
+ * only when it is not this one). `due_date` is already in the Program's time zone, so it is shown
+ * as written instead of converting `due_at` into the browser's zone (which would move the day for
+ * someone viewing from another zone). The time of day is in the assessment's edit dialog.
  */
-export function dueText(a: Pick<Assessment, 'due_date' | 'due_time'>): string {
+export function dueText(a: Pick<Assessment, 'due_date'>): string {
   if (!a.due_date) return '—'
-  const [hours = 0, minutes = 0] = (a.due_time ?? '').split(':').map(Number)
-  // A wall-clock date built in the browser zone prints back the same wall clock.
-  const wall = dayDate(a.due_date)
-  wall.setHours(hours, minutes)
-  return a.due_time ? formatDateTime(wall) : formatDate(wall)
+  return formatDate(a.due_date, {
+    short: dayDate(a.due_date).getFullYear() === new Date().getFullYear(),
+  })
 }
 
 /** The course's headline grade: the final one once it exists, the current average before. */

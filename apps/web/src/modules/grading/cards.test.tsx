@@ -54,7 +54,7 @@ test('the Program chart keeps GPA values out of the page while GPA is hidden', a
   const { container } = renderWithRouter(
     <ProgramChartsCard {...cardProps({ kind: 'program', programId: 'p1' }, 'l')} />,
   )
-  const mask = await screen.findByRole('button', { name: 'Show GPA' })
+  const mask = await screen.findByRole('button', { name: 'Show grade' })
   expect(container.querySelector('title')?.textContent ?? '').not.toContain('3.50')
   expect(screen.queryByRole('figure', { name: 'GPA and cumulative GPA by term' })).toBeNull()
   expect(container).not.toHaveTextContent('3.50')
@@ -101,7 +101,9 @@ test('revealing a hidden GPA on a card does not follow the card link', async () 
   const { router } = renderWithRouter(
     <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,
   )
-  await userEvent.click(await screen.findByRole('button', { name: 'Show GPA' }))
+  // The headline percentage and the GPA each have their own mask; this is the GPA's.
+  const masks = await screen.findAllByRole('button', { name: 'Show grade' })
+  await userEvent.click(masks[masks.length - 1]!)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
   expect(router.history.location.pathname).toBe('/')
 })

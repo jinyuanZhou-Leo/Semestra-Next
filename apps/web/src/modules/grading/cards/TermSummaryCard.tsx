@@ -6,8 +6,7 @@ import { HistoryLink } from '@/components/HistoryLink'
 import { formatCredits } from '@/lib/format'
 import { termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
-import { GpaValue } from '../components/GpaValue'
-import { percentText } from '../display'
+import { GpaValue, PercentValue } from '../components/GradeValue'
 import { useTermGrades } from '../queries'
 
 /** The term's GPA, with its average and credits below (M03 §5.3). Opens the term's grades. */
@@ -27,7 +26,9 @@ export default function TermSummaryCard({ scope, size }: CardProps) {
         footer={
           <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
             <dt>{m.grading_average()}</dt>
-            <dd className="text-foreground tabular-nums">{percentText(data.average_percentage)}</dd>
+            <dd className="text-foreground tabular-nums">
+              <PercentValue value={data.average_percentage} hidden={data.hide_gpa} />
+            </dd>
             <dt>{m.grading_credits_counted()}</dt>
             <dd className="text-foreground tabular-nums">
               <AnimatedNumber value={data.credits_counted} format={formatCredits} />

@@ -6,9 +6,8 @@ import { formatCredits, formatGpa } from '@/lib/format'
 import { termPath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { Progress } from '@/ui/progress'
-import { AnimatedPercent } from '../components/AnimatedPercent'
-import { GpaValue } from '../components/GpaValue'
-import { GPA_MASK } from '../display'
+import { GpaValue, PercentValue } from '../components/GradeValue'
+import { GRADE_MASK } from '../display'
 import { useProgramGrades } from '../queries'
 
 /**
@@ -35,7 +34,7 @@ export default function ProgramKpisCard({ scope }: CardProps) {
             <dt className="text-xs text-muted-foreground">{m.grading_average()}</dt>
             <dt className="text-xs text-muted-foreground">{m.grading_credits_earned()}</dt>
             <dd className="font-medium tabular-nums">
-              <AnimatedPercent value={data.average_percentage} />
+              <PercentValue value={data.average_percentage} hidden={data.hide_gpa} animated />
             </dd>
             <dd className="font-medium tabular-nums">
               <AnimatedNumber value={data.credits_earned} format={formatCredits} />
@@ -78,7 +77,7 @@ export default function ProgramKpisCard({ scope }: CardProps) {
                       <span className="text-xs font-normal text-muted-foreground">—</span>
                     ) : data.hide_gpa ? (
                       // The headline's mask reveals GPA; a button inside the link cannot.
-                      GPA_MASK
+                      GRADE_MASK
                     ) : (
                       formatGpa(term.gpa)
                     )}

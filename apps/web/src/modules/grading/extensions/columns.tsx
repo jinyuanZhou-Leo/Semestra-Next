@@ -3,8 +3,7 @@ import { gradingCourseSummaryListOptions } from '@semestra/api-client/react-quer
 import type { Course } from '@semestra/api-client'
 import type { CourseColumn } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
-import { GpaValue } from '../components/GpaValue'
-import { percentText } from '../display'
+import { GpaValue, PercentValue } from '../components/GradeValue'
 
 const grades = (data: unknown) => data as CourseGrades | undefined
 
@@ -22,7 +21,7 @@ function gradeOf(course: Course, data: unknown) {
   return index.get(course.id)
 }
 
-/** With "hide GPA" on, GPA must not leak through ordering or threshold filters either. */
+/** With "hide grades" on, grades must not leak through ordering or threshold filters either. */
 const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
 
 const available = (data: unknown) => !gpaHidden(data)
@@ -52,7 +51,7 @@ export const courseColumns: CourseColumn[] = [
       const percentage = grade.percentage ?? grade.current_percentage
       return (
         <span className="tabular-nums">
-          {percentText(percentage)}
+          <PercentValue value={percentage} hidden={gpaHidden(data)} />
           {grade.letter && !gpaHidden(data) ? (
             <span className="ml-1.5 text-xs text-muted-foreground">{grade.letter}</span>
           ) : null}
@@ -61,7 +60,7 @@ export const courseColumns: CourseColumn[] = [
     },
     sortValue: (course, data) => {
       const grade = gradeOf(course, data)
-      return grade ? (grade.percentage ?? grade.current_percentage) : null
+      return grade && !gpaHidden(data) ? (grade.percentage ?? grade.current_percentage) : null
     },
   },
   {

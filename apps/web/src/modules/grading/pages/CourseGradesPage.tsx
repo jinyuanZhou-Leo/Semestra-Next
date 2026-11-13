@@ -127,6 +127,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           assessments={gradebook.assessments}
           categories={gradebook.categories}
           figures={gradebook.summary.categories}
+          hideGrades={gradebook.scale.hide_gpa}
           whatIf={state}
           predictions={(planning ? planned : null)?.predictions ?? gradebook.summary.predictions}
           onAssume={assume}

@@ -7,9 +7,9 @@ import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { Field, FieldDescription, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { GPA_MASK, percentText } from '../display'
+import { GRADE_MASK, maskedPercentText, percentText } from '../display'
 import { parseDecimal } from '../score'
-import { GpaValue } from './GpaValue'
+import { GpaValue, MaskedChart } from './GradeValue'
 
 const ROW = 26
 const config = { value: { label: '' } } satisfies ChartConfig
@@ -99,6 +99,7 @@ export function TermTargetCard({
   canAssume: (c: CourseGrade) => boolean
   onTargetChange: (targetGpa: number | null) => void
 }) {
+  const [chartRevealed, setChartRevealed] = useState(false)
   const data: Datum[] = term.courses.filter(canAssume).flatMap((c) => {
     const assumed = planning ? scores[c.course_id] : undefined
     const value = assumed ?? c.current_percentage
@@ -127,12 +128,14 @@ export function TermTargetCard({
           : required !== null
             ? {
                 tone: 'muted',
-                text: m.grading_term_required({ percentage: percentText(required) }),
+                text: m.grading_term_required({
+                  percentage: maskedPercentText(required, term.hide_gpa),
+                }),
               }
             : gap !== null
               ? {
                   tone: 'bad',
-                  text: m.grading_target_gap({ gap: term.hide_gpa ? GPA_MASK : formatGpa(gap) }),
+                  text: m.grading_target_gap({ gap: term.hide_gpa ? GRADE_MASK : formatGpa(gap) }),
                 }
               : null
 
@@ -152,7 +155,9 @@ export function TermTargetCard({
       ) : (
         <p className="text-xs text-muted-foreground">{m.grading_term_unfinished()}</p>
       )}
-      {data.length > 0 ? (
+      {data.length > 0 && term.hide_gpa && !chartRevealed ? (
+        <MaskedChart className="mt-3 h-24" onReveal={() => setChartRevealed(true)} />
+      ) : data.length > 0 ? (
         <ChartContainer
           config={config}
           className="mt-3 aspect-auto w-full"

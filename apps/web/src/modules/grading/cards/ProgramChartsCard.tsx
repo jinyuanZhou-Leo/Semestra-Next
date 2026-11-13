@@ -6,7 +6,6 @@ import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import {
   type ChartConfig,
   ChartContainer,
@@ -16,7 +15,7 @@ import {
   ChartTooltipContent,
 } from '@/ui/chart'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { GPA_MASK } from '../display'
+import { MaskedChart } from '../components/GradeValue'
 import { useProgramGrades } from '../queries'
 
 // jsdom and the first paint have no layout; the charts start at this size and then follow the card.
@@ -102,15 +101,7 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   return (
     <div className="flex h-full flex-col gap-3">
       {masked ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="h-24 w-full rounded-xl border-dashed font-normal text-muted-foreground"
-          aria-label={m.grading_gpa_show()}
-          onClick={() => setRevealed(true)}
-        >
-          {GPA_MASK}
-        </Button>
+        <MaskedChart className="h-24" onReveal={() => setRevealed(true)} />
       ) : (
         <figure aria-label={m.grading_chart_gpa_label()}>
           <ChartFigures terms={terms} value={(t) => (t.gpa === null ? null : formatGpa(t.gpa))} />

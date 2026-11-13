@@ -4,9 +4,8 @@ import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
-import { GpaValue } from '../components/GpaValue'
+import { GpaValue, PercentValue } from '../components/GradeValue'
 import { requiredText } from '../components/Stat'
-import { AnimatedPercent } from '../components/AnimatedPercent'
 import { dueText, headline } from '../display'
 import { useGradebook } from '../queries'
 
@@ -28,7 +27,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
         m.grading_fail()
       )
     ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
-      <AnimatedPercent value={grade} />
+      <PercentValue value={grade} hidden={scale.hide_gpa} animated />
     ) : (
       '—'
     )
@@ -65,7 +64,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
             {size === 'm' && result.basis === 'percentage' ? (
               <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
                 <dt>{m.grading_target_needed()}</dt>
-                <dd className="font-medium text-foreground">{requiredText(s)}</dd>
+                <dd className="font-medium text-foreground">{requiredText(s, scale.hide_gpa)}</dd>
                 {next?.due_at ? (
                   <>
                     <dt className="truncate">{next.title}</dt>
