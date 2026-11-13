@@ -1,87 +1,49 @@
 ---
-title: AI and BYOK
-description: Semestra's AI features run on providers you bring. How keys are stored and which model is used.
+title: AI
+description: Add your own provider, choose a model for each purpose, and see your usage and cost.
 ---
 
-Sem (the assistant), syllabus and timetable extraction, image reading and file search all call an
-AI provider that **you** configure: bring your own key (BYOK). Semestra does not resell model
-access, so there is no AI quota and no AI bill from Semestra; your provider bills you directly.
+Sem, importing from syllabi and screenshots, reading scanned pages and searching your files by
+meaning all need an AI model. Semestra uses providers you add yourself (such as Anthropic, OpenAI,
+Gemini or Ollama). Your provider bills you directly; Semestra charges nothing extra.
 
-## Where to configure it
+## Add a provider
 
-Global settings, under **AI**:
+Add one in global settings → **AI → Providers**. Most providers need only a type and an API key;
+Semestra tests the connection before saving. You can also add one during onboarding.
 
-| Page          | What it holds                                                            |
-| ------------- | ------------------------------------------------------------------------ |
-| **Providers** | Your providers: type, name, base URL, key, and what the endpoint can do  |
-| **Models**    | Which model serves each purpose, and optional model parameters           |
-| **Usage**     | Tokens used and their estimated cost                                       |
+For the providers you can use and what each needs, see [Provider types](./providers.mdx).
 
-A new account can also add a provider during onboarding, before its first term: the term
-wizard then offers to read courses from a syllabus, a timetable image or pasted text. Skipped,
-those sources are left out of onboarding and can be used once a provider is added.
+API keys are stored encrypted and are never included in backups, so enter them again after
+restoring one.
 
-## How keys are stored
+## Choose models
 
-- Keys are encrypted with the server's `SEMESTRA_ENCRYPTION_KEY` before they are written to the
-  database. The API only ever returns a masked hint.
-- A provider is test-called before it is saved, and again when its key changes.
-- Data exports never include keys. After importing a backup, providers that had a key are
-  turned off until you enter it again.
+In global settings → **AI → Models**, choose a model for each purpose:
 
-## Purposes
+| Purpose           | Used for                                                   |
+| ----------------- | ---------------------------------------------------------- |
+| Sem               | Conversations with Sem                                     |
+| Reading documents | Course details, deadlines and grade breakdowns from syllabi |
+| Reading images    | Timetable screenshots                                      |
+| OCR               | Text in scanned PDFs and photos                            |
+| Search            | Finding passages in your course files by meaning           |
+| Light tasks       | Conversation titles, suggested questions and tidying Sem's memory |
 
-Each AI call has a purpose, and each purpose needs one capability from the provider.
-
-| Purpose          | Used for                                              | Needs       |
-| ---------------- | ----------------------------------------------------- | ----------- |
-| Sem              | Conversations with the assistant, and compacting them | `chat`      |
-| Reading documents| Course details, deadlines and grades from syllabi     | `chat`      |
-| Reading images   | Timetable screenshots                                 | `vision`    |
-| OCR              | Text in scanned PDFs and photos of pages              | `vision`    |
-| Search           | Finding passages in your course files                 | `embedding` |
-| Light tasks      | Conversation titles, suggested questions, tidying Sem's memory | `chat` |
+Leave a purpose on **Auto** to use the recommended model of a provider you added. When no model can
+serve a purpose, the features that need it ask you to add a provider.
 
 ## File indexing
 
-New course files are read and indexed as soon as they are added, which is when scanned pages go
-to the image model and passages to the search model. To control that spending, turn off
-**File indexing → Index new files automatically** in the program's (or a course's) settings. Files
-added while it is off are indexed when you ask for it, or when an import needs them.
+New course files are indexed as soon as you add them, which uses your OCR and search models. To
+keep that cost down, turn off **Index new files automatically** in program or course settings →
+**Files**, and index individual files when you need them.
 
-Search vectors belong to the model that made them, so changing the search model rebuilds them for
-every indexed file in the background. When files already have vectors, the settings ask before
-switching.
+After you change the search model, your files are indexed again with the new one; until that
+finishes, search results may be incomplete.
 
-## Which model answers
+## Usage and cost
 
-For each purpose, Semestra takes the first of:
-
-1. The model you chose for that purpose on **Models**, if its provider is on and can serve it.
-2. Any enabled provider that can serve it, with that provider type's recommended model.
-3. On a self-hosted instance, the [instance-wide provider](./instance-provider.mdx).
-
-When none applies, the feature shows a quiet "connect AI" hint instead of failing.
-
-Recommended models (used in step 2):
-
-| Provider  | Sem, documents, images         | Light tasks              | Search                   |
-| --------- | ------------------------------ | ------------------------ | ------------------------ |
-| Anthropic | `claude-sonnet-5-5`            | `claude-haiku-5-5`       | (none)                   |
-| OpenAI    | `gpt-5`; `gpt-5-mini` for documents and images | `gpt-5-nano` | `text-embedding-3-small` |
-| Gemini    | `gemini-2.5-pro`; `gemini-2.5-flash` for documents and images | `gemini-2.5-flash-lite` | `gemini-embedding-001` |
-| Ollama    | `qwen3:8b` (no images)         | `qwen3:8b`               | `nomic-embed-text`       |
-
-OCR uses the light-task model (Ollama has none). A self-hosted server can read scanned
-pages itself instead, with no model at all: see [Local OCR](/docs/self-hosting/images#local-ocr).
-It can also embed text for search itself: see
-[Local embedding](/docs/self-hosting/images#local-embedding).
-
-Compatible endpoints have no recommendation: pick a model on **Models**, or type its name when
-the endpoint cannot list its models.
-
-## Cost estimates
-
-The **Usage** page estimates cost with the [genai-prices](https://github.com/pydantic/genai-prices)
-price list bundled with the server. Compatible endpoints are matched by their base URL (DeepSeek,
-OpenRouter and others); models with no known price show no cost, and Ollama is always free.
+Global settings → **AI → Usage** shows how much each purpose used and an estimated cost. Models
+without a public price show no cost, and models running on your own machine, such as Ollama, cost
+nothing.

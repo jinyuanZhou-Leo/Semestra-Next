@@ -1,11 +1,11 @@
 ---
 title: Instance-wide provider
-description: Self-hosted only. One provider every user falls back to when they have none.
+description: Give every user on your instance a default provider.
 ---
 
 A self-hosted instance can give every user a default provider through environment variables, for
-example a local Ollama. It is used for a purpose only when the user has no enabled provider of
-their own that can serve it (see [Which model answers](./index.mdx#which-model-answers)).
+example a local Ollama. For each purpose, Semestra uses the model the user chose for it, then the
+recommended model of a provider the user added, and only then the instance-wide provider.
 
 ```bash title="deploy/selfhost/.env"
 SEMESTRA_INSTANCE_AI_KIND=ollama

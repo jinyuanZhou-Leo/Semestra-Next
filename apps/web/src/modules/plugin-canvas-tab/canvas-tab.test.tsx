@@ -518,7 +518,7 @@ test('a to-do can join the gradebook through the review', async () => {
   server.use(...assignmentHandlers(body))
   renderPage('/?tab=assignments')
   const reading = (await screen.findByText('Reading')).closest('tr')!
-  expect(within(reading).getByRole('link', { name: 'In to-dos' })).toHaveAttribute(
+  expect(within(reading).getByRole('link', { name: 'In Tasks' })).toHaveAttribute(
     'href',
     '/p/p1/c/c1/tasks',
   )

@@ -116,14 +116,14 @@ test('adding a connection sends the form; a rejected token shows and saves nothi
   expect(
     within(dialog).getByRole('link', { name: 'In Canvas, open Account → Settings' }),
   ).toHaveAttribute('href', 'https://q.utoronto.ca/profile/settings')
-  await userEvent.type(within(dialog).getByLabelText('API token'), 'wrong-token')
+  await userEvent.type(within(dialog).getByLabelText('Access token'), 'wrong-token')
   await userEvent.click(save)
   expect(
     await within(dialog).findByText("The platform credentials aren't valid"),
   ).toBeInTheDocument()
 
-  await userEvent.clear(within(dialog).getByLabelText('API token'))
-  await userEvent.type(within(dialog).getByLabelText('API token'), '7~abcdefghxy')
+  await userEvent.clear(within(dialog).getByLabelText('Access token'))
+  await userEvent.type(within(dialog).getByLabelText('Access token'), '7~abcdefghxy')
   await userEvent.click(save)
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(created).toHaveBeenLastCalledWith({
@@ -258,7 +258,7 @@ test('without an offered platform the first step says so instead of staying blan
   renderWithRouter(<ConnectionsSection />)
   await userEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
   const dialog = await screen.findByRole('dialog')
-  expect(await within(dialog).findByText('No providers available')).toBeInTheDocument()
+  expect(await within(dialog).findByText('No LMS available')).toBeInTheDocument()
 })
 
 test('a failed check that keeps the connection usable still shows on its row', async () => {
@@ -466,7 +466,7 @@ test('editing the address asks for the token again', async () => {
   await userEvent.clear(address)
   await userEvent.type(address, 'https://elsewhere.example.com')
   expect(save).toBeDisabled()
-  await userEvent.type(within(dialog).getByLabelText('New API token'), '7~abcdefghxy')
+  await userEvent.type(within(dialog).getByLabelText('New access token'), '7~abcdefghxy')
   expect(save).toBeEnabled()
 })
 

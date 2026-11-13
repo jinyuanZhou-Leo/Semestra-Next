@@ -1,70 +1,40 @@
 ---
 title: Provider types
-description: The seven provider types, what each needs, and what it can do.
+description: The providers you can add, and what each needs.
 ---
 
-| Type                     | Base URL                                       | Key      | Capabilities                                         |
-| ------------------------ | ---------------------------------------------- | -------- | ---------------------------------------------------- |
-| Anthropic                | fixed (`https://api.anthropic.com`)            | required | chat, tools, vision, structured output               |
-| OpenAI                   | fixed (`https://api.openai.com/v1`)            | required | chat, tools, vision, structured output, embedding    |
-| Google Gemini            | fixed                                          | required | chat, tools, vision, structured output, embedding    |
-| OpenAI-compatible        | required                                       | optional | you choose (default: chat, tools)                    |
-| OpenAI Responses API     | required (`https://api.openai.com/v1` for OpenAI) | optional | you choose (default: chat, tools, structured output) |
-| Anthropic-compatible     | required                                       | optional | you choose (default: chat, tools)                    |
-| Ollama                   | required                                       | optional | you choose (default: chat, tools, structured output, embedding) |
+| Type                  | What you enter                          | What it can do                       |
+| --------------------- | --------------------------------------- | ------------------------------------ |
+| Anthropic             | API key                                 | Sem, reading documents and images    |
+| OpenAI                | API key                                 | Sem, reading documents and images, search |
+| Google Gemini         | API key                                 | Sem, reading documents and images, search |
+| OpenAI-compatible     | Base URL, API key if needed             | Depends on the service               |
+| OpenAI Responses API  | Base URL, API key if needed             | Depends on the service               |
+| Anthropic-compatible  | Base URL, API key if needed             | Depends on the service               |
+| Ollama                | Address                                 | Depends on the model; see [Ollama](./ollama.mdx) |
 
-## Compatible endpoints
+## Compatible services
 
-Use the compatible types for any service that speaks the OpenAI Chat Completions, OpenAI Responses
-or Anthropic Messages format: DeepSeek, OpenRouter, Kimi, GLM, a vLLM or LiteLLM gateway, and so
-on. Because Semestra cannot know what such an endpoint supports, you tick its capabilities
-yourself:
+Use a compatible type for services such as DeepSeek, OpenRouter, Kimi or GLM, or your own vLLM or
+LiteLLM gateway. For well-known services the address and models are filled in, so you only need
+the API key.
 
-- **tools** is needed for Sem to act on your data.
-- **vision** lets it read images.
-- **structured output** makes extraction use the endpoint's JSON-schema mode; without it,
-  Semestra asks for JSON and validates the answer.
-- **embedding** enables file search.
+Semestra can't tell what such a service supports, so you choose its capabilities:
 
-For a known service such as DeepSeek or Kimi, the address, model and capabilities are filled in
-for you and folded under **Endpoint settings** below the key; open it only to change them.
+- **Use tools**: needed for Sem to change your data.
+- **Read images**: reads timetable screenshots and scanned pages.
+- **Follow a set format**: makes imports more reliable. Imports still work without it.
+- **File search**: searches your files by meaning.
 
-When you add a compatible endpoint or Ollama you can type one model name; it is assigned to the
-purposes nothing could serve yet: Sem, reading documents and titles, plus reading images when
-you ticked vision.
+You can also enter a model name when you add it; purposes that have no model yet use it.
 
-## Model parameters
+## Adjust models
 
-Under **Advanced** at the bottom of **Models**, each task can have its own limit on output per
-request, in tokens. It applies whichever model serves the task, Auto included; leave it empty to
-use the model's default. Raise it for reading documents if a long syllabus is read only in part.
-How long Semestra waits for an answer is worked out from this limit, so a higher one lets long
-tasks wait longer. Search has no output to limit.
+Under **Advanced** in **AI → Models**, you can limit how much each purpose writes per answer. If a
+long syllabus is only partly read, raise the limit for reading documents.
 
-## Reading documents and search
+## When a provider says “too many requests”
 
-- Reading a document into fields (a syllabus import, scanned pages) runs with reasoning turned
-  off, or as low as the model allows, unless you set a reasoning effort for that purpose.
-- For file search, Semestra embeds queries and documents the way known retrieval models expect:
-  the prefixes of nomic-embed-text, E5, Qwen3 Embedding and EmbeddingGemma, and Gemini's task
-  types, with 768-dimensional Gemini vectors. When this changes for your model, your files are
-  re-indexed after your next search; until then search matches by keyword.
-- A service that takes fewer texts per request (Alibaba Cloud Model Studio takes 10) gets smaller
-  batches automatically.
-
-## Requests at a time
-
-Semestra sends at most four requests to one provider at once; the others wait their turn.
-Background work never takes the last one, so Sem and search do not wait behind it. To
-change this, open **Edit** in the provider's ⋯ menu and set **Most requests at a time** under
-**Advanced**. Lower it if the provider often reports too many requests.
-
-Background work (imports, scanned pages, search indexing) waits out a provider's rate limit for
-up to five minutes; the status bar shows it as waiting. Sem and search give up after a few
-seconds, so you are not kept waiting.
-
-## Private addresses
-
-On a server where `SEMESTRA_ALLOW_PRIVATE_EGRESS` is `false` (the hosted version and a plain
-`semestra dev`), base URLs that resolve to private, loopback or link-local addresses are refused
-with "That address points to a private network and can't be used." See [Ollama](./ollama.mdx).
+Semestra limits how many requests it sends to one provider at a time and queues the rest. If a
+provider often reports too many requests, lower **Most requests at a time** under **Advanced** when
+editing it. Background imports and indexing wait and retry on their own.

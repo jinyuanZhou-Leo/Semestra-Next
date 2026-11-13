@@ -1,33 +1,33 @@
 ---
 title: Introduction
-description: What these docs cover and how the hosted and self-hosted versions differ.
+description: What Semestra does and where to start reading.
 icon: BookOpen
 ---
 
-Semestra is a semester planner for students: programs, terms and courses, grades and GPA, a
-timetable and calendar, tasks, course files, Canvas integration, and an AI assistant called Sem.
-The app explains its everyday features itself. These docs cover the advanced topics: running
-your own instance, connecting AI providers, MCP clients and Canvas, and the HTTP API.
+Semestra keeps your whole semester in one place: programs, terms and courses, grades and GPA, your
+timetable and calendar, tasks, course files, LMS sync, and Sem, an AI assistant that can look things
+up and make changes for you.
 
-## Two ways to run it
+Each page under “Using Semestra” covers one feature: what it does for you and how to use it. To run
+Semestra on your own server, see “Running your own”. To use the API or write a plugin, see “Developers”.
 
-|                                 | Hosted                                  | Self-hosted                                                     |
-| ------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
-| Who runs it                     | The Semestra project                    | You, with Docker Compose                                        |
-| AI                              | Your own provider keys (BYOK)           | Your own keys, or one instance-wide provider such as Ollama     |
-| Reaching private networks       | Not allowed                             | Allowed by default (LAN Ollama, an on-premises Canvas)          |
-| Email                           | Sent by the service                     | Printed to the log until you configure SMTP or Resend           |
+## Two ways to use it
 
-Everything else, including the API and MCP, works the same in both.
+|                           | Hosted                       | Self-hosted                                                 |
+| ------------------------- | ---------------------------- | ----------------------------------------------------------- |
+| Who runs it               | The Semestra project         | You, with Docker Compose                                    |
+| AI                        | Your own API keys            | Your own API keys, or a provider shared by the whole instance |
+| Reaching private networks | Not allowed                  | Allowed by default (for example a LAN Ollama or an on-premises Canvas) |
+
+Everything else works the same in both, including the API and MCP.
 
 ## Where to start
 
 <Cards>
-  <Card title="Self-hosting" href="/docs/self-hosting" description="Start an instance with one command." />
-  <Card title="Sem" href="/docs/sem" description="Approvals, memory and long conversations." />
-  <Card title="AI and BYOK" href="/docs/ai" description="Add your own Anthropic, OpenAI, Gemini or Ollama provider." />
-  <Card title="MCP" href="/docs/mcp" description="Use Semestra from Claude, Cursor and other MCP clients." />
+  <Card title="Sem" href="/docs/sem" description="Ask Sem questions and approve its changes." />
+  <Card title="Grades and GPA" href="/docs/grades" description="Enter scores and plan the rest of your grades." />
+  <Card title="AI" href="/docs/ai" description="Add a provider and choose models." />
   <Card title="LMS" href="/docs/lms" description="Connect Canvas and import courses and assignments." />
-  <Card title="API" href="/docs/api" description="Authentication, errors and the endpoint reference." />
-  <Card title="Plugins" href="/docs/plugins" description="Write a first-party plugin." />
+  <Card title="MCP" href="/docs/mcp" description="Use Semestra from Claude, Cursor and other clients." />
+  <Card title="Self-hosting" href="/docs/self-hosting" description="Start your own instance with one command." />
 </Cards>

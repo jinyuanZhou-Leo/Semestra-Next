@@ -1,61 +1,44 @@
 ---
-title: Adding from files with AI
-description: Read a syllabus, timetable screenshot or calendar file into your courses, with a review before anything is written.
+title: Import from files
+description: Read courses, assessments and meetings from a syllabus, a timetable screenshot or a calendar file, and review them before anything is saved.
 ---
 
-AI imports sit next to adding things by hand. They read a file, show what they found in a review,
-and write only what you keep. Reading a syllabus or a screenshot needs an [AI provider](./index.mdx);
-calendar files (`.ics`) are read without AI.
+Instead of entering everything by hand, give Semestra a syllabus, a timetable screenshot or a
+calendar file. It lists what it found, you review it, and only what you keep is imported. Reading a
+syllabus or a screenshot needs a [provider](./index.mdx); calendar files (`.ics`) don't need AI.
 
-## Where to start
+## What you can import
 
-| Where                                       | Choose                                                   | Brings in                                  |
-| ------------------------------------------- | -------------------------------------------------------- | ------------------------------------------ |
-| A course's **Grades** page, **Add**          | **Syllabus grading scheme**, under From existing material | Categories, assessments, weights, due dates |
-| A course's **Schedule** page, **Add**        | **Calendar file (ICS)** or **Timetable screenshot**       | Weekly meetings                            |
-| An empty **Schedule** page                   | **From existing material**                               | Weekly meetings                            |
-| The new-term wizard, **From existing material** | A calendar file, syllabi, a screenshot or pasted text  | The term's courses and what belongs to them |
-| A term's **Add course** menu                 | The same sources as the new-term wizard                  | Courses for that term and what belongs to them |
+| Source                              | What it brings in                                  | Where to start                         |
+| ----------------------------------- | -------------------------------------------------- | -------------------------------------- |
+| A syllabus                          | The grade breakdown, assessments, weights and due dates | A course's gradebook                   |
+| A calendar file or timetable screenshot | Weekly meetings                                | A course's schedule                    |
+| Syllabi, a screenshot, a calendar file or pasted text | All of a term's courses and what belongs to them | Creating a term, or adding courses to one |
+| A syllabus                          | Course code, title, instructors, credits and website | Course settings → **General → Read from a file** |
+
+To import courses and assignments from your LMS, see [Import from your LMS](/docs/lms/imports).
+
+Upload a new file, or pick a syllabus already in the course's files. An uploaded syllabus is also
+saved to the course's files unless you choose otherwise.
+
+## Review before importing
+
+When reading finishes, the review opens. Nothing is saved until you confirm.
+
+- Each item shows where it will go: the gradebook, tasks, the schedule or the calendar.
+- Anything worth checking is marked, such as a date that couldn't be read or an assessment the
+  gradebook already has.
+- Edit any item, and uncheck what you don't want.
+- Each course shows its total weight after the import, so you can check it adds up to 100%.
+
+Dates written relative to the term, such as “Friday of week 5”, are worked out from the course's
+term. Importing the same syllabus again doesn't add its tasks and events twice.
+
+Closing the review doesn't discard the import: reading carries on in the background, and opening
+the import from the same place brings you back to it.
 
 ## Calendar files
 
-A calendar file is read only for the dates of the terms it goes into (the term you add to, or every
-term of the program when you add to a course), so a full export from a calendar app works too. A
-class that runs through two terms becomes a weekly meeting in each. Every-other-week classes are
-recognized by teaching week, so a reading week in between does not break them, and weeks the file
-leaves out become cancelled classes.
-
-## Course details from a file
-
-To fill in a course's code, title, instructors, credits and website from its syllabus, open the
-course's settings → **General → Read from a file**. You see each field that would change, with the
-old and new value, and apply only what you keep.
-
-LMS sources (Canvas assignments, Canvas courses) appear in the same menus; see
-[Import from Canvas](../lms/imports.mdx).
-
-## Picking the files
-
-Upload new files, or for a course's syllabus, pick files already in its **Files**. An uploaded
-syllabus is also saved to the course's files unless you untick **Also save to the course files**.
-
-Select **Read**. When reading finishes, the review opens; nothing is written until you commit it
-there. A course file that is still being processed is read once it is done; until then the import
-shows **Waiting for files**.
-
-## The review
-
-The review is one table, grouped by course, that says where each item goes (**Gradebook**,
-**To-do**, **Timetable**, **Calendar**). A problem, such as a date that could not be worked out or
-an assessment already in the gradebook, is marked on the cell it concerns; select a row to change
-the item in place, and untick what you do not want. Each course's heading shows what its weights
-add up to with this import, counting the assessments already in its gradebook.
-
-Dates the syllabus gives relative to the term, such as "Week 5, Friday" or "Oct 3", are worked out
-from the course's term. A date far outside the term, most often a wrong year, is marked for you to
-check. Importing the same syllabus again finds the to-dos and calendar events the first import made
-instead of adding them twice.
-
-**Import N items** writes what is ticked. **Discard** drops the import. Closing the dialog
-doesn't: reading goes on in the background, and opening the same import again (or clicking the
-reading task in the status bar) brings you back to it.
+Only dates inside the target term are read, so a full export from your calendar app works. Classes
+that meet every other week are recognized even with a reading week in between, and weeks missing
+from the file become cancelled classes.

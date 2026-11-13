@@ -1,1 +1,1 @@
-{ "title": "Self-hosting", "icon": "Server", "pages": ["index", "local", "domain", "reverse-proxy", "images", "maintenance", "email", "features", "configuration"] }
+{"title": "Self-hosting", "icon": "Server", "pages": ["index", "local", "domain", "reverse-proxy", "images", "maintenance", "email", "features", "instance-provider", "configuration"]}

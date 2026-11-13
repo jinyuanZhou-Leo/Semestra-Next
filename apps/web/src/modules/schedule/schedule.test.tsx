@@ -457,7 +457,7 @@ test('a to-do in the calendar is checked off in place, dragged to another day an
   // "New" can make a to-do instead of an event.
   await userEvent.click(screen.getByRole('button', { name: 'New' }))
   const dialog = await screen.findByRole('dialog')
-  await userEvent.click(within(dialog).getByRole('button', { name: 'To-do' }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Task' }))
   await within(dialog).findByPlaceholderText('Add notes', undefined, { timeout: 10_000 })
   await userEvent.type(within(dialog).getByLabelText('Title'), 'Read chapter 3')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))

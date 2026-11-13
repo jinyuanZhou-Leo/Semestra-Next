@@ -1,22 +1,21 @@
 ---
-title: Export, restore and delete
-description: Back up your data, restore it on this or another instance, and delete your account.
+title: Back up, restore and delete your account
+description: Export all your data, restore it here or on another instance, and delete your account.
 icon: DatabaseBackup
 ---
 
-All of this is in global settings → **Data**, which also shows how much of your storage you use
-and what takes the space. To free some, delete course files you no longer need, or Sem chats with
-attachments.
+All of this is in global settings → **Data**, which also shows how much storage you use. To free
+some space, delete course files you no longer need, or Sem conversations with attachments.
 
-## Export
+## Back up
 
-**Export all data** builds a `.zip` backup with your programs, terms, courses, grades, schedules,
-tasks, settings and plugin data. Turn on **Include files** to add your uploaded files. Each backup
-can be downloaded for 24 hours.
+**Export all data** creates a `.zip` backup of your programs, terms, courses, grades, schedules,
+tasks, settings and plugin data. Turn on **Include files** to add your uploaded files too. You can
+download a backup for 24 hours after it's created.
 
 <Callout type="warn">
-  AI provider keys, Canvas tokens and API tokens are never in a backup. Enter them again after
-  restoring.
+  For your security, backups never include provider API keys, LMS access tokens or API tokens.
+  Enter them again after restoring.
 </Callout>
 
 ## Restore
@@ -26,68 +25,44 @@ can be downloaded for 24 hours.
 
 ### Upload the backup
 
-Drop the `.zip` on **Restore from backup**. You see what it holds before anything is imported.
+Drop the `.zip` on **Restore from backup** to see what it holds.
 
 </Step>
 <Step>
 
 ### Choose what to import
 
-- **Programs**: all of them, or only some.
+- Import all programs, or only some of them.
 - **Merge** adds the backup next to what you have. Importing the same backup twice gives you two
   copies.
 - **Replace** deletes all your current data first. Type `replace my data` to confirm.
 - **Also import preferences and layouts**: theme, language, page order, layouts, installed plugins
-  and AI providers (without keys).
+  and providers.
 
 </Step>
 <Step>
 
 ### Import
 
-The import runs in the background and reports what it imported and skipped. If it fails, nothing
-changes. Stopping it from the status bar also leaves your data as it was, and you can start it
-again.
+The import runs in the background and then lists what it imported and skipped. If it fails or you
+stop it, nothing changes.
 
 </Step>
 </Steps>
 
-| Case                                              | Result                                                                  |
-| ------------------------------------------------- | ----------------------------------------------------------------------- |
-| Backup size                                       | Up to your storage quota plus 50 MB (1 GB plus 50 MB without a quota)   |
-| The backup's files do not fit your quota          | Merge is refused; Replace still works                                   |
-| The backup comes from a newer version             | Refused                                                                 |
-| The backup comes from an older version (1.x)      | Converted to the current format, then imported like any other backup    |
-| It holds data of a feature this version lacks     | That data is left out; the rest imports                                 |
-| A JSON backup from the old Semestra app           | Refused                                                                 |
-
-A backup from 1.x is converted the same way the upgrade to 2.0 converts existing data: weekly
-classes that share a section code become one section, and every assessment with a due date gets
-its to-do (finished if it is graded or already past due).
-
-## Local models
-
-On a self-hosted server that runs OCR or search models itself
-([Local OCR](/docs/self-hosting/images#local-ocr)), **Local models** lists each model with its
-size, the ones you use marked **In use**. Download or delete a model from its **⋯** menu. Models
-are shared by every account on the server; a deleted model downloads again the next time it is
-needed, and until then file search only matches keywords if it was your search model.
+You can restore backups from this version or an earlier one; a backup from a newer version needs
+Semestra to be updated first. If a backup holds data for a feature this version doesn't have, that
+part is skipped and the rest is imported.
 
 ## Delete your account
 
-**Delete account** permanently deletes the account and everything in it. Type `delete my account`
-and confirm that it cannot be undone. If you signed in more than 10 minutes ago, you also confirm
-it's you with your password, a code sent to your email, or Google.
+**Delete account** permanently deletes your account and everything in it, and can't be undone. Type
+`delete my account` to confirm; if you signed in a while ago, you'll also confirm it's you.
 
-You are signed out everywhere at once, and every token stops working. The data is then deleted in
-the background, and you get an email when it is gone. Export a backup first if you want to keep
-anything.
+You're signed out on every device at once. Your data is then deleted in the background, and you get
+an email when it's gone. To keep anything, export a backup first.
 
-A program can be deleted in its settings, except your only one: you always keep at least one
-program, and only deleting the account removes it.
+You can delete a program you no longer need in its settings, but your account always keeps at
+least one program.
 
-## Over the API
-
-Export, restore and account deletion work over HTTP with a session or access token, but not for
-Sem, MCP clients or API tokens. See [Export, import and account deletion](/docs/api/reference/portability) and
-[Storage](/docs/api/reference/storage) in the API reference.
+Developers can export and restore over the API; see the [API reference](/docs/api/reference/portability).

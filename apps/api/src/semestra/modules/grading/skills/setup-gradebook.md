@@ -1,6 +1,6 @@
 +++
 name = "setup-gradebook"
-title = { en = "Set up a gradebook", zh-CN = "设置成绩簿" }
+title = { en = "Set up a gradebook", zh-CN = "设置成绩册" }
 command = "/gradebook"
 description = "Use when the user tells you a course's grading scheme in the chat (\"2 midterms 25% each, final 40%\") and wants the gradebook built from it. A scheme in a file or syllabus is imported instead."
 tools = [

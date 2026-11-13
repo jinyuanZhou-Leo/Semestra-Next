@@ -1,85 +1,54 @@
 ---
-title: Import from Canvas
+title: Import from your LMS
 description: Bring Canvas courses, assignments and syllabi into Semestra.
 ---
 
-Every LMS import opens a review first and writes nothing until you confirm, so you can choose
-where each assignment goes (category, gradebook or to-dos) and edit it before it lands. An assignment
-named like an assessment you added yourself is bound to it there (**Bound to existing**): the
-assessment is kept as it is and follows the assignment from then on. Choose **Add as a new
-assessment** in that cell to import it separately instead. If you close the review and import the course's assignments again, you return to that
-unfinished import, with any newly picked assignments added.
+Everything you import from your LMS goes through a review first, and nothing is saved until you
+confirm. After that, it follows Canvas through [automatic sync](./index.mdx#automatic-sync).
 
-## Courses
+## Import courses
 
-From the new-term wizard, or a term's **Add course** menu (also in the command palette on a term
-page), under **Import courses from LMS**.
-Pick Canvas courses (the current term by default, or all), review, and
-commit. Each course takes its title from the Canvas course name, its code from the Canvas course
-code (also kept as an alias) and its website from the Canvas link, and is linked to its Canvas
-course in the same step.
+When you create a term or add courses to one, choose **Import courses from LMS** and pick the Canvas
+courses to bring in. Each course takes its name, code and website from Canvas and is linked to its
+Canvas course.
 
-## Assignments
+## Import assignments
 
-Either from a course's **Grades** page (open **Add** and choose the Canvas assignments under
-**From existing material**), or from **Assignments & grades** in the Canvas tab: tick
-assignments and choose **Import**. Assignments worth points become gradebook assessments (with a
-to-do when they have a due date); assignments worth no points become to-dos. The **Semestra**
-column says where each assignment went (**In gradebook** or **In to-dos**, linking there) or
-**Not added**.
+Choose Canvas assignments when adding assessments in a course's gradebook, or select assignments
+under **Assignments & grades** in the Canvas tab and choose **Import**.
 
-In the import review, the **Import to** column of an assignment is a menu: choose **To-dos** to bring an assignment worth points in as a to-do instead, or **Gradebook** the other way round.
+- Assignments worth points go into the gradebook as assessments by default, and assignments worth no
+  points become tasks. You can change this in the review.
+- Assignments are placed in the course's existing grade categories, so “Term Tests” goes into Exam,
+  for example. A new category is created only when nothing matches, and you can change it in the
+  review.
+- Weights are worked out from the Canvas assignment group's weight and the assignment's points. If
+  the course has no weights on Canvas, enter them in the review.
+- Grades you already have on Canvas come along.
 
-New assignments on Canvas (not imported yet and not past due) wait under **To review** in the
-sidebar's sync status line. **Import** opens the import review for them, and **Ignore** stops
-reminding you of these until new ones appear.
+An assignment with the same name as an assessment you added yourself is bound to that assessment by
+default: the assessment stays as it is and follows the assignment from then on. To import it
+separately, choose **Add as a new assessment**.
 
-An assignment that is only a to-do can be moved with **Add to gradebook** in its row menu: it
-becomes an assessment and keeps its to-do.
+An assignment imported only as a task can be added to the gradebook later.
 
-- As assessments, each Canvas assignment group goes into one of the course's grading categories:
-  the one its earlier assignments are in now (so moving them in the gradebook teaches it), one of
-  the same name or named inside the group's name, or a built-in category the name means
-  ("Term Tests" → Exam, "Problem Sets" → Assignment). When the name says nothing ("Coursework",
-  Canvas's default "Assignments"), the assignments inside decide if most of them agree. Only when
-  nothing matches is a new category made from the group. The review shows where each group goes,
-  and you can change it. The assignment's Canvas link is kept in its note.
-- Weights come from Canvas assignment groups: an assessment's weight is its group's weight times
-  its share of the group's points. When the course does not weight groups, the weight is left
-  empty for you to fill in during the review.
-- A grade you already have on Canvas comes along as the assessment's score (points earned of
-  points possible).
-- Each assignment is one thing in Semestra: an assessment (with its to-do) or a to-do.
-- Importing only some of a group's assignments leaves the category's weight and its assessments'
-  total apart; the rest can be imported later.
+### Bind an assessment you added yourself
 
-### Binding an assessment you added yourself
+If an assessment you added by hand has a different name on Canvas, choose **Bind Canvas
+assignment…** for it. The next sync fills in any due date, weight or grade it doesn't have yet, and
+asks about values that differ. Unbinding leaves the assessment as it is.
 
-When an assessment you added by hand has a different name on Canvas, open its row menu on the
-Grades page and choose **Bind Canvas assignment…**, then pick one of the course's assignments
-not imported yet. Binding changes nothing in the assessment by itself: the next
-[sync](./index.mdx#background-sync) fills in a due date, weight or grade it doesn't have yet, and
-asks where it has one that differs from Canvas. From then on it behaves like an imported assessment
-(it follows Canvas, and its to-do is finished when you hand in on Canvas).
-**Unbind from Canvas** in the same menu keeps the assessment as it is and frees the assignment to
-import or bind again; it works for imported assessments too.
+## New assignments
 
-## Changes after an import
-
-Imported assignments follow Canvas through the [background sync](./index.mdx#background-sync):
-a new name, due date, weight (including one that changes through the points) or grade on Canvas
-is applied here unless you changed that value yourself, and anything both sides changed is asked
-about. Each update can be undone from the sidebar's status line. With
-[notifications](/docs/notifications) on, new grades and updates are also sent as a notification
-while the app isn't open.
+New assignments on Canvas aren't added on their own. They wait in the sync status in the sidebar:
+choose to import them, which opens the review, or ignore them so you're not reminded again.
 
 ## Syllabus
 
-In the Canvas tab's syllabus view, send the Canvas syllabus to AI extraction. Course details,
-grading scheme and deadlines are pulled out into a review, like an uploaded syllabus file. This
-needs an [AI provider](/docs/ai).
+Open the syllabus in the Canvas tab to have AI read its course details, grade breakdown and due
+dates for you to review and import, just like [uploading a syllabus](/docs/ai/imports). This needs a
+[provider](/docs/ai).
 
 ## Files
 
-Canvas files can be saved to the course's own files, where they are indexed for search and can
-be used for extraction.
+Save Canvas files to the course's files to search them and let Sem read them.

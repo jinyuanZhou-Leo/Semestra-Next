@@ -1,35 +1,43 @@
 ---
 title: Tasks
-description: Add tasks by typing; dates, times, priority marks and course codes in the title are recognized.
+description: Keep track of what you need to do, sorted by due date, course and list, with dates and priorities typed straight into the title.
 icon: ListTodo
 ---
 
-**New task**, or the empty circle at the end of a list, opens a new task in place: its title,
-notes, and chips for the due date, time, priority, course and flag. A new task starts from the
-list it is added to, so one added in **Today** is due today and one added on a course's page is
-in that course. **Enter** adds it and leaves the row open for the next one; **Esc** drops it.
+Tasks are the things you need to do: assignments, study plans, errands. Each task can have a due
+date and time, a priority, a course and a flag, and tasks with a due date show in your
+[calendar](/docs/calendar).
 
-## Typing dates, priorities and courses
+## Organize tasks
 
-Write the details into the title and the chips follow as you type:
+- Views such as **Today**, **Scheduled**, **Flagged** and **Unsorted** sort tasks by due date and
+  status for you.
+- Create your own lists, available across the whole program or in one term only.
+- A course's page shows that course's tasks, and a term's page shows that term's tasks.
+
+A task you add in a list or course starts with its settings: one added in **Today** is due today.
+
+An assessment with a due date gets a matching task, completed automatically when you enter a
+score. An assignment imported from your [LMS](/docs/lms) is completed when you submit it there.
+
+## Type dates, priorities and courses in the title
+
+When you add a task, write the due time, priority and course into the title and Semestra picks
+them up:
 
 | You type | It sets |
 |---|---|
-| `Fri`, `tomorrow 5pm`, `next Monday 11:59pm`, `Nov 20`, `in 3 days` | The due date, and the time if there is one |
+| `Fri`, `tomorrow 5pm`, `next Monday 11:59pm`, `Nov 20`, `in 3 days` | The due date and time |
 | `!`, `!!`, `!!!` | Low, medium or high priority |
-| A course code, such as `APS105` or `aps 105h1` | The course |
+| A course code, such as `APS105` | The course |
 
-`Fri 5pm APS105 lab report !!!` adds "lab report", due Friday at 5:00 PM, in APS105H1, with
-high priority. Chinese works too: `明天下午3点 复习 !!`.
+For example, `Fri 5pm APS105 lab report !!!` adds “lab report”, due Friday at 5:00 PM, in APS105,
+with high priority. Chinese works too: `明天下午3点 复习 !!`.
 
-- The recognized words are highlighted, and the chips they set are highlighted the same way. They
-  are left out of the saved title.
-- Click a highlighted word to keep it as plain text.
-- Picking a chip by hand overrides the title.
-- Dates count from today in the program's time zone. A bare hour needs am/pm or a day (`5pm`,
-  `Fri 5`): `at 5` alone, or a month without a day, is left as text.
-- A course code is recognized when it matches one course: `MAT135` names nothing if you have
-  both MAT135H1 and MAT135H5. On a course's page the course is already set.
-- A title that is only a date, such as `tomorrow`, stays as typed.
+- Recognized words are highlighted and left out of the saved title. Select a highlighted word to
+  keep it as plain text.
+- A bare hour needs am/pm or a day (`5pm`, `Fri 5`); `at 5` alone stays as text.
+- A course code is recognized only when it matches exactly one course.
 - Only new tasks are read this way. Renaming a task never changes its date.
-- To turn it off, go to program settings → **Tasks → Smart parsing**.
+
+To turn this off, go to program settings → **Tasks** and turn off **Smart parsing**.
