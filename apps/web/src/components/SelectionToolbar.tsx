@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Kbd } from '@/ui/kbd'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 
 /** Layers that take Esc for themselves: dialogs, menus, popovers, list boxes. */
 const POPUP =
@@ -74,14 +73,10 @@ export function SelectionToolbar({
       >
         <span className="mr-2 font-medium whitespace-nowrap tabular-nums">{countLabel}</span>
         {actions}
-        <Tooltip>
-          <TooltipTrigger render={<Button variant="secondary" size="sm" onClick={onClear} />}>
-            {m.common_clear_selection()}
-          </TooltipTrigger>
-          <TooltipContent>
-            <Kbd>Esc</Kbd>
-          </TooltipContent>
-        </Tooltip>
+        <Button variant="secondary" size="sm" aria-keyshortcuts="Escape" onClick={onClear}>
+          {m.common_clear_selection()}
+          <Kbd aria-hidden>Esc</Kbd>
+        </Button>
       </div>
     </div>
   )
