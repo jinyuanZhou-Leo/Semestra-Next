@@ -182,8 +182,10 @@ export function openStatusPanel(id: string) {
 
 /** The icon and text of a line; the text is clipped (never wrapped) while the rail narrows. */
 function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
+  const enter =
+    'animate-in duration-200 fade-in-0 slide-in-from-bottom-1 motion-reduce:animate-none'
   const iconClass = cn(
-    'animate-in duration-150 fade-in-0 motion-reduce:animate-none',
+    enter,
     tone === 'error'
       ? 'text-destructive'
       : tone === 'success'
@@ -201,26 +203,41 @@ function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
       ) : (
         <Icon key={key} aria-hidden="true" className={iconClass} />
       )}
-      <span>{label}</span>
+      {/* Keyed like the icon: a new state fades in, a label that only counts on ("3 min ago") does not. */}
+      <span key={key} className={enter}>
+        {label}
+      </span>
     </>
   )
 }
 
 /** The thin progress bar under a line; hidden on the icon rail. */
 function LineProgress({ label, tone, progress, waiting }: StatusItem & { waiting?: boolean }) {
-  if (progress == null) return null
+  // Kept at its last value while it closes, so the bar's height eases instead of jumping.
+  const [last, setLast] = useState(progress)
+  if (progress != null && progress !== last) setLast(progress)
+  const value = progress ?? last
+  if (value == null) return null
   return (
-    <div className="px-3 pb-1 group-data-[collapsible=icon]:hidden">
-      <Progress
-        value={progress}
-        aria-label={label}
-        className={cn(
-          '[&_[data-slot=progress-track]]:h-0.5',
-          waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
-          tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
-          tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
-        )}
-      />
+    <div
+      aria-hidden={progress == null}
+      className={cn(
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-out group-data-[collapsible=icon]:hidden motion-reduce:transition-none',
+        progress == null ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+      )}
+    >
+      <div className="min-h-0 overflow-hidden px-3 pb-1">
+        <Progress
+          value={value}
+          aria-label={label}
+          className={cn(
+            '[&_[data-slot=progress-track]]:h-0.5',
+            waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
+            tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+            tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+          )}
+        />
+      </div>
     </div>
   )
 }
