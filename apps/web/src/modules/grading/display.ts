@@ -1,5 +1,5 @@
 import type { Assessment, AssessmentCategory, GradebookSummary } from '@semestra/api-client'
-import { formatDate, formatPercent } from '@/lib/format'
+import { formatDate, formatPercent, formatTime } from '@/lib/format'
 import { subjectColor } from '@/lib/subject-color'
 import { m } from '@/paraglide/messages'
 import { dayDate } from '@/lib/day'
@@ -47,13 +47,14 @@ export const GRADE_MASK = '•••'
  * A deadline as the Program's own calendar shows it, as a compact date ("Nov 20", with the year
  * only when it is not this one). `due_date` is already in the Program's time zone, so it is shown
  * as written instead of converting `due_at` into the browser's zone (which would move the day for
- * someone viewing from another zone). The time of day is in the assessment's edit dialog.
+ * someone viewing from another zone). The time of day follows when the assessment has one.
  */
-export function dueText(a: Pick<Assessment, 'due_date'>): string {
+export function dueText(a: Pick<Assessment, 'due_date' | 'due_time'>): string {
   if (!a.due_date) return '—'
-  return formatDate(a.due_date, {
+  const day = formatDate(a.due_date, {
     short: dayDate(a.due_date).getFullYear() === new Date().getFullYear(),
   })
+  return a.due_time ? `${day}, ${formatTime(a.due_time)}` : day
 }
 
 /** The course's headline grade: the final one once it exists, the current average before. */
