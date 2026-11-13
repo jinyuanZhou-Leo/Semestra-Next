@@ -3,7 +3,7 @@ import { gradingCourseSummaryListOptions } from '@semestra/api-client/react-quer
 import type { Course } from '@semestra/api-client'
 import type { CourseColumn } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
-import { GpaValue, PercentValue } from '../components/GradeValue'
+import { GpaValue, HideGrades, PercentValue } from '../components/GradeValue'
 
 const grades = (data: unknown) => data as CourseGrades | undefined
 
@@ -50,12 +50,14 @@ export const courseColumns: CourseColumn[] = [
       if (!grade) return <span className="text-muted-foreground">—</span>
       const percentage = grade.percentage ?? grade.current_percentage
       return (
-        <span className="tabular-nums">
-          <PercentValue value={percentage} hidden={gpaHidden(data)} />
-          {grade.letter && !gpaHidden(data) ? (
-            <span className="ml-1.5 text-xs text-muted-foreground">{grade.letter}</span>
-          ) : null}
-        </span>
+        <HideGrades hidden={gpaHidden(data)}>
+          <span className="tabular-nums">
+            <PercentValue value={percentage} />
+            {grade.letter && !gpaHidden(data) ? (
+              <span className="ml-1.5 text-xs text-muted-foreground">{grade.letter}</span>
+            ) : null}
+          </span>
+        </HideGrades>
       )
     },
     sortValue: (course, data) => {
@@ -69,11 +71,9 @@ export const courseColumns: CourseColumn[] = [
     query,
     showInTermCard: true,
     cell: (course, data) => (
-      <GpaValue
-        value={gradeOf(course, data)?.points}
-        hidden={gpaHidden(data)}
-        className="tabular-nums"
-      />
+      <HideGrades hidden={gpaHidden(data)}>
+        <GpaValue value={gradeOf(course, data)?.points} className="tabular-nums" />
+      </HideGrades>
     ),
     sortValue: (course, data) => (gpaHidden(data) ? null : (gradeOf(course, data)?.points ?? null)),
     filter: [

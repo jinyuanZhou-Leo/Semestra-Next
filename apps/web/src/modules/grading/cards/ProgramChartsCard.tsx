@@ -1,6 +1,6 @@
 import type { TermGradePoint } from '@semestra/api-client'
 import { ChartLine } from 'lucide-react'
-import { type ComponentProps, useState } from 'react'
+import type { ComponentProps } from 'react'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
@@ -15,7 +15,7 @@ import {
   ChartTooltipContent,
 } from '@/ui/chart'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { MaskedChart } from '../components/GradeValue'
+import { ConcealedChart, HideGrades } from '../components/GradeValue'
 import { useProgramGrades } from '../queries'
 
 // jsdom and the first paint have no layout; the charts start at this size and then follow the card.
@@ -77,7 +77,6 @@ const creditsTooltip: TooltipFormatter = (value) => formatCredits(Number(value))
 /** GPA and cumulative GPA by term, and credits per term (M03 §5.3). Colors are `--chart-*` tokens. */
 export default function ProgramChartsCard({ scope }: CardProps) {
   const { data } = useProgramGrades(scope.programId)
-  const [revealed, setRevealed] = useState(false)
   if (!data) return <CardSkeleton />
   // A term without grades adds nothing: its cumulative GPA is left out instead of drawn as a
   // flat continuation, and the line joins the graded terms around it.
@@ -96,87 +95,86 @@ export default function ProgramChartsCard({ scope }: CardProps) {
       </Empty>
     )
   }
-  const masked = data.hide_grades && !revealed
   const lines = gpaConfig()
   return (
-    <div className="flex h-full flex-col gap-3">
-      {masked ? (
-        <MaskedChart className="h-24" onReveal={() => setRevealed(true)} />
-      ) : (
-        <figure aria-label={m.grading_chart_gpa_label()}>
-          <ChartFigures terms={terms} value={(t) => (t.gpa === null ? null : formatGpa(t.gpa))} />
+    <HideGrades hidden={data.hide_grades}>
+      <div className="flex h-full flex-col gap-3">
+        <ConcealedChart>
+          <figure aria-label={m.grading_chart_gpa_label()}>
+            <ChartFigures terms={terms} value={(t) => (t.gpa === null ? null : formatGpa(t.gpa))} />
+            <ChartContainer
+              config={lines}
+              className="aspect-auto h-36 w-full"
+              initialDimension={GPA_SIZE}
+            >
+              <LineChart data={terms} margin={{ left: 0, right: 8, top: 8 }} accessibilityLayer>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="name" hide />
+                <YAxis
+                  width={32}
+                  domain={[0, data.max_points]}
+                  ticks={[0, data.max_points / 2, data.max_points]}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value: number) => formatGpa(value, 1)}
+                />
+                <ChartTooltip content={<ChartTooltipContent formatter={gpaTooltip} />} />
+                <Line
+                  dataKey="cumulative_gpa"
+                  stroke="var(--color-cumulative_gpa)"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  connectNulls
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  dataKey="gpa"
+                  stroke="var(--color-gpa)"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: 'var(--color-gpa)' }}
+                  isAnimationActive={false}
+                />
+                <ChartLegend verticalAlign="top" content={<ChartLegendContent />} />
+              </LineChart>
+            </ChartContainer>
+          </figure>
+        </ConcealedChart>
+        <figure aria-label={m.grading_chart_credits_label()} className="mt-auto">
+          <p aria-hidden className="mb-1 pl-8 text-xs text-muted-foreground">
+            {m.grading_chart_credits_label()}
+          </p>
+          <ChartFigures terms={terms} value={(t) => formatCredits(t.credits_counted)} />
           <ChartContainer
-            config={lines}
-            className="aspect-auto h-36 w-full"
-            initialDimension={GPA_SIZE}
+            config={creditsConfig()}
+            className="aspect-auto h-18 w-full"
+            initialDimension={CREDITS_SIZE}
           >
-            <LineChart data={terms} margin={{ left: 0, right: 8, top: 8 }} accessibilityLayer>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="name" hide />
-              <YAxis
-                width={32}
-                domain={[0, data.max_points]}
-                ticks={[0, data.max_points / 2, data.max_points]}
+            <BarChart data={terms} margin={{ left: 0, right: 8, top: 4 }} accessibilityLayer>
+              {/* As wide as the GPA chart's axis, so each term's bar sits under its GPA point. */}
+              <YAxis width={32} tick={false} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="name"
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value: number) => formatGpa(value, 1)}
+                tickMargin={4}
+                interval="preserveStartEnd"
               />
-              <ChartTooltip content={<ChartTooltipContent formatter={gpaTooltip} />} />
-              <Line
-                dataKey="cumulative_gpa"
-                stroke="var(--color-cumulative_gpa)"
-                strokeWidth={2}
-                strokeDasharray="4 3"
-                connectNulls
-                dot={false}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent formatter={creditsTooltip} hideIndicator />}
+              />
+              <Bar
+                dataKey="credits_counted"
+                fill="var(--color-credits_counted)"
+                radius={4}
+                maxBarSize={36}
                 isAnimationActive={false}
               />
-              <Line
-                dataKey="gpa"
-                stroke="var(--color-gpa)"
-                strokeWidth={2}
-                dot={{ r: 3, fill: 'var(--color-gpa)' }}
-                isAnimationActive={false}
-              />
-              <ChartLegend verticalAlign="top" content={<ChartLegendContent />} />
-            </LineChart>
+            </BarChart>
           </ChartContainer>
         </figure>
-      )}
-      <figure aria-label={m.grading_chart_credits_label()} className="mt-auto">
-        <p aria-hidden className="mb-1 pl-8 text-xs text-muted-foreground">
-          {m.grading_chart_credits_label()}
-        </p>
-        <ChartFigures terms={terms} value={(t) => formatCredits(t.credits_counted)} />
-        <ChartContainer
-          config={creditsConfig()}
-          className="aspect-auto h-18 w-full"
-          initialDimension={CREDITS_SIZE}
-        >
-          <BarChart data={terms} margin={{ left: 0, right: 8, top: 4 }} accessibilityLayer>
-            {/* As wide as the GPA chart's axis, so each term's bar sits under its GPA point. */}
-            <YAxis width={32} tick={false} tickLine={false} axisLine={false} />
-            <XAxis
-              dataKey="name"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={4}
-              interval="preserveStartEnd"
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent formatter={creditsTooltip} hideIndicator />}
-            />
-            <Bar
-              dataKey="credits_counted"
-              fill="var(--color-credits_counted)"
-              radius={4}
-              maxBarSize={36}
-              isAnimationActive={false}
-            />
-          </BarChart>
-        </ChartContainer>
-      </figure>
-    </div>
+      </div>
+    </HideGrades>
   )
 }

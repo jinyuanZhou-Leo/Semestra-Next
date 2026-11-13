@@ -1,12 +1,12 @@
 import type { Gradebook, GradebookSummary } from '@semestra/api-client'
-import { type ReactNode, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Bar, BarChart, Cell, LabelList, usePlotArea, XAxis, YAxis } from 'recharts'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { categoryColor, categoryName, percentText } from '../display'
 import type { WhatIf } from '../whatif'
-import { GpaValue, MaskedChart, PercentValue } from './GradeValue'
+import { ConcealedChart, GpaValue, PercentValue, useHideGrades } from './GradeValue'
 
 /** A row: the name and value on one line, the bar under them. */
 const ROW = 34
@@ -116,9 +116,8 @@ export function ForecastCard({
   /** The target picker below the chart. */
   footer?: ReactNode
 }) {
-  const { summary: real, scale } = gradebook
-  const [chartRevealed, setChartRevealed] = useState(false)
-  const masked = scale.hide_grades && !chartRevealed
+  const { summary: real } = gradebook
+  const hideGrades = useHideGrades()
   const s = planning ? (planned ?? real) : real
   const categories = new Map(gradebook.categories.map((c) => [c.id, c]))
   // In plan mode assumed scores count as a category's history, so the plan's own list applies.
@@ -163,30 +162,19 @@ export function ForecastCard({
         {planning ? m.grading_planned_grade() : m.grading_forecast()}
       </p>
       <div className="mt-1 flex items-baseline gap-2">
-        <PercentValue
-          value={value}
-          hidden={scale.hide_grades}
-          className="text-2xl font-semibold tabular-nums"
-        />
+        <PercentValue value={value} className="text-2xl font-semibold tabular-nums" />
         <span className="flex items-baseline gap-1 text-sm font-semibold tabular-nums">
-          {scale.hide_grades ? (
+          {hideGrades ? (
             <span className="text-xs font-normal text-muted-foreground">{m.grading_gpa()}</span>
           ) : null}
-          <GpaValue
-            value={points}
-            hidden={scale.hide_grades}
-            letter={letter}
-            letterClassName="text-sm font-semibold"
-          />
+          <GpaValue value={points} letter={letter} letterClassName="text-sm font-semibold" />
         </span>
       </div>
-      {data.length > 0 && masked ? (
-        <MaskedChart className="mt-3 h-24" onReveal={() => setChartRevealed(true)} />
-      ) : data.length > 0 ? (
-        <>
+      {data.length > 0 ? (
+        <ConcealedChart className="mt-3">
           <ChartContainer
             config={config}
-            className="mt-3 aspect-auto w-full"
+            className="aspect-auto w-full"
             style={{ height: data.length * ROW }}
             initialDimension={{ width: 280, height: data.length * ROW }}
           >
@@ -224,7 +212,7 @@ export function ForecastCard({
             <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
             {m.grading_forecast_needed({ value: percentText(target ?? 0) })}
           </p>
-        </>
+        </ConcealedChart>
       ) : null}
       {footer}
     </section>

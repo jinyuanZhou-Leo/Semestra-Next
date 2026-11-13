@@ -213,8 +213,12 @@ test('a hidden planned GPA cannot be worked out from the target gap', async () =
   )
   renderWithRouter(<TermGradesPage scope={scope} />)
   const result = await screen.findByTestId('term-plan-result')
-  expect(await within(result).findByText('••• short')).toBeInTheDocument()
+  await waitFor(() =>
+    expect(within(result).getAllByLabelText('Show grade').length).toBeGreaterThan(1),
+  )
   expect(result).not.toHaveTextContent('0.50')
+  for (const mask of within(result).getAllByLabelText('Show grade')) await userEvent.hover(mask)
+  expect(result).toHaveTextContent('0.50')
 })
 
 test('the Upcoming card asks the server for the scope in one request', async () => {

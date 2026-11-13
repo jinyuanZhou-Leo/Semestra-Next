@@ -6,7 +6,7 @@ import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
-import { categoryName, maskedPercentText } from '../display'
+import { categoryName, percentText } from '../display'
 import { useGradebook } from '../queries'
 
 /**
@@ -47,7 +47,7 @@ function Gradebook({
           ? m.grading_assessment_drop()
           : assessment.score_percentage === null
             ? m.grading_task_ungraded()
-            : maskedPercentText(assessment.score_percentage, gradebook?.scale.hide_grades ?? false),
+            : percentText(assessment.score_percentage),
       ].filter((part) => part !== null)
     : []
   return (

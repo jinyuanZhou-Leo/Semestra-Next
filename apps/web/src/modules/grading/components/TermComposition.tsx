@@ -2,7 +2,7 @@ import type { CourseGrade, TermGrades } from '@semestra/api-client'
 import { useState } from 'react'
 import { formatCredits, formatGpa } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { GRADE_MASK, maskedPercentText } from '../display'
+import { percentText } from '../display'
 import { CompositionRing, type RingSlice } from './CompositionRing'
 import { GpaValue, PercentValue } from './GradeValue'
 
@@ -23,7 +23,7 @@ const STATUS_LABEL = {
 
 export const courseStatusLabel = (status: CourseGrade['status']) => STATUS_LABEL[status]()
 
-function SliceDetails({ slice, hideGpa }: { slice: Slice; hideGpa: boolean }) {
+function SliceDetails({ slice }: { slice: Slice }) {
   const c = slice.course
   const rows: [string, string][] = [
     // A year-long course puts part of its credits in this term, like the table's credits column.
@@ -36,9 +36,9 @@ function SliceDetails({ slice, hideGpa }: { slice: Slice; hideGpa: boolean }) {
     [m.grading_status(), courseStatusLabel(c.status)],
     // An unfinished course has a current average, not a final percentage.
     c.status === 'in_progress'
-      ? [m.grading_current(), maskedPercentText(c.current_percentage, hideGpa)]
-      : [m.grading_percentage(), maskedPercentText(c.percentage, hideGpa)],
-    [m.grading_gpa(), c.points === null ? '—' : hideGpa ? GRADE_MASK : formatGpa(c.points)],
+      ? [m.grading_current(), percentText(c.current_percentage)]
+      : [m.grading_percentage(), percentText(c.percentage)],
+    [m.grading_gpa(), c.points === null ? '—' : formatGpa(c.points)],
   ]
   return (
     <div className="grid min-w-40 gap-1.5">
@@ -97,10 +97,10 @@ export function TermComposition({
           data={data}
           hovered={hovered}
           onHoveredChange={setHovered}
-          renderDetails={(slice) => <SliceDetails slice={slice} hideGpa={term.hide_grades} />}
+          renderDetails={(slice) => <SliceDetails slice={slice} />}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <PercentValue value={term.average_percentage} hidden={term.hide_grades} animated />
+            <PercentValue value={term.average_percentage} animated />
           </span>
           <span className="text-xs text-muted-foreground">{m.grading_average()}</span>
         </CompositionRing>
@@ -108,7 +108,7 @@ export function TermComposition({
           <div>
             <dt className="text-xs text-muted-foreground">{m.grading_term_gpa()}</dt>
             <dd className="text-2xl font-semibold tabular-nums">
-              <GpaValue value={term.gpa} hidden={term.hide_grades} animated />
+              <GpaValue value={term.gpa} animated />
             </dd>
           </div>
           <div>

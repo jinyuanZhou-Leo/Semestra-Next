@@ -47,18 +47,18 @@ function programGrades(hide: boolean): ProgramGrades {
   }
 }
 
-test('the Program chart keeps GPA values out of the page while GPA is hidden', async () => {
+test('the Program chart shows only on hover while grades are hidden', async () => {
   server.use(
     http.get(`${API}/programs/p1/grade-summary`, () => HttpResponse.json(programGrades(true))),
   )
   const { container } = renderWithRouter(
     <ProgramChartsCard {...cardProps({ kind: 'program', programId: 'p1' }, 'l')} />,
   )
-  const mask = await screen.findByRole('button', { name: 'Show grade' })
+  const mask = (await screen.findAllByLabelText('Show grade'))[0]!
   expect(container.querySelector('title')?.textContent ?? '').not.toContain('3.50')
   expect(screen.queryByRole('figure', { name: 'GPA and cumulative GPA by term' })).toBeNull()
   expect(container).not.toHaveTextContent('3.50')
-  await userEvent.click(mask)
+  await userEvent.hover(mask)
   const chart = await screen.findByRole('figure', { name: 'GPA and cumulative GPA by term' })
   expect(within(chart).getByText('Fall 2025: 3.50')).toBeInTheDocument()
 })
@@ -93,17 +93,4 @@ test('a course without a gradebook shows its typed-in final grade on the card', 
     <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,
   )
   expect(await screen.findByText('91%')).toBeInTheDocument()
-})
-
-test('revealing a hidden GPA on a card does not follow the card link', async () => {
-  const book = gradebook({ scale: { max_points: 4, hide_grades: true, round_before_lookup: true } })
-  server.use(http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)))
-  const { router } = renderWithRouter(
-    <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,
-  )
-  // The headline percentage and the GPA each have their own mask; this is the GPA's.
-  const masks = await screen.findAllByRole('button', { name: 'Show grade' })
-  await userEvent.click(masks[masks.length - 1]!)
-  expect(await screen.findByText('3.70')).toBeInTheDocument()
-  expect(router.history.location.pathname).toBe('/')
 })

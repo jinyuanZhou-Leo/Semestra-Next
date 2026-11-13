@@ -26,8 +26,8 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { categoryName, maskedPercentText } from '../display'
-import { PercentValue } from './GradeValue'
+import { categoryName, percentText } from '../display'
+import { Concealed, PercentValue } from './GradeValue'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import {
@@ -86,7 +86,6 @@ export function AssessmentTable({
   assessments,
   categories,
   figures,
-  hideGrades,
   whatIf,
   predictions,
   onAssume,
@@ -106,8 +105,6 @@ export function AssessmentTable({
   categories: readonly AssessmentCategory[]
   /** The engine's per-category figures from the real (not simulated) summary. */
   figures: readonly CategorySummary[]
-  /** The Program hides grades: a group's average is masked. */
-  hideGrades: boolean
   whatIf: WhatIf
   predictions: Record<string, number>
   /** Set (percent) or clear (null) the assumed score of one assessment. */
@@ -319,7 +316,6 @@ export function AssessmentTable({
                           (f) => f.category_id === (group.category?.id ?? null),
                         )}
                         collapsed={isCollapsed}
-                        hidden={hideGrades}
                         planning={whatIf.plan}
                         trailing={contributed.length + 1}
                         onToggle={() => onToggleGroup(groupId)}
@@ -395,7 +391,6 @@ function GroupRow({
   count,
   figures,
   collapsed,
-  hidden,
   planning,
   trailing,
   onToggle,
@@ -409,8 +404,6 @@ function GroupRow({
   /** Missing when none of the group's items count (all dropped). */
   figures: CategorySummary | undefined
   collapsed: boolean
-  /** The Program hides grades. */
-  hidden: boolean
   /** In plan mode the rows show assumptions; the group's average stays the real one. */
   planning: boolean
   /** The columns after the score: contributed ones and the row menu. */
@@ -463,12 +456,12 @@ function GroupRow({
       <TableCell className="py-1.5">
         {planning ? (
           <span className="block pr-16 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-            {m.grading_actual({ value: maskedPercentText(average, hidden) })}
+            <Concealed>{m.grading_actual({ value: percentText(average) })}</Concealed>
           </span>
         ) : (
           <span className="block pr-16 text-right font-medium tabular-nums">
             <span className="sr-only">{m.grading_average()}: </span>
-            <PercentValue value={average} hidden={hidden} />
+            <PercentValue value={average} />
           </span>
         )}
       </TableCell>

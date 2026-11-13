@@ -1,90 +1,118 @@
-import { useState } from 'react'
+import { type ReactNode, createContext, useContext, useState } from 'react'
 import { AnimatedNumber } from '@/components/AnimatedNumber'
 import { formatGpa } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
-import { Button } from '@/ui/button'
 import { GRADE_MASK, percentText } from '../display'
 
-/** The "•••" that stands in for a grade while the Program hides grades; selecting it shows the value. */
-function MaskButton({ className, onReveal }: { className?: string; onReveal: () => void }) {
+const HideGradesContext = createContext(false)
+
+/**
+ * Whether the Program hides grades, provided once by the page or card that loaded the data.
+ * Everything below reads it with `useHideGrades` instead of being handed a flag.
+ */
+export function HideGrades({ hidden, children }: { hidden: boolean; children: ReactNode }) {
+  return <HideGradesContext value={hidden}>{children}</HideGradesContext>
+}
+
+export function useHideGrades(): boolean {
+  return useContext(HideGradesContext)
+}
+
+/**
+ * What hides a grade while the Program hides grades: "•••" in its place, the grade itself while
+ * the pointer is over it or it has focus (so a touch screen can tap it). Without hiding it is
+ * just `children`. `mask` replaces the "•••" for larger figures such as a chart.
+ */
+export function Concealed({
+  children,
+  className,
+  mask,
+}: {
+  children: ReactNode
+  className?: string
+  mask?: ReactNode
+}) {
+  const hidden = useHideGrades()
+  const [shown, setShown] = useState(false)
+  if (!hidden) return children
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-label={m.grading_gpa_show()}
-      className={cn(
-        'h-auto px-1 py-0 text-[length:inherit] font-[inherit] hover:bg-muted',
-        className,
-      )}
-      onClick={(event) => {
-        // Cards wrap their figures in a link; revealing must not follow it.
-        event.preventDefault()
-        event.stopPropagation()
-        onReveal()
-      }}
+    <span
+      // Focusable so the keyboard and touch can show it too (it is not a control).
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      aria-label={shown ? undefined : m.grading_gpa_show()}
+      className={cn('rounded-sm outline-offset-2', className)}
+      onPointerEnter={() => setShown(true)}
+      onPointerLeave={() => setShown(false)}
+      onFocus={() => setShown(true)}
+      onBlur={() => setShown(false)}
     >
-      {GRADE_MASK}
-    </Button>
+      {shown ? children : (mask ?? GRADE_MASK)}
+    </span>
   )
 }
 
-/** A chart's placeholder while the Program hides grades; the whole figure is revealed at once. */
-export function MaskedChart({ className, onReveal }: { className?: string; onReveal: () => void }) {
+/** A chart that shows only while the pointer is over its placeholder. */
+export function ConcealedChart({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      className={cn('w-full rounded-xl border-dashed font-normal text-muted-foreground', className)}
-      aria-label={m.grading_gpa_show()}
-      onClick={onReveal}
+    <Concealed
+      className={cn('block', className)}
+      mask={
+        <span className="grid h-24 place-items-center rounded-xl border border-dashed text-muted-foreground">
+          {GRADE_MASK}
+        </span>
+      }
     >
-      {GRADE_MASK}
-    </Button>
+      {children}
+    </Concealed>
   )
 }
 
 /**
- * A percentage (0–100); with `hidden` (the Program hides grades) it shows as "•••" until
- * clicked (M03 §5.3).
+ * A percentage (0–100); while the Program hides grades it shows as "•••" until
+ * hovered (M03 §5.3).
  */
 export function PercentValue({
   value,
-  hidden,
   animated = false,
   className,
 }: {
   value: number | null | undefined
-  hidden: boolean
   /** Roll the digits (headline figures, not tables). */
   animated?: boolean
   className?: string
 }) {
-  const [revealed, setRevealed] = useState(false)
   if (value == null) return <span className={className}>—</span>
-  if (hidden && !revealed)
-    return <MaskButton className={className} onReveal={() => setRevealed(true)} />
-  return animated ? (
-    <AnimatedNumber value={value} format={percentText} className={className} />
-  ) : (
-    <span className={className}>{percentText(value)}</span>
+  return (
+    <Concealed className={className}>
+      {animated ? (
+        <AnimatedNumber value={value} format={percentText} className={className} />
+      ) : (
+        <span className={className}>{percentText(value)}</span>
+      )}
+    </Concealed>
   )
 }
 
 /**
- * A GPA number and its letter grade; with `hidden` (the Program hides grades) both show as one
- * "•••" until clicked (M03 §5.3).
+ * A GPA number and its letter grade; while the Program hides grades both show as one
+ * "•••" until hovered (M03 §5.3).
  */
 export function GpaValue({
   value,
-  hidden,
   letter,
   letterClassName,
   animated = false,
   className,
 }: {
   value: number | null | undefined
-  hidden: boolean
   /** The band's letter, shown after the number and masked with it. */
   letter?: string | null
   letterClassName?: string
@@ -92,20 +120,16 @@ export function GpaValue({
   animated?: boolean
   className?: string
 }) {
-  const [revealed, setRevealed] = useState(false)
   if (value == null) return <span className={className}>—</span>
-  if (hidden && !revealed)
-    return <MaskButton className={className} onReveal={() => setRevealed(true)} />
   const number = animated ? (
     <AnimatedNumber value={value} format={formatGpa} className={className} />
   ) : (
     <span className={className}>{formatGpa(value)}</span>
   )
-  if (!letter) return number
   return (
-    <>
+    <Concealed className={className}>
       {number}
-      <span className={letterClassName}>{letter}</span>
-    </>
+      {letter ? <span className={letterClassName}>{letter}</span> : null}
+    </Concealed>
   )
 }

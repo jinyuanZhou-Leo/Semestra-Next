@@ -19,9 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/ui/select'
-import { GRADE_MASK, maskedPercentText, percentText } from '../display'
+import { GRADE_MASK, percentText } from '../display'
 import { invalidateGrading, useGradingScale } from '../queries'
 import type { WhatIf } from '../whatif'
+import { Concealed, useHideGrades } from './GradeValue'
 import { requiredText } from './Stat'
 
 /** One choice of the target picker: a grade point value and the band(s) that give it. */
@@ -51,9 +52,9 @@ function targetOptions(bands: readonly ScaleBand[], current: number): TargetOpti
 }
 
 /** A choice as text: "3.7 · A− (≥ 80%)"; with GPA hidden only the threshold shows. */
-function optionLabel(option: TargetOption, hideGpa: boolean): string {
+function optionLabel(option: TargetOption, hideGrades: boolean): string {
   const threshold = option.min === null ? '' : `≥ ${percentText(option.min)}`
-  if (hideGpa) return threshold || GRADE_MASK
+  if (hideGrades) return threshold || GRADE_MASK
   const grade = [formatGpa(option.points, 1), option.letter].filter(Boolean).join(' · ')
   return threshold ? `${grade} (${threshold})` : grade
 }
@@ -77,11 +78,12 @@ export function CourseTarget({
   onChange: (next: WhatIf) => void
 }) {
   const queryClient = useQueryClient()
-  const { summary: s, scale, course_id: courseId, program_id: programId } = gradebook
+  const hideGrades = useHideGrades()
+  const { summary: s, course_id: courseId, program_id: programId } = gradebook
   const bands = useGradingScale(programId).data?.bands ?? []
   const items = targetOptions(bands, s.target_points).map((o) => ({
     value: o.value,
-    label: optionLabel(o, scale.hide_grades),
+    label: optionLabel(o, hideGrades),
   }))
   const update = useMutation({
     ...gradingCourseResultUpdateMutation(),
@@ -109,7 +111,7 @@ export function CourseTarget({
   const figures = planning ? planned : s
   const selectId = useId()
   // With GPA hidden the choices are only thresholds, so the picker is named after the grade.
-  const label = scale.hide_grades ? m.grading_target_grade() : m.grading_target_gpa()
+  const label = hideGrades ? m.grading_target_grade() : m.grading_target_gpa()
   return (
     <section aria-label={label} className="mt-3 space-y-2 border-t border-border pt-3">
       <Field>
@@ -131,7 +133,9 @@ export function CourseTarget({
       </Field>
       <p className="text-sm">
         {figures && figures.remaining_weight === 0 ? (
-          <span className="font-medium">{requiredText(figures, scale.hide_grades)}</span>
+          <span className="font-medium">
+            <Concealed>{requiredText(figures)}</Concealed>
+          </span>
         ) : (
           <>
             <span className="text-muted-foreground">
@@ -140,7 +144,7 @@ export function CourseTarget({
               })}
             </span>{' '}
             <span className="font-medium tabular-nums">
-              {figures ? requiredText(figures, scale.hide_grades) : '—'}
+              {figures ? <Concealed>{requiredText(figures)}</Concealed> : '—'}
             </span>
           </>
         )}
@@ -159,9 +163,11 @@ export function CourseTarget({
       ) : null}
       {planning && suggest.data && !suggest.data.reachable ? (
         <output className="block text-xs text-destructive">
-          {m.grading_autofill_unreachable({
-            best: maskedPercentText(suggest.data.resulting_percentage, scale.hide_grades),
-          })}
+          <Concealed>
+            {m.grading_autofill_unreachable({
+              best: percentText(suggest.data.resulting_percentage),
+            })}
+          </Concealed>
         </output>
       ) : null}
     </section>

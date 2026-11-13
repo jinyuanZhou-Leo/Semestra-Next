@@ -43,11 +43,6 @@ export function percentText(value: number | null | undefined): string {
 /** The mask shown in place of a GPA or percentage while `hide_grades` is on (M03 §5.3). */
 export const GRADE_MASK = '•••'
 
-/** A percentage as running text; with `hidden` the mask (a value that is not there stays "—"). */
-export function maskedPercentText(value: number | null | undefined, hidden: boolean): string {
-  return hidden && value != null ? GRADE_MASK : percentText(value)
-}
-
 /**
  * A deadline as the Program's own calendar shows it, as a compact date ("Nov 20", with the year
  * only when it is not this one). `due_date` is already in the Program's time zone, so it is shown

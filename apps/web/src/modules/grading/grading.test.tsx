@@ -274,10 +274,10 @@ test('grouped view heads each category with its weight and average', async () =>
   expect(row).toHaveTextContent('Average: 75%')
 })
 
-test('hide_grades shows a mask until it is clicked', async () => {
+test('hide_grades shows a mask until it is hovered', async () => {
   book = gradebook({ scale: { max_points: 4, hide_grades: true, round_before_lookup: true } })
   mount()
-  const masks = await screen.findAllByRole('button', { name: 'Show grade' })
+  const masks = await screen.findAllByLabelText('Show grade')
   for (const mask of masks) expect(mask).toHaveTextContent('•••')
   // Percentages are masked with the GPA.
   expect(screen.queryByText('91%')).not.toBeInTheDocument()
@@ -286,7 +286,7 @@ test('hide_grades shows a mask until it is clicked', async () => {
   expect(screen.queryByText('A-')).not.toBeInTheDocument()
   // Its choices are only thresholds then, so the target is a grade, not a GPA.
   expect(screen.getByRole('combobox', { name: 'Target grade' })).toBeInTheDocument()
-  for (const mask of masks) await userEvent.click(mask)
+  for (const mask of masks) await userEvent.hover(mask)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
   expect(screen.getByText('A-')).toBeInTheDocument()
 })
