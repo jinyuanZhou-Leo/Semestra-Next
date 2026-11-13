@@ -159,6 +159,26 @@ beforeEach(() => {
             description: 'Record scores',
             module: 'grading',
           },
+          {
+            name: 'grade-planning',
+            title: { en: 'Plan grades', 'zh-CN': '成绩规划' },
+            command: '/plan',
+            description: 'Plan grades',
+            module: 'grading',
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/programs/p1/file-names`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: 'f1',
+            course_id: 'c2',
+            display_name: 'Syllabus.pdf',
+            mime_type: 'application/pdf',
+            updated_at: NOW,
+          },
         ],
       }),
     ),
@@ -725,26 +745,38 @@ test('a question is answered by picking an option, then shows with its answer', 
   expect(await messageInput()).toBeInTheDocument()
 })
 
-test('/ picks a skill and @ refers to a course, which works in its term', async () => {
+test('/ picks skills and @ refers to a course or file, which works in its term', async () => {
   srv.reply = () => sse([])
   renderConversation({ program_id: 'p1', term_id: null })
   const input = await messageInput()
   await userEvent.type(input, '/gr')
   await userEvent.click(await screen.findByRole('option', { name: /Record grades/ }))
-  // Both become chips in the text.
+  // They become chips in the text.
   expect(input).toHaveTextContent(/^Record grades$/)
 
+  await userEvent.type(input, 'from @syl')
+  expect(await screen.findByRole('group', { name: 'Files' })).toBeInTheDocument()
+  await userEvent.keyboard('{Enter}')
+  expect(input).toHaveTextContent(/^Record grades from Syllabus.pdf$/)
+  expect(await screen.findByRole('button', { name: 'Working in: Winter 2026' })).toBeInTheDocument()
+
+  // Another skill, anywhere; the one already picked is not offered again.
+  await userEvent.type(input, 'then /')
+  expect(screen.queryByRole('option', { name: /Record grades/ })).not.toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('option', { name: /Plan grades/ }))
   await userEvent.type(input, 'for @MAT')
   await userEvent.keyboard('{Enter}')
-  expect(input).toHaveTextContent(/^Record grades for MAT188H1$/)
-  expect(await screen.findByRole('button', { name: 'Working in: Winter 2026' })).toBeInTheDocument()
 
   await userEvent.type(input, '{Enter}')
   await waitFor(() => expect(srv.sent).toHaveLength(1))
   expect(srv.sent[0]?.body).toMatchObject({
-    skill: 'record-grades',
-    text: ' for @MAT188H1 ',
-    references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
+    text: '/Record grades from @Syllabus.pdf then /Plan grades for @MAT188H1 ',
+    references: [
+      { kind: 'skill', id: 'record-grades', label: 'Record grades' },
+      { kind: 'file', id: 'f1', label: 'Syllabus.pdf' },
+      { kind: 'skill', id: 'grade-planning', label: 'Plan grades' },
+      { kind: 'course', id: 'c2', label: 'MAT188H1' },
+    ],
     scope: { program_id: 'p1', term_id: 't2' },
   })
 })
@@ -765,14 +797,14 @@ test('Chinese punctuation opens the menus, and @ works right after Chinese text'
   expect(input.querySelector('[data-chip=term]')).toHaveTextContent('Winter 2026')
 })
 
-test('pasted mentions from elsewhere stay text, and a pasted skill becomes text', async () => {
+test('pasted mentions from elsewhere stay text, and a pasted /compact becomes text', async () => {
   renderConversation({ program_id: 'p1', term_id: null })
   const input = await messageInput()
   await userEvent.click(input)
   const html =
     '<p>ask <span data-type="mention" data-id="42" data-label="Ann">@Ann</span> about ' +
-    '<span data-type="mention" data-id="skill:record-grades" data-label="Record grades" ' +
-    'data-mention-suggestion-char="/">/Record grades</span> in ' +
+    '<span data-type="mention" data-id="command:compact" data-label="Compact" ' +
+    'data-mention-suggestion-char="/">/Compact</span> in ' +
     '<span data-type="mention" data-id="course:c2" data-label="MAT188H1" ' +
     'data-mention-suggestion-char="@">@MAT188H1</span></p>'
   const paste = new Event('paste', { bubbles: true, cancelable: true })
@@ -784,7 +816,7 @@ test('pasted mentions from elsewhere stay text, and a pasted skill becomes text'
     },
   })
   input.dispatchEvent(paste)
-  await waitFor(() => expect(input).toHaveTextContent('ask @Ann about /Record grades in MAT188H1'))
+  await waitFor(() => expect(input).toHaveTextContent('ask @Ann about /Compact in MAT188H1'))
   expect(
     [...input.querySelectorAll('[data-chip]')].map((c) => c.getAttribute('data-chip')),
   ).toEqual(['course'])
@@ -855,11 +887,16 @@ test('editing a message sends the new text and drops what came after it', async 
   expect(screen.queryByRole('textbox', { name: 'Edit message' })).not.toBeInTheDocument()
 })
 
-test('a sent message shows its skill and references as chips, and editing keeps them', async () => {
+test('a sent message shows its skills and references as chips, and editing keeps them', async () => {
   srv.detail.messages = [
     msg('u1', 'user', [
-      { type: 'skill', name: 'record-grades', title: { en: 'Record grades' } },
-      { type: 'text', text: 'Lab 3 of @MAT188H1 was 90' },
+      {
+        type: 'skill',
+        name: 'record-grades',
+        title: { en: 'Record grades' },
+        label: 'Record grades',
+      },
+      { type: 'text', text: '/Record grades Lab 3 of @MAT188H1 was 90' },
       { type: 'reference', kind: 'course', id: 'c2', label: 'MAT188H1' },
     ]),
     msg('a1', 'assistant', [{ type: 'text', text: 'Done.' }]),
@@ -875,12 +912,16 @@ test('a sent message shows its skill and references as chips, and editing keeps 
 
   await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
   const editor = screen.getByRole('textbox', { name: 'Edit message' })
+  expect(editor.querySelector('[data-chip=skill]')).toHaveTextContent('Record grades')
   expect(editor.querySelector('[data-chip=course]')).toHaveTextContent('MAT188H1')
   await userEvent.type(editor, '5{Enter}')
   await waitFor(() =>
     expect(srv.sent[0]?.body).toEqual({
-      text: 'Lab 3 of @MAT188H1 was 905',
-      references: [{ kind: 'course', id: 'c2', label: 'MAT188H1' }],
+      text: '/Record grades Lab 3 of @MAT188H1 was 905',
+      references: [
+        { kind: 'skill', id: 'record-grades', label: 'Record grades' },
+        { kind: 'course', id: 'c2', label: 'MAT188H1' },
+      ],
     }),
   )
 })
@@ -1062,7 +1103,7 @@ test('the editor closes as soon as the edit is sent, while the answer streams', 
   expect(await screen.findByRole('button', { name: 'Send' })).toBeInTheDocument()
 })
 
-test('an edit keeps the skill and attachments and forgets later proposals', () => {
+test('an edit replaces the skills and keeps attachments, and forgets later proposals', () => {
   const detail: AgentSessionDetail = {
     session: session(),
     messages: [
@@ -1077,10 +1118,14 @@ test('an edit keeps the skill and attachments and forgets later proposals', () =
     attachments: [],
     generating: false,
   }
-  const edited = withEditedMessage(detail, 'u1', 'Lab 4')
+  const skill = { kind: 'skill', id: 'grade-planning', label: 'Plan grades' } as const
+  const edited = withEditedMessage(detail, 'u1', '/Plan grades Lab 4', [skill])
   expect(edited.messages).toHaveLength(1)
-  expect(edited.messages[0]?.content.map((b) => b.type)).toEqual(['skill', 'text', 'image_ref'])
-  expect(edited.messages[0]?.content[1]).toEqual({ type: 'text', text: 'Lab 4' })
+  expect(edited.messages[0]?.content).toEqual([
+    { type: 'skill', name: 'grade-planning', label: 'Plan grades' },
+    { type: 'text', text: '/Plan grades Lab 4' },
+    { type: 'image_ref', attachment_id: 'f1', name: 'a.png' },
+  ])
   expect(edited.proposals).toEqual([])
 })
 

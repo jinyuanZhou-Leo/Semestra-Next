@@ -96,10 +96,18 @@ async def user_request(
         if kind == "text" and block.get("text"):
             content.append(block["text"])
         elif kind == "skill":
+            label = json.dumps(f"/{block.get('label', '')}", ensure_ascii=False)
             content.append(
-                f"[The user chose the skill `{block['name']}`]\n\n{block.get('body', '')}"
+                f"[The user chose the skill `{block['name']}` ({label} in the message)]\n\n"
+                f"{block.get('body', '')}"
             )
             revealed += [tools.tool_name(t) for t in block.get("tools", [])]
+        elif kind == "reference" and block.get("kind") == "file":
+            from semestra.modules.agent import file_context
+
+            content += await file_context.render(ctx, block.get("id", ""), block.get("label", ""))
+            if tools.tool_name(file_context.READ) not in revealed:
+                revealed.append(tools.tool_name(file_context.READ))
         elif kind == "reference":
             label = json.dumps(f"@{block.get('label', '')}", ensure_ascii=False)
             content.append(

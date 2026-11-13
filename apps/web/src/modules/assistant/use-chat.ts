@@ -17,6 +17,7 @@ import {
   applyEvent,
   lastTypedUser,
   restartFrom,
+  chipBlocks,
   withEditedMessage,
   withUserMessage,
 } from './transcript'
@@ -26,8 +27,7 @@ export type ChatError = { code: string; params: Record<string, unknown> }
 export type SendInput = {
   text: string
   attachmentIds?: string[]
-  skill?: { name: string; title: Record<string, string> } | null
-  /** Courses and terms picked with `@`, written as `@<label>` in the text. */
+  /** Skills, courses, terms and files picked with `/` and `@`, written in the text. */
   references?: MessageReference[]
   scope?: AgentScope | null
   /** A new conversation that neither reads nor writes memories. */
@@ -359,11 +359,7 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       setBusy(false)
       return false
     }
-    const blocks: Record<string, unknown>[] = []
-    if (input.skill)
-      blocks.push({ type: 'skill', name: input.skill.name, title: input.skill.title })
-    if (input.text.trim()) blocks.push({ type: 'text', text: input.text.trim() })
-    for (const ref of input.references ?? []) blocks.push({ type: 'reference', ...ref })
+    const blocks: Record<string, unknown>[] = chipBlocks(input.text.trim(), input.references ?? [])
     const attachments = queryClient.getQueryData<AgentSessionDetail>(keyOf(id))?.attachments ?? []
     for (const attId of input.attachmentIds ?? []) {
       const att = attachments.find((a) => a.id === attId)
@@ -380,7 +376,6 @@ export function useChat(sessionId: string | null, onCreated: (id: string) => voi
       text: input.text,
       attachment_ids: input.attachmentIds ?? [],
       scope: input.scope ?? null,
-      skill: input.skill?.name ?? null,
       references: input.references ?? [],
     })
   }

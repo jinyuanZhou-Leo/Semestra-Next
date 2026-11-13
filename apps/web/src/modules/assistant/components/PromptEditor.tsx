@@ -1,5 +1,8 @@
-import type { AgentScope, AgentSkillInfo, Course, Term } from '@semestra/api-client'
-import { agentSkillListOptions } from '@semestra/api-client/react-query'
+import type { AgentScope, AgentSkillInfo, Course, ProgramFile, Term } from '@semestra/api-client'
+import {
+  agentSkillListOptions,
+  filesItemListProgramOptions,
+} from '@semestra/api-client/react-query'
 import { Popover } from '@base-ui/react/popover'
 import { useQuery } from '@tanstack/react-query'
 import { Extension, type JSONContent, type Range } from '@tiptap/core'
@@ -20,6 +23,7 @@ import {
   useEditor,
 } from '@tiptap/react'
 import { BookOpen, CalendarRange, Minimize2, Sparkles } from 'lucide-react'
+import { createElement } from 'react'
 import {
   type ClipboardEvent,
   type KeyboardEvent,
@@ -32,6 +36,7 @@ import {
 import { rank } from '@/app/commands/rank'
 import { courseLabel } from '@/modules/academics/color'
 import { courseTermId } from '@/modules/academics/queries'
+import { fileIcon } from '@/modules/files/kinds'
 import { m } from '@/paraglide/messages'
 import { Command, CommandGroup, CommandItem, CommandList, CommandShortcut } from '@/ui/command'
 import { skillTitle } from '../labels'
@@ -51,8 +56,20 @@ type Option =
   | { id: string; kind: 'skill'; skill: AgentSkillInfo }
   | { id: string; kind: 'course'; course: Course }
   | { id: string; kind: 'term'; term: Term }
+  | { id: string; kind: 'file'; file: ProgramFile; course: Course | undefined }
 
-type OpenMenu = { char: '/' | '@'; query: string; range: Range }
+/** `start`: nothing but spaces comes before it, so `/compact` can be offered. */
+type OpenMenu = { char: '/' | '@'; query: string; range: Range; start: boolean }
+
+/** At most this many of each group are listed. */
+const PER_GROUP = 4
+
+const openMenu = (char: '/' | '@', props: { query: string; range: Range }): OpenMenu => ({
+  char,
+  query: props.query,
+  range: props.range,
+  start: props.range.from === 1,
+})
 
 export type PromptEditorHandle = {
   focus: () => void
@@ -83,7 +100,16 @@ function OptionLabel({ option }: { option: Option }) {
           ]
         : option.kind === 'course'
           ? [<BookOpen key="i" aria-hidden />, courseLabel(option.course), option.course.title]
-          : [<CalendarRange key="i" aria-hidden />, option.term.name, null]
+          : option.kind === 'term'
+            ? [<CalendarRange key="i" aria-hidden />, option.term.name, null]
+            : [
+                createElement(fileIcon({ kind: 'file', mime_type: option.file.mime_type }), {
+                  key: 'i',
+                  'aria-hidden': true,
+                }),
+                option.file.display_name,
+                option.course ? courseLabel(option.course) : null,
+              ]
   return (
     <>
       {icon}
@@ -135,28 +161,30 @@ const chipOfOption = (option: Option): Chip =>
         }
       : option.kind === 'course'
         ? { kind: 'course', id: option.course.id, label: courseLabel(option.course) }
-        : { kind: 'term', id: option.term.id, label: option.term.name }
+        : option.kind === 'term'
+          ? { kind: 'term', id: option.term.id, label: option.term.name }
+          : { kind: 'file', id: option.file.id, label: option.file.display_name }
 
-const isLead = (chip: Chip | null) => chip?.kind === 'skill' || chip?.kind === 'command'
+const isCompact = (node: PmNode | null | undefined) =>
+  node?.type.name === 'mention' && chipOf(node.attrs)?.kind === 'command'
 
 /**
- * Pasted skills and `/compact` become text: they come from the `/` menu, first in the input. The
- * rest of a paste only holds what the input does (paragraphs, line breaks, text and chips).
+ * A pasted `/compact` becomes text: it comes from the `/` menu, first in the input. The rest of a
+ * paste only holds what the input does (paragraphs, line breaks, text and chips).
  */
-function leadsAsText(content: Fragment, schema: Schema): Fragment {
+function compactAsText(content: Fragment, schema: Schema): Fragment {
   const nodes: PmNode[] = []
   content.forEach((node) => {
-    const chip = node.type.name === 'mention' ? chipOf(node.attrs) : null
-    if (chip && isLead(chip)) nodes.push(schema.text(`/${chip.label}`))
-    else nodes.push(node.isLeaf ? node : node.copy(leadsAsText(node.content, schema)))
+    if (isCompact(node)) nodes.push(schema.text(`/${String(node.attrs.label)}`))
+    else nodes.push(node.isLeaf ? node : node.copy(compactAsText(node.content, schema)))
   })
   return Fragment.fromArray(nodes)
 }
 
-/** The skill or `/compact` chip that starts the input. */
-function leadNode(doc: PmNode): PmNode | null {
+/** The `/compact` chip that starts the input. */
+function compactNode(doc: PmNode): PmNode | null {
   const first = doc.firstChild?.firstChild
-  return first?.type.name === 'mention' && isLead(chipOf(first.attrs)) ? first : null
+  return isCompact(first) ? (first ?? null) : null
 }
 
 /** After `/compact` with nothing else written: what the text is for. */
@@ -196,9 +224,10 @@ const CompactHint = Extension.create({
 })
 
 /**
- * The text input of the assistant (M12 §6.1), written with chips: `/` picks a skill or
- * `/compact` (first in the input), `@` a course or term (its term becomes where the assistant
- * works). Chips go as a whole with Backspace and copy as `/name` or `@name`. Enter sends and
+ * The text input of the assistant (M12 §6.1), written with chips: `/` picks skills (any number,
+ * anywhere) or `/compact` (first in the input, alone), `@` a course, term or course file (its term
+ * becomes where the assistant works). Chips go as a whole with Backspace and copy as `/name` or
+ * `@name`. Enter sends and
  * Shift+Enter breaks the line; input methods keep their own Enter. Files pasted go to `onFiles`.
  */
 export function PromptEditor({
@@ -244,24 +273,33 @@ export function PromptEditor({
     useQuery({ ...agentSkillListOptions(), staleTime: 5 * 60_000, enabled: slash }).data?.items ??
     []
   const { terms, courses } = useProgramEntities(programId)
+  // Skills already in the input are not offered again.
+  const [pickedSkills, setPickedSkills] = useState<string[]>([])
+  // Loaded once `@` is typed, then kept: file events refresh it.
+  const [wantFiles, setWantFiles] = useState(false)
+  const courseFiles =
+    useQuery({
+      ...filesItemListProgramOptions({ path: { program_id: programId ?? '' } }),
+      enabled: Boolean(programId) && wantFiles,
+    }).data?.items ?? []
 
   // Chinese input methods type `、` for `/` and `＠` for `@` in their punctuation modes.
   const trigger = (char: string, menuChar: '/' | '@') => ({
     char,
     items: () => [],
     allowedPrefixes: menuChar === '@' ? null : undefined,
-    // A skill or `/compact` starts the input, and there is one at most.
+    // After `/compact` the text says what to keep: no skills.
     allow: ({ state, range }: { state: EditorState; range: Range }) =>
-      menuChar === '@'
-        ? AFTER_CJK.test(state.doc.textBetween(Math.max(0, range.from - 1), range.from))
-        : slash && range.from === 1 && leadNode(state.doc) === null,
+      AFTER_CJK.test(state.doc.textBetween(Math.max(0, range.from - 1), range.from)) &&
+      (menuChar === '@' || (slash && compactNode(state.doc) === null)),
     render: () => ({
       onStart: (props: { query: string; range: Range }) => {
-        setMenu({ char: menuChar, query: props.query, range: props.range })
+        if (menuChar === '@') setWantFiles(true)
+        setMenu(openMenu(menuChar, props))
         setActive(0)
       },
       onUpdate: (props: { query: string; range: Range }) => {
-        setMenu({ char: menuChar, query: props.query, range: props.range })
+        setMenu(openMenu(menuChar, props))
         setActive(0)
       },
       onExit: () => setMenu(null),
@@ -297,7 +335,7 @@ export function PromptEditor({
     editable: !disabled,
     editorProps: {
       transformPasted: (slice, view) =>
-        new Slice(leadsAsText(slice.content, view.state.schema), slice.openStart, slice.openEnd),
+        new Slice(compactAsText(slice.content, view.state.schema), slice.openStart, slice.openEnd),
       attributes: {
         role: 'textbox',
         'aria-multiline': 'true',
@@ -309,26 +347,32 @@ export function PromptEditor({
     },
     onUpdate: ({ editor: e }) => {
       const doc = e.getJSON()
-      onChange(readPrompt(doc), doc)
+      const value = readPrompt(doc)
+      setPickedSkills(value.references.flatMap((r) => (r.kind === 'skill' ? [r.id] : [])))
+      onChange(value, doc)
     },
   })
 
   // Matched like the command palette: prefixes first, then substrings and pinyin initials.
-  const candidates: { key: string; title: string; keywords: string[]; option: Option }[] = []
+  type Candidate = { key: string; title: string; keywords: string[]; option: Option }
+  const ranked = (candidates: Candidate[], limit: number) =>
+    menu
+      ? rank(candidates, menu.query)
+          .slice(0, limit)
+          .map((c) => c.option)
+      : []
+  const commands: Candidate[] = []
+  const references: Candidate[] = []
+  const fileCandidates: Candidate[] = []
   if (menu?.char === '/') {
-    if (canCompact) {
+    if (canCompact && menu.start) {
       const option: Option = { id: 'compact', kind: 'compact' }
-      candidates.push({
-        key: option.id,
-        title: m.assistant_compact(),
-        keywords: ['compact'],
-        option,
-      })
+      commands.push({ key: option.id, title: m.assistant_compact(), keywords: ['compact'], option })
     }
     for (const s of skills) {
-      if (!s.command) continue
+      if (!s.command || pickedSkills.includes(s.name)) continue
       const option: Option = { id: `skill-${s.name}`, kind: 'skill', skill: s }
-      candidates.push({
+      commands.push({
         key: option.id,
         title: skillTitle(s.title, s.name),
         keywords: [s.command.slice(1)],
@@ -338,7 +382,7 @@ export function PromptEditor({
   } else if (menu) {
     for (const course of courses) {
       const option: Option = { id: `course-${course.id}`, kind: 'course', course }
-      candidates.push({
+      references.push({
         key: option.id,
         title: courseLabel(course),
         keywords: [course.code ?? '', course.title, course.alias ?? ''],
@@ -347,14 +391,20 @@ export function PromptEditor({
     }
     for (const term of terms) {
       const option: Option = { id: `term-${term.id}`, kind: 'term', term }
-      candidates.push({ key: option.id, title: term.name, keywords: [], option })
+      references.push({ key: option.id, title: term.name, keywords: [], option })
+    }
+    for (const file of courseFiles) {
+      const course = courses.find((c) => c.id === file.course_id)
+      const option: Option = { id: `file-${file.id}`, kind: 'file', file, course }
+      fileCandidates.push({ key: option.id, title: file.display_name, keywords: [], option })
     }
   }
-  const shown = menu
-    ? rank(candidates, menu.query)
-        .slice(0, 8)
-        .map((c) => c.option)
-    : []
+  // In the order they are listed: the arrow keys follow it.
+  const shown = [
+    ...ranked(commands, 8),
+    ...ranked(references, PER_GROUP),
+    ...ranked(fileCandidates, PER_GROUP),
+  ]
   const current = shown[Math.min(active, shown.length - 1)]
 
   // Tiptap keeps the editable state it was created with.
@@ -389,11 +439,13 @@ export function PromptEditor({
     startCompact: () => {
       if (!editor) return
       const compact = chipNode({ kind: 'command', id: 'compact', label: m.assistant_compact() })
-      const lead = leadNode(editor.state.doc)
-      const chain = editor.chain()
-      if (lead) chain.insertContentAt({ from: 1, to: 1 + lead.nodeSize }, compact)
-      else chain.insertContentAt(1, [compact, { type: 'text', text: ' ' }])
-      chain.focus('end').run()
+      if (compactNode(editor.state.doc)) editor.commands.focus('end')
+      else
+        editor
+          .chain()
+          .insertContentAt(1, [compact, { type: 'text', text: ' ' }])
+          .focus('end')
+          .run()
     },
   }))
 
@@ -410,6 +462,8 @@ export function PromptEditor({
       onScope?.(termScope(programId, courseTermId(option.course, terms, undefined)))
     } else if (programId && option.kind === 'term') {
       onScope?.(termScope(programId, option.term.id))
+    } else if (programId && option.kind === 'file' && option.course) {
+      onScope?.(termScope(programId, courseTermId(option.course, terms, undefined)))
     }
   }
 
@@ -474,7 +528,7 @@ export function PromptEditor({
                 <CommandList
                   id={`${id}-menu`}
                   aria-label={
-                    menu?.char === '/' ? m.assistant_skills_menu() : m.assistant_references_menu()
+                    menu?.char === '/' ? m.assistant_skills_menu() : m.assistant_mentions_menu()
                   }
                 >
                   {menu?.char === '/' ? (
@@ -491,11 +545,18 @@ export function PromptEditor({
                       />
                     </>
                   ) : (
-                    <MenuGroup
-                      heading={m.assistant_references_menu()}
-                      options={shown}
-                      onPick={pick}
-                    />
+                    <>
+                      <MenuGroup
+                        heading={m.assistant_references_menu()}
+                        options={shown.filter((o) => o.kind === 'course' || o.kind === 'term')}
+                        onPick={pick}
+                      />
+                      <MenuGroup
+                        heading={m.assistant_files_menu()}
+                        options={shown.filter((o) => o.kind === 'file')}
+                        onPick={pick}
+                      />
+                    </>
                   )}
                 </CommandList>
               </Command>

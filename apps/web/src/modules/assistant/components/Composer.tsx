@@ -1,6 +1,4 @@
-import type { AgentScope, AgentSkillInfo, ContextUsage } from '@semestra/api-client'
-import { agentSkillListOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import type { AgentScope, ContextUsage } from '@semestra/api-client'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
 import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react'
@@ -35,7 +33,7 @@ export type PendingAttachment = {
 
 export type ComposerSubmit = {
   text: string
-  skill: AgentSkillInfo | null
+  /** Skills, courses, terms and files picked with `/` and `@`. */
   references: MessageReference[]
 }
 
@@ -58,9 +56,9 @@ function IconButton({
 }
 
 /**
- * Where the user writes (M12 §6.1): Enter sends and Shift+Enter breaks the line, `/` picks a
- * skill, `@` refers to a course or term (its term becomes where the assistant works), both as
- * chips in the text; files can be attached, pasted or dropped, and a running answer can be
+ * Where the user writes (M12 §6.1): Enter sends and Shift+Enter breaks the line, `/` picks
+ * skills, `@` refers to a course, term or course file (its term becomes where the assistant
+ * works), all as chips in the text; files can be attached, pasted or dropped, and a running answer can be
  * stopped.
  */
 export function Composer({
@@ -113,7 +111,6 @@ export function Composer({
   const editorDoc = useRef<JSONContent | null>(initialContent)
   const fileInput = useRef<HTMLInputElement>(null)
   const submitting = useRef(false)
-  const skills = useQuery({ ...agentSkillListOptions(), staleTime: 5 * 60_000 }).data?.items ?? []
 
   // Creating and focusing the editor (ProseMirror) is a long task: the conversation draws first,
   // with a stand-in of the same size, and the editor takes its place in the next render.
@@ -125,20 +122,19 @@ export function Composer({
   }, [focusInput, editorReady])
 
   const compacting = value.compact && Boolean(onCompact)
-  const skill = value.skill ? (skills.find((s) => s.name === value.skill) ?? null) : null
   const uploading = attachments.some((a) => a.id === null && a.error === null)
   const ready = attachments.filter((a) => a.id !== null)
   const canSend =
     !disabled &&
     !generating &&
     !uploading &&
-    (compacting || value.text.trim() !== '' || ready.length > 0 || skill !== null)
+    (compacting || value.text.trim() !== '' || ready.length > 0)
 
   async function submit() {
     // `canSend` is from the last render: a second Enter before it re-renders would send twice.
     if (!canSend || submitting.current) return
     submitting.current = true
-    const sent: ComposerSubmit = { text: value.text, skill, references: value.references }
+    const sent: ComposerSubmit = { text: value.text, references: value.references }
     const compact = compacting && onCompact
     const doc = editorDoc.current
     editor.current?.setContent(null)

@@ -1,10 +1,14 @@
 """Editing a sent message (M12 实现说明): the later conversation is dropped and answered again."""
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 
+from semestra.modules.agent import attachment_context
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
+from semestra.modules.files.tests.conftest import make_pdf
 
 
 def edit_url(session_id: str, message_id: str) -> str:
@@ -167,3 +171,56 @@ async def test_references_reach_the_model_and_editing_replaces_them(agent: Agent
         {"type": "text", "text": "and @Fall 2026?"},
         {"type": "reference", **term_ref},
     ]
+
+
+async def test_files_picked_with_at_reach_the_model(
+    agent: Agent,
+    model: FakeModel,
+    run_jobs: Callable[[], Awaitable[None]],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(attachment_context, "FULL_TEXT_CHARS", 1000)
+    _, course, _ = await agent.course_with_lab()
+
+    async def upload(name: str, pages: list[str]) -> dict[str, Any]:
+        r = await agent.client.post(
+            f"/courses/{course['id']}/files",
+            files=[("files", (name, make_pdf(pages), "application/pdf"))],
+        )
+        assert r.status_code == 200, r.text
+        return r.json()["items"][0]
+
+    small = await upload("syllabus.pdf", ["Late work loses 10% a day."])
+    big = await upload("notes.pdf", [f"# Week {n}\n" + "lorem ipsum " * 60 for n in range(1, 20)])
+    await run_jobs()
+    session = await agent.session()
+    model.then(say("Sure."))
+    refs = [
+        {"kind": "file", "id": small["id"], "label": "syllabus.pdf"},
+        {"kind": "file", "id": big["id"], "label": "notes.pdf"},
+    ]
+    await agent.send(session["id"], "compare @syllabus.pdf and @notes.pdf", references=refs)
+
+    parts = [p for p in model.prompts(0)[0] if isinstance(p, str)]
+    syllabus = next(p for p in parts if "syllabus.pdf" in p and "course file" in p)
+    assert "Late work loses 10% a day." in syllabus
+    notes = next(i for i, p in enumerate(parts) if "notes.pdf" in p and "course file" in p)
+    assert "--- page 2 ---" in parts[notes]
+    assert "--- page 3 ---" not in parts[notes]
+    assert "files__document__read" in parts[notes + 1]
+    assert "Week 7" in parts[notes + 1]
+    assert "files__document__read" in model.tools_of(0)
+
+
+async def test_a_file_without_text_says_why(agent: Agent, model: FakeModel):
+    _, course, _ = await agent.course_with_lab()
+    r = await agent.client.post(
+        f"/courses/{course['id']}/files",
+        files=[("files", ("notes.pdf", make_pdf(["x"]), "application/pdf"))],
+    )
+    item = r.json()["items"][0]
+    session = await agent.session()
+    model.then(say("Sure."))
+    ref = {"kind": "file", "id": item["id"], "label": "notes.pdf"}
+    await agent.send(session["id"], "read @notes.pdf", references=[ref])
+    assert "not ready yet" in str(model.prompts(0)[0])

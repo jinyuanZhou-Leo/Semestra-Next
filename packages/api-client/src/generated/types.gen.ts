@@ -7962,6 +7962,46 @@ export type ProgramCreateInputBody = {
 };
 
 /**
+ * ProgramFile
+ *
+ * A file as a picker lists it: enough to find it by name and tell where it is.
+ */
+export type ProgramFile = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ProgramFiles
+ */
+export type ProgramFiles = {
+    /**
+     * Items
+     *
+     * Most recently changed first
+     */
+    items: Array<ProgramFile>;
+};
+
+/**
  * ProgramGrades
  */
 export type ProgramGrades = {
@@ -15903,6 +15943,38 @@ export type FilesItemListPinnedResponses = {
 };
 
 export type FilesItemListPinnedResponse = FilesItemListPinnedResponses[keyof FilesItemListPinnedResponses];
+
+export type FilesItemListProgramData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/file-names';
+};
+
+export type FilesItemListProgramErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemListProgramError = FilesItemListProgramErrors[keyof FilesItemListProgramErrors];
+
+export type FilesItemListProgramResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProgramFiles;
+};
+
+export type FilesItemListProgramResponse = FilesItemListProgramResponses[keyof FilesItemListProgramResponses];
 
 export type FilesItemReprocessData = {
     body?: never;

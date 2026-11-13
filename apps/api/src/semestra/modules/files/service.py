@@ -48,6 +48,7 @@ from semestra.modules.files.schemas import (
     ItemOut,
     ItemRef,
     ItemUpdateInput,
+    ProgramFile,
     SourceKind,
     TypeUsage,
 )
@@ -310,6 +311,40 @@ async def pinned(ctx: Ctx, program_id: str) -> list[ItemOut]:
         )
     ).all()
     return await item_outs(ctx, rows)
+
+
+async def program_files(ctx: Ctx, program_id: str) -> list[ProgramFile]:
+    await academics.get_program_row(ctx, program_id)
+    course_ids = await program_course_ids(ctx, program_id)
+    if not course_ids:
+        return []
+    rows = (
+        await ctx.db.execute(
+            select(
+                FilesItem.id,
+                FilesItem.course_id,
+                FilesItem.display_name,
+                FilesItem.mime_type,
+                FilesItem.updated_at,
+            )
+            .where(
+                FilesItem.user_id == ctx.user_id,
+                FilesItem.kind == "file",
+                FilesItem.course_id.in_(course_ids),
+            )
+            .order_by(FilesItem.updated_at.desc(), FilesItem.id)
+        )
+    ).all()
+    return [
+        ProgramFile(
+            id=r.id,
+            course_id=r.course_id,
+            display_name=r.display_name,
+            mime_type=r.mime_type,
+            updated_at=r.updated_at,
+        )
+        for r in rows
+    ]
 
 
 async def program_course_ids(ctx: Ctx, program_id: str, term_id: str | None = None) -> list[str]:

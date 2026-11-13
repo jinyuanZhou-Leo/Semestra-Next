@@ -1,15 +1,17 @@
 import type { Course } from '@semestra/api-client'
-import { BookOpen, CalendarRange, Minimize2, Sparkles } from 'lucide-react'
+import { BookOpen, CalendarRange, FileText, Minimize2, Sparkles } from 'lucide-react'
 import { createContext, use } from 'react'
+import { useDialogTarget } from '@/lib/dialog-target'
 import { courseColor } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
+import { PreviewDialog } from '@/modules/files/components/PreviewDialog'
 import type { Chip } from '../prompt'
 
 /** The Program's courses, for the colour of course chips. */
 export const ChipCourses = createContext<readonly Course[]>([])
 
 /**
- * A skill, `/compact` or a course or term inside the text (M12 §6.1): in the input, where it is
+ * A skill, `/compact`, or a course, term or file inside the text (M12 §6.1): in the input, where it is
  * removed as a whole, and in the sent message.
  */
 export function RefChip({ chip, selected = false }: { chip: Chip; selected?: boolean }) {
@@ -32,10 +34,29 @@ export function RefChip({ chip, selected = false }: { chip: Chip; selected?: boo
         <Minimize2 aria-hidden />
       ) : chip.kind === 'term' ? (
         <CalendarRange aria-hidden />
+      ) : chip.kind === 'file' ? (
+        <FileText aria-hidden />
       ) : (
         <BookOpen aria-hidden style={course ? { color: courseColor(course) } : undefined} />
       )}
       {chip.label}
     </span>
+  )
+}
+
+/** A file chip of a sent message: opens the file's preview (loaded only then). */
+export function FileRefChip({ chip }: { chip: Chip }) {
+  const preview = useDialogTarget<{ itemId: string }>()
+  return (
+    <>
+      <button
+        type="button"
+        className="cursor-pointer rounded-md outline-none hover:[&>span]:bg-foreground/12 focus-visible:ring-3 focus-visible:ring-ring/50"
+        onClick={() => preview.show({ itemId: chip.id })}
+      >
+        <RefChip chip={chip} />
+      </button>
+      <PreviewDialog target={preview.target} {...preview.props} />
+    </>
   )
 }
