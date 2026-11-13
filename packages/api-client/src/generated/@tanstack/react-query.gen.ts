@@ -3562,7 +3562,7 @@ export const layoutsTemplateSaveFromBoardMutation = (options?: Partial<Options<L
 export const lmsActivityListQueryKey = (options?: Options<LmsActivityListData>) => createQueryKey('lmsActivityList', options);
 
 /**
- * What is new on the LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.
+ * What is new on its LMS for a course or a whole term: announcements, grades and new assignments.
  *
  * Newest first, the last 7 days unless `since`. Imported assignments follow the
  * LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the
@@ -3584,7 +3584,7 @@ export const lmsActivityListOptions = (options?: Options<LmsActivityListData>) =
 export const lmsAnnouncementListQueryKey = (options: Options<LmsAnnouncementListData>) => createQueryKey('lmsAnnouncementList', options);
 
 /**
- * Recent announcements of a linked course on Canvas or another LMS, newest first.
+ * Recent announcements of a linked course on its LMS, newest first.
  */
 export const lmsAnnouncementListOptions = (options: Options<LmsAnnouncementListData>) => queryOptions<LmsAnnouncementListResponse, LmsAnnouncementListError, LmsAnnouncementListResponse, ReturnType<typeof lmsAnnouncementListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -3707,7 +3707,7 @@ export const lmsAssignmentImportMutation = (options?: Partial<Options<LmsAssignm
 export const lmsAssignmentListQueryKey = (options: Options<LmsAssignmentListData>) => createQueryKey('lmsAssignmentList', options);
 
 /**
- * Assignments and graded quizzes of a linked course on the LMS (Canvas), with the user's scores and the course total, marked when imported.
+ * Assignments and graded quizzes of a linked course on its LMS, with the user's scores and the course total, marked when imported.
  *
  * For "what is due", "what is missing" and "what did I get": filter by `status`
  * or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
@@ -3849,7 +3849,7 @@ export const lmsConnectionValidateMutation = (options?: Partial<Options<LmsConne
 export const lmsContentReadQueryKey = (options: Options<LmsContentReadData>) => createQueryKey('lmsContentRead', options);
 
 /**
- * Read one item of a course on the LMS (Canvas) in full, as Markdown.
+ * Read one item of a course on its LMS in full, as Markdown.
  *
  * Takes a `ref` from any lms tool (a page, announcement with its replies,
  * assignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's
@@ -3872,7 +3872,7 @@ export const lmsContentReadOptions = (options: Options<LmsContentReadData>) => q
 export const lmsContentReadInfiniteQueryKey = (options: Options<LmsContentReadData>): QueryKey<Options<LmsContentReadData>> => createQueryKey('lmsContentRead', options, true);
 
 /**
- * Read one item of a course on the LMS (Canvas) in full, as Markdown.
+ * Read one item of a course on its LMS in full, as Markdown.
  *
  * Takes a `ref` from any lms tool (a page, announcement with its replies,
  * assignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's
@@ -3907,7 +3907,7 @@ export const lmsContentReadInfiniteOptions = (options: Options<LmsContentReadDat
 export const lmsContentSearchQueryKey = (options: Options<LmsContentSearchData>) => createQueryKey('lmsContentSearch', options);
 
 /**
- * Search everything in a course on the LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.
+ * Search everything in a course on its LMS: pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.
  *
  * Use first when looking for something in the course's LMS (a link, a date, a
  * policy, where the slides are). Words are matched, not meanings: search in the course's
@@ -4012,7 +4012,7 @@ export const lmsCourseLinkUpdateMutation = (options?: Partial<Options<LmsCourseL
 };
 
 /**
- * Link a course to its course on the Program's LMS (Canvas or another).
+ * Link a course to its course on the Program's LMS.
  *
  * Pick the course from lms.course.list. Uses the Program's bound connection
  * (lms.program_not_configured without one: the user connects one in settings).
@@ -4059,7 +4059,7 @@ export const lmsCourseLinkListOptions = (options: Options<LmsCourseLinkListData>
 export const lmsCourseListQueryKey = (options: Options<LmsCourseListData>) => createQueryKey('lmsCourseList', options);
 
 /**
- * The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.
+ * The user's courses on the Program's LMS, marked when already linked.
  *
  * Current-term courses by default; `include_past` for all of them. To link one
  * to a course here: lms.course.link.set; to create courses from them: lms.course.import.
@@ -4080,7 +4080,7 @@ export const lmsCourseListOptions = (options: Options<LmsCourseListData>) => que
 export const lmsCourseOutlineQueryKey = (options: Options<LmsCourseOutlineData>) => createQueryKey('lmsCourseOutline', options);
 
 /**
- * A course on the LMS (Canvas) at a glance: its modules with every item, in order.
+ * A course on its LMS at a glance: its modules with every item, in order.
  *
  * Each item has a `ref` to read it with lms.content.read (external links and
  * tools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas
@@ -4104,7 +4104,7 @@ export const lmsCourseOutlineOptions = (options: Options<LmsCourseOutlineData>) 
 export const lmsCourseOutlineInfiniteQueryKey = (options: Options<LmsCourseOutlineData>): QueryKey<Options<LmsCourseOutlineData>> => createQueryKey('lmsCourseOutline', options, true);
 
 /**
- * A course on the LMS (Canvas) at a glance: its modules with every item, in order.
+ * A course on its LMS at a glance: its modules with every item, in order.
  *
  * Each item has a `ref` to read it with lms.content.read (external links and
  * tools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas
@@ -4286,7 +4286,7 @@ export const lmsFolderGetOptions = (options: Options<LmsFolderGetData>) => query
 export const lmsGradeListQueryKey = (options: Options<LmsGradeListData>) => createQueryKey('lmsGradeList', options);
 
 /**
- * The user's grades on Canvas or another LMS for a linked course.
+ * The user's grades on its LMS for a linked course.
  *
  * The course total first, then one row per assignment, with score, points possible
  * and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
@@ -4514,7 +4514,7 @@ export const lmsSubmissionGetOptions = (options: Options<LmsSubmissionGetData>) 
 export const lmsSyllabusGetQueryKey = (options: Options<LmsSyllabusGetData>) => createQueryKey('lmsSyllabusGet', options);
 
 /**
- * The syllabus of a linked course on Canvas or another LMS.
+ * The syllabus of a linked course on its LMS.
  *
  * To extract its grading scheme use lms.syllabus.import.
  */
