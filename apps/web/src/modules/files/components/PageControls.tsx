@@ -5,8 +5,23 @@ import { Button } from '@/ui/button'
 import { Separator } from '@/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 
-/** Zoom steps of the PDF viewer, as a share of the width that fits the window. */
-export const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3] as const
+/** Zoom steps of the PDF viewer's buttons, as a share of the width that fits the window. */
+export const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const
+/** The range the zoom can be set to: typed, or by Ctrl/⌘ + the mouse wheel. */
+export const MIN_ZOOM = 0.25
+export const MAX_ZOOM = 5
+
+export function clampZoom(zoom: number) {
+  return Math.min(Math.max(zoom, MIN_ZOOM), MAX_ZOOM)
+}
+
+/** The next step above or below `zoom`; none when it is already at the end. */
+function stepFrom(zoom: number, direction: 1 | -1) {
+  const eps = 0.001
+  return direction > 0
+    ? ZOOM_STEPS.find((z) => z > zoom + eps)
+    : ZOOM_STEPS.findLast((z) => z < zoom - eps)
+}
 
 function IconButton({
   label,
@@ -60,7 +75,15 @@ export function PageControls({
 }) {
   // What the page box shows while it is being edited; otherwise it follows the page.
   const [draft, setDraft] = useState<string | null>(null)
-  const step = zoom === undefined ? -1 : ZOOM_STEPS.findIndex((z) => z >= zoom)
+  // What the zoom box shows while it is being edited; otherwise it follows the zoom.
+  const [zoomDraft, setZoomDraft] = useState<string | null>(null)
+  const applyZoom = () => {
+    const n = Number(zoomDraft?.replace('%', ''))
+    if (onZoom && Number.isFinite(n) && n > 0) onZoom(clampZoom(n / 100))
+    setZoomDraft(null)
+  }
+  const smaller = zoom === undefined ? undefined : stepFrom(zoom, -1)
+  const larger = zoom === undefined ? undefined : stepFrom(zoom, 1)
   return (
     <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-popover p-1 shadow-lg ring-1 ring-foreground/10 animate-in duration-200 fade-in-0 slide-in-from-bottom-2">
       <IconButton
@@ -110,30 +133,41 @@ export function PageControls({
           />
           <IconButton
             label={m.files_preview_zoom_out()}
-            disabled={step <= 0}
-            onClick={() => onZoom(ZOOM_STEPS[Math.max(step - 1, 0)] ?? 1)}
+            disabled={smaller === undefined}
+            onClick={() => onZoom(smaller ?? zoom)}
           >
             <Minus aria-hidden />
           </IconButton>
           <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label={m.files_preview_zoom_fit()}
-                  className="h-7 w-12 rounded-md text-center text-sm text-muted-foreground tabular-nums hover:bg-muted hover:text-foreground"
-                  onClick={() => onZoom(1)}
-                />
-              }
+            <form
+              onSubmit={(event) => {
+                event.preventDefault()
+                applyZoom()
+              }}
             >
-              {Math.round(zoom * 100)}%
-            </TooltipTrigger>
-            <TooltipContent>{m.files_preview_zoom_fit()}</TooltipContent>
+              <TooltipTrigger
+                render={
+                  <input
+                    aria-label={m.files_preview_zoom()}
+                    inputMode="numeric"
+                    className="h-7 w-14 rounded-md bg-transparent text-center text-sm text-muted-foreground tabular-nums outline-none hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+                    value={zoomDraft ?? `${Math.round(zoom * 100)}%`}
+                    onFocus={(event) => {
+                      setZoomDraft(event.target.value)
+                      event.target.select()
+                    }}
+                    onChange={(event) => setZoomDraft(event.target.value)}
+                    onBlur={applyZoom}
+                  />
+                }
+              />
+            </form>
+            <TooltipContent>{m.files_preview_zoom_hint()}</TooltipContent>
           </Tooltip>
           <IconButton
             label={m.files_preview_zoom_in()}
-            disabled={step >= ZOOM_STEPS.length - 1}
-            onClick={() => onZoom(ZOOM_STEPS[Math.min(step + 1, ZOOM_STEPS.length - 1)] ?? 1)}
+            disabled={larger === undefined}
+            onClick={() => onZoom(larger ?? zoom)}
           >
             <Plus aria-hidden />
           </IconButton>

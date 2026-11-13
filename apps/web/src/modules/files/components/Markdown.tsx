@@ -32,7 +32,16 @@ function MarkdownLink({ href, children }: ComponentProps<'a'>) {
   )
 }
 
-const COMPONENTS: Components = { img: NoImage, a: MarkdownLink }
+/** A wide table scrolls on its own instead of pushing the page wider. */
+function MarkdownTable({ children }: ComponentProps<'table'>) {
+  return (
+    <div className="overflow-x-auto">
+      <table>{children}</table>
+    </div>
+  )
+}
+
+const COMPONENTS: Components = { img: NoImage, a: MarkdownLink, table: MarkdownTable }
 
 /**
  * Markdown from a file (a .md upload, or the text the pipeline extracted). Raw HTML in it is not
@@ -52,7 +61,7 @@ export function Markdown({ children, className }: { children: string; className?
         '[&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1',
         '[&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3',
         '[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
-        '[&_table]:w-full [&_table]:text-xs [&_td]:border [&_td]:px-2 [&_td]:py-1',
+        '[&_table]:w-full [&_table]:text-xs [&_td]:min-w-28 [&_th]:min-w-28 [&_td]:border [&_td]:px-2 [&_td]:py-1',
         '[&_th]:border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left',
         className,
       )}

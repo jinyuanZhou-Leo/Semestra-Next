@@ -141,7 +141,7 @@ export function ChoiceControl<T extends string>({
           {follow ? <SelectItem value={FOLLOW}>{follow.full}</SelectItem> : null}
           {options.map((o) => (
             <SelectItem key={o.value} value={o.value} disabled={o.disabled}>
-              {o.icon ? <o.icon aria-hidden /> : null}
+              {o.icon ? <o.icon aria-hidden className="self-center" /> : null}
               {o.hint ? (
                 <span className="flex flex-col gap-0.5 whitespace-normal">
                   {o.label}

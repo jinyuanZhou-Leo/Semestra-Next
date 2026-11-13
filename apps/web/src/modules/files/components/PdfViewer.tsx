@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/ui/alert'
 import { Spinner } from '@/ui/spinner'
 import { highlightHtml } from '../highlight'
 import type { PageTarget } from '../page-target'
-import { PageControls } from './PageControls'
+import { clampZoom, PageControls } from './PageControls'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -76,6 +76,61 @@ export function PdfViewer({
   }
   totalSize += PADDING_END
 
+  // Ctrl/⌘ + the wheel (a trackpad pinch arrives the same way) zooms around the pointer. While
+  // the gesture runs the pages are only scaled with CSS (like pdf.js's own viewer); once it has
+  // paused the new width is applied, so the pages are not redrawn on every wheel event.
+  const content = useRef<HTMLDivElement>(null)
+  const latest = useRef({ zoom, starts, heightOf })
+  useEffect(() => {
+    latest.current = { zoom, starts, heightOf }
+  })
+  const gesture = useRef<{ ratio: number; x: number; y: number; timer?: number } | null>(null)
+  // After a gesture: where the pointer was, so the same spot stays under it.
+  const pinned = useRef<{ x: number; y: number; ratio: number } | null>(null)
+  useEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const box = element.getBoundingClientRect()
+      const g = (gesture.current ??= {
+        ratio: 1,
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      })
+      // One notch of a mouse wheel (deltaY ≈ 100) is about 10%; a pinch sends small deltas.
+      const delta = Math.max(Math.min(event.deltaY, 10), -10)
+      const base = latest.current.zoom
+      g.ratio = clampZoom(base * g.ratio * Math.exp(-delta * 0.01)) / base
+      const node = content.current
+      if (node) {
+        node.style.transformOrigin = `${element.scrollLeft + g.x}px ${element.scrollTop + g.y}px`
+        node.style.transform = `scale(${g.ratio})`
+      }
+      window.clearTimeout(g.timer)
+      g.timer = window.setTimeout(() => {
+        gesture.current = null
+        const { zoom: current, starts: at, heightOf: heightAt } = latest.current
+        const top = element.scrollTop + g.y
+        const index = Math.max(
+          at.findLastIndex((start) => start <= top),
+          0,
+        )
+        const size = heightAt(index) + GAP
+        anchor.current = {
+          index,
+          fraction: Math.min(Math.max((top - (at[index] ?? 0)) / size, 0), 1),
+        }
+        pinned.current = { x: g.x, y: g.y, ratio: g.ratio }
+        if (content.current) content.current.style.transform = ''
+        setZoom(clampZoom(current * g.ratio))
+      }, 150)
+    }
+    element.addEventListener('wheel', onWheel, { passive: false })
+    return () => element.removeEventListener('wheel', onWheel)
+  }, [])
+
   // The React Compiler leaves this component uncompiled: the virtualizer is one mutable object
   // that re-renders it on scroll, and cached reads from it would go stale.
   // oxlint-disable-next-line react/incompatible-library -- see above
@@ -112,7 +167,11 @@ export function PdfViewer({
     const at = anchor.current
     const element = scroller.current
     if (!at || !element || at.index >= pageCount) return
-    element.scrollTop = (starts[at.index] ?? 0) + at.fraction * (heightOf(at.index) + GAP)
+    const pin = pinned.current
+    pinned.current = null
+    element.scrollTop =
+      (starts[at.index] ?? 0) + at.fraction * (heightOf(at.index) + GAP) - (pin?.y ?? 0)
+    if (pin) element.scrollLeft = (element.scrollLeft + pin.x) * pin.ratio - pin.x
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- `starts` and `heightOf` follow these
   }, [virtualizer, pageWidth, shapes])
 
@@ -187,6 +246,7 @@ export function PdfViewer({
           }
         >
           <div
+            ref={content}
             className="relative"
             style={{
               height: totalSize,
