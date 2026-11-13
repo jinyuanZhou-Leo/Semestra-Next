@@ -187,6 +187,8 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     # Relative addresses point at the platform, as they do there, not at the app.
     assert 'href="https://fake/courses/101/pages/cover.html"' in page["html"]
     assert 'src="https://fake/images/logo.png"' in page["html"]
+    # A table's own grid stays, for the "Canvas style" display.
+    assert '<table border="1" cellpadding="4">' in page["html"]
 
     fake.calls.clear()
     await api.call("GET", f"/courses/{course}/lms/announcements")

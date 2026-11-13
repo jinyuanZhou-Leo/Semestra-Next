@@ -80,12 +80,25 @@ function FileIcon({ file }: { file: FileMeta }) {
   return <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
 }
 
+/** The name opens the preview, as in the modules; a locked file's name is plain text. */
 function NameCell({ row }: CellProps) {
+  const { openFile } = useCanvasPage()
+  const f = row.original
+  const label = (
+    <>
+      <FileIcon file={f} />
+      <span className="truncate">{f.name}</span>
+    </>
+  )
+  if (f.locked) return <span className="flex min-w-0 items-center gap-2.5">{label}</span>
   return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      <FileIcon file={row.original} />
-      <span className="truncate">{row.original.name}</span>
-    </span>
+    <Button
+      variant="link"
+      className="h-auto max-w-full min-w-0 justify-start gap-2.5 p-0 font-normal text-foreground"
+      onClick={() => openFile(f.external_id)}
+    >
+      {label}
+    </Button>
   )
 }
 

@@ -1,7 +1,7 @@
 import { type FileMeta, lmsFileContent, lmsFileSaveToCourse } from '@semestra/api-client'
 import { lmsFileGetOptions, lmsFilePreviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Eye, FileQuestion, FolderInput } from 'lucide-react'
+import { Download, FileQuestion, FolderInput } from 'lucide-react'
 import { type ReactNode, Suspense, useState } from 'react'
 import { toast } from 'sonner'
 import type { DialogTargetProps } from '@/lib/dialog-target'
@@ -150,19 +150,12 @@ function useSaveToCourse(fileId: string, name: string) {
   return { saving, save }
 }
 
-/** Preview, download and save buttons of a file in a module. */
+/** Download and save buttons of a file; its name opens the preview. */
 export function FileActions({ fileId, name }: { fileId: string; name: string }) {
-  const { courseId, openFile } = useCanvasPage()
+  const { courseId } = useCanvasPage()
   const { saving, save } = useSaveToCourse(fileId, name)
   return (
     <div className="flex shrink-0 items-center">
-      <IconAction
-        label={m.canvas_tab_file_preview({ name })}
-        tooltip={m.canvas_tab_file_preview_short()}
-        onClick={() => openFile(fileId)}
-      >
-        <Eye aria-hidden />
-      </IconAction>
       <IconAction
         label={m.canvas_tab_file_download({ name })}
         tooltip={m.canvas_tab_file_download_short()}

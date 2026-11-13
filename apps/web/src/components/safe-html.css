@@ -9,6 +9,8 @@
   --lms-ink: oklch(0.34 0.025 240);
   --lms-link: oklch(0.53 0.14 245);
   --lms-rule: oklch(0.85 0.01 240);
+  /* The browser's own color for a `border` attribute grid. */
+  --lms-grid: oklch(0.6 0 0);
   color-scheme: light;
   background-color: var(--lms-paper);
   color: var(--lms-ink);
@@ -86,17 +88,156 @@
   max-width: 100%;
   height: auto;
 }
+/*
+ * Tables as Canvas draws them: no styles of its own beyond collapsing borders when the author set
+ * no `cellspacing`, so the grid comes from the editor's `border` attribute and inline styles. The
+ * browser maps `border` to the table and its cells; Tailwind's preflight removes that, so it is
+ * restored here (`cellpadding` becomes inline padding in `SafeHtml`).
+ */
+.lms-original :where(table:not([cellspacing])) {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+/* The browser maps `cellspacing` to `border-spacing`, which only applies to separate borders. */
+.lms-original :where(table[cellspacing]) {
+  border-collapse: separate;
+}
 .lms-original :where(th, td) {
-  padding: 0.25em 0.5em;
-  vertical-align: top;
+  padding: 1px;
 }
 .lms-original :where(th) {
   text-align: left;
   font-weight: 700;
 }
+.lms-original :where(table[border]:not([border='0'])) {
+  border: 1px solid var(--lms-grid);
+}
+.lms-original :where(table[border]:not([border='0'])) :where(th, td) {
+  border: 1px solid var(--lms-grid);
+}
 .lms-original > :first-child {
   margin-top: 0;
 }
 .lms-original > :last-child {
+  margin-bottom: 0;
+}
+
+/*
+ * `SafeHtml` simplified: `@tailwindcss/typography` (`prose`) in the app's tokens, so it follows
+ * the theme and accent. Tables get the look of the app's own tables: a rounded frame, row rules
+ * and a muted header row, without the full grid editors draw.
+ */
+.lms-simplified {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--muted);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+/* The accent is a deep color; on a dark page links mix in some text color to stay readable. */
+.dark .lms-simplified {
+  --tw-prose-links: color-mix(in oklab, var(--primary), var(--foreground) 40%);
+}
+
+.lms-simplified h1,
+.lms-simplified h2,
+.lms-simplified h3,
+.lms-simplified h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+}
+/* A step below the view's own title, which names the page. */
+.lms-simplified h1 {
+  font-size: 1.5em;
+}
+.lms-simplified h2 {
+  font-size: 1.3em;
+}
+.lms-simplified h3 {
+  font-size: 1.125em;
+}
+.lms-simplified h4 {
+  font-size: 1em;
+}
+
+/* Text keeps a comfortable line length at any depth (templates wrap the whole page in a div);
+ * tables, images and code may use the whole width. */
+.lms-simplified :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, h5, h6):not(:is(td, th, li) *) {
+  max-width: 72ch;
+}
+
+.lms-simplified a {
+  font-weight: inherit;
+  text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+}
+.lms-simplified a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Headings that are links (a page's own menu) read as headings. */
+.lms-simplified h1 a,
+.lms-simplified h2 a,
+.lms-simplified h3 a,
+.lms-simplified h4 a {
+  font-weight: 600;
+}
+
+.lms-simplified img {
+  border-radius: calc(var(--radius) * 1.2);
+}
+
+.lms-simplified table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) * 1.6);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.lms-simplified thead th {
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+.lms-simplified th,
+.lms-simplified td {
+  padding: 0.5em 0.85em;
+  line-height: 1.5;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+.lms-simplified tr:last-child > td {
+  border-bottom: 0;
+}
+.lms-simplified :is(th, td) > :first-child {
+  margin-top: 0;
+}
+.lms-simplified :is(th, td) > :last-child {
+  margin-bottom: 0;
+}
+.lms-simplified td p {
+  margin: 0;
+}
+.lms-simplified td p + p {
+  margin-top: 0.25em;
+}
+.lms-simplified > :first-child {
+  margin-top: 0;
+}
+.lms-simplified > :last-child {
   margin-bottom: 0;
 }

@@ -48,10 +48,8 @@ function sanitize(html: string, original: boolean): string {
  * Points marked images (`img[data-lms-kind]`) at the app's own address for them, keeping the
  * platform's address in `data-original-src` for `fallBackToOriginal`.
  */
-function withImages(html: string, imageSrc: (link: InternalLink) => string | null): string {
-  const template = document.createElement('template')
-  template.innerHTML = html
-  for (const img of template.content.querySelectorAll('img[data-lms-kind][data-lms-ref]')) {
+function pointImages(root: DocumentFragment, imageSrc: (link: InternalLink) => string | null) {
+  for (const img of root.querySelectorAll('img[data-lms-kind][data-lms-ref]')) {
     const src = imageSrc({
       kind: img.getAttribute('data-lms-kind') ?? '',
       ref: img.getAttribute('data-lms-ref') ?? '',
@@ -61,6 +59,86 @@ function withImages(html: string, imageSrc: (link: InternalLink) => string | nul
     if (original && /^https?:/i.test(original)) img.setAttribute('data-original-src', original)
     img.setAttribute('src', src)
   }
+}
+
+/** Only spaces, `&nbsp;` and line breaks. */
+function isBlank(el: Element): boolean {
+  return (
+    !el.querySelector('img, iframe, video, audio, table, hr') &&
+    (el.textContent ?? '').replace(/[\s\u00a0]/g, '') === ''
+  )
+}
+
+/** The element's text is all inside one `<strong>`/`<b>` (spans around it don't count). */
+function isAllBold(el: Element): boolean {
+  const text = (el.textContent ?? '').trim()
+  if (!text) return false
+  const bold = el.querySelector('strong, b')
+  return bold !== null && (bold.textContent ?? '').trim() === text && !el.querySelector('a, img')
+}
+
+/** A short bold line that doesn't end like a sentence ("Labs", not "Late work gets 0."). */
+function looksLikeHeading(el: Element): boolean {
+  const text = (el.textContent ?? '').trim()
+  return isAllBold(el) && text.length <= 80 && !/[.!?。！？]$/.test(text)
+}
+
+function rename(el: Element, tag: string): Element {
+  const next = el.ownerDocument.createElement(tag)
+  next.append(...el.childNodes)
+  el.replaceWith(next)
+  return next
+}
+
+/**
+ * Rich text editors leave structure the simplified display can't style: blank paragraphs used as
+ * spacing, a bold paragraph standing in for a heading, a table whose first row of bold cells is
+ * its header. This gives them their real elements, so the app's typography applies.
+ */
+function restoreStructure(root: DocumentFragment) {
+  for (const el of root.querySelectorAll('p, div')) {
+    if (isBlank(el)) el.remove()
+  }
+  for (const el of root.querySelectorAll('p')) {
+    if (el.parentElement?.closest('td, th, li')) continue
+    if (looksLikeHeading(el)) rename(el, 'h3')
+  }
+  for (const table of root.querySelectorAll('table')) {
+    if (table.querySelector('thead, th')) continue
+    const first = table.querySelector('tr')
+    const cells = first ? Array.from(first.children) : []
+    if (cells.length < 2 || !cells.some(isAllBold)) continue
+    if (!cells.every((c) => isBlank(c) || isAllBold(c))) continue
+    const head = table.ownerDocument.createElement('thead')
+    for (const cell of cells) rename(cell, 'th')
+    head.append(first!)
+    table.prepend(head)
+  }
+}
+
+/** `cellpadding` as inline padding on cells without their own: the browser maps the attribute,
+ * but Tailwind's preflight sets every padding to 0 above it. */
+function applyCellPadding(root: DocumentFragment) {
+  for (const table of root.querySelectorAll('table[cellpadding]')) {
+    const padding = Number.parseInt(table.getAttribute('cellpadding') ?? '', 10)
+    if (!Number.isFinite(padding)) continue
+    for (const cell of table.querySelectorAll<HTMLElement>('th, td')) {
+      if (cell.closest('table') === table && !cell.style.padding)
+        cell.style.padding = `${padding}px`
+    }
+  }
+}
+
+function prepare(
+  html: string,
+  original: boolean,
+  imageSrc: ((link: InternalLink) => string | null) | undefined,
+): string {
+  const template = document.createElement('template')
+  template.innerHTML = html
+  if (original) applyCellPadding(template.content)
+  else restoreStructure(template.content)
+  if (imageSrc) pointImages(template.content, imageSrc)
   return template.innerHTML
 }
 
@@ -84,25 +162,15 @@ function fallBackToOriginal(node: HTMLDivElement | null) {
   return () => node.removeEventListener('error', onError, true)
 }
 
-const SIMPLIFIED = cn(
-  'min-w-0 text-sm leading-relaxed break-words',
-  '[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2',
-  '[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6',
-  '[&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:font-heading [&_h1]:text-xl [&_h1]:font-semibold',
-  '[&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:font-heading [&_h2]:text-lg [&_h2]:font-semibold',
-  '[&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:font-semibold',
-  '[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
-  '[&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_code]:font-mono',
-  '[&_hr]:my-4 [&_img]:h-auto [&_img]:max-w-full',
-  '[&_table]:my-3 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto',
-  '[&_td]:border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:px-2 [&_th]:py-1 [&_th]:text-left',
-  '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
-)
+/** Reading typography (`@tailwindcss/typography`) in the app's tokens (`safe-html.css`); text
+ * keeps a comfortable line length there, tables scroll sideways when they don't fit. */
+const SIMPLIFIED = 'lms-simplified prose prose-sm min-w-0 max-w-none break-words sm:prose-base'
 
 /**
  * HTML from outside the app (LMS pages, announcements, syllabi), cleaned once more in the browser
- * although the backend already did (M00, M16 §4). By default it takes the app's typography and
- * drops inline styles; `original` keeps the safe inline styles on a light sheet with the
+ * although the backend already did (M00, M16 §4). By default it takes the app's reading typography
+ * and drops inline styles, giving editor leftovers (bold paragraphs as headings, blank paragraphs
+ * as spacing) their real structure; `original` keeps the safe inline styles on a light sheet with the
  * platform's base typography (`safe-html.css`), in the dark theme too, since the author's colors
  * assume a light page. Images load lazily, wide tables scroll sideways, links open in a new tab; `onInternalLink` takes over links into the platform that the
  * app can open itself, and `imageSrc` loads marked images from the app (a platform file whose own
@@ -144,7 +212,7 @@ export function SafeHtml({
       onClick={onClick}
       ref={imageSrc ? fallBackToOriginal : undefined}
       // oxlint-disable-next-line react/no-danger -- sanitized just above
-      dangerouslySetInnerHTML={{ __html: imageSrc ? withImages(clean, imageSrc) : clean }}
+      dangerouslySetInnerHTML={{ __html: prepare(clean, original, imageSrc) }}
     />
   )
 }

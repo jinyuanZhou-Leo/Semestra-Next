@@ -35,7 +35,7 @@ defineModule({
 - 插件详情页注明"需要先在设置中添加 Canvas 连接并关联课程"。
 
 ## 3. 页面结构
-- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里）：导航栏顶部是"Canvas"小标签与课程代码、学期，底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
+- 布局：左侧粘性导航栏（宽屏）或顶部下拉选择（窄屏），右侧内容区。没有单独的顶部栏（课程名已在 PageHeader 里，"Canvas"是页签名，所以导航栏顶部不再重复课程代码、学期和"Canvas"标签）：导航栏底部是"更新于…"（`overview.fetched_at`）、"刷新"（调用 `lms.course.refresh`）与"在 Canvas 中打开"两个图标按钮；窄屏时这组控件放在下拉旁边。M09 导出的 `<LmsUpdatesBanner>` 在内容区上方。
 - 导航栏数据：`lms.course.overview.navigation`。显示规则：
   - 内置类型 `home`、`announcements`、`assignments`、`grades`、`modules`、`pages`、`quizzes`、`syllabus` 使用本插件的原生视图。
   - `files`、`discussions` 隐藏（与旧版一致）。
@@ -94,7 +94,7 @@ defineModule({
 - 公告列表的未读点来自 Canvas 公告（DiscussionTopic）的 `read_state`，M09 映射为 `Announcement.unread`；列表有 5 分钟缓存，在 Canvas 里读过后要等缓存过期或点"刷新"才消失。
 - 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.assignment.import`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选（Base UI 的勾选框是 span，生成样式里的 `disabled:` 匹配不到，所以调用方加 `data-disabled:` 让它变淡）。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。表格用 `table-fixed` 和固定列宽（名称列占剩余宽度），展开描述或折叠分组时列不移动。
 - 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
-- 单元条目：页面/作业/测验在插件内打开，文件有预览、下载、"保存到课程文件"三个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
+- 单元条目：页面/作业/测验在插件内打开，点文件名打开预览，行尾有下载、"保存到课程文件"两个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
 - **文件预览**：M07 的 `PreviewDialog` 只认 M07 自己的文件条目（`itemId`），不能预览 LMS 文件，所以插件自带一个对话框，图片用 `<img>`，PDF 与纯文本用 iframe（后端以 `Content-Security-Policy: default-src 'none'` 和 nosniff 提供内容，因此 iframe 不加 sandbox，否则浏览器的 PDF 阅读器不工作），其它类型只提供下载。M07 的预览以后若支持任意内容地址，再改用它。M07 未安装时"保存到课程文件"返回 `lms.feature_unsupported`，界面提示"暂时无法保存到课程文件"。
 - Syllabus 的"智能导入"用 `<AiAction>` 包在 `<AiRequired purpose="extraction">` 里，调用 `lms.syllabus.import` 后打开 M08 审核。
 - 读接口出错用 `Alert`（不是空状态）：`lms.invalid_credentials`、`lms.credentials_missing` 带"打开连接设置"（全局设置 → 学习平台）；`lms.forbidden` 在读接口上表示这一项内容对该账户不可见（课程关了 Pages、未解锁的文件等，M09 不会因此把连接标为出错），显示"你没有权限查看这项内容"和"在 Canvas 中打开"；其它错误（包括 `lms.rate_limited`，文案带秒数）用 destructive 样式，显示原因与"重试"。加载用骨架。
@@ -127,3 +127,10 @@ defineModule({
   - **统一预览**：`files/components/PreviewShell.tsx` 是课程文件预览和 Canvas 文件预览共用的外框（标题、“类型 · 大小”副标题、底部按钮）。Canvas 预览底部是“保存到课程文件”和“下载”，课程文件预览是“在新标签页打开”和“下载”。Canvas 的 PDF 改用 M07 的 `PdfViewer`（不再用浏览器 iframe）。类型名函数移到 `files/kinds.ts` 的 `fileKindName`，文案前缀改为 `files_kind_*`。
   - M08 导入会话失败（例如没有可导入的内容）时，`SessionView` 显示 `Empty` + 原因 + “关闭”，不再是撑满对话框的红色 `Alert`。
 - 课程作业打通第 3 步（2026-11-07，PR #255）：导入只剩一个"导入 N 项"按钮（`importAssignments`，打开 M08 审核）；"Semestra"一列用文字写去向："已加入成绩簿"（链接到成绩簿并定位该考核）/"已加入待办"（链接到课程待办页）/灰色"未加入"，练习测验留空（2026-11-08 起，此前是图标与待办勾选圈，用户看不懂）；行末 `RowMenu`："加入成绩簿"（仅导入为待办的作业，`lms.assignment.add_to_gradebook`）、"在 Canvas 中打开"。页面顶部（更新提示下）显示 M09 的新作业提示。
+- **阅读排版与单元（2026-11-13）**：
+  - 左侧菜单顶部去掉"Canvas"小标签和课程代码、学期（页面头和页签名已经写了）。
+  - "简洁"显示改用 `@tailwindcss/typography`（`prose`，在 `theme.css` 用 `@plugin` 引入），`components/safe-html.css` 的 `.lms-simplified` 把 prose 的颜色变量映射到主题令牌（暗色下链接混入前景色以保证对比度），标题用 Figtree 并比视图标题低一级；任意层级的正文块（段落、列表、标题、引用；表格和列表里的除外）每行最多约 72 个字符，表格、图片、代码块可以用满宽度。表格是圆角外框 + 行分隔线 + 浅灰表头，放不下时横向滚动。
+  - `SafeHtml` 在简洁模式下净化后整理一次结构（`restoreStructure`）：去掉只有空白/`&nbsp;`/换行的段落，整段只有一个加粗（不在表格、列表里，不含链接，80 字以内，不以句号、问号、感叹号结尾）的段落换成 `h3`，首行至少一个单元格加粗、其余为加粗或空且没有表头的表格把首行变成 `thead > th`。Canvas 样式不做这些改动。
+  - 单元：所有单元放在一个圆角列表里（分隔线分开，方案 A）；展开状态提到视图里，标题行右侧有"全部展开/全部收起"。单元标题行右侧显示状态：未解锁是锁 + 解锁日期，完成是对勾 +"已完成"，有完成要求的显示细进度条 + "完成数/总数"（列表没带条目时，用展开后加载的条目计算），否则是条目数；`unlock_at` 在未来时总是显示解锁日期（非学生身份没有 `state`）；去掉"已完成/进行中/未解锁"徽章。条目的截止日期只显示月日（悬停看完整时间），已逾期只把文字标红，0 分不显示分值；子标题与条目标题对齐。
+  - 文件行只有"下载"和"保存到课程文件"两个按钮：点文件名打开预览（单元和"文件"页一致），不再有单独的预览按钮。
+  - "Canvas 样式"不对表格做任何美化：Canvas 自己只在没有 `cellspacing` 时合并边框（有 `cellspacing` 时是 `separate`，否则 preflight 的 collapse 会吃掉间距），网格来自编辑器的 `border` 属性。M09 清洗时保留 `table` 的 `border`/`cellpadding`/`cellspacing`；`.lms-original` 按浏览器的做法补回 `border` 属性画的网格（Tailwind preflight 会把它清掉），`cellpadding` 由 `SafeHtml` 转成单元格内联 padding（只补作者没写的方向），单元格默认 1px 内边距。旧缓存在刷新或过期前仍没有这些属性。

@@ -2,8 +2,9 @@ import type { Completion, Module, ModuleItem } from '@semestra/api-client'
 import { lmsModuleItemListOptions, lmsModuleListOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
-  ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Circle,
   CircleAlert,
   CircleCheck,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useDialogTarget } from '@/lib/dialog-target'
-import { formatDateTime } from '@/lib/format'
+import { formatDate, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
@@ -35,12 +36,12 @@ import {
 } from '@/ui/alert-dialog'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
-import { Badge } from '@/ui/badge'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Progress } from '@/ui/progress'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { ViewHeader } from './common'
+import { IconAction, ViewHeader } from './common'
 import { refLocation } from '../navigation'
 import { openExternal } from '../open-in-canvas'
 import { FileActions } from './FilePreview'
@@ -57,108 +58,175 @@ export function ModulesView({ selected }: { selected?: string }) {
     ...lmsModuleListOptions({ path: { course_id: courseId } }),
     placeholderData: keepPreviousData,
   })
+  // Which modules are open; until the user opens or closes one, the one being worked through
+  // (and the one a link pointed at) are.
+  const [opened, setOpened] = useState<ReadonlySet<string> | null>(null)
+  const modules = (list.data?.items ?? []).toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  const open =
+    opened ??
+    new Set(
+      modules
+        .filter((mod) => mod.external_id === selected || mod.state === 'started')
+        .map((mod) => mod.external_id),
+    )
+  const allOpen = modules.length > 0 && modules.every((mod) => open.has(mod.external_id))
+  const toggle = (id: string, next: boolean) => {
+    const set = new Set(open)
+    if (next) set.add(id)
+    else set.delete(id)
+    setOpened(set)
+  }
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <ViewHeader title={title} />
-      <>
-        <CanvasBoundary
-          query={list}
-          isEmpty={(data) => data.items.length === 0}
-          empty={
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Layers aria-hidden />
-                </EmptyMedia>
-                <EmptyTitle>{m.canvas_tab_modules_empty()}</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          }
-        >
-          {(data) => {
-            const names = new Map(data.items.map((mod) => [mod.external_id, mod.name]))
-            return (
-              <div className="space-y-2">
-                {data.items
-                  .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
-                  .map((module) => (
-                    <ModuleSection
-                      key={module.external_id}
-                      module={module}
-                      names={names}
-                      focused={selected === module.external_id}
-                      onExternal={confirmUrl.show}
-                    />
-                  ))}
-              </div>
-            )
-          }}
-        </CanvasBoundary>
-        <AlertDialog {...confirmUrl.props}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
-              <AlertDialogDescription className="break-all">
-                {confirmUrl.target}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (confirmUrl.target) openExternal(confirmUrl.target)
-                  confirmUrl.close()
-                }}
-              >
-                {m.canvas_tab_external_confirm_open()}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </>
+      <ViewHeader
+        title={title}
+        tools={
+          modules.length > 1 ? (
+            <IconAction
+              label={
+                allOpen ? m.canvas_tab_modules_collapse_all() : m.canvas_tab_modules_expand_all()
+              }
+              onClick={() =>
+                setOpened(new Set(allOpen ? [] : modules.map((mod) => mod.external_id)))
+              }
+            >
+              {allOpen ? <ChevronsDownUp aria-hidden /> : <ChevronsUpDown aria-hidden />}
+            </IconAction>
+          ) : null
+        }
+      />
+      <CanvasBoundary
+        query={list}
+        isEmpty={(data) => data.items.length === 0}
+        empty={
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Layers aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.canvas_tab_modules_empty()}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        }
+      >
+        {(data) => {
+          const names = new Map(data.items.map((mod) => [mod.external_id, mod.name]))
+          return (
+            <div className="divide-y overflow-hidden rounded-2xl border">
+              {modules.map((module) => (
+                <ModuleSection
+                  key={module.external_id}
+                  module={module}
+                  names={names}
+                  focused={selected === module.external_id}
+                  open={open.has(module.external_id)}
+                  onOpenChange={(next) => toggle(module.external_id, next)}
+                  onExternal={confirmUrl.show}
+                />
+              ))}
+            </div>
+          )
+        }}
+      </CanvasBoundary>
+      <AlertDialog {...confirmUrl.props}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{m.canvas_tab_external_confirm_title()}</AlertDialogTitle>
+            <AlertDialogDescription className="break-all">
+              {confirmUrl.target}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmUrl.target) openExternal(confirmUrl.target)
+                confirmUrl.close()
+              }}
+            >
+              {m.canvas_tab_external_confirm_open()}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-/** The user's progress in a module, as Canvas reports it; nothing for "unlocked". */
-function ModuleState({ module }: { module: Module }) {
-  if (module.state === 'completed') {
-    return <Badge variant="secondary">{m.canvas_tab_module_completed()}</Badge>
-  }
-  if (module.state === 'started') {
-    return <Badge variant="outline">{m.canvas_tab_module_started()}</Badge>
-  }
-  if (module.state === 'locked') {
+/**
+ * Where the user stands in a module, at the end of its header: when it unlocks, a check once
+ * it is done, "2/5" while items with requirements are left, else how many items it has. The
+ * items are the module's own or, when the list left them out, those loaded on opening it.
+ */
+function ModuleStatus({ module, items }: { module: Module; items: ModuleItem[] | undefined }) {
+  const [now] = useState(Date.now)
+  // Only students get `state`; anyone else still sees when a module opens.
+  const unlocks =
+    module.unlock_at && new Date(module.unlock_at).getTime() > now ? module.unlock_at : null
+  if (module.state === 'locked' || unlocks) {
     return (
-      <Badge variant="outline">
-        <Lock aria-hidden />
-        {m.canvas_tab_module_locked()}
-      </Badge>
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <Lock aria-hidden className="size-3.5" />
+        {unlocks
+          ? m.canvas_tab_unlocks_at({ time: formatDate(unlocks, { short: true }) })
+          : m.canvas_tab_module_locked()}
+      </span>
     )
   }
-  return null
+  const required = (items ?? []).filter((i) => i.completion)
+  const done = required.filter((i) => i.completion?.completed).length
+  if (module.state === 'completed' || (required.length > 0 && done === required.length)) {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <CircleCheck aria-hidden className="size-4 text-primary" />
+        {m.canvas_tab_module_completed()}
+      </span>
+    )
+  }
+  if (required.length > 0) {
+    return (
+      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+        <Progress
+          value={(done / required.length) * 100}
+          aria-label={m.canvas_tab_module_progress({ done, total: required.length })}
+          className="w-16 *:data-[slot=progress-track]:h-1.5"
+        />
+        {m.canvas_tab_module_progress({ done, total: required.length })}
+      </span>
+    )
+  }
+  return (
+    <span className="shrink-0 text-xs text-muted-foreground">
+      {m.canvas_tab_module_items({ count: module.item_count ?? items?.length ?? 0 })}
+    </span>
+  )
 }
 
 function ModuleSection({
   module,
   names,
   focused,
+  open,
+  onOpenChange,
   onExternal,
 }: {
   module: Module
   names: ReadonlyMap<string, string>
   focused: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onExternal: (url: string) => void
 }) {
-  // The module the user is working through opens by itself.
-  const [open, setOpen] = useState(focused || module.state === 'started')
+  const { courseId } = useCanvasPage()
   const ref = useScrollIntoView<HTMLDivElement>(focused ? module.external_id : undefined)
-  const meta = [
-    m.canvas_tab_module_items({ count: module.item_count ?? 0 }),
-    module.unlock_at ? m.canvas_tab_unlocks_at({ time: formatDateTime(module.unlock_at) }) : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  // The items `ModuleItems` loads when the list left them out; read here, never fetched here.
+  const loaded = useQuery({
+    ...lmsModuleItemListOptions({
+      path: { course_id: courseId, module_id: module.external_id },
+    }),
+    enabled: false,
+  })
+  const items = module.items ?? loaded.data?.items
   const prerequisites = (module.prerequisite_module_ids ?? [])
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))
@@ -169,30 +237,35 @@ function ModuleSection({
     module.require_sequential_progress ? m.canvas_tab_module_sequential() : null,
   ].filter(Boolean)
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div ref={ref} className="rounded-2xl border">
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <div ref={ref}>
         <CollapsibleTrigger
           render={
             // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left hover:bg-muted/50"
+              className="group/module flex w-full items-center gap-3 px-4 py-3 text-left outline-none hover:bg-muted/50 focus-visible:bg-muted/50"
             />
           }
         >
-          {open ? (
-            <ChevronDown aria-hidden className="size-4 shrink-0" />
-          ) : (
-            <ChevronRight aria-hidden className="size-4 shrink-0" />
-          )}
-          <span className="min-w-0 flex-1 truncate font-medium">{module.name}</span>
-          <ModuleState module={module} />
-          <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
+          <ChevronRight
+            aria-hidden
+            className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[panel-open]/module:rotate-90 motion-reduce:transition-none"
+          />
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm font-medium',
+              module.state === 'locked' && 'text-muted-foreground',
+            )}
+          >
+            {module.name}
+          </span>
+          <ModuleStatus module={module} items={items} />
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="space-y-2 border-t px-3 py-2">
+        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-[ending-style]:h-0 data-[starting-style]:h-0 motion-reduce:transition-none">
+          <div className="space-y-1 px-2 pb-2">
             {notes.length > 0 ? (
-              <p className="text-xs text-muted-foreground">{notes.join(' · ')}</p>
+              <p className="px-9 pb-1 text-xs text-muted-foreground">{notes.join(' · ')}</p>
             ) : null}
             {module.items ? (
               <ItemList items={module.items} onExternal={onExternal} />
@@ -235,7 +308,9 @@ function ModuleItems({
       query={items}
       skeleton={<ListSkeleton rows={3} />}
       isEmpty={(data) => data.items.length === 0}
-      empty={<p className="py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>}
+      empty={
+        <p className="px-9 py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>
+      }
     >
       {(data) => <ItemList items={data.items} onExternal={onExternal} />}
     </CanvasBoundary>
@@ -250,14 +325,14 @@ function ItemList({
   onExternal: (url: string) => void
 }) {
   if (items.length === 0) {
-    return <p className="py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>
+    return <p className="px-9 py-1 text-xs text-muted-foreground">{m.canvas_tab_module_empty()}</p>
   }
   return (
-    <ul className="space-y-0.5">
+    <ul>
       {items
         .toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((item) => (
-          <li key={item.external_id} style={{ paddingLeft: `${(item.indent ?? 0) * 1.25}rem` }}>
+          <li key={item.external_id} style={{ paddingLeft: `${(item.indent ?? 0) * 1.5}rem` }}>
             <ModuleItemRow item={item} onExternal={onExternal} />
           </li>
         ))}
@@ -329,9 +404,7 @@ function CompletionMark({ completion, overdue }: { completion: Completion; overd
 }
 
 /**
- * One item: its link (and lock) take the room; due date and points, the actions (file buttons
- * or the external-link mark) and the completion check sit in fixed columns at the end, so they
- * line up from row to row.
+ * One item: its link (and lock) take the room; the due date and points, the file actions and the completion check sit at the end, lined up from row to row.
  */
 function ModuleItemRow({
   item,
@@ -342,7 +415,7 @@ function ModuleItemRow({
 }) {
   const [now] = useState(Date.now)
   if (item.kind === 'subheader') {
-    return <p className="pt-2 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
+    return <p className="px-9 pt-3 pb-1 text-xs font-medium text-muted-foreground">{item.title}</p>
   }
   const completion = item.completion
   const overdue =
@@ -350,9 +423,12 @@ function ModuleItemRow({
     !completion.completed &&
     item.due_at != null &&
     new Date(item.due_at).getTime() < now
+  const due = item.due_at
+    ? m.canvas_tab_due_at({ time: formatDate(item.due_at, { short: true }) })
+    : null
   const meta = [
-    item.due_at ? m.canvas_tab_due_at({ time: formatDateTime(item.due_at) }) : null,
-    item.points != null ? m.canvas_tab_points({ points: item.points }) : null,
+    overdue ? m.canvas_tab_overdue() : due,
+    item.points != null && item.points > 0 ? m.canvas_tab_points({ points: item.points }) : null,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -360,27 +436,26 @@ function ModuleItemRow({
   const leaves =
     !file && !(item.target && refLocation(item.target)) && (item.external_url || item.web_url)
   return (
-    <div className="flex min-h-8 items-center gap-2">
+    <div className="group/row flex min-h-9 items-center gap-2 rounded-lg pr-2 hover:bg-muted/50 has-focus-visible:bg-muted/50">
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <ModuleItemLink item={item} onExternal={onExternal} />
         {item.locked ? <LockIcon explanation={item.lock_explanation} /> : null}
+        {leaves ? (
+          <ExternalLink aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        ) : null}
       </div>
+      {file ? <FileActions fileId={file} name={item.title} /> : null}
       {meta ? (
         <span
+          title={item.due_at ? formatDateTime(item.due_at) : undefined}
           className={cn(
-            'hidden shrink-0 text-xs whitespace-nowrap sm:inline',
+            'hidden shrink-0 text-xs whitespace-nowrap tabular-nums sm:inline',
             overdue ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {overdue ? `${m.canvas_tab_overdue()} · ${meta}` : meta}
+          {meta}
         </span>
       ) : null}
-      <div className="flex w-24 shrink-0 items-center justify-end">
-        {file ? <FileActions fileId={file} name={item.title} /> : null}
-        {leaves ? (
-          <ExternalLink aria-hidden className="mr-2 size-3.5 text-muted-foreground" />
-        ) : null}
-      </div>
       <span className="flex w-5 shrink-0 justify-center">
         {completion ? <CompletionMark completion={completion} overdue={overdue} /> : null}
       </span>
@@ -403,7 +478,8 @@ function ModuleItemLink({
       <span className="min-w-0 truncate">{item.title}</span>
     </>
   )
-  const rowClass = 'h-auto min-h-8 min-w-0 justify-start gap-2 px-2 py-1 font-normal'
+  const rowClass =
+    'h-auto min-h-9 min-w-0 justify-start gap-3 px-2 py-1 font-normal hover:bg-transparent'
 
   if (item.kind === 'file' && item.target) {
     const fileId = item.target.ref
@@ -439,7 +515,7 @@ function ModuleItemLink({
       </Button>
     )
   }
-  return <span className="flex min-w-0 items-center gap-2 px-2 py-1 text-sm">{label}</span>
+  return <span className="flex min-w-0 items-center gap-3 px-2 py-1 text-sm">{label}</span>
 }
 
 /** A file's name opens its preview, like the eye button next to it. */
@@ -449,7 +525,7 @@ function FileName({ fileId, children }: { fileId: string; children: ReactNode })
     <Button
       variant="ghost"
       size="sm"
-      className="h-auto min-h-8 min-w-0 justify-start gap-2 px-2 py-1 font-normal"
+      className="h-auto min-h-9 min-w-0 justify-start gap-3 px-2 py-1 font-normal hover:bg-transparent"
       onClick={() => openFile(fileId)}
     >
       {children}
