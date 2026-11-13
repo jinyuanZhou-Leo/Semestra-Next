@@ -29,9 +29,9 @@ docker compose exec semestra semestra ocr-models --all
 
 ## 本机 embedding
 
-默认镜像还会在服务器上计算搜索用的向量，不接 AI 服务商也能在文件里做语义搜索。它用 ONNX Runtime 跑 Hugging Face 上的
+默认镜像还会在服务器上计算搜索用的向量，不接 模型服务商也能在文件里做语义搜索。它用 ONNX Runtime 跑 Hugging Face 上的
 [ONNX](https://onnx.ai) 模型，只用 CPU。用户已经有带 embedding 模型的服务商（或服务器配置了
-[全实例服务商](/docs/ai/instance-provider)）时，**自动**会继续用它；没有时才用本机的默认模型。用户也可以在 AI 设置 → 模型的
+[全实例模型服务商](/docs/self-hosting/instance-provider)）时，**自动**会继续用它；没有时才用本机的默认模型。用户也可以在 AI 设置 → 模型的
 **搜索**一行里选模型：
 
 | 模型                    | 说明                                                          |

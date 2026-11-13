@@ -1,32 +1,25 @@
 ---
-title: Ollama 与本地模型
-description: 接入在你自己机器上运行的模型，以及它需要的开关。
+title: Ollama
+description: 使用在你自己的电脑或服务器上运行的模型。
 ---
 
-Ollama 和其他服务商一样使用：在 **AI → 服务商** 里添加 **Ollama**，填入它的地址，例如 `http://192.168.1.20:11434`。Semestra
-通过 Ollama 在 `/v1` 下的 OpenAI 兼容接口通信，`/v1` 会自动加上。不需要密钥。
-
-## 私有网络开关
-
-Ollama 通常运行在 `localhost` 或局域网地址上，而 Semestra 服务器默认拒绝访问私有、回环和链路本地地址，除非设置
-`SEMESTRA_ALLOW_PRIVATE_EGRESS=true`。这个检查防止共享服务器被用来访问它自己的内网。
-
-| Semestra 运行在哪里                 | 默认值  | 需要做什么                                                |
-| ----------------------------------- | ------- | --------------------------------------------------------- |
-| 用 `deploy/selfhost` 自部署         | `true`  | 无                                                        |
-| 本地开发（`pnpm dev`）              | `false` | 启动 API 时加上 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`      |
-| 托管版                              | `false` | 只能使用公网可访问的 Ollama                               |
+用 [Ollama](https://ollama.com) 可以在自己的电脑或服务器上运行模型，不需要 API 密钥，也没有用量费用。在 **AI → 模型服务商**里添加 **Ollama**，填入它的地址，例如 `http://192.168.1.20:11434`。
 
 ## 填哪个地址
 
-这个地址是**由 Semestra 服务器**访问的，不是你的浏览器。
+这个地址是由 Semestra 服务器访问的，而不是你的浏览器：
 
-- Semestra 在 Docker 里、Ollama 在同一台宿主机上：`localhost` 指的是容器自己。请填宿主机的局域网地址，或使用内置的 Ollama 容器（见下文）。
-- Ollama 在另一台机器上：用 `OLLAMA_HOST=0.0.0.0` 启动，让它监听 localhost 以外的地址，然后填那台机器的地址。
+- **托管版**：只能使用公网可以访问的 Ollama。
+- **自部署**：局域网地址也可以。Semestra 在 Docker 里、Ollama 在同一台机器上时，`localhost` 指的是容器自己，请填这台机器的局域网地址，或使用下面内置的 Ollama 容器。
+- **Ollama 在另一台机器上**：用 `OLLAMA_HOST=0.0.0.0` 启动它，让其他机器能连上，再填那台机器的地址。
+
+## 选择模型的能力
+
+Ollama 默认勾选对话、调用工具、按格式输出和文件搜索。模型不支持工具调用时取消勾选**调用工具**；只有能看懂图片的模型才勾选**读取图片**。
 
 ## 内置的 Ollama 容器
 
-自部署的 compose 文件有一个 `ai-local` profile，会在 Semestra 旁边运行 Ollama：
+自部署时，compose 文件可以在 Semestra 旁边运行 Ollama：
 
 ```bash
 docker compose --profile ai-local up -d
@@ -34,9 +27,4 @@ docker compose exec ollama ollama pull qwen3:8b
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-在 compose 网络里它的地址是 `http://ollama:11434`。可以把它添加为服务商，也可以设为[全实例服务商](./instance-provider.mdx)，让每个用户无需配置就能使用。
-用 GPU 运行 Ollama 需要 NVIDIA Container Toolkit 和一个 compose override 文件，详见 Ollama 的文档。
-
-## 能力
-
-Ollama 的默认能力是对话、工具调用、结构化输出和向量。模型不支持工具调用时取消勾选**工具调用**；只有多模态模型才勾选**图片**。
+这时它的地址是 `http://ollama:11434`。也可以把它设为[全实例模型服务商](/docs/self-hosting/instance-provider)，让每个用户不用设置就能使用。在 GPU 上运行 Ollama 请参考 Ollama 的文档。

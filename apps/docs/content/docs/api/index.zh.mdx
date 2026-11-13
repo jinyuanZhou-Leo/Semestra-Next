@@ -16,7 +16,7 @@ API 位于服务器根路径：在自部署实例上就是网页应用的地址�
 - 大多数操作是**能力（capability）**：同一个定义同时是 HTTP 接口、Sem 的工具，其中很多也是 [MCP 工具](/docs/mcp/tools)。读取用 `GET` 加查询参数，
   修改用 JSON 请求体；动作的路径形如 `POST /tasks/{task_id}:complete`。
 - 响应带有 `X-Request-ID` 头；你也可以发送自己的 `X-Request-ID` 来关联日志。
-- `X-Semestra-Scope: program:<id>;term:<id>;course:<id>` 告诉服务器你正在查看哪个学业项目、学期或课程（在需要时）。
+- `X-Semestra-Scope: program:<id>;term:<id>;course:<id>` 告诉服务器你正在查看哪个 Program、学期或课程（在需要时）。
 - 服务器有需要本地化的文本时，会用用户的语言回答；请发送 `Accept-Language`（`en` 或 `zh-CN`）。
 
 ## 错误
@@ -41,7 +41,7 @@ API 位于服务器根路径：在自部署实例上就是网页应用的地址�
 | 403    | `auth.token_scope`       | API 令牌不能调用这个接口（只读令牌，或该接口不对 MCP 开放）|
 | 403    | `auth.csrf_failed`       | 使用 cookie 的请求缺少 CSRF 请求头                         |
 | 404    | `common.not_found`       | id 不存在，或属于其他用户                                  |
-| 409    | `ai.not_configured`      | 没有能满足该用途的 AI 服务商                               |
+| 409    | `ai.not_configured`      | 没有能满足该用途的 模型服务商                               |
 | 422    | `common.validation`      | 输入无效；`params.errors` 列出 `{loc, code, msg}`          |
 
 ## 实时更新

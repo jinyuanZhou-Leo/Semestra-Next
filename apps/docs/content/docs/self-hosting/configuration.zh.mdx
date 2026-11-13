@@ -63,7 +63,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 
 | 变量                                   | 默认值 | 含义                                       |
 | -------------------------------------- | ------ | ------------------------------------------ |
-| `SEMESTRA_INSTANCE_AI_KIND`            | （空） | 全实例服务商的类型                         |
+| `SEMESTRA_INSTANCE_AI_KIND`            | （空） | 全实例模型服务商的类型                         |
 | `SEMESTRA_INSTANCE_AI_BASE_URL`        | （空） | 它的接口地址                               |
 | `SEMESTRA_INSTANCE_AI_CHAT_MODEL`      | （空） | 用于对话、读取文档和生成标题的模型         |
 | `SEMESTRA_INSTANCE_AI_EMBEDDING_MODEL` | （空） | 用于搜索的向量模型                         |
@@ -71,7 +71,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`    | 同时发给它的请求数上限（0：不限）；配置较低的 Ollama 服务器可设为 `1` |
 | `SEMESTRA_AI_WARM_UP`                  | `true` | 启动后在后台预先加载 AI 相关库             |
 
-见[全实例服务商](/docs/ai/instance-provider)。
+见[全实例模型服务商](/docs/self-hosting/instance-provider)。
 
 ## 本机 OCR
 
@@ -111,7 +111,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | 变量                       | 默认值   | 含义                                                   |
 | -------------------------- | -------- | ------------------------------------------------------ |
 | `SEMESTRA_SECRET_KEY`      | 自动生成 | 签发会话和令牌                                         |
-| `SEMESTRA_ENCRYPTION_KEY`  | 自动生成 | 加密已保存的服务商密钥和 Canvas 令牌的 Fernet 密钥     |
+| `SEMESTRA_ENCRYPTION_KEY`  | 自动生成 | 加密已保存的模型服务商的 API 密钥和 LMS 访问令牌的 Fernet 密钥     |
 | `SEMESTRA_LOG_LEVEL`       | `INFO`   | 日志级别                                               |
 | `SEMESTRA_SENTRY_DSN`      | （空）   | 把错误报告给 Sentry；为空则关闭                        |
 

@@ -1,23 +1,14 @@
 ---
-title: Connect Canvas
-description: Link Semestra to your Canvas account, a program and its courses.
+title: Connect your LMS
+description: Connect your school's Canvas so courses, assignments and grades stay in sync.
 ---
 
-Semestra connects to an LMS (learning management system) through providers. Canvas is the only provider today.
-A connection reads from Canvas with your own credentials. Semestra changes nothing on Canvas
-unless you turn on **Allow changes on the platform** under global settings → **LMS →
-Platform access**; for now that only marks an announcement read on Canvas when you open it in Semestra.
+Once your school's LMS is connected, you can import courses and assignments directly, and when
+grades or due dates change on Canvas, Semestra follows. Canvas is supported today.
 
-There are three levels, each set up once:
-
-| Level      | Where                                                     | What it holds                                         |
-| ---------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| Connection | Global settings → **LMS → LMS connections**               | Canvas address and credentials. You can have several  |
-| Program    | Program settings → **LMS → LMS**                          | Which connection this program's courses use           |
-| Course     | Course settings → **LMS → LMS**                           | Which Canvas course this course is linked to          |
-
-During onboarding, a new account can add a connection before its first term; it becomes the new
-program's connection, and the term wizard can then import courses from Canvas.
+Semestra only reads from Canvas and doesn't change anything there. Only if you turn on **Allow
+changes on the platform** in global settings → **LMS → Platform access** does it mark announcements
+you read in Semestra as read on Canvas.
 
 ## 1. Add a connection
 
@@ -30,163 +21,80 @@ integrations_. Copy the token; Canvas shows it only once.
 </Step>
 <Step>
 
-In Semestra, add an LMS connection, pick **Canvas**, and enter your Canvas address (for example
-`https://school.instructure.com`; `https://` is added if you leave it out) and the token.
-
-</Step>
-<Step>
-
-Semestra checks the token against Canvas before saving. The token is stored encrypted and only a
-masked hint is shown afterwards. Changing the address requires entering the token again, so a
-saved token is never sent to a different server.
+In global settings → **LMS**, add a connection, choose **Canvas**, and enter your school's Canvas
+address (for example `https://school.instructure.com`) and the access token. Semestra checks that it
+works before saving.
 
 </Step>
 </Steps>
 
-Each sync also checks the connection. A connection whose token was revoked or expired is marked
-with an error, and the sidebar's status line asks you to reconnect, until you update it. Its panel shows what is waiting, dimmed, with a **Reconnect** button that opens the connection settings.
+Access tokens are stored encrypted. If a token expires or is revoked, the sidebar asks you to
+reconnect.
+
+New users can also add a connection during onboarding, then import courses from Canvas when
+creating their first term.
 
 ### Sign in with a school account
 
-Self-hosted instances that set [`SEMESTRA_LMS_CANVAS_SIGN_IN`](/docs/self-hosting/features#canvas-school-account-sign-in)
-can connect without making a token: when you add a connection, choose **School account** instead
-of **API token**. Read the notice about the risks and continue if you accept them, then follow the
-three steps. Whether to use this is your decision, and Semestra accepts no responsibility for any
-consequences.
+Some self-hosted instances let you sign in to Canvas with your school account instead of creating
+a token. When adding a connection, choose **School account**, enter your Canvas address, sign in on
+your school's page, and paste back the full address of the page you end up on. That last page
+saying “Page Not Found” is expected.
 
-<Steps>
-<Step>
+<Callout type="warn">
+  This sign-in isn't one Canvas offers to third-party apps. It may be against your school's rules,
+  may stop working at any time, and may sign you out of the Canvas app on your phone. Using it is
+  your decision; if you're unsure, use an access token.
+</Callout>
 
-Enter your Canvas address, which must use `https://`.
+For how an administrator turns it on, see
+[Self-hosting → Optional features](/docs/self-hosting/features#canvas-school-account-sign-in).
 
-</Step>
-<Step>
+## 2. Choose a connection for a program
 
-Choose **Open Canvas login**, sign in on your school's page and finish any verification. Semestra
-never sees your password.
-
-</Step>
-<Step>
-
-Canvas stops on a “Page Not Found” page at `sso.canvaslms.com`. That is expected: the address
-carries the sign-in code. Copy its full address into **Address after sign-in**
-and choose **Check and save**. The code in it lasts a few minutes, so sign in again if it has expired.
-
-</Step>
-</Steps>
-
-Semestra stores the resulting tokens encrypted and renews the access token on its own, so the
-connection lasts until the sign-in is ended. Deleting the connection or replacing its sign-in also
-tries to end the old sign-in on Canvas. If that fails, for example because Canvas can't be reached,
-remove **Semestra** yourself under _Approved integrations_ in Canvas. Removing it there makes the
-connection show an error until you sign in again.
-
-This method uses the Canvas Android app's OAuth client and identifies itself as that app. Instructure
-does not offer it for third-party apps: it may be against your school's policies or the Canvas
-terms, and it can stop working at any time. Signing in here might also sign you out of the Canvas
-app on your phone, or the other way round. Canvas sites that the mobile apps don't know, such as
-many on-premises ones, can't use it. If you are unsure, use a personal access token.
-
-## 2. Bind a program
-
-In the program's settings, choose the connection its courses use. While any course of the
-program is linked, the binding cannot be changed or removed.
+In program settings → **LMS**, choose the connection this program's courses use.
 
 ## 3. Link courses
 
-Either [import courses from Canvas](./imports.mdx), which links them as they are created, or
-pick the Canvas course in an existing course's settings → **LMS → LMS**. A Canvas course
-can be linked to only one course per program, and a year-long course has a single link. The same
-place syncs the course now, links a different course or unlinks it.
+Courses you [import from Canvas](./imports.mdx) are linked automatically. For an existing course,
+choose its Canvas course in course settings → **LMS**.
 
-Each link has a **Sync this course** switch. When it is off, the course no longer syncs in the
-background and its Canvas calendar events leave the calendar; the Canvas tab and Sem can still read
-the course.
+To stop syncing a course, turn off **Sync this course**. It then no longer updates and its Canvas
+calendar events are hidden, but you can still read it in the Canvas tab and ask Sem about it.
 
-## Background sync
+## Automatic sync
 
-Linked courses sync in the background, so you don't have to open a page for Semestra to notice
-what changed on Canvas. They sync every six hours by default; pick another interval under global
-settings → **LMS → Background sync**. Opening a program also syncs its
-courses that haven't synced in the last half hour. The shortest interval on offer is set by the
-server ([`SEMESTRA_LMS_SYNC_MIN_INTERVAL`](/docs/self-hosting/configuration) when you host it
-yourself).
+Linked courses sync in the background, without you opening anything. Change how often in global
+settings → **LMS → Background sync**, or choose **Sync now** at any time.
 
-- **Imported assignments follow Canvas.** When an assignment's name, due date, weight or grade
-  changes on Canvas, Semestra updates it here, unless you changed that value yourself. If both
-  sides changed, it asks which one to keep, field by field. To look over a kind of change first, turn it off
-  under global settings → **LMS → Update automatically** (names, due dates,
-  weights, grades): those changes then wait for you to keep or update.
-- **New assignments are offered, not added.** Assignments due later that you haven't imported wait
-  in the status line's panel, where you can **Import** or **Ignore** them.
-- **Deleted on Canvas**: an imported assignment that is gone from Canvas is kept until you choose
-  to keep or delete it.
+- **Imported assignments follow Canvas**: when a name, due date, weight or grade changes on Canvas,
+  Semestra updates it. Values you changed yourself aren't overwritten; if both sides changed, you
+  choose which to keep. To review a kind of change first, turn it off in global settings → **LMS →
+  Update automatically**.
+- **New assignments wait for you**: new assignments on Canvas aren't added on their own; import or
+  ignore them.
+- **Assignments deleted on Canvas** are kept until you decide whether to delete them.
+- **Tasks complete when you submit**: when you submit an assignment on Canvas, its task is
+  completed.
 
-The status line at the bottom of the sidebar shows the sync: when it last ran, or how many items
-wait for you. Click it for the details: **Sync now**, the items to review, recent updates and the
-assignments you ignored, which you can import later or be reminded of again. **Sync LMS** in the command
-palette does the same. Nothing pops up over the page: the status line is
-where the sync tells you things.
+Sync status is shown at the bottom of the sidebar: when it last ran, or how many items are waiting
+for you. Open it to see what needs you and the recent updates. Updates from the last 14 days can be
+undone.
 
-A recent update (kept for 14 days) can be undone, and undoing it can be redone, as long as it is
-the latest change to that value and you haven't changed the value yourself since. An undone value
-stays yours: if Canvas changes it again, you're asked which to keep.
+Values you changed that no longer match Canvas are listed separately, and each can go back to the
+Canvas value in one step.
 
-Values you changed yourself that no longer match Canvas, including ones you chose to keep when asked, are listed under **Different from Canvas**,
-a collapsible group in the panel; each can go back to the Canvas value in one click. When you edit an assessment or a to-do, such a field has the same button beside it:
-hover it to see the Canvas value, click it and save. Going back shows up in recent updates, so it
-can be undone.
+## What else you get
 
-## What you get from a link
-
-- **Canvas tab** (a plugin, installed per account): announcements, assignments and grades (quizzes and
-  grades in one list), modules, pages, files and the syllabus of the linked course, read live from
-  Canvas. Tabs the
-  app can't show itself, such as People or Piazza, open in Canvas.
-  Modules show how far you are in each one. Pages, announcements, assignment descriptions and
-  the syllabus use Semestra's reading typography by default (bold lines become headings, tables
-  get a clean header row); **Canvas style** keeps their colors and layout from Canvas (except styles from the
-  school's theme files). The menu next to the title switches for the moment; the default is under
-  **Settings → Plugins → Canvas tab**.
-- **Calendar**: Canvas calendar events of courses with **Sync this course** on
-  appear in the term calendar with a Canvas mark, and their details offer **Open in Canvas**.
-  Assignments appear once you import them, as to-dos.
-- **To-dos that follow submissions**: when an imported assignment shows as submitted in Canvas,
-  its to-do is checked off (whether it was imported as a to-do or as an assessment). Each
-  assignment is checked off once, so a to-do you uncheck stays open. Semestra checks on each
-  sync. Turn it off under
-  global settings → **LMS → To-dos**.
-- **Announcements card** for course and term boards.
-- **Sem and MCP** can search and read the course (see below and [MCP tools](/docs/mcp/tools)).
-
-Reads are cached for five minutes; refreshing in the Canvas tab reads the course again right
-away. The Canvas tab also keeps what you opened in this browser for two weeks: opening it again
-shows that right away while the latest version loads, with the refresh icon spinning until it
-arrives. Signing out deletes it.
-
-## Ask Sem about Canvas
-
-Sem knows which of your courses are linked, and looks on Canvas as well as in the course's files.
-It can:
-
-- search everything in a course at once: pages (their full text), announcements, assignments,
-  quizzes, discussions, the syllabus, file names and links;
-- read any of them in full, including an assignment's rubric and your teacher's comments, or a
-  Canvas link you paste;
-- list what is new in a course or a whole term (announcements, grades, new or changed
-  assignments) and what is due or missing.
-
-When an instructor hides part of a course, such as its Pages or Files list, Sem still reads the
-pages and files placed in the modules, and says what it could not see. Everything Sem brings
-into the app (assignments, courses, changes, a syllabus's grading scheme) goes through an import
-you review first.
-
-## Self-hosted Canvas
-
-A Canvas server on a private network, or one served over plain `http://`, needs
-`SEMESTRA_ALLOW_PRIVATE_EGRESS=true` (the default of the self-hosting compose file). On the hosted
-version only public `https://` addresses work.
+- **Canvas tab**: read a course's announcements, assignments and grades, modules, pages, files and
+  syllabus without leaving Semestra. Content uses easy-to-read typography by default, or Canvas's own
+  style if you prefer.
+- **Calendar**: Canvas calendar events appear in your term calendar.
+- **Announcements card**: keep the latest announcements on a course or term page.
+- **Ask Sem**: Sem can search and read everything in a course on Canvas, including assignment
+  instructions, rubrics and your instructor's comments, and tell you about new announcements, new
+  grades and what's due. Anything Sem brings in goes through an import you review first.
 
 ## Not supported yet
 
-New Quizzes and discussion checkpoints are not read.
+New Quizzes and discussion checkpoints can't be read yet.

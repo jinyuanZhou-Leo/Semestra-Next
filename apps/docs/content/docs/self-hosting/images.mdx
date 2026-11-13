@@ -38,7 +38,7 @@ With the smaller image, users choose a provider's model for **OCR** and **Search
 The default image also turns text into vectors for search on the server, so semantic search in
 files works without an AI provider. It runs [ONNX](https://onnx.ai) models from Hugging Face on
 ONNX Runtime, CPU only. When a user has a provider (or the server has an
-[instance-wide provider](/docs/ai/instance-provider)) with an embedding model, **Auto** keeps using
+[instance-wide provider](/docs/self-hosting/instance-provider)) with an embedding model, **Auto** keeps using
 that; otherwise it uses the local default. Users can also pick a model in the **Search** row of AI
 settings → Models:
 

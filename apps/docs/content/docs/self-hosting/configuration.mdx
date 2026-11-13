@@ -73,7 +73,7 @@ loopback or link-local address: AI base URLs with `common.egress_blocked`, Canva
 | `SEMESTRA_INSTANCE_AI_MAX_CONCURRENCY` | `0`     | Most requests sent to it at once (0: no limit); e.g. `1` for a small Ollama server |
 | `SEMESTRA_AI_WARM_UP`                  | `true`  | Load the AI libraries in the background after start        |
 
-See [Instance-wide provider](/docs/ai/instance-provider).
+See [Instance-wide provider](/docs/self-hosting/instance-provider).
 
 ## Local OCR
 
@@ -113,7 +113,7 @@ Only in the default image; see [Images](./images.mdx#local-embedding).
 | Variable                   | Default                  | Meaning                                                                 |
 | -------------------------- | ------------------------ | ----------------------------------------------------------------------- |
 | `SEMESTRA_SECRET_KEY`      | generated                | Signs sessions and tokens                                               |
-| `SEMESTRA_ENCRYPTION_KEY`  | generated                | Fernet key that encrypts saved provider keys and Canvas tokens          |
+| `SEMESTRA_ENCRYPTION_KEY`  | generated                | Fernet key that encrypts saved provider API keys and LMS access tokens          |
 | `SEMESTRA_LOG_LEVEL`       | `INFO`                   | Log level                                                               |
 | `SEMESTRA_SENTRY_DSN`      | (empty)                  | Error reporting to Sentry; empty turns it off                           |
 

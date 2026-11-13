@@ -1,66 +1,57 @@
 ---
 title: Grades and GPA
-description: Enter scores, see where a course is heading, and plan what the rest of a course or term needs.
+description: Enter scores, see where a course is heading, and plan what the remaining assessments need.
 icon: GraduationCap
 ---
 
-## A course's grades
+Each course's gradebook lists all its assessments. As you enter scores, Semestra works out your
+current grade and GPA, forecasts your final grade, and tells you what you still need to reach
+your target.
 
-The **Grades** tab of a course lists its assessments. Type a score straight into the **Score**
-column: `82` or `82%` is a percentage, `18/20` is points. Weights are typed the same way.
+## Enter scores
 
-Every assessment with a due date has a to-do that follows it: its title, due date and course come
-from the assessment, and it shows in the calendar and on the **To-dos** page. Entering a score,
-or dropping the assessment, finishes the to-do; deleting the assessment deletes it. The **To-do**
-column checks it off right from the table, and the to-do's details show the assessment's weight
-and score with a link back to its row.
+Type scores straight into the gradebook: `82` or `82%` is a percentage, `18/20` is points. Weights
+work the same way.
 
-Above the table, show **All**, **Graded** or **Not graded** assessments, or search
-them by name. **Add** creates an assessment, or imports them from a syllabus or your LMS. The
-**⋯** menu groups the table by category and holds the official grade.
+Add assessments yourself, or import them from a [syllabus](/docs/ai/imports) or your
+[LMS](/docs/lms/imports). An assessment with a due date gets a matching task that shows in your
+calendar and tasks, and the task is completed when you enter a score.
 
-To change several assessments at once, tick the checkboxes in front of them (the one in the
-heading ticks every row shown, and in grouped view each category's row ticks its group). The
-filters then make way for the batch actions: **Category** moves them to one category, **Weight**
-gives each the same weight or splits a total evenly among the ones that count (to the
-hundredth, adding up exactly; dropped ones keep their weight), **Drop from grade** or **Count in grade** switches them together, and **Delete** removes
-them after asking. **Clear selection** or Esc puts the filters back. Only ticked rows that are
-shown count (not ones in a collapsed group), and plan mode has no checkboxes.
+## Change several assessments at once
 
-On the right:
+Select several assessments to change their category, weight or whether they count, or to delete
+them together. You can give each the same weight, or split one total weight evenly among them.
 
-- **Grade breakdown**: the current grade and GPA, and each category's weight and average.
-- **Forecast**: the predicted final grade, with a bar for each assessment still to come. Each one
-  is predicted from its category's average so far, pulled toward the course's average the fewer
-  scores the category has, so one lucky or unlucky score does not decide a whole category; a
-  category with no scores yet uses the course's average. The mark on each bar is the average the target needs.
-- **Target GPA**: pick the grade you are aiming for from your program's scale. Below it is the
-  average the remaining assessments need to reach it. When the program hides grades, this is
-  **Target grade** and lists only the percentage each choice needs.
+## See where a course is heading
 
-## Hiding grades
+- **Grade breakdown**: your current grade and GPA, and each category's weight and average.
+- **Forecast**: your likely final grade based on how you're doing, with an estimate for each
+  assessment still to come. Categories with few scores lean on the course average, so one lucky or
+  unlucky score doesn't decide a whole category.
+- **Target GPA**: pick a target to see the average the remaining assessments need.
 
-Turn on **Hide grades** in the program settings (**Grades**) to show "•••" instead of GPA, letter grades and percentage averages, forecasts and targets. Hover over "•••" (or focus or tap it) to show the value. The scores you type into individual assessments stay visible.
+## Plan the rest of your grades
 
-## Plan mode
+Turn on **Plan** to try out scores for assessments that aren't graded yet and see how your final
+grade changes, without touching your real grades. **Fill in to reach target** fills in scores that
+just reach your target. Your planned scores are kept for next time.
 
-**Plan** lets you try out scores without saving them. Empty assessments show their forecast in
-grey; type a score to replace it. The forecast card turns into the **Planned grade**.
-**Fill in to reach target** fills in scores that just reach your target. **Clear assumptions** removes
-what you typed, and **Exit plan mode** goes back to your real grades. Assumptions are kept for next
-time.
+## Term grades
 
-## A term's grades
+A term's grades page lists each course's grade and GPA. Enter a **Target term GPA** to see the
+average your unfinished courses need, or use **Plan** to enter the final grade you expect in each.
 
-The term's **Grades** page lists its courses with their percentage and GPA. Filter **In
-progress** or **Finished** courses, or search them. The **Unfinished courses** card shows each
-unfinished course's average so far. Enter a **Target term GPA** to see the average the unfinished
-courses need. **Plan** works the same way as for a course: type the final percentage you expect
-in each unfinished course.
+Whether unfinished courses count toward the term GPA at their current grade is set in program
+settings → **Grades** (**Count unfinished courses**).
 
-Whether unfinished courses count in the term GPA at their current average is a program setting:
-program settings → **Grades → Term grades → Count unfinished courses**.
+## Courses that span terms
 
-A course that runs over two or more terms in a row (a full-year course, say) has one final grade.
-Turn on **Year-long course** in course settings → **General**, then pick the terms it starts and ends
-in; if the last term is not added yet, pick **Next term (not added yet)**.
+A course that runs over two or more terms in a row, such as a full-year course, has one final
+grade. Turn on **Year-long course** in course settings → **General**, then choose the terms it starts
+and ends in.
+
+## Hide grades
+
+If you'd rather not see your grades every time you open the app, turn on **Hide grades** in program
+settings → **Grades**. GPA and percentages show as “•••”; point to one to see it. Scores on
+individual assessments stay visible.

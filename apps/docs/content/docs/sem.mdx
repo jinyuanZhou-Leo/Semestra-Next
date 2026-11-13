@@ -1,84 +1,72 @@
 ---
 title: Sem
-description: Sem's suggested questions, its questions to you, how it asks before changing your data, what it remembers, and how it handles long conversations.
+description: Ask Sem questions, have it change your data, and see what it remembers.
 icon: MessageCircle
 ---
 
-Sem is the assistant in Semestra. It needs an [AI provider](/docs/ai) with a model for the **Sem**
-purpose.
+Sem is the AI assistant in Semestra. It can look up your courses, grades, tasks and course files,
+and add or change things for you, asking first before every change. To use Sem, add a
+[provider](/docs/ai) first.
 
-## Conversations
+## Start a conversation
 
-Sem's page lists your conversations in a column beside the open one, pinned first and then by
-day, with a search box and **New conversation** at the top. Rename, pin or delete a conversation
-from its **⋯** menu. On a narrow window the list moves under the **History** button.
+Ask questions or give instructions in plain language, such as “What's due next week?” or “Record
+82 for the MAT135 midterm.” A new conversation suggests a few questions based on your data; pick
+one to get started.
 
-What you type but haven't sent stays with its conversation, together with attached files and,
-for a new conversation, its scope and **Temporary chat** choice. Opening settings, going to
-another page, closing the side panel or moving between the panel and the page keeps it, and Sem's
-entry in the sidebar goes back to the conversation you had open. Drafts last until you reload
-the page.
+You can pin, rename, search and delete conversations. A message you haven't sent, including its
+attachments, stays with its conversation when you go to another page.
 
-## Skills and references
+### Refer to courses and files
 
-Type `/` to pick a skill, a step-by-step workflow Sem follows for that message (recording grades,
-importing from documents, answering from course files…). You can pick several, anywhere in the
-message. `/compact` works only at the start, on its own (see [Long conversations](#long-conversations)).
+Type `@` to refer to a course, a term or a course file, and Sem answers with it in mind. You can
+also drag files into the conversation as attachments.
 
-Type `@` to refer to a course, a term or a course file. Picking a course or file moves the
-conversation to its term. Sem reads a referenced file as it was when you sent the message, the way it reads an attachment: a short one
-whole, a long one by its first pages and headings, reading on as the question needs. Click a file
-in a sent message to preview it.
+### Use skills
 
-## Suggested questions
+Type `/` to pick a skill, a set of steps Sem follows for one job, such as recording grades,
+importing from documents or answering from course files. You can pick several in one message.
 
-Above the input of a new conversation, Sem lists a few questions you can click, drawn from your
-data: assessments and tasks that are due soon or overdue, classes still to come today, courses
-with no assessments yet, and courses with some grades in. A course a question names is sent to
-Sem as a reference.
+### When Sem asks you
 
-With a [Light tasks](/docs/ai) model set up, Semestra has it reword these questions, also taking
-your recent conversation titles into account, at most twice a day per program. Turn off
-**Personalized suggestions** in global settings → **AI → Sem → Conversations** to keep the fixed
-wording and make no model calls.
+When Sem needs your choice to go on, for example which course you mean, it offers a few options
+and sometimes marks the one it recommends. Pick one, type your own answer, or skip the question.
 
-## Questions from Sem
+## Approve changes
 
-When Sem needs your choice to go on, for example which of two courses you mean or which evenings
-suit you for studying, it asks in place of the input box: a question with a few options, one of
-them sometimes marked as recommended. Pick an option (or press its number), type your own answer,
-or skip the question.
+Sem can read your data at any time. Before it adds or changes anything, it shows you the change,
+and nothing happens until you approve it. You can edit the change first, or tell Sem to do it
+differently.
 
-## Approving changes
+To have Sem ask less often, choose an option in global settings → **AI → Sem → Approvals**:
 
-Sem reads freely. Before it creates or changes something, it shows the change in place of the
-input box, and nothing happens until you approve it. You can also edit the values first, or type
-what Sem should do instead. When several changes wait, move between them or approve them all. Global settings → **AI → Sem → Approvals** sets
-which changes Sem may make without asking: **Ask every time**, **By module**, or **Auto-approve
-all**. Deleting always needs your approval.
+- **Ask every time**: every change needs your approval.
+- **By feature**: changes in the features you choose are approved automatically.
+- **Auto-approve all**: every change happens right away.
+
+Deleting always needs your approval.
 
 ## Memory
 
-Sem remembers lasting facts about you, how you want it to work, your plans, and where to find
-things. Review and edit them in global settings → **AI → Sem → Memory**. A **Temporary chat** neither
-reads nor saves memories.
+Sem remembers lasting things about you: your background and preferences, how you want it to work,
+your plans, and where to find what you use often. Review, edit or delete them in global settings →
+**AI → Sem → Memory**.
 
-With **Auto Dream**, Sem also tidies its memories in the background, at most once a day: it adds
-what it learned from your recent chats, merges duplicates and removes what is out of date. Choose
-how often under **AI → Sem → Memory → Auto Dream**: **High** after 2 new conversations, **Medium**
-(the default) after 5, **Low** after 10.
+With **Auto Dream** on, Sem tidies its memories in the background at most once a day: it adds what
+it learned from recent conversations, merges duplicates and removes what's out of date.
 
-## Earlier conversations
+When a conversation shouldn't be remembered, start a **Temporary chat**. It neither reads nor saves
+memories, and other conversations can't refer to it.
 
-When you bring up something from an earlier chat ("what did we decide about the lab report?"),
-Sem can search your other conversations in the same program and read the one that matters. Its
-answer links to the conversation it drew on. Temporary chats are never searched, and Sem can't
-search from one either. Turn this off in global settings → **AI → Sem → Memory → Reference other
+## Refer to earlier conversations
+
+When you bring up something you discussed before (“What did we decide about the lab report?”),
+Sem looks through your other conversations in the same program and links the one it used. To turn
+this off, go to global settings → **AI → Sem → Memory** and turn off **Reference other
 conversations**.
 
 ## Long conversations
 
-When the conversation nearly fills the model's context, Sem compacts it before answering: it
-summarizes earlier messages and keeps the latest ones word for word. To do it yourself, type
-`/compact`, optionally followed by what the summary must keep, or ask Sem to compact the
-conversation. While it runs you can't send a new message.
+When a conversation gets long, Sem summarizes the earlier part and keeps the latest messages as
+they are, so you can keep going. To do it yourself, type `/compact`, optionally followed by what
+the summary must keep.
