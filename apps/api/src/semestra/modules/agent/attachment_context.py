@@ -7,7 +7,12 @@ Every attachment starts with a manifest line, `<attachment id name type pages ch
 - an image: the image itself when the model can see images, else a note;
 - a calendar: what each course in it holds, in short; `agent.attachment.read` gives all of it, as
   Semestra's calendar reader (the importer's) understands it;
-- a file the parser could not read: why, and what to do instead.
+- a file the parser could not read: why, and what to do instead;
+- a course file picked with `@`: its text as it was when the message was sent (no original is
+  stored, so text only).
+
+The text of one message's attachments shares `MESSAGE_TEXT_CHARS`: once it is used up, later
+documents give only their outline and how to read them.
 
 This runs on every request of a conversation, so the result depends only on the stored rows
 and the model's abilities: the same attachment renders the same way each time (prompt cache).
@@ -44,6 +49,8 @@ log = structlog.get_logger()
 
 # About 6k tokens: documents up to this size are given whole.
 FULL_TEXT_CHARS = 24_000
+# About 16k tokens: the text all attachments of one message give at most.
+MESSAGE_TEXT_CHARS = 64_000
 PREVIEW_PAGES = 2
 OUTLINE_MAX = 60
 # Scanned pages sent as images, per attachment; images are costly and slow to send.
@@ -65,6 +72,13 @@ _UNREADABLE = {
     "files.unsupported_type": "its format is not supported",
     "agent.attachment_not_read": "it was uploaded before attachments were read",
 }
+# Course files picked with `@` whose text was not there when the message was sent.
+_NO_TEXT = {
+    "files.not_ready": "Its text was not ready when the message was sent (the file was still "
+    "being processed, or that failed). Tell the user to pick it again once it is ready.",
+    "files.not_indexed": "It is not indexed, so it has no text to read. Tell the user they can "
+    'index it with "Index" in the file list, then pick it again.',
+}
 NO_VISION = (
     "The current model cannot see images. Tell the user, and suggest a model that accepts "
     "images or describing what it shows."
@@ -77,6 +91,8 @@ def _attr(value: object) -> str:
 
 def manifest(att: AgentAttachment, *, chars: int | None = None) -> str:
     parts = [f'id="{att.id}"', f'name="{_attr(att.name)}"', f'type="{att.doc_kind or att.kind}"']
+    if not att.storage_key and att.file_item_id:
+        parts.append(f'course_file="{att.file_item_id}"')
     if att.page_count is not None and att.doc_kind != "ics":
         parts.append(f'pages="{att.page_count}"')
     if chars is not None:
@@ -84,31 +100,49 @@ def manifest(att: AgentAttachment, *, chars: int | None = None) -> str:
     return f"<attachment {' '.join(parts)}>"
 
 
-async def render(ctx: Ctx, att: AgentAttachment, *, vision: bool) -> list[UserContent]:
-    """PDFs are given as text and page images, which every provider takes, rather than as a
-    document block, so whether the model reads PDFs does not matter here."""
+async def render(
+    ctx: Ctx, att: AgentAttachment, *, vision: bool, budget: int = MESSAGE_TEXT_CHARS
+) -> tuple[list[UserContent], int]:
+    """What the model gets for the attachment, and how many characters of document text that
+    took from `budget` (what the message's attachments before it left). PDFs are given as text
+    and page images, which every provider takes, rather than as a document block, so whether
+    the model reads PDFs does not matter here."""
+    if not att.storage_key:
+        if att.parse_error in _NO_TEXT:
+            return [f"{manifest(att)}\n{_NO_TEXT[att.parse_error]}"], 0
+        return await _document(ctx, att, vision=vision, budget=budget)
     if att.doc_kind == "image" or (att.doc_kind is None and att.kind == "image"):
         if not vision:
-            return [f"{manifest(att)}\n{NO_VISION}"]
+            return [f"{manifest(att)}\n{NO_VISION}"], 0
         data = await service.read_attachment(ctx, att)
-        return [manifest(att), BinaryContent(data=data, media_type=att.mime)]
+        return [manifest(att), BinaryContent(data=data, media_type=att.mime)], 0
     if att.doc_kind == "ics":
-        return [f"{manifest(att)}\n{await _calendar_summary(ctx, att)}"]
+        return [f"{manifest(att)}\n{await _calendar_summary(ctx, att)}"], 0
+    return await _document(ctx, att, vision=vision, budget=budget)
+
+
+async def _document(
+    ctx: Ctx, att: AgentAttachment, *, vision: bool, budget: int
+) -> tuple[list[UserContent], int]:
     if att.doc_kind is None or att.parse_error:
-        return [f"{manifest(att)}\n{_unreadable(att.parse_error or 'agent.attachment_not_read')}"]
+        code = att.parse_error or "agent.attachment_not_read"
+        return [f"{manifest(att)}\n{_unreadable(code)}"], 0
     rows = await attachments.pages(ctx, att.id)
     chars = sum(len(r.markdown) for r in rows)
     head = manifest(att, chars=chars)
-    if chars <= FULL_TEXT_CHARS:
-        shown, rest = rows, []
+    texts = [_page_text(r) for r in rows]
+    if chars <= FULL_TEXT_CHARS and sum(map(len, texts)) <= budget:
+        shown = len(rows)
+    elif sum(map(len, texts[:PREVIEW_PAGES])) <= budget:
+        shown = min(PREVIEW_PAGES, len(rows))
     else:
-        shown, rest = rows[:PREVIEW_PAGES], rows[PREVIEW_PAGES:]
-    text = "\n\n".join(_page_text(r) for r in shown)
-    content: list[UserContent] = [f"{head}\n{wrap_untrusted(text, att.name)}"]
-    if rest:
-        content += _outline_and_hint(att, rows)
-    content += await _scanned(ctx, att, shown, vision=vision)
-    return content
+        shown = 0
+    text = "\n\n".join(texts[:shown])
+    content: list[UserContent] = [f"{head}\n{wrap_untrusted(text, att.name)}" if shown else head]
+    if shown < len(rows):
+        content += _outline_and_hint(att, rows, shown)
+    content += await _scanned(ctx, att, rows[:shown], vision=vision)
+    return content, len(text)
 
 
 def _page_text(row: AgentAttachmentPage) -> str:
@@ -120,7 +154,9 @@ def _page_text(row: AgentAttachmentPage) -> str:
     return f"--- page {row.page_no} ---\n{body}"
 
 
-def _outline_and_hint(att: AgentAttachment, rows: list[AgentAttachmentPage]) -> list[str]:
+def _outline_and_hint(
+    att: AgentAttachment, rows: list[AgentAttachmentPage], shown_pages: int
+) -> list[str]:
     """The outline's headings are the document's own words: wrapped as untrusted, apart from
     the instructions around them."""
     entries = attachments.outline(rows)
@@ -130,7 +166,12 @@ def _outline_and_hint(att: AgentAttachment, rows: list[AgentAttachmentPage]) -> 
     ]
     if len(entries) > OUTLINE_MAX:
         lines.append(f"- … {len(entries) - OUTLINE_MAX} more headings")
-    shown = f"Only pages 1-{PREVIEW_PAGES} of {att.page_count} are shown."
+    shown = (
+        f"Only pages 1-{shown_pages} of {att.page_count} are shown."
+        if shown_pages
+        else f"None of its {att.page_count} pages are shown: the message's other attachments "
+        "take the room."
+    )
     hint = (
         f"Read other pages with agent__attachment__read (attachment_id {att.id}, page_from) when "
         "the question needs them."
@@ -147,6 +188,12 @@ async def _scanned(
     scanned = [r.page_no for r in shown if r.needs_ocr]
     if not scanned:
         return []
+    if not att.storage_key:
+        # A course file: the files pipeline already tried OCR on these pages.
+        return [
+            f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "
+            "whose text could not be recognized."
+        ]
     if not vision or att.doc_kind != "pdf":
         return [
             f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "

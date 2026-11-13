@@ -324,6 +324,13 @@ async def test_folders_links_and_listing(fx: Fx):
     assert renamed["folder_id"] is None
     pinned = await fx.call("GET", f"/programs/{fx.program_id}/pinned-files")
     assert [i["id"] for i in pinned["items"]] == [slides["id"]]
+    # The `@` menu finds files (not links) by name.
+    found = await fx.call(
+        "GET", f"/programs/{fx.program_id}/file-names", params={"query": "LECT", "limit": 5}
+    )
+    assert [i["id"] for i in found["items"]] == [slides["id"]]
+    found = await fx.call("GET", f"/programs/{fx.program_id}/file-names", params={"query": "%"})
+    assert found["items"] == []
 
     await fx.call("DELETE", f"/folders/{week1['id']}")
     assert (await fx.call("GET", f"/courses/{fx.course_id}/files"))["folders"] == []

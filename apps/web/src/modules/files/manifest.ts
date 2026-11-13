@@ -34,21 +34,16 @@ const ofItem =
  * Deleting a folder or a course takes files whose ids the event does not list.
  */
 const INVALIDATIONS = {
-  'files.item.created': [
-    courseList,
-    'filesItemListProgram',
-    'filesUsageGet',
-    'filesDocumentSearch',
-  ],
+  'files.item.created': [courseList, 'filesItemSearch', 'filesUsageGet', 'filesDocumentSearch'],
   'files.item.updated': [
     courseList,
-    'filesItemListProgram',
+    'filesItemSearch',
     ofItem(['filesItemGet']),
     'filesDocumentSearch',
   ],
   'files.item.deleted': [
     courseList,
-    'filesItemListProgram',
+    'filesItemSearch',
     ofItem(['filesItemGet', ...PAGES]),
     'filesUsageGet',
     'filesDocumentSearch',
@@ -59,7 +54,7 @@ const INVALIDATIONS = {
   'files.folder.updated': [courseList],
   'files.folder.deleted': [
     courseList,
-    'filesItemListProgram',
+    'filesItemSearch',
     'filesItemGet',
     'filesUsageGet',
     'filesDocumentSearch',
@@ -67,7 +62,7 @@ const INVALIDATIONS = {
   ],
   'academics.course.deleted': [
     courseList,
-    'filesItemListProgram',
+    'filesItemSearch',
     'filesItemGet',
     'filesUsageGet',
     'filesDocumentSearch',

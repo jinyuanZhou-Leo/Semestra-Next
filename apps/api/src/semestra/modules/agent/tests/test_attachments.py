@@ -315,7 +315,7 @@ async def given(chat: Chat, attachment_id: str, *, vision: bool = True) -> list[
         first = await attachment_context.render(ctx, att, vision=vision)
         again = await attachment_context.render(ctx, att, vision=vision)
     assert first == again  # same every request, for the prompt cache
-    return first
+    return first[0]
 
 
 def text_of(content: list[Any]) -> str:
