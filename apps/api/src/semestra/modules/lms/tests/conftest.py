@@ -232,7 +232,8 @@ class FakeProvider:
                           html="<h1 style='color:#123;position:fixed'>Intro</h1>"
                                "<iframe src='x'></iframe><a href=cover.html>Cover</a>"
                                "<img src='/images/logo.png' alt=''>"
-                               "<table border='1' cellpadding='4'><tr><td>Lab 1</td></tr></table>")  # fmt: skip
+                               "<table border='1' cellpadding='4'><tr><td>Lab 1</td></tr>"
+                               "</table>")  # fmt: skip
 
     async def quizzes(self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str) -> list[Quiz]:
         return [Quiz(external_id="q1", title="Quiz 1")]
