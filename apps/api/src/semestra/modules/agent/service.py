@@ -13,7 +13,7 @@ from semestra.core.capability import Capability, registry
 from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import delete_after_commit, get_storage, storage_usage_provider
-from semestra.modules.agent import history
+from semestra.modules.agent import history, skills
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -76,22 +76,77 @@ async def check_scope(ctx: Ctx, scope: AgentScope | None) -> None:
             raise not_found()
 
 
-async def reference_blocks(ctx: Ctx, refs: Sequence[MessageReference]) -> list[dict[str, Any]]:
-    """`reference` blocks for the courses and terms picked with `@` that are the user's.
+async def chip_blocks(
+    ctx: Ctx,
+    session_id: str,
+    refs: Sequence[MessageReference],
+    previous: Sequence[dict[str, Any]] = (),
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The `skill` and `reference` blocks of what was picked with `/` and `@`, each once.
 
-    One that is not (deleted since, or never theirs) is left out: the text still says `@<label>`.
+    A skill brings its workflow and tools; one the user cannot use (now) is refused. A course
+    file is kept as an attachment of the message (`attachments.snapshot_file`), its id in the
+    block. A course, term or file that is not the user's (deleted since, or never theirs) is
+    left out: the text still says `@<label>`. `previous` are the blocks of the message being
+    edited: skills and files it already had keep their blocks (and snapshots), so an edit never
+    fails over a skill that is no longer available or reads a file again.
     """
     from semestra.modules.academics import service as academics
+    from semestra.modules.agent import attachments as chat_attachments
 
-    blocks: list[dict[str, Any]] = []
-    for ref in {(r.kind, r.id): r for r in refs}.values():
-        get = academics.get_course_row if ref.kind == "course" else academics.get_term_row
-        try:
-            await get(ctx, ref.id)
-        except AppError:
-            continue
-        blocks.append({"type": "reference", "kind": ref.kind, "id": ref.id, "label": ref.label})
-    return blocks
+    kept_skills = {b.get("name"): b for b in previous if b.get("type") == "skill"}
+    kept_files = {
+        b.get("id"): b for b in previous if b.get("type") == "reference" and b.get("kind") == "file"
+    }
+    skill_blocks: list[dict[str, Any]] = []
+    reference_blocks: list[dict[str, Any]] = []
+    unique = list({(r.kind, r.id): r for r in refs}.values())
+    visible: dict[str, skills.Skill] = {}
+    if any(r.kind == "skill" and r.id not in kept_skills for r in unique):
+        visible = {s.name: s for s in skills.visible_skills(await registry.available(ctx, "agent"))}
+    for ref in unique:
+        if ref.kind == "skill":
+            if (kept := kept_skills.get(ref.id)) is not None:
+                skill_blocks.append({**kept, "label": ref.label})
+                continue
+            skill = visible.get(ref.id)
+            if skill is None:
+                raise not_found("skill", ref.id)
+            skill_blocks.append(
+                {
+                    "type": "skill",
+                    "name": skill.name,
+                    "title": skill.title,
+                    "label": ref.label,
+                    "body": skill.body,
+                    "tools": list(skill.tools),
+                }
+            )
+        elif ref.kind == "file":
+            if (kept := kept_files.get(ref.id)) is not None:
+                reference_blocks.append({**kept, "label": ref.label})
+                continue
+            att = await chat_attachments.snapshot_file(ctx, session_id, ref.id)
+            if att is not None:
+                reference_blocks.append(
+                    {
+                        "type": "reference",
+                        "kind": "file",
+                        "id": ref.id,
+                        "label": ref.label,
+                        "attachment_id": att.id,
+                    }
+                )
+        else:
+            get = academics.get_course_row if ref.kind == "course" else academics.get_term_row
+            try:
+                await get(ctx, ref.id)
+            except AppError:
+                continue
+            reference_blocks.append(
+                {"type": "reference", "kind": ref.kind, "id": ref.id, "label": ref.label}
+            )
+    return skill_blocks, reference_blocks
 
 
 async def get_session_row(ctx: Ctx, session_id: str) -> AgentSession:
@@ -278,11 +333,11 @@ async def edit_message(
     text: str,
     references: Sequence[MessageReference] | None = None,
 ) -> None:
-    """Replaces the text of one of the user's messages (and its `@` references, unless None) and
-    drops everything after it: later messages and their proposals (pending cards included).
-    Changes that already ran stay: they are listed in a `note` block on the edited message so the
-    model does not repeat them. Skill and attachments are kept; attachments only the dropped
-    messages used are deleted."""
+    """Replaces the text of one of the user's messages (and what it picked with `/` and `@`,
+    unless None) and drops everything after it: later messages and their proposals (pending
+    cards included). Changes that already ran stay: they are listed in a `note` block on the
+    edited message so the model does not repeat them. Attachments are kept; attachments only the
+    dropped messages used are deleted."""
     rows = await messages(ctx, session.id)
     index = next(
         (i for i, r in enumerate(rows) if r.id == message_id and history.is_typed(r)), None
@@ -292,18 +347,14 @@ async def edit_message(
     row = rows[index]
     text = text.strip()
     blocks = [dict(b) for b in row.content]
-    at = next((i for i, b in enumerate(blocks) if b.get("type") == "text"), None)
-    if at is None:
-        at = next((i + 1 for i, b in enumerate(blocks) if b.get("type") == "skill"), 0)
+    if references is None:
+        skill_blocks = [b for b in blocks if b.get("type") == "skill"]
+        reference_blocks = [b for b in blocks if b.get("type") == "reference"]
     else:
-        blocks.pop(at)
-    if text:
-        blocks.insert(at, {"type": "text", "text": text})
-        at += 1
-    if references is not None:
-        at -= sum(1 for b in blocks[:at] if b.get("type") == "reference")
-        blocks = [b for b in blocks if b.get("type") != "reference"]
-        blocks[at:at] = await reference_blocks(ctx, references)
+        skill_blocks, reference_blocks = await chip_blocks(ctx, session.id, references, blocks)
+    rest = [b for b in blocks if b.get("type") not in ("skill", "text", "reference")]
+    text_blocks = [{"type": "text", "text": text}] if text else []
+    blocks = skill_blocks + text_blocks + reference_blocks + rest
     if not any(b.get("type") != "note" for b in blocks):
         raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])
 
@@ -421,7 +472,8 @@ async def _drop_unreferenced_attachments(
 ) -> None:
     """Attachments only the dropped messages referred to: removed with their files, so they stop
     counting against the storage quota. Unsent uploads (referred to by nothing) stay."""
-    gone = {b.get("attachment_id") for r in dropped for b in r.content} - {None}
+    # The edited message's own earlier blocks too: a file picked with `@` may be gone from it.
+    gone = {b.get("attachment_id") for r in [*kept[-1:], *dropped] for b in r.content} - {None}
     still = {b.get("attachment_id") for r in kept[:-1] for b in r.content}
     still |= {b.get("attachment_id") for b in edited}
     ids = gone - still

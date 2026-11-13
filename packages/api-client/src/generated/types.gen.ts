@@ -4334,6 +4334,46 @@ export type FileList = {
 };
 
 /**
+ * FileMatch
+ *
+ * A file as a picker lists it: its name and where it is.
+ */
+export type FileMatch = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Display Name
+     */
+    display_name: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * FileMatches
+ */
+export type FileMatches = {
+    /**
+     * Items
+     *
+     * Most recently changed first
+     */
+    items: Array<FileMatch>;
+};
+
+/**
  * FileMeta
  */
 export type FileMeta = {
@@ -15993,6 +16033,51 @@ export type FilesItemReprocessResponses = {
 };
 
 export type FilesItemReprocessResponse = FilesItemReprocessResponses[keyof FilesItemReprocessResponses];
+
+export type FilesItemSearchData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Query
+         *
+         * Keep files whose name contains this text (case-insensitive)
+         */
+        query?: string;
+        /**
+         * Limit
+         *
+         * At most this many
+         */
+        limit?: number;
+    };
+    url: '/programs/{program_id}/file-names';
+};
+
+export type FilesItemSearchErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemSearchError = FilesItemSearchErrors[keyof FilesItemSearchErrors];
+
+export type FilesItemSearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileMatches;
+};
+
+export type FilesItemSearchResponse = FilesItemSearchResponses[keyof FilesItemSearchResponses];
 
 export type FilesLinkCreateData = {
     body: LinkCreateInputBody;

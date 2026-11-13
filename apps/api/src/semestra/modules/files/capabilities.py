@@ -15,6 +15,8 @@ from semestra.modules.files.schemas import (
     EntriesDeleteInput,
     EntriesMoved,
     EntriesMoveInput,
+    FileMatches,
+    FileSearchInput,
     FilesItemList,
     FilesItemListInput,
     FilesUsageBreakdown,
@@ -329,3 +331,18 @@ courses.""",
 )
 async def pinned(ctx: Ctx, inp: PinnedInput) -> PinnedFiles:
     return PinnedFiles(items=await service.pinned(ctx, inp.program_id))
+
+
+@capability(
+    name="files.item.search",
+    summary="Find the files of a Program by name.",
+    description="""Files (not links or folders) of the Program's courses whose name contains the
+query, most recently changed first, with just what a picker needs. Used by the assistant's `@`
+menu.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/file-names"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def search_names(ctx: Ctx, inp: FileSearchInput) -> FileMatches:
+    return FileMatches(items=await service.search_names(ctx, inp))

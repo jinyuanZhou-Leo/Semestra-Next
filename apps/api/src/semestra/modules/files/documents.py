@@ -103,6 +103,21 @@ async def read_document(
     return result
 
 
+async def snapshot(ctx: Ctx, item_id: str) -> tuple[FilesItem, list[FilesDocumentPage]]:
+    """A processed file and every page of its active document, for other modules to copy (the
+    assistant keeps a referenced file as it was when the message was sent). Raises like
+    `files.document.read` when the file has no readable text."""
+    item, document = await _active_document(ctx, item_id)
+    rows = (
+        await ctx.db.scalars(
+            select(FilesDocumentPage)
+            .where(FilesDocumentPage.document_id == document.id)
+            .order_by(FilesDocumentPage.page_no)
+        )
+    ).all()
+    return item, list(rows)
+
+
 def _size(model: BaseModel) -> int:
     """Characters of a result as the assistant gets it (`agent/tools.py` serialize)."""
     return len(json.dumps(model.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")))

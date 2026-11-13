@@ -1,7 +1,13 @@
 import type { Course, Occurrence, TermWeek } from '@semestra/api-client'
 import { calendarOccurrenceListOptions } from '@semestra/api-client/react-query'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarArrowDown, Image as ImageIcon, Link2, type LucideIcon } from 'lucide-react'
+import {
+  CalendarArrowDown,
+  GraduationCap,
+  Image as ImageIcon,
+  Link2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { CalendarSourceContribution } from '@/app/extensions'
@@ -431,21 +437,14 @@ function ImagePanel({
             )}
           >
             {previewSheet ? (
-              <>
-                <p className="mb-2 truncate font-heading text-xs font-semibold">
-                  {previewSheet.title}
-                </p>
-                <WeekGrid
-                  days={previewSheet.days}
-                  items={previewSheet.items}
-                  dayStart={minutes(settings.day_start)}
-                  dayEnd={minutes(settings.day_end)}
-                  hourHeight={26}
-                  compact
-                  hideCancelled={cancelled === 'hide'}
-                  className="pointer-events-none text-[0.6rem]"
-                />
-              </>
+              <ExportSheet
+                sheet={previewSheet}
+                dayStart={minutes(settings.day_start)}
+                dayEnd={minutes(settings.day_end)}
+                hideCancelled={cancelled === 'hide'}
+                compact
+                brand
+              />
             ) : null}
           </div>
           <figcaption className="text-xs text-muted-foreground">
@@ -541,23 +540,22 @@ function ImagePanel({
       {sheets ? (
         <div aria-hidden className="pointer-events-none fixed top-0 -left-[10000px]">
           <div className={cn(theme, 'w-[1100px] space-y-6 bg-background p-6 text-foreground')}>
-            {sheets.map((sheet) => (
+            {sheets.map((sheet, index) => (
               <div
                 key={sheet.key}
                 ref={(node) => {
                   if (node) sheetRefs.current.set(sheet.key, node)
                   else sheetRefs.current.delete(sheet.key)
                 }}
-                className="space-y-3 bg-background"
+                className="bg-background"
               >
-                <h2 className="font-heading text-lg font-semibold">{sheet.title}</h2>
-                <WeekGrid
-                  days={sheet.days}
-                  items={sheet.items}
+                <ExportSheet
+                  sheet={sheet}
                   dayStart={minutes(settings.day_start)}
                   dayEnd={minutes(settings.day_end)}
-                  hourHeight={40}
                   hideCancelled={cancelled === 'hide'}
+                  // A PNG stacks every week into one image: the mark goes on it once.
+                  brand={format === 'pdf' || index === 0}
                 />
               </div>
             ))}
@@ -565,6 +563,61 @@ function ImagePanel({
         </div>
       ) : null}
     </>
+  )
+}
+
+/** One week of the exported timetable: the preview and the saved image are drawn by this. */
+function ExportSheet({
+  sheet,
+  dayStart,
+  dayEnd,
+  hideCancelled,
+  compact,
+  brand,
+}: {
+  sheet: Sheet
+  dayStart: number
+  dayEnd: number
+  hideCancelled: boolean
+  compact?: boolean
+  brand: boolean
+}) {
+  return (
+    <div className={compact ? 'space-y-2' : 'space-y-3'}>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className={cn('truncate font-heading font-semibold', compact ? 'text-xs' : 'text-lg')}>
+          {sheet.title}
+        </h2>
+        {brand ? (
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 font-heading font-semibold text-muted-foreground',
+              compact ? 'text-[0.6rem]' : 'text-sm',
+            )}
+          >
+            <span
+              className={cn(
+                'flex items-center justify-center rounded-md bg-primary text-primary-foreground',
+                compact ? 'size-3.5' : 'size-5.5',
+              )}
+            >
+              <GraduationCap className={compact ? 'size-2.5' : 'size-3.5'} aria-hidden />
+            </span>
+            {m.app_name()}
+          </div>
+        ) : null}
+      </div>
+      <WeekGrid
+        days={sheet.days}
+        items={sheet.items}
+        dayStart={dayStart}
+        dayEnd={dayEnd}
+        hourHeight={compact ? 26 : 40}
+        compact={compact}
+        hideCancelled={hideCancelled}
+        className={compact ? 'pointer-events-none text-[0.6rem]' : undefined}
+      />
+    </div>
   )
 }
 

@@ -32,6 +32,7 @@
       #boot .row .bar:first-child { width: 16px; height: 16px; border-radius: 4px; }
       #boot .row .t { height: 12px; }
       #boot .head { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+      #boot .head .t { display: grid; gap: 6px; }
       #boot .label { height: 32px; display: flex; align-items: center; padding: 0 12px; }
       #boot .label .bar { height: 10px; }
       #boot .grow { flex: 1; }
@@ -51,7 +52,7 @@
     <div id="boot" aria-hidden="true">
       <div class="shell">
         <div class="side">
-          <div class="head"><div style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--primary)"></div><div class="t" style="display: grid; gap: 6px"><div class="bar" style="width: 132px; height: 12px"></div><div class="bar" style="width: 96px; height: 10px"></div></div></div>
+          <div class="head"><div style="width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--primary)"></div><div class="t"><div class="bar" style="width: 132px; height: 12px"></div><div class="bar" style="width: 96px; height: 10px"></div></div></div>
           <div style="height: 16px"></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 120px"></div></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 40px"></div></div>
@@ -76,7 +77,7 @@
           <div class="label"><div class="bar" style="width: 48px"></div></div>
           <div class="row"><div class="bar"></div><div class="bar t" style="width: 60px"></div></div>
           <div style="height: 8px"></div>
-          <div class="head"><div class="bar" style="width: 32px; height: 32px; border-radius: 999px"></div><div class="t" style="display: grid; gap: 6px"><div class="bar" style="width: 40px; height: 12px"></div><div class="bar" style="width: 140px; height: 10px"></div></div></div>
+          <div class="head"><div class="bar" style="width: 32px; height: 32px; border-radius: 999px"></div><div class="t"><div class="bar" style="width: 40px; height: 12px"></div><div class="bar" style="width: 140px; height: 10px"></div></div></div>
         </div>
         <div class="grow"><div class="toolbar"><div class="bar"></div></div></div>
       </div>

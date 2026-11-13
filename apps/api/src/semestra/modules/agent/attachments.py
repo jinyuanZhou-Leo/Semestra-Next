@@ -121,6 +121,52 @@ def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
         )
 
 
+async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachment | None:
+    """A course file picked with `@`, kept as an attachment of the message: its text as it was
+    when the message was sent, so the conversation reads the same on every request. It has no
+    stored original (`storage_key` is empty), so it costs no storage; the course file is the
+    original. None when the file is not the user's (any more). A file without readable text yet
+    is kept with the reason in `parse_error`."""
+    from semestra.modules.files import documents
+
+    try:
+        item = await files.get_item(ctx, item_id)
+    except AppError:
+        return None
+    row = AgentAttachment(
+        user_id=ctx.user_id,
+        session_id=session_id,
+        kind="file",
+        name=item.display_name,
+        storage_key="",
+        mime=item.mime_type or "application/octet-stream",
+        size=0,
+        file_item_id=item.id,
+        created_at=ctx.now,
+        sent_at=ctx.now,
+        doc_kind=files.file_type(item.mime_type),
+    )
+    ctx.db.add(row)
+    await ctx.db.flush()
+    try:
+        _, page_rows = await documents.snapshot(ctx, item.id)
+    except AppError as exc:
+        row.parse_error = exc.code
+        return row
+    row.page_count = len(page_rows)
+    for page in page_rows:
+        ctx.db.add(
+            AgentAttachmentPage(
+                attachment_id=row.id,
+                user_id=row.user_id,
+                page_no=page.page_no,
+                markdown=page.markdown,
+                needs_ocr=not page.markdown.strip() and not page.ocr_used,
+            )
+        )
+    return row
+
+
 async def get_owned(ctx: Ctx, attachment_id: str) -> AgentAttachment:
     row = await ctx.db.get(AgentAttachment, attachment_id)
     if row is None or row.user_id != ctx.user_id:
@@ -159,8 +205,11 @@ def outline(rows: list[AgentAttachmentPage]) -> list[tuple[int, int, str]]:
 
 
 async def open_original(ctx: Ctx, attachment_id: str) -> tuple[AgentAttachment, bytes]:
-    """The uploaded file itself, for importers that read the original (M08 `attachment_ids`)."""
+    """The uploaded file itself, for importers that read the original (M08 `attachment_ids`). A
+    course file picked with `@` has none here: it is read as the course file."""
     row = await get_owned(ctx, attachment_id)
+    if not row.storage_key:
+        raise not_found("attachment", attachment_id)
     return row, await service.read_attachment(ctx, row)
 
 

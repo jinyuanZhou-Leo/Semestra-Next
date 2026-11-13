@@ -322,6 +322,28 @@ class PinnedFiles(BaseModel):
     items: list[ItemOut]
 
 
+class FileSearchInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+    query: Annotated[str, Field(max_length=200)] = Field(
+        default="", description="Keep files whose name contains this text (case-insensitive)"
+    )
+    limit: Annotated[int, Field(ge=1, le=50)] = Field(default=20, description="At most this many")
+
+
+class FileMatch(BaseModel):
+    """A file as a picker lists it: its name and where it is."""
+
+    id: str
+    course_id: str
+    display_name: str
+    mime_type: str | None
+    updated_at: datetime
+
+
+class FileMatches(BaseModel):
+    items: list[FileMatch] = Field(description="Most recently changed first")
+
+
 class FilesUsageGet(BaseModel):
     used_bytes: int = Field(description="All the user's stored files, every module")
     files_bytes: int = Field(description="Of which course files")

@@ -1,10 +1,14 @@
 """Editing a sent message (M12 实现说明): the later conversation is dropped and answered again."""
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 
+from semestra.modules.agent import attachment_context
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
+from semestra.modules.files.tests.conftest import make_pdf
 
 
 def edit_url(session_id: str, message_id: str) -> str:
@@ -167,3 +171,93 @@ async def test_references_reach_the_model_and_editing_replaces_them(agent: Agent
         {"type": "text", "text": "and @Fall 2026?"},
         {"type": "reference", **term_ref},
     ]
+
+
+async def test_files_picked_with_at_reach_the_model(
+    agent: Agent,
+    model: FakeModel,
+    run_jobs: Callable[[], Awaitable[None]],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(attachment_context, "FULL_TEXT_CHARS", 1000)
+    _, course, _ = await agent.course_with_lab()
+
+    async def upload(name: str, pages: list[str]) -> dict[str, Any]:
+        r = await agent.client.post(
+            f"/courses/{course['id']}/files",
+            files=[("files", (name, make_pdf(pages), "application/pdf"))],
+        )
+        assert r.status_code == 200, r.text
+        return r.json()["items"][0]
+
+    small = await upload("syllabus.pdf", ["Late work loses 10% a day."])
+    big = await upload("notes.pdf", [f"# Week {n}\n" + "lorem ipsum " * 60 for n in range(1, 20)])
+    third = await upload("extra.pdf", ["Extra reading list for the whole term."])
+    await run_jobs()
+    session = await agent.session()
+    model.then(say("Sure."))
+    refs = [
+        {"kind": "file", "id": small["id"], "label": "syllabus.pdf"},
+        {"kind": "file", "id": big["id"], "label": "notes.pdf"},
+        {"kind": "file", "id": third["id"], "label": "extra.pdf"},
+    ]
+    # The first two take the message's text budget: the third gives only how to read it.
+    monkeypatch.setattr(attachment_context, "MESSAGE_TEXT_CHARS", 200)
+    await agent.send(session["id"], "@syllabus.pdf @notes.pdf @extra.pdf", references=refs)
+
+    first = "\n".join(p for p in model.prompts(0)[0] if isinstance(p, str))
+    assert f"course file with id {small['id']}" in first
+    assert "Late work loses 10% a day." in first
+    assert "--- page 2 ---" in first
+    assert "--- page 3 ---" not in first
+    assert "agent__attachment__read" in first
+    assert "Week 7" in first  # its outline
+    assert "None of its 1 pages are shown" in first
+    assert "Extra reading list" not in first
+
+    # Kept as it was when sent: deleting the course file changes nothing in the conversation.
+    await agent.call("DELETE", f"/files/{small['id']}")
+    model.then(say("Ok."))
+    await agent.send(session["id"], "thanks")
+    again = "\n".join(p for p in model.prompts(1)[0] if isinstance(p, str))
+    assert again.startswith(first.split("[Sent")[0])
+    assert "Late work loses 10% a day." in again
+
+
+async def test_a_file_without_text_says_why(agent: Agent, model: FakeModel):
+    _, course, _ = await agent.course_with_lab()
+    r = await agent.client.post(
+        f"/courses/{course['id']}/files",
+        files=[("files", ("notes.pdf", make_pdf(["x"]), "application/pdf"))],
+    )
+    item = r.json()["items"][0]
+    session = await agent.session()
+    model.then(say("Sure."))
+    ref = {"kind": "file", "id": item["id"], "label": "notes.pdf"}
+    await agent.send(session["id"], "read @notes.pdf", references=[ref])
+    assert "was not ready when the message was sent" in str(model.prompts(0)[0])
+
+
+async def test_an_edit_keeps_a_skill_that_is_no_longer_available(
+    app: FastAPI, agent: Agent, model: FakeModel
+):
+    session = await agent.session()
+    user_id = (await agent.call("GET", "/account/me"))["id"]
+    from semestra.modules.agent import service
+    from semestra.modules.agent.runtime import agent_ctx
+
+    old = {"type": "skill", "name": "gone", "title": {"en": "Gone"}, "label": "Gone", "body": "x"}
+    async with agent_ctx(app.state, user_id, scope=None) as ctx:
+        row = await service.get_session_row(ctx, session["id"])
+        first = service.add_message(ctx, row, "user", [old, {"type": "text", "text": "/Gone a"}])
+        await ctx.db.commit()
+        first_id = first.id
+
+    model.then(say("Done."))
+    skill = {"kind": "skill", "id": "gone", "label": "Gone"}
+    await agent.stream(
+        edit_url(session["id"], first_id), {"text": "/Gone b", "references": [skill]}
+    )
+    content = (await agent.detail(session["id"]))["messages"][0]["content"]
+    assert content[0]["name"] == "gone"
+    assert content[1] == {"type": "text", "text": "/Gone b"}

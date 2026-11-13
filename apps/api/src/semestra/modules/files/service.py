@@ -38,6 +38,8 @@ from semestra.modules.files.schemas import (
     MAX_FOLDER_DEPTH,
     CourseUsage,
     EntriesDeleteInput,
+    FileMatch,
+    FileSearchInput,
     FilesItemList,
     FilesItemListInput,
     FilesUsageBreakdown,
@@ -310,6 +312,39 @@ async def pinned(ctx: Ctx, program_id: str) -> list[ItemOut]:
         )
     ).all()
     return await item_outs(ctx, rows)
+
+
+async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
+    await academics.get_program_row(ctx, inp.program_id)
+    course_ids = await program_course_ids(ctx, inp.program_id)
+    if not course_ids:
+        return []
+    stmt = select(
+        FilesItem.id,
+        FilesItem.course_id,
+        FilesItem.display_name,
+        FilesItem.mime_type,
+        FilesItem.updated_at,
+    ).where(
+        FilesItem.user_id == ctx.user_id,
+        FilesItem.kind == "file",
+        FilesItem.course_id.in_(course_ids),
+    )
+    if query := inp.query.strip().lower():
+        stmt = stmt.where(func.lower(FilesItem.display_name).contains(query, autoescape=True))
+    rows = await ctx.db.execute(
+        stmt.order_by(FilesItem.updated_at.desc(), FilesItem.id).limit(inp.limit)
+    )
+    return [
+        FileMatch(
+            id=r.id,
+            course_id=r.course_id,
+            display_name=r.display_name,
+            mime_type=r.mime_type,
+            updated_at=r.updated_at,
+        )
+        for r in rows
+    ]
 
 
 async def program_course_ids(ctx: Ctx, program_id: str, term_id: str | None = None) -> list[str]:

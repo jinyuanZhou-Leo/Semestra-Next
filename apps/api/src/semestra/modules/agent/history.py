@@ -66,12 +66,15 @@ def load(row: AgentMessage) -> ModelMessage | None:
 # --- user messages --------------------------------------------------------------------------
 
 
-async def attachment_content(ctx: Ctx, att: AgentAttachment, *, vision: bool) -> list[UserContent]:
-    """What the model gets for one attachment of a user message. Called on every request, so it
-    must give the same result each time."""
+async def attachment_content(
+    ctx: Ctx, att: AgentAttachment, *, vision: bool, budget: int
+) -> tuple[list[UserContent], int]:
+    """What the model gets for one attachment of a user message, and the document text it took
+    from the message's `budget`. Called on every request, so it must give the same result each
+    time."""
     from semestra.modules.agent import attachment_context
 
-    return await attachment_context.render(ctx, att, vision=vision)
+    return await attachment_context.render(ctx, att, vision=vision, budget=budget)
 
 
 def is_typed(row: AgentMessage) -> bool:
@@ -88,18 +91,41 @@ async def user_request(
     vision: bool,
 ) -> ModelRequest | None:
     """`stamp` turns the row's stored time into the `[Sent …]` note put before what the user
-    wrote. A chosen skill brings its workflow and reveals its tools."""
+    wrote. A chosen skill brings its workflow and reveals its tools. A course file picked with
+    `@` is given like an attachment (its text as it was when sent); attachments and files share
+    one text budget, in the order the blocks are stored."""
+    from semestra.modules.agent.attachment_context import MESSAGE_TEXT_CHARS
+
     content: list[UserContent] = []
     revealed: list[str] = []
+    budget = MESSAGE_TEXT_CHARS
+
+    async def attached(att: AgentAttachment) -> list[UserContent]:
+        nonlocal budget
+        given, used = await attachment_content(ctx, att, vision=vision, budget=budget)
+        budget -= used
+        return given
+
     for block in row.content:
         kind = block.get("type")
         if kind == "text" and block.get("text"):
             content.append(block["text"])
         elif kind == "skill":
+            label = json.dumps(f"/{block.get('label', '')}", ensure_ascii=False)
             content.append(
-                f"[The user chose the skill `{block['name']}`]\n\n{block.get('body', '')}"
+                f"[The user chose the skill `{block['name']}` ({label} in the message)]\n\n"
+                f"{block.get('body', '')}"
             )
             revealed += [tools.tool_name(t) for t in block.get("tools", [])]
+        elif kind == "reference" and block.get("kind") == "file":
+            label = json.dumps(f"@{block.get('label', '')}", ensure_ascii=False)
+            att = attachments.get(block.get("attachment_id", ""))
+            content.append(
+                f"[{label} in the message is the course file with id {block.get('id')}, "
+                "attached below as it was when the message was sent]"
+            )
+            if att is not None:
+                content += await attached(att)
         elif kind == "reference":
             label = json.dumps(f"@{block.get('label', '')}", ensure_ascii=False)
             content.append(
@@ -112,7 +138,7 @@ async def user_request(
             if att is None:
                 content.append(f"[Attachment {block.get('name', '')} is no longer available]")
             else:
-                content += await attachment_content(ctx, att, vision=vision)
+                content += await attached(att)
     if not content:
         return None
     if is_typed(row):
