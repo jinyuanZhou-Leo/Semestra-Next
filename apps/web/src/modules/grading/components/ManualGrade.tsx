@@ -7,7 +7,7 @@ import { ChoiceControl } from '@/app/settings/choice'
 import { percentText } from '../display'
 import { parseDecimal } from '../score'
 import { invalidateGrading } from '../queries'
-import { GpaValue } from './GpaValue'
+import { Concealed, GpaValue, useHideGrades } from './GradeValue'
 import { InlineInput } from './InlineInput'
 import { Stat } from './Stat'
 
@@ -17,7 +17,8 @@ import { Stat } from './Stat'
  */
 export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
   const queryClient = useQueryClient()
-  const { result, summary: s, scale } = gradebook
+  const { result, summary: s } = gradebook
+  const hideGrades = useHideGrades()
   const update = useMutation({
     ...gradingCourseResultUpdateMutation(),
     onError: toastError,
@@ -44,7 +45,7 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Stat label={m.grading_final_grade()} hint={scale.hide_gpa ? null : s.final_letter}>
+      <Stat label={m.grading_final_grade()} hint={hideGrades ? null : s.final_letter}>
         <InlineInput
           key={`m-${result.manual_percentage ?? ''}`}
           label={m.grading_final_grade()}
@@ -63,8 +64,8 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
           className="-ml-3 h-9 w-28 border-input text-left text-2xl font-semibold md:text-2xl"
         />
       </Stat>
-      <Stat label={m.grading_gpa()} hint={percentText(s.final_percentage)}>
-        <GpaValue value={s.final_points} hidden={scale.hide_gpa} />
+      <Stat label={m.grading_gpa()} hint={<Concealed>{percentText(s.final_percentage)}</Concealed>}>
+        <GpaValue value={s.final_points} />
       </Stat>
     </div>
   )

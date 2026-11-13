@@ -6,7 +6,7 @@ import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { categoryColor, categoryName, percentText } from '../display'
 import type { WhatIf } from '../whatif'
-import { GpaValue } from './GpaValue'
+import { ConcealedChart, GpaValue, PercentValue, useHideGrades } from './GradeValue'
 
 /** A row: the name and value on one line, the bar under them. */
 const ROW = 34
@@ -116,7 +116,8 @@ export function ForecastCard({
   /** The target picker below the chart. */
   footer?: ReactNode
 }) {
-  const { summary: real, scale } = gradebook
+  const { summary: real } = gradebook
+  const hideGrades = useHideGrades()
   const s = planning ? (planned ?? real) : real
   const categories = new Map(gradebook.categories.map((c) => [c.id, c]))
   // In plan mode assumed scores count as a category's history, so the plan's own list applies.
@@ -161,24 +162,19 @@ export function ForecastCard({
         {planning ? m.grading_planned_grade() : m.grading_forecast()}
       </p>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{percentText(value)}</span>
+        <PercentValue value={value} className="text-2xl font-semibold tabular-nums" />
         <span className="flex items-baseline gap-1 text-sm font-semibold tabular-nums">
-          {scale.hide_gpa ? (
+          {hideGrades ? (
             <span className="text-xs font-normal text-muted-foreground">{m.grading_gpa()}</span>
           ) : null}
-          <GpaValue
-            value={points}
-            hidden={scale.hide_gpa}
-            letter={letter}
-            letterClassName="text-sm font-semibold"
-          />
+          <GpaValue value={points} letter={letter} letterClassName="text-sm font-semibold" />
         </span>
       </div>
       {data.length > 0 ? (
-        <>
+        <ConcealedChart className="mt-3">
           <ChartContainer
             config={config}
-            className="mt-3 aspect-auto w-full"
+            className="aspect-auto w-full"
             style={{ height: data.length * ROW }}
             initialDimension={{ width: 280, height: data.length * ROW }}
           >
@@ -216,7 +212,7 @@ export function ForecastCard({
             <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
             {m.grading_forecast_needed({ value: percentText(target ?? 0) })}
           </p>
-        </>
+        </ConcealedChart>
       ) : null}
       {footer}
     </section>

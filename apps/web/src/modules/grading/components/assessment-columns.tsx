@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { dueText, percentText } from '../display'
+import { useHideGrades } from './GradeValue'
 import { scoreText } from '../score'
 import { compareValues } from '../sort'
 import type { AssessmentAction, AssessmentColumn } from '../types'
@@ -104,7 +105,9 @@ function WeightCell({ a }: { a: Assessment }) {
 
 function ScoreCell({ a }: { a: Assessment }) {
   const { whatIf, predictions, saveScore, assume } = useActions()
-  const predicted = predictions[a.id]
+  const hidden = useHideGrades()
+  // A forecast is a grade too.
+  const predicted = hidden ? undefined : predictions[a.id]
   const assumed = whatIf.plan && a.score_percentage === null && !a.dropped
   const assumedValue = whatIf.scores[a.id]
   return (

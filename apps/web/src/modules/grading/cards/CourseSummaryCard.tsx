@@ -4,9 +4,8 @@ import type { CardProps } from '@/app/extensions'
 import { HistoryLink } from '@/components/HistoryLink'
 import { coursePath } from '@/modules/academics/paths'
 import { m } from '@/paraglide/messages'
-import { GpaValue } from '../components/GpaValue'
+import { Concealed, GpaValue, HideGrades, PercentValue } from '../components/GradeValue'
 import { requiredText } from '../components/Stat'
-import { AnimatedPercent } from '../components/AnimatedPercent'
 import { dueText, headline } from '../display'
 import { useGradebook } from '../queries'
 
@@ -28,55 +27,59 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
         m.grading_fail()
       )
     ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
-      <AnimatedPercent value={grade} />
+      <PercentValue value={grade} animated />
     ) : (
       '—'
     )
   return (
-    <HistoryLink
-      href={coursePath(scope.programId, courseId, 'grades')}
-      className="-mx-2 -my-1 flex h-full rounded-xl px-2 py-1 transition-colors hover:bg-muted/50"
-    >
-      <CardStat
-        className="flex-1"
-        label={
-          size === 's'
-            ? final
-              ? m.grading_final_grade()
-              : m.grading_current_grade()
-            : final
-              ? m.grading_final()
-              : m.grading_current()
-        }
-        value={value}
-        footer={
-          <>
-            <p>
-              {m.grading_gpa()}{' '}
-              <GpaValue
-                value={points}
-                hidden={scale.hide_gpa}
-                letter={letter}
-                letterClassName="ml-1.5"
-                className="text-foreground"
-                animated
-              />
-            </p>
-            {size === 'm' && result.basis === 'percentage' ? (
-              <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
-                <dt>{m.grading_target_needed()}</dt>
-                <dd className="font-medium text-foreground">{requiredText(s)}</dd>
-                {next?.due_at ? (
-                  <>
-                    <dt className="truncate">{next.title}</dt>
-                    <dd>{dueText(next)}</dd>
-                  </>
-                ) : null}
-              </dl>
-            ) : null}
-          </>
-        }
-      />
-    </HistoryLink>
+    <HideGrades hidden={scale.hide_grades}>
+      <HistoryLink
+        href={coursePath(scope.programId, courseId, 'grades')}
+        className="-mx-2 -my-1 flex h-full rounded-xl px-2 py-1 transition-colors hover:bg-muted/50"
+      >
+        <CardStat
+          className="flex-1"
+          label={
+            size === 's'
+              ? final
+                ? m.grading_final_grade()
+                : m.grading_current_grade()
+              : final
+                ? m.grading_final()
+                : m.grading_current()
+          }
+          value={value}
+          footer={
+            <>
+              <p>
+                {m.grading_gpa()}{' '}
+                <GpaValue
+                  value={points}
+
+                  letter={letter}
+                  letterClassName="ml-1.5"
+                  className="text-foreground"
+                  animated
+                />
+              </p>
+              {size === 'm' && result.basis === 'percentage' ? (
+                <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
+                  <dt>{m.grading_target_needed()}</dt>
+                  <dd className="font-medium text-foreground">
+                    <Concealed>{requiredText(s)}</Concealed>
+                  </dd>
+                  {next?.due_at ? (
+                    <>
+                      <dt className="truncate">{next.title}</dt>
+                      <dd>{dueText(next)}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              ) : null}
+            </>
+          }
+        />
+      </HistoryLink>
+    </HideGrades>
   )
 }

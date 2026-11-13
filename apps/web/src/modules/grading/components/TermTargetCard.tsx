@@ -7,9 +7,9 @@ import { m } from '@/paraglide/messages'
 import { type ChartConfig, ChartContainer, ChartTooltip } from '@/ui/chart'
 import { Field, FieldDescription, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
-import { GPA_MASK, percentText } from '../display'
+import { percentText } from '../display'
 import { parseDecimal } from '../score'
-import { GpaValue } from './GpaValue'
+import { Concealed, ConcealedChart, GpaValue } from './GradeValue'
 
 const ROW = 26
 const config = { value: { label: '' } } satisfies ChartConfig
@@ -132,7 +132,7 @@ export function TermTargetCard({
             : gap !== null
               ? {
                   tone: 'bad',
-                  text: m.grading_target_gap({ gap: term.hide_gpa ? GPA_MASK : formatGpa(gap) }),
+                  text: m.grading_target_gap({ gap: formatGpa(gap) }),
                 }
               : null
 
@@ -146,62 +146,64 @@ export function TermTargetCard({
         <>
           <p className="text-xs text-muted-foreground">{m.grading_planned_gpa()}</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
-            <GpaValue value={planned?.gpa ?? null} hidden={term.hide_gpa} />
+            <GpaValue value={planned?.gpa ?? null} />
           </p>
         </>
       ) : (
         <p className="text-xs text-muted-foreground">{m.grading_term_unfinished()}</p>
       )}
       {data.length > 0 ? (
-        <ChartContainer
-          config={config}
-          className="mt-3 aspect-auto w-full"
-          style={{ height: data.length * ROW + 24 }}
-          initialDimension={{ width: 280, height: data.length * ROW + 24 }}
-        >
-          <BarChart
-            accessibilityLayer
-            data={data}
-            layout="vertical"
-            margin={{ top: 18, right: 36, bottom: 0, left: 0 }}
-            barCategoryGap={6}
+        <ConcealedChart className="mt-3">
+          <ChartContainer
+            config={config}
+            className="aspect-auto w-full"
+            style={{ height: data.length * ROW + 24 }}
+            initialDimension={{ width: 280, height: data.length * ROW + 24 }}
           >
-            <XAxis type="number" domain={[0, 100]} hide />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={84}
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 12 }}
-            />
-            <ChartTooltip cursor={false} content={TermTooltip} />
-            <Bar dataKey="value" radius={4} isAnimationActive={false}>
-              {data.map((d) => (
-                <Cell key={d.id} fill={d.color} fillOpacity={d.assumed ? 1 : 0.45} />
-              ))}
-              <LabelList
-                dataKey="value"
-                position="right"
-                className="fill-foreground text-xs tabular-nums"
-                formatter={(v: unknown) => percentText(Number(v))}
+            <BarChart
+              accessibilityLayer
+              data={data}
+              layout="vertical"
+              margin={{ top: 18, right: 36, bottom: 0, left: 0 }}
+              barCategoryGap={6}
+            >
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={84}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 12 }}
               />
-            </Bar>
-            {required !== null && required > 0 && required <= 100 ? (
-              <ReferenceLine
-                x={required}
-                stroke="var(--foreground)"
-                strokeDasharray="3 3"
-                label={{
-                  value: m.grading_forecast_needed({ value: percentText(required) }),
-                  position: 'top',
-                  fontSize: 11,
-                  fill: 'var(--muted-foreground)',
-                }}
-              />
-            ) : null}
-          </BarChart>
-        </ChartContainer>
+              <ChartTooltip cursor={false} content={TermTooltip} />
+              <Bar dataKey="value" radius={4} isAnimationActive={false}>
+                {data.map((d) => (
+                  <Cell key={d.id} fill={d.color} fillOpacity={d.assumed ? 1 : 0.45} />
+                ))}
+                <LabelList
+                  dataKey="value"
+                  position="right"
+                  className="fill-foreground text-xs tabular-nums"
+                  formatter={(v: unknown) => percentText(Number(v))}
+                />
+              </Bar>
+              {required !== null && required > 0 && required <= 100 ? (
+                <ReferenceLine
+                  x={required}
+                  stroke="var(--foreground)"
+                  strokeDasharray="3 3"
+                  label={{
+                    value: m.grading_forecast_needed({ value: percentText(required) }),
+                    position: 'top',
+                    fontSize: 11,
+                    fill: 'var(--muted-foreground)',
+                  }}
+                />
+              ) : null}
+            </BarChart>
+          </ChartContainer>
+        </ConcealedChart>
       ) : null}
       <div className="mt-3 space-y-2 border-t border-border pt-3">
         <TargetField targetGpa={targetGpa} maxPoints={term.max_points} onChange={onTargetChange} />
@@ -212,7 +214,7 @@ export function TermTargetCard({
               status.tone === 'good' && 'text-foreground',
             )}
           >
-            {status.text}
+            <Concealed>{status.text}</Concealed>
           </FieldDescription>
         ) : null}
       </div>

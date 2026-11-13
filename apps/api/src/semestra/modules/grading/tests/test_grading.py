@@ -87,7 +87,7 @@ async def test_program_gets_the_default_scale_or_the_chosen_preset(api: Api):
     assert scale["max_points"] == 4.0
     assert scale["bands"][0] == {"min": 90, "max": 100, "points": 4.0, "letter": "A+"}
     assert [c["key"] for c in scale["default_categories"]][:2] == ["quiz", "exam"]
-    assert (scale["year_course_attribution"], scale["hide_gpa"]) == ("end_term", False)
+    assert (scale["year_course_attribution"], scale["hide_grades"]) == ("end_term", False)
 
     us = await api.program(name="US", setup={"grading_scale_preset": "us_4_0"})
     bands = (await api.call("GET", f"/programs/{us['id']}/grading-scale"))["bands"]
@@ -127,8 +127,8 @@ async def test_program_gets_the_default_scale_or_the_chosen_preset(api: Api):
 async def test_scale_update_validates_and_keeps_unsent_fields(api: Api):
     program = await api.program()
     url = f"/programs/{program['id']}/grading-scale"
-    updated = await api.call("PUT", url, json={"hide_gpa": True})
-    assert updated["hide_gpa"] is True
+    updated = await api.call("PUT", url, json={"hide_grades": True})
+    assert updated["hide_grades"] is True
     assert updated["bands"][0]["min"] == 90  # untouched
 
     bands = [
@@ -150,7 +150,7 @@ async def test_scale_update_validates_and_keeps_unsent_fields(api: Api):
     dup = [{"key": "a", "name": "A", "color": "blue"}] * 2
     r = await api.call("PUT", url, 422, json={"default_categories": dup})
     assert r["error"]["params"]["reason"] == "category_key_duplicate"
-    await api.call("PUT", url, 422, json={"hide_gpa": None})
+    await api.call("PUT", url, 422, json={"hide_grades": None})
 
 
 async def test_lowering_the_scale_maximum_drops_targets_above_it(api: Api):
@@ -716,11 +716,13 @@ async def test_term_what_if_over_http(api: Api):
 
 async def test_hidden_gpa_flag_travels_with_the_figures(api: Api):
     program, course = await one_course(api)
-    await api.call("PUT", f"/programs/{program['id']}/grading-scale", json={"hide_gpa": True})
-    assert (await api.gradebook(course["id"]))["scale"]["hide_gpa"] is True
+    await api.call("PUT", f"/programs/{program['id']}/grading-scale", json={"hide_grades": True})
+    assert (await api.gradebook(course["id"]))["scale"]["hide_grades"] is True
     term_id = course["term_ids"][0]
-    assert (await api.call("GET", f"/terms/{term_id}/grade-summary"))["hide_gpa"] is True
-    assert (await api.call("GET", f"/programs/{program['id']}/grade-summary"))["hide_gpa"] is True
+    assert (await api.call("GET", f"/terms/{term_id}/grade-summary"))["hide_grades"] is True
+    assert (await api.call("GET", f"/programs/{program['id']}/grade-summary"))[
+        "hide_grades"
+    ] is True
 
 
 # --- clean-up and ownership -----------------------------------------------------------------
@@ -768,7 +770,7 @@ async def test_other_peoples_data_is_not_found(
     cid, pid = course["id"], program["id"]
     attempts: list[tuple[str, str, dict[str, Any]]] = [
         ("GET", f"/programs/{pid}/grading-scale", {}),
-        ("PUT", f"/programs/{pid}/grading-scale", {"json": {"hide_gpa": True}}),
+        ("PUT", f"/programs/{pid}/grading-scale", {"json": {"hide_grades": True}}),
         ("GET", f"/courses/{cid}/gradebook", {}),
         ("PATCH", f"/courses/{cid}/grade", {"json": {"basis": "pass_fail"}}),
         ("POST", f"/courses/{cid}/grading-categories", {"json": {"name": "x"}}),

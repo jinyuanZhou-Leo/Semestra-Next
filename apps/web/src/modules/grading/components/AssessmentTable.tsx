@@ -27,6 +27,7 @@ import { Button } from '@/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { categoryName, percentText } from '../display'
+import { Concealed, PercentValue } from './GradeValue'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import {
@@ -455,12 +456,12 @@ function GroupRow({
       <TableCell className="py-1.5">
         {planning ? (
           <span className="block pr-16 text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-            {m.grading_actual({ value: percentText(average) })}
+            <Concealed>{m.grading_actual({ value: percentText(average) })}</Concealed>
           </span>
         ) : (
           <span className="block pr-16 text-right font-medium tabular-nums">
             <span className="sr-only">{m.grading_average()}: </span>
-            {percentText(average)}
+            <PercentValue value={average} />
           </span>
         )}
       </TableCell>

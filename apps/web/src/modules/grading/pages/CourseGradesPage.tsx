@@ -1,4 +1,5 @@
 import type { Gradebook } from '@semestra/api-client'
+import { HideGrades } from '../components/GradeValue'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -30,7 +31,9 @@ export default function CourseGradesPage({ scope }: PageProps) {
   return (
     <AsyncBoundary query={useGradebook(courseId)}>
       {(gradebook) => (
-        <CourseGrades key={courseId} gradebook={gradebook} programId={scope.programId} />
+        <HideGrades hidden={gradebook.scale.hide_grades}>
+          <CourseGrades key={courseId} gradebook={gradebook} programId={scope.programId} />
+        </HideGrades>
       )}
     </AsyncBoundary>
   )

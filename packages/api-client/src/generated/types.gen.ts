@@ -2896,9 +2896,9 @@ export type CourseGrades = {
      */
     max_points: number;
     /**
-     * Hide Gpa
+     * Hide Grades
      */
-    hide_gpa: boolean;
+    hide_grades: boolean;
     /**
      * Items
      */
@@ -4982,9 +4982,9 @@ export type GradingScale = {
      */
     default_categories: Array<CategoryTemplate>;
     /**
-     * Hide Gpa
+     * Hide Grades
      */
-    hide_gpa: boolean;
+    hide_grades: boolean;
     /**
      * Round Before Lookup
      *
@@ -5006,9 +5006,9 @@ export type GradingScaleInfo = {
      */
     max_points: number;
     /**
-     * Hide Gpa
+     * Hide Grades
      */
-    hide_gpa: boolean;
+    hide_grades: boolean;
     /**
      * Round Before Lookup
      */
@@ -8072,9 +8072,9 @@ export type ProgramGrades = {
      */
     max_points: number;
     /**
-     * Hide Gpa
+     * Hide Grades
      */
-    hide_gpa: boolean;
+    hide_grades: boolean;
     /**
      * Gpa
      */
@@ -8896,11 +8896,11 @@ export type ScaleUpdateInputBody = {
      */
     default_categories?: Array<CategoryTemplate> | null;
     /**
-     * Hide Gpa
+     * Hide Grades
      *
-     * Mask GPA figures in the interface
+     * Mask GPA and percentage grades in the interface
      */
-    hide_gpa?: boolean | null;
+    hide_grades?: boolean | null;
     /**
      * Round Before Lookup
      *
@@ -11514,9 +11514,9 @@ export type TermGrades = {
      */
     max_points: number;
     /**
-     * Hide Gpa
+     * Hide Grades
      */
-    hide_gpa: boolean;
+    hide_grades: boolean;
     /**
      * Gpa
      */

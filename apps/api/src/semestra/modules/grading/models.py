@@ -31,7 +31,7 @@ class GradingScale(Base, OwnedMixin, TimestampMixin):
     default_forecast_model: Mapped[str] = mapped_column(String, default="auto")
     # [{key, name, color}] copied into every new course.
     default_categories: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
-    hide_gpa: Mapped[bool] = mapped_column(Boolean, default=False)
+    hide_grades: Mapped[bool] = mapped_column(Boolean, default=False)
     # Percentages are rounded to whole numbers before the band lookup (84.6 reads as 85).
     round_before_lookup: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 

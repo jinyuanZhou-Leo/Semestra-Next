@@ -274,17 +274,19 @@ test('grouped view heads each category with its weight and average', async () =>
   expect(row).toHaveTextContent('Average: 75%')
 })
 
-test('hide_gpa shows a mask until it is clicked', async () => {
-  book = gradebook({ scale: { max_points: 4, hide_gpa: true, round_before_lookup: true } })
+test('hide_grades shows a mask until it is hovered', async () => {
+  book = gradebook({ scale: { max_points: 4, hide_grades: true, round_before_lookup: true } })
   mount()
-  const mask = await screen.findByRole('button', { name: 'Show GPA' })
-  expect(mask).toHaveTextContent('•••')
+  const masks = await screen.findAllByLabelText('Show grade')
+  for (const mask of masks) expect(mask).toHaveTextContent('•••')
+  // Percentages are masked with the GPA.
+  expect(screen.queryByText('91%')).not.toBeInTheDocument()
   expect(screen.queryByText('3.70')).not.toBeInTheDocument()
   // The letter would give the GPA away, so it is masked with it.
   expect(screen.queryByText('A-')).not.toBeInTheDocument()
   // Its choices are only thresholds then, so the target is a grade, not a GPA.
   expect(screen.getByRole('combobox', { name: 'Target grade' })).toBeInTheDocument()
-  await userEvent.click(mask)
+  for (const mask of masks) await userEvent.hover(mask)
   expect(await screen.findByText('3.70')).toBeInTheDocument()
   expect(screen.getByText('A-')).toBeInTheDocument()
 })
@@ -364,7 +366,7 @@ test('deadlines show the Program-local date, not the browser-zone conversion', a
     ],
   })
   mount()
-  expect(await screen.findByText('Oct 18, 2026')).toBeInTheDocument()
+  expect(await screen.findByText(/^Oct 18/)).toBeInTheDocument()
 })
 
 test('the status filter and the search narrow the table, and clearing them brings rows back', async () => {

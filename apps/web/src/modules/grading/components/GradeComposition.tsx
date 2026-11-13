@@ -8,24 +8,23 @@ import { Badge } from '@/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { type CompositionSlice, composition } from '../composition'
-import { categoryColor, categoryName, headline, percentText } from '../display'
-import { AnimatedPercent } from './AnimatedPercent'
+import { GRADE_MASK, categoryColor, categoryName, headline, percentText } from '../display'
 import { CompositionRing, type RingSlice } from './CompositionRing'
-import { GpaValue } from './GpaValue'
+import { Concealed, GpaValue, PercentValue, useHideGrades } from './GradeValue'
 
 type Datum = CompositionSlice & RingSlice & { name: string }
 
 const sliceKey = (id: string | null) => id ?? '__none__'
 
 /** A category's figures: the ring's tooltip, the legend row's tooltip and its screen reader text. */
-function sliceRows(datum: Datum): [string, string][] {
+function sliceRows(datum: Datum, hidden = false): [string, string][] {
   return [
     [m.grading_slice_weight(), `${formatCredits(datum.weight)}%`],
     [m.grading_slice_graded(), `${formatCredits(datum.graded)}%`],
-    [m.grading_average(), percentText(datum.average)],
+    [m.grading_average(), hidden ? GRADE_MASK : percentText(datum.average)],
     [
       m.grading_slice_contribution(),
-      `${formatCredits(Math.round(datum.contribution * 100) / 100)}%`,
+      hidden ? GRADE_MASK : `${formatCredits(Math.round(datum.contribution * 100) / 100)}%`,
     ],
   ]
 }
@@ -57,6 +56,7 @@ const LegendContext = createContext({ idPrefix: '' })
 const detailsIdOf = (idPrefix: string, datum: Datum) => `${idPrefix}-${datum.key}`
 
 function LegendName({ datum }: { datum: Datum }) {
+  const hidden = useHideGrades()
   const { idPrefix } = useContext(LegendContext)
   return (
     <>
@@ -67,12 +67,16 @@ function LegendName({ datum }: { datum: Datum }) {
       />
       {datum.name}
       <span id={detailsIdOf(idPrefix, datum)} className="sr-only">
-        {sliceRows(datum)
+        {sliceRows(datum, hidden)
           .map(([label, value]) => `${label}: ${value}`)
           .join(', ')}
       </span>
     </>
   )
+}
+
+function LegendAverage({ average }: { average: number | null }) {
+  return <Concealed>{percentText(average)}</Concealed>
 }
 
 const legendFeatures = tableFeatures({})
@@ -93,7 +97,7 @@ const legendColumns = legendColumn.columns([
   legendColumn.display({
     id: 'average',
     header: () => m.grading_average(),
-    cell: ({ row }) => percentText(row.original.average),
+    cell: ({ row }) => <LegendAverage average={row.original.average} />,
   }),
 ])
 
@@ -157,7 +161,7 @@ function LegendRow({
 export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
   const [hovered, setHovered] = useState<string | null>(null)
   const idPrefix = useId()
-  const { summary: s, scale } = gradebook
+  const { summary: s } = gradebook
   const data: Datum[] = composition(s, gradebook.categories).map((slice) => ({
     ...slice,
     key: sliceKey(slice.id),
@@ -187,7 +191,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
           )}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <AnimatedPercent value={actual} />
+            <PercentValue value={actual} animated />
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {s.overridden ? (
@@ -205,7 +209,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
             <dd className="flex items-baseline gap-1.5 text-2xl font-semibold tabular-nums">
               <GpaValue
                 value={shown.points}
-                hidden={scale.hide_gpa}
+
                 letter={shown.letter}
                 letterClassName="text-sm font-semibold"
                 animated

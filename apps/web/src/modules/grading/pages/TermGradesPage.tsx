@@ -22,12 +22,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { coursePath } from '@/modules/academics/paths'
 import { useCourses } from '@/modules/academics/queries'
-import { GpaValue } from '../components/GpaValue'
+import { GpaValue, HideGrades, PercentValue, useHideGrades } from '../components/GradeValue'
 import { GradeTableCard, PlanBar } from '../components/GradeTableCard'
 import { InlineInput } from '../components/InlineInput'
 import { TermComposition, courseStatusLabel } from '../components/TermComposition'
 import { TermTargetCard } from '../components/TermTargetCard'
-import { percentText } from '../display'
 import { parseScore } from '../score'
 import { useTermGrades } from '../queries'
 import { useTermPlanSimulation } from '../use-plan'
@@ -43,7 +42,6 @@ const column = createColumnHelper<typeof features, CourseGrade>()
 type TermCells = {
   programId: string
   termId: string
-  hideGpa: boolean
   planning: boolean
   colors: ReadonlyMap<string, string>
   scores: Readonly<Record<string, number>>
@@ -95,6 +93,7 @@ function canAssume(c: CourseGrade): boolean {
  */
 function PercentageCell({ c }: { c: CourseGrade }) {
   const { planning, scores, assume } = useCells()
+  const hidden = useHideGrades()
   const assumed = scores[c.course_id]
   return (
     <div className="flex items-center justify-end gap-1">
@@ -103,14 +102,18 @@ function PercentageCell({ c }: { c: CourseGrade }) {
           key={`${c.course_id}-${assumed ?? ''}`}
           label={`${m.grading_assumed_score()}: ${c.title}`}
           placeholder={
-            c.current_percentage === null ? '—' : String(Math.round(c.current_percentage * 10) / 10)
+            c.current_percentage === null || hidden
+              ? '—'
+              : String(Math.round(c.current_percentage * 10) / 10)
           }
           tone="assumed"
           value={assumed === undefined ? '' : String(Math.round(assumed * 100) / 100)}
           onCommit={(text) => assume(c.course_id, text)}
         />
       ) : (
-        <span className="w-24 px-3 text-right tabular-nums">{percentText(c.percentage)}</span>
+        <span className="w-24 px-3 text-right tabular-nums">
+          <PercentValue value={c.percentage} />
+        </span>
       )}
       <span className="w-12 text-left text-xs text-muted-foreground tabular-nums">
         {/* In plan mode the assumption's hint already shows the average so far. */}
@@ -119,7 +122,7 @@ function PercentageCell({ c }: { c: CourseGrade }) {
         !(planning && canAssume(c)) ? (
           <>
             <span className="sr-only">{m.grading_current()}: </span>
-            {percentText(c.current_percentage)}
+            <PercentValue value={c.current_percentage} />
           </>
         ) : null}
       </span>
@@ -128,12 +131,10 @@ function PercentageCell({ c }: { c: CourseGrade }) {
 }
 
 function PointsCell({ c }: { c: CourseGrade }) {
-  const { hideGpa } = useCells()
   return (
     <span className="block text-right tabular-nums">
       <GpaValue
         value={c.points}
-        hidden={hideGpa}
         letter={c.letter}
         letterClassName="ml-1.5 text-xs text-muted-foreground"
       />
@@ -197,7 +198,11 @@ export default function TermGradesPage({ scope }: PageProps) {
   const grades = useTermGrades(termId)
   return (
     <AsyncBoundary query={grades}>
-      {(term) => <TermGradesView key={termId} term={term} programId={scope.programId} />}
+      {(term) => (
+        <HideGrades hidden={term.hide_grades}>
+          <TermGradesView key={termId} term={term} programId={scope.programId} />
+        </HideGrades>
+      )}
     </AsyncBoundary>
   )
 }
@@ -258,7 +263,6 @@ function TermGradesView({ term, programId }: { term: TermGrades; programId: stri
   const cells: TermCells = {
     programId,
     termId,
-    hideGpa: term.hide_gpa,
     planning,
     colors,
     scores,
