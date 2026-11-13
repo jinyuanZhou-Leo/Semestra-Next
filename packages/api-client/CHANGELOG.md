@@ -1,5 +1,9 @@
 # @semestra/api-client
 
+## 2.0.0-beta.9
+
+No changes in this release.
+
 ## 2.0.0-beta.8
 
 No changes in this release.
