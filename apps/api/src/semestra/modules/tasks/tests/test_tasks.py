@@ -492,6 +492,8 @@ async def test_deleting_a_program_removes_its_lists_and_tasks(
     pid = s["program"]
     await api.call("POST", f"/programs/{pid}/task-lists", json={"name": "L"})
     await api.task(pid)
+    # The last Program cannot go.
+    await api.call("POST", "/programs", json={"name": "Other", "timezone": "America/Toronto"})
     await api.call("DELETE", f"/programs/{pid}")
     async with system_ctx(app.state, user.id) as ctx:
         from sqlalchemy import func, select

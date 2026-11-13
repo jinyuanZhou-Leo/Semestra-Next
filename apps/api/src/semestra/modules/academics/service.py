@@ -488,8 +488,11 @@ def ensure_subject_color(program: AcademicsProgram, subject: str) -> None:
 async def delete_program(ctx: Ctx, program_id: str) -> None:
     """Deletes the Program with every term and course. Other modules clean up in the same
     transaction (`*.deleting`); every deleted term and course is announced after commit
-    (`*.deleted`), so scoped data such as settings goes too (M11 §9)."""
+    (`*.deleted`), so scoped data such as settings goes too (M11 §9). A user always keeps one
+    Program (M02 §2): the last one goes only with the account."""
     row = await get_program_row(ctx, program_id)
+    if await only_program_row(ctx) is not None:
+        raise AppError("academics.program_last", 409)
     terms = await program_terms(ctx, program_id)
     links = await _program_links(ctx, program_id)
     courses = (

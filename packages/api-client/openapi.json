@@ -1952,7 +1952,7 @@
           "academics"
         ],
         "summary": "Delete a Program with all of its terms, courses and their data.",
-        "description": "Irreversible. Use only when the user clearly asks to delete the whole Program.\nTo remove one term or course use academics.term.delete or academics.course.delete.",
+        "description": "Irreversible. Use only when the user clearly asks to delete the whole Program.\nThe user's only Program cannot be deleted.\nTo remove one term or course use academics.term.delete or academics.course.delete.",
         "operationId": "academicsProgramDelete",
         "security": [
           {

@@ -765,6 +765,7 @@ export const academicsProgramCreateMutation = (options?: Partial<Options<Academi
  * Delete a Program with all of its terms, courses and their data.
  *
  * Irreversible. Use only when the user clearly asks to delete the whole Program.
+ * The user's only Program cannot be deleted.
  * To remove one term or course use academics.term.delete or academics.course.delete.
  */
 export const academicsProgramDeleteMutation = (options?: Partial<Options<AcademicsProgramDeleteData>>): UseMutationOptions<AcademicsProgramDeleteResponse, AcademicsProgramDeleteError, Options<AcademicsProgramDeleteData>> => {

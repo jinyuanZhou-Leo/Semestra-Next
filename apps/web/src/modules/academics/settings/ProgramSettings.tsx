@@ -30,7 +30,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { ColorDotPicker } from '../components/ColorDotPicker'
 import type { ColorRef } from '../components/ColorPicker'
 import { TimezoneSelect } from '../components/TimezoneSelect'
-import { invalidateAcademics, useCourses, useProgram } from '../queries'
+import { invalidateAcademics, useCourses, usePrograms, useProgram } from '../queries'
 
 /** Program "basics" (M02 §5.2 settings): name, school, time zone, credits; delete. */
 export function ProgramBasicsSection({ scope }: SettingsSectionProps) {
@@ -117,14 +117,17 @@ export function ProgramDangerSection({ scope }: SettingsSectionProps) {
 function ProgramDanger({ program }: { program: Program }) {
   const queryClient = useQueryClient()
   const router = useRouter()
+  // A user always keeps one Program (M02 §2); the last one goes only with the account.
+  const last = (usePrograms().data?.items.length ?? 1) <= 1
   const [confirming, setConfirming] = useState(false)
   const remove = useMutation({
     ...academicsProgramDeleteMutation(),
     onError: toastError,
-    onSuccess: async () => {
+    onSuccess: () => {
       setConfirming(false)
-      await invalidateAcademics(queryClient)
+      // Leave first: refetching the deleted Program's pages only finds them gone.
       router.history.replace('/')
+      void invalidateAcademics(queryClient)
     },
   })
   return (
@@ -132,9 +135,11 @@ function ProgramDanger({ program }: { program: Program }) {
       <DangerZone>
         <SettingRow
           label={m.academics_program_delete()}
-          description={m.academics_program_delete_description()}
+          description={
+            last ? m.academics_program_delete_last() : m.academics_program_delete_description()
+          }
         >
-          <Button variant="destructive" onClick={() => setConfirming(true)}>
+          <Button variant="destructive" disabled={last} onClick={() => setConfirming(true)}>
             {m.common_delete()}
           </Button>
         </SettingRow>

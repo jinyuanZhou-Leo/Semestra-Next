@@ -67,6 +67,8 @@ agent_hints(
         "next to each other.",
         "academics.course_terms_cross_program": "The course and its terms must belong to the same "
         "Program.",
+        "academics.program_last": "The user's only Program cannot be deleted; they can create "
+        "another first, or delete their account to remove everything.",
     }
 )
 
@@ -133,6 +135,7 @@ async def program_update(ctx: Ctx, inp: ProgramUpdateInput) -> Program:
     name="academics.program.delete",
     summary="Delete a Program with all of its terms, courses and their data.",
     description="""Irreversible. Use only when the user clearly asks to delete the whole Program.
+The user's only Program cannot be deleted.
 To remove one term or course use academics.term.delete or academics.course.delete.""",
     effect="destructive",
     http=Http("DELETE", "/programs/{program_id}"),

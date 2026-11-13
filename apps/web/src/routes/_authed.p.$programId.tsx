@@ -11,6 +11,7 @@ import { isPhone, usePhone } from '@/app/mobile/phone'
 import { usePreferences, useUpdatePreferences } from '@/app/preferences'
 import { installedModules } from '@/app/registry'
 import { prefetchCurrentTermCourses } from '@/modules/academics/current-term'
+import { useLeaveDeletedScope } from '@/modules/academics/leave-deleted'
 import { AppShell } from '@/modules/academics/shell/AppShell'
 
 // Phones get their own shell and pages (M17); desktops never load them.
@@ -45,6 +46,8 @@ function ProgramLayout() {
   const loaded = active !== undefined
   const update = useUpdatePreferences()
   const phone = usePhone()
+  // A Program, term or course deleted elsewhere (another tab, Sem) does not strand the page.
+  useLeaveDeletedScope()
   // Remember the Program last opened, so `/` returns to it (M11 `active_program_id`).
   useEffect(() => {
     if (loaded && active !== programId) update({ active_program_id: programId })

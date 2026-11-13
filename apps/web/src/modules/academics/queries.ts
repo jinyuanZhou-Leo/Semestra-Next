@@ -44,9 +44,10 @@ export function useCourses(programId: string, termId?: string, { enabled = true 
   })
 }
 
-export function useCourse(courseId: string) {
+export function useCourse(courseId: string, { enabled = true } = {}) {
   return useQuery({
     ...academicsCourseGetOptions({ path: { course_id: courseId } }),
+    enabled,
   })
 }
 

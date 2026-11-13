@@ -323,6 +323,8 @@ async def test_deleting_scopes_deletes_their_boards(app: FastAPI, api: Api, user
         await api.call("DELETE", f"/courses/{course_id}")
     assert len([e for e in seen if e["type"] == "layouts.card.deleted"]) == 2
     assert await stored_boards(app) == 1
+    # The last Program cannot go.
+    await api.call("POST", "/programs", json={"name": "Other", "timezone": "America/Toronto"})
     with collect_events(app, user.id) as seen:
         await api.call("DELETE", f"/programs/{program_id}")
     assert [e["data"]["scope_type"] for e in seen if e["type"] == "layouts.card.deleted"] == [

@@ -299,6 +299,7 @@ async def test_deleting_a_program_announces_every_term_and_course(api: Api, app:
 
     for kind in ("course", "term", "program"):
         events.subscribe(f"academics.{kind}.deleting", in_transaction=True)(_grab)
+    other = await api.program(name="Other")
     try:
         user_id = (await api.call("GET", "/account/me"))["id"]
         with collect_events(app, user_id) as pushed:
@@ -321,7 +322,14 @@ async def test_deleting_a_program_announces_every_term_and_course(api: Api, app:
             ("academics.program.deleted", program["id"]),
         ]
     )
-    assert (await api.call("GET", "/programs"))["items"] == []
+    assert [p["id"] for p in (await api.call("GET", "/programs"))["items"]] == [other["id"]]
+
+
+async def test_the_only_program_cannot_be_deleted(api: Api):
+    program = await api.program()
+    err = await api.call("DELETE", f"/programs/{program['id']}", 409)
+    assert err["error"]["code"] == "academics.program_last"
+    await api.call("GET", f"/programs/{program['id']}")
 
 
 async def test_a_failing_cleanup_rolls_the_deletion_back(api: Api):
