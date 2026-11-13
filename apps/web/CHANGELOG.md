@@ -1,5 +1,45 @@
 # @semestra/web
 
+## 2.0.0-beta.9
+
+### Minor Changes
+
+- 3e5c369: <!-- area: grades -->
+  <!-- en -->
+  Change several assessments at once: tick them to set a category or weight, split a total weight evenly, drop them from the grade, or delete them.
+  <!-- zh -->
+  可以一次修改多项考核：勾选后统一设置分类或权重、平分总权重、不计入成绩，或一起删除。
+- 3e5c369: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  Selecting rows in tables is smoother and works the same way everywhere, with Clear selection next to the batch actions.
+  <!-- zh -->
+  表格多选更流畅，各处的操作方式一致，“取消选择”放在批量操作旁边。
+- 06d10a2: <!-- area: sem -->
+  <!-- en -->
+  Reference course files with @, and use several skills in one message with /.
+  <!-- zh -->
+  可以用 @ 引用课程文件，一条消息里也能用 / 选择多个技能。
+
+### Patch Changes
+
+- 9dc8362: <!-- area: calendar -->
+  <!-- en -->
+  Exported timetable images and PDFs now carry the Semestra mark.
+  <!-- zh -->
+  导出的课表图片和 PDF 现在带有 Semestra 标识。
+- 9dc8362: <!-- area: general -->
+  <!-- en -->
+  Fixed the loading screen with a collapsed sidebar and icon alignment in settings dropdowns.
+  <!-- zh -->
+  修复侧边栏收起时的加载画面，以及设置下拉菜单中图标未对齐的问题。
+- 9dc8362: <!-- area: files -->
+  <!-- en -->
+  File preview now supports custom zoom levels and Ctrl/⌘ + scroll zoom, and wide tables no longer overflow.
+  <!-- zh -->
+  文件预览支持自定义缩放比例和 Ctrl/⌘ + 滚轮缩放，宽表格不再溢出。
+- @semestra/api-client@2.0.0-beta.9
+
 ## 2.0.0-beta.8
 
 ### Minor Changes

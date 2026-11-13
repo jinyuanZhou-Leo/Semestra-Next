@@ -3,6 +3,23 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.9 (2026-11-12)
+
+### New
+
+- **Sem:** Reference course files with @, and use several skills in one message with /.
+- **Grades:** Change several assessments at once: tick them to set a category or weight, split a total weight evenly, drop them from the grade, or delete them.
+
+### Improved
+
+- **Terms & courses:** Selecting rows in tables is smoother and works the same way everywhere, with Clear selection next to the batch actions.
+
+### Fixed
+
+- **General:** Fixed the loading screen with a collapsed sidebar and icon alignment in settings dropdowns.
+- **Calendar:** Exported timetable images and PDFs now carry the Semestra mark.
+- **Files:** File preview now supports custom zoom levels and Ctrl/⌘ + scroll zoom, and wide tables no longer overflow.
+
 ## 2.0.0-beta.8 (2026-11-12)
 
 ### New

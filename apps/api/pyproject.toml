@@ -1,6 +1,6 @@
 [project]
 name = "semestra-api"
-version = "2.0.0b8"
+version = "2.0.0b9"
 description = "Semestra-Next backend (FastAPI)"
 requires-python = ">=3.14"
 dependencies = [
