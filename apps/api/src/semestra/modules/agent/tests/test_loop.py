@@ -943,15 +943,30 @@ async def test_a_loaded_skills_tools_stay_callable_in_the_next_message(
     assert "not available yet" not in model.last_text()
 
 
-async def test_slash_skill_is_injected(agent: Agent, model: FakeModel):
+async def test_slash_skills_are_injected(agent: Agent, model: FakeModel):
     session = await agent.session()
     model.then(say("Which course?"))
-    await agent.send(session["id"], "Lab 3 18/20", skill="record-grades")
+    refs = [
+        {"kind": "skill", "id": "record-grades", "label": "Record grades"},
+        {"kind": "skill", "id": "grade-planning", "label": "Plan grades"},
+    ]
+    text = "/Record grades Lab 3 18/20, then /Plan grades"
+    await agent.send(session["id"], text, references=refs)
     first = model.prompts(0)[0]
-    assert "record-grades" in str(first[1])
+    assert '`record-grades` ("/Record grades" in the message)' in str(first[1])
     assert "Recording grades" in str(first[1])
-    assert first[2] == "Lab 3 18/20"
+    assert "`grade-planning`" in str(first[2])
+    assert first[3] == text
     assert "grading__assessment__create_many" in model.tools_of(0)
+
+
+async def test_unknown_skill_is_refused(agent: Agent):
+    session = await agent.session()
+    refs = [{"kind": "skill", "id": "nope", "label": "Nope"}]
+    out = await agent.stream(
+        f"/agent/sessions/{session['id']}/messages", {"text": "", "references": refs}, status=404
+    )
+    assert out[0][1]["error"]["code"] == "common.not_found"
 
 
 # --- proposals after the conversation moved on ------------------------------------------------

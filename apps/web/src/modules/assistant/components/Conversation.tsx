@@ -74,8 +74,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { Switch } from '@/ui/switch'
 import { Trace, TraceIcon, TraceLine, TraceTitle } from '@/ui/trace'
 import { conversationDrafts, newConversationKey } from '../drafts'
-import { skillTitle } from '../labels'
-import { type Chip, type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
+import { type MessageReference, type PromptValue, promptDoc, segments } from '../prompt'
 import { useProgramEntities } from '../scope'
 import {
   buildItems,
@@ -90,7 +89,7 @@ import { AttachmentSaveMenu } from './AttachmentSaveMenu'
 import { Composer, type ComposerSubmit, type PendingAttachment } from './Composer'
 import { Markdown, preloadMarkdown } from './Markdown'
 import { PromptEditor, type PromptEditorHandle } from './PromptEditor'
-import { ChipCourses, RefChip } from './RefChip'
+import { ChipCourses, FileRefChip, RefChip } from './RefChip'
 import { AskedBlock } from './Asked'
 import { Reveal, SmoothHeight, Swap } from './motion'
 import { PendingDock } from './PendingDock'
@@ -172,9 +171,6 @@ function UserMessage({
   const [draft, setDraft] = useState<PromptValue | null>(null)
   const editing = opened !== null
   const editor = useRef<PromptEditorHandle>(null)
-  const skill: Chip | null = item.skill
-    ? { kind: 'skill', id: '', label: skillTitle(item.skill) }
-    : null
 
   // The editor opens with the caret after the text.
   useEffect(() => {
@@ -184,7 +180,7 @@ function UserMessage({
     value !== null &&
     (value.text.trim() !== item.text.trim() ||
       !sameReferences(value.references, item.references)) &&
-    (value.text.trim() !== '' || item.skill !== null || item.attachments.length > 0)
+    (value.text.trim() !== '' || item.attachments.length > 0)
   const canSave = savable(draft)
 
   function open() {
@@ -230,11 +226,6 @@ function UserMessage({
         ) : null}
         {editing ? (
           <>
-            {skill ? (
-              <span className="self-end">
-                <RefChip chip={skill} />
-              </span>
-            ) : null}
             <InputGroup className="relative w-full rounded-2xl">
               <PromptEditor
                 ref={editor}
@@ -242,6 +233,7 @@ function UserMessage({
                 programId={programId}
                 initialContent={opened}
                 menuSide="bottom"
+                slash
                 className="w-full"
                 onChange={(value) => setDraft(value)}
                 onEnter={() => void save()}
@@ -263,13 +255,17 @@ function UserMessage({
               </InputGroupAddon>
             </InputGroup>
           </>
-        ) : item.text || skill ? (
+        ) : item.text ? (
           <Bubble align="end" variant="muted">
             <BubbleContent className="leading-6 whitespace-pre-wrap">
-              {skill ? <RefChip chip={skill} /> : null}
-              {skill && item.text ? ' ' : null}
               {segments(item.text, item.references).map((part, i) =>
-                typeof part === 'string' ? part : <RefChip key={i} chip={part} />,
+                typeof part === 'string' ? (
+                  part
+                ) : part.kind === 'file' ? (
+                  <FileRefChip key={i} chip={part} />
+                ) : (
+                  <RefChip key={i} chip={part} />
+                ),
               )}
             </BubbleContent>
           </Bubble>
@@ -649,7 +645,6 @@ export function Conversation({
     const ok = await chat.send({
       text: input.text,
       references: input.references,
-      skill: input.skill ? { name: input.skill.name, title: input.skill.title } : null,
       attachmentIds: ready.map((a) => a.id as string),
       scope: sessionId ? null : newScope,
       temporary,

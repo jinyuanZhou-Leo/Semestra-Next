@@ -322,6 +322,24 @@ class PinnedFiles(BaseModel):
     items: list[ItemOut]
 
 
+class ProgramFilesInput(BaseModel):
+    program_id: Id = Field(description="Program id")
+
+
+class ProgramFile(BaseModel):
+    """A file as a picker lists it: enough to find it by name and tell where it is."""
+
+    id: str
+    course_id: str
+    display_name: str
+    mime_type: str | None
+    updated_at: datetime
+
+
+class ProgramFiles(BaseModel):
+    items: list[ProgramFile] = Field(description="Most recently changed first")
+
+
 class FilesUsageGet(BaseModel):
     used_bytes: int = Field(description="All the user's stored files, every module")
     files_bytes: int = Field(description="Of which course files")

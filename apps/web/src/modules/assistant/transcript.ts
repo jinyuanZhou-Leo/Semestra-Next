@@ -50,8 +50,7 @@ export type ViewItem =
       kind: 'user'
       id: string
       text: string
-      skill: Record<string, string> | null
-      /** Courses and terms picked with `@`, written as `@<label>` in the text. */
+      /** Skills, courses, terms and files picked with `/` and `@`, written in the text. */
       references: MessageReference[]
       attachments: AttachmentRef[]
     }
@@ -256,11 +255,12 @@ function userItem(message: AgentMessageOut): ViewItem {
       .filter((b) => b.type === 'text')
       .map((b) => str(b.text))
       .join('\n'),
-    skill: (content.find((b) => b.type === 'skill')?.title as Record<string, string>) ?? null,
-    references: content.flatMap((b) =>
-      b.type === 'reference' && (b.kind === 'course' || b.kind === 'term')
-        ? [{ kind: b.kind, id: str(b.id), label: str(b.label) }]
-        : [],
+    references: content.flatMap((b): MessageReference[] =>
+      b.type === 'skill'
+        ? [{ kind: 'skill', id: str(b.name), label: str(b.label) }]
+        : b.type === 'reference' && (b.kind === 'course' || b.kind === 'term' || b.kind === 'file')
+          ? [{ kind: b.kind, id: str(b.id), label: str(b.label) }]
+          : [],
     ),
     attachments: content
       .filter((b) => b.type === 'image_ref' || b.type === 'file_ref')
@@ -387,26 +387,33 @@ export function withUserMessage(
   return { ...detail, messages: [...detail.messages, newMessage(id, 'user', blocks)] }
 }
 
+/** What the server stores for what was written: skills first, then the text and references. */
+export function chipBlocks(text: string, references: readonly MessageReference[]): Block[] {
+  return [
+    ...references.flatMap((r) =>
+      r.kind === 'skill' ? [{ type: 'skill', name: r.id, label: r.label }] : [],
+    ),
+    ...(text ? [{ type: 'text', text }] : []),
+    ...references.flatMap((r) => (r.kind === 'skill' ? [] : [{ type: 'reference', ...r }])),
+  ]
+}
+
 /** A message edited by the user, before the server answers again: later messages are gone. */
 export function withEditedMessage(
   detail: AgentSessionDetail,
   id: string,
   text: string,
-  references: readonly MessageReference[] = [],
+  references: readonly MessageReference[],
 ): AgentSessionDetail {
   const index = detail.messages.findIndex((m) => m.id === id)
   if (index < 0) return detail
   const kept = detail.messages.slice(0, index + 1)
   const message = kept[index]
   if (!message) return detail
-  const others = message.content.filter((b) => b.type !== 'text' && b.type !== 'reference')
-  const skill = others.findIndex((b) => b.type === 'skill')
-  const content = others.toSpliced(
-    skill + 1,
-    0,
-    ...(text ? [{ type: 'text', text }] : []),
-    ...references.map((r) => ({ type: 'reference', ...r })),
+  const rest = message.content.filter(
+    (b) => b.type !== 'skill' && b.type !== 'text' && b.type !== 'reference',
   )
+  const content = [...chipBlocks(text, references), ...rest]
   const ids = new Set(kept.map((m) => m.id))
   return {
     ...detail,

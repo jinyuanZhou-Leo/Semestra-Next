@@ -8,7 +8,7 @@ a client that goes away does not stop the turn, and `GET /agent/sessions/{id}/ev
 again, after `Last-Event-ID` or from its start."""
 
 from collections.abc import AsyncIterator
-from typing import Annotated, Any
+from typing import Annotated
 
 import anyio
 from fastapi import APIRouter, Depends, Form, Header, Request, Response, UploadFile
@@ -16,14 +16,13 @@ from sqlalchemy import delete
 from sse_starlette import EventSourceResponse
 from starlette.datastructures import State
 
-from semestra.core.capability import registry
 from semestra.core.config import Settings
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.storage import CHUNK_SIZE, charge, discard_on_error, stage, user_key
 from semestra.core.uploads import limit_upload
-from semestra.modules.agent import attachments, decisions, loop, service, skills, store
+from semestra.modules.agent import attachments, decisions, loop, service, store
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentMessage,
@@ -131,7 +130,7 @@ async def send_message(
     rt = _runtime(request)
     session = await service.get_session_row(ctx, session_id)
     text = body.text.strip()
-    if not text and not body.attachment_ids and not body.skill:
+    if not text and not body.attachment_ids and not any(r.kind == "skill" for r in body.references):
         raise AppError("common.validation", 422, errors=[{"loc": ["text"], "code": "missing"}])
     await _check_ai(ctx, rt)
     claim = rt.claim(ctx.user_id, session.id)
@@ -152,24 +151,8 @@ async def _store_message(ctx: Ctx, session: AgentSession, body: SendMessageBody)
         session.scope = body.scope.model_dump()
         session.program_id = body.scope.program_id
 
-    blocks: list[dict[str, Any]] = []
-    if body.skill:
-        visible = skills.visible_skills(await registry.available(ctx, "agent"))
-        skill = next((s for s in visible if s.name == body.skill), None)
-        if skill is None:
-            raise not_found()
-        blocks.append(
-            {
-                "type": "skill",
-                "name": skill.name,
-                "title": skill.title,
-                "body": skill.body,
-                "tools": list(skill.tools),
-            }
-        )
-    if text:
-        blocks.append({"type": "text", "text": text})
-    blocks += await service.reference_blocks(ctx, body.references)
+    skill_blocks, reference_blocks = await service.chip_blocks(ctx, body.references)
+    blocks = [*skill_blocks, *([{"type": "text", "text": text}] if text else []), *reference_blocks]
     owned = {a.id: a for a in await service.attachments(ctx, session.id)}
     for att_id in dict.fromkeys(body.attachment_ids):
         att = owned.get(att_id)
