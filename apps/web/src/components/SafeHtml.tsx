@@ -77,6 +77,12 @@ function isAllBold(el: Element): boolean {
   return bold !== null && (bold.textContent ?? '').trim() === text && !el.querySelector('a, img')
 }
 
+/** A short bold line that doesn't end like a sentence ("Labs", not "Late work gets 0."). */
+function looksLikeHeading(el: Element): boolean {
+  const text = (el.textContent ?? '').trim()
+  return isAllBold(el) && text.length <= 80 && !/[.!?。！？]$/.test(text)
+}
+
 function rename(el: Element, tag: string): Element {
   const next = el.ownerDocument.createElement(tag)
   next.append(...el.childNodes)
@@ -95,13 +101,14 @@ function restoreStructure(root: DocumentFragment) {
   }
   for (const el of root.querySelectorAll('p')) {
     if (el.parentElement?.closest('td, th, li')) continue
-    if (isAllBold(el) && (el.textContent ?? '').trim().length <= 120) rename(el, 'h3')
+    if (looksLikeHeading(el)) rename(el, 'h3')
   }
   for (const table of root.querySelectorAll('table')) {
     if (table.querySelector('thead, th')) continue
     const first = table.querySelector('tr')
     const cells = first ? Array.from(first.children) : []
-    if (cells.length < 2 || !cells.every((c) => isBlank(c) || isAllBold(c))) continue
+    if (cells.length < 2 || !cells.some(isAllBold)) continue
+    if (!cells.every((c) => isBlank(c) || isAllBold(c))) continue
     const head = table.ownerDocument.createElement('thead')
     for (const cell of cells) rename(cell, 'th')
     head.append(first!)

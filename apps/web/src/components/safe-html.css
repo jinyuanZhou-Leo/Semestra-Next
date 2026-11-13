@@ -98,6 +98,10 @@
   border-collapse: collapse;
   border-spacing: 0;
 }
+/* The browser maps `cellspacing` to `border-spacing`, which only applies to separate borders. */
+.lms-original :where(table[cellspacing]) {
+  border-collapse: separate;
+}
 .lms-original :where(th, td) {
   padding: 1px;
 }
@@ -167,8 +171,9 @@
   font-size: 1em;
 }
 
-/* Text keeps a comfortable line length; tables, images and code may use the whole width. */
-.lms-simplified > :not(table, figure, pre, img, div:has(table)) {
+/* Text keeps a comfortable line length at any depth (templates wrap the whole page in a div);
+ * tables, images and code may use the whole width. */
+.lms-simplified :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, h5, h6):not(:is(td, th, li) *) {
   max-width: 72ch;
 }
 

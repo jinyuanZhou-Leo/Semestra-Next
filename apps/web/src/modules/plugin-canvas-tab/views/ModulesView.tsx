@@ -155,20 +155,25 @@ export function ModulesView({ selected }: { selected?: string }) {
 
 /**
  * Where the user stands in a module, at the end of its header: when it unlocks, a check once
- * it is done, "2/5" while items with requirements are left, else how many items it has.
+ * it is done, "2/5" while items with requirements are left, else how many items it has. The
+ * items are the module's own or, when the list left them out, those loaded on opening it.
  */
-function ModuleStatus({ module }: { module: Module }) {
-  if (module.state === 'locked') {
+function ModuleStatus({ module, items }: { module: Module; items: ModuleItem[] | undefined }) {
+  const [now] = useState(Date.now)
+  // Only students get `state`; anyone else still sees when a module opens.
+  const unlocks =
+    module.unlock_at && new Date(module.unlock_at).getTime() > now ? module.unlock_at : null
+  if (module.state === 'locked' || unlocks) {
     return (
       <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
         <Lock aria-hidden className="size-3.5" />
-        {module.unlock_at
-          ? m.canvas_tab_unlocks_at({ time: formatDate(module.unlock_at, { short: true }) })
+        {unlocks
+          ? m.canvas_tab_unlocks_at({ time: formatDate(unlocks, { short: true }) })
           : m.canvas_tab_module_locked()}
       </span>
     )
   }
-  const required = (module.items ?? []).filter((i) => i.completion)
+  const required = (items ?? []).filter((i) => i.completion)
   const done = required.filter((i) => i.completion?.completed).length
   if (module.state === 'completed' || (required.length > 0 && done === required.length)) {
     return (
@@ -192,7 +197,7 @@ function ModuleStatus({ module }: { module: Module }) {
   }
   return (
     <span className="shrink-0 text-xs text-muted-foreground">
-      {m.canvas_tab_module_items({ count: module.item_count ?? module.items?.length ?? 0 })}
+      {m.canvas_tab_module_items({ count: module.item_count ?? items?.length ?? 0 })}
     </span>
   )
 }
@@ -212,7 +217,16 @@ function ModuleSection({
   onOpenChange: (open: boolean) => void
   onExternal: (url: string) => void
 }) {
+  const { courseId } = useCanvasPage()
   const ref = useScrollIntoView<HTMLDivElement>(focused ? module.external_id : undefined)
+  // The items `ModuleItems` loads when the list left them out; read here, never fetched here.
+  const loaded = useQuery({
+    ...lmsModuleItemListOptions({
+      path: { course_id: courseId, module_id: module.external_id },
+    }),
+    enabled: false,
+  })
+  const items = module.items ?? loaded.data?.items
   const prerequisites = (module.prerequisite_module_ids ?? [])
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))
@@ -246,7 +260,7 @@ function ModuleSection({
           >
             {module.name}
           </span>
-          <ModuleStatus module={module} />
+          <ModuleStatus module={module} items={items} />
         </CollapsibleTrigger>
         <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-[ending-style]:h-0 data-[starting-style]:h-0 motion-reduce:transition-none">
           <div className="space-y-1 px-2 pb-2">
