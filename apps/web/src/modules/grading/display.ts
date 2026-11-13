@@ -40,7 +40,7 @@ export function percentText(value: number | null | undefined): string {
   return value == null ? '—' : formatPercent(value / 100)
 }
 
-/** The mask shown in place of a GPA or percentage while `hide_gpa` is on (M03 §5.3). */
+/** The mask shown in place of a GPA or percentage while `hide_grades` is on (M03 §5.3). */
 export const GRADE_MASK = '•••'
 
 /** A percentage as running text; with `hidden` the mask (a value that is not there stays "—"). */

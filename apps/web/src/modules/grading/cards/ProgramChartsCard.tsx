@@ -96,7 +96,7 @@ export default function ProgramChartsCard({ scope }: CardProps) {
       </Empty>
     )
   }
-  const masked = data.hide_gpa && !revealed
+  const masked = data.hide_grades && !revealed
   const lines = gpaConfig()
   return (
     <div className="flex h-full flex-col gap-3">

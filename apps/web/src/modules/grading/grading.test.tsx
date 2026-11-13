@@ -274,8 +274,8 @@ test('grouped view heads each category with its weight and average', async () =>
   expect(row).toHaveTextContent('Average: 75%')
 })
 
-test('hide_gpa shows a mask until it is clicked', async () => {
-  book = gradebook({ scale: { max_points: 4, hide_gpa: true, round_before_lookup: true } })
+test('hide_grades shows a mask until it is clicked', async () => {
+  book = gradebook({ scale: { max_points: 4, hide_grades: true, round_before_lookup: true } })
   mount()
   const masks = await screen.findAllByRole('button', { name: 'Show grade' })
   for (const mask of masks) expect(mask).toHaveTextContent('•••')

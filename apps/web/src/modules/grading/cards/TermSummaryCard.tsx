@@ -22,12 +22,12 @@ export default function TermSummaryCard({ scope, size }: CardProps) {
       <CardStat
         className="flex-1"
         label={size === 's' ? m.grading_term_gpa() : undefined}
-        value={<GpaValue value={data.gpa} hidden={data.hide_gpa} animated />}
+        value={<GpaValue value={data.gpa} hidden={data.hide_grades} animated />}
         footer={
           <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
             <dt>{m.grading_average()}</dt>
             <dd className="text-foreground tabular-nums">
-              <PercentValue value={data.average_percentage} hidden={data.hide_gpa} />
+              <PercentValue value={data.average_percentage} hidden={data.hide_grades} />
             </dd>
             <dt>{m.grading_credits_counted()}</dt>
             <dd className="text-foreground tabular-nums">

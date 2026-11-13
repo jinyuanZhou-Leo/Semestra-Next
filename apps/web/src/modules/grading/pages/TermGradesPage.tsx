@@ -258,7 +258,7 @@ function TermGradesView({ term, programId }: { term: TermGrades; programId: stri
   const cells: TermCells = {
     programId,
     termId,
-    hideGpa: term.hide_gpa,
+    hideGpa: term.hide_grades,
     planning,
     colors,
     scores,

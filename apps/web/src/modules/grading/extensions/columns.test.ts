@@ -5,7 +5,7 @@ import { courseColumns } from './columns'
 const gpa = courseColumns.find((c) => c.id === 'grading.gpa')
 const course = { id: 'c1' } as Course
 const data = (hide: boolean) => ({
-  hide_gpa: hide,
+  hide_grades: hide,
   max_points: 4,
   items: [{ course_id: 'c1', points: 4 }],
 })

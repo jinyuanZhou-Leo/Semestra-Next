@@ -97,10 +97,10 @@ export function TermComposition({
           data={data}
           hovered={hovered}
           onHoveredChange={setHovered}
-          renderDetails={(slice) => <SliceDetails slice={slice} hideGpa={term.hide_gpa} />}
+          renderDetails={(slice) => <SliceDetails slice={slice} hideGpa={term.hide_grades} />}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <PercentValue value={term.average_percentage} hidden={term.hide_gpa} animated />
+            <PercentValue value={term.average_percentage} hidden={term.hide_grades} animated />
           </span>
           <span className="text-xs text-muted-foreground">{m.grading_average()}</span>
         </CompositionRing>
@@ -108,7 +108,7 @@ export function TermComposition({
           <div>
             <dt className="text-xs text-muted-foreground">{m.grading_term_gpa()}</dt>
             <dd className="text-2xl font-semibold tabular-nums">
-              <GpaValue value={term.gpa} hidden={term.hide_gpa} animated />
+              <GpaValue value={term.gpa} hidden={term.hide_grades} animated />
             </dd>
           </div>
           <div>

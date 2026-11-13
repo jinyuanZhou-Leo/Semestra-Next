@@ -68,7 +68,7 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
   const roundId = useId()
   const [attribution, setAttribution] = useState(scale.year_course_attribution)
   const [forecast, setForecast] = useState(scale.default_forecast_model)
-  const [hide, setHide] = useState(scale.hide_gpa)
+  const [hide, setHide] = useState(scale.hide_grades)
   const [round, setRound] = useState(scale.round_before_lookup)
   const forecastItems = forecastOptions()
   const attributionItems = [
@@ -132,16 +132,16 @@ function ProgramGrading({ scale }: { scale: GradingScale }) {
           />
         </SettingRow>
         <SettingRow
-          label={m.grading_hide_gpa()}
+          label={m.grading_hide_grades()}
           labelId={hideId}
-          description={m.grading_hide_gpa_hint()}
+          description={m.grading_hide_grades_hint()}
         >
           <Switch
             aria-labelledby={hideId}
             checked={hide}
             onCheckedChange={(on) => {
               setHide(on)
-              queue({ hide_gpa: on })
+              queue({ hide_grades: on })
             }}
           />
         </SettingRow>

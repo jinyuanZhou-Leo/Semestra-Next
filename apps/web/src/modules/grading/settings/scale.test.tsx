@@ -39,7 +39,7 @@ const scaleOf = (preset: ScalePreset): GradingScale => ({
   year_course_attribution: 'end_term',
   default_forecast_model: 'auto',
   default_categories: [],
-  hide_gpa: false,
+  hide_grades: false,
   round_before_lookup: true,
   updated_at: '2026-10-23T00:00:00Z',
 })

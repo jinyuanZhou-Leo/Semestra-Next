@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Pie, PieChart, Sector, type PieSectorShapeProps } from 'recharts'
+import { pinnedTooltipBelow } from '@/lib/chart-tooltip'
 import { ChartContainer, ChartTooltip } from '@/ui/chart'
 
 const RING = 132
@@ -113,14 +114,7 @@ export function CompositionRing<T extends RingSlice>({
           <ChartTooltip
             cursor={false}
             content={<SliceTooltip renderDetails={renderDetails} />}
-            // Below the ring rather than at the pointer: the ring is smaller than the tooltip,
-            // which would otherwise hide it (and the figure in its middle) while hovering.
-            position={{ x: 0, y: RING + 8 }}
-            // Its place never changes; animated, it slides down from the ring's top each time it
-            // appears.
-            isAnimationActive={false}
-            allowEscapeViewBox={{ x: true, y: true }}
-            wrapperStyle={{ zIndex: 10 }}
+            {...pinnedTooltipBelow(RING)}
           />
           <Pie
             data={data.length > 0 ? [...data] : [{ key: 'empty', weight: 1 }]}

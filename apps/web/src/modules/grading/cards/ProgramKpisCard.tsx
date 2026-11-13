@@ -27,14 +27,14 @@ export default function ProgramKpisCard({ scope }: CardProps) {
           <div>
             <p className="text-xs text-muted-foreground">{m.grading_cumulative_gpa()}</p>
             <p className="font-heading text-5xl leading-tight font-semibold tabular-nums">
-              <GpaValue value={data.gpa} hidden={data.hide_gpa} animated />
+              <GpaValue value={data.gpa} hidden={data.hide_grades} animated />
             </p>
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <dt className="text-xs text-muted-foreground">{m.grading_average()}</dt>
             <dt className="text-xs text-muted-foreground">{m.grading_credits_earned()}</dt>
             <dd className="font-medium tabular-nums">
-              <PercentValue value={data.average_percentage} hidden={data.hide_gpa} animated />
+              <PercentValue value={data.average_percentage} hidden={data.hide_grades} animated />
             </dd>
             <dd className="font-medium tabular-nums">
               <AnimatedNumber value={data.credits_earned} format={formatCredits} />
@@ -68,14 +68,14 @@ export default function ProgramKpisCard({ scope }: CardProps) {
                   <span className="truncate">{term.name}</span>
                   <Progress
                     aria-hidden
-                    value={term.gpa === null || data.hide_gpa ? 0 : term.gpa}
+                    value={term.gpa === null || data.hide_grades ? 0 : term.gpa}
                     max={data.max_points}
                     className="[&_[data-slot=progress-track]]:h-1.5"
                   />
                   <span className="text-right font-medium tabular-nums">
                     {term.gpa === null ? (
                       <span className="text-xs font-normal text-muted-foreground">—</span>
-                    ) : data.hide_gpa ? (
+                    ) : data.hide_grades ? (
                       // The headline's mask reveals GPA; a button inside the link cannot.
                       GRADE_MASK
                     ) : (

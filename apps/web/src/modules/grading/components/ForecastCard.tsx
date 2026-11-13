@@ -118,7 +118,7 @@ export function ForecastCard({
 }) {
   const { summary: real, scale } = gradebook
   const [chartRevealed, setChartRevealed] = useState(false)
-  const masked = scale.hide_gpa && !chartRevealed
+  const masked = scale.hide_grades && !chartRevealed
   const s = planning ? (planned ?? real) : real
   const categories = new Map(gradebook.categories.map((c) => [c.id, c]))
   // In plan mode assumed scores count as a category's history, so the plan's own list applies.
@@ -165,16 +165,16 @@ export function ForecastCard({
       <div className="mt-1 flex items-baseline gap-2">
         <PercentValue
           value={value}
-          hidden={scale.hide_gpa}
+          hidden={scale.hide_grades}
           className="text-2xl font-semibold tabular-nums"
         />
         <span className="flex items-baseline gap-1 text-sm font-semibold tabular-nums">
-          {scale.hide_gpa ? (
+          {scale.hide_grades ? (
             <span className="text-xs font-normal text-muted-foreground">{m.grading_gpa()}</span>
           ) : null}
           <GpaValue
             value={points}
-            hidden={scale.hide_gpa}
+            hidden={scale.hide_grades}
             letter={letter}
             letterClassName="text-sm font-semibold"
           />

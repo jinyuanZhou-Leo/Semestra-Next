@@ -42,7 +42,7 @@ def scale_out(row: models.GradingScale) -> GradingScale:
             "year_course_attribution": row.year_course_attribution,
             "default_forecast_model": row.default_forecast_model,
             "default_categories": row.default_categories,
-            "hide_gpa": row.hide_gpa,
+            "hide_grades": row.hide_grades,
             "round_before_lookup": row.round_before_lookup,
             "updated_at": row.updated_at,
         }
@@ -77,7 +77,7 @@ async def create_scale(ctx: Ctx, program_id: str, preset: str | None = None) -> 
             "year_course_attribution": "end_term",
             "default_forecast_model": "auto",
             "default_categories": presets.BUILTIN_CATEGORIES,
-            "hide_gpa": False,
+            "hide_grades": False,
             "round_before_lookup": True,
             "created_at": ctx.now,
             "updated_at": ctx.now,
@@ -148,8 +148,8 @@ async def update_scale(ctx: Ctx, inp: ScaleUpdateInput) -> GradingScale:
         row.year_course_attribution = inp.year_course_attribution
     if inp.default_forecast_model is not None:
         row.default_forecast_model = inp.default_forecast_model
-    if inp.hide_gpa is not None:
-        row.hide_gpa = inp.hide_gpa
+    if inp.hide_grades is not None:
+        row.hide_grades = inp.hide_grades
     if inp.round_before_lookup is not None:
         row.round_before_lookup = inp.round_before_lookup
     row.updated_at = ctx.now

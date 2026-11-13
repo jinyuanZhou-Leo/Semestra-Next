@@ -47,7 +47,7 @@ function Gradebook({
           ? m.grading_assessment_drop()
           : assessment.score_percentage === null
             ? m.grading_task_ungraded()
-            : maskedPercentText(assessment.score_percentage, gradebook?.scale.hide_gpa ?? false),
+            : maskedPercentText(assessment.score_percentage, gradebook?.scale.hide_grades ?? false),
       ].filter((part) => part !== null)
     : []
   return (

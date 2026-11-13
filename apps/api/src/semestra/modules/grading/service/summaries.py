@@ -138,7 +138,7 @@ async def term_grades(ctx: Ctx, term_id: str, include_in_progress: bool | None) 
     return TermGrades(
         term_id=term_id,
         max_points=state.scale_row.max_points,
-        hide_gpa=state.scale_row.hide_gpa,
+        hide_grades=state.scale_row.hide_grades,
         gpa=aggregate.gpa,
         average_percentage=aggregate.average_percentage,
         credits_counted=aggregate.credits_counted,
@@ -183,7 +183,7 @@ async def program_grades(ctx: Ctx, program_id: str, include_in_progress: bool) -
     return ProgramGrades(
         program_id=program_id,
         max_points=state.scale_row.max_points,
-        hide_gpa=state.scale_row.hide_gpa,
+        hide_grades=state.scale_row.hide_grades,
         gpa=aggregate.gpa,
         average_percentage=aggregate.average_percentage,
         credits_counted=aggregate.credits_counted,
@@ -214,6 +214,6 @@ async def course_grades(ctx: Ctx, program_id: str, include_in_progress: bool) ->
     return CourseGrades(
         program_id=program_id,
         max_points=state.scale_row.max_points,
-        hide_gpa=state.scale_row.hide_gpa,
+        hide_grades=state.scale_row.hide_grades,
         items=[_course_grade_out(g, by_course[g.course.course_id]) for g in graded],
     )

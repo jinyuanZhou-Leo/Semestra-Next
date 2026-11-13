@@ -25,6 +25,7 @@ import {
   settingsTableFeatures,
 } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { pinnedTooltipBelow } from '@/lib/chart-tooltip'
 import { formatBytes, formatCount, formatPercent } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { subjectColor } from '@/lib/subject-color'
@@ -129,6 +130,9 @@ function RingCenter({ text, viewBox }: { text: string; viewBox?: { cx?: number; 
   )
 }
 
+/** The ring's height in px (`h-44`). */
+const RING_HEIGHT = 176
+
 function StorageRing({ usage }: { usage: StorageUsage }) {
   const parts = slices(usage)
   const limited = usage.quota_bytes > 0
@@ -157,6 +161,7 @@ function StorageRing({ usage }: { usage: StorageUsage }) {
             <ChartTooltip
               cursor={false}
               content={<ChartTooltipContent hideLabel formatter={sliceRow} />}
+              {...pinnedTooltipBelow(RING_HEIGHT)}
             />
           ) : null}
           <Pie

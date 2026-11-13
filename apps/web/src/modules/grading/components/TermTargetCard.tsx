@@ -129,13 +129,15 @@ export function TermTargetCard({
             ? {
                 tone: 'muted',
                 text: m.grading_term_required({
-                  percentage: maskedPercentText(required, term.hide_gpa),
+                  percentage: maskedPercentText(required, term.hide_grades),
                 }),
               }
             : gap !== null
               ? {
                   tone: 'bad',
-                  text: m.grading_target_gap({ gap: term.hide_gpa ? GRADE_MASK : formatGpa(gap) }),
+                  text: m.grading_target_gap({
+                    gap: term.hide_grades ? GRADE_MASK : formatGpa(gap),
+                  }),
                 }
               : null
 
@@ -149,13 +151,13 @@ export function TermTargetCard({
         <>
           <p className="text-xs text-muted-foreground">{m.grading_planned_gpa()}</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums">
-            <GpaValue value={planned?.gpa ?? null} hidden={term.hide_gpa} />
+            <GpaValue value={planned?.gpa ?? null} hidden={term.hide_grades} />
           </p>
         </>
       ) : (
         <p className="text-xs text-muted-foreground">{m.grading_term_unfinished()}</p>
       )}
-      {data.length > 0 && term.hide_gpa && !chartRevealed ? (
+      {data.length > 0 && term.hide_grades && !chartRevealed ? (
         <MaskedChart className="mt-3 h-24" onReveal={() => setChartRevealed(true)} />
       ) : data.length > 0 ? (
         <ChartContainer

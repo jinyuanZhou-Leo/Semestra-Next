@@ -44,7 +44,7 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <Stat label={m.grading_final_grade()} hint={scale.hide_gpa ? null : s.final_letter}>
+      <Stat label={m.grading_final_grade()} hint={scale.hide_grades ? null : s.final_letter}>
         <InlineInput
           key={`m-${result.manual_percentage ?? ''}`}
           label={m.grading_final_grade()}
@@ -63,8 +63,8 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
           className="-ml-3 h-9 w-28 border-input text-left text-2xl font-semibold md:text-2xl"
         />
       </Stat>
-      <Stat label={m.grading_gpa()} hint={maskedPercentText(s.final_percentage, scale.hide_gpa)}>
-        <GpaValue value={s.final_points} hidden={scale.hide_gpa} />
+      <Stat label={m.grading_gpa()} hint={maskedPercentText(s.final_percentage, scale.hide_grades)}>
+        <GpaValue value={s.final_points} hidden={scale.hide_grades} />
       </Stat>
     </div>
   )

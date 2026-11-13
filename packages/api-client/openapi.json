@@ -22835,9 +22835,9 @@
             "type": "number",
             "title": "Max Points"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "type": "boolean",
-            "title": "Hide Gpa"
+            "title": "Hide Grades"
           },
           "items": {
             "items": {
@@ -22851,7 +22851,7 @@
         "required": [
           "program_id",
           "max_points",
-          "hide_gpa",
+          "hide_grades",
           "items"
         ],
         "title": "CourseGrades"
@@ -26432,9 +26432,9 @@
             "title": "Default Categories",
             "description": "Categories every new course of the Program starts with"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "type": "boolean",
-            "title": "Hide Gpa"
+            "title": "Hide Grades"
           },
           "round_before_lookup": {
             "type": "boolean",
@@ -26455,7 +26455,7 @@
           "year_course_attribution",
           "default_forecast_model",
           "default_categories",
-          "hide_gpa",
+          "hide_grades",
           "round_before_lookup",
           "updated_at"
         ],
@@ -26467,9 +26467,9 @@
             "type": "number",
             "title": "Max Points"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "type": "boolean",
-            "title": "Hide Gpa"
+            "title": "Hide Grades"
           },
           "round_before_lookup": {
             "type": "boolean",
@@ -26479,7 +26479,7 @@
         "type": "object",
         "required": [
           "max_points",
-          "hide_gpa",
+          "hide_grades",
           "round_before_lookup"
         ],
         "title": "GradingScaleInfo"
@@ -31881,9 +31881,9 @@
             "type": "number",
             "title": "Max Points"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "type": "boolean",
-            "title": "Hide Gpa"
+            "title": "Hide Grades"
           },
           "gpa": {
             "anyOf": [
@@ -31959,7 +31959,7 @@
         "required": [
           "program_id",
           "max_points",
-          "hide_gpa",
+          "hide_grades",
           "gpa",
           "average_percentage",
           "credits_counted",
@@ -33421,7 +33421,7 @@
             "title": "Default Categories",
             "description": "Category template for new courses"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -33430,8 +33430,8 @@
                 "type": "null"
               }
             ],
-            "title": "Hide Gpa",
-            "description": "Mask GPA figures in the interface"
+            "title": "Hide Grades",
+            "description": "Mask GPA and percentage grades in the interface"
           },
           "round_before_lookup": {
             "anyOf": [
@@ -37782,9 +37782,9 @@
             "type": "number",
             "title": "Max Points"
           },
-          "hide_gpa": {
+          "hide_grades": {
             "type": "boolean",
-            "title": "Hide Gpa"
+            "title": "Hide Grades"
           },
           "gpa": {
             "anyOf": [
@@ -37844,7 +37844,7 @@
         "required": [
           "term_id",
           "max_points",
-          "hide_gpa",
+          "hide_grades",
           "gpa",
           "average_percentage",
           "credits_counted",

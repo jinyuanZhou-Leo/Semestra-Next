@@ -22,7 +22,7 @@ function gradeOf(course: Course, data: unknown) {
 }
 
 /** With "hide grades" on, grades must not leak through ordering or threshold filters either. */
-const gpaHidden = (data: unknown) => grades(data)?.hide_gpa ?? false
+const gpaHidden = (data: unknown) => grades(data)?.hide_grades ?? false
 
 const available = (data: unknown) => !gpaHidden(data)
 

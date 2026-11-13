@@ -81,7 +81,7 @@ export function CourseTarget({
   const bands = useGradingScale(programId).data?.bands ?? []
   const items = targetOptions(bands, s.target_points).map((o) => ({
     value: o.value,
-    label: optionLabel(o, scale.hide_gpa),
+    label: optionLabel(o, scale.hide_grades),
   }))
   const update = useMutation({
     ...gradingCourseResultUpdateMutation(),
@@ -109,7 +109,7 @@ export function CourseTarget({
   const figures = planning ? planned : s
   const selectId = useId()
   // With GPA hidden the choices are only thresholds, so the picker is named after the grade.
-  const label = scale.hide_gpa ? m.grading_target_grade() : m.grading_target_gpa()
+  const label = scale.hide_grades ? m.grading_target_grade() : m.grading_target_gpa()
   return (
     <section aria-label={label} className="mt-3 space-y-2 border-t border-border pt-3">
       <Field>
@@ -131,7 +131,7 @@ export function CourseTarget({
       </Field>
       <p className="text-sm">
         {figures && figures.remaining_weight === 0 ? (
-          <span className="font-medium">{requiredText(figures, scale.hide_gpa)}</span>
+          <span className="font-medium">{requiredText(figures, scale.hide_grades)}</span>
         ) : (
           <>
             <span className="text-muted-foreground">
@@ -140,7 +140,7 @@ export function CourseTarget({
               })}
             </span>{' '}
             <span className="font-medium tabular-nums">
-              {figures ? requiredText(figures, scale.hide_gpa) : '—'}
+              {figures ? requiredText(figures, scale.hide_grades) : '—'}
             </span>
           </>
         )}
@@ -160,7 +160,7 @@ export function CourseTarget({
       {planning && suggest.data && !suggest.data.reachable ? (
         <output className="block text-xs text-destructive">
           {m.grading_autofill_unreachable({
-            best: maskedPercentText(suggest.data.resulting_percentage, scale.hide_gpa),
+            best: maskedPercentText(suggest.data.resulting_percentage, scale.hide_grades),
           })}
         </output>
       ) : null}

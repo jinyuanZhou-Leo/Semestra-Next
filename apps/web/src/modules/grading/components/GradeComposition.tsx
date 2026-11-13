@@ -161,7 +161,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
   const data: Datum[] = composition(s, gradebook.categories).map((slice) => ({
     ...slice,
     key: sliceKey(slice.id),
-    hidden: scale.hide_gpa,
+    hidden: scale.hide_grades,
     name: slice.category ? categoryName(slice.category) : m.grading_category_none(),
     color: categoryColor(slice.category?.color ?? 'slate'),
   }))
@@ -188,7 +188,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
           )}
         >
           <span className="text-xl font-semibold tabular-nums">
-            <PercentValue value={actual} hidden={scale.hide_gpa} animated />
+            <PercentValue value={actual} hidden={scale.hide_grades} animated />
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {s.overridden ? (
@@ -206,7 +206,7 @@ export function GradeComposition({ gradebook }: { gradebook: Gradebook }) {
             <dd className="flex items-baseline gap-1.5 text-2xl font-semibold tabular-nums">
               <GpaValue
                 value={shown.points}
-                hidden={scale.hide_gpa}
+                hidden={scale.hide_grades}
                 letter={shown.letter}
                 letterClassName="text-sm font-semibold"
                 animated

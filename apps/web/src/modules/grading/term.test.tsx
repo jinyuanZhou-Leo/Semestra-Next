@@ -41,7 +41,7 @@ function termGrades(courses: CourseGrade[], hide: boolean): TermGrades {
   return {
     term_id: 't1',
     max_points: 4,
-    hide_gpa: hide,
+    hide_grades: hide,
     in_progress_count: 0,
     gpa: 3.5,
     average_percentage: 80,

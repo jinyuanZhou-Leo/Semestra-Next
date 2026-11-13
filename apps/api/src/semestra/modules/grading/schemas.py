@@ -55,7 +55,7 @@ class GradingScale(BaseModel):
     default_categories: list[CategoryTemplate] = Field(
         description="Categories every new course of the Program starts with"
     )
-    hide_gpa: bool
+    hide_grades: bool
     round_before_lookup: bool = Field(
         description="Percentages are rounded to whole numbers (half up) before the band lookup"
     )
@@ -83,7 +83,9 @@ class ScaleUpdateInput(BaseModel):
     default_categories: list[CategoryTemplate] | None = Field(
         default=None, max_length=30, description="Category template for new courses"
     )
-    hide_gpa: bool | None = Field(default=None, description="Mask GPA figures in the interface")
+    hide_grades: bool | None = Field(
+        default=None, description="Mask GPA and percentage grades in the interface"
+    )
     round_before_lookup: bool | None = Field(
         default=None,
         description="Round percentages to whole numbers before reading the scale (84.6 → 85)",
@@ -476,7 +478,7 @@ class GradebookSummary(BaseModel):
 
 class GradingScaleInfo(BaseModel):
     max_points: float
-    hide_gpa: bool
+    hide_grades: bool
     round_before_lookup: bool
 
 
@@ -580,7 +582,7 @@ class ProgramSummaryInput(BaseModel):
 class TermGrades(BaseModel):
     term_id: str
     max_points: float
-    hide_gpa: bool
+    hide_grades: bool
     gpa: float | None
     average_percentage: float | None
     credits_counted: float = Field(description="Credits behind the GPA")
@@ -643,7 +645,7 @@ class TermGradePoint(BaseModel):
 class ProgramGrades(BaseModel):
     program_id: str
     max_points: float
-    hide_gpa: bool
+    hide_grades: bool
     gpa: float | None
     average_percentage: float | None
     credits_counted: float
@@ -658,5 +660,5 @@ class ProgramGrades(BaseModel):
 class CourseGrades(BaseModel):
     program_id: str
     max_points: float
-    hide_gpa: bool
+    hide_grades: bool
     items: list[CourseGrade]

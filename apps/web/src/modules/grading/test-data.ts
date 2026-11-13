@@ -118,7 +118,7 @@ export function gradingScale(overrides: Partial<GradingScale> = {}): GradingScal
     year_course_attribution: 'end_term',
     default_forecast_model: 'auto',
     default_categories: [],
-    hide_gpa: false,
+    hide_grades: false,
     round_before_lookup: true,
     updated_at: stamp,
     ...overrides,
@@ -136,7 +136,7 @@ function baseGradebook(overrides: Partial<Gradebook>): Gradebook {
   return {
     course_id: 'c1',
     program_id: 'p1',
-    scale: { max_points: 4, hide_gpa: false, round_before_lookup: true },
+    scale: { max_points: 4, hide_grades: false, round_before_lookup: true },
     result: {
       course_id: 'c1',
       basis: 'percentage',

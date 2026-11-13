@@ -222,7 +222,7 @@ async def get_gradebook(ctx: Ctx, course_id: str) -> Gradebook:
         program_id=state.program.id,
         scale=GradingScaleInfo(
             max_points=state.scale_row.max_points,
-            hide_gpa=state.scale_row.hide_gpa,
+            hide_grades=state.scale_row.hide_grades,
             round_before_lookup=state.scale_row.round_before_lookup,
         ),
         result=_result_out(state.result),

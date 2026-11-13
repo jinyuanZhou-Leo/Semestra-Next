@@ -15,7 +15,7 @@
 - 从 LMS 一次性导入作业为考核行（不做持续同步）。
 - 考核截止日期出现在日历中。
 - GPA 换算表（百分比区间 → 绩点），Program 级默认分类模板与预测模型默认值。
-- Program 概览 KPI 与按学期的 GPA/学分图表；全部课程表格的成绩/GPA 列和筛选；`hide_gpa`（隐藏 GPA 显示）。
+- Program 概览 KPI 与按学期的 GPA/学分图表；全部课程表格的成绩/GPA 列和筛选；`hide_grades`（隐藏 GPA 显示）。
 - 成绩簿小部件（学期/课程的学分、GPA、GPA 百分比）。
 
 新版变化：
@@ -33,7 +33,7 @@ grading_scales                       # 每个 Program 一张换算表
   year_course_attribution ('end_term' | 'split_evenly', 默认 'end_term'),
   default_forecast_model ('auto' | 'simple_minimum_needed'),
   default_categories JSON [{key, name, color}],
-  hide_gpa (bool, 默认 false),
+  hide_grades (bool, 默认 false),
   updated_at
 
 grading_course_results               # 每门课一行（创建课程时懒创建）
@@ -143,7 +143,7 @@ grading_assessments
 - `grading.programKpis`（program，xl）：左边累计 GPA（主数字）、平均分、已获学分/要求学分进度条、已计分课程数；右边按学期（新的在上）的 GPA 条，点一行进入该学期。按卡片宽度（容器查询）而不是窗口宽度排版。
 - `grading.programCharts`（program，l/xl）：按学期的 GPA 折线（含累计 GPA 线，虚线；没有成绩的学期不画点，线也不延伸过去）与带标题的学分柱状图，两图的 Y 轴占位相同，柱子对齐上方的点。图表配色使用 `--chart-*` token，提示框带颜色标记。
 - `grading.upcoming`（term/course，m/l）：即将截止的考核列表，一次请求 `grading.assessment.upcoming`。
-- `hide_gpa=true`（界面叫“隐藏成绩”）时所有显示 GPA 和课程/学期/Program 汇总百分比（平均、预测、所需平均、分类平均）的位置改为显示"•••"，可点击临时显示；字母等级也一起隐藏（字母会泄露 GPA）。逐条考核的得分（可编辑单元格）不隐藏。
+- `hide_grades=true`（界面叫“隐藏成绩”）时所有显示 GPA 和课程/学期/Program 汇总百分比（平均、预测、所需平均、分类平均）的位置改为显示"•••"，可点击临时显示；字母等级也一起隐藏（字母会泄露 GPA）。逐条考核的得分（可编辑单元格）不隐藏。
 
 ### 5.4 扩展贡献
 - `academics.courseColumns`：成绩（百分比/字母）、GPA（`showInTermCard=true`），以及筛选器 GPA=满分、≥满分的 87.5%（4.0 制的 3.5）、≥满分的 75%（3.0）（阈值随 `max_points` 缩放）。
@@ -166,7 +166,7 @@ grading_assessments
 - 换算表：边界值（84.6、85、89.99、100、0）、字母映射、区间校验错误。
 - 年课在两种规则下的学期 GPA 与累计 GPA（只计一次）。
 - 导入去重：重复导入同一 LMS 作业不产生重复行。
-- 前端：计划模式输入后摘要更新、权重不足警告、`18/20` 解析、hide_gpa 遮罩。
+- 前端：计划模式输入后摘要更新、权重不足警告、`18/20` 解析、hide_grades 遮罩。
 
 ## 9. 验收
 - 用户能在 1 分钟内为一门课建好成绩构成并录入分数，看到当前成绩与达标所需分数。
@@ -195,15 +195,15 @@ grading_assessments
 - 考核表与学期课程表都用 TanStack Table v9。**列定义必须放在组件外**（单元格里是会输入的 `InlineInput`，列在渲染时重新创建会让单元格每次渲染都被重新挂载、丢掉正在输入的内容），单元格需要的回调通过 context 传入。
 - 分数单元格输入 `82` / `82%` 为百分比，`18/20` 为分数制（`score.ts` 的 `parseScore`），空为清除，无法识别时标红不发送。
 - 计划模式：假设分数存 `useUiPref('grading.whatif', …, { scope: courseId })`，只保留仍未出分的考核；200ms 防抖调用 `grading.simulate.course`，结果只显示不保存；目标就是课程保存的目标绩点（`target: null`）；"自动填充"调用 `grading.score.suggest` 并把结果写进假设分数。权重不足 100 时计划模式不可用（服务端也会拒绝）。学期 What If 同理（`grading.term.whatif`，按学期保存）。
-- 课程成绩页布局（2026-11-07 第六轮重新设计）：表格上方一行工具栏，左边是状态筛选（全部/已出分/未出分，分段控件）和按标题搜索，右边是「规划」（secondary）、「添加」（主按钮）和 ⋯ 菜单（「按分类分组」勾选项、录入/清除官方成绩）；表格本身只有表头（TanStack 默认样式，可排序列显示排序图标），筛选无结果时显示 `SearchX` 空状态与「清除筛选」。不再有行内快速添加。右边一列是"成绩构成"卡（环形图按分类权重分段，只显示真实成绩）和"预测"卡（`ForecastCard`：预测/最终百分比与 GPA，下面是每个剩余考核预测分的横向条形图（2026-11-08 起每行是“名称 … 分数”一行加下方的细条，名称单行截断、不再放在 Y 轴上，条有 0–100% 底轨），颜色为分类色，提示里说明来源（分类均值或课程均值），每条上的刻度是目标所需平均分，图下一行图例；卡片底部是目标：shadcn `Select` 选换算表中的某一档（同绩点只保留一档，显示"3.7 · A- (≥ 80%)"），保存为课程目标，下面一行是所需平均分。`hide_gpa` 时标题旁的遮罩前加小号“GPA”标签，目标改名“目标成绩”、选项只显示百分比门槛）。
+- 课程成绩页布局（2026-11-07 第六轮重新设计）：表格上方一行工具栏，左边是状态筛选（全部/已出分/未出分，分段控件）和按标题搜索，右边是「规划」（secondary）、「添加」（主按钮）和 ⋯ 菜单（「按分类分组」勾选项、录入/清除官方成绩）；表格本身只有表头（TanStack 默认样式，可排序列显示排序图标），筛选无结果时显示 `SearchX` 空状态与「清除筛选」。不再有行内快速添加。右边一列是"成绩构成"卡（环形图按分类权重分段，只显示真实成绩）和"预测"卡（`ForecastCard`：预测/最终百分比与 GPA，下面是每个剩余考核预测分的横向条形图（2026-11-08 起每行是“名称 … 分数”一行加下方的细条，名称单行截断、不再放在 Y 轴上，条有 0–100% 底轨），颜色为分类色，提示里说明来源（分类均值或课程均值），每条上的刻度是目标所需平均分，图下一行图例；卡片底部是目标：shadcn `Select` 选换算表中的某一档（同绩点只保留一档，显示"3.7 · A- (≥ 80%)"），保存为课程目标，下面一行是所需平均分。`hide_grades` 时标题旁的遮罩前加小号“GPA”标签，目标改名“目标成绩”、选项只显示百分比门槛）。
 - 计划模式原地切换：工具栏整行换成"规划中"+ 说明 +「清空假设」（可撤销的 toast）+「退出规划」（都是 destructive）；撤销清空只恢复假设分数；规划时预测卡变成"规划成绩"（假设的条实心、预测的条半透明），目标下面多一个「自动填充至目标」；成绩构成卡不变。
 - 学期成绩页与课程成绩页同一套布局：工具栏是筛选（全部/进行中/已结课）+ 搜索（代码、名称、别名）+「规划」；右边是"成绩构成"卡和学期目标卡（`TermTargetCard`：目标学期 GPA 输入框（不保存），未结课课程当前平均分或假设分的条形图，以及已达标 / 差多少 / 不可达和其余课程所需平均分；规划时标题变成"规划 GPA"）。未结课课程是否按当前平均分计入学期 GPA 是 Program 级设置（命名空间 `grading`，字段 `count_in_progress`，默认关，设置分区"成绩 → 学期成绩"），不再是页面上的开关；后端在学期汇总与学期 What If 不传 `include_in_progress` 时读取它，所以看板卡片和 Sem/MCP 得到同样的结果，设置变化时（`settings.values.updated`，namespace `grading`）前端刷新学期汇总。表格行高固定，进出规划不跳动。两页的模拟都是按防抖后的参数做 key 的查询（`use-plan.ts`），下一次结果回来前保留上一次的结果，规划数字不会在每次输入后闪成"—"；进入规划时立即模拟一次。
-- `hide_gpa`：所有 GPA 数字通过 `GpaValue`、汇总百分比通过 `PercentValue`（同在 `components/GradeValue.tsx`；纯文字里用 `display.ts` 的 `maskedPercentText`，预测类图表整块用 `MaskedChart` 遮住）显示，开启时显示"•••"，点击后临时显示；字母等级作为 `GpaValue` 的 `letter` 一起遮住，只显示字母的地方（课程列、手填成绩提示、预测）在开启时不显示字母。
+- `hide_grades`：所有 GPA 数字通过 `GpaValue`、汇总百分比通过 `PercentValue`（同在 `components/GradeValue.tsx`；纯文字里用 `display.ts` 的 `maskedPercentText`，预测类图表整块用 `MaskedChart` 遮住）显示，开启时显示"•••"，点击后临时显示；字母等级作为 `GpaValue` 的 `letter` 一起遮住，只显示字母的地方（课程列、手填成绩提示、预测）在开启时不显示字母。
 - 计划模式中间的规划值只取模拟结果的最终成绩或预测；两者都没有时显示"—"和"还有 N 项没有假设分数"，不拿已出分部分的平均冒充规划成绩。
 - 所有数字输入（权重、目标、官方成绩、手填成绩、学期目标 GPA）用 `score.ts` 的 `parseDecimal`：只接受数字、小数点或逗号和可选的 `%`。
 - 内置分类名（Quiz、Exam…）没改过名时按界面语言显示；改过名就显示用户的名字。
 - 新增扩展点 **`grading.assessmentImportSources`**（`types.ts`）：`{ id, title, Title?, query?, icon, description?, launch({programId, courseId}) → AssessmentDraft[] }`，成绩页"添加"菜单的"从已有资料添加"分组列出所有贡献，选择后调用 `create_many`（按 `source_kind` + `source_ref` 去重）。目前没有贡献者，菜单不显示；M09、M08 落地时贡献。
 - 对 M02 契约的补充：`academics.courseColumns` 的 `CourseColumn` 多了可选的 `query(programId)`，列需要别的模块的数据时（成绩、GPA）由全部课程表与学期课程卡片统一用 `useQueries` 加载，结果作为第二个参数 `data` 传给 `cell`、`sortValue` 和筛选器的 `test`。GPA 筛选器（满分、≥3.5、≥3.0）的阈值按 `max_points / 4` 缩放，所以标签写成与满分无关的比例：「≥ 满分的 87.5%」「≥ 满分的 75%」。
 - UI 全部直接用 `@/ui/*` 的 shadcn 官方组件（`Field`、`Item`、`ToggleGroup`、`Progress`、`Table` 等），不再有手写副本；设置分区里的 `SettingRow`（`grading/settings/rows.tsx`）只是 `Item` 的模块内组合。
-- 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_gpa` 遮罩）。
+- 前端测试：`score.test.ts`（输入解析）、`sort.test.ts`、`grading.test.tsx`（摘要、权重警告、`18/20` 保存为分数制、非法输入不发送、计划模式摘要更新且不保存、`hide_grades` 遮罩）。
 - 批量管理（2026-11-13）：成绩册首列复选框（分组视图的分类行勾整组，规划模式不显示），勾选后工具栏左侧换成 `SelectionToolbar`：分类▾、权重（对话框：每项 / 平分总权重）、不计入↔计入成绩、删除（确认），走 `update_many` / `delete_many`。只对当前显示的行生效（筛选掉的、折叠分组里的都不算）；进入规划时清空选择。Esc 清空选择，但有对话框、菜单或弹层打开时 Esc 只关闭它。平分总权重只分给计入成绩的项（都不计入时分给全部），不计入的保持原权重，总权重最多两位小数；所选权重不同时输入框留空。

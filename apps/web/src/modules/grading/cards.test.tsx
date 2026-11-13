@@ -24,7 +24,7 @@ function programGrades(hide: boolean): ProgramGrades {
   return {
     program_id: 'p1',
     max_points: 4,
-    hide_gpa: hide,
+    hide_grades: hide,
     gpa: 3.5,
     average_percentage: 82,
     credits_counted: 1,
@@ -96,7 +96,7 @@ test('a course without a gradebook shows its typed-in final grade on the card', 
 })
 
 test('revealing a hidden GPA on a card does not follow the card link', async () => {
-  const book = gradebook({ scale: { max_points: 4, hide_gpa: true, round_before_lookup: true } })
+  const book = gradebook({ scale: { max_points: 4, hide_grades: true, round_before_lookup: true } })
   server.use(http.get(`${API}/courses/c1/gradebook`, () => HttpResponse.json(book)))
   const { router } = renderWithRouter(
     <CourseSummaryCard {...cardProps({ kind: 'course', programId: 'p1', courseId: 'c1' }, 'm')} />,

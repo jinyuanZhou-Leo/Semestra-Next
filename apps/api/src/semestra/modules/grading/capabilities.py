@@ -99,7 +99,7 @@ grading defaults (how year-long courses count, default categories, hidden GPA)."
         "default_forecast_model",
         "default_categories.key",
         "default_categories.name",
-        "hide_gpa",
+        "hide_grades",
     ),
 )
 async def scale_get(ctx: Ctx, inp: ProgramRef) -> GradingScale:

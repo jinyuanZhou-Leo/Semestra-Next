@@ -27,7 +27,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
         m.grading_fail()
       )
     ) : s.weights_ok || s.overridden || !result.gradebook_enabled ? (
-      <PercentValue value={grade} hidden={scale.hide_gpa} animated />
+      <PercentValue value={grade} hidden={scale.hide_grades} animated />
     ) : (
       '—'
     )
@@ -54,7 +54,7 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
               {m.grading_gpa()}{' '}
               <GpaValue
                 value={points}
-                hidden={scale.hide_gpa}
+                hidden={scale.hide_grades}
                 letter={letter}
                 letterClassName="ml-1.5"
                 className="text-foreground"
@@ -64,7 +64,9 @@ export default function CourseSummaryCard({ scope, size }: CardProps) {
             {size === 'm' && result.basis === 'percentage' ? (
               <dl className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-0.5">
                 <dt>{m.grading_target_needed()}</dt>
-                <dd className="font-medium text-foreground">{requiredText(s, scale.hide_gpa)}</dd>
+                <dd className="font-medium text-foreground">
+                  {requiredText(s, scale.hide_grades)}
+                </dd>
                 {next?.due_at ? (
                   <>
                     <dt className="truncate">{next.title}</dt>
