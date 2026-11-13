@@ -6,15 +6,15 @@ import {
   useBoardEditing,
 } from '../board/BoardToolbar'
 import { useHostAction } from '../commands/bus'
-import { Separator } from '@/ui/separator'
 import { ShellToolbar } from './ShellToolbar'
 
 /**
  * The header every page on the right side shares (title, subtitle, actions, optional tabs), so
  * a term, a course, the Today page and a table page look alike. The breadcrumb goes into the app
- * shell's top row next to the sidebar button, so the title sits right under it. Its height never
- * changes: the subtitle line is always reserved, and while a board on the page is edited the edit
- * controls take the place of the header's buttons and the subtitle (M10 §5.2).
+ * shell's top row next to the sidebar button (the shell draws the separator before it), so the
+ * title sits right under it. Its height never changes: the subtitle line is always reserved, and
+ * while a board on the page is edited the edit controls take the place of the header's buttons
+ * and the subtitle (M10 §5.2).
  */
 export function PageHeader({
   title,
@@ -42,11 +42,9 @@ export function PageHeader({
     <header className="space-y-0.5 px-6 pt-1">
       {breadcrumb ? (
         <ShellToolbar>
-          <Separator
-            orientation="vertical"
-            className="mr-2 data-vertical:h-4 data-vertical:self-center"
-          />
-          {breadcrumb}
+          <div data-shell-breadcrumb className="flex min-w-0 items-center">
+            {breadcrumb}
+          </div>
         </ShellToolbar>
       ) : null}
       <div className="flex min-h-8 items-center justify-between gap-4">
