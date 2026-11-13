@@ -6,6 +6,7 @@ import { usePreferences } from '@/app/preferences'
 import { useModules, usePages } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
+import { Separator } from '@/ui/separator'
 import { SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@/ui/sidebar'
 import { isLastPageCandidate, LAST_PAGE_KEY } from '../start-page'
 import { AppSidebar } from './AppSidebar'
@@ -16,11 +17,16 @@ function ShellInset({ children }: { children: ReactNode }) {
   const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
   return (
     <SidebarInset className="h-full min-w-0 overflow-hidden">
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 has-[[data-shell-toolbar]:not(:empty)]:h-12">
+      <header className="group/shell-header flex h-12 shrink-0 items-center gap-2">
         <div className="flex min-w-0 items-center gap-2 px-4">
           <SidebarTrigger
             className="-ml-1"
             aria-label={open ? m.academics_sidebar_collapse() : m.academics_sidebar_expand()}
+          />
+          {/* Before a page's breadcrumb (`PageHeader`): 8px on both sides. */}
+          <Separator
+            orientation="vertical"
+            className="-mr-4 hidden data-vertical:h-4 data-vertical:self-center group-has-data-shell-breadcrumb/shell-header:block"
           />
         </div>
         <div
