@@ -17,9 +17,16 @@ import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
 
-/** When the tabs don't fit, scrolls the open one into view. */
+/** When the tabs don't fit, keeps the open one in view, also while the bar and the tab settle to their widths. */
 function revealTab(tab: HTMLAnchorElement | null) {
-  tab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  const nav = tab?.parentElement
+  if (!tab || !nav) return
+  const observer = new ResizeObserver(() =>
+    tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
+  )
+  observer.observe(nav)
+  observer.observe(tab)
+  return () => observer.disconnect()
 }
 
 /**
