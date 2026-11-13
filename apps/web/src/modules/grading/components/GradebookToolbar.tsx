@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -25,11 +26,11 @@ import { invalidateGrading } from '../queries'
 import { AddMenu } from './AddMenu'
 import { PlanBar } from './GradeTableCard'
 import { OfficialGradeDialog } from './OfficialGradeDialog'
-import { SelectionBar } from './SelectionBar'
+import { BatchActions } from './BatchActions'
 
 /**
  * The header bar of the gradebook table; in plan mode it is the `PlanBar`, and while assessments
- * are checked the `SelectionBar` takes the filters' place.
+ * are checked the batch actions take the filters' place (`SelectionToolbar`).
  */
 export function GradebookToolbar({
   programId,
@@ -51,6 +52,7 @@ export function GradebookToolbar({
   onBatchWeight,
   onBatchDelete,
   onClearSelection,
+  batchOpen,
 }: {
   programId: string
   result: CourseResult
@@ -73,6 +75,8 @@ export function GradebookToolbar({
   onBatchWeight: () => void
   onBatchDelete: () => void
   onClearSelection: () => void
+  /** A batch dialog is open: Esc is its, not the selection's. */
+  batchOpen: boolean
 }) {
   if (planning) {
     return (
@@ -97,43 +101,48 @@ export function GradebookToolbar({
   )
   return (
     <div className="flex h-8 items-center gap-2">
-      {selected.length > 0 ? (
-        <SelectionBar
-          courseId={result.course_id}
-          selected={selected}
-          categories={categories}
-          onWeight={onBatchWeight}
-          onDelete={onBatchDelete}
-          onClear={onClearSelection}
-        />
-      ) : (
-        <>
-          <ToggleGroup
-            aria-label={m.grading_filter()}
-            size="sm"
-            className={SEGMENTED}
-            value={[filter]}
-            onValueChange={([next]) => next && onFilterChange(next as AssessmentFilter)}
-          >
-            {FILTERS.map((f) => (
-              <ToggleGroupItem key={f} value={f} className={SEGMENT}>
-                {filterLabel(f)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <InputGroup className="mr-auto h-8 w-56">
-            <InputGroupInput
-              aria-label={m.grading_search_assessments()}
-              placeholder={m.grading_search_assessments()}
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden />
-            </InputGroupAddon>
-          </InputGroup>
-        </>
-      )}
+      <SelectionToolbar
+        className="mr-auto"
+        count={selected.length}
+        countLabel={m.common_selected_count({ count: selected.length })}
+        label={m.grading_batch_actions()}
+        onClear={onClearSelection}
+        paused={batchOpen}
+        actions={
+          <BatchActions
+            courseId={result.course_id}
+            selected={selected}
+            categories={categories}
+            onWeight={onBatchWeight}
+            onDelete={onBatchDelete}
+          />
+        }
+      >
+        <ToggleGroup
+          aria-label={m.grading_filter()}
+          size="sm"
+          className={SEGMENTED}
+          value={[filter]}
+          onValueChange={([next]) => next && onFilterChange(next as AssessmentFilter)}
+        >
+          {FILTERS.map((f) => (
+            <ToggleGroupItem key={f} value={f} className={SEGMENT}>
+              {filterLabel(f)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <InputGroup className="h-8 w-56">
+          <InputGroupInput
+            aria-label={m.grading_search_assessments()}
+            placeholder={m.grading_search_assessments()}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+          <InputGroupAddon>
+            <Search aria-hidden />
+          </InputGroupAddon>
+        </InputGroup>
+      </SelectionToolbar>
       {canPlan ? (
         plan
       ) : (

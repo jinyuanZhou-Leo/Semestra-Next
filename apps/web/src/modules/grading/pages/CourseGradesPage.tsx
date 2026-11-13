@@ -144,6 +144,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
               onBatchWeight={() => batch.show({ kind: 'weight', assessments: selected })}
               onBatchDelete={() => batch.show({ kind: 'delete', assessments: selected })}
               onClearSelection={clearSelection}
+              batchOpen={batch.open}
             />
           }
         />

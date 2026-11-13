@@ -5,11 +5,11 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
+import { ChoiceControl, SettingRow, SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type { DialogTargetProps } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatPercent } from '@/lib/format'
-import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -21,9 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/ui/field'
+import { FieldError } from '@/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/ui/input-group'
-import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { invalidateGrading } from '../queries'
 import { parseDecimal } from '../score'
 
@@ -102,7 +101,7 @@ function WeightDialog({ assessments, ...props }: DialogProps) {
       onOpenChange={props.onOpenChange}
       onOpenChangeComplete={props.onOpenChangeComplete}
     >
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{m.grading_weight_dialog_title()}</DialogTitle>
           <DialogDescription>
@@ -170,58 +169,60 @@ function WeightForm({
   }
   const showError = touched && invalid
   return (
-    <form onSubmit={submit} noValidate>
-      <FieldGroup>
-        <ToggleGroup
-          aria-label={m.grading_weight_dialog_title()}
-          size="sm"
-          className={SEGMENTED}
-          value={[mode]}
-          onValueChange={([next]) => next && setMode(next as Mode)}
+    <form onSubmit={submit} noValidate className="flex flex-col gap-6">
+      <SettingsGroup>
+        <SettingRow label={m.grading_weight_mode()}>
+          {(labelId) => (
+            <ChoiceControl
+              labelId={labelId}
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'each', label: m.grading_weight_mode_each() },
+                { value: 'split', label: m.grading_weight_mode_split() },
+              ]}
+            />
+          )}
+        </SettingRow>
+        <SettingRow
+          label={mode === 'each' ? m.grading_weight_each_label() : m.grading_weight_total_label()}
+          htmlFor={`${id}-weight`}
+          description={
+            <span id={`${id}-weight-hint`} className="tabular-nums">
+              {hint ?? '\u00a0'}
+            </span>
+          }
+          note={
+            showError ? (
+              <FieldError id={`${id}-weight-error`}>{m.grading_weight_invalid()}</FieldError>
+            ) : null
+          }
         >
-          <ToggleGroupItem value="each" className={SEGMENT}>
-            {m.grading_weight_mode_each()}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="split" className={SEGMENT}>
-            {m.grading_weight_mode_split()}
-          </ToggleGroupItem>
-        </ToggleGroup>
-        <Field data-invalid={showError ? true : undefined}>
-          <FieldLabel htmlFor={`${id}-weight`}>
-            {mode === 'each' ? m.grading_weight_each_label() : m.grading_weight_total_label()}
-          </FieldLabel>
-          <InputGroup>
+          <InputGroup className="w-28">
             <InputGroupInput
               id={`${id}-weight`}
               inputMode="decimal"
               value={text}
               aria-invalid={showError ? true : undefined}
-              aria-describedby={`${id}-weight-hint`}
+              aria-describedby={showError ? `${id}-weight-error` : `${id}-weight-hint`}
               onChange={(event) => setText(event.target.value)}
             />
             <InputGroupAddon align="inline-end">
               <InputGroupText>%</InputGroupText>
             </InputGroupAddon>
           </InputGroup>
-          {showError ? (
-            <FieldError id={`${id}-weight-hint`}>{m.grading_weight_invalid()}</FieldError>
-          ) : (
-            <FieldDescription id={`${id}-weight-hint`} className="tabular-nums">
-              {hint ?? ' '}
-            </FieldDescription>
-          )}
-        </Field>
-        <DialogFooter>
-          <DialogClose
-            render={<Button type="button" variant="outline" disabled={update.isPending} />}
-          >
-            {m.common_cancel()}
-          </DialogClose>
-          <Button type="submit" disabled={update.isPending}>
-            {update.isPending ? m.common_saving() : m.common_save()}
-          </Button>
-        </DialogFooter>
-      </FieldGroup>
+        </SettingRow>
+      </SettingsGroup>
+      <DialogFooter>
+        <DialogClose
+          render={<Button type="button" variant="outline" disabled={update.isPending} />}
+        >
+          {m.common_cancel()}
+        </DialogClose>
+        <Button type="submit" disabled={update.isPending}>
+          {update.isPending ? m.common_saving() : m.common_save()}
+        </Button>
+      </DialogFooter>
     </form>
   )
 }

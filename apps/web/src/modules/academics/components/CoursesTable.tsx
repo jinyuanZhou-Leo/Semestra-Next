@@ -5,6 +5,8 @@ import {
 } from '@semestra/api-client/react-query'
 import {
   type CellContext,
+  FlexRender,
+  type Row,
   type SortingState,
   createColumnHelper,
   createSortedRowModel,
@@ -26,10 +28,8 @@ import {
   SearchX,
   Settings,
   Trash2,
-  X,
 } from 'lucide-react'
-import { createContext, use, useState } from 'react'
-import { useHotkey } from '@/app/hotkeys'
+import { createContext, memo, use, useState } from 'react'
 import { useExtensions } from '@/app/registry'
 import { RowMenu, useSettingsDialog } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
@@ -58,8 +58,8 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { Input } from '@/ui/input'
+import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
-import { Kbd } from '@/ui/kbd'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
 import {
   Select,
@@ -106,11 +106,6 @@ type CellProps = CellContext<typeof features, Course>
 
 type TableState = {
   programId: string
-  selected: ReadonlySet<string>
-  allSelected: boolean
-  someSelected: boolean
-  selectAll: (on: boolean) => void
-  toggleRow: (id: string, on: boolean) => void
   isPinned: (pin: PinRef) => boolean
   togglePin: (pin: PinRef) => void
   openCourse: (course: Course) => void
@@ -123,6 +118,26 @@ type TableState = {
 
 const TableContext = createContext<TableState | null>(null)
 
+/**
+ * The checked rows, apart from `TableState`: checking a row changes only this, so only the
+ * checkboxes and the checked row render again, not every cell of every row.
+ */
+type Selection = {
+  selected: ReadonlySet<string>
+  allSelected: boolean
+  someSelected: boolean
+  selectAll: (on: boolean) => void
+  toggleRow: (id: string, on: boolean) => void
+}
+
+const SelectionContext = createContext<Selection | null>(null)
+
+function useSelection(): Selection {
+  const selection = use(SelectionContext)
+  if (!selection) throw new Error('CoursesTable cells must render inside CoursesTable')
+  return selection
+}
+
 function useTableState(): TableState {
   const state = use(TableContext)
   if (!state) throw new Error('CoursesTable cells must render inside CoursesTable')
@@ -130,7 +145,7 @@ function useTableState(): TableState {
 }
 
 function SelectAllHeader() {
-  const { allSelected, someSelected, selectAll } = useTableState()
+  const { allSelected, someSelected, selectAll } = useSelection()
   return (
     <Checkbox
       aria-label={m.academics_select_all()}
@@ -142,7 +157,7 @@ function SelectAllHeader() {
 }
 
 function SelectCell({ row }: CellProps) {
-  const { selected, toggleRow } = useTableState()
+  const { selected, toggleRow } = useSelection()
   return (
     <Checkbox
       aria-label={m.academics_select_course({ name: row.original.code || row.original.title })}
@@ -252,6 +267,44 @@ const STICKY_END_HEAD =
 const STICKY_END_CELL =
   'sticky right-0 bg-background shadow-[-1px_0_0_var(--color-border)] [tr:hover:not([data-state=selected])>&]:bg-[color-mix(in_srgb,var(--color-muted)_50%,var(--color-background))] [tr[data-state=selected]>&]:bg-muted'
 
+/**
+ * One course's row. Memoized: checking a row renders that row again and the checkboxes (they read
+ * `SelectionContext`), not every cell of every course, which made checking rows stutter.
+ */
+const CourseRow = memo(function CourseRow({
+  row,
+  selected,
+}: {
+  row: Row<typeof features, Course>
+  selected: boolean
+}) {
+  const { openCourse } = useTableState()
+  return (
+    <TableRow
+      data-state={selected ? 'selected' : undefined}
+      onClick={(event) => {
+        // Menus render in a portal, but their clicks still bubble through React to here.
+        const target = event.target as HTMLElement
+        if (!event.currentTarget.contains(target)) return
+        if (target.closest('button,a,input,[role=checkbox]')) return
+        openCourse(row.original)
+      }}
+      className="cursor-pointer"
+    >
+      {row.getAllCells().map((cell) => (
+        // The row's click is a mouse shortcut; the title link is the accessible way in.
+        // oxlint-disable-next-line jsx-a11y/control-has-associated-label
+        <TableCell
+          key={cell.id}
+          className={cn('py-2 whitespace-normal', cell.column.id === 'actions' && STICKY_END_CELL)}
+        >
+          <FlexRender cell={cell} />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
+})
+
 /** One after the other, stopping at the first failure. */
 async function runInOrder(ids: readonly string[], action: (id: string) => Promise<unknown>) {
   for (const id of ids) await action(id)
@@ -340,13 +393,15 @@ export function CoursesTable({
     else next.delete(id)
     setSelected(next)
   }
-  const tableState: TableState = {
-    programId,
+  const selection: Selection = {
     selected,
     allSelected,
     someSelected: selecting,
     selectAll: (on) => setSelected(on ? new Set(visibleIds) : new Set()),
     toggleRow,
+  }
+  const tableState: TableState = {
+    programId,
     isPinned,
     togglePin,
     openCourse: (course) => router.history.push(coursePath(programId, course.id)),
@@ -447,7 +502,6 @@ export function CoursesTable({
     )
 
   const clearSelection = () => setSelected(new Set())
-  useHotkey('escape', clearSelection, { enabled: selecting && !deleting })
 
   if (lockTerm && inScope.length === 0) {
     return (
@@ -480,33 +534,64 @@ export function CoursesTable({
 
   return (
     <TableContext value={tableState}>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <InputGroup className="w-64">
-            <InputGroupInput
-              type="search"
-              aria-label={m.academics_courses_search()}
-              placeholder={m.academics_courses_search()}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <InputGroupAddon>
-              <Search aria-hidden />
-            </InputGroupAddon>
-          </InputGroup>
-          {/*
-            While rows are selected the batch actions take the filters' place on the right. Both
-            sit in one grid cell, so the row keeps its height and the table never moves; the
-            hidden one is `inert`. The search box stays as it is.
-          */}
-          <div className="ml-auto grid min-w-0">
-            <div
-              inert={selecting}
-              className={cn(
-                'col-start-1 row-start-1 flex min-h-9 flex-wrap items-center justify-end gap-2',
-                selecting && 'invisible',
-              )}
-            >
+      <SelectionContext value={selection}>
+        <div className="space-y-3">
+          <SelectionToolbar
+            count={selectedVisible.length}
+            countLabel={m.academics_selected_count({ count: selectedVisible.length })}
+            label={m.academics_batch_actions()}
+            onClear={clearSelection}
+            paused={deleting}
+            actions={
+              <>
+                <CreditsPopover
+                  disabled={busy}
+                  onApply={(credits) =>
+                    runBatch((id) =>
+                      update.mutateAsync({ path: { course_id: id }, body: { credits } }),
+                    )
+                  }
+                />
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button size="sm" variant="outline" disabled={busy} />}
+                  >
+                    {m.academics_course_in_gpa()}
+                    <ChevronDown aria-hidden data-icon="inline-end" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => void setGpa(true)}>
+                      {m.academics_batch_include_gpa()}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void setGpa(false)}>
+                      {m.academics_batch_exclude_gpa()}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={busy}
+                  onClick={() => setDeleting(true)}
+                >
+                  {m.academics_batch_delete()}
+                </Button>
+              </>
+            }
+          >
+            <InputGroup className="w-64">
+              <InputGroupInput
+                type="search"
+                aria-label={m.academics_courses_search()}
+                placeholder={m.academics_courses_search()}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <InputGroupAddon>
+                <Search aria-hidden />
+              </InputGroupAddon>
+            </InputGroup>
+            <div className="ml-auto flex items-center justify-end gap-2">
               {lockTerm ? null : (
                 <FilterSelect
                   label={m.academics_filter_term()}
@@ -534,200 +619,112 @@ export function CoursesTable({
                 />
               ))}
             </div>
-            <div
-              role="toolbar"
-              aria-label={m.academics_batch_actions()}
-              inert={!selecting}
-              className={cn(
-                'col-start-1 row-start-1 flex min-h-9 items-center justify-end gap-2 self-start text-sm whitespace-nowrap',
-                !selecting && 'invisible',
-              )}
-            >
-              <span className="mr-1 tabular-nums">
-                {m.academics_selected_count({ count: selectedVisible.length })}
-              </span>
-              <CreditsPopover
-                disabled={busy}
-                onApply={(credits) =>
-                  runBatch((id) =>
-                    update.mutateAsync({ path: { course_id: id }, body: { credits } }),
-                  )
-                }
-              />
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button size="sm" variant="outline" disabled={busy} />}
-                >
-                  {m.academics_course_in_gpa()}
-                  <ChevronDown aria-hidden data-icon="inline-end" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => void setGpa(true)}>
-                    {m.academics_batch_include_gpa()}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void setGpa(false)}>
-                    {m.academics_batch_exclude_gpa()}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={busy}
-                onClick={() => setDeleting(true)}
-              >
-                {m.academics_batch_delete()}
-              </Button>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={m.academics_clear_selection()}
-                      onClick={clearSelection}
-                    />
-                  }
-                >
-                  <X aria-hidden />
-                </TooltipTrigger>
-                <TooltipContent>
-                  {m.academics_clear_selection()}
-                  <Kbd>Esc</Kbd>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-        </div>
+          </SelectionToolbar>
 
-        {/*
+          {/*
           The rounded box only clips; the table scrolls inside it (the `Table` container). When
           the columns do not fit, the actions column stays at the right edge so a row still visibly
           ends at the border instead of being cut off mid-cell.
         */}
-        <div className="overflow-hidden rounded-2xl border border-border">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id} className="hover:bg-transparent">
-                  {group.headers.map((h) => {
-                    const sorted = h.column.getIsSorted()
-                    const canSort = h.column.getCanSort()
-                    return (
-                      <TableHead
-                        key={h.id}
-                        scope="col"
-                        aria-sort={
-                          sorted === 'asc'
-                            ? 'ascending'
-                            : sorted === 'desc'
-                              ? 'descending'
-                              : undefined
-                        }
-                        className={cn(
-                          'h-auto py-2 text-muted-foreground',
-                          h.column.id === 'select' && 'w-10',
-                          h.column.id === 'actions' && STICKY_END_HEAD,
-                        )}
-                      >
-                        {canSort ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={h.column.getToggleSortingHandler()}
-                            className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
-                          >
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                {table.getHeaderGroups().map((group) => (
+                  <TableRow key={group.id} className="hover:bg-transparent">
+                    {group.headers.map((h) => {
+                      const sorted = h.column.getIsSorted()
+                      const canSort = h.column.getCanSort()
+                      return (
+                        <TableHead
+                          key={h.id}
+                          scope="col"
+                          aria-sort={
+                            sorted === 'asc'
+                              ? 'ascending'
+                              : sorted === 'desc'
+                                ? 'descending'
+                                : undefined
+                          }
+                          className={cn(
+                            'h-auto py-2 text-muted-foreground',
+                            h.column.id === 'select' && 'w-10',
+                            h.column.id === 'actions' && STICKY_END_HEAD,
+                          )}
+                        >
+                          {canSort ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={h.column.getToggleSortingHandler()}
+                              className="-ml-2 h-auto px-2 text-muted-foreground hover:text-foreground"
+                            >
+                              <table.FlexRender header={h} />
+                              {sorted === 'asc' ? (
+                                <ArrowUp aria-hidden className="size-3" />
+                              ) : sorted === 'desc' ? (
+                                <ArrowDown aria-hidden className="size-3" />
+                              ) : null}
+                            </Button>
+                          ) : (
                             <table.FlexRender header={h} />
-                            {sorted === 'asc' ? (
-                              <ArrowUp aria-hidden className="size-3" />
-                            ) : sorted === 'desc' ? (
-                              <ArrowDown aria-hidden className="size-3" />
-                            ) : null}
-                          </Button>
-                        ) : (
-                          <table.FlexRender header={h} />
-                        )}
-                      </TableHead>
-                    )
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={selected.has(row.original.id) ? 'selected' : undefined}
-                  onClick={(event) => {
-                    // Menus render in a portal, but their clicks still bubble through React to here.
-                    const target = event.target as HTMLElement
-                    if (!event.currentTarget.contains(target)) return
-                    if (target.closest('button,a,input,[role=checkbox]')) return
-                    router.history.push(coursePath(programId, row.original.id))
-                  }}
-                  className="cursor-pointer"
-                >
-                  {row.getAllCells().map((cell) => (
-                    // The row's click is a mouse shortcut; the title link is the accessible way in.
-                    // oxlint-disable-next-line jsx-a11y/control-has-associated-label
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        'py-2 whitespace-normal',
-                        cell.column.id === 'actions' && STICKY_END_CELL,
-                      )}
-                    >
-                      <table.FlexRender cell={cell} />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {visible.length === 0 ? (
-            <Empty className="border-0">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <SearchX aria-hidden />
-                </EmptyMedia>
-                <EmptyTitle>{m.academics_courses_no_match()}</EmptyTitle>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!lockTerm) onTermChange?.(undefined)
-                    setSubjectFilter(ALL)
-                    setSearch('')
-                    setColumnFilters({})
-                  }}
-                >
-                  {m.common_clear_filters()}
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : null}
-        </div>
+                          )}
+                        </TableHead>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <CourseRow key={row.id} row={row} selected={selected.has(row.original.id)} />
+                ))}
+              </TableBody>
+            </Table>
+            {visible.length === 0 ? (
+              <Empty className="border-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <SearchX aria-hidden />
+                  </EmptyMedia>
+                  <EmptyTitle>{m.academics_courses_no_match()}</EmptyTitle>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!lockTerm) onTermChange?.(undefined)
+                      setSubjectFilter(ALL)
+                      setSearch('')
+                      setColumnFilters({})
+                    }}
+                  >
+                    {m.common_clear_filters()}
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : null}
+          </div>
 
-        {deletingCourse.target ? (
-          <DeleteCourseDialog course={deletingCourse.target} {...deletingCourse.props} />
-        ) : null}
-        <ConfirmDialog
-          open={deleting}
-          onOpenChange={setDeleting}
-          title={m.academics_batch_delete_title({ count: selectedVisible.length })}
-          description={`${m.academics_course_delete_description()} ${m.academics_cannot_undo()}`}
-          confirmLabel={m.academics_batch_delete()}
-          pending={busy}
-          onConfirm={() =>
-            void runBatch((id) => remove.mutateAsync({ path: { course_id: id } })).then(() => {
-              setDeleting(false)
-              setSelected(new Set())
-            })
-          }
-        />
-      </div>
+          {deletingCourse.target ? (
+            <DeleteCourseDialog course={deletingCourse.target} {...deletingCourse.props} />
+          ) : null}
+          <ConfirmDialog
+            open={deleting}
+            onOpenChange={setDeleting}
+            title={m.academics_batch_delete_title({ count: selectedVisible.length })}
+            description={`${m.academics_course_delete_description()} ${m.academics_cannot_undo()}`}
+            confirmLabel={m.academics_batch_delete()}
+            pending={busy}
+            onConfirm={() =>
+              void runBatch((id) => remove.mutateAsync({ path: { course_id: id } })).then(() => {
+                setDeleting(false)
+                setSelected(new Set())
+              })
+            }
+          />
+        </div>
+      </SelectionContext>
     </TableContext>
   )
 }
