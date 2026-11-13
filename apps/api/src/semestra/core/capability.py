@@ -32,6 +32,22 @@ HTTP_ONLY_KEY = "x-http-only"
 HTTP_ONLY: dict[str, Any] = {HTTP_ONLY_KEY: True}
 
 
+# Names only a module knows, written `{name}` in text the model reads (a capability's summary and
+# description, a skill's description and body) and filled in from `register_term`: the LMS
+# module names the platforms its providers connect to ("LMS (Canvas)"), so a student who says
+# "Canvas" finds its tools without shared code naming a platform. Unknown names stay as written.
+_terms: dict[str, Callable[[], str]] = {}
+_TERM = re.compile(r"\{([a-z][a-z0-9_]*)\}")
+
+
+def register_term(name: str, value: Callable[[], str]) -> None:
+    _terms[name] = value
+
+
+def expand_terms(text: str) -> str:
+    return _TERM.sub(lambda m: _terms[m[1]]() if m[1] in _terms else m[0], text)
+
+
 class NoInput(BaseModel):
     """Input model for capabilities that take no arguments."""
 
@@ -293,8 +309,8 @@ def capability(
         (target or registry).register(
             Capability(
                 name=name,
-                summary=summary,
-                description=description,
+                summary=expand_terms(summary),
+                description=expand_terms(description),
                 effect=effect,
                 http=http,
                 expose=expose,

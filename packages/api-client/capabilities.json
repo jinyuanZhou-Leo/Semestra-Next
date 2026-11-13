@@ -605,7 +605,7 @@
       "capability": "lms.activity.list",
       "module": "lms",
       "effect": "read",
-      "summary": "What is new on its LMS for a course or a whole term: announcements, grades and new assignments.",
+      "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
       "plugin_id": null
     },
     {
@@ -629,7 +629,7 @@
       "capability": "lms.assignment.list",
       "module": "lms",
       "effect": "read",
-      "summary": "Assignments and graded quizzes of a linked course on its LMS, with the user's scores and the course total, marked when imported.",
+      "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
       "plugin_id": null
     },
     {
@@ -645,7 +645,7 @@
       "capability": "lms.content.read",
       "module": "lms",
       "effect": "read",
-      "summary": "Read one item of a course on its LMS in full, as Markdown.",
+      "summary": "Read one item of a course on its LMS (Canvas) in full, as Markdown.",
       "plugin_id": null
     },
     {
@@ -653,7 +653,7 @@
       "capability": "lms.content.search",
       "module": "lms",
       "effect": "read",
-      "summary": "Search everything in a course on its LMS: pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
+      "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
       "plugin_id": null
     },
     {
@@ -669,7 +669,7 @@
       "capability": "lms.course.link.set",
       "module": "lms",
       "effect": "write",
-      "summary": "Link a course to its course on the Program's LMS.",
+      "summary": "Link a course to its course on the Program's LMS (Canvas).",
       "plugin_id": null
     },
     {
@@ -677,7 +677,7 @@
       "capability": "lms.course.list",
       "module": "lms",
       "effect": "read",
-      "summary": "The user's courses on the Program's LMS, marked when already linked.",
+      "summary": "The user's courses on the Program's LMS (Canvas), marked when already linked.",
       "plugin_id": null
     },
     {
@@ -685,7 +685,7 @@
       "capability": "lms.course.outline",
       "module": "lms",
       "effect": "read",
-      "summary": "A course on its LMS at a glance: its modules with every item, in order.",
+      "summary": "A course on its LMS (Canvas) at a glance: its modules with every item, in order.",
       "plugin_id": null
     },
     {

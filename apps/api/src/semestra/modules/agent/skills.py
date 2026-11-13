@@ -15,7 +15,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from semestra.core.capability import Capability
+from semestra.core.capability import Capability, expand_terms
 
 MODULES_DIR = Path(__file__).resolve().parent.parent
 
@@ -73,9 +73,9 @@ def parse_skill(text: str, module: str) -> Skill:
     return Skill(
         name=name,
         title=title,
-        description=description,
+        description=expand_terms(description),
         tools=tuple(tools),
-        body=body,
+        body=expand_terms(body),
         module=module,
         command=command,
     )

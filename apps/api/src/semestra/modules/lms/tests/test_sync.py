@@ -459,7 +459,7 @@ async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clo
 
 
 async def test_the_shortest_interval_holds_when_the_app_asks(
-    api: Api, app: FastAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
 ):
     program_id, _ = await _course(api)
     monkeypatch.setattr(sync, "COOLDOWN", timedelta(minutes=1))
@@ -470,6 +470,15 @@ async def test_the_shortest_interval_holds_when_the_app_asks(
     # "Sync now" again right away does nothing; a minute later it syncs.
     assert (await api.call("POST", path, json={"force": True}))["queued"] == 0
     clock.advance(minutes=1)
+    assert (await api.call("POST", path, json={"force": True}))["queued"] == 1
+
+    # A sync that failed can be tried again right away.
+    async def broken(*_: Any) -> Any:
+        raise lms_error("lms.forbidden")
+
+    with monkeypatch.context() as mp:
+        mp.setattr(type(fake), "get_course", broken)
+        await api.run_jobs()
     assert (await api.call("POST", path, json={"force": True}))["queued"] == 1
     await api.run_jobs()
     # Opening the app waits for the server's shortest interval, not just half an hour.

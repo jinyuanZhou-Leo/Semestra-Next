@@ -21,7 +21,7 @@ AGENTS = ("http", "agent", "mcp")
 
 @capability(
     name="lms.course.outline",
-    summary="A course on its LMS at a glance: its modules with every item, in order.",
+    summary="A course on its {lms} at a glance: its modules with every item, in order.",
     description="""Each item has a `ref` to read it with lms.content.read (external links and
 tools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas
 of the course open to the user; the instructor may hide some (pages, files...), and their items
@@ -39,7 +39,7 @@ async def course_outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
 @capability(
     name="lms.content.search",
     untrusted=True,
-    summary="Search everything in a course on its LMS: pages, announcements, "
+    summary="Search everything in a course on its {lms}: pages, announcements, "
     "assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
     description="""Use first when looking for something in the course's LMS (a link, a date, a
 policy, where the slides are). Words are matched, not meanings: search in the course's
@@ -58,7 +58,7 @@ async def content_search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
 @capability(
     name="lms.content.read",
     untrusted=True,
-    summary="Read one item of a course on its LMS in full, as Markdown.",
+    summary="Read one item of a course on its {lms} in full, as Markdown.",
     description="""Takes a `ref` from any lms tool (a page, announcement with its replies,
 assignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's
 text, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call
@@ -75,7 +75,7 @@ async def content_read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
 @capability(
     name="lms.activity.list",
     untrusted=True,
-    summary="What is new on its LMS for a course or a whole term: announcements, "
+    summary="What is new on its {lms} for a course or a whole term: announcements, "
     "grades and new assignments.",
     description="""Newest first, the last 7 days unless `since`. Imported assignments follow the
 LMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the

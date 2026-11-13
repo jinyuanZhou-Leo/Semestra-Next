@@ -53,10 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         runner = jobs.JobRunner(
             app.state,
             settings.job_concurrency,
-            {
-                "background": settings.job_background_concurrency,
-                "bulk": settings.job_bulk_concurrency,
-            },
+            bulk=settings.job_bulk_concurrency,
+            background=settings.job_background_concurrency,
         )
         app.state.jobs = runner
         if settings.jobs_autostart:

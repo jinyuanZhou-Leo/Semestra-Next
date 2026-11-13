@@ -251,7 +251,7 @@ async def binding_clear(ctx: Ctx, inp: ProgramRef) -> ProgramBinding:
 
 @capability(
     name="lms.course.list",
-    summary="The user's courses on the Program's LMS, marked when already linked.",
+    summary="The user's courses on the Program's {lms}, marked when already linked.",
     description="""Current-term courses by default; `include_past` for all of them. To link one
 to a course here: lms.course.link.set; to create courses from them: lms.course.import.""",
     effect="read",
@@ -314,7 +314,7 @@ async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
 
 @capability(
     name="lms.course.link.set",
-    summary="Link a course to its course on the Program's LMS.",
+    summary="Link a course to its course on the Program's {lms}.",
     description="""Pick the course from lms.course.list. Uses the Program's bound connection
 (lms.program_not_configured without one: the user connects one in settings).
 An external course can be linked to only one course of the Program
@@ -394,7 +394,7 @@ async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 
 @capability(
     name="lms.announcement.list",
-    summary="Recent announcements of a linked course on its LMS, newest first.",
+    summary="Recent announcements of a linked course on its {lms}, newest first.",
     description="",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
@@ -437,7 +437,7 @@ async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> Announ
 @capability(
     name="lms.assignment.list",
     untrusted=True,
-    summary="Assignments and graded quizzes of a linked course on its LMS, with the "
+    summary="Assignments and graded quizzes of a linked course on its {lms}, with the "
     "user's scores and the course total, marked when imported.",
     description="""For "what is due", "what is missing" and "what did I get": filter by `status`
 or due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives
@@ -475,7 +475,7 @@ async def submission_get(ctx: Ctx, inp: SubmissionInput) -> SubmissionDetail:
 
 @capability(
     name="lms.grade.list",
-    summary="The user's grades on its LMS for a linked course.",
+    summary="The user's grades on its {lms} for a linked course.",
     description="""The course total first, then one row per assignment, with score, points possible
 and grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS
 assignments to it use lms.assignment.import.""",
@@ -561,7 +561,7 @@ async def quizzes_list(ctx: Ctx, inp: QuizzesInput) -> QuizList:
 
 @capability(
     name="lms.syllabus.get",
-    summary="The syllabus of a linked course on its LMS.",
+    summary="The syllabus of a linked course on its {lms}.",
     description="To extract its grading scheme use lms.syllabus.import.",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/syllabus"),

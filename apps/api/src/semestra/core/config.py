@@ -46,12 +46,11 @@ class Settings(BaseSettings):
 
     # Background jobs (M00 §3.7): worker tasks in the API process. Tests turn autostart off and
     # drive the queue themselves.
-    job_concurrency: int = 3
-    # Of those, how many may run background jobs (the LMS course sync) and bulk jobs (rebuilding
-    # vectors, model downloads) at once; together they always leave one for the jobs users wait
-    # on.
-    job_background_concurrency: int = 1
+    job_concurrency: int = 2
+    # Of those, how many may run bulk jobs (rebuilding vectors, model downloads) at once.
     job_bulk_concurrency: int = 1
+    # Workers of their own for background jobs (the LMS course sync), besides the ones above.
+    job_background_concurrency: int = 1
     jobs_autostart: bool = True
     # Import the AI SDKs in a thread after start (seconds of work tests don't need).
     ai_warm_up: bool = True

@@ -12,11 +12,11 @@ Jobs are queued by the scheduler (`lms.sync_due`, every few minutes: courses who
 older than the account's interval, `lms.sync_every`), when the app opens a Program whose courses
 were not synced lately, and when the user asks. The server's shortest interval
 (`lms_sync_min_interval`) holds for the first two; asking again within `COOLDOWN` of a course's
-last sync does nothing. Jobs run in the `background` lane, so a long queue of them never delays
-the jobs a user waits on. The platform reads of a sync are cached in memory only: nobody reads
-them again soon enough to be worth a write to `lms_cache`. Only synced courses of a running,
-upcoming or recent term are synced, and only for accounts used in the last weeks; a returning
-user's courses sync when the app opens.
+last sync does nothing, unless that sync failed. Jobs run in the `background` lane, on workers
+of their own, so a long queue of them never delays the jobs a user waits on. The platform reads
+of a sync are cached in memory only: nobody reads them again soon enough to be worth a write to
+`lms_cache`. Only synced courses of a running, upcoming or recent term are synced, and only for
+accounts used in the last weeks; a returning user's courses sync when the app opens.
 """
 
 from collections.abc import Awaitable, Callable, Sequence
@@ -57,7 +57,7 @@ INACTIVE = timedelta(days=14)
 # Opening a Program syncs its courses not synced for this long (or the server's shortest
 # interval, when longer).
 ON_OPEN = timedelta(minutes=30)
-# "Sync now" leaves out a course synced this recently.
+# "Sync now" leaves out a course synced this recently (unless that sync failed).
 COOLDOWN = timedelta(minutes=1)
 # The scheduler's round, and how many courses one round queues (the rest wait for the next).
 TICK = timedelta(minutes=5)
@@ -286,7 +286,13 @@ async def request_sync(
     if course_id is not None:
         links = [li for li in links if li.course_id == course_id]
     since = ctx.now - (COOLDOWN if force else max(ON_OPEN, floor(ctx)))
-    links = [li for li in links if li.synced_at is None or li.synced_at <= since]
+    # A course whose last sync failed is tried again whenever the user asks (after they fixed
+    # the connection, say); a sync queued already is not queued twice either way.
+    links = [
+        li
+        for li in links
+        if li.synced_at is None or li.synced_at <= since or (force and li.sync_errors)
+    ]
     return await queue(ctx, links, manual=force)
 
 
