@@ -31,6 +31,8 @@ TAGS = {
 ATTRIBUTES = {
     "a": {"href", "title", "target"},
     "img": {"src", "alt", "title", "width", "height"},
+    # The editor's own table grid (`border="1"`) and spacing, drawn by the "Canvas style" display.
+    "table": {"border", "cellpadding", "cellspacing"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
     "col": {"span"},

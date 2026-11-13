@@ -109,6 +109,19 @@ function restoreStructure(root: DocumentFragment) {
   }
 }
 
+/** `cellpadding` as inline padding on cells without their own: the browser maps the attribute,
+ * but Tailwind's preflight sets every padding to 0 above it. */
+function applyCellPadding(root: DocumentFragment) {
+  for (const table of root.querySelectorAll('table[cellpadding]')) {
+    const padding = Number.parseInt(table.getAttribute('cellpadding') ?? '', 10)
+    if (!Number.isFinite(padding)) continue
+    for (const cell of table.querySelectorAll<HTMLElement>('th, td')) {
+      if (cell.closest('table') === table && !cell.style.padding)
+        cell.style.padding = `${padding}px`
+    }
+  }
+}
+
 function prepare(
   html: string,
   original: boolean,
@@ -116,7 +129,8 @@ function prepare(
 ): string {
   const template = document.createElement('template')
   template.innerHTML = html
-  if (!original) restoreStructure(template.content)
+  if (original) applyCellPadding(template.content)
+  else restoreStructure(template.content)
   if (imageSrc) pointImages(template.content, imageSrc)
   return template.innerHTML
 }

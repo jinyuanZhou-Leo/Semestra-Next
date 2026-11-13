@@ -865,7 +865,7 @@ test('a PowerPoint opens as text, slide by slide', async () => {
     ),
   )
   renderPage('/?tab=files')
-  await userEvent.click(await screen.findByRole('button', { name: 'Preview week1.pptx' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'week1.pptx' }))
   const dialog = await screen.findByRole('dialog')
   expect(await within(dialog).findByRole('heading', { name: 'Intro' })).toBeInTheDocument()
   expect(within(dialog).getByText('Slide 2')).toBeInTheDocument()

@@ -9,6 +9,8 @@
   --lms-ink: oklch(0.34 0.025 240);
   --lms-link: oklch(0.53 0.14 245);
   --lms-rule: oklch(0.85 0.01 240);
+  /* The browser's own color for a `border` attribute grid. */
+  --lms-grid: oklch(0.6 0 0);
   color-scheme: light;
   background-color: var(--lms-paper);
   color: var(--lms-ink);
@@ -86,13 +88,28 @@
   max-width: 100%;
   height: auto;
 }
+/*
+ * Tables as Canvas draws them: no styles of its own beyond collapsing borders when the author set
+ * no `cellspacing`, so the grid comes from the editor's `border` attribute and inline styles. The
+ * browser maps `border` to the table and its cells; Tailwind's preflight removes that, so it is
+ * restored here (`cellpadding` becomes inline padding in `SafeHtml`).
+ */
+.lms-original :where(table:not([cellspacing])) {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
 .lms-original :where(th, td) {
-  padding: 0.25em 0.5em;
-  vertical-align: top;
+  padding: 1px;
 }
 .lms-original :where(th) {
   text-align: left;
   font-weight: 700;
+}
+.lms-original :where(table[border]:not([border='0'])) {
+  border: 1px solid var(--lms-grid);
+}
+.lms-original :where(table[border]:not([border='0'])) :where(th, td) {
+  border: 1px solid var(--lms-grid);
 }
 .lms-original > :first-child {
   margin-top: 0;
