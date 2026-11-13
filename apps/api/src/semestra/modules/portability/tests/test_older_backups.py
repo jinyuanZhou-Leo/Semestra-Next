@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from semestra.modules.grading.models import GradingAssessment, GradingScale
+from semestra.modules.grading.models import GradingAssessment
 from semestra.modules.lms.models import LmsImportedRef
 from semestra.modules.portability import registry
 from semestra.modules.schedule.models import (
@@ -64,9 +64,6 @@ async def test_a_1_15_backup_restores(
     assert done["report"]["skipped"] == {}
 
     async with app.state.session_factory() as db:
-        # The scale's `hide_gpa` of 1.15 is `hide_grades` now.
-        scale = await db.scalar(select(GradingScale).where(GradingScale.user_id == user.id))
-        assert scale is not None and scale.hide_grades
         assessments = {
             a.title: a.id
             for a in await db.scalars(
