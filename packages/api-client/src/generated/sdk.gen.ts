@@ -638,6 +638,7 @@ export const academicsProgramCreate = <ThrowOnError extends boolean = false>(opt
  * Delete a Program with all of its terms, courses and their data.
  *
  * Irreversible. Use only when the user clearly asks to delete the whole Program.
+ * The user's only Program cannot be deleted.
  * To remove one term or course use academics.term.delete or academics.course.delete.
  */
 export const academicsProgramDelete = <ThrowOnError extends boolean = false>(options: Options<AcademicsProgramDeleteData, ThrowOnError>): RequestResult<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError> => (options.client ?? client).delete<AcademicsProgramDeleteResponses, AcademicsProgramDeleteErrors, ThrowOnError>({

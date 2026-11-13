@@ -747,14 +747,12 @@ async def test_deleting_courses_and_programs_removes_their_gradebooks(api: Api, 
     assert await count(app, models.GradingCategory) == 7
     assert await count(app, models.GradingCourseResult) == 1
 
+    # The last Program cannot go; the other one keeps only its own scale.
+    await api.call("POST", "/programs", json={"name": "Other", "timezone": "America/Toronto"})
     await api.call("DELETE", f"/programs/{program['id']}")
-    for model in (
-        models.GradingAssessment,
-        models.GradingCategory,
-        models.GradingCourseResult,
-        models.GradingScale,
-    ):
+    for model in (models.GradingAssessment, models.GradingCategory, models.GradingCourseResult):
         assert await count(app, model) == 0, model
+    assert await count(app, models.GradingScale) == 1
 
 
 async def test_other_peoples_data_is_not_found(

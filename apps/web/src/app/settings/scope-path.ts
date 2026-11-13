@@ -66,15 +66,16 @@ export function useSettingsPath(target: SettingsTarget, base: PathIds): Settings
   const courseData = course.isError ? undefined : course.data
   const urlTermData = urlTerm.isError ? undefined : urlTerm.data
 
+  const programList = programs.data?.items ?? []
   const urlProgramId =
     level === 'program'
-      ? scope
+      ? // A Program missing from the list was deleted: the page's Program takes its place.
+        programList.find((p) => p.id === scope)?.id
       : level === 'term'
         ? urlTermData?.program_id
         : level === 'course' && scope
           ? courseData?.program_id
           : undefined
-  const programList = programs.data?.items ?? []
   const programId =
     urlProgramId ?? base.programId ?? courseData?.program_id ?? pickProgram(programList, active)?.id
   const program = programList.find((p) => p.id === programId)

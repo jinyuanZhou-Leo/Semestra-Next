@@ -10,6 +10,7 @@ export const errorMessages = {
   error_academics_course_requires_term: m.error_academics_course_requires_term,
   error_academics_course_terms_cross_program: m.error_academics_course_terms_cross_program,
   error_academics_course_terms_not_adjacent: m.error_academics_course_terms_not_adjacent,
+  error_academics_program_last: m.error_academics_program_last,
   error_academics_term_date_range_invalid: m.error_academics_term_date_range_invalid,
   error_agent_attachment_in_use: m.error_agent_attachment_in_use,
   error_agent_attachment_too_large: m.error_agent_attachment_too_large,

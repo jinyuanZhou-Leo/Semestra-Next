@@ -427,6 +427,8 @@ async def test_deleting_a_course_removes_its_link(api: Api, app: FastAPI):
     assert (await api.client.delete(f"/courses/{course}")).is_success
     binding = await api.call("GET", f"/programs/{program_id}/lms-binding")
     assert binding["link_count"] == 0
+    # The last Program cannot go.
+    await api.call("POST", "/programs", json={"name": "Other", "timezone": "America/Toronto"})
     # Deleting the Program removes its binding too.
     assert (await api.client.delete(f"/programs/{program_id}")).is_success
     async with system_ctx(app.state) as ctx:

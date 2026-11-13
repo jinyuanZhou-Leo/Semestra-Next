@@ -640,6 +640,8 @@ async def test_cleanup_on_course_and_term_changes(api: Api, app: FastAPI):
     await api.call("DELETE", f"/courses/{course_id}")
     assert (await api.call("GET", f"/programs/{program_id}/events"))["items"] == []
     assert classes(await api.calendar(program_id, "2026-01-05", "2026-02-01")) == []
+    # The last Program cannot go.
+    await api.call("POST", "/programs", json={"name": "Other", "timezone": "America/Toronto"})
     await api.call("DELETE", f"/programs/{program_id}")
 
 

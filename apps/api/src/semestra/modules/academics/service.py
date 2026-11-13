@@ -488,7 +488,8 @@ def ensure_subject_color(program: AcademicsProgram, subject: str) -> None:
 async def delete_program(ctx: Ctx, program_id: str) -> None:
     """Deletes the Program with every term and course. Other modules clean up in the same
     transaction (`*.deleting`); every deleted term and course is announced after commit
-    (`*.deleted`), so scoped data such as settings goes too (M11 §9)."""
+    (`*.deleted`), so scoped data such as settings goes too (M11 §9). A user always keeps one
+    Program (M02 §2): the last one goes only with the account."""
     row = await get_program_row(ctx, program_id)
     terms = await program_terms(ctx, program_id)
     links = await _program_links(ctx, program_id)
@@ -513,6 +514,15 @@ async def delete_program(ctx: Ctx, program_id: str) -> None:
     await ctx.db.execute(delete(AcademicsTerm).where(AcademicsTerm.program_id == program_id))
     await ctx.db.delete(row)
     await ctx.db.flush()
+    # Counted after the delete, while this transaction holds the write lock: two deletions at
+    # once (two tabs, Sem and the page) cannot both see another Program left.
+    remaining = await ctx.db.scalar(
+        select(func.count())
+        .select_from(AcademicsProgram)
+        .where(AcademicsProgram.user_id == ctx.user_id)
+    )
+    if not remaining:
+        raise AppError("academics.program_last", 409)
     await events.publish(ctx, "academics.program.deleted", data)
 
 
