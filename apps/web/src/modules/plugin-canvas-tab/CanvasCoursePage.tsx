@@ -247,7 +247,6 @@ function CourseNav({
   activeKey: string
 } & Sync) {
   const { go } = useCanvasPage()
-  const course = overview.course
   const native = entries.filter((e) => e.kind === 'native')
   // Tabs the app can't show open straight in Canvas; without an address they show a note here.
   const elsewhere = entries.filter((e) => e.kind !== 'native')
@@ -257,7 +256,6 @@ function CourseNav({
     if (entry && entry.kind !== 'native' && entry.tab.web_url) openExternal(entry.tab.web_url)
     else go({ tab: key })
   }
-  const courseMeta = [course.code, course.term].filter(Boolean).join(' · ')
   return (
     <>
       <div className="flex items-center gap-2 xl:hidden">
@@ -302,12 +300,6 @@ function CourseNav({
         aria-label={m.canvas_tab_nav_label()}
         className="hidden flex-col gap-3 self-start xl:sticky xl:top-4 xl:flex"
       >
-        <div className="px-2">
-          <p className="text-xs font-medium text-muted-foreground">{m.canvas_tab_page_title()}</p>
-          {courseMeta ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{courseMeta}</p>
-          ) : null}
-        </div>
         <ul className="space-y-0.5">
           {native.map((e) => {
             const Icon = NAV_ICONS[e.key as NativeView]
