@@ -18,6 +18,19 @@ export function compareValues(a: SortValue, b: SortValue): number {
 
 export type AssessmentGroup<T> = { category: AssessmentCategory | null; items: T[] }
 
+/** A group's key in the set of collapsed groups. */
+export const groupKey = (category: AssessmentCategory | null) => category?.id ?? '__none__'
+
+/** Whether a group's rows are hidden: it is collapsed and does not hold the linked assessment. */
+export function isFolded(
+  category: AssessmentCategory | null,
+  ids: readonly string[],
+  collapsed: ReadonlySet<string>,
+  highlighted: string | null,
+): boolean {
+  return collapsed.has(groupKey(category)) && (highlighted === null || !ids.includes(highlighted))
+}
+
 /** Items grouped by category in the categories' order, keeping their order; loose ones last. */
 export function groupByCategory<T>(
   items: readonly T[],

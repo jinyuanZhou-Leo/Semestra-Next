@@ -541,7 +541,6 @@ export function CoursesTable({
             countLabel={m.academics_selected_count({ count: selectedVisible.length })}
             label={m.academics_batch_actions()}
             onClear={clearSelection}
-            paused={deleting}
             actions={
               <>
                 <CreditsPopover

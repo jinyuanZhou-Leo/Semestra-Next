@@ -2726,23 +2726,15 @@ export const gradingAssessmentCreateMany = <ThrowOnError extends boolean = false
  * grading.assessment.find.
  */
 export const gradingAssessmentDelete = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteData, ThrowOnError>): RequestResult<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError> => (options.client ?? client).delete<GradingAssessmentDeleteResponses, GradingAssessmentDeleteErrors, ThrowOnError>({
-    security: [
-        {
+    security: [{
             in: 'cookie',
             name: 'semestra_session',
             type: 'apiKey'
-        },
-        {
+        }, {
             key: 'accessToken',
             scheme: 'bearer',
             type: 'http'
-        },
-        {
-            key: 'personalAccessToken',
-            scheme: 'bearer',
-            type: 'http'
-        }
-    ],
+        }],
     url: '/assessments/{assessment_id}',
     ...options
 });
@@ -2782,11 +2774,11 @@ export const gradingAssessmentUpdate = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * Delete several assessments of a course from its gradebook.
+ * Delete one or more assessments of a course from its gradebook.
  *
  * Irreversible: their scores and their place in the grade are gone. To ignore
- * them in the grade, set `dropped` with grading.assessment.update_many instead. All of them are
- * deleted, or none if one is not the course's.
+ * them in the grade, set `dropped` with grading.assessment.update_many instead. Find the ids with
+ * grading.assessment.find. All of them are deleted, or none if one is not the course's.
  */
 export const gradingAssessmentDeleteMany = <ThrowOnError extends boolean = false>(options: Options<GradingAssessmentDeleteManyData, ThrowOnError>): RequestResult<GradingAssessmentDeleteManyResponses, GradingAssessmentDeleteManyErrors, ThrowOnError> => (options.client ?? client).post<GradingAssessmentDeleteManyResponses, GradingAssessmentDeleteManyErrors, ThrowOnError>({
     security: [

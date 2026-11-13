@@ -14,7 +14,7 @@ import {
   ClipboardList,
   SearchX,
 } from 'lucide-react'
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -29,7 +29,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { categoryName, percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
-import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
+import {
+  DEFAULT_SORT,
+  type SortKey,
+  type SortPref,
+  groupByCategory,
+  groupKey,
+  isFolded,
+} from '../sort'
 import { type AssessmentFilter, matchesFilter } from '../filter'
 import {
   ASSESSMENT_ACTIONS,
@@ -53,7 +60,6 @@ import {
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
-import { useHighlightedAssessment } from './use-highlight'
 
 /** Columns of figures: their headings line up with the figures on the right. */
 const NUMERIC = new Set(['weight'])
@@ -83,6 +89,9 @@ export function AssessmentTable({
   predictions,
   onAssume,
   grouped,
+  collapsed,
+  onToggleGroup,
+  highlighted,
   filter,
   search,
   onClearFilter,
@@ -101,6 +110,11 @@ export function AssessmentTable({
   onAssume: (assessmentId: string, percent: number | null) => void
   /** Show the categories as collapsible groups. */
   grouped: boolean
+  /** The groups (`groupKey`) the user collapsed. */
+  collapsed: ReadonlySet<string>
+  onToggleGroup: (key: string) => void
+  /** The assessment a link points at; its group stays open. */
+  highlighted: string | null
   filter: AssessmentFilter
   search: string
   onClearFilter: () => void
@@ -110,12 +124,10 @@ export function AssessmentTable({
 }) {
   const queryClient = useQueryClient()
   const [sort, setSort] = useUiPref<SortPref>('grading.sort', DEFAULT_SORT)
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const editing = useDialogTarget<Assessment>()
   const deleting = useDialogTarget<Assessment>()
   const acting = useDialogTarget<{ action: string; assessment: Assessment }>()
   const actions = useExtensions<AssessmentAction>(ASSESSMENT_ACTIONS)
-  const highlighted = useHighlightedAssessment()
 
   const update = useMutation({
     ...gradingAssessmentUpdateMutation(),
@@ -199,13 +211,6 @@ export function AssessmentTable({
     ? groupByCategory(rows, categories, (r) => r.original.category_id)
     : [{ category: null as AssessmentCategory | null, items: rows }]
   const columnCount = columns.length
-
-  const toggleGroup = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
 
   return (
     <TableActionsContext value={actionsValue}>
@@ -295,19 +300,16 @@ export function AssessmentTable({
                 </TableRow>
               ) : null}
               {groups.map((group) => {
-                const groupId = group.category?.id ?? '__none__'
-                // A linked assessment is shown even when its group is collapsed.
-                const isCollapsed =
-                  grouped &&
-                  collapsed.has(groupId) &&
-                  !group.items.some((row) => row.id === highlighted)
+                const groupId = groupKey(group.category)
+                const ids = group.items.map((row) => row.id)
+                const isCollapsed = grouped && isFolded(group.category, ids, collapsed, highlighted)
                 return (
                   <Fragment key={groupId}>
                     {grouped ? (
                       <GroupRow
                         category={group.category}
                         count={group.items.length}
-                        ids={group.items.map((row) => row.id)}
+                        ids={ids}
                         selectable={!whatIf.plan}
                         figures={figures.find(
                           (f) => f.category_id === (group.category?.id ?? null),
@@ -315,7 +317,7 @@ export function AssessmentTable({
                         collapsed={isCollapsed}
                         planning={whatIf.plan}
                         trailing={contributed.length + 1}
-                        onToggle={() => toggleGroup(groupId)}
+                        onToggle={() => onToggleGroup(groupId)}
                       />
                     ) : null}
                     {isCollapsed
@@ -414,10 +416,13 @@ function GroupRow({
     <TableRow className="bg-muted/40 hover:bg-muted/40">
       {selectable ? (
         <TableCell className="py-1.5">
-          <SelectCheckbox
-            ids={ids}
-            label={`${m.grading_select()}: ${category ? categoryName(category) : m.grading_category_none()}`}
-          />
+          {/* A collapsed group's rows are off screen, so they cannot be checked. */}
+          {collapsed ? null : (
+            <SelectCheckbox
+              ids={ids}
+              label={`${m.grading_select()}: ${category ? categoryName(category) : m.grading_category_none()}`}
+            />
+          )}
         </TableCell>
       ) : null}
       <TableCell colSpan={3} className="py-1.5">

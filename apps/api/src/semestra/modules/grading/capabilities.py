@@ -344,6 +344,7 @@ assessment in the grade, set `dropped` with grading.assessment.update instead. F
 grading.assessment.find.""",
     effect="destructive",
     http=Http("DELETE", "/assessments/{assessment_id}"),
+    expose=("http",),  # Sem and MCP use delete_many, with one id or more
     preview=service.preview_assessment_delete,
     tags=TAGS,
 )
@@ -373,10 +374,10 @@ async def assessment_update_many(
 
 @capability(
     name="grading.assessment.delete_many",
-    summary="Delete several assessments of a course from its gradebook.",
+    summary="Delete one or more assessments of a course from its gradebook.",
     description="""Irreversible: their scores and their place in the grade are gone. To ignore
-them in the grade, set `dropped` with grading.assessment.update_many instead. All of them are
-deleted, or none if one is not the course's.""",
+them in the grade, set `dropped` with grading.assessment.update_many instead. Find the ids with
+grading.assessment.find. All of them are deleted, or none if one is not the course's.""",
     effect="destructive",
     http=Http("POST", "/courses/{course_id}/assessments:delete"),
     preview=service.preview_assessments_delete,

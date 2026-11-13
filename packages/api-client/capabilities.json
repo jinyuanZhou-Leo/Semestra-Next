@@ -321,19 +321,11 @@
       "plugin_id": null
     },
     {
-      "name": "grading__assessment__delete",
-      "capability": "grading.assessment.delete",
-      "module": "grading",
-      "effect": "destructive",
-      "summary": "Delete an assessment from a gradebook.",
-      "plugin_id": null
-    },
-    {
       "name": "grading__assessment__delete_many",
       "capability": "grading.assessment.delete_many",
       "module": "grading",
       "effect": "destructive",
-      "summary": "Delete several assessments of a course from its gradebook.",
+      "summary": "Delete one or more assessments of a course from its gradebook.",
       "plugin_id": null
     },
     {

@@ -458,6 +458,12 @@ test('checked assessments are changed and deleted together, only the ones on scr
   await userEvent.click(screen.getByRole('button', { name: 'All' }))
   await userEvent.click(screen.getByRole('checkbox', { name: 'Select: Final exam' }))
   expect(within(toolbar).getByText('2 selected')).toBeInTheDocument()
+  // Esc closes the menu on top, and leaves the selection alone.
+  await userEvent.click(within(toolbar).getByRole('button', { name: 'Category' }))
+  await screen.findByRole('menu')
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+  expect(within(toolbar).getByText('2 selected')).toBeInTheDocument()
   await userEvent.click(within(toolbar).getByRole('button', { name: 'Weight' }))
   const dialog = await screen.findByRole('dialog', { name: 'Set weight' })
   await userEvent.click(within(dialog).getByRole('button', { name: 'Split a total' }))

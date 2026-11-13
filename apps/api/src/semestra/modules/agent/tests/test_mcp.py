@@ -70,31 +70,35 @@ async def test_read_token_lists_and_calls_read_tools(app: FastAPI, agent: Agent)
 
 
 async def test_write_token_and_destructive_preference(app: FastAPI, agent: Agent):
-    _, _, lab = await agent.course_with_lab()
+    _, course, lab = await agent.course_with_lab()
     token = await _token(agent, ["read", "write"])
     async with _connector(app)(token) as mcp:
         names = {t.name for t in (await mcp.list_tools()).tools}
         assert "grading__assessment__update" in names
-        assert "grading__assessment__delete" not in names
+        assert "grading__assessment__delete_many" not in names
         result = await mcp.call_tool(
             "grading__assessment__update", {"assessment_id": lab["id"], "score_percentage": 90}
         )
         assert result.is_error is False
         assert _payload(result)["score_percentage"] == 90
 
-        refused = await mcp.call_tool("grading__assessment__delete", {"assessment_id": lab["id"]})
+        refused = await mcp.call_tool(
+            "grading__assessment__delete_many",
+            {"course_id": course["id"], "assessment_ids": [lab["id"]]},
+        )
         assert _payload(refused)["error"]["code"] == "auth.token_scope"
     # The same token on the REST route is held to the same preference.
     bearer = {"Authorization": f"Bearer {token}"}
-    url = f"/assessments/{lab['id']}"
-    r = await agent.client.delete(url, headers=bearer)
+    url = f"/courses/{course['id']}/assessments:delete"
+    body = {"assessment_ids": [lab["id"]]}
+    r = await agent.client.post(url, headers=bearer, json=body)
     assert r.json()["error"]["code"] == "auth.token_scope"
 
     await agent.call("PATCH", "/agent/preferences", json={"mcp_allow_destructive": True})
     async with _connector(app)(token) as mcp:
         names = {t.name for t in (await mcp.list_tools()).tools}
-        assert "grading__assessment__delete" in names
-    assert (await agent.client.delete(url, headers=bearer)).status_code == 200
+        assert "grading__assessment__delete_many" in names
+    assert (await agent.client.post(url, headers=bearer, json=body)).status_code == 200
 
 
 async def test_prompts_are_skills_and_resources_summarize(app: FastAPI, agent: Agent):

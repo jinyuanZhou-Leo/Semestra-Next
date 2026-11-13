@@ -13,12 +13,14 @@ import { AssessmentTable } from '../components/AssessmentTable'
 import type { AssessmentSelection } from '../components/assessment-columns'
 import { type BatchTarget, BatchDialogs } from '../components/BatchDialogs'
 import { GradebookToolbar } from '../components/GradebookToolbar'
+import { useHighlightedAssessment } from '../components/use-highlight'
 import { ForecastCard } from '../components/ForecastCard'
 import { GradeComposition } from '../components/GradeComposition'
 import { ManualGrade } from '../components/ManualGrade'
 import { CourseTarget } from '../components/CourseTarget'
 import { type AssessmentFilter, matchesFilter } from '../filter'
 import { useGradebook } from '../queries'
+import { groupByCategory, isFolded } from '../sort'
 import { usePlanSimulation } from '../use-plan'
 import { DEFAULT_WHATIF, type WhatIf, activeScores } from '../whatif'
 
@@ -43,7 +45,9 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [adding, setAdding] = useState(false)
   const [filter, setFilter] = useState<AssessmentFilter>('all')
   const [search, setSearch] = useState('')
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
+  const highlighted = useHighlightedAssessment()
   const batch = useDialogTarget<BatchTarget>()
   const queryClient = useQueryClient()
   const { result, summary } = gradebook
@@ -56,10 +60,24 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
     return <ManualGrade gradebook={gradebook} />
   }
 
-  // Only rows on screen are checked: filtering hides a row from the batch, plan mode all of them.
+  // Only rows on screen are checked: a filter or a collapsed group hides a row from the batch,
+  // plan mode all of them.
+  const matching = gradebook.assessments.filter((a) => matchesFilter(a, filter, search))
   const shown = planning
     ? []
-    : gradebook.assessments.filter((a) => matchesFilter(a, filter, search))
+    : grouped
+      ? groupByCategory(matching, gradebook.categories, (a) => a.category_id)
+          .filter(
+            (g) =>
+              !isFolded(
+                g.category,
+                g.items.map((a) => a.id),
+                collapsed,
+                highlighted,
+              ),
+          )
+          .flatMap((g) => g.items)
+      : matching
   const selected = shown.filter((a) => checked.has(a.id))
   const clearSelection = () => setChecked(new Set())
   const selection: AssessmentSelection = {
@@ -113,6 +131,15 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           predictions={(planning ? planned : null)?.predictions ?? gradebook.summary.predictions}
           onAssume={assume}
           grouped={grouped}
+          collapsed={collapsed}
+          onToggleGroup={(key) =>
+            setCollapsed((prev) => {
+              const next = new Set(prev)
+              if (!next.delete(key)) next.add(key)
+              return next
+            })
+          }
+          highlighted={highlighted}
           filter={filter}
           search={search}
           onClearFilter={() => {
@@ -144,7 +171,6 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
               onBatchWeight={() => batch.show({ kind: 'weight', assessments: selected })}
               onBatchDelete={() => batch.show({ kind: 'delete', assessments: selected })}
               onClearSelection={clearSelection}
-              batchOpen={batch.open}
             />
           }
         />

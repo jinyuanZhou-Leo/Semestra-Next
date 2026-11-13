@@ -651,7 +651,7 @@ async def test_search_reveals_deferred_tools(agent: Agent, model: FakeModel):
     assert {SEARCH, "load_capability", "read_tool_result"} <= model.tools_of(0)
     assert "schedule__section__list" in model.tools_of(1)
     # A tool nobody found yet cannot be called.
-    model.then(call("grading.assessment.delete", {}), say("ok"))
+    model.then(call("grading.assessment.delete_many", {}), say("ok"))
     events = await agent.send(session["id"], "events?")
     assert events_named(events, "tool_result")[0]["error_code"] == "common.not_found"
     assert "not available yet" in model.last_text()
@@ -670,8 +670,11 @@ async def test_destructive_cards_name_their_target(agent: Agent, model: FakeMode
     _, course, lab = await agent.course_with_lab()
     session = await agent.session()
     model.then(
-        _found("grading.assessment.delete"),
-        call("grading.assessment.delete", {"assessment_id": lab["id"]}),
+        _found("grading.assessment.delete_many"),
+        call(
+            "grading.assessment.delete_many",
+            {"course_id": course["id"], "assessment_ids": [lab["id"]]},
+        ),
     )
     [proposal] = events_named(await agent.send(session["id"], "delete lab 3"), "proposal")
     assert proposal["preview"]["target"] == f"{lab['title']} · APS105H1 {course['title']}"
@@ -730,7 +733,10 @@ async def test_auto_approvals_of_renamed_tools_are_dropped(agent: Agent):
 
 async def test_destructive_actions_cannot_be_auto_approved(agent: Agent):
     err = await agent.call(
-        "PATCH", "/agent/preferences", 422, json={"auto_approve": ["grading.assessment.delete"]}
+        "PATCH",
+        "/agent/preferences",
+        422,
+        json={"auto_approve": ["grading.assessment.delete_many"]},
     )
     assert err["error"]["code"] == "common.validation"
 

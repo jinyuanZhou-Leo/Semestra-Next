@@ -165,7 +165,6 @@ export function CourseFiles({
             countLabel={m.common_selected_count({ count: selected.length })}
             label={m.files_batch_actions()}
             onClear={clearSelection}
-            paused={action.open}
             actions={
               <>
                 <Button

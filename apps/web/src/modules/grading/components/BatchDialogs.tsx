@@ -87,21 +87,30 @@ function DeleteDialog({ courseId, assessments, close, onDeleted, ...props }: Dia
 
 type Mode = 'each' | 'split'
 
-const round2 = (value: number) => Math.round(value * 100) / 100
-
 /**
- * One weight for each checked assessment, or a total split evenly among them (the server splits
- * it to the hundredth so the shares add up exactly). It opens on what they have now: their common
- * weight, or their total when they differ.
+ * One weight for each checked assessment, or a total split evenly among the ones that count (the
+ * server splits it to the hundredth so the shares add up exactly; dropped ones keep theirs). It
+ * opens on their common weight; when they differ the field starts empty, so saving right away
+ * cannot flatten them.
  */
-function WeightDialog({ assessments, ...props }: DialogProps) {
+function WeightDialog({ assessments, courseId, close, ...props }: DialogProps) {
+  const queryClient = useQueryClient()
+  const update = useMutation({
+    ...gradingAssessmentUpdateManyMutation(),
+    onError: toastError,
+    onSuccess: async () => {
+      close()
+      await invalidateGrading(queryClient)
+    },
+  })
   return (
     <Dialog
       open={props.open}
-      onOpenChange={props.onOpenChange}
+      // Saving locks the dialog (M00 §4.8).
+      onOpenChange={(next) => !update.isPending && props.onOpenChange(next)}
       onOpenChangeComplete={props.onOpenChangeComplete}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" showCloseButton={!update.isPending}>
         <DialogHeader>
           <DialogTitle>{m.grading_weight_dialog_title()}</DialogTitle>
           <DialogDescription>
@@ -112,9 +121,14 @@ function WeightDialog({ assessments, ...props }: DialogProps) {
           <WeightForm
             // The form starts over from the assessments each time the dialog opens.
             key={assessments.map((a) => a.id).join()}
-            courseId={props.courseId}
             assessments={assessments}
-            close={props.close}
+            pending={update.isPending}
+            onSave={(body) =>
+              update.mutate({
+                path: { course_id: courseId },
+                body: { assessment_ids: assessments.map((a) => a.id), ...body },
+              })
+            }
           />
         ) : null}
       </DialogContent>
@@ -122,105 +136,104 @@ function WeightDialog({ assessments, ...props }: DialogProps) {
   )
 }
 
+/** Whole hundredths: the server splits a total to the hundredth. */
+const hundredths = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6
+
 function WeightForm({
-  courseId,
   assessments,
-  close,
-}: Pick<DialogProps, 'courseId' | 'assessments' | 'close'>) {
+  pending,
+  onSave,
+}: {
+  assessments: readonly Assessment[]
+  pending: boolean
+  onSave: (body: { weight: number } | { total_weight: number }) => void
+}) {
   const id = useId()
-  const queryClient = useQueryClient()
   const weights = new Set(assessments.map((a) => a.weight))
   const same = weights.size === 1
   const [mode, setMode] = useState<Mode>(same ? 'each' : 'split')
-  const [text, setText] = useState(() =>
-    String(same ? assessments[0]!.weight : round2(assessments.reduce((s, a) => s + a.weight, 0))),
-  )
+  const [text, setText] = useState(same ? String(assessments[0]!.weight) : '')
   const [touched, setTouched] = useState(false)
-  const update = useMutation({
-    ...gradingAssessmentUpdateManyMutation(),
-    onError: toastError,
-    onSuccess: async () => {
-      close()
-      await invalidateGrading(queryClient)
-    },
-  })
+  // Dropped ones are left out of the course grade: they neither add to the total nor share it.
+  const dropped = assessments.filter((a) => a.dropped).length
+  const counted = assessments.length - dropped || assessments.length
   const value = parseDecimal(text)
-  const invalid =
-    value === null || value > 100 || (mode === 'each' && value * assessments.length > 100)
-  const count = assessments.length
-  const hint =
-    value === null
-      ? null
-      : mode === 'each'
-        ? m.grading_weight_each_hint({ total: formatPercent((value * count) / 100, 2) })
-        : m.grading_weight_total_hint({ each: formatPercent(value / count / 100, 2) })
+  const error =
+    value === null || value > 100 || (mode === 'each' && value * counted > 100)
+      ? m.grading_weight_invalid()
+      : mode === 'split' && !hundredths(value)
+        ? m.grading_weight_decimals()
+        : null
+  let hint: string | null = null
+  if (value !== null && mode === 'each') {
+    const total = formatPercent((value * counted) / 100, 2)
+    hint =
+      dropped > 0 && dropped < assessments.length
+        ? m.grading_weight_each_hint_dropped({ total, count: dropped })
+        : m.grading_weight_each_hint({ total })
+  } else if (value !== null) {
+    const each = formatPercent(value / counted / 100, 2)
+    hint =
+      dropped > 0 && dropped < assessments.length
+        ? m.grading_weight_total_hint_dropped({ each, count: dropped })
+        : m.grading_weight_total_hint({ each })
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault()
     setTouched(true)
-    if (invalid) return
-    const ids = assessments.map((a) => a.id)
-    update.mutate({
-      path: { course_id: courseId },
-      body:
-        mode === 'each'
-          ? { assessment_ids: ids, weight: value }
-          : { assessment_ids: ids, total_weight: value },
-    })
+    if (error !== null || value === null) return
+    onSave(mode === 'each' ? { weight: value } : { total_weight: value })
   }
-  const showError = touched && invalid
+  const showError = touched && error !== null
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
-      <SettingsGroup>
-        <SettingRow label={m.grading_weight_mode()}>
-          {(labelId) => (
-            <ChoiceControl
-              labelId={labelId}
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'each', label: m.grading_weight_mode_each() },
-                { value: 'split', label: m.grading_weight_mode_split() },
-              ]}
-            />
-          )}
-        </SettingRow>
-        <SettingRow
-          label={mode === 'each' ? m.grading_weight_each_label() : m.grading_weight_total_label()}
-          htmlFor={`${id}-weight`}
-          description={
-            <span id={`${id}-weight-hint`} className="tabular-nums">
-              {hint ?? '\u00a0'}
-            </span>
-          }
-          note={
-            showError ? (
-              <FieldError id={`${id}-weight-error`}>{m.grading_weight_invalid()}</FieldError>
-            ) : null
-          }
-        >
-          <InputGroup className="w-28">
-            <InputGroupInput
-              id={`${id}-weight`}
-              inputMode="decimal"
-              value={text}
-              aria-invalid={showError ? true : undefined}
-              aria-describedby={showError ? `${id}-weight-error` : `${id}-weight-hint`}
-              onChange={(event) => setText(event.target.value)}
-            />
-            <InputGroupAddon align="inline-end">
-              <InputGroupText>%</InputGroupText>
-            </InputGroupAddon>
-          </InputGroup>
-        </SettingRow>
-      </SettingsGroup>
+      <fieldset disabled={pending} className="contents">
+        <SettingsGroup>
+          <SettingRow label={m.grading_weight_mode()}>
+            {(labelId) => (
+              <ChoiceControl
+                labelId={labelId}
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { value: 'each', label: m.grading_weight_mode_each() },
+                  { value: 'split', label: m.grading_weight_mode_split() },
+                ]}
+              />
+            )}
+          </SettingRow>
+          <SettingRow
+            label={mode === 'each' ? m.grading_weight_each_label() : m.grading_weight_total_label()}
+            htmlFor={`${id}-weight`}
+            description={
+              <span id={`${id}-weight-hint`} className="tabular-nums">
+                {hint ?? '\u00a0'}
+              </span>
+            }
+            note={showError ? <FieldError id={`${id}-weight-error`}>{error}</FieldError> : null}
+          >
+            <InputGroup className="w-28">
+              <InputGroupInput
+                id={`${id}-weight`}
+                inputMode="decimal"
+                value={text}
+                aria-invalid={showError ? true : undefined}
+                aria-describedby={showError ? `${id}-weight-error` : `${id}-weight-hint`}
+                onChange={(event) => setText(event.target.value)}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupText>%</InputGroupText>
+              </InputGroupAddon>
+            </InputGroup>
+          </SettingRow>
+        </SettingsGroup>
+      </fieldset>
       <DialogFooter>
-        <DialogClose
-          render={<Button type="button" variant="outline" disabled={update.isPending} />}
-        >
+        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
           {m.common_cancel()}
         </DialogClose>
-        <Button type="submit" disabled={update.isPending}>
-          {update.isPending ? m.common_saving() : m.common_save()}
+        <Button type="submit" disabled={pending}>
+          {pending ? m.common_saving() : m.common_save()}
         </Button>
       </DialogFooter>
     </form>

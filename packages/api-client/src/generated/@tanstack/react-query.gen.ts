@@ -2673,11 +2673,11 @@ export const gradingAssessmentUpdateMutation = (options?: Partial<Options<Gradin
 };
 
 /**
- * Delete several assessments of a course from its gradebook.
+ * Delete one or more assessments of a course from its gradebook.
  *
  * Irreversible: their scores and their place in the grade are gone. To ignore
- * them in the grade, set `dropped` with grading.assessment.update_many instead. All of them are
- * deleted, or none if one is not the course's.
+ * them in the grade, set `dropped` with grading.assessment.update_many instead. Find the ids with
+ * grading.assessment.find. All of them are deleted, or none if one is not the course's.
  */
 export const gradingAssessmentDeleteManyMutation = (options?: Partial<Options<GradingAssessmentDeleteManyData>>): UseMutationOptions<GradingAssessmentDeleteManyResponse, GradingAssessmentDeleteManyError, Options<GradingAssessmentDeleteManyData>> => {
     const mutationOptions: UseMutationOptions<GradingAssessmentDeleteManyResponse, GradingAssessmentDeleteManyError, Options<GradingAssessmentDeleteManyData>> = {

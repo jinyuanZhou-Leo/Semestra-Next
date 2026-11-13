@@ -6928,9 +6928,6 @@
           },
           {
             "accessToken": []
-          },
-          {
-            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7039,8 +7036,8 @@
         "tags": [
           "grading"
         ],
-        "summary": "Delete several assessments of a course from its gradebook.",
-        "description": "Irreversible: their scores and their place in the grade are gone. To ignore\nthem in the grade, set `dropped` with grading.assessment.update_many instead. All of them are\ndeleted, or none if one is not the course's.",
+        "summary": "Delete one or more assessments of a course from its gradebook.",
+        "description": "Irreversible: their scores and their place in the grade are gone. To ignore\nthem in the grade, set `dropped` with grading.assessment.update_many instead. Find the ids with\ngrading.assessment.find. All of them are deleted, or none if one is not the course's.",
         "operationId": "gradingAssessmentDeleteMany",
         "security": [
           {
@@ -19686,6 +19683,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "multipleOf": 0.01,
                 "maximum": 100.0,
                 "minimum": 0.0
               },
@@ -19694,7 +19692,7 @@
               }
             ],
             "title": "Total Weight",
-            "description": "Their shares together, split evenly (to 0.01, adding up exactly); instead of `weight`"
+            "description": "The shares of the ones that count (not dropped) together, split evenly among them to 0.01 so they add up exactly; dropped ones keep theirs. Instead of `weight`"
           },
           "dropped": {
             "anyOf": [

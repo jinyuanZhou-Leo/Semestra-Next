@@ -1023,7 +1023,7 @@ export type AssessmentUpdateManyInputBody = {
     /**
      * Total Weight
      *
-     * Their shares together, split evenly (to 0.01, adding up exactly); instead of `weight`
+     * The shares of the ones that count (not dropped) together, split evenly among them to 0.01 so they add up exactly; dropped ones keep theirs. Instead of `weight`
      */
     total_weight?: number | null;
     /**

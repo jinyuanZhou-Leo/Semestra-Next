@@ -294,10 +294,10 @@ class AssessmentUpdateManyInput(BaseModel):
     assessment_ids: AssessmentIds = Field(description="Assessments of this course to change")
     category_id: Id | None = Field(default=None, description="Category id, or null for none")
     weight: Weight | None = Field(default=None, description="Each one's share of the course")
-    total_weight: Weight | None = Field(
+    total_weight: Annotated[float, Field(ge=0, le=100, multiple_of=0.01)] | None = Field(
         default=None,
-        description="Their shares together, split evenly (to 0.01, adding up exactly); "
-        "instead of `weight`",
+        description="The shares of the ones that count (not dropped) together, split evenly "
+        "among them to 0.01 so they add up exactly; dropped ones keep theirs. Instead of `weight`",
     )
     dropped: bool | None = Field(default=None, description="Ignored in every calculation")
 

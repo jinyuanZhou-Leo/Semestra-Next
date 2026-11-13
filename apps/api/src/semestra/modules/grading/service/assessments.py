@@ -510,16 +510,33 @@ def _titles(rows: Sequence[models.GradingAssessment]) -> str:
     return ", ".join(r.title for r in rows[:3]) + (" …" if len(rows) > 3 else "")
 
 
+def _shares(
+    rows: Sequence[models.GradingAssessment], inp: AssessmentUpdateManyInput
+) -> list[float | None]:
+    """Each row's share of `total_weight` (None: its weight stays). The total is split among the
+    rows that count once the change is made, since dropped ones are left out of the course grade;
+    among all of them when none count."""
+    if inp.total_weight is None:
+        return [None] * len(rows)
+    counted = [
+        i for i, r in enumerate(rows) if not (r.dropped if inp.dropped is None else inp.dropped)
+    ] or list(range(len(rows)))
+    shares = dict(zip(counted, split_weight(inp.total_weight, len(counted)), strict=True))
+    return [shares.get(i) for i in range(len(rows))]
+
+
 async def preview_assessments_update(ctx: Ctx, inp: AssessmentUpdateManyInput) -> dict[str, Any]:
     """Each sent field with the values it replaces (distinct, by name for categories)."""
+    reject_nulls(inp, {"weight", "total_weight", "dropped"})
     rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
     course, program = await course_and_program(ctx, inp.course_id)
     changes: list[dict[str, Any]] = []
     for field in sorted(inp.model_fields_set - {"course_id", "assessment_ids"}):
         if field == "total_weight":
-            # Each one's new share, shown like `weight` (the shares differ by 0.01 at most).
-            after: Any = list(dict.fromkeys(split_weight(inp.total_weight or 0, len(rows))))
-            before = list(dict.fromkeys(r.weight for r in rows))
+            # The new shares, shown like `weight` (they differ by 0.01 at most).
+            split = [(r, w) for r, w in zip(rows, _shares(rows, inp), strict=True) if w is not None]
+            after: Any = list(dict.fromkeys(w for _, w in split))
+            before = list(dict.fromkeys(r.weight for r, _ in split))
             changes.append(
                 {
                     "field": "weight",
@@ -553,13 +570,8 @@ async def update_assessments(
     sent = inp.model_fields_set - {"course_id", "assessment_ids", "total_weight"}
     rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
     changes = inp.model_dump(include=sent)
-    weights: list[float | None] = (
-        list(split_weight(inp.total_weight, len(rows)))
-        if inp.total_weight is not None
-        else [None] * len(rows)
-    )
     updated: list[Assessment] = []
-    for row, weight in zip(rows, weights, strict=True):
+    for row, weight in zip(rows, _shares(rows, inp), strict=True):
         each = changes if weight is None else {**changes, "weight": weight}
         updated.append(
             await update_assessment(ctx, AssessmentUpdateInput(assessment_id=row.id, **each))

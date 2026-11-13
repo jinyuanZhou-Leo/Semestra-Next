@@ -52,7 +52,6 @@ export function GradebookToolbar({
   onBatchWeight,
   onBatchDelete,
   onClearSelection,
-  batchOpen,
 }: {
   programId: string
   result: CourseResult
@@ -75,8 +74,6 @@ export function GradebookToolbar({
   onBatchWeight: () => void
   onBatchDelete: () => void
   onClearSelection: () => void
-  /** A batch dialog is open: Esc is its, not the selection's. */
-  batchOpen: boolean
 }) {
   if (planning) {
     return (
@@ -107,7 +104,6 @@ export function GradebookToolbar({
         countLabel={m.common_selected_count({ count: selected.length })}
         label={m.grading_batch_actions()}
         onClear={onClearSelection}
-        paused={batchOpen}
         actions={
           <BatchActions
             courseId={result.course_id}

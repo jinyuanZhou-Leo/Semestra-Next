@@ -507,6 +507,11 @@ async def test_batch_changes_are_all_or_none(api: Api):
     # A total is split to the hundredth and adds up exactly.
     r = await api.call("POST", url, json={"assessment_ids": labs, "total_weight": 20})
     assert [a["weight"] for a in r["updated"]] == [6.67, 6.67, 6.66]
+    # Dropped ones are left out of the course grade, so the total goes to the ones that count.
+    await api.call("POST", url, json={"assessment_ids": labs[:2], "dropped": False})
+    r = await api.call("POST", url, json={"assessment_ids": labs, "total_weight": 15})
+    assert [a["weight"] for a in r["updated"]] == [7.5, 7.5, 6.66]
+    await api.call("POST", url, 422, json={"assessment_ids": labs, "total_weight": 12.345})
     await api.call("POST", url, 422, json={"assessment_ids": labs, "weight": 1, "total_weight": 20})
     await api.call("POST", url, 422, json={"assessment_ids": labs, "weight": None})
 
@@ -518,7 +523,7 @@ async def test_batch_changes_are_all_or_none(api: Api):
         "POST", f"/courses/{cid}/assessments:delete", 404,
         json={"assessment_ids": [labs[0], stranger]},
     )  # fmt: skip
-    assert [a["weight"] for a in (await api.gradebook(cid))["assessments"]] == [6.67, 6.67, 6.66]
+    assert [a["weight"] for a in (await api.gradebook(cid))["assessments"]] == [7.5, 7.5, 6.66]
 
     await api.call("POST", f"/courses/{cid}/assessments:delete", json={"assessment_ids": labs[:2]})
     assert [a["id"] for a in (await api.gradebook(cid))["assessments"]] == labs[2:]
