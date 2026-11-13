@@ -40,41 +40,35 @@ async def on_program_deleting(ctx: Ctx, event: Event) -> None:
 
 @events.subscribe("grading.assessment.deleting", in_transaction=True)
 async def on_assessment_deleting(ctx: Ctx, event: Event) -> None:
-    """The assignment can be imported again."""
-    assessment_id = event.data.get("assessment_id")
-    if isinstance(assessment_id, str) and await service.forget_target(
-        ctx, "assessment", assessment_id
-    ):
+    """The assignments can be imported again."""
+    if await service.forget_targets(ctx, "assessment", _ids(event, "assessment")):
         await _sync_changed(ctx, event)
 
 
 @events.subscribe("tasks.item.deleted")
 async def on_task_deleted(ctx: Ctx, event: Event) -> None:
     """M05 announces deleted tasks after commit (no `deleting` event yet)."""
-    ids = event.data.get("task_ids") or [event.data.get("task_id")]  # bulk clear, or one task
-    forgot = False
-    for task_id in ids:
-        if isinstance(task_id, str):
-            forgot = await service.forget_target(ctx, "task", task_id) or forgot
-    if forgot:
+    if await service.forget_targets(ctx, "task", _ids(event, "task")):
         await _sync_changed(ctx, event)
 
 
 @events.subscribe("grading.assessment.updated", in_transaction=True)
 async def on_assessment_updated(ctx: Ctx, event: Event) -> None:
-    await _on_updated(ctx, event, "assessment", event.data.get("assessment_id"))
+    await _on_updated(ctx, event, "assessment")
 
 
 @events.subscribe("tasks.item.updated")
 async def on_task_updated(ctx: Ctx, event: Event) -> None:
-    await _on_updated(ctx, event, "task", event.data.get("task_id"))
+    await _on_updated(ctx, event, "task")
 
 
-async def _on_updated(ctx: Ctx, event: Event, kind: str, target_id: object) -> None:
+def _ids(event: Event, kind: str) -> list[str]:
+    """The objects an event is about: a batch (`<kind>_ids`) or one (`<kind>_id`)."""
+    ids = event.data.get(f"{kind}_ids") or [event.data.get(f"{kind}_id")]
+    return [i for i in ids if isinstance(i, str)]
+
+
+async def _on_updated(ctx: Ctx, event: Event, kind: str) -> None:
     changed = set(event.data.get("changed") or [])
-    if (
-        isinstance(target_id, str)
-        and changed & FOLLOWED[kind]
-        and await service.is_imported(ctx, kind, target_id)
-    ):
+    if changed & FOLLOWED[kind] and await service.any_imported(ctx, kind, _ids(event, kind)):
         await _sync_changed(ctx, event)

@@ -781,7 +781,7 @@ async def test_assessment_changes_follow_through(app: FastAPI, api: Api, user: U
         await api.call("DELETE", f"/assessments/{a['id']}", headers={"X-Semestra-Client": "tab-1"})
     await api.call("GET", f"/tasks/{task['id']}", 404)
     [deleted] = [m for m in messages if m["type"] == "tasks.item.deleted"]
-    assert deleted["data"]["task_id"] == task["id"]
+    assert deleted["data"]["task_ids"] == [task["id"]]
     # The gradebook's tab did not refresh its to-dos: the event is not an echo for it.
     assert "origin" not in deleted
 

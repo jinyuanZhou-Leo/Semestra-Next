@@ -202,15 +202,21 @@ def _new_assessment(
     )
 
 
-async def _announce_assessment(
-    ctx: Ctx, kind: str, row: models.GradingAssessment, program_id: str, changed: Sequence[str]
+async def _announce(
+    ctx: Ctx,
+    kind: str,
+    rows: Sequence[models.GradingAssessment],
+    program_id: str,
+    changed: Sequence[str],
 ) -> None:
+    """One event for a change to assessments of one course, however many: subscribers handle
+    `assessment_ids` as a batch."""
     await _publish(
         ctx,
         f"grading.assessment.{kind}",
         {
-            "assessment_id": row.id,
-            "course_id": row.course_id,
+            "assessment_ids": [r.id for r in rows],
+            "course_id": rows[0].course_id,
             "program_id": program_id,
             "changed": list(changed),
         },
@@ -268,19 +274,8 @@ async def create_assessments(
             known[(item.source_kind, item.source_ref)] = row.id
     await ctx.db.flush()
     if created:
-        # One event for the whole batch: an import of 30 assessments is one change to react to.
         dated = any(r.due_at is not None for r in created)
-        await _publish(
-            ctx,
-            "grading.assessment.created",
-            {
-                **({"assessment_id": created[0].id} if len(created) == 1 else {}),
-                "assessment_ids": [r.id for r in created],
-                "course_id": course.id,
-                "program_id": program.id,
-                "changed": ["due_at"] if dated else [],
-            },
-        )
+        await _announce(ctx, "created", created, program.id, ["due_at"] if dated else [])
     return AssessmentCreateManyResult(
         created=[assessment_out(r, program.timezone) for r in created], skipped=skipped
     )
@@ -384,7 +379,7 @@ async def update_assessment(ctx: Ctx, inp: AssessmentUpdateInput) -> Assessment:
     await ctx.db.flush()
     changed = [k for k, v in before.items() if getattr(row, k) != v]
     if changed:
-        await _announce_assessment(ctx, "updated", row, program.id, changed)
+        await _announce(ctx, "updated", [row], program.id, changed)
     return assessment_out(row, tz)
 
 
@@ -460,22 +455,29 @@ async def set_source(
     row.updated_at = ctx.now
     await ctx.db.flush()
     course = await academics.get_course_row(ctx, row.course_id)
-    await _announce_assessment(ctx, "updated", row, course.program_id, ["source"])
+    await _announce(ctx, "updated", [row], course.program_id, ["source"])
     return row
 
 
 async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
     row = await _get_assessment(ctx, assessment_id)
     course = await academics.get_course_row(ctx, row.course_id)
-    data = {"assessment_id": row.id, "course_id": row.course_id, "program_id": course.program_id}
+    await _delete(ctx, [row], course.program_id)
+
+
+async def _delete(ctx: Ctx, rows: Sequence[models.GradingAssessment], program_id: str) -> None:
+    """Deletes assessments of one course, announced once: `deleting` in the transaction (their
+    tasks and LMS refs go with them), `deleted` after it."""
+    data = {
+        "assessment_ids": [r.id for r in rows],
+        "course_id": rows[0].course_id,
+        "program_id": program_id,
+    }
     await events.publish_in_transaction(ctx, "grading.assessment.deleting", data)
-    await ctx.db.delete(row)
+    for row in rows:
+        await ctx.db.delete(row)
     await ctx.db.flush()
-    await events.publish(
-        ctx,
-        "grading.assessment.deleted",
-        {**data, "changed": []},
-    )
+    await events.publish(ctx, "grading.assessment.deleted", {**data, "changed": []})
 
 
 async def _course_assessments(
@@ -552,18 +554,33 @@ async def preview_assessments_update(ctx: Ctx, inp: AssessmentUpdateManyInput) -
 async def update_assessments(
     ctx: Ctx, inp: AssessmentUpdateManyInput
 ) -> AssessmentUpdateManyResult:
-    """The same change for several assessments of one course, all or none."""
+    """The same change for several assessments of one course, all or none: read once, changed
+    in memory, written in one flush and announced as one event."""
     reject_nulls(inp, {"weight", "total_weight", "dropped"})
-    sent = inp.model_fields_set - {"course_id", "assessment_ids", "total_weight"}
+    sent = inp.model_fields_set
     rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
-    changes = inp.model_dump(include=sent)
-    updated: list[Assessment] = []
-    for row, weight in zip(rows, _shares(rows, inp), strict=True):
-        each = changes if weight is None else {**changes, "weight": weight}
-        updated.append(
-            await update_assessment(ctx, AssessmentUpdateInput(assessment_id=row.id, **each))
-        )
-    return AssessmentUpdateManyResult(updated=updated)
+    _, program = await course_and_program(ctx, inp.course_id)
+    if "category_id" in sent:
+        await _check_category(ctx, inp.course_id, inp.category_id)
+    common: dict[str, Any] = {
+        k: getattr(inp, k) for k in ("category_id", "weight", "dropped") if k in sent
+    }
+    touched: list[models.GradingAssessment] = []
+    changed: set[str] = set()
+    for row, share in zip(rows, _shares(rows, inp), strict=True):
+        values = common if share is None else {**common, "weight": share}
+        diff = [k for k, v in values.items() if getattr(row, k) != v]
+        for k in diff:
+            setattr(row, k, values[k])
+        if diff:
+            row.updated_at = ctx.now
+            touched.append(row)
+            changed.update(diff)
+    if touched:
+        await ctx.db.flush()
+        order = ("category_id", "weight", "dropped")
+        await _announce(ctx, "updated", touched, program.id, [k for k in order if k in changed])
+    return AssessmentUpdateManyResult(updated=[assessment_out(r, program.timezone) for r in rows])
 
 
 async def preview_assessments_delete(ctx: Ctx, inp: AssessmentDeleteManyInput) -> dict[str, Any]:
@@ -584,8 +601,9 @@ async def preview_assessments_delete(ctx: Ctx, inp: AssessmentDeleteManyInput) -
 
 async def delete_assessments(ctx: Ctx, inp: AssessmentDeleteManyInput) -> None:
     """Deletes several assessments of one course, all or none."""
-    for row in await _course_assessments(ctx, inp.course_id, inp.assessment_ids):
-        await delete_assessment(ctx, row.id)
+    rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
+    course = await academics.get_course_row(ctx, inp.course_id)
+    await _delete(ctx, rows, course.program_id)
 
 
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:

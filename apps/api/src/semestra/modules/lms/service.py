@@ -6,7 +6,7 @@ and, for reads, the cache (`cache.py`). Imports live in `imports.py`, the calend
 """
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -1018,23 +1018,27 @@ async def forget_program(ctx: Ctx, program_id: str) -> None:
     await ctx.db.flush()
 
 
-async def forget_target(ctx: Ctx, target_kind: str, target_id: str) -> bool:
-    """Forgets what was imported as this object; whether anything was."""
+async def forget_targets(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:
+    """Forgets what was imported as these objects; whether anything was."""
     result = await ctx.db.execute(
         delete(LmsImportedRef).where(
-            LmsImportedRef.target_kind == target_kind, LmsImportedRef.target_id == target_id
+            LmsImportedRef.user_id == ctx.user_id,
+            LmsImportedRef.target_kind == target_kind,
+            LmsImportedRef.target_id.in_(target_ids),
         )
     )
     return bool(getattr(result, "rowcount", 0))
 
 
-async def is_imported(ctx: Ctx, target_kind: str, target_id: str) -> bool:
+async def any_imported(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:
     return (
         await ctx.db.scalar(
-            select(LmsImportedRef.id).where(
+            select(LmsImportedRef.id)
+            .where(
                 LmsImportedRef.user_id == ctx.user_id,
                 LmsImportedRef.target_kind == target_kind,
-                LmsImportedRef.target_id == target_id,
+                LmsImportedRef.target_id.in_(target_ids),
             )
+            .limit(1)
         )
     ) is not None
