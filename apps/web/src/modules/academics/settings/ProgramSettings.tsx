@@ -5,7 +5,7 @@ import {
   academicsProgramUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
+import { useParams, useRouter } from '@tanstack/react-router'
 import { Palette } from 'lucide-react'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
 import { createContext, use, useState } from 'react'
@@ -117,6 +117,8 @@ export function ProgramDangerSection({ scope }: SettingsSectionProps) {
 function ProgramDanger({ program }: { program: Program }) {
   const queryClient = useQueryClient()
   const router = useRouter()
+  // The settings dialog can show another Program than the page's.
+  const pageProgramId = useParams({ strict: false }).programId
   // A user always keeps one Program (M02 §2); the last one goes only with the account.
   const last = (usePrograms().data?.items.length ?? 1) <= 1
   const [confirming, setConfirming] = useState(false)
@@ -125,8 +127,8 @@ function ProgramDanger({ program }: { program: Program }) {
     onError: toastError,
     onSuccess: () => {
       setConfirming(false)
-      // Leave first: refetching the deleted Program's pages only finds them gone.
-      router.history.replace('/')
+      // Leave first when the page is in it: refetching its pages only finds them gone.
+      if (program.id === pageProgramId) router.history.replace('/')
       void invalidateAcademics(queryClient)
     },
   })

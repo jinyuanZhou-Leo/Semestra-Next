@@ -645,6 +645,19 @@ test('a page whose course, term or Program was deleted elsewhere moves up to one
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p2/today'))
 })
 
+test("another Program deleted while the dialog shows it falls back to the page's Program", async () => {
+  world.programs.push({ ...world.programs[0]!, id: 'p2', name: 'Minor in Music' })
+  const { router, queryClient } = mount('/p/p1/today?settings=program/general&scope=p2')
+  expect(await screen.findByRole('dialog', { name: /Minor in Music/ })).toBeInTheDocument()
+
+  world.programs = world.programs.filter((p) => p.id !== 'p2')
+  await act(() => queryClient.invalidateQueries())
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'program/general', scope: 'p1' }),
+  )
+  expect(router.state.location.pathname).toBe('/p/p1/today')
+})
+
 test('a link with a scope opens that course from any page', async () => {
   mount('/p/p1?settings=course/general&scope=c3')
   expect(await screen.findByRole('dialog', { name: /ESC180Y1/ })).toBeInTheDocument()
