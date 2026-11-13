@@ -192,6 +192,13 @@ def weights_add_up(weights: Iterable[float]) -> tuple[float, bool]:
     return total, abs(total - 100) <= WEIGHT_TOLERANCE
 
 
+def split_weight(total: float, count: int) -> list[float]:
+    """`total` split evenly into `count` shares to the hundredth that add up to it exactly: the
+    first shares take the leftover hundredths (100 / 3 = 33.34 + 33.33 + 33.33)."""
+    base, extra = divmod(round(total * 100), count)
+    return [(base + (1 if i < extra else 0)) / 100 for i in range(count)]
+
+
 def weight_status(items: Sequence[Item]) -> tuple[float, float, bool]:
     total, ok = weights_add_up(i.weight for i in items if not i.dropped)
     return total, 100 - total, ok

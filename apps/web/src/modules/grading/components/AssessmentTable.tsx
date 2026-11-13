@@ -26,7 +26,7 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
-import { percentText } from '../display'
+import { categoryName, percentText } from '../display'
 import { invalidateGrading } from '../queries'
 import { parseDecimal, parseScore, scorePatch } from '../score'
 import { DEFAULT_SORT, type SortKey, type SortPref, groupByCategory } from '../sort'
@@ -41,12 +41,15 @@ import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
   type AssessmentRow,
+  type AssessmentSelection,
+  SelectCheckbox,
   type TableActions,
   TableActionsContext,
   actionsColumn,
   assessmentColumns,
   extensionColumn,
   features,
+  selectColumn,
 } from './assessment-columns'
 import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
@@ -68,6 +71,7 @@ function fromSorting(sorting: SortingState): SortPref {
  * points), columns sort, and categories can be shown as collapsible groups. In plan mode the
  * score of an ungraded item takes an assumed value that is never saved as a grade, with the
  * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
+ * Outside plan mode rows have checkboxes, and the toolbar acts on the checked ones.
  */
 export function AssessmentTable({
   programId,
@@ -82,6 +86,7 @@ export function AssessmentTable({
   filter,
   search,
   onClearFilter,
+  selection,
   toolbar,
 }: {
   programId: string
@@ -99,6 +104,7 @@ export function AssessmentTable({
   filter: AssessmentFilter
   search: string
   onClearFilter: () => void
+  selection: AssessmentSelection
   /** The row above the table: filters and actions. */
   toolbar: ReactNode
 }) {
@@ -154,7 +160,12 @@ export function AssessmentTable({
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
   const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
-  const columns = [...assessmentColumns, ...contributed.map(extensionColumn), actionsColumn]
+  const columns = [
+    ...(whatIf.plan ? [] : [selectColumn]),
+    ...assessmentColumns,
+    ...contributed.map(extensionColumn),
+    actionsColumn,
+  ]
   const actionsValue: TableActions = {
     programId,
     extensions: new Map(contributed.map((ext) => [ext.id, ext])),
@@ -170,6 +181,7 @@ export function AssessmentTable({
     toggleDropped: (a) =>
       update.mutate({ path: { assessment_id: a.id }, body: { dropped: !a.dropped } }),
     remove: deleting.show,
+    selection,
   }
 
   const table = useTable({
@@ -295,6 +307,8 @@ export function AssessmentTable({
                       <GroupRow
                         category={group.category}
                         count={group.items.length}
+                        ids={group.items.map((row) => row.id)}
+                        selectable={!whatIf.plan}
                         figures={figures.find(
                           (f) => f.category_id === (group.category?.id ?? null),
                         )}
@@ -311,6 +325,7 @@ export function AssessmentTable({
                             key={row.id}
                             data-assessment={row.id}
                             data-highlighted={row.id === highlighted ? true : undefined}
+                            data-state={selection.has(row.id) ? 'selected' : undefined}
                             className={cn(
                               'transition-colors duration-700 data-highlighted:bg-primary/10',
                               row.original.dropped &&
@@ -368,6 +383,8 @@ export function AssessmentTable({
 /** A category's heading row in grouped view: its weight and the average of its real scores. */
 function GroupRow({
   category,
+  ids,
+  selectable,
   count,
   figures,
   collapsed,
@@ -376,6 +393,10 @@ function GroupRow({
   onToggle,
 }: {
   category: AssessmentCategory | null
+  /** The group's rows on screen, checked together from the group's checkbox. */
+  ids: readonly string[]
+  /** Outside plan mode the first column holds checkboxes. */
+  selectable: boolean
   count: number
   /** Missing when none of the group's items count (all dropped). */
   figures: CategorySummary | undefined
@@ -391,6 +412,14 @@ function GroupRow({
   const average = figures?.average ?? null
   return (
     <TableRow className="bg-muted/40 hover:bg-muted/40">
+      {selectable ? (
+        <TableCell className="py-1.5">
+          <SelectCheckbox
+            ids={ids}
+            label={`${m.grading_select()}: ${category ? categoryName(category) : m.grading_category_none()}`}
+          />
+        </TableCell>
+      ) : null}
       <TableCell colSpan={3} className="py-1.5">
         <Button
           variant="ghost"

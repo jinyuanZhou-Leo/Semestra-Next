@@ -6957,6 +6957,72 @@
         }
       }
     },
+    "/courses/{course_id}/assessments:delete": {
+      "post": {
+        "tags": [
+          "grading"
+        ],
+        "summary": "Delete several assessments of a course from its gradebook.",
+        "description": "Irreversible: their scores and their place in the grade are gone. To ignore\nthem in the grade, set `dropped` with grading.assessment.update_many instead. All of them are\ndeleted, or none if one is not the course's.",
+        "operationId": "gradingAssessmentDeleteMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentDeleteManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__academics__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/upcoming-assessments": {
       "get": {
         "tags": [
@@ -7048,6 +7114,72 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpcomingAssessments"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/assessments:update": {
+      "post": {
+        "tags": [
+          "grading"
+        ],
+        "summary": "Give several assessments of a course the same category, weight or dropped state.",
+        "description": "Use when the user changes a group of assessments at once (\"put all quizzes in\nthe Quizzes category\", \"each lab is worth 2%\"). `weight` is each one's share, not their total.\nOnly the fields that are sent change; scores are recorded one by one with\ngrading.assessment.update. All of them change, or none if one is not the course's.",
+        "operationId": "gradingAssessmentUpdateMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentUpdateManyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentUpdateManyResult"
                 }
               }
             }
@@ -19059,6 +19191,27 @@
         ],
         "title": "AssessmentCreateManyResult"
       },
+      "AssessmentDeleteManyInputBody": {
+        "properties": {
+          "assessment_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Assessment Ids",
+            "description": "Assessments of this course to delete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_ids"
+        ],
+        "title": "AssessmentDeleteManyInputBody"
+      },
       "AssessmentFields": {
         "properties": {
           "title": {
@@ -19409,6 +19562,97 @@
         },
         "type": "object",
         "title": "AssessmentUpdateInputBody"
+      },
+      "AssessmentUpdateManyInputBody": {
+        "properties": {
+          "assessment_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Assessment Ids",
+            "description": "Assessments of this course to change"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id",
+            "description": "Category id, or null for none"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight",
+            "description": "Each one's share of the course"
+          },
+          "total_weight": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Weight",
+            "description": "Their shares together, split evenly (to 0.01, adding up exactly); instead of `weight`"
+          },
+          "dropped": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dropped",
+            "description": "Ignored in every calculation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_ids"
+        ],
+        "title": "AssessmentUpdateManyInputBody"
+      },
+      "AssessmentUpdateManyResult": {
+        "properties": {
+          "updated": {
+            "items": {
+              "$ref": "#/components/schemas/Assessment"
+            },
+            "type": "array",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "AssessmentUpdateManyResult"
       },
       "Assignment": {
         "properties": {

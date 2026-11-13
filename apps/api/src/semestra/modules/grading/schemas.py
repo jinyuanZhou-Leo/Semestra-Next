@@ -284,6 +284,39 @@ class AssessmentUpdateInput(BaseModel):
     note: Note | None = Field(default=None, description="Note, or null to clear")
 
 
+AssessmentIds = Annotated[list[Id], Field(min_length=1, max_length=200)]
+
+
+class AssessmentUpdateManyInput(BaseModel):
+    """The same change for several assessments of one course; only the fields sent change."""
+
+    course_id: Id = Field(description="Course id")
+    assessment_ids: AssessmentIds = Field(description="Assessments of this course to change")
+    category_id: Id | None = Field(default=None, description="Category id, or null for none")
+    weight: Weight | None = Field(default=None, description="Each one's share of the course")
+    total_weight: Weight | None = Field(
+        default=None,
+        description="Their shares together, split evenly (to 0.01, adding up exactly); "
+        "instead of `weight`",
+    )
+    dropped: bool | None = Field(default=None, description="Ignored in every calculation")
+
+    @model_validator(mode="after")
+    def _one_weight(self) -> AssessmentUpdateManyInput:
+        if {"weight", "total_weight"} <= self.model_fields_set:
+            raise ValueError("send weight or total_weight, not both")
+        return self
+
+
+class AssessmentUpdateManyResult(BaseModel):
+    updated: list[Assessment]
+
+
+class AssessmentDeleteManyInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    assessment_ids: AssessmentIds = Field(description="Assessments of this course to delete")
+
+
 class AssessmentListInput(BaseModel):
     course_id: Id = Field(description="Course id")
     status: AssessmentStatus | None = Field(

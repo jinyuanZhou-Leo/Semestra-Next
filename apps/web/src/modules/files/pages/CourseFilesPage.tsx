@@ -417,7 +417,7 @@ function SelectionBar({
 }) {
   return (
     <div className="flex h-9 animate-in items-center gap-1 rounded-full bg-muted pr-1 pl-4 text-sm duration-150 fade-in-0">
-      <span className="mr-1 font-medium tabular-nums">{m.files_selected_count({ count })}</span>
+      <span className="mr-1 font-medium tabular-nums">{m.common_selected_count({ count })}</span>
       <Button variant="ghost" size="sm" onClick={onMove}>
         <FolderInput aria-hidden />
         {m.files_move_to()}
@@ -432,14 +432,14 @@ function SelectionBar({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={m.files_clear_selection()}
+              aria-label={m.common_clear_selection()}
               onClick={onClear}
             />
           }
         >
           <X aria-hidden />
         </TooltipTrigger>
-        <TooltipContent>{m.files_clear_selection()}</TooltipContent>
+        <TooltipContent>{m.common_clear_selection()}</TooltipContent>
       </Tooltip>
     </div>
   )

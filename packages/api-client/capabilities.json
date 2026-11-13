@@ -329,6 +329,14 @@
       "plugin_id": null
     },
     {
+      "name": "grading__assessment__delete_many",
+      "capability": "grading.assessment.delete_many",
+      "module": "grading",
+      "effect": "destructive",
+      "summary": "Delete several assessments of a course from its gradebook.",
+      "plugin_id": null
+    },
+    {
       "name": "grading__assessment__find",
       "capability": "grading.assessment.find",
       "module": "grading",
@@ -358,6 +366,14 @@
       "module": "grading",
       "effect": "write",
       "summary": "Change an assessment, mainly to record its score.",
+      "plugin_id": null
+    },
+    {
+      "name": "grading__assessment__update_many",
+      "capability": "grading.assessment.update_many",
+      "module": "grading",
+      "effect": "write",
+      "summary": "Give several assessments of a course the same category, weight or dropped state.",
       "plugin_id": null
     },
     {

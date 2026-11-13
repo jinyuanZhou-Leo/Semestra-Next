@@ -18,18 +18,22 @@ from semestra.modules.academics import rules as academic_rules
 from semestra.modules.academics import service as academics
 from semestra.modules.academics.models import AcademicsProgram
 from semestra.modules.grading import models
+from semestra.modules.grading.engine import split_weight
 from semestra.modules.grading.schemas import (
     PERCENT_MAX,
     Assessment,
     AssessmentCandidate,
     AssessmentCandidates,
     AssessmentCreateManyResult,
+    AssessmentDeleteManyInput,
     AssessmentFields,
     AssessmentFindInput,
     AssessmentListInput,
     AssessmentPage,
     AssessmentRef,
     AssessmentUpdateInput,
+    AssessmentUpdateManyInput,
+    AssessmentUpdateManyResult,
     CategoryRef,
     SkippedAssessment,
     UpcomingAssessments,
@@ -485,6 +489,104 @@ async def delete_assessment(ctx: Ctx, assessment_id: str) -> None:
         "grading.assessment.deleted",
         {**data, "changed": []},
     )
+
+
+async def _course_assessments(
+    ctx: Ctx, course_id: str, assessment_ids: Sequence[str]
+) -> list[models.GradingAssessment]:
+    """These assessments, in the order given; all of them must be the course's (batch changes
+    are all or nothing)."""
+    found = await find_assessment_rows(ctx, assessment_ids)
+    rows: list[models.GradingAssessment] = []
+    for assessment_id in dict.fromkeys(assessment_ids):
+        row = found.get(assessment_id)
+        if row is None or row.course_id != course_id:
+            raise not_found("assessment", assessment_id)
+        rows.append(row)
+    return rows
+
+
+def _titles(rows: Sequence[models.GradingAssessment]) -> str:
+    return ", ".join(r.title for r in rows[:3]) + (" …" if len(rows) > 3 else "")
+
+
+async def preview_assessments_update(ctx: Ctx, inp: AssessmentUpdateManyInput) -> dict[str, Any]:
+    """Each sent field with the values it replaces (distinct, by name for categories)."""
+    rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
+    course, program = await course_and_program(ctx, inp.course_id)
+    changes: list[dict[str, Any]] = []
+    for field in sorted(inp.model_fields_set - {"course_id", "assessment_ids"}):
+        if field == "total_weight":
+            # Each one's new share, shown like `weight` (the shares differ by 0.01 at most).
+            after: Any = list(dict.fromkeys(split_weight(inp.total_weight or 0, len(rows))))
+            before = list(dict.fromkeys(r.weight for r in rows))
+            changes.append(
+                {
+                    "field": "weight",
+                    "before": before[0] if len(before) == 1 else before,
+                    "after": after[0] if len(after) == 1 else after,
+                }
+            )
+            continue
+        before = list(dict.fromkeys(getattr(r, field) for r in rows))
+        after = getattr(inp, field)
+        if field == "category_id":
+            before = [await _category_name(ctx, c) for c in before]
+            after = await _category_name(ctx, after)
+            field = "category"
+        changes.append(
+            {"field": field, "before": before[0] if len(before) == 1 else before, "after": after}
+        )
+    label = f"{course.code} {course.title}" if course.code else course.title
+    return {
+        "target": f"{_titles(rows)} · {label}",
+        "changes": changes,
+        "link": {"to": f"/p/{program.id}/c/{course.id}/grades", "page": "grades"},
+    }
+
+
+async def update_assessments(
+    ctx: Ctx, inp: AssessmentUpdateManyInput
+) -> AssessmentUpdateManyResult:
+    """The same change for several assessments of one course, all or none."""
+    reject_nulls(inp, {"weight", "total_weight", "dropped"})
+    sent = inp.model_fields_set - {"course_id", "assessment_ids", "total_weight"}
+    rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
+    changes = inp.model_dump(include=sent)
+    weights: list[float | None] = (
+        list(split_weight(inp.total_weight, len(rows)))
+        if inp.total_weight is not None
+        else [None] * len(rows)
+    )
+    updated: list[Assessment] = []
+    for row, weight in zip(rows, weights, strict=True):
+        each = changes if weight is None else {**changes, "weight": weight}
+        updated.append(
+            await update_assessment(ctx, AssessmentUpdateInput(assessment_id=row.id, **each))
+        )
+    return AssessmentUpdateManyResult(updated=updated)
+
+
+async def preview_assessments_delete(ctx: Ctx, inp: AssessmentDeleteManyInput) -> dict[str, Any]:
+    """The assessments that go, with their scores."""
+    rows = await _course_assessments(ctx, inp.course_id, inp.assessment_ids)
+    course, _ = await course_and_program(ctx, inp.course_id)
+    label = f"{course.code} {course.title}" if course.code else course.title
+    titles = [r.title for r in rows]
+    scored = sum(r.score_percentage is not None for r in rows)
+    changes: list[dict[str, Any]] = [
+        {"field": "assessments", "before": titles[:10], "after": None, "count": len(titles)},
+        {"field": "weight", "before": sum(r.weight for r in rows), "after": None},
+    ]
+    if scored:
+        changes.append({"field": "scores", "before": scored, "after": None})
+    return {"target": f"{_titles(rows)} · {label}", "changes": changes}
+
+
+async def delete_assessments(ctx: Ctx, inp: AssessmentDeleteManyInput) -> None:
+    """Deletes several assessments of one course, all or none."""
+    for row in await _course_assessments(ctx, inp.course_id, inp.assessment_ids):
+        await delete_assessment(ctx, row.id)
 
 
 async def list_assessments(ctx: Ctx, inp: AssessmentListInput) -> AssessmentPage:
