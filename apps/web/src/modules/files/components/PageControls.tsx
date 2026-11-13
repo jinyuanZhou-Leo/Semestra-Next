@@ -77,6 +77,11 @@ export function PageControls({
   const [draft, setDraft] = useState<string | null>(null)
   // What the zoom box shows while it is being edited; otherwise it follows the zoom.
   const [zoomDraft, setZoomDraft] = useState<string | null>(null)
+  const applyZoom = () => {
+    const n = Number(zoomDraft?.replace('%', ''))
+    if (onZoom && Number.isFinite(n) && n > 0) onZoom(clampZoom(n / 100))
+    setZoomDraft(null)
+  }
   const smaller = zoom === undefined ? undefined : stepFrom(zoom, -1)
   const larger = zoom === undefined ? undefined : stepFrom(zoom, 1)
   return (
@@ -137,9 +142,7 @@ export function PageControls({
             <form
               onSubmit={(event) => {
                 event.preventDefault()
-                const n = Number(zoomDraft?.replace('%', ''))
-                if (Number.isFinite(n) && n > 0) onZoom(clampZoom(n / 100))
-                setZoomDraft(null)
+                applyZoom()
               }}
             >
               <TooltipTrigger
@@ -150,11 +153,11 @@ export function PageControls({
                     className="h-7 w-14 rounded-md bg-transparent text-center text-sm text-muted-foreground tabular-nums outline-none hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
                     value={zoomDraft ?? `${Math.round(zoom * 100)}%`}
                     onFocus={(event) => {
-                      setZoomDraft(String(Math.round(zoom * 100)))
+                      setZoomDraft(event.target.value)
                       event.target.select()
                     }}
                     onChange={(event) => setZoomDraft(event.target.value)}
-                    onBlur={() => setZoomDraft(null)}
+                    onBlur={applyZoom}
                   />
                 }
               />
