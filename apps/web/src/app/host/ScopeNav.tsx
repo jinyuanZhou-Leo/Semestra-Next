@@ -17,6 +17,11 @@ import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
 
+/** When the tabs don't fit, scrolls the open one into view. */
+function revealTab(tab: HTMLAnchorElement | null) {
+  tab?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+
 /**
  * The tab bar of a scope (M10 §5.1): its available pages in the user's order, without hidden
  * ones, and a "⋯" menu to manage them. ("Edit layout" lives in the page header.)
@@ -37,7 +42,7 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
 
   return (
     <div className="flex items-end border-b border-border">
-      <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+      <nav className="flex min-w-0 flex-1 scroll-fade-x scrollbar-none gap-1 overflow-x-auto overscroll-x-contain">
         {pages.map((page) => {
           const href = scopePath(scope, page.id)
           const active = page.id === activePageId
@@ -46,6 +51,7 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
               key={page.id}
               href={href}
               onClick={(event) => follow(event, href)}
+              ref={active ? revealTab : undefined}
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-2 border-b-2 px-3 py-2 text-sm whitespace-nowrap',

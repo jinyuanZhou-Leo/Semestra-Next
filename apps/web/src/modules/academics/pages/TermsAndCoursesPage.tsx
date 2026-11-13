@@ -99,7 +99,7 @@ export function TermsAndCoursesPage({
                 m.academics_term_count({ count: terms.data.items.length }),
                 m.academics_course_count({ count: courses.data.items.length }),
               ].join(' · ')
-            : undefined
+            : null
         }
         actions={
           tab === 'terms' ? (

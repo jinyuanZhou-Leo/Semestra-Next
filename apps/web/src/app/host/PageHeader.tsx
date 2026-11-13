@@ -12,9 +12,9 @@ import { ShellToolbar } from './ShellToolbar'
  * The header every page on the right side shares (title, subtitle, actions, optional tabs), so
  * a term, a course, the Today page and a table page look alike. The breadcrumb goes into the app
  * shell's top row next to the sidebar button (the shell draws the separator before it), so the
- * title sits right under it. Its height never changes: the subtitle line is always reserved, and
- * while a board on the page is edited the edit controls take the place of the header's buttons
- * and the subtitle (M10 §5.2).
+ * title sits right under it. Its height never changes: a page that can have a subtitle (or a
+ * board, whose edit hint takes its place) always keeps that line, and while the board is edited
+ * the edit controls take the place of the header's buttons and the subtitle (M10 §5.2).
  */
 export function PageHeader({
   title,
@@ -29,6 +29,10 @@ export function PageHeader({
   switcher?: ReactNode
   /** The parents of this page, in the shell's top row. */
   breadcrumb?: ReactNode
+  /**
+   * Left out on a page that never has one, which then has no subtitle line. `null` keeps the line
+   * empty (a subtitle still loading, a course without a separate title, a board's edit hint).
+   */
   subtitle?: ReactNode
   /** Icon buttons on the right, after "Edit layout" when the page has a board. */
   actions?: ReactNode
@@ -65,9 +69,11 @@ export function PageHeader({
           )}
         </div>
       </div>
-      <div className="min-h-5 truncate text-sm text-muted-foreground">
-        {editing ? hint : subtitle}
-      </div>
+      {subtitle !== undefined || editing ? (
+        <div className="min-h-5 truncate text-sm text-muted-foreground">
+          {editing ? hint : subtitle}
+        </div>
+      ) : null}
       {children ? <div className="pt-2">{children}</div> : null}
     </header>
   )
