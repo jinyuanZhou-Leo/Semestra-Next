@@ -645,6 +645,18 @@ test('a page whose course, term or Program was deleted elsewhere moves up to one
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p2/today'))
 })
 
+test('a term created elsewhere opens before the term list has caught up', async () => {
+  const { router, queryClient } = mount('/p/p1/today')
+  await screen.findAllByText(/APS105H1/)
+
+  // As Sem does: the term exists, and its link is followed before the list was read again.
+  world.terms.push({ ...world.terms[0]!, id: 't9', name: 'Summer 2026' })
+  await act(() => router.navigate({ href: '/p/p1/t/t9' }))
+  await act(() => queryClient.invalidateQueries())
+  expect(await screen.findAllByText('Summer 2026')).not.toHaveLength(0)
+  expect(router.state.location.pathname).toBe('/p/p1/t/t9')
+})
+
 test("another Program deleted while the dialog shows it falls back to the page's Program", async () => {
   world.programs.push({ ...world.programs[0]!, id: 'p2', name: 'Minor in Music' })
   const { router, queryClient } = mount('/p/p1/today?settings=program/general&scope=p2')

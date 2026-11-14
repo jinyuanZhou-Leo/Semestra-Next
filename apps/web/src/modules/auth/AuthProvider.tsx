@@ -4,10 +4,10 @@ import { useNavigate } from '@tanstack/react-router'
 import { useEffect, type ReactNode } from 'react'
 import { toApiError } from '@/app/api'
 import { clearCollapsedMirror } from '@/app/boot'
+import { claimKeptQueries, forgetKeptQueries } from '@/app/kept-queries'
 import { setSignedIn } from '@/app/session-expiry'
 import { flushUiPrefs, resetUiPrefs } from '@/app/ui-pref'
 import { toastError } from '@/lib/errors'
-import { claimLmsCache, forgetLmsCache } from '@/modules/lms/persist'
 import { forgetDevice } from '@/modules/notifications/push'
 import { dropCompletions, flushCompletions } from '@/modules/tasks/completion'
 import { SessionExpiredDialog } from './components/SessionExpiredDialog'
@@ -24,10 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSignedIn(user !== undefined)
   }, [user])
-  // Kept Canvas reads belong to one account: another one signing in here drops them first.
+  // Reads kept in the browser belong to one account: another one signing in here drops them first.
   const userId = user?.id
   useEffect(() => {
-    if (userId) claimLmsCache(userId)
+    if (userId) claimKeptQueries(userId)
   }, [userId])
 
   // The React Compiler memoizes this; no manual useMemo.
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSignedIn(false)
       void forgetDevice()
-      void forgetLmsCache()
+      void forgetKeptQueries()
       clearCollapsedMirror()
       queryClient.clear()
       resetUiPrefs(queryClient)

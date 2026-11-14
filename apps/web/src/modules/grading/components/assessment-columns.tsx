@@ -7,9 +7,9 @@ import {
 } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 import { createContext, useContext } from 'react'
+import { SelectAllCheckbox, SelectCheckbox } from '@/components/row-selection'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,21 +35,11 @@ export const features = tableFeatures({
 })
 const column = createColumnHelper<typeof features, AssessmentRow>()
 
-/** Which rows are checked for a batch action; only rows on screen count. */
-export type AssessmentSelection = {
-  has: (id: string) => boolean
-  /** `'some'` when only part of them are checked. */
-  state: (ids: readonly string[]) => boolean | 'some'
-  /** Checks them all, or unchecks them all when they already are. */
-  toggle: (ids: readonly string[]) => void
-  /** The ids of every row on screen: the header checkbox's rows. */
-  shown: readonly string[]
-}
-
 /**
  * What the cells need from the table. Cells read it from context so the column definitions can
  * live outside the component: a column defined while rendering would be a new component type on
- * every render, and the cell inputs would lose what was being typed.
+ * every render, and the cell inputs would lose what was being typed. The checked rows are not
+ * here but in `RowSelectionContext`, so checking a row leaves these cells alone.
  */
 export type TableActions = {
   programId: string
@@ -68,7 +58,6 @@ export type TableActions = {
   edit: (a: Assessment) => void
   toggleDropped: (a: Assessment) => void
   remove: (a: Assessment) => void
-  selection: AssessmentSelection
 }
 
 export const TableActionsContext = createContext<TableActions | null>(null)
@@ -192,31 +181,10 @@ function ExtensionCell({
   return Cell ? <Cell assessment={row.original} programId={programId} /> : null
 }
 
-/** A checkbox for a set of rows: one row, a category's rows, or every row shown. */
-export function SelectCheckbox({ ids, label }: { ids: readonly string[]; label: string }) {
-  const { selection } = useActions()
-  const state = selection.state(ids)
-  return (
-    <Checkbox
-      aria-label={label}
-      className="align-middle"
-      checked={state === true}
-      indeterminate={state === 'some'}
-      disabled={ids.length === 0}
-      onCheckedChange={() => selection.toggle(ids)}
-    />
-  )
-}
-
-function SelectAll() {
-  const { selection } = useActions()
-  return <SelectCheckbox ids={selection.shown} label={m.grading_select_all()} />
-}
-
 /** The first column, left out in plan mode: rows are checked for batch actions. */
 export const selectColumn = column.display({
   id: 'select',
-  header: () => <SelectAll />,
+  header: () => <SelectAllCheckbox label={m.grading_select_all()} />,
   cell: ({ row }) => (
     <SelectCheckbox
       ids={[row.original.id]}

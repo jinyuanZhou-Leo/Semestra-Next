@@ -57,7 +57,7 @@ export default defineModule({
 })
 ```
 
-- 所有重组件按需加载；页面的 `component`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
+- 所有重组件按需加载；页面的 `component`、卡片和设置分区的 `component` 用 `preloadable()`（`@/app/extensions`），路由和设置对话框才能提前拉代码、拉好后直接渲染，用普通 `lazy()` 每次首次显示都会闪一下占位（`registry.test.ts` 会拦下）；manifest 静态 import 的文件都会进首屏，所以常量和小函数从它自己的文件引入，不要从组件文件引入（`pnpm lint` 的 `entry:check` 会拦下并指出引入链）；`m.xxx` 传函数本身，不要在模块级调用（语言切换会重挂载）。
 - 新插件的 manifest 要加到 `app/registry.ts` 的列表里。
 - 卡片设置随卡片加载，不进首屏：`settings` 导入一个文件，它默认导出 `{ schema, component?, fields? } satisfies CardSettings`。`schema` 是 zod schema；`component`（自定义表单，用 `preloadable()`）可省，省略则按 schema 自动生成表单。
 - 自定义的卡片设置表单和设置分区长一个样：用 `@/app/settings` 的 `SettingsGroup` + `SettingRow`（名称在左、控件在右；开关用 Switch，多选一用 `ChoiceControl`），需要整行宽度的选择器（图标、颜色、城市列表）单独占一行或放进 `SettingsBlock`。取消和保存按钮由宿主提供。

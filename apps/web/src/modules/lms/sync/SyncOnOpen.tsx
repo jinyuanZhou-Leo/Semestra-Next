@@ -1,6 +1,7 @@
 import { lmsSyncRequest } from '@semestra/api-client'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { useProgramId } from './status'
+import { syncStatusOptions, useProgramId } from './status'
 
 /**
  * Opening a Program asks for a sync of its courses not synced in the last half hour (M09 §4.1),
@@ -9,9 +10,11 @@ import { useProgramId } from './status'
  */
 export function SyncOnOpen() {
   const programId = useProgramId()
+  // A Program without a platform has nothing to sync: no request for it.
+  const bound = Boolean(useQuery(syncStatusOptions(programId)).data?.provider)
   useEffect(() => {
-    if (!programId) return
+    if (!programId || !bound) return
     lmsSyncRequest({ path: { program_id: programId }, body: {} }).catch(() => undefined)
-  }, [programId])
+  }, [programId, bound])
   return null
 }

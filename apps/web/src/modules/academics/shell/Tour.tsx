@@ -3,6 +3,7 @@ import type { Message } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
 import { useAiStatus } from '@/hooks/use-ai-status'
 import { m } from '@/paraglide/messages'
+import { TOUR_DONE_KEY } from '../tour-done'
 import { Button } from '@/ui/button'
 import {
   Popover,
@@ -12,9 +13,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '@/ui/popover'
-
-/** UI state: false while the tour is due (set at the end of onboarding), true once seen. */
-export const TOUR_DONE_KEY = 'onboarding.tour_done'
 
 type Step = { target: string; title: Message; body: Message }
 

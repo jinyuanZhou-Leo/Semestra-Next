@@ -53,19 +53,27 @@ export function Concealed({
   )
 }
 
-/** A chart that shows only while the pointer is over its placeholder. */
+/**
+ * A chart that shows only while the pointer is over its placeholder. The placeholder is as tall
+ * as the chart (`height`, in px), so showing the chart moves nothing around it.
+ */
 export function ConcealedChart({
   children,
   className,
+  height,
 }: {
   children: ReactNode
   className?: string
+  height: number
 }) {
   return (
     <Concealed
       className={cn('block', className)}
       mask={
-        <span className="grid h-24 place-items-center rounded-xl border border-dashed text-muted-foreground">
+        <span
+          className="grid place-items-center rounded-xl border border-dashed text-muted-foreground"
+          style={{ height }}
+        >
           {GRADE_MASK}
         </span>
       }

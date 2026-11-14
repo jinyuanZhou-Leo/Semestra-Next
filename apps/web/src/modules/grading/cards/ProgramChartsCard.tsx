@@ -20,6 +20,8 @@ import { useProgramGrades } from '../queries'
 
 // jsdom and the first paint have no layout; the charts start at this size and then follow the card.
 const GPA_SIZE = { width: 400, height: 140 }
+/** The GPA chart's height on screen (`h-36`); its placeholder while grades are hidden is as tall. */
+const GPA_HEIGHT = 144
 const CREDITS_SIZE = { width: 400, height: 72 }
 
 const gpaConfig = () =>
@@ -99,7 +101,7 @@ export default function ProgramChartsCard({ scope }: CardProps) {
   return (
     <HideGrades hidden={data.hide_grades}>
       <div className="flex h-full flex-col gap-3">
-        <ConcealedChart>
+        <ConcealedChart height={GPA_HEIGHT}>
           <figure aria-label={m.grading_chart_gpa_label()}>
             <ChartFigures terms={terms} value={(t) => (t.gpa === null ? null : formatGpa(t.gpa))} />
             <ChartContainer

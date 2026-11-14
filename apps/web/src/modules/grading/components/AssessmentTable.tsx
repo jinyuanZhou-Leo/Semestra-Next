@@ -3,7 +3,7 @@ import {
   gradingAssessmentDeleteMutation,
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
-import { type SortingState, useTable } from '@tanstack/react-table'
+import { type Cell, FlexRender, type SortingState, useTable } from '@tanstack/react-table'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDown,
@@ -14,10 +14,11 @@ import {
   ClipboardList,
   SearchX,
 } from 'lucide-react'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type ReactNode, memo } from 'react'
 import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { type RowSelection, RowSelectionContext, SelectCheckbox } from '@/components/row-selection'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
@@ -49,8 +50,6 @@ import type { WhatIf } from '../whatif'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
   type AssessmentRow,
-  type AssessmentSelection,
-  SelectCheckbox,
   type TableActions,
   TableActionsContext,
   actionsColumn,
@@ -119,7 +118,7 @@ export function AssessmentTable({
   filter: AssessmentFilter
   search: string
   onClearFilter: () => void
-  selection: AssessmentSelection
+  selection: RowSelection
   /** The row above the table: filters and actions. */
   toolbar: ReactNode
 }) {
@@ -130,7 +129,9 @@ export function AssessmentTable({
   const acting = useDialogTarget<{ action: string; assessment: Assessment }>()
   const actions = useExtensions<AssessmentAction>(ASSESSMENT_ACTIONS)
 
-  const update = useMutation({
+  // `mutate` alone: it stays the same function, while the mutation object is new on every render
+  // and would make every cell that reads the table's actions render again.
+  const { mutate: update } = useMutation({
     ...gradingAssessmentUpdateMutation(),
     onError: toastError,
     onSuccess: () => invalidateGrading(queryClient),
@@ -149,13 +150,13 @@ export function AssessmentTable({
   const saveScore = (a: Assessment, text: string): boolean => {
     const patch = scorePatch(parseScore(text))
     if (!patch) return false
-    update.mutate({ path: { assessment_id: a.id }, body: patch })
+    update({ path: { assessment_id: a.id }, body: patch })
     return true
   }
   const saveWeight = (a: Assessment, text: string): boolean => {
     const weight = text.trim() === '' ? 0 : parseDecimal(text)
     if (weight === null || weight > 100) return false
-    update.mutate({ path: { assessment_id: a.id }, body: { weight } })
+    update({ path: { assessment_id: a.id }, body: { weight } })
     return true
   }
   const assume = (a: Assessment, text: string): boolean => {
@@ -191,10 +192,8 @@ export function AssessmentTable({
     saveWeight,
     assume,
     edit: editing.show,
-    toggleDropped: (a) =>
-      update.mutate({ path: { assessment_id: a.id }, body: { dropped: !a.dropped } }),
+    toggleDropped: (a) => update({ path: { assessment_id: a.id }, body: { dropped: !a.dropped } }),
     remove: deleting.show,
-    selection,
   }
 
   const table = useTable({
@@ -215,7 +214,7 @@ export function AssessmentTable({
 
   return (
     <TableActionsContext value={actionsValue}>
-      <>
+      <RowSelectionContext value={selection}>
         <GradeTableCard planning={whatIf.plan} toolbar={toolbar}>
           <Table>
             <TableHeader>
@@ -324,23 +323,14 @@ export function AssessmentTable({
                     {isCollapsed
                       ? null
                       : group.items.map((row) => (
-                          <TableRow
+                          <AssessmentCells
                             key={row.id}
-                            data-assessment={row.id}
-                            data-highlighted={row.id === highlighted ? true : undefined}
-                            data-state={selection.has(row.id) ? 'selected' : undefined}
-                            className={cn(
-                              'transition-colors duration-700 data-highlighted:bg-primary/10',
-                              row.original.dropped &&
-                                'text-muted-foreground line-through decoration-1',
-                            )}
-                          >
-                            {row.getAllCells().map((cell) => (
-                              <TableCell key={cell.id} className="py-1.5">
-                                <table.FlexRender cell={cell} />
-                              </TableCell>
-                            ))}
-                          </TableRow>
+                            id={row.id}
+                            cells={row.getAllCells()}
+                            dropped={row.original.dropped}
+                            selected={selection.has(row.id)}
+                            highlighted={row.id === highlighted}
+                          />
                         ))}
                   </Fragment>
                 )
@@ -378,10 +368,49 @@ export function AssessmentTable({
             deleting.target && remove.mutate({ path: { assessment_id: deleting.target.id } })
           }
         />
-      </>
+      </RowSelectionContext>
     </TableActionsContext>
   )
 }
+
+/**
+ * One assessment's row. Memoized on its cells, which stay the same objects until the assessment
+ * or the columns change: checking a row renders that row and the checkboxes again (they read
+ * `RowSelectionContext`), not the inputs and menus of every assessment.
+ */
+const AssessmentCells = memo(function AssessmentCells({
+  id,
+  cells,
+  dropped,
+  selected,
+  highlighted,
+}: {
+  id: string
+  cells: readonly Cell<typeof features, AssessmentRow, unknown>[]
+  dropped: boolean
+  selected: boolean
+  highlighted: boolean
+}) {
+  return (
+    <TableRow
+      data-assessment={id}
+      data-highlighted={highlighted ? true : undefined}
+      data-state={selected ? 'selected' : undefined}
+      className={cn(
+        // Only the mark of a row a link points at fades in slowly; hovering and checking a row
+        // answer at once.
+        'data-highlighted:bg-primary/10 data-highlighted:duration-700',
+        dropped && 'text-muted-foreground line-through decoration-1',
+      )}
+    >
+      {cells.map((cell) => (
+        <TableCell key={cell.id} className="py-1.5">
+          <FlexRender cell={cell} />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
+})
 
 /** A category's heading row in grouped view: its weight and the average of its real scores. */
 function GroupRow({

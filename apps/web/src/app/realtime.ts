@@ -8,8 +8,9 @@ import {
 import { useEffect, useRef } from 'react'
 import { eventsStreamUrl } from '@/lib/api-extras'
 import { CLIENT_ID } from './api'
-import type { InvalidationTarget, QueryMatch } from './extensions'
-import { mergeInvalidations, useModules } from './registry'
+import type { InvalidationTarget, KeptQueries, QueryMatch } from './extensions'
+import { dropKeptQueries } from './kept-queries'
+import { keptQueries, mergeInvalidations, useModules } from './registry'
 
 /**
  * Live updates (M00 §4.7): the API pushes `{type, data, origin?}` over SSE when the user's data
@@ -111,6 +112,8 @@ export type RealtimeConfig = {
    * modules' `realtimeSkipOwn` entries. Defaults to `invalidations`.
    */
   own?: Invalidations
+  /** The modules' kept reads: an event in a `dropOn` drops the ones it names. */
+  kept?: readonly KeptQueries[]
 }
 
 /**
@@ -146,10 +149,16 @@ export function connectRealtime(
     } else {
       if (message.type === JOB_PROGRESS)
         applyJobProgress(queryClient, message.data as JobProgressEvent)
-      const { invalidations, own = invalidations } = read()
+      const { invalidations, own = invalidations, kept = [] } = read()
+      const data = (message.data ?? {}) as Record<string, unknown>
+      // Whoever caused it: a kept read of something that was replaced is never shown again.
+      for (const { operations, dropOn } of kept) {
+        const matches = dropOn?.[message.type]?.(data)
+        if (matches?.length) void dropKeptQueries(queryClient, operations, matches)
+      }
       const targets = (message.origin === CLIENT_ID ? own : invalidations)[message.type]
       if (!targets?.length) return
-      collect(pending, targets, (message.data ?? {}) as Record<string, unknown>)
+      collect(pending, targets, data)
     }
     timer ??= setTimeout(flush, COALESCE_MS)
   }
@@ -168,6 +177,7 @@ export function useRealtime() {
     config.current = {
       invalidations: mergeInvalidations(modules),
       own: mergeInvalidations(modules, { own: true }),
+      kept: keptQueries(modules),
     }
   }, [modules])
   // One connection for the session: installing a plugin only changes what events refetch.

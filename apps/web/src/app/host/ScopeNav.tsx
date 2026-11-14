@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router'
 import { MoreHorizontal } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
+import { scrollToReveal } from '@/lib/scroll-reveal'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -17,13 +18,21 @@ import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
 
-/** When the tabs don't fit, keeps the open one in view, also while the bar and the tab settle to their widths. */
+/**
+ * When the tabs don't fit, keeps the open one in view, also while the bar and the tab settle to
+ * their widths. Only the bar scrolls: the page stays where the user scrolled it.
+ */
 function revealTab(tab: HTMLAnchorElement | null) {
   const nav = tab?.parentElement
   if (!tab || !nav) return
-  const observer = new ResizeObserver(() =>
-    tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-  )
+  const observer = new ResizeObserver(() => {
+    const bar = nav.getBoundingClientRect()
+    const box = tab.getBoundingClientRect()
+    nav.scrollLeft = scrollToReveal(
+      { start: nav.scrollLeft, size: nav.clientWidth },
+      { start: box.left - bar.left + nav.scrollLeft, size: box.width },
+    )
+  })
   observer.observe(nav)
   observer.observe(tab)
   return () => observer.disconnect()

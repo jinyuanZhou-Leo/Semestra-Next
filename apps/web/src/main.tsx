@@ -3,16 +3,20 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './app/api'
+import { keepQueries } from './app/kept-queries'
 import { QUERY_DEFAULTS } from './app/query-client'
+import { keptQueries } from './app/registry'
 import { initSentry } from './app/sentry'
-import { keepLmsReads } from './modules/lms/persist'
 import './app/theme.css'
 import { routeTree } from './routeTree.gen'
 
 void initSentry()
 
 const queryClient = new QueryClient({ defaultOptions: QUERY_DEFAULTS })
-keepLmsReads(queryClient)
+keepQueries(
+  queryClient,
+  keptQueries().flatMap((kept) => kept.operations),
+)
 const router = createRouter({
   routeTree,
   context: { queryClient },

@@ -3,7 +3,7 @@ import { useLocation } from '@tanstack/react-router'
 import { Suspense, useEffect, useState } from 'react'
 import { preloadable } from '@/app/extensions'
 import { readUiPref, updateUiPref, useUiPref } from '@/app/ui-pref'
-import { TOUR_DONE_KEY } from '@/modules/academics/shell/Tour'
+import { TOUR_DONE_KEY } from '@/modules/academics/tour-done'
 import {
   compareVersions,
   DIALOG_MAX_VERSIONS,

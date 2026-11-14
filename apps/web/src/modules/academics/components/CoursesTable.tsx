@@ -35,13 +35,18 @@ import { RowMenu, useSettingsDialog } from '@/app/settings'
 import { useUiPref } from '@/app/ui-pref'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { HistoryLink } from '@/components/HistoryLink'
+import {
+  RowSelectionContext,
+  SelectAllCheckbox,
+  SelectCheckbox,
+  useRowSelection,
+} from '@/components/row-selection'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatCredits } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
-import { Checkbox } from '@/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,26 +123,6 @@ type TableState = {
 
 const TableContext = createContext<TableState | null>(null)
 
-/**
- * The checked rows, apart from `TableState`: checking a row changes only this, so only the
- * checkboxes and the checked row render again, not every cell of every row.
- */
-type Selection = {
-  selected: ReadonlySet<string>
-  allSelected: boolean
-  someSelected: boolean
-  selectAll: (on: boolean) => void
-  toggleRow: (id: string, on: boolean) => void
-}
-
-const SelectionContext = createContext<Selection | null>(null)
-
-function useSelection(): Selection {
-  const selection = use(SelectionContext)
-  if (!selection) throw new Error('CoursesTable cells must render inside CoursesTable')
-  return selection
-}
-
 function useTableState(): TableState {
   const state = use(TableContext)
   if (!state) throw new Error('CoursesTable cells must render inside CoursesTable')
@@ -145,24 +130,14 @@ function useTableState(): TableState {
 }
 
 function SelectAllHeader() {
-  const { allSelected, someSelected, selectAll } = useSelection()
-  return (
-    <Checkbox
-      aria-label={m.academics_select_all()}
-      checked={allSelected}
-      indeterminate={!allSelected && someSelected}
-      onCheckedChange={selectAll}
-    />
-  )
+  return <SelectAllCheckbox label={m.academics_select_all()} />
 }
 
 function SelectCell({ row }: CellProps) {
-  const { selected, toggleRow } = useSelection()
   return (
-    <Checkbox
-      aria-label={m.academics_select_course({ name: row.original.code || row.original.title })}
-      checked={selected.has(row.original.id)}
-      onCheckedChange={(on) => toggleRow(row.original.id, on)}
+    <SelectCheckbox
+      ids={[row.original.id]}
+      label={m.academics_select_course({ name: row.original.code || row.original.title })}
     />
   )
 }
@@ -269,7 +244,7 @@ const STICKY_END_CELL =
 
 /**
  * One course's row. Memoized: checking a row renders that row again and the checkboxes (they read
- * `SelectionContext`), not every cell of every course, which made checking rows stutter.
+ * `RowSelectionContext`), not every cell of every course, which made checking rows stutter.
  */
 const CourseRow = memo(function CourseRow({
   row,
@@ -344,7 +319,6 @@ export function CoursesTable({
   const [search, setSearch] = useState('')
   /** The chosen option of each column's filter dropdown, by column id. */
   const [columnFilters, setColumnFilters] = useState<Readonly<Record<string, string>>>({})
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const deletingCourse = useDialogTarget<Course>()
   const [busy, setBusy] = useState(false)
@@ -382,24 +356,8 @@ export function CoursesTable({
       return !option || option.test(course, group.data)
     })
   })
-  const visibleIds = visible.map((c) => c.id)
-  const selectedVisible = visibleIds.filter((id) => selected.has(id))
-  const allSelected = visible.length > 0 && selectedVisible.length === visible.length
-  const selecting = selectedVisible.length > 0
-
-  const toggleRow = (id: string, on: boolean) => {
-    const next = new Set(selected)
-    if (on) next.add(id)
-    else next.delete(id)
-    setSelected(next)
-  }
-  const selection: Selection = {
-    selected,
-    allSelected,
-    someSelected: selecting,
-    selectAll: (on) => setSelected(on ? new Set(visibleIds) : new Set()),
-    toggleRow,
-  }
+  const selection = useRowSelection(visible.map((c) => c.id))
+  const selectedVisible = selection.ids
   const tableState: TableState = {
     programId,
     isPinned,
@@ -501,8 +459,6 @@ export function CoursesTable({
       update.mutateAsync({ path: { course_id: id }, body: { include_in_gpa: include } }),
     )
 
-  const clearSelection = () => setSelected(new Set())
-
   if (lockTerm && inScope.length === 0) {
     return (
       <Empty>
@@ -534,13 +490,13 @@ export function CoursesTable({
 
   return (
     <TableContext value={tableState}>
-      <SelectionContext value={selection}>
+      <RowSelectionContext value={selection}>
         <div className="space-y-3">
           <SelectionToolbar
             count={selectedVisible.length}
             countLabel={m.academics_selected_count({ count: selectedVisible.length })}
             label={m.academics_batch_actions()}
-            onClear={clearSelection}
+            onClear={selection.clear}
             actions={
               <>
                 <CreditsPopover
@@ -676,7 +632,7 @@ export function CoursesTable({
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.map((row) => (
-                  <CourseRow key={row.id} row={row} selected={selected.has(row.original.id)} />
+                  <CourseRow key={row.id} row={row} selected={selection.has(row.original.id)} />
                 ))}
               </TableBody>
             </Table>
@@ -718,12 +674,12 @@ export function CoursesTable({
             onConfirm={() =>
               void runBatch((id) => remove.mutateAsync({ path: { course_id: id } })).then(() => {
                 setDeleting(false)
-                setSelected(new Set())
+                selection.clear()
               })
             }
           />
         </div>
-      </SelectionContext>
+      </RowSelectionContext>
     </TableContext>
   )
 }

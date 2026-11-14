@@ -12,6 +12,8 @@ import { ConcealedChart, GpaValue, PercentValue, useHideGrades } from './GradeVa
 const ROW = 34
 const BAR = 8
 const LINE = 16
+/** The line under the chart, what the rest has to average, and its gap (`mt-1 h-4`). */
+const NOTE = 20
 
 type Datum = {
   id: string
@@ -152,6 +154,7 @@ export function ForecastCard({
   const points = final ? s.final_points : s.forecast_points
   const required = s.reachable === false ? null : s.required_average
   const target = required !== null && required > 0 ? required : null
+  const height = data.length * ROW
 
   return (
     <section
@@ -171,12 +174,12 @@ export function ForecastCard({
         </span>
       </div>
       {data.length > 0 ? (
-        <ConcealedChart className="mt-3">
+        <ConcealedChart className="mt-3" height={height + NOTE}>
           <ChartContainer
             config={config}
             className="aspect-auto w-full"
-            style={{ height: data.length * ROW }}
-            initialDimension={{ width: 280, height: data.length * ROW }}
+            style={{ height }}
+            initialDimension={{ width: 280, height }}
           >
             <BarChart
               accessibilityLayer
@@ -205,7 +208,7 @@ export function ForecastCard({
           <p
             aria-hidden={target === null}
             className={cn(
-              'mt-1 flex items-center gap-1.5 text-xs text-muted-foreground',
+              'mt-1 flex h-4 items-center gap-1.5 text-xs text-muted-foreground',
               target === null && 'invisible',
             )}
           >

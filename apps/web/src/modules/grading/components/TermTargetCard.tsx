@@ -136,6 +136,8 @@ export function TermTargetCard({
                 }
               : null
 
+  const height = data.length * ROW + 24
+
   return (
     <section
       aria-label={planning ? m.grading_planned_gpa() : m.grading_term_unfinished()}
@@ -153,12 +155,12 @@ export function TermTargetCard({
         <p className="text-xs text-muted-foreground">{m.grading_term_unfinished()}</p>
       )}
       {data.length > 0 ? (
-        <ConcealedChart className="mt-3">
+        <ConcealedChart className="mt-3" height={height}>
           <ChartContainer
             config={config}
             className="aspect-auto w-full"
-            style={{ height: data.length * ROW + 24 }}
-            initialDimension={{ width: 280, height: data.length * ROW + 24 }}
+            style={{ height }}
+            initialDimension={{ width: 280, height }}
           >
             <BarChart
               accessibilityLayer

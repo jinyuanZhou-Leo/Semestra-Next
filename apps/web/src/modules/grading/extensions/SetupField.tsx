@@ -1,5 +1,5 @@
 import { gradingScaleListPresets, gradingScaleUpdate } from '@semestra/api-client'
-import { SettingRow } from '@/app/settings'
+import { SettingRow } from '@/app/settings/rows'
 import { ChoiceControl } from '@/app/settings/choice'
 import { m } from '@/paraglide/messages'
 import { presetOptions } from '../presets'

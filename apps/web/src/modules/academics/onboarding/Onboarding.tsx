@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { programPath, termPath } from '../paths'
-import { TOUR_DONE_KEY } from '../shell/Tour'
+import { TOUR_DONE_KEY } from '../tour-done'
 import { ONBOARDING_STEPS, type OnboardingNav, type OnboardingStep } from '../types'
 import { type Progress, load, store } from './progress'
 import { StepFooter } from './StepFooter'
