@@ -6,7 +6,6 @@ import type {
   AssessmentAction,
   AssessmentActionDialogProps,
   AssessmentActionItemProps,
-  AssessmentPrefetch,
 } from '@/modules/grading/types'
 import { m } from '@/paraglide/messages'
 import { DropdownMenuItem } from '@/ui/dropdown-menu'
@@ -71,13 +70,9 @@ function LazyUnbindDialog(props: AssessmentActionDialogProps) {
   )
 }
 
-/** The link the bind item reads, started with the grades page. */
-const prefetchCourseLink: AssessmentPrefetch = ({ courseId }, queryClient) =>
-  void queryClient.prefetchQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } }))
-
 export const bindAction: AssessmentAction = {
   id: 'lms.bind',
-  prefetch: prefetchCourseLink,
+  query: ({ courseId }) => lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
   Item: BindItem,
   Dialog: LazyBindDialog,
 }

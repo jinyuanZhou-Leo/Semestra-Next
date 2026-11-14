@@ -132,8 +132,7 @@ export default defineModule({
         id: 'tasks.todo',
         header: m.tasks_assessment_column,
         Cell: AssessmentTaskCell,
-        prefetch: ({ programId, courseId }, queryClient) =>
-          void queryClient.prefetchQuery(courseTasksOptions(programId, courseId)),
+        query: ({ programId, courseId }) => courseTasksOptions(programId, courseId),
       },
     ] satisfies AssessmentColumn[],
   },

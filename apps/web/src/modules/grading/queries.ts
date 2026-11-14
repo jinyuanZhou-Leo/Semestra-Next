@@ -10,9 +10,11 @@ import type { ModuleManifest, Scope } from '@/app/extensions'
 import {
   ASSESSMENT_ACTIONS,
   ASSESSMENT_COLUMNS,
-  type AssessmentAction,
+  ASSESSMENT_IMPORT_SOURCES,
   type AssessmentColumn,
 } from './types'
+
+type AssessmentQuery = NonNullable<AssessmentColumn['query']>
 
 export function useGradebook(courseId: string) {
   return useQuery({
@@ -30,26 +32,32 @@ export function useTermGrades(termId: string) {
 }
 
 /**
- * `PageContribution.prefetch` of the grades page: the gradebook with what its target picker and
- * the other modules' columns and row actions read, or the term's summary.
+ * `PageContribution.prefetch` of the grades page: the gradebook, or the term's summary. Entering
+ * the page also starts what the gradebook shows next to it: the grading scale (target picker) and
+ * the `query` of every contributed column, row action and import source, which their cells read.
+ * A hovered link (`preload`) only gets the gradebook: it may never be followed.
  */
 export function prefetchGradesPage(
   scope: Scope,
   queryClient: QueryClient,
-  { modules }: { modules: readonly ModuleManifest[] },
+  { preload, modules }: { preload: boolean; modules: readonly ModuleManifest[] },
 ) {
   if (scope.kind === 'course') {
-    const course = { programId: scope.programId, courseId: scope.courseId }
     void queryClient.prefetchQuery(
       gradingGradebookGetOptions({ path: { course_id: scope.courseId } }),
     )
+    if (preload) return
+    const course = { programId: scope.programId, courseId: scope.courseId }
     void queryClient.prefetchQuery(
       gradingScaleGetOptions({ path: { program_id: scope.programId } }),
     )
-    for (const module of modules) {
-      const columns = (module.extensions?.[ASSESSMENT_COLUMNS] ?? []) as AssessmentColumn[]
-      const actions = (module.extensions?.[ASSESSMENT_ACTIONS] ?? []) as AssessmentAction[]
-      for (const { prefetch } of [...columns, ...actions]) prefetch?.(course, queryClient)
+    for (const point of [ASSESSMENT_COLUMNS, ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES]) {
+      for (const module of modules) {
+        const contributions = (module.extensions?.[point] ?? []) as { query?: AssessmentQuery }[]
+        for (const { query } of contributions) {
+          if (query) void queryClient.prefetchQuery(query(course))
+        }
+      }
     }
   } else if (scope.kind === 'term') {
     void queryClient.prefetchQuery(termGradesOptions(scope.termId))

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { paraglideVitePlugin } from '@inlang/paraglide-js'
@@ -48,8 +49,10 @@ function preloadFonts(): Plugin {
 // Stable third-party chunks. Rolldown otherwise cuts shared code into many small chunks named after
 // whatever happens to share them, and every release renames them. A group's chunk is downloaded
 // whole by whichever page imports any of its modules, so each group holds only packages used by
-// the same set of pages. Hashes of these chunks change only when the dependency does: a release
-// then makes returning users download the app's own code, not React again.
+// the same set of pages. Hashes of these chunks change only when the dependency does, so a release
+// makes returning users download the app's own code, not React again (the icon group is the
+// exception: it holds the icons two or more chunks share, and that set follows the app).
+// `loginBudget` below keeps the sign-in page from growing through any of this.
 const nodeModules = (packages: string) => new RegExp(`node_modules[\\\\/](${packages})[\\\\/]`)
 const vendorGroups = [
   // Needed by every page, the sign-in page too.
@@ -69,16 +72,55 @@ const vendorGroups = [
   // Icons that two or more chunks share (one chunk per icon was the alternative); the rest stay
   // inside the chunk that uses them.
   { name: 'vendor-icons', test: nodeModules('lucide-react'), minShareCount: 2 },
-  // The signed-in shell: sidebar pins, assistant dock, shortcuts and tables.
+  // The signed-in shell: sidebar pins, assistant dock and shortcuts.
   {
     name: 'vendor-shell',
-    test: nodeModules(
-      '@dnd-kit[\\\\/][^\\\\/]+|react-resizable-panels|react-hotkeys-hook|@tanstack[\\\\/](?:table-core|react-table)',
-    ),
+    test: nodeModules('@dnd-kit[\\\\/][^\\\\/]+|react-resizable-panels|react-hotkeys-hook'),
   },
+  // Pages with a table; the shell does not load it.
+  { name: 'vendor-table', test: nodeModules('@tanstack[\\\\/](?:table-core|react-table)') },
   // The card boards (Today, term and course overview).
   { name: 'vendor-board', test: nodeModules('react-grid-layout|react-draggable|react-resizable') },
 ].map((group, index, all) => ({ ...group, priority: all.length - index }))
+
+// What the sign-in page downloads before it renders (the entry, the login route and everything
+// they import statically), gzipped, in kB. `entry:check` follows source imports and cannot see a
+// chunk group pulling more code into these chunks, so the build measures the result and fails
+// above the budget (356 kB before the vendor groups). Raise it on purpose, with the reason in the commit, not to get a build through.
+const LOGIN_BUDGET_KB = 360
+
+function loginBudget(): Plugin {
+  return {
+    name: 'semestra:login-budget',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const chunks = Object.values(bundle).filter((file) => file.type === 'chunk')
+      const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
+      const seen = new Set<string>()
+      const visit = (name: string) => {
+        if (seen.has(name) || !byName.has(name)) return
+        seen.add(name)
+        for (const next of byName.get(name)!.imports) visit(next)
+      }
+      for (const chunk of chunks) {
+        if (chunk.isEntry || /src[\\/]routes[\\/]login\.tsx/.test(chunk.facadeModuleId ?? '')) {
+          visit(chunk.fileName)
+        }
+      }
+      let bytes = 0
+      for (const name of seen) bytes += gzipSync(byName.get(name)!.code, { level: 9 }).length
+      const kb = bytes / 1024
+      this.info(
+        `sign-in page JS: ${seen.size} files, ${kb.toFixed(1)} kB gzip (budget ${LOGIN_BUDGET_KB} kB)`,
+      )
+      if (kb > LOGIN_BUDGET_KB) {
+        this.error(
+          `The sign-in page loads ${kb.toFixed(1)} kB of JS (gzip), over the ${LOGIN_BUDGET_KB} kB budget in vite.config.ts. A chunk group in vendorGroups probably pulled code into the entry.`,
+        )
+      }
+    },
+  }
+}
 
 export default defineConfig({
   define: {
@@ -106,6 +148,7 @@ export default defineConfig({
     react({ compiler: { eslintSuppressionRules: [] } }),
     tailwindcss(),
     preloadFonts(),
+    loginBudget(),
     viteStaticCopy({
       targets: ['cmaps', 'standard_fonts', 'wasm', 'iccs'].map((dir) => ({
         src: `${normalizePath(path.join(pdfjsDir, dir))}/*`,
