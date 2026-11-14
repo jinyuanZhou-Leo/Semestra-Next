@@ -149,7 +149,7 @@ def _finish(
         ctx.state,
         AiUsageEvent(
             id=new_id(),
-            user_id=ctx.user_id,
+            user_id=ctx.user.id if ctx.user else None,
             purpose=resolved.purpose,
             provider_kind=ep.kind,
             model=model_name,
@@ -166,7 +166,13 @@ def _finish(
         ),
     )
     if ep.provider_id is not None and (error is None or error_code in _PROVIDER_ERRORS):
-        rt.mark_provider(ctx.state, ep.provider_id, error_code=error_code, checked_at=now)
+        rt.mark_provider(
+            ctx.state,
+            ep.provider_id,
+            user_id=ctx.user.id if ctx.user else None,
+            error_code=error_code,
+            checked_at=now,
+        )
     log.info(
         "ai_call",
         purpose=resolved.purpose,

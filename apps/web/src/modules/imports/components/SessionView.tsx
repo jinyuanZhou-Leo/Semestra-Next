@@ -5,11 +5,12 @@ import {
   importsSessionGetQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { SearchX } from 'lucide-react'
+import { ArrowDown, SearchX } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import { AiAction } from '@/components/AiAction'
+import { useProviderProblem } from '@/components/AiRequired'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -24,8 +25,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { issueSummary } from '../labels'
+import { needsCheck } from '../labels'
+import { readingProgress } from '../state'
 import { settleEdits, storeSession } from '../queries'
+import { SOURCES } from '../sources'
+import type { ImportSourceKind } from '../types'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
 import { useWorthKeeping } from './worth-keeping'
@@ -67,13 +71,14 @@ function ExtractingAction({ session }: { session: ImportSessionDetail }) {
     <AiAction
       state="running"
       label={m.imports_extracting()}
-      progress={jobId ? progress : undefined}
+      progress={jobId ? readingProgress(session, progress) : undefined}
       stageLabel={
         session.status === 'waiting_files'
           ? m.imports_waiting_files()
           : stageLabel || m.imports_extracting()
       }
       cancelling={cancelling}
+      className="w-60"
       onCancel={jobId ? cancel : undefined}
     />
   )
@@ -81,8 +86,7 @@ function ExtractingAction({ session }: { session: ImportSessionDetail }) {
 
 /**
  * One import session at any stage: extraction progress, the review with its actions, the result
- * of a commit (failed items can be fixed and retried), or why it failed. Used by the import
- * dialog and the session page.
+ * of a commit (failed items can be fixed and retried), or why it failed, in the import dialog.
  *
  * `mode` `wizard` ends the review with "Add to wizard" instead of a commit (the term wizard
  * creates the courses, then commits the rest); `onDone` gets the session when the user finished,
@@ -92,11 +96,14 @@ export function SessionView({
   session,
   mode,
   onDone,
+  onBackground,
   className,
 }: {
   session: ImportSessionDetail
   mode: 'wizard' | 'direct'
   onDone: (session: ImportSessionDetail | null) => void
+  /** Closes the dialog while the session is read; absent where the result has to come back. */
+  onBackground?: () => void
   className?: string
 }) {
   const queryClient = useQueryClient()
@@ -106,12 +113,32 @@ export function SessionView({
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
   const keep = useWorthKeeping(session)
   const [confirming, setConfirming] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const failedCode =
+    session.status === 'failed' ? (session.error_code ?? 'import.no_content') : null
+  // A rejected key, no credit, unreachable: the way forward is the provider's settings.
+  const provider = useProviderProblem(
+    (session.source_kind in SOURCES
+      ? SOURCES[session.source_kind as ImportSourceKind].purpose
+      : undefined) ?? 'extraction',
+    failedCode,
+  )
 
   if (isReading(session)) {
+    // Laid out like the first step: the files in the body, the progress where "Read" was.
     return (
-      <div className={cn('space-y-4', className)}>
-        <ExtractingAction session={session} />
-        <FileStatusList rows={sessionRows(session.source_refs)} />
+      <div className={cn('flex min-h-0 flex-col gap-3', className)}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <FileStatusList rows={sessionRows(session.source_refs)} />
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          {onBackground ? (
+            <Button variant="ghost" className="mr-auto" onClick={onBackground}>
+              {m.imports_continue_in_background()}
+            </Button>
+          ) : null}
+          <ExtractingAction session={session} />
+        </div>
       </div>
     )
   }
@@ -125,22 +152,37 @@ export function SessionView({
     )
   }
 
-  if (session.status === 'failed') {
-    const reason = errorMessage({
-      error: { code: session.error_code ?? 'import.no_content', params: {} },
-    })
-    // Nothing to review: the dialog's body says why, centered, with one way out.
+  if (failedCode) {
+    const reason = provider?.title ?? errorMessage({ error: { code: failedCode, params: {} } })
+    // Nothing to review: the dialog's body says why, centered. Closing it is having seen it
+    // (the import then ends); a provider's problem is fixed in its settings.
     return (
       <Empty className={className}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <SearchX aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>{m.imports_failed_title()}</EmptyTitle>
+          <EmptyTitle>
+            {failedCode === 'import.no_content'
+              ? m.imports_failed_title()
+              : m.imports_state_failed()}
+          </EmptyTitle>
           <EmptyDescription>{reason}</EmptyDescription>
         </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={() => onDone(null)}>{m.common_close()}</Button>
+        <EmptyContent className="flex-row justify-center">
+          <Button variant={provider ? 'outline' : 'default'} onClick={() => onDone(null)}>
+            {m.common_close()}
+          </Button>
+          {provider ? (
+            <Button
+              onClick={() => {
+                onDone(null)
+                provider.fix()
+              }}
+            >
+              {provider.action}
+            </Button>
+          ) : null}
         </EmptyContent>
       </Empty>
     )
@@ -153,7 +195,16 @@ export function SessionView({
   const courses = toWrite.filter((i) => i.type === 'course').length
   const committed = session.status === 'committed'
   const wizardPending = session.target.kind === 'term_wizard' && !committed
-  const issues = issueSummary(session)
+  // Values read uncertainly and open issues: pointed at, never in the way (owner 2026-11-14).
+  const toCheck = new Set(session.items.filter(needsCheck).map((item) => item.id))
+  // The first one in the table's order, opened and scrolled to.
+  const showNext = () => {
+    const rows = document.querySelectorAll<HTMLElement>('[data-import-item]')
+    const row = [...rows].find((el) => toCheck.has(el.dataset.importItem ?? ''))
+    if (!row?.dataset.importItem) return
+    setExpanded(row.dataset.importItem)
+    row.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
   // A file read with a caveat (e.g. cut short): one line each, in review and after the commit.
   const warnings = session.source_refs.flatMap((ref) =>
     ref.warning_code
@@ -211,7 +262,12 @@ export function SessionView({
           {warning}
         </p>
       ))}
-      <ImportReview session={session} className="min-h-0 flex-1" />
+      <ImportReview
+        session={session}
+        expanded={expanded}
+        onExpandedChange={setExpanded}
+        className="min-h-0 flex-1"
+      />
       <div className="flex flex-wrap items-center justify-end gap-2">
         {committed ? (
           <>
@@ -256,7 +312,12 @@ export function SessionView({
               pending={discard.isPending}
               onConfirm={runDiscard}
             />
-            {issues ? <p className="text-sm text-destructive">{issues}</p> : null}
+            {toCheck.size > 0 && !committed ? (
+              <Button variant="link" className="px-1 text-warning" onClick={showNext}>
+                {m.imports_needs_check({ count: toCheck.size })}
+                <ArrowDown aria-hidden />
+              </Button>
+            ) : null}
             {mode === 'wizard' ? (
               <Button disabled={courses === 0} onClick={() => void addToWizard()}>
                 {m.imports_add_to_wizard({ count: courses })}

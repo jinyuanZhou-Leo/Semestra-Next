@@ -73,6 +73,8 @@ async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ImportSessionDetail:
         item.confidence = {k: v for k, v in item.confidence.items() if k not in inp.data}
         if item.result and item.result.get("error_code"):
             item.result = None  # a fixed failure can be retried
+    if inp.confirmed:
+        item.confidence = {k: v for k, v in item.confidence.items() if k not in inp.confirmed}
     if inp.decision is not None:
         for each in _with_contents(items, [item]) if inp.decision == "reject" else [item]:
             if each is item or not _written(each):
@@ -239,15 +241,23 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
     return changed, await detail(ctx, row, item_ids=set() if for_agent(ctx) else None)
 
 
+# Imports the user can still go back to: reading, read and waiting for review, or failed and not
+# seen yet (the user discards a failure once they have seen why).
+UNFINISHED = ("extracting", "waiting_files", "ready", "failed")
+
+
 async def list_sessions(
-    ctx: Ctx, program_id: str, cursor: str | None, limit: int
+    ctx: Ctx, program_id: str, cursor: str | None, limit: int, *, unfinished: bool = False
 ) -> ImportSessionPage:
     await academics.get_program_row(ctx, program_id)
+    query = select(ImportsSession).where(
+        ImportsSession.user_id == ctx.user_id, ImportsSession.program_id == program_id
+    )
+    if unfinished:
+        query = query.where(ImportsSession.status.in_(UNFINISHED))
     rows = (
         await ctx.db.scalars(
-            select(ImportsSession)
-            .where(ImportsSession.user_id == ctx.user_id, ImportsSession.program_id == program_id)
-            .order_by(ImportsSession.created_at.desc(), ImportsSession.id.desc())
+            query.order_by(ImportsSession.created_at.desc(), ImportsSession.id.desc())
         )
     ).all()
     offset = int(cursor) if cursor and cursor.isdigit() else 0
@@ -265,7 +275,7 @@ async def discard(ctx: Ctx, session_id: str) -> ImportSession:
     if not can_move(row.status, "discarded"):
         raise AppError("import.session_closed", 409, state=row.status)
     # Discarded before the job is cancelled, so the job's end leaves the session as it is.
-    move(row, "discarded")
+    await move(ctx, row, "discarded")
     await delete_uploads(ctx, await session_uploads(ctx, row.id))
     if row.job_id is not None and deps.has_capability("core.job.cancel"):
         with contextlib.suppress(AppError):

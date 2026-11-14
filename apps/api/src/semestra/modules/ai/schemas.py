@@ -164,6 +164,12 @@ class PurposeStatus(BaseModel):
     provider_kind: ProviderKind | None
     provider_name: str | None
     model: str | None
+    # Why the purpose is unavailable: no provider connected at all, or none of the connected
+    # ones can do it (e.g. read images). None while available.
+    reason: Literal["no_provider", "unsupported"] | None = None
+    # The last call to the serving provider failed for a reason only the user can fix there
+    # (`PROVIDER_ERRORS`): the purpose is configured, but will fail until they do.
+    provider_error: str | None = None
 
 
 class LocalModels(BaseModel):

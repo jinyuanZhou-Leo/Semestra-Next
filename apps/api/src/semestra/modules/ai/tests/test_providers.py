@@ -159,6 +159,7 @@ async def test_other_users_cannot_see_or_touch_a_provider(
 async def test_status_assignments_and_delete(ai: Ai, mock: respx.MockRouter, app: FastAPI):
     status = await ai.call("GET", "/ai/status")
     assert all(not s["available"] for s in status["items"])
+    assert {s["reason"] for s in status["items"]} == {"no_provider"}
 
     models_ok(mock)
     with collect_events(app, ai.user.id) as seen:
@@ -175,6 +176,18 @@ async def test_status_assignments_and_delete(ai: Ai, mock: respx.MockRouter, app
     assert status["ocr"]["model"] == "claude-haiku-5-5"  # a cheaper model reads scanned pages
     assert status["title"]["model"] == "claude-haiku-5-5"
     assert not status["embedding"]["available"]  # Anthropic has no embeddings
+    assert status["embedding"]["reason"] == "unsupported"
+    assert status["chat"]["reason"] is None
+    assert status["chat"]["provider_error"] is None
+
+    # A failure only the user can fix at the provider is reported on what it serves.
+    async with app.state.session_factory() as db:
+        row = await db.get(AiProvider, anthropic["id"])
+        assert row is not None
+        row.last_error_code = "ai.out_of_credit"
+        await db.commit()
+    status = {s["purpose"]: s for s in (await ai.call("GET", "/ai/status"))["items"]}
+    assert status["chat"]["provider_error"] == "ai.out_of_credit"
 
     openai = await ai.provider("openai")
     status = {s["purpose"]: s for s in (await ai.call("GET", "/ai/status"))["items"]}

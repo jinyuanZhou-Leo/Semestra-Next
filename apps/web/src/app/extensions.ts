@@ -428,6 +428,8 @@ export type StatusItem = {
   rank?: StatusRank
   /** Opened in a popover from the line, instead of following `to`. */
   Panel?: ComponentType<{ onClose: () => void }>
+  /** Run when the line is clicked (e.g. opens a dialog where the work stands), instead of `to`. */
+  onSelect?: () => void
 }
 
 export type StatusRank = 'error' | 'attention' | 'running' | 'timer' | 'idle'
@@ -444,8 +446,8 @@ export type StatusItemContribution = {
 }
 
 /**
- * How the status bar names a kind of background job (`core_jobs.kind`) and where clicking it goes,
- * e.g. the import review page of a syllabus parse (M10 §5.6).
+ * How the status bar names a kind of background job (`core_jobs.kind`) and where clicking it goes
+ * (M10 §5.6).
  */
 export type JobKindContribution = {
   kind: string

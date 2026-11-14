@@ -14,8 +14,6 @@ _JOBS: dict[str, tuple[str | None, str | None, str]] = {
     "portability.import": ("restore_done", "restore_failed", "/?settings=account/data"),
     "ai.local_ocr.download": ("model_ready", "model_failed", "/?settings=account/data"),
     "ai.local_embedding.download": ("model_ready", "model_failed", "/?settings=account/data"),
-    # Success is `imports.session.ready`, which also covers imports that need no job.
-    "imports.extract": (None, "import_failed", "/"),
 }
 
 
@@ -45,14 +43,21 @@ async def on_job_finished(ctx: Ctx, event: Event) -> None:
         service.notify_after_commit(ctx, message, user_id=event.user_id)
 
 
+# An import that has been read (with or without a job), or could not be (whatever the reason);
+# the notification opens it where it stands.
+_IMPORTS = {"ready": "import_ready", "failed": "import_failed"}
+
+
 @events.subscribe("imports.session.ready")
-async def on_import_ready(ctx: Ctx, event: Event) -> None:
-    if event.user_id is None:
+@events.subscribe("imports.session.failed")
+async def on_import_read(ctx: Ctx, event: Event) -> None:
+    kind = _IMPORTS.get(str(event.data.get("status")))
+    if event.user_id is None or kind is None:
         return
     session_id, program_id = event.data.get("session_id"), event.data.get("program_id")
     message = Message(
-        kind="import_ready",
-        url=f"/p/{program_id}/imports/{session_id}" if program_id else "/",
+        kind=kind,
+        url=f"/p/{program_id}?import={session_id}" if program_id else "/",
         tag=f"import:{session_id}",
     )
     service.notify_after_commit(ctx, message, user_id=event.user_id)

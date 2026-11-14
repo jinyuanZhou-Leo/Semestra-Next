@@ -10,7 +10,11 @@ import { toast } from 'sonner'
 import { errorMessage, toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { invalidateAcademics, useCourses, useTerms } from './queries'
-import { TERM_WIZARD_IMPORT_SOURCES, type TermWizardImportSource } from './types'
+import {
+  TERM_WIZARD_IMPORT_SOURCES,
+  type TermWizardContext,
+  type TermWizardImportSource,
+} from './types'
 import {
   type DraftRow,
   continuationCandidates,
@@ -139,13 +143,17 @@ export function useAddCourseOptions(programId: string, termId: string) {
    * The source's import dialog reviews the courses; they are created when it closes, with a
    * toast while that runs (the source then writes their meetings, assessments or links).
    */
+  const context: TermWizardContext = {
+    programId,
+    termId,
+    startDate: term?.start_date,
+    endDate: term?.end_date,
+  }
   const importFrom = async (source: TermWizardImportSource) => {
-    const drafts = await source
-      .launch({ programId, termId, startDate: term?.start_date, endDate: term?.end_date })
-      .catch((error: unknown) => {
-        toastError(error)
-        return []
-      })
+    const drafts = await source.launch(context).catch((error: unknown) => {
+      toastError(error)
+      return []
+    })
     if (drafts.length === 0) return
     const rows = drafts.map((d) => importedRow(source.id, d))
     const done = createCourses(queryClient, { programId, termId, rows, sources })
@@ -157,5 +165,5 @@ export function useAddCourseOptions(programId: string, termId: string) {
     await done.catch(() => undefined)
   }
 
-  return { candidates, sources, continueCourse, importFrom }
+  return { candidates, sources, context, continueCourse, importFrom }
 }

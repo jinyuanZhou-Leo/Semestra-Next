@@ -13,12 +13,26 @@ export const AI_PURPOSES: readonly AiPurpose[] = [
   'title',
 ]
 
+/**
+ * Why a purpose can't be used now: nothing connected, nothing connected can do it (e.g. read
+ * images), or the provider serving it reported a problem only the user can fix there.
+ */
+export type AiBlock = 'no_provider' | 'unsupported' | 'provider_error'
+
 export type AiStatusGetResult = {
   /** True once the server says a model serves this purpose. */
   available: boolean
   /** Still loading: treat the feature as unavailable but say nothing yet. */
   pending: boolean
   status: PurposeStatus | undefined
+  /** Why it can't run now; null when it can (or while loading). */
+  block: AiBlock | null
+}
+
+export function aiBlock(status: PurposeStatus | undefined): AiBlock | null {
+  if (!status) return null
+  if (!status.available) return status.reason === 'unsupported' ? 'unsupported' : 'no_provider'
+  return status.provider_error ? 'provider_error' : null
 }
 
 /** The AI status query; the signed-in layout prefetches it so AI entry points rarely wait. */
@@ -30,5 +44,10 @@ export function aiStatusOptions() {
 export function useAiStatus(purpose: AiPurpose): AiStatusGetResult {
   const query = useQuery(aiStatusOptions())
   const status = query.data?.items.find((item) => item.purpose === purpose)
-  return { available: status?.available ?? false, pending: query.isPending, status }
+  return {
+    available: status?.available ?? false,
+    pending: query.isPending,
+    status,
+    block: aiBlock(status),
+  }
 }

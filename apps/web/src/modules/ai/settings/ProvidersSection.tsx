@@ -17,9 +17,18 @@ import {
   PowerOff,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useId, useState, type FormEvent } from 'react'
+import {
+  createContext,
+  use,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useState,
+  type FormEvent,
+} from 'react'
 import { toast } from 'sonner'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
+import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { TimeAgo } from '@/components/TimeAgo'
@@ -380,6 +389,19 @@ export function ProvidersSection() {
   }
   const editing = useDialogTarget<Provider>()
   const deleting = useDialogTarget<Provider>()
+  // "Check provider" from elsewhere (a failed import) names one in the settings URL: its edit
+  // dialog opens, then the URL lets go of it (also when it no longer exists).
+  const settings = useSettingsDialog()
+  const wanted = settings.target?.item
+  const wantedProvider = wanted ? providers.data?.items.find((p) => p.id === wanted) : undefined
+  if (wantedProvider && editing.target?.id !== wantedProvider.id) editing.show(wantedProvider)
+  const handled =
+    Boolean(wanted) &&
+    ((editing.open && editing.target?.id === wanted) || (providers.data && !wantedProvider))
+  const clearItem = useEffectEvent(() => settings.clearItem())
+  useEffect(() => {
+    if (handled) clearItem()
+  }, [handled])
   const remove = useMutation({
     ...aiProviderDeleteMutation(),
     onSuccess: async () => {

@@ -1,5 +1,4 @@
 import type { ImportSession } from '@semestra/api-client'
-import { Link } from '@tanstack/react-router'
 import { createColumnHelper } from '@tanstack/react-table'
 import { History } from 'lucide-react'
 import { createContext, useContext } from 'react'
@@ -11,7 +10,9 @@ import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { SOURCE_KIND_LABELS, STATUS_LABELS } from '../labels'
+import { openImport } from '../launcher'
 import { useImportHistory } from '../queries'
+import { importItemCount } from '../state'
 
 const column = createColumnHelper<typeof settingsTableFeatures, ImportSession>()
 
@@ -20,8 +21,9 @@ function resultText(session: ImportSession): string {
   if (session.status === 'committed') {
     return m.imports_result_done({ created: summary.created ?? 0, updated: summary.updated ?? 0 })
   }
-  const total = Object.values(summary.counts ?? {}).reduce((sum, n) => sum + n, 0)
-  return session.status === 'ready' ? m.imports_history_items({ count: total }) : ''
+  return session.status === 'ready'
+    ? m.imports_history_items({ count: importItemCount(session) })
+    : ''
 }
 
 /** The Program's import history (M08 §6.4): when, from what, how it went; opens the review. */
@@ -52,14 +54,14 @@ export function ImportHistorySection({ scope }: SettingsSectionProps) {
 // Columns live outside the component so cells keep their identity between renders (M03 note).
 const ProgramIdContext = createContext('')
 
+/** Opens the import in the import dialog, where it stands (its review, or what it imported). */
 function OpenButton({ sessionId }: { sessionId: string }) {
   const programId = useContext(ProgramIdContext)
   return (
     <Button
       variant="ghost"
       size="sm"
-      nativeButton={false}
-      render={<Link to="/p/$programId/imports/$sessionId" params={{ programId, sessionId }} />}
+      onClick={() => void openImport({ programId, mode: 'direct', source: 'session', sessionId })}
     >
       {m.imports_history_open()}
     </Button>

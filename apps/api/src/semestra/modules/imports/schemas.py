@@ -485,6 +485,11 @@ class SessionListInput(BaseModel):
     program_id: Id = Field(description="Program id")
     cursor: str | None = Field(default=None, description="`next_cursor` of the previous page")
     limit: Annotated[int, Field(ge=1, le=100)] = Field(default=50, description="Page size")
+    unfinished: bool = Field(
+        default=False,
+        description="Only imports still being read or waiting for review (extracting, "
+        "waiting_files, ready)",
+    )
 
 
 class ItemUpdateInput(BaseModel):
@@ -498,6 +503,10 @@ class ItemUpdateInput(BaseModel):
     decision: Decision | None = Field(default=None, description="accept, reject or pending")
     type: Literal["assessment", "task"] | None = Field(
         default=None, description="Turn an assessment item into a task or back"
+    )
+    confirmed: list[str] | None = Field(
+        default=None,
+        description="Fields the user checked and kept as read: they are no longer marked uncertain",
     )
     only_touched: bool = Field(
         default=False,

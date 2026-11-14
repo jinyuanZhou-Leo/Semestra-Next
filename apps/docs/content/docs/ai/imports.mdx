@@ -6,6 +6,9 @@ description: Read courses, assessments and meetings from a syllabus, a timetable
 Instead of entering everything by hand, give Semestra a syllabus, a timetable screenshot or a
 calendar file. It lists what it found, you review it, and only what you keep is imported. Reading a
 syllabus or a screenshot needs a [provider](./index.mdx); calendar files (`.ics`) don't need AI.
+When reading isn't possible yet (no provider, or a model that can't read images), opening the import
+says why and takes you to the setting that fixes it. If your provider had a problem last time, such as
+a rejected key or no credit left, you're told so, but you can still start.
 
 ## What you can import
 
@@ -28,14 +31,24 @@ When reading finishes, the review opens. Nothing is saved until you confirm.
 - Each item shows where it will go: the gradebook, tasks, the schedule or the calendar.
 - Anything worth checking is marked, such as a date that couldn't be read or an assessment the
   gradebook already has.
+- Values that may be off are underlined. Point at one to see the text it came from and its page,
+  then choose **Looks right** or **Edit**. An opened item marks the rest and offers **All look
+  right**. “N to check” at the bottom takes you through them, but you can import without checking.
 - Edit any item, and uncheck what you don't want.
 - Each course shows its total weight after the import, so you can check it adds up to 100%.
 
 Dates written relative to the term, such as “Friday of week 5”, are worked out from the course's
 term. Importing the same syllabus again doesn't add its tasks and events twice.
 
-Closing the review doesn't discard the import: reading carries on in the background, and opening
-the import from the same place brings you back to it.
+## Closing loses nothing
+
+While a file is read, choose **Continue in background** or just close the dialog: reading carries
+on. The bottom of the sidebar shows its progress, then “To review” once it's done. Click it to
+return to where you left off; the place you started from shows the same state. Nothing pops up when
+reading finishes. Only **Discard** ends an import.
+
+If a file couldn't be read, the sidebar says so until you've looked. Open it to see why; when your
+provider is the problem, **Check provider** takes you straight to it. Closing it ends that import.
 
 ## Calendar files
 

@@ -1,17 +1,20 @@
 import type { ImportSessionDetail, SourceOptions, Upload } from '@semestra/api-client'
 import { importsSessionCreate, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
+import { ArrowRight, RotateCcw } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { AiAction, type AiActionState } from '@/components/AiAction'
-import { AiRequired } from '@/components/AiRequired'
+import { useProviderProblem } from '@/components/AiRequired'
 import { FileDropzone } from '@/components/FileDropzone'
 import { useJob } from '@/hooks/use-job'
 import { invalidateOperations, postWithProgress } from '@/app/api'
-import { errorMessage, toastError } from '@/lib/errors'
+import { errorCode, errorMessage, toastError } from '@/lib/errors'
 import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
+import { cn } from '@/lib/utils'
 import { useFilesUsage } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { DialogFooter } from '@/ui/dialog'
 import { Field, FieldLabel } from '@/ui/field'
@@ -22,11 +25,10 @@ import { SOURCES } from '../sources'
 import type { FileImportRequest } from '../types'
 import { CourseFilePicker } from './CourseFilePicker'
 import { type FileRow, FileStatusList, sessionRows } from './FileStatusList'
+import { FooterError } from './FooterError'
 import { SUCCESS_HOLD_MS } from './SessionView'
+import { readingProgress, UPLOAD_SHARE } from '../state'
 import { isReading } from '../status'
-
-/** Upload takes the first fifth of the bar; the extraction job fills the rest. */
-const UPLOAD_SHARE = 20
 
 /** One file of the import, with byte progress. */
 function uploadFile(file: File, signal: AbortSignal, onProgress: (loaded: number) => void) {
@@ -77,21 +79,25 @@ export async function uploadAndCreate(
 /**
  * The first step of a file or text import (M08 §6.2). The "Read" button is the progress bar for the
  * whole start: uploading the files, then the extraction job, then a check before `onFinished`
- * opens the review. The drop zone keeps its height throughout and the files below it show their
- * own state (each upload with its bar), so nothing moves while the import starts. A syllabus for
- * a course can also be read from the course's files instead of uploading it again.
+ * opens the review. The body has one height throughout: the drop zone fills it until files are
+ * picked, then folds into a row above their list (each upload with its bar). What went wrong is
+ * said on the footer's free left side, so the button keeps its size. A syllabus for a course can
+ * also be read from the course's files instead of uploading it again.
  */
 export function SourcePicker({
   request,
   session,
   onStarted,
   onFinished,
+  onBackground,
 }: {
   request: FileImportRequest
-  /** The session this picker started, kept in step with the server. */
+  /** The session this picker started (or the one it came back to), kept in step with the server. */
   session: ImportSessionDetail | undefined
   onStarted: (sessionId: string) => void
   onFinished: () => void
+  /** Closes the dialog while the files are read; absent where the result has to come back. */
+  onBackground?: () => void
 }) {
   const keepId = useId()
   const queryClient = useQueryClient()
@@ -101,16 +107,14 @@ export function SourcePicker({
     request.source === 'syllabus' && request.target.kind === 'course'
       ? request.target.course_id
       : null
-  const [from, setFrom] = useState<'upload' | 'course'>(
-    courseId && request.fileItemIds?.length ? 'course' : 'upload',
-  )
+  const [from, setFrom] = useState<'upload' | 'course'>('upload')
   const [files, setFiles] = useState<File[]>([])
-  const [picked, setPicked] = useState<string[]>(request.fileItemIds ?? [])
+  const [picked, setPicked] = useState<string[]>([])
   const [keepFiles, setKeepFiles] = useState(true)
   const [text, setText] = useState('')
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'creating'>('idle')
   const [uploaded, setUploaded] = useState({ bytes: 0, count: 0 })
-  const [startError, setStartError] = useState<string | null>(null)
+  const [startError, setStartError] = useState<unknown>(null)
   const [stopping, setStopping] = useState(false)
   const abort = useRef<AbortController | null>(null)
   // Read by the start request when it finishes: the user stopped, or closed the dialog, meanwhile.
@@ -138,21 +142,22 @@ export function SourcePicker({
   const extracting = isReading(session)
   const starting = phase !== 'idle'
   let state: AiActionState = 'idle'
-  let error: string | null = null
+  let error: { code: string; text: string } | null = null
   if (starting || extracting) {
     state = 'running'
   } else if (startError) {
     // A new attempt that failed before it had a session: its reason, not the old session's.
     state = 'error'
-    error = startError
+    error = { code: errorCode(startError), text: errorMessage(startError) }
   } else if (session && session.status !== 'discarded') {
     state = session.status === 'failed' ? 'error' : 'success'
     if (session.status === 'failed') {
-      error = errorMessage({
-        error: { code: session.error_code ?? 'import.no_content', params: {} },
-      })
+      const code = session.error_code ?? 'import.no_content'
+      error = { code, text: errorMessage({ error: { code, params: {} } }) }
     }
   }
+  // A rejected key, no credit or an unreachable provider: fixed in its settings, not by retrying.
+  const provider = useProviderProblem(spec.purpose ?? 'extraction', error?.code)
   const locked = state === 'running' || state === 'success'
 
   useEffect(() => {
@@ -172,7 +177,7 @@ export function SourcePicker({
       total: sending.length,
     })
   } else if (extracting) {
-    progress = UPLOAD_SHARE + ((100 - UPLOAD_SHARE) * job.progress) / 100
+    progress = session ? readingProgress(session, job.progress) : UPLOAD_SHARE
     stageLabel = job.stageLabel || undefined
   }
 
@@ -182,6 +187,8 @@ export function SourcePicker({
       .then(() => invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList']))
 
   const start = () => {
+    // Trying again: the failure it replaces has been seen.
+    if (session?.status === 'failed') void discard(session.id)
     const controller = new AbortController()
     abort.current = controller
     stopRequested.current = false
@@ -214,7 +221,7 @@ export function SourcePicker({
       })
       .catch((caught: unknown) => {
         // Stopping during the upload is the user's choice, not a failure.
-        if (!controller.signal.aborted && mounted.current) setStartError(errorMessage(caught))
+        if (!controller.signal.aborted && mounted.current) setStartError(caught)
       })
       .finally(() => {
         if (!mounted.current) return
@@ -245,12 +252,12 @@ export function SourcePicker({
     <AiAction
       state={state}
       label={m.imports_start()}
+      icon={ArrowRight}
       progress={progress}
       stageLabel={stageLabel}
-      error={error}
       cancelling={stopping}
       disabled={!ready}
-      className="w-56"
+      className="w-60"
       onClick={start}
       onCancel={cancel}
     />
@@ -333,22 +340,43 @@ export function SourcePicker({
             />
           </div>
         ) : (
-          <>
-            {fromCourse ? null : (
+          <div
+            className={cn(
+              'grid min-h-0 flex-1 gap-3 transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              fromCourse
+                ? 'grid-rows-[0fr_1fr] gap-0'
+                : rows.length > 0
+                  ? 'grid-rows-[minmax(5rem,0fr)_1fr]'
+                  : 'grid-rows-[minmax(5rem,1fr)_0fr]',
+            )}
+          >
+            {fromCourse ? (
+              <div />
+            ) : (
               <FileDropzone
-                title={spec.multiple ? m.imports_pick_files() : m.imports_pick_file()}
+                title={
+                  rows.length === 0
+                    ? spec.multiple
+                      ? m.imports_pick_files()
+                      : m.imports_pick_file()
+                    : spec.multiple
+                      ? m.imports_pick_more()
+                      : m.imports_pick_other()
+                }
                 hint={maxBytes ? m.imports_pick_limit({ max: formatBytes(maxBytes) }) : undefined}
                 accept={spec.accept}
                 multiple={spec.multiple ?? false}
                 maxSize={maxBytes}
                 disabled={locked}
+                compact={rows.length > 0}
+                className="h-full"
                 onFiles={addFiles}
               />
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 overflow-y-auto">
               <FileStatusList rows={rows} />
             </div>
-          </>
+          </div>
         )}
         {request.source === 'syllabus' && !fromCourse ? (
           <Field orientation="horizontal" className="w-fit">
@@ -364,8 +392,28 @@ export function SourcePicker({
           </Field>
         ) : null}
       </div>
-      <DialogFooter className="items-start">
-        {spec.purpose ? <AiRequired purpose={spec.purpose}>{action}</AiRequired> : action}
+      <DialogFooter className="items-center">
+        <div className="mr-auto flex min-w-0 items-center">
+          {error ? (
+            <FooterError text={provider?.title ?? error.text} />
+          ) : extracting && onBackground ? (
+            <Button variant="ghost" onClick={onBackground}>
+              {m.imports_continue_in_background()}
+            </Button>
+          ) : null}
+        </div>
+        {provider ? (
+          // Only the provider's settings fix it: that is the way forward, retrying comes second.
+          <>
+            <Button variant="outline" onClick={start}>
+              <RotateCcw aria-hidden />
+              {m.ai_action_retry()}
+            </Button>
+            <Button onClick={provider.fix}>{provider.action}</Button>
+          </>
+        ) : (
+          action
+        )}
       </DialogFooter>
     </>
   )

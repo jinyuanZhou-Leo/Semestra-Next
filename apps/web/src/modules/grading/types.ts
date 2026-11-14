@@ -34,6 +34,8 @@ export type AssessmentImportSource = {
   icon: LucideIcon
   /** One line under the title: what the source brings in. */
   description?: Message
+  /** Shown instead of `description`: e.g. where an import from this source stands. */
+  Detail?: ComponentType<{ programId: string; courseId: string }>
   /**
    * Offered in an empty gradebook as its one action, with this label ("Import from syllabus").
    * The first source that has one is offered.

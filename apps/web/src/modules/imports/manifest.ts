@@ -11,6 +11,7 @@ import { MEETING_IMPORT_SOURCES } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { ImportHost } from './components/ImportHost'
 import { meetingSource, syllabusGradingSource, wizardSource } from './entries'
+import { useImportLine } from './status-line'
 
 /** "Read from a file" above the course's basics in its settings. */
 const courseInfoFill: CourseInfoFill = {
@@ -20,12 +21,22 @@ const courseInfoFill: CourseInfoFill = {
   ),
 }
 
+/** Every status a session moves to is announced (M08 §3): new ones too, and discarded ones. */
 const SESSION_EVENTS = [
+  'imports.session.extracting',
+  'imports.session.waiting_files',
   'imports.session.ready',
   'imports.session.up_to_date',
   'imports.session.failed',
   'imports.session.committed',
+  'imports.session.discarded',
 ] as const
+
+/** The session that moved, and the lists of sessions. */
+const ofSession = (data: Readonly<Record<string, unknown>>) => [
+  { _id: 'importsSessionGet', path: { session_id: String(data.session_id) } },
+  'importsSessionList',
+]
 
 /**
  * M08 导入中心: import sessions from ICS files, syllabi, timetable screenshots and pasted text,
@@ -60,18 +71,8 @@ export default defineModule({
         ),
     },
   ],
-  jobKinds: [
-    {
-      kind: 'imports.extract',
-      title: m.imports_job_title,
-      to: (job) => {
-        const result = job.result as { session_id?: string; program_id?: string } | null
-        return result?.session_id && result.program_id
-          ? `/p/${result.program_id}/imports/${result.session_id}`
-          : undefined
-      },
-    },
-  ],
+  jobKinds: [{ kind: 'imports.extract', title: m.imports_job_title }],
+  statusItems: [{ id: 'imports.unfinished', order: 30, useStatus: useImportLine }],
   extensions: {
     [TERM_WIZARD_IMPORT_SOURCES]: [
       wizardSource('ics'),
@@ -83,7 +84,5 @@ export default defineModule({
     [MEETING_IMPORT_SOURCES]: [meetingSource('ics'), meetingSource('timetable_image')],
     [COURSE_INFO_FILLS]: [courseInfoFill],
   },
-  realtimeInvalidations: Object.fromEntries(
-    SESSION_EVENTS.map((event) => [event, ['importsSessionGet', 'importsSessionList']]),
-  ),
+  realtimeInvalidations: Object.fromEntries(SESSION_EVENTS.map((event) => [event, [ofSession]])),
 })

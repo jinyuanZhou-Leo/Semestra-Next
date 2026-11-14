@@ -9,7 +9,6 @@ from pydantic import ValidationError
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found, validation_error
-from semestra.core.events import events
 from semestra.core.jobs import enqueue
 from semestra.core.storage import get_storage
 from semestra.modules import ai
@@ -35,7 +34,7 @@ from semestra.modules.imports.service.rows import (
     session_items,
 )
 from semestra.modules.imports.service.uploads import get_upload, store_upload
-from semestra.modules.imports.states import CLOSED, move
+from semestra.modules.imports.states import CLOSED, announce, move
 
 AI_PURPOSE = {"syllabus": "extraction", "text": "extraction", "timetable_image": "vision"}
 
@@ -155,6 +154,7 @@ async def create_session(
     )
     ctx.db.add(row)
     await ctx.db.flush()
+    await announce(ctx, row)
     uploads = await _claim_uploads(ctx, row.id, inp.upload_ids)
     uploads += await _attachment_uploads(ctx, row.id, inp.attachment_ids)
     refs: list[dict[str, Any]] = [
@@ -177,7 +177,7 @@ async def create_session(
         job = await enqueue(ctx, "imports.extract", ExtractPayload(session_id=row.id))
         row.job_id = job.id
     else:
-        move(row, "ready")
+        await move(ctx, row, "ready")
         await revalidate(ctx, row, [])
     return await detail(ctx, row, limit=AGENT_PAGE if for_agent(ctx) else None)
 
@@ -207,12 +207,7 @@ async def _ics_items(ctx: Ctx, row: ImportsSession, uploads: Sequence[ImportsUpl
     if not new:
         raise AppError("import.no_content", 422)
     await add_items(ctx, row, new)
-    move(row, "ready")
-    await events.publish(ctx, "imports.session.ready", event_data(row))
-
-
-def event_data(row: ImportsSession) -> dict[str, Any]:
-    return {"session_id": row.id, "program_id": row.program_id, "status": row.status}
+    await move(ctx, row, "ready")
 
 
 def validated_data(type_: str, data: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:

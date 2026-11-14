@@ -8,7 +8,7 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CircleCheck } from 'lucide-react'
-import { createContext, Fragment, type ReactNode, use, useState } from 'react'
+import { createContext, Fragment, type ReactNode, use } from 'react'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { useCourses } from '@/modules/academics/queries'
@@ -26,8 +26,9 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useTargetCategories } from '../categories'
-import { issueText, itemTitle, itemWhen, itemWeight } from '../labels'
+import { issueText, itemTitle, itemWhen, itemWeight, unsureFields } from '../labels'
 import { storeSession, useItemUpdate } from '../queries'
+import { UnsureMark } from './Evidence'
 import { ItemEditor } from './ItemEditor'
 
 const TYPE_ORDER = ['course', 'course_patch', 'category', 'assessment', 'meeting', 'event', 'task']
@@ -51,6 +52,23 @@ const ISSUE_COLUMN: Record<string, Column> = {
   'import.duplicate_course': 'result',
   'import.duplicate_assessment': 'result',
   'import.binds_assessment': 'result',
+}
+
+/** The values each cell shows, to mark the ones read uncertainly. */
+const FIELDS: Record<'name' | 'when' | 'weight', readonly string[]> = {
+  name: ['title', 'code', 'name'],
+  when: [
+    'due_date',
+    'due_time',
+    'date',
+    'end_date',
+    'start_time',
+    'end_time',
+    'all_day',
+    'weekday',
+    'planned_terms',
+  ],
+  weight: ['weight', 'weight_total'],
 }
 
 /** The open issues of an accepted item that belong in one cell. */
@@ -145,6 +163,7 @@ type ReviewState = {
   expanded: string | null
   busy: boolean
   toggle: (item: ImportItem) => void
+  open: (item: ImportItem) => void
   decide: (item: ImportItem, accept: boolean) => void
   /** Each category item with the assessments under it: its box decides them all. */
   families: Map<string, ImportItem[]>
@@ -157,6 +176,34 @@ type ReviewState = {
   retype: (item: ImportItem, type: 'assessment' | 'task') => void
   /** A category item's target: a course category's key, or null for a new one. */
   setCategory: (item: ImportItem, key: string | null) => void
+}
+
+/** A cell's value: an issue marks it in red; else a value read uncertainly is underlined. */
+function CellValue({
+  item,
+  column: cell,
+  issues,
+  children,
+}: {
+  item: ImportItem
+  column: keyof typeof FIELDS
+  issues: Issue[]
+  children: ReactNode
+}) {
+  const { session, expanded, open } = useReview()
+  if (issues.length > 0) return <Marked issues={issues}>{children}</Marked>
+  return (
+    <UnsureMark
+      item={item}
+      fields={FIELDS[cell]}
+      editable={isEditable(session, item)}
+      onEdit={() => {
+        if (expanded !== item.id) open(item)
+      }}
+    >
+      {children}
+    </UnsureMark>
+  )
 }
 const ReviewContext = createContext<ReviewState | null>(null)
 
@@ -225,9 +272,9 @@ function NameCell({ row }: CellProps) {
       ) : (
         <ChevronRight aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       )}
-      <Marked issues={issuesIn(item, 'name')}>
+      <CellValue item={item} column="name" issues={issuesIn(item, 'name')}>
         <span className={cn('truncate', !indented && 'font-medium')}>{itemTitle(item) || '—'}</span>
-      </Marked>
+      </CellValue>
     </span>
   )
 }
@@ -237,7 +284,9 @@ function WhenCell({ row }: CellProps) {
   const issues = issuesIn(item, 'when')
   const when = itemWhen(item)
   return (
-    <Marked issues={issues}>{when || (issues.length > 0 ? m.imports_pick_date() : '—')}</Marked>
+    <CellValue item={item} column="when" issues={issues}>
+      {when || (issues.length > 0 ? m.imports_pick_date() : '—')}
+    </CellValue>
   )
 }
 
@@ -247,6 +296,13 @@ function WeightCell({ row }: CellProps) {
   const text = <span className="tabular-nums">{weight == null ? '—' : `${weight}%`}</span>
   const issues = issuesIn(row.original, 'weight')
   if (issues.length > 0) return <Marked issues={issues}>{text}</Marked>
+  if (unsureFields(row.original, FIELDS.weight).length > 0) {
+    return (
+      <CellValue item={row.original} column="weight" issues={[]}>
+        {text}
+      </CellValue>
+    )
+  }
   // A category whose assessments here add up to something else: often only part of it is
   // imported (M08 §6.2), so this is shown, not an issue.
   const short = session.summary.category_weights?.find(
@@ -476,7 +532,7 @@ const columns = column.columns([
 /** Fixed widths (with `table-fixed`): opening an item never moves the columns. */
 const WIDTHS: Record<string, string> = {
   accept: 'w-10',
-  when: 'w-44',
+  when: 'w-48',
   weight: 'w-20',
   result: 'w-52',
 }
@@ -539,9 +595,14 @@ function WeightTotal({
  */
 export function ImportReview({
   session,
+  expanded,
+  onExpandedChange: setExpanded,
   className,
 }: {
   session: ImportSessionDetail
+  /** The item opened in place (the dialog's "N to check" opens them too). */
+  expanded: string | null
+  onExpandedChange: (id: string | null) => void
   className?: string
 }) {
   const queryClient = useQueryClient()
@@ -550,7 +611,6 @@ export function ImportReview({
     const course = courses.find((c) => c.id === id)
     return course ? (course.code ? `${course.code} · ${course.title}` : course.title) : '…'
   }
-  const [expanded, setExpanded] = useState<string | null>(null)
   const update = useItemUpdate({ onError: toastError })
   const bulk = useMutation({
     ...importsItemDecideManyMutation(),
@@ -574,7 +634,8 @@ export function ImportReview({
     session,
     expanded,
     busy,
-    toggle: (item) => setExpanded((current) => (current === item.id ? null : item.id)),
+    toggle: (item) => setExpanded(expanded === item.id ? null : item.id),
+    open: (item) => setExpanded(item.id),
     decide: (item, accept) =>
       update.mutate({
         path: { session_id: session.id, item_id: item.id },
@@ -653,6 +714,7 @@ export function ImportReview({
                           <SubHeading label={m.imports_dest_tasks()} items={group.tasks} />
                         ) : null}
                         <TableRow
+                          data-import-item={item.id}
                           aria-expanded={isOpen}
                           data-state={isOpen ? 'selected' : undefined}
                           className={cn(

@@ -8473,6 +8473,14 @@ export type PurposeStatus = {
      * Model
      */
     model: string | null;
+    /**
+     * Reason
+     */
+    reason?: 'no_provider' | 'unsupported' | null;
+    /**
+     * Provider Error
+     */
+    provider_error?: string | null;
 };
 
 /**
@@ -12341,6 +12349,12 @@ export type SemestraCoreCapabilityItemUpdateInputBody2 = {
      * Turn an assessment item into a task or back
      */
     type?: 'assessment' | 'task' | null;
+    /**
+     * Confirmed
+     *
+     * Fields the user checked and kept as read: they are no longer marked uncertain
+     */
+    confirmed?: Array<string> | null;
     /**
      * Only Touched
      *
@@ -17261,6 +17275,12 @@ export type ImportsSessionListData = {
          * Page size
          */
         limit?: number;
+        /**
+         * Unfinished
+         *
+         * Only imports still being read or waiting for review (extracting, waiting_files, ready)
+         */
+        unfinished?: boolean;
     };
     url: '/programs/{program_id}/imports';
 };

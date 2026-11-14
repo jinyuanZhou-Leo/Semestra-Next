@@ -1,20 +1,21 @@
 import type { ImportItem } from '@semestra/api-client'
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, ScanSearch } from 'lucide-react'
 import { useId, useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { weekdayName } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/ui/native-select'
 import { Switch } from '@/ui/switch'
 import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
-import { issueText, SETTLED } from '../labels'
+import { issueText, SETTLED, unsureFields } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
 import type { CoursePatchData, FieldChange } from '../types'
-import { ConfidenceDot, EvidenceButton } from './Evidence'
+import { EvidenceButton, UnsureIcon, useConfirmUnsure } from './Evidence'
 
 type Values = Record<string, unknown>
 
@@ -26,8 +27,29 @@ export function ItemEditor({ item, editable }: { item: ImportItem; editable: boo
   const problems = item.issues.filter((issue) => !SETTLED.has(issue.code))
   // Bound to an assessment of the gradebook: nothing of the item is written (M09).
   const bound = Boolean((item.data as { existing_assessment_id?: string }).existing_assessment_id)
+  const unsure = item.decision === 'accept' && !item.result ? unsureFields(item) : []
+  const confirm = useConfirmUnsure(item)
   return (
     <div className="space-y-4">
+      {unsure.length > 0 && !bound && item.type !== 'course_patch' ? (
+        // The marked fields below, and one way to keep them all as read (a change's rows each
+        // have their own).
+        <p className="flex items-center gap-2 text-sm text-warning">
+          <ScanSearch aria-hidden className="size-4 shrink-0" />
+          {m.imports_unsure_count({ count: unsure.length })}
+          {editable ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-0"
+              disabled={confirm.pending}
+              onClick={() => confirm.run(unsure)}
+            >
+              {m.imports_unsure_all_ok()}
+            </Button>
+          ) : null}
+        </p>
+      ) : null}
       {item.result?.error_code ? (
         <p className="flex gap-2 text-sm text-destructive">
           <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -128,7 +150,7 @@ function FieldInput({
   const head = (
     <div className="flex items-center gap-1.5">
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <ConfidenceDot confidence={item.confidence[spec.key]} />
+      <UnsureIcon unsure={isUnsure(item, spec.key)} />
       <EvidenceButton evidence={item.evidence[spec.key]} field={label} />
     </div>
   )
@@ -211,6 +233,7 @@ function FieldInput({
  */
 export function PatchEditor({ item, editable }: { item: ImportItem; editable: boolean }) {
   const save = useItemUpdate({ onError: toastError })
+  const confirm = useConfirmUnsure(item)
   const { changes } = item.data as CoursePatchData
   const toggle = (field: string, change: FieldChange, apply: boolean) =>
     trackEdit(
@@ -226,7 +249,11 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
       {Object.entries(changes).map(([field, change]) => {
         const label = PATCH_LABELS[field]?.() ?? field
         return (
-          <li key={field} className="flex gap-3 p-3">
+          <li
+            key={field}
+            data-unsure={isUnsure(item, field) || undefined}
+            className="flex gap-3 p-3"
+          >
             <Checkbox
               aria-label={m.imports_patch_apply({ field: label })}
               checked={change.apply !== false}
@@ -237,8 +264,19 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
             <div className="min-w-0 flex-1 space-y-1 text-sm">
               <div className="flex items-center gap-1.5 font-medium">
                 {label}
-                <ConfidenceDot confidence={item.confidence[field]} />
+                <UnsureIcon unsure={isUnsure(item, field)} />
                 <EvidenceButton evidence={item.evidence[field]} field={label} />
+                {editable && isUnsure(item, field) ? (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="ml-auto h-auto px-0 font-normal"
+                    disabled={confirm.pending}
+                    onClick={() => confirm.run([field])}
+                  >
+                    {m.imports_unsure_ok()}
+                  </Button>
+                ) : null}
               </div>
               <p className="text-muted-foreground line-through">{display(change.old) || '—'}</p>
               <p className="break-words whitespace-pre-wrap">{display(change.new)}</p>
@@ -248,6 +286,10 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
       })}
     </ul>
   )
+}
+
+function isUnsure(item: ImportItem, field: string): boolean {
+  return unsureFields(item, [field]).length > 0
 }
 
 function display(value: unknown): string {

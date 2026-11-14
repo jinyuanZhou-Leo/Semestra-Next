@@ -8805,6 +8805,18 @@
               "title": "Limit"
             },
             "description": "Page size"
+          },
+          {
+            "name": "unfinished",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only imports still being read or waiting for review (extracting, waiting_files, ready)",
+              "default": false,
+              "title": "Unfinished"
+            },
+            "description": "Only imports still being read or waiting for review (extracting, waiting_files, ready)"
           }
         ],
         "responses": {
@@ -32743,6 +32755,32 @@
               }
             ],
             "title": "Model"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "no_provider",
+                  "unsupported"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "provider_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Error"
           }
         },
         "type": "object",
@@ -39197,6 +39235,21 @@
             ],
             "title": "Type",
             "description": "Turn an assessment item into a task or back"
+          },
+          "confirmed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed",
+            "description": "Fields the user checked and kept as read: they are no longer marked uncertain"
           },
           "only_touched": {
             "type": "boolean",

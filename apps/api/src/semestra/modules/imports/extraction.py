@@ -138,6 +138,10 @@ Extract = Callable[..., Awaitable[ai.Extraction[Any]]]
 run_extract: Extract = ai.extract
 
 
+# Text kept as the source wrote it, to resolve dates from; the review shows the result instead.
+AS_WRITTEN = frozenset({"due_text", "date_text", "weeks_text"})
+
+
 def _conf(value: float) -> str:
     return "high" if value >= 0.8 else "medium" if value >= 0.5 else "low"
 
@@ -160,7 +164,10 @@ class _Fields:
             self.evidence[name] = Evidence(
                 **self.source, page=leaf.evidence.page, quote=leaf.evidence.quote[:400]
             )
-        self.confidence[name] = _conf(leaf.confidence)
+        # Only what the review shows is marked for the user to check: a deadline "as written"
+        # is not shown, and its certainty is the resolved date's.
+        if name not in AS_WRITTEN:
+            self.confidence[name] = _conf(leaf.confidence)
         return raw
 
 
@@ -429,13 +436,11 @@ def _syllabus_dates(
             fields.data["course_ref"] = ref
             if day is not None:
                 fields.put("due_date", said, day)
-            # A task calls it due_text; its source and certainty move with it.
+            # A task calls it due_text; its source moves with it.
             if "date_text" in fields.data:
                 fields.data["due_text"] = fields.data.pop("date_text")
             if "date_text" in fields.evidence:
                 fields.evidence["due_text"] = fields.evidence.pop("date_text")
-            if "date_text" in fields.confidence:
-                fields.confidence["due_text"] = fields.confidence.pop("date_text")
             builder.add("task", fields.data, evidence=fields.evidence, confidence=fields.confidence)
             continue
         if kind == "no_class" and day is not None and _cancel_meetings(builder, ref, day):
