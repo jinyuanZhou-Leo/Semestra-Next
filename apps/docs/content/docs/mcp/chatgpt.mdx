@@ -1,0 +1,30 @@
+---
+title: ChatGPT
+description: Add Semestra in ChatGPT and sign in.
+---
+
+ChatGPT connects to Semestra by signing in, with no API token.
+
+## Connect
+
+1. In Semestra, open **AI** in settings, go to **API & MCP**, click **New connection**, choose **ChatGPT** and copy the server address.
+2. In ChatGPT, open **Plugins**, click **+** and choose **Add custom MCP server**.
+3. Name it Semestra and paste the address. If asked for an authentication method, choose OAuth. Confirm the notice, then create it.
+4. Your browser opens Semestra's consent page. Sign in if you need to, choose **Read only** or **Read and write**, then click **Allow**.
+5. You're taken back to ChatGPT, connected. Semestra's window shows “Connected” too.
+
+## Access
+
+- **Read only**: ChatGPT can view your courses, schedule, grades, tasks and files.
+- **Read and write**: it can also add and change things. Deleting data needs its own switch under **Client permissions**.
+
+ChatGPT asks you to confirm changes in the chat before making them. To change the access, disconnect and connect again.
+
+## Disconnect
+
+In Semestra, find ChatGPT under **Clients and API tokens**, click **⋯** and choose **Disconnect**. ChatGPT loses access right away. You can also delete it from ChatGPT's plugins. A connection unused for 90 days disconnects on its own.
+
+## Notes
+
+- Whether you can add a custom MCP server depends on your ChatGPT plan and workspace settings.
+- ChatGPT connects to Semestra from its own servers, so a self-hosted Semestra must be reachable from the internet over HTTPS. Until it is, **ChatGPT** doesn't appear under **New connection**. If you only use it on a local network, use a client on your computer such as [Codex](./codex.mdx).

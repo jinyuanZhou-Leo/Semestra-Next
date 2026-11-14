@@ -22,6 +22,8 @@ Password = Annotated[str, StringConstraints(min_length=1, max_length=256)]
 
 EmailPurpose = Literal["continue", "reset_password"]
 TokenScope = Literal["read", "write"]
+# Apps whose identity the OAuth server can check (M12 §5.3).
+KnownApp = Literal["chatgpt", "claude"]
 
 
 # --- output ---------------------------------------------------------------------------------
@@ -130,8 +132,15 @@ class SessionList(BaseModel):
 
 class TokenOut(BaseModel):
     id: str
+    kind: Literal["token", "oauth"] = Field(
+        description="`token`: pasted into the client; `oauth`: the client signed in"
+    )
     name: str
-    prefix: str
+    prefix: str | None = Field(description="Start of a pasted token; none for OAuth")
+    app: KnownApp | None = Field(
+        description="The app an OAuth connection is known to be (its metadata document is served "
+        "from that app's site); none for tokens and for apps that only named themselves"
+    )
     scopes: list[TokenScope]
     created_at: datetime
     last_used_at: datetime | None

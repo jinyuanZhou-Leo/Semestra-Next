@@ -6,7 +6,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { Ban, History, KeyRound, Plus } from 'lucide-react'
+import { Ban, History, KeyRound, Plus, Unplug } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -22,7 +22,7 @@ import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { AddConnectionDialog, ClientTile } from './AddConnectionDialog'
 import { ChangesDialog, changesOptions } from './ChangesDialog'
-import { clientOfToken } from './mcp-clients'
+import { clientOf } from './mcp-clients'
 
 type RowActions = {
   revoke: (token: TokenOut) => void
@@ -43,12 +43,13 @@ function NameCell({ row }: CellProps) {
   const t = row.original
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <ClientTile client={clientOfToken(t.name)} />
+      <ClientTile client={clientOf(t)} />
       <div className="min-w-0">
         <div className="truncate font-medium">{t.name}</div>
         <div className="truncate text-xs text-muted-foreground">
           {[
-            `${t.prefix}…`,
+            // A pasted token goes by its first characters; an app that signed in has none.
+            t.kind === 'oauth' ? m.assistant_mcp_signed_in() : `${t.prefix}…`,
             t.last_used_at
               ? m.auth_account_tokens_last_used({ time: formatDateTime(t.last_used_at) })
               : m.auth_account_tokens_never_used(),
@@ -86,8 +87,8 @@ function ActionsCell({ row }: CellProps) {
           ]
         : null}
       <DropdownMenuItem variant="destructive" onClick={() => actions.revoke(token)}>
-        <Ban aria-hidden />
-        {m.auth_account_tokens_revoke()}
+        {token.kind === 'oauth' ? <Unplug aria-hidden /> : <Ban aria-hidden />}
+        {token.kind === 'oauth' ? m.assistant_mcp_disconnect() : m.auth_account_tokens_revoke()}
       </DropdownMenuItem>
     </RowMenu>
   )
@@ -126,7 +127,7 @@ const COLUMN_CLASS: Record<string, string> = {
 
 /**
  * Connected clients and API tokens (M12 §5): one list, since every connection is an API token
- * named after its client, and one way to add either.
+ * named after its client or an app that signed in, and one way to add either.
  */
 export function ConnectionsSection() {
   // Clients run outside the browser: same-origin deployments need the page's origin.
@@ -134,12 +135,12 @@ export function ConnectionsSection() {
   const queryClient = useQueryClient()
   const tokens = useQuery(accountTokenListOptions())
   const [adding, setAdding] = useState(false)
-  const revoking = useDialogTarget<{ id: string; name: string }>()
+  const revoking = useDialogTarget<TokenOut>()
   // Whether "Recent changes" has anything once no connection can write (revoked ones' changes).
   const allChanges = useQuery(changesOptions(null))
   const changes = useDialogTarget<{ tokenId: string | null }>()
   const actions: RowActions = {
-    revoke: (t) => revoking.show({ id: t.id, name: t.name }),
+    revoke: (t) => revoking.show(t),
     showChanges: (t) => changes.show({ tokenId: t.id }),
     prepareChanges: (t) => void queryClient.prefetchQuery(changesOptions(t.id)),
   }
@@ -207,9 +208,17 @@ export function ConnectionsSection() {
       <ChangesDialog {...changes.props} target={changes.target} tokens={items} />
       <ConfirmDialog
         {...revoking.props}
-        title={m.auth_account_tokens_revoke_title()}
-        description={m.auth_account_tokens_revoke_desc()}
-        confirmLabel={m.auth_account_tokens_revoke()}
+        {...(revoking.target?.kind === 'oauth'
+          ? {
+              title: m.assistant_mcp_disconnect_title({ client: revoking.target.name }),
+              description: m.assistant_mcp_disconnect_desc({ client: revoking.target.name }),
+              confirmLabel: m.assistant_mcp_disconnect(),
+            }
+          : {
+              title: m.auth_account_tokens_revoke_title(),
+              description: m.auth_account_tokens_revoke_desc(),
+              confirmLabel: m.auth_account_tokens_revoke(),
+            })}
         pending={revoke.isPending}
         onConfirm={() => revoking.target && revoke.mutate({ path: { id: revoking.target.id } })}
       />

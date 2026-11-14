@@ -32,9 +32,6 @@ Most clients take a JSON entry like this one; the top-level key and the URL fiel
 }
 ```
 
-A client that can only start local (stdio) servers can connect through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), as shown for [Claude Desktop](./claude-desktop.mdx).
+A client that can only start local (stdio) servers can connect through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which passes the header on.
 
-## Clients that cannot connect yet
-
-- **ChatGPT** connects to MCP servers only with OAuth or without authentication, so it cannot use an API token.
-- **Claude custom connectors** (claude.ai and Claude Desktop under Settings → Connectors) also sign in with OAuth. In Claude Desktop, use the [config file](./claude-desktop.mdx) instead.
+A client that signs in to MCP servers (OAuth), as [ChatGPT](./chatgpt.mdx) and [Claude](./claude.mdx) do, needs only the address: it opens Semestra's consent page, where you choose what it may do.

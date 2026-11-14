@@ -31,6 +31,14 @@ PUBLIC_ROUTES = {
     "GET /account/avatars/{user_id}/{version}": "unguessable, cacheable URL",
     "GET /feeds/{token}.ics": "calendar subscription link; the token is the credential",
     "POST /notifications/devices/renew": "the service worker renews a push subscription",
+    # OAuth for MCP clients (M12 §5.3): how an app finds the server and signs the user in.
+    "GET /.well-known/oauth-authorization-server": "OAuth server metadata",
+    "GET /.well-known/oauth-protected-resource/mcp": "how /mcp is signed in to",
+    "GET /authorize": "sends the browser to the consent page",
+    "POST /authorize": "sends the browser to the consent page",
+    "POST /token": "the app authenticates with its code or refresh token",
+    "POST /register": "an app registers itself (rate limited)",
+    "POST /revoke": "the app gives up its token",
 }
 
 

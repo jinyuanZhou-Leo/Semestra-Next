@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as AuthedOnboardingRouteImport } from './routes/_authed.onboarding'
 import { Route as LoginResetRouteImport } from './routes/login_.reset'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as AuthedPProgramIdRouteImport } from './routes/_authed.p.$programId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed.settings.index'
 import { Route as AuthedSettingsGroupRouteImport } from './routes/_authed.settings.$group'
@@ -63,6 +64,11 @@ const AuthedOnboardingRoute = AuthedOnboardingRouteImport.update({
 const LoginResetRoute = LoginResetRouteImport.update({
   id: '/login_/reset',
   path: '/login/reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedPProgramIdRoute = AuthedPProgramIdRouteImport.update({
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/p/$programId': typeof AuthedPProgramIdRouteWithChildren
   '/settings/$group': typeof AuthedSettingsGroupRoute
   '/settings/': typeof AuthedSettingsIndexRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof AuthedOnboardingRoute
   '/login/reset': typeof LoginResetRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/': typeof AuthedIndexRoute
   '/settings/$group': typeof AuthedSettingsGroupRoute
   '/settings': typeof AuthedSettingsIndexRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/onboarding': typeof AuthedOnboardingRoute
   '/login_/reset': typeof LoginResetRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/p/$programId': typeof AuthedPProgramIdRouteWithChildren
   '/_authed/settings/$group': typeof AuthedSettingsGroupRoute
@@ -269,6 +278,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/login/reset'
+    | '/oauth/consent'
     | '/p/$programId'
     | '/settings/$group'
     | '/settings/'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/login/reset'
+    | '/oauth/consent'
     | '/'
     | '/settings/$group'
     | '/settings'
@@ -321,6 +332,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/onboarding'
     | '/login_/reset'
+    | '/oauth/consent'
     | '/_authed/'
     | '/_authed/p/$programId'
     | '/_authed/settings/$group'
@@ -349,6 +361,7 @@ export interface RootRouteChildren {
   AccountDeletedRoute: typeof AccountDeletedRoute
   LoginRoute: typeof LoginRoute
   LoginResetRoute: typeof LoginResetRoute
+  OauthConsentRoute: typeof OauthConsentRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -393,6 +406,13 @@ declare module '@tanstack/react-router' {
       path: '/login/reset'
       fullPath: '/login/reset'
       preLoaderRoute: typeof LoginResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/p/$programId': {
@@ -622,6 +642,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountDeletedRoute: AccountDeletedRoute,
   LoginRoute: LoginRoute,
   LoginResetRoute: LoginResetRoute,
+  OauthConsentRoute: OauthConsentRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1298,6 +1298,84 @@ export type AuthResult = {
 };
 
 /**
+ * AuthorizationAnswer
+ */
+export type AuthorizationAnswer = {
+    /**
+     * Redirect Url
+     *
+     * Send the browser here: back to the app
+     */
+    redirect_url: string;
+};
+
+/**
+ * AuthorizationApproveInputBody
+ */
+export type AuthorizationApproveInputBody = {
+    /**
+     * Request
+     *
+     * The `request` parameter of the consent page
+     */
+    request: string;
+    /**
+     * Scopes
+     *
+     * `read`, or `read` and `write`: what the app may do
+     */
+    scopes: Array<'read' | 'write'>;
+};
+
+/**
+ * AuthorizationRequestInputBody
+ */
+export type AuthorizationRequestInputBody = {
+    /**
+     * Request
+     *
+     * The `request` parameter of the consent page
+     */
+    request: string;
+};
+
+/**
+ * AuthorizationRequestOut
+ */
+export type AuthorizationRequestOut = {
+    /**
+     * Client Name
+     *
+     * The app's name, as it calls itself: not checked
+     */
+    client_name: string;
+    /**
+     * App
+     *
+     * The app this is known to be; none when it only named itself
+     */
+    app: 'chatgpt' | 'claude' | null;
+    /**
+     * Host
+     *
+     * The site the app is: where its metadata document is, or where the browser returns to after the answer
+     */
+    host: string;
+    /**
+     * Local
+     *
+     * The app runs on this computer (a localhost redirect)
+     */
+    local: boolean;
+    /**
+     * Scopes
+     *
+     * The access levels the user may choose from
+     */
+    scopes: Array<'read' | 'write'>;
+};
+
+/**
  * BindingSetInputBody
  */
 export type BindingSetInputBody = {
@@ -11812,13 +11890,27 @@ export type TokenCreated = {
      */
     id: string;
     /**
+     * Kind
+     *
+     * `token`: pasted into the client; `oauth`: the client signed in
+     */
+    kind: 'token' | 'oauth';
+    /**
      * Name
      */
     name: string;
     /**
      * Prefix
+     *
+     * Start of a pasted token; none for OAuth
      */
-    prefix: string;
+    prefix: string | null;
+    /**
+     * App
+     *
+     * The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves
+     */
+    app: 'chatgpt' | 'claude' | null;
     /**
      * Scopes
      */
@@ -11862,13 +11954,27 @@ export type TokenOut = {
      */
     id: string;
     /**
+     * Kind
+     *
+     * `token`: pasted into the client; `oauth`: the client signed in
+     */
+    kind: 'token' | 'oauth';
+    /**
      * Name
      */
     name: string;
     /**
      * Prefix
+     *
+     * Start of a pasted token; none for OAuth
      */
-    prefix: string;
+    prefix: string | null;
+    /**
+     * App
+     *
+     * The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves
+     */
+    app: 'chatgpt' | 'claude' | null;
     /**
      * Scopes
      */
@@ -14025,6 +14131,88 @@ export type AcademicsTermPreviewDeleteResponses = {
 };
 
 export type AcademicsTermPreviewDeleteResponse = AcademicsTermPreviewDeleteResponses[keyof AcademicsTermPreviewDeleteResponses];
+
+export type AccountAuthorizationApproveData = {
+    body: AuthorizationApproveInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/authorizations/approve';
+};
+
+export type AccountAuthorizationApproveErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountAuthorizationApproveError = AccountAuthorizationApproveErrors[keyof AccountAuthorizationApproveErrors];
+
+export type AccountAuthorizationApproveResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthorizationAnswer;
+};
+
+export type AccountAuthorizationApproveResponse = AccountAuthorizationApproveResponses[keyof AccountAuthorizationApproveResponses];
+
+export type AccountAuthorizationDenyData = {
+    body: AuthorizationRequestInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/authorizations/deny';
+};
+
+export type AccountAuthorizationDenyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountAuthorizationDenyError = AccountAuthorizationDenyErrors[keyof AccountAuthorizationDenyErrors];
+
+export type AccountAuthorizationDenyResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthorizationAnswer;
+};
+
+export type AccountAuthorizationDenyResponse = AccountAuthorizationDenyResponses[keyof AccountAuthorizationDenyResponses];
+
+export type AccountAuthorizationGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Request
+         *
+         * The `request` parameter of the consent page
+         */
+        request: string;
+    };
+    url: '/account/authorizations/request';
+};
+
+export type AccountAuthorizationGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountAuthorizationGetError = AccountAuthorizationGetErrors[keyof AccountAuthorizationGetErrors];
+
+export type AccountAuthorizationGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthorizationRequestOut;
+};
+
+export type AccountAuthorizationGetResponse = AccountAuthorizationGetResponses[keyof AccountAuthorizationGetResponses];
 
 export type AccountDeleteData = {
     body: AccountDeleteInputBody;

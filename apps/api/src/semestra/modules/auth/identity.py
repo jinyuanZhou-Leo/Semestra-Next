@@ -68,25 +68,33 @@ def _check_csrf(request: Request, settings: Settings, session_token: str) -> Non
         raise AppError("auth.csrf_failed", 403)
 
 
+async def connection_identity(
+    db: AsyncSession, row: AuthPersonalAccessToken | None, now: datetime
+) -> Identity | None:
+    """Who calls with a connection's token, pasted or issued over OAuth (M12 §5): its user, while
+    the connection is live. Notes its use at most once per `_PAT_TOUCH_AFTER`."""
+    if row is None or row.revoked_at is not None:
+        return None
+    if row.expires_at is not None and row.expires_at <= now:
+        return None
+    user = await _active_user(db, row.user_id)
+    if user is None:
+        return None
+    if row.last_used_at is None or now - row.last_used_at >= _PAT_TOUCH_AFTER:
+        row.last_used_at = now
+    scopes = tuple(str(s) for s in row.scopes)
+    return Identity(user, AuthInfo(kind="pat", token_id=row.id, scopes=scopes))
+
+
 async def _from_pat(db: AsyncSession, token: str, now: datetime) -> Identity | None:
-    pat = (
+    row = (
         await db.execute(
             select(AuthPersonalAccessToken).where(
                 AuthPersonalAccessToken.token_hash == crypto.hash_token(token)
             )
         )
     ).scalar_one_or_none()
-    if pat is None or pat.revoked_at is not None:
-        return None
-    if pat.expires_at is not None and pat.expires_at <= now:
-        return None
-    user = await _active_user(db, pat.user_id)
-    if user is None:
-        return None
-    if pat.last_used_at is None or now - pat.last_used_at >= _PAT_TOUCH_AFTER:
-        pat.last_used_at = now
-    scopes = tuple(str(s) for s in pat.scopes)
-    return Identity(user, AuthInfo(kind="pat", token_id=pat.id, scopes=scopes))
+    return await connection_identity(db, row, now)
 
 
 async def _from_jwt(

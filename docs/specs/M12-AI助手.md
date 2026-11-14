@@ -105,10 +105,17 @@ agent_preferences
 
 ## 5. MCP 服务端
 - 使用官方 `mcp` Python SDK 的 Streamable HTTP 传输，挂载在 FastAPI `/mcp`。
-- 认证：`Authorization: Bearer spat_…`（M01 PAT）；不接受 Cookie。
+- 认证：`Authorization: Bearer spat_…`（M01 PAT），或 OAuth 访问令牌 `soat_…`（见下面「登录授权」）；按前缀分派，不接受 Cookie。
+- **登录授权（OAuth，ChatGPT 与 Claude 等远程应用）**：按 MCP 授权规范（2026-07-28 版）在后端内置一个授权服务，路由与协议处理来自 `mcp` SDK 的 `mcp.server.auth`（`auth/oauth/routes.py`，首个请求时才导入，同 `/mcp`），存储在 `auth/oauth/provider.py`。只在签发者（`SEMESTRA_PUBLIC_API_ORIGIN`）是 https 或 localhost 时提供，否则这些路由 404、`/mcp` 的 401 不带元数据。
+  - 发现：`/mcp` 的 401 带 `WWW-Authenticate: Bearer resource_metadata=…, scope="read write"`；`/.well-known/oauth-protected-resource/mcp`（RFC 9728，资源为 `<api>/mcp`）与 `/.well-known/oauth-authorization-server`（RFC 8414，声明 `client_id_metadata_document_supported`、`none` 认证方式、仅 S256）。
+  - 客户端身份：优先 Client ID Metadata Document（ChatGPT、Claude 都用；经 `safe_client` 取，5 KB/5 s，按 Cache-Control 缓存 5 分钟到 1 天，失败缓存 1 分钟；未登录就能触发，所以每个网络（IPv4 地址、IPv6 /64）每小时 30 次、全局同时最多 4 个、同一地址并发请求合并为一次；`client_id` 必须等于文档地址，回调只能在文档所在站点（同主机）或本机回环，最多 10 个），兼容动态注册 `/register`（每个网络每小时 20 次，请求体上限 8 KB，最多 10 个回调、名称 100 字，只保存用得到的字段；`auth_oauth_clients`，一天内没换到授权的注册会被清理）。本机回环回调不比较端口。
+  - 应用身份：名称是应用自己填的，谁都能自称 ChatGPT，所以只认能核实的：`client_id` 是 `chatgpt.com`、`claude.ai`（或其子域）上的元数据文档、且回跳不是本机时就是该应用（回跳本机的任何程序都能借用公开的 client id，Claude Code 的文档也在 claude.ai 上；`common.KNOWN_APPS`，连接行的 `app` 列，`TokenOut.app`），授权页与连接列表才显示它的图标和名字；其它应用以文档所在站点（动态注册则是回调主机）称呼，自称的名字只作为“它自称…”显示在标题下，连接名写成 `名字 (站点)`；本机回环应用用自称的名字并提示它运行在本机。
+  - 授权页：`/authorize` 校验 PKCE、`resource`（只接受 `<api>/mcp` 或 API 源）与回调后，把请求签成 10 分钟的 JWT，跳到网页端 `/oauth/consent?request=`。页面用 `account.authorization.get|approve|deny`（仅 HTTP），未登录先去登录页再回来；允许需要近期确认身份（M01 §4.7，同创建 API 令牌）；可选权限是应用请求的范围（只读默认选中）；接口返回 `client_name`（未核实）、`app`、`host`、`local`、`scopes`；读取失败显示错误与重试。允许后签发 60 秒、一次性的授权码（`soac_`，用 `UPDATE … RETURNING` 原子领取）。
+  - 令牌：换码时在 `auth_personal_access_tokens` 建一行 `kind='oauth'`（名称见上面「应用身份」，没有 `token_hash`/`prefix`），授权状态在 `auth_oauth_grants`（外键指向该行，级联删除）。访问令牌是随机串（`soat_`），与 PAT 一样只存 hash（`auth_oauth_grants.access_token_hash`，1 小时过期，每次刷新换新的，旧的立即失效），每次请求都按连接行检查是否撤销、过期并更新 `last_used_at`（与 PAT 共用 `identity.connection_identity`），所以作用域检查、删除开关、修改记录、「已连接」提示都与 API 令牌一致；刷新令牌（`sort_`）每次轮换，轮换 1 分钟后再用旧的视为泄露并撤销整个连接；连续 90 天没有刷新的连接由每日清理撤销。同一用户再次连接同一应用会替换旧连接：已核实的应用按 `app`，其它按 `client_id`，不按名称。待授权请求的 JWT 用从密钥派生的专用 key 签名。撤销（列表里的「断开」或 `/revoke`）就是撤销这一行。
+  - 不需要在 OpenAI 或 Anthropic 注册任何东西；托管版和自部署相同，自部署只要能从公网用 HTTPS 访问。
 - **tools**：`registry.list(expose='mcp', user)`，PAT 作用域为 `read` 时只列出 read 工具；工具名同 3.2 规则。write 工具在 MCP 下直接执行（外部客户端自带确认机制），destructive 工具需要 PAT 同时具备 `write` 作用域且在设置中开启"允许 MCP 执行删除类操作"（`agent_preferences.mcp_allow_destructive`，默认关闭）。这条由 agent 模块用 `registry.set_token_policy` 注册（`mcp_changes.McpTokenPolicy`），在 `registry.invoke` 里对令牌的每次调用检查（令牌直接调 REST 接口也一样）；MCP 的工具列表只是按同样的规则过滤显示。
 - **修改记录**：同一个策略在令牌的每次 write/destructive 调用时，和修改同一事务写一行 `agent_mcp_changes`（令牌、当时的连接名称 `client`、能力名、对象名称 `target`）。名称用 Sem 对话步骤同一套 `display.labels`，在执行前读出（删掉的对象也有名字），再补上返回对象自己的名称；读名称失败只让这一行没有名称。保留 90 天（每日 `agent.mcp_changes.cleanup`），与令牌的生命周期无关：撤销后照常列出，令牌行 30 天后被删除时 `token_id` 置空，靠 `client` 显示名称；不随备份导出。`agent.mcp_change.list`（`GET /agent/mcp-changes`，可选 `token_id` 筛选，仅 HTTP）返回最近 100 条。设置的「客户端与 API 令牌」标题行有「最近更改」（有记录时才显示，按连接筛选，包括已撤销的连接），读写连接的「⋯ → 最近更改」打开时筛选到该连接；操作名用 `capability_<名称>_title`。
-- **连接状态**：「新建连接」最后一步每 3 秒读一次令牌列表，令牌有了 `last_used_at`（第一次请求就会写入）就显示“已连接”，否则显示“等待连接”。
+- **连接状态**：「新建连接」最后一步每 3 秒读一次令牌列表，令牌有了 `last_used_at`（第一次请求就会写入）就显示“已连接”，否则显示“等待连接”；登录授权的应用在出现一个新的、`app` 是该应用的 `kind='oauth'` 连接时显示“已连接”。
 - **prompts**：每个 skill 作为一个 MCP prompt（name = skill name，内容为 skill 正文）。
 - **resources**：`semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}` 只读概要。
 - 调用同样记录 `ctx.actor='mcp'`，并通过 SSE 推送事件让网页实时刷新。
@@ -132,7 +139,7 @@ agent_preferences
   - **客户端权限**（`assistant-mcp-permissions`）：读取「允许」（任何 API 令牌）；修改「允许」，需要读写令牌（令牌表就在同一页上方，不再放跳转按钮）；删除是 `mcp_allow_destructive` 开关（还需读写令牌，默认关）。提示执行前是否再次确认由客户端决定。
 - **MCP**（原分组 `ai-mcp`，2026-11-08 起在全局设置 → API 与 MCP）：2026-11-09 起这一页依次是 `assistant-connections`「客户端与 API 令牌」、`assistant-mcp`「MCP 服务」、`assistant-mcp-permissions`。
   - **客户端与 API 令牌**（`assistant-connections`，`ConnectionsSection.tsx`，原 M01 的「API 令牌」分区并入这里）：`SettingsTable` 列出全部 API 令牌，名称与某个客户端同名的行显示该客户端的图标（`clientOfToken`），否则显示钥匙；行末 ⋯ 撤销（ConfirmDialog），撤销即断开。标题行右侧只有一个「新建连接」，空状态里也是它；原来分开的「创建 API 令牌」与「连接客户端」两个入口合并。
-  - **新建连接**（`AddConnectionDialog.tsx`）：和添加 AI 服务商同一套三步。第一步选客户端（`Item` 卡片网格，图标 + 名称，最后一格「其他客户端或脚本」）；第二步标题行是客户端图标 +「连接 X」，权限与有效期是设置行（`SettingsGroup` + `SettingRow`；权限两项各需一句说明，按 `ChoiceControl` 规则是带说明的下拉，有效期是分段控件），「其他客户端或脚本」多一行名称，左下「返回」，提交即用 `account.token.create` 创建以客户端命名（或用户填写名称）的 API 令牌（需要时就地确认身份，M01 §4.7）；第三步给出已填好令牌的安装链接、命令或配置（各一个复制按钮），其他客户端给地址和令牌，令牌只在此显示一次，底部有该客户端的文档链接。客户端与生成规则在前端 `assistant/settings/mcp-clients.ts`（2026-11-08 按各客户端官方文档核对）：Cursor、LM Studio 用安装链接（LM Studio 用自己的 `lmstudio://` 协议，避免令牌经过 https 网站；base64 的服务器配置，打不开时折叠区给出配置文件）；Claude Code、Gemini CLI（`--scope user`）用 `mcp add --transport http … --header`；VS Code（`servers` + `type: "http"`）、Claude Desktop（`mcp-remote`，配置文件只能启动本机服务器）、Codex（`config.toml` 的 `http_headers`）、Devin Desktop（原 Windsurf，`~/.config/devin/mcp_config.json`）给配置。没有给令牌加“客户端”字段（不需要迁移）：图标按名称匹配，改了名就显示钥匙。ChatGPT 与 Claude 自定义连接器只支持 OAuth，暂不能连接（文档站「其他客户端」一页写明）。
+  - **新建连接**（`AddConnectionDialog.tsx`）：和添加 AI 服务商同一套三步。第一步选客户端（`Item` 卡片网格，图标 + 名称，最后一格「其他客户端或脚本」；ChatGPT、Claude 在前，只在服务地址是 https 时出现，选中后直接显示服务地址和三步说明（应用里的菜单路径用图标分隔，不写箭头），没有令牌）；第二步标题行是客户端图标 +「连接 X」，权限与有效期是设置行（`SettingsGroup` + `SettingRow`；权限两项各需一句说明，按 `ChoiceControl` 规则是带说明的下拉，有效期是分段控件），「其他客户端或脚本」多一行名称，左下「返回」，提交即用 `account.token.create` 创建以客户端命名（或用户填写名称）的 API 令牌（需要时就地确认身份，M01 §4.7）；第三步给出已填好令牌的安装链接、命令或配置（各一个复制按钮），其他客户端给地址和令牌，令牌只在此显示一次，底部有该客户端的文档链接。客户端与生成规则在前端 `assistant/settings/mcp-clients.ts`（2026-11-08 按各客户端官方文档核对）：Cursor、LM Studio 用安装链接（LM Studio 用自己的 `lmstudio://` 协议，避免令牌经过 https 网站；base64 的服务器配置，打不开时折叠区给出配置文件）；Claude Code、Gemini CLI（`--scope user`）用 `mcp add --transport http … --header`；VS Code（`servers` + `type: "http"`）、Codex（`config.toml` 的 `http_headers`）、Devin Desktop（原 Windsurf，`~/.config/devin/mcp_config.json`）给配置。没有给令牌加“客户端”字段（不需要迁移）：图标按名称匹配，改了名就显示钥匙。ChatGPT 与 Claude 走登录授权（§5），Claude Desktop 用同一个 Claude 连接器，不再单列。列表里登录授权的连接第二行写「登录授权」，菜单是「断开」。
   - **MCP 服务**（`assistant-mcp`）：服务地址（只读 `InputGroup` + 复制按钮，与日历订阅链接相同）与「工具与提示词参考」链接（文档站 `/<lang>/mcp/tools`）。原来的「可用工具」目录已删除：它列的是 Sem 的工具（含 MCP 拿不到的 Sem 专用工具、不含 MCP 提示词），也不反映令牌权限，与权限页重复；完整清单以文档站为准。
 
 ## 7. 本地化
@@ -160,7 +167,7 @@ agent_preferences
 
 ## 11. 验收
 - 在课程页打开助手说"我 Lab 3 拿了 18/20"，助手找到对应考核并弹出确认卡片，批准后成绩页自动刷新。
-- 在 Claude Desktop 中配置 MCP 后，可以问"我明天有什么课"并得到正确回答。
+- 在 Claude 或 ChatGPT 中添加 Semestra 并登录授权后，可以问"我明天有什么课"并得到正确回答。
 
 ## 实现说明（M12 落地时补充）
 以下是实现时做出的取舍与对上文的细化，以代码为准。

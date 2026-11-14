@@ -1,4 +1,4 @@
-"""MCP server (M12 §5): `/mcp`, Streamable HTTP, personal access tokens only.
+"""MCP server (M12 §5): `/mcp`, Streamable HTTP, for a pasted API token or an OAuth access token.
 
 tools = capabilities exposed to MCP (read-only for `read` tokens; delete actions only with a
 `write` token and the user's "allow MCP to delete" preference), prompts = skills, resources =
@@ -19,7 +19,8 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import Receive, Scope, Send
 
 from semestra.core.capability import Capability, registry
-from semestra.core.context import AuthInfo, Ctx
+from semestra.core.config import Settings
+from semestra.core.context import AuthInfo, Ctx, Identity
 from semestra.core.errors import AppError
 from semestra.modules.agent import outcome, service, skills, tools
 from semestra.modules.agent.runtime import agent_ctx
@@ -285,16 +286,46 @@ def make_server() -> Server[Any]:
     )
 
 
-def _unauthorized() -> Response:
+def _unauthorized(settings: Settings) -> Response:
+    """Points the app at how to sign in (RFC 9728): apps that support OAuth start from here."""
+    from semestra.modules.auth.oauth import common
+
+    challenge = (
+        f'Bearer resource_metadata="{common.resource_metadata_url(settings)}", '
+        f'scope="{" ".join(common.SCOPES)}"'
+        if common.available(settings)
+        else 'Bearer realm="semestra"'
+    )
     return JSONResponse(
         {"error": {"code": "common.unauthenticated", "params": {}, "request_id": None}},
         status_code=401,
-        headers={"WWW-Authenticate": 'Bearer realm="semestra"'},
+        headers={"WWW-Authenticate": challenge},
     )
 
 
+async def _authenticate(request: Request) -> Identity | None:
+    """A pasted token, or an access token the app got by signing in (M12 §5.3)."""
+    from semestra.modules.auth.crypto import PAT_PREFIX
+    from semestra.modules.auth.oauth.common import ACCESS_PREFIX, authenticate_access_token
+
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        return None
+    state: State = request.app.state
+    async with state.session_factory() as db:
+        if token.startswith(PAT_PREFIX):
+            identity = await state.authenticator(request, Response(), db, state.now())
+        elif token.startswith(ACCESS_PREFIX):
+            identity = await authenticate_access_token(db, token, state.now())
+        else:
+            identity = None
+        await db.commit()
+    return identity if identity is not None and identity.auth.kind == "pat" else None
+
+
 class McpEndpoint:
-    """ASGI app for `/mcp`: authenticates the personal access token, then hands the request to
+    """ASGI app for `/mcp`: authenticates the connection's token, then hands the request to
     the SDK. Stateless, so each request runs its own short-lived session manager in the
     request's task (no app-wide task group to start and stop)."""
 
@@ -303,18 +334,9 @@ class McpEndpoint:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope, receive)
-        header = request.headers.get("authorization", "")
-        scheme, _, token = header.partition(" ")
-        from semestra.modules.auth.crypto import PAT_PREFIX
-
-        if scheme.lower() != "bearer" or not token.strip().startswith(PAT_PREFIX):
-            return await _unauthorized()(scope, receive, send)
-        state: State = request.app.state
-        async with state.session_factory() as db:
-            identity = await state.authenticator(request, Response(), db, state.now())
-            await db.commit()
-        if identity is None or identity.auth.kind != "pat":
-            return await _unauthorized()(scope, receive, send)
+        identity = await _authenticate(request)
+        if identity is None:
+            return await _unauthorized(request.app.state.settings)(scope, receive, send)
         scope.setdefault("state", {})[_IDENTITY] = McpIdentity(
             identity.user.id, identity.auth.scopes, identity.auth.token_id
         )

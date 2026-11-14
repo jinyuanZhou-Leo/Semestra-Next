@@ -4,25 +4,34 @@ import claudecodeLogo from '@lobehub/icons-static-svg/icons/claudecode.svg?url'
 import geminicliLogo from '@lobehub/icons-static-svg/icons/geminicli.svg?url'
 import githubcopilotLogo from '@lobehub/icons-static-svg/icons/githubcopilot.svg?url'
 import claudeLogo from '@lobehub/icons-static-svg/icons/claude.svg?url'
+import openaiLogo from '@lobehub/icons-static-svg/icons/openai.svg?url'
 import codexLogo from '@lobehub/icons-static-svg/icons/codex.svg?url'
 import devinLogo from '@lobehub/icons-static-svg/icons/devin.svg?url'
+import type { TokenOut } from '@semestra/api-client'
+import { m } from '@/paraglide/messages'
 
 /**
- * How each MCP client connects to Semestra with an API token (M12 §5): an install link, a
+ * How each MCP client connects to Semestra (M12 §5): apps such as ChatGPT and Claude sign in
+ * (OAuth) from the server address alone; the rest take an API token through an install link, a
  * terminal command, or a config file to paste into. Checked against each client's docs on
- * 2026-11-08; the docs site has the same steps (`apps/docs/content/docs/mcp/`).
+ * 2026-11-14; the docs site has the same steps (`apps/docs/content/docs/mcp/`).
  */
 
-export type ClientId =
+/** Clients that connect by signing in. */
+export type SignInClientId = 'chatgpt' | 'claude'
+
+/** Clients that connect with an API token. */
+export type TokenClientId =
   | 'cursor'
   | 'lm-studio'
   | 'claude-code'
   | 'gemini-cli'
   | 'vscode'
-  | 'claude-desktop'
   | 'codex'
   | 'devin'
   | 'other'
+
+export type ClientId = SignInClientId | TokenClientId
 
 export type Setup =
   /** An install link the client opens itself, with a config file as the fallback. */
@@ -32,8 +41,18 @@ export type Setup =
   /** Any other client: the address and the token, typed in by hand. */
   | { kind: 'manual' }
 
-export interface McpClient {
-  id: ClientId
+/** The "+" button in a menu path. */
+export const PLUS = Symbol('plus')
+
+/** Where a sign-in app adds a server, and what to do once it is pasted. */
+export interface SignIn {
+  /** The app's own menu path, from where its window starts. */
+  menu: () => readonly (string | typeof PLUS)[]
+  /** The step after pasting the address. */
+  add: () => string
+}
+
+interface BaseClient {
   name: string
   /** The docs page for this client, under `mcp/`. */
   docs: string
@@ -44,32 +63,67 @@ export interface McpClient {
   logo: string | null
 }
 
+export type McpClient =
+  | (BaseClient & { id: SignInClientId; signIn: SignIn })
+  | (BaseClient & { id: TokenClientId; signIn?: undefined })
+
 export const MCP_CLIENTS: readonly McpClient[] = [
-  { id: 'cursor', name: 'Cursor', docs: 'mcp/cursor', logo: cursorLogo },
-  { id: 'lm-studio', name: 'LM Studio', docs: 'mcp/lm-studio', logo: lmstudioLogo },
+  {
+    id: 'chatgpt',
+    name: 'ChatGPT',
+    docs: 'mcp/chatgpt',
+    logo: openaiLogo,
+    signIn: {
+      menu: () => [
+        m.assistant_mcp_chatgpt_menu_plugins(),
+        PLUS,
+        m.assistant_mcp_chatgpt_menu_add(),
+      ],
+      add: m.assistant_mcp_chatgpt_add,
+    },
+  },
+  {
+    id: 'claude',
+    name: 'Claude',
+    docs: 'mcp/claude',
+    logo: claudeLogo,
+    signIn: {
+      menu: () => [
+        m.assistant_mcp_claude_menu_customize(),
+        m.assistant_mcp_claude_menu_connectors(),
+        m.assistant_mcp_claude_menu_add(),
+      ],
+      add: m.assistant_mcp_claude_add,
+    },
+  },
   {
     id: 'claude-code',
     name: 'Claude Code',
     docs: 'mcp/claude-code',
     logo: claudecodeLogo,
   },
+  { id: 'cursor', name: 'Cursor', docs: 'mcp/cursor', logo: cursorLogo },
+  { id: 'vscode', name: 'VS Code', docs: 'mcp/vscode', logo: githubcopilotLogo },
+  { id: 'codex', name: 'Codex', docs: 'mcp/codex', logo: codexLogo },
   {
     id: 'gemini-cli',
     name: 'Gemini CLI',
     docs: 'mcp/gemini-cli',
     logo: geminicliLogo,
   },
-  { id: 'vscode', name: 'VS Code', docs: 'mcp/vscode', logo: githubcopilotLogo },
-  {
-    id: 'claude-desktop',
-    name: 'Claude Desktop',
-    docs: 'mcp/claude-desktop',
-    logo: claudeLogo,
-  },
-  { id: 'codex', name: 'Codex', docs: 'mcp/codex', logo: codexLogo },
   { id: 'devin', name: 'Devin Desktop', docs: 'mcp/devin', logo: devinLogo },
+  { id: 'lm-studio', name: 'LM Studio', docs: 'mcp/lm-studio', logo: lmstudioLogo },
   { id: 'other', name: '', docs: 'mcp/other', logo: null },
 ]
+
+/**
+ * The clients this server can offer: ChatGPT and Claude reach it from their own servers, so they
+ * need an address on the internet over HTTPS (a local one is left out).
+ */
+export function availableClients(url: string): readonly McpClient[] {
+  const reachable = new URL(url).protocol === 'https:'
+  return MCP_CLIENTS.filter((c) => reachable || !c.signIn)
+}
 
 const SERVER = 'semestra'
 
@@ -78,7 +132,7 @@ const json = (value: unknown) => JSON.stringify(value, null, 2)
 /** Base64 of a JSON value; the config holds only ASCII (a URL and a token). */
 const base64 = (value: unknown) => btoa(JSON.stringify(value))
 
-export function mcpSetup(client: ClientId, url: string, token: string): Setup {
+export function mcpSetup(client: TokenClientId, url: string, token: string): Setup {
   const headers = { Authorization: `Bearer ${token}` }
   switch (client) {
     case 'cursor':
@@ -112,22 +166,6 @@ export function mcpSetup(client: ClientId, url: string, token: string): Setup {
         file: 'mcp.json',
         text: json({ servers: { [SERVER]: { type: 'http', url, headers } } }),
       }
-    case 'claude-desktop':
-      // Claude Desktop reads only local (stdio) servers from its config file: mcp-remote bridges
-      // to the HTTP server. No space after the colon, safe from argument splitting on Windows.
-      return {
-        kind: 'config',
-        file: 'claude_desktop_config.json',
-        text: json({
-          mcpServers: {
-            [SERVER]: {
-              command: 'npx',
-              args: ['-y', 'mcp-remote', url, '--header', 'Authorization:${AUTH_HEADER}'],
-              env: { AUTH_HEADER: `Bearer ${token}` },
-            },
-          },
-        }),
-      }
     case 'codex':
       return {
         kind: 'config',
@@ -145,7 +183,14 @@ export function mcpSetup(client: ClientId, url: string, token: string): Setup {
   }
 }
 
-/** The client a token was made for, from its name ("Cursor"); none for tokens named otherwise. */
-export function clientOfToken(name: string): McpClient | undefined {
-  return MCP_CLIENTS.find((c) => c.name !== '' && c.name === name)
+/**
+ * The client a connection belongs to: an app that signed in only when the server knows it is
+ * that app (any app can call itself ChatGPT); a pasted token by the name it was made with
+ * ("Cursor"). None for connections named otherwise.
+ */
+export function clientOf(
+  connection: Pick<TokenOut, 'kind' | 'app' | 'name'>,
+): McpClient | undefined {
+  if (connection.kind === 'oauth') return MCP_CLIENTS.find((c) => c.id === connection.app)
+  return MCP_CLIENTS.find((c) => !c.signIn && c.name !== '' && c.name === connection.name)
 }

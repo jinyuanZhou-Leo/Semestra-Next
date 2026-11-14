@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearCollapsedMirror()
       queryClient.clear()
       resetUiPrefs(queryClient)
-      await navigate({ to })
+      await navigate({ href: to })
     },
   }
 
