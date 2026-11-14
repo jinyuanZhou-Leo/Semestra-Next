@@ -73,7 +73,7 @@ async def labels(ctx: Ctx, capability: str, args: dict[str, Any]) -> list[str]:
     return out
 
 
-def _named(payload: Any) -> str | None:
+def named(payload: Any) -> str | None:
     """A created or read object's own name (`{name}`, or `{term: {name}}`)."""
     if not isinstance(payload, dict):
         return None
@@ -82,7 +82,7 @@ def _named(payload: Any) -> str | None:
         if isinstance(value, str) and value:
             return value
     objects = [v for v in payload.values() if isinstance(v, dict)]  # pyright: ignore[reportUnknownVariableType]
-    return _named(objects[0]) if len(objects) == 1 else None  # pyright: ignore[reportUnknownArgumentType]
+    return named(objects[0]) if len(objects) == 1 else None  # pyright: ignore[reportUnknownArgumentType]
 
 
 async def describe(ctx: Ctx, capability: str, args: dict[str, Any], payload: Any) -> dict[str, Any]:
@@ -90,7 +90,7 @@ async def describe(ctx: Ctx, capability: str, args: dict[str, Any], payload: Any
     imports, the session's counts. Keys with nothing to say are left out."""
     out: dict[str, Any] = {}
     names = await labels(ctx, capability, args)
-    own = _named(payload)
+    own = named(payload)
     if own and own not in names:
         names.append(own)
     if names:

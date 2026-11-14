@@ -3606,6 +3606,59 @@
         }
       }
     },
+    "/agent/tokens/{token_id}/changes": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "List what an MCP client changed.",
+        "description": "The latest changes made with one API token, newest first (kept for 90 days). Not for agents.",
+        "operationId": "agentMcpChangeList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id of the API token whose changes to list",
+              "title": "Token Id"
+            },
+            "description": "Id of the API token whose changes to list"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpChangeList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/agent/memories:clear": {
       "post": {
         "tags": [
@@ -28981,6 +29034,54 @@
         "title": "LocalModels",
         "description": "Models a self-hosted server runs itself for one purpose (local OCR, local embedding)."
       },
+      "McpChangeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/McpChangeOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "McpChangeList"
+      },
+      "McpChangeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "capability": {
+            "type": "string",
+            "title": "Capability"
+          },
+          "target": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Target"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "capability",
+          "target",
+          "created_at"
+        ],
+        "title": "McpChangeOut"
+      },
       "Meeting": {
         "properties": {
           "id": {
@@ -32282,17 +32383,11 @@
             "description": "Provider type."
           },
           "display_name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 60
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
             "title": "Display Name",
-            "description": "Name shown in the list; defaults to the type."
+            "description": "Name shown in the list (the client names an unnamed one after its type)."
           },
           "base_url": {
             "anyOf": [
@@ -32346,7 +32441,8 @@
         },
         "type": "object",
         "required": [
-          "kind"
+          "kind",
+          "display_name"
         ],
         "title": "ProviderCreateInputBody"
       },

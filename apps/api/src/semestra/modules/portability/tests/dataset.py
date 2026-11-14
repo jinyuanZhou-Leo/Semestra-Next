@@ -15,6 +15,7 @@ from semestra.modules.academics.models import (
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentAttachmentPage,
+    AgentMcpChange,
     AgentMemory,
     AgentMessage,
     AgentPreferences,
@@ -23,6 +24,7 @@ from semestra.modules.agent.models import (
     AgentSuggestions,
 )
 from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEvent
+from semestra.modules.auth.models import AuthPersonalAccessToken
 from semestra.modules.files.models import (
     FilesChunk,
     FilesDocument,
@@ -94,7 +96,15 @@ async def populate(
     course = AcademicsCourse(
         **u, program_id=program.id, code="APS100", title="Orientation", credits=0.5
     )
-    db.add_all([term, course])
+    # An MCP client's API token, which `AgentMcpChange` rows belong to.
+    token = AuthPersonalAccessToken(
+        **u,
+        name="Claude Desktop",
+        token_hash=f"pat-hash-{program.id}",
+        prefix="spat_abc",
+        scopes=["read", "write"],
+    )
+    db.add_all([term, course, token])
     await db.flush()
     category = GradingCategory(**u, course_id=course.id, key="exam", name="Exams", color="red")
     section = ScheduleSection(**u, course_id=course.id, term_id=term.id, type_code="LEC")
@@ -294,6 +304,13 @@ async def populate(
                 call_id="call-1",
                 capability="tasks.item.create",
                 args={"title": "Read chapter 3"},
+                created_at=NOW,
+            ),
+            AgentMcpChange(
+                **u,
+                token_id=token.id,
+                capability="tasks.item.create",
+                target=["Read"],
                 created_at=NOW,
             ),
             AgentSuggestions(

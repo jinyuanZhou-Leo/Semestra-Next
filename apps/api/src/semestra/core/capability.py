@@ -8,7 +8,7 @@ import inspect
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, get_type_hints
+from typing import Annotated, Any, Literal, Protocol, get_type_hints
 
 from fastapi import APIRouter, Body, Depends, FastAPI, Path, Query
 from pydantic import BaseModel, ValidationError, create_model
@@ -97,10 +97,25 @@ class Capability:
 
 # Returns the plugin ids the ctx user has installed (registered by M10's plugins module).
 PluginGate = Callable[[Ctx], Awaitable[set[str]]]
+
+
 # Raises when the user has not allowed their personal access tokens this capability (M12
 # registers the "allow MCP clients to delete" preference). Runs for every token call, whether it
 # came over `/mcp` or a REST route.
-TokenGate = Callable[[Ctx, "Capability"], Awaitable[None]]
+class TokenPolicy(Protocol):
+    """What happens around calls made with a personal access token (M12 §5)."""
+
+    async def check(self, ctx: Ctx, cap: Capability) -> None:
+        """Refuses a call the token's scope allows but the user's settings do not."""
+        ...
+
+    async def write(
+        self, ctx: Ctx, cap: Capability, inp: BaseModel, run: Callable[[], Awaitable[Any]]
+    ) -> Any:
+        """Runs a change (`run`), in the caller's transaction, and keeps a record of it."""
+        ...
+
+
 # Fills an argument an agent or MCP client left out from the call's context (M02 registers
 # `program_id`: the Program the user is in, or their only one). None leaves it missing.
 ContextDefault = Callable[[Ctx], Awaitable[str | None]]
@@ -118,7 +133,7 @@ class Registry:
     def __init__(self) -> None:
         self._items: dict[str, Capability] = {}
         self._plugin_gate: PluginGate | None = None
-        self._token_gate: TokenGate | None = None
+        self._token_policy: TokenPolicy | None = None
         self._context_args: dict[str, ContextArg] = {}
         self._id_sources: dict[str, str] = {}
         # Bumped whenever something that shapes agent tool schemas changes, so caches built from
@@ -196,9 +211,10 @@ class Registry:
         installed."""
         self._plugin_gate = gate
 
-    def set_token_gate(self, gate: TokenGate | None) -> None:
-        """Checked on every call made with a personal access token, after its scope."""
-        self._token_gate = gate
+    def set_token_policy(self, policy: TokenPolicy | None) -> None:
+        """Checks every call made with a personal access token, after its scope, and runs the
+        token's changes."""
+        self._token_policy = policy
 
     async def require_plugin(self, ctx: Ctx, plugin_id: str | None) -> None:
         """Raises `plugins.not_installed` for a plugin the ctx user has not installed, for data
@@ -245,22 +261,27 @@ class Registry:
             raise AppError("common.not_found", 404)
         if ctx.user is None and not cap.public:
             raise AppError("common.unauthenticated", 401)
-        if ctx.auth is not None and ctx.auth.kind == "pat":
+        policy = self._token_policy
+        token = ctx.auth if ctx.auth is not None and ctx.auth.kind == "pat" else None
+        if token is not None:
             # Personal access tokens are for MCP clients: only capabilities exposed to MCP,
             # and the read scope can only call read capabilities.
             if "mcp" not in cap.expose:
                 raise AppError("auth.token_scope", 403)
-            if cap.effect != "read" and "write" not in ctx.auth.scopes:
+            if cap.effect != "read" and "write" not in token.scopes:
                 raise AppError("auth.token_scope", 403, required="write")
-            if self._token_gate is not None:
-                await self._token_gate(ctx, cap)
+            if policy is not None:
+                await policy.check(ctx, cap)
         gate = self._plugin_gate
         if cap.plugin_id is not None and gate is not None and cap.plugin_id not in await gate(ctx):
             raise AppError("plugins.not_installed", 403, plugin_id=cap.plugin_id)
         inp = await self.validate(ctx, cap, raw_args, surface)
         outer, ctx.surface = ctx.surface, surface
         try:
-            out = await cap.handler(ctx, inp)
+            if token is not None and policy is not None and cap.effect != "read":
+                out = await policy.write(ctx, cap, inp, lambda: cap.handler(ctx, inp))
+            else:
+                out = await cap.handler(ctx, inp)
         finally:
             ctx.surface = outer
         if surface == "http":

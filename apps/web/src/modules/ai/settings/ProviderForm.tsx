@@ -11,6 +11,7 @@ import { ChoiceControl } from '@/app/settings'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import type { AiPurpose } from '@/hooks/use-ai-status'
 import { COLLAPSE } from '@/lib/collapse'
+import { docsUrl } from '@/lib/docs'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { cn } from '@/lib/utils'
@@ -157,13 +158,29 @@ export function AddProviderFlow({
       <>
         <Header title={m.ai_provider_add()} description={m.ai_provider_pick()} />
         <PresetPicker onPick={setPreset} />
+        <p className="text-sm text-muted-foreground">
+          {m.ai_provider_pick_guide()}{' '}
+          <a
+            href={docsUrl('ai/providers')}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            {m.ai_provider_pick_guide_link()}
+            <ArrowUpRight aria-hidden className="size-3.5" />
+          </a>
+        </p>
       </>
     )
   }
   return (
     <>
       <Header
-        title={m.ai_provider_connect({ name: preset.name() })}
+        title={
+          preset.kind === null
+            ? m.ai_provider_connect_custom()
+            : m.ai_provider_connect({ name: preset.name() })
+        }
         description={m.ai_provider_save_note()}
         logo={preset.logo}
       />
@@ -236,9 +253,10 @@ function ProviderForm({
     let provider: Provider
     const body = {
       kind,
-      // Named after the service ("DeepSeek"), not the protocol, unless the user names it.
+      // Named after the service ("DeepSeek") unless the user names it; an endpoint of its own
+      // after its type ("OpenAI-compatible"), in the user's language.
       display_name:
-        name.trim() || (preset.kind === kind && info.needsBaseUrl ? preset.name() : null),
+        name.trim() || (preset.kind === kind && info.needsBaseUrl ? preset.name() : info.name()),
       base_url: info.needsBaseUrl ? baseUrl.trim() : null,
       api_key: apiKey.trim() || null,
       capabilities: info.chooseCapabilities ? capabilities : null,

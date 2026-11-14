@@ -6426,6 +6426,38 @@ export type LocalModels = {
 };
 
 /**
+ * McpChangeList
+ */
+export type McpChangeList = {
+    /**
+     * Items
+     */
+    items: Array<McpChangeOut>;
+};
+
+/**
+ * McpChangeOut
+ */
+export type McpChangeOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Capability
+     */
+    capability: string;
+    /**
+     * Target
+     */
+    target: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
  * Meeting
  */
 export type Meeting = {
@@ -8282,9 +8314,9 @@ export type ProviderCreateInputBody = {
     /**
      * Display Name
      *
-     * Name shown in the list; defaults to the type.
+     * Name shown in the list (the client names an unnamed one after its type).
      */
-    display_name?: string | null;
+    display_name: string;
     /**
      * Base Url
      *
@@ -12526,9 +12558,9 @@ export type ProviderCreateInputBodyWritable = {
     /**
      * Display Name
      *
-     * Name shown in the list; defaults to the type.
+     * Name shown in the list (the client names an unnamed one after its type).
      */
-    display_name?: string | null;
+    display_name: string;
     /**
      * Base Url
      *
@@ -14524,6 +14556,38 @@ export type AgentAttachmentSaveResponses = {
 };
 
 export type AgentAttachmentSaveResponse = AgentAttachmentSaveResponses[keyof AgentAttachmentSaveResponses];
+
+export type AgentMcpChangeListData = {
+    body?: never;
+    path: {
+        /**
+         * Token Id
+         *
+         * Id of the API token whose changes to list
+         */
+        token_id: string;
+    };
+    query?: never;
+    url: '/agent/tokens/{token_id}/changes';
+};
+
+export type AgentMcpChangeListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AgentMcpChangeListError = AgentMcpChangeListErrors[keyof AgentMcpChangeListErrors];
+
+export type AgentMcpChangeListResponses = {
+    /**
+     * Successful Response
+     */
+    200: McpChangeList;
+};
+
+export type AgentMcpChangeListResponse = AgentMcpChangeListResponses[keyof AgentMcpChangeListResponses];
 
 export type AgentMemoryClearData = {
     body?: never;

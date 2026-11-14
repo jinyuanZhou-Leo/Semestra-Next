@@ -591,7 +591,10 @@ async def test_gemini_bad_key_message(ai: Ai, mock: respx.MockRouter):
         )
     )
     body = await ai.call(
-        "POST", "/ai/providers", 400, json={"kind": "gemini", "api_key": "bad-key-0000000"}
+        "POST",
+        "/ai/providers",
+        400,
+        json={"kind": "gemini", "display_name": "Gemini", "api_key": "bad-key-0000000"},
     )
     assert body["error"]["params"] == {"reason": "ai.invalid_key"}
 

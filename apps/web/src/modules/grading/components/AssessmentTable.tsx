@@ -43,10 +43,13 @@ import { type AssessmentFilter, matchesFilter } from '../filter'
 import {
   ASSESSMENT_ACTIONS,
   ASSESSMENT_COLUMNS,
+  ASSESSMENT_IMPORT_SOURCES,
   type AssessmentAction,
   type AssessmentColumn,
+  type AssessmentImportSource,
 } from '../types'
 import type { WhatIf } from '../whatif'
+import { useImportSource } from './AddMenu'
 import { AssessmentDialog } from './AssessmentDialog'
 import {
   type AssessmentRow,
@@ -79,6 +82,35 @@ function fromSorting(sorting: SortingState): SortPref {
  * forecast as its hint. `filter` and `search` narrow the rows; the toolbar above holds them.
  * Outside plan mode rows have checkboxes, and the toolbar acts on the checked ones.
  */
+/** A course without assessments, offering the source that can fill it (a syllabus). */
+function EmptyGradebook({ programId, courseId }: { programId: string; courseId: string }) {
+  const sources = useExtensions<AssessmentImportSource>(ASSESSMENT_IMPORT_SOURCES)
+  const suggested = sources.find((s) => s.emptyAction)
+  const { run, pending } = useImportSource(programId, courseId)
+  return (
+    <Empty className="border-0 p-0">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <ClipboardList aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle>{m.grading_assessments_empty()}</EmptyTitle>
+      </EmptyHeader>
+      {suggested?.emptyAction ? (
+        <EmptyContent>
+          <Button
+            variant="link"
+            size="sm"
+            disabled={pending}
+            onClick={() => void run(suggested)}
+          >
+            {suggested.emptyAction()}
+          </Button>
+        </EmptyContent>
+      ) : null}
+    </Empty>
+  )
+}
+
 export function AssessmentTable({
   programId,
   courseId,
@@ -270,14 +302,7 @@ export function AssessmentTable({
               {assessments.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={columnCount} className="whitespace-normal">
-                    <Empty className="border-0 p-0">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon">
-                          <ClipboardList aria-hidden />
-                        </EmptyMedia>
-                        <EmptyTitle>{m.grading_assessments_empty()}</EmptyTitle>
-                      </EmptyHeader>
-                    </Empty>
+                    <EmptyGradebook programId={programId} courseId={courseId} />
                   </TableCell>
                 </TableRow>
               ) : data.length === 0 ? (

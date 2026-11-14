@@ -18,33 +18,13 @@ import { invalidateGrading } from '../queries'
 import { ASSESSMENT_IMPORT_SOURCES, type AssessmentImportSource } from '../types'
 
 /**
- * The gradebook's "Add": an assessment by hand, or from the sources other modules contribute
- * (a syllabus's grading scheme, LMS assignments). Without sources it is a plain button.
+ * Runs an import source on a course: the assessments it brings back are created in one call
+ * (a source that commits on its own, like a syllabus, brings back none). Also used by the empty
+ * gradebook's suggested source.
  */
-export function AddMenu({
-  programId,
-  courseId,
-  onAdd,
-}: {
-  programId: string
-  courseId: string
-  onAdd: () => void
-}) {
+export function useImportSource(programId: string, courseId: string) {
   const queryClient = useQueryClient()
-  const sources = useExtensions<AssessmentImportSource>(ASSESSMENT_IMPORT_SOURCES)
-  useQueries({
-    queries: sources.flatMap((s) => (s.query ? [s.query({ programId, courseId })] : [])),
-  })
   const add = useMutation({ ...gradingAssessmentCreateManyMutation(), onError: toastError })
-
-  if (sources.length === 0) {
-    return (
-      <Button size="sm" onClick={onAdd}>
-        <Plus aria-hidden />
-        {m.grading_assessment_add()}
-      </Button>
-    )
-  }
   const run = async (source: AssessmentImportSource) => {
     try {
       const drafts = await source.launch({ programId, courseId })
@@ -59,9 +39,39 @@ export function AddMenu({
       toastError(error)
     }
   }
+  return { run, pending: add.isPending }
+}
+
+/**
+ * The gradebook's "Add": an assessment by hand, or from the sources other modules contribute
+ * (a syllabus's grading scheme, LMS assignments). Without sources it is a plain button.
+ */
+export function AddMenu({
+  programId,
+  courseId,
+  onAdd,
+}: {
+  programId: string
+  courseId: string
+  onAdd: () => void
+}) {
+  const sources = useExtensions<AssessmentImportSource>(ASSESSMENT_IMPORT_SOURCES)
+  useQueries({
+    queries: sources.flatMap((s) => (s.query ? [s.query({ programId, courseId })] : [])),
+  })
+  const { run, pending } = useImportSource(programId, courseId)
+
+  if (sources.length === 0) {
+    return (
+      <Button size="sm" onClick={onAdd}>
+        <Plus aria-hidden />
+        {m.grading_assessment_add()}
+      </Button>
+    )
+  }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button size="sm" disabled={add.isPending} />}>
+      <DropdownMenuTrigger render={<Button size="sm" disabled={pending} />}>
         <Plus aria-hidden />
         {m.grading_add()}
         <ChevronDown aria-hidden data-icon="inline-end" />

@@ -44,6 +44,14 @@ const brand =
 
 export const PRESETS: readonly ProviderPreset[] = [
   {
+    id: 'gemini',
+    name: brand('Google Gemini'),
+    note: m.ai_preset_gemini_note,
+    logo: geminiLogo,
+    kind: 'gemini',
+    keyUrl: 'https://aistudio.google.com/apikey',
+  },
+  {
     id: 'anthropic',
     name: brand('Anthropic'),
     note: m.ai_preset_anthropic_note,
@@ -58,14 +66,6 @@ export const PRESETS: readonly ProviderPreset[] = [
     logo: openaiLogo,
     kind: 'openai',
     keyUrl: 'https://platform.openai.com/api-keys',
-  },
-  {
-    id: 'gemini',
-    name: brand('Google Gemini'),
-    note: m.ai_preset_gemini_note,
-    logo: geminiLogo,
-    kind: 'gemini',
-    keyUrl: 'https://aistudio.google.com/apikey',
   },
   {
     id: 'deepseek',
