@@ -227,8 +227,7 @@ function ConnectionStatus({ client, tokenId }: { client: McpClient; tokenId: str
   const used = Boolean(tokens.data?.items.find((t) => t.id === tokenId)?.last_used_at)
   const name = client.name
   return (
-    <p
-      role="status"
+    <output
       key={used ? 'used' : 'waiting'}
       className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground animate-in fade-in-0 duration-200 motion-reduce:animate-none"
     >
@@ -246,7 +245,7 @@ function ConnectionStatus({ client, tokenId }: { client: McpClient; tokenId: str
             ? m.assistant_mcp_waiting({ client: name })
             : m.assistant_mcp_waiting_any()}
       </span>
-    </p>
+    </output>
   )
 }
 

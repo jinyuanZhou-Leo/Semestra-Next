@@ -73,6 +73,12 @@ test('connecting a client creates a token named after it and fills it into the c
   expect(await screen.findByText(/claude mcp add --transport http semestra/)).toHaveTextContent(
     'Authorization: Bearer spat_SECRET',
   )
+  // It says connected once the client has used the token.
+  expect(screen.getByText('Waiting for Claude Code to connect…')).toBeInTheDocument()
+  items[0] = { ...token, last_used_at: '2026-11-08T00:01:00Z' } as typeof token
+  expect(
+    await screen.findByText('Claude Code is connected', undefined, { timeout: 5000 }),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Done' }))
   await waitFor(() => expect(screen.queryByText(/spat_SECRET/)).not.toBeInTheDocument())
   expect(await screen.findByText('Claude Code')).toBeInTheDocument() // listed by its prefix only
@@ -149,4 +155,40 @@ test('revoking a connection asks for confirmation first', async () => {
   const dialog = await screen.findByRole('alertdialog')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }))
   await waitFor(() => expect(revoked).toHaveBeenCalledWith('t1'))
+})
+
+test('a connection that can write lists what it changed; a read-only one has nothing to list', async () => {
+  server.use(
+    http.get(`${API}/account/tokens`, () =>
+      HttpResponse.json({
+        items: [
+          token,
+          { ...token, id: 't2', name: 'Cursor', prefix: 'spat_XyZ', scopes: ['read', 'write'] },
+        ],
+      }),
+    ),
+    http.get(`${API}/agent/tokens/t2/changes`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: 'c1',
+            capability: 'grading.assessment.update',
+            target: ['Lab 3'],
+            created_at: '2026-11-08T00:02:00Z',
+          },
+        ],
+      }),
+    ),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'Actions for Claude Code' }))
+  expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: 'Recent changes' })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Actions for Cursor' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Recent changes' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('Update an assessment')).toBeInTheDocument()
+  expect(within(dialog).getByText('Lab 3')).toBeInTheDocument()
 })

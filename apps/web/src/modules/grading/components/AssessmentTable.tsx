@@ -97,12 +97,7 @@ function EmptyGradebook({ programId, courseId }: { programId: string; courseId: 
       </EmptyHeader>
       {suggested?.emptyAction ? (
         <EmptyContent>
-          <Button
-            variant="link"
-            size="sm"
-            disabled={pending}
-            onClick={() => void run(suggested)}
-          >
+          <Button variant="link" size="sm" disabled={pending} onClick={() => void run(suggested)}>
             {suggested.emptyAction()}
           </Button>
         </EmptyContent>
