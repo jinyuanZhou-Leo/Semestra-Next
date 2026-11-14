@@ -2603,6 +2603,159 @@
         }
       }
     },
+    "/account/authorizations/approve": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Let an app connect.",
+        "description": "Approves the request with the chosen access and returns where to send the browser. Needs a recent sign-in. Not available to agents.",
+        "operationId": "accountAuthorizationApprove",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizationApproveInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/authorizations/deny": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Turn down an app's request to connect.",
+        "description": "Returns where to send the browser: back to the app, told the user said no. Not available to agents.",
+        "operationId": "accountAuthorizationDeny",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizationRequestInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationAnswer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/authorizations/request": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Describe an app's request to connect.",
+        "description": "What the consent page shows: the app, where it returns and the access it may get. Not available to agents.",
+        "operationId": "accountAuthorizationGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The `request` parameter of the consent page",
+              "title": "Request"
+            },
+            "description": "The `request` parameter of the consent page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationRequestOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/me:delete": {
       "post": {
         "tags": [
@@ -20323,6 +20476,103 @@
           "status"
         ],
         "title": "AuthResult"
+      },
+      "AuthorizationAnswer": {
+        "properties": {
+          "redirect_url": {
+            "type": "string",
+            "title": "Redirect Url",
+            "description": "Send the browser here: back to the app"
+          }
+        },
+        "type": "object",
+        "required": [
+          "redirect_url"
+        ],
+        "title": "AuthorizationAnswer"
+      },
+      "AuthorizationApproveInputBody": {
+        "properties": {
+          "request": {
+            "type": "string",
+            "maxLength": 8192,
+            "title": "Request",
+            "description": "The `request` parameter of the consent page"
+          },
+          "scopes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Scopes",
+            "description": "`read`, or `read` and `write`: what the app may do"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request",
+          "scopes"
+        ],
+        "title": "AuthorizationApproveInputBody"
+      },
+      "AuthorizationRequestInputBody": {
+        "properties": {
+          "request": {
+            "type": "string",
+            "maxLength": 8192,
+            "title": "Request",
+            "description": "The `request` parameter of the consent page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "title": "AuthorizationRequestInputBody"
+      },
+      "AuthorizationRequestOut": {
+        "properties": {
+          "client_name": {
+            "type": "string",
+            "title": "Client Name",
+            "description": "The app's name, as it calls itself"
+          },
+          "redirect_host": {
+            "type": "string",
+            "title": "Redirect Host",
+            "description": "Where the browser returns after the answer"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local",
+            "description": "The app runs on this computer (a localhost redirect)"
+          },
+          "scopes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write"
+              ]
+            },
+            "type": "array",
+            "title": "Scopes",
+            "description": "The access levels the user may choose from"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_name",
+          "redirect_host",
+          "local",
+          "scopes"
+        ],
+        "title": "AuthorizationRequestOut"
       },
       "BindingSetInputBody": {
         "properties": {
@@ -38319,13 +38569,30 @@
             "type": "string",
             "title": "Id"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "token",
+              "oauth"
+            ],
+            "title": "Kind",
+            "description": "`token`: pasted into the client; `oauth`: the client signed in"
+          },
           "name": {
             "type": "string",
             "title": "Name"
           },
           "prefix": {
-            "type": "string",
-            "title": "Prefix"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix",
+            "description": "Start of a pasted token; none for OAuth"
           },
           "scopes": {
             "items": {
@@ -38376,6 +38643,7 @@
         "type": "object",
         "required": [
           "id",
+          "kind",
           "name",
           "prefix",
           "scopes",
@@ -38408,13 +38676,30 @@
             "type": "string",
             "title": "Id"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "token",
+              "oauth"
+            ],
+            "title": "Kind",
+            "description": "`token`: pasted into the client; `oauth`: the client signed in"
+          },
           "name": {
             "type": "string",
             "title": "Name"
           },
           "prefix": {
-            "type": "string",
-            "title": "Prefix"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix",
+            "description": "Start of a pasted token; none for OAuth"
           },
           "scopes": {
             "items": {
@@ -38460,6 +38745,7 @@
         "type": "object",
         "required": [
           "id",
+          "kind",
           "name",
           "prefix",
           "scopes",
