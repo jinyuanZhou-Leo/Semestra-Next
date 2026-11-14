@@ -158,18 +158,15 @@ export function AddProviderFlow({
       <>
         <Header title={m.ai_provider_add()} description={m.ai_provider_pick()} />
         <PresetPicker onPick={setPreset} />
-        <p className="text-sm text-muted-foreground">
-          {m.ai_provider_pick_guide()}{' '}
-          <a
-            href={docsUrl('ai/providers')}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            {m.ai_provider_pick_guide_link()}
-            <ArrowUpRight aria-hidden className="size-3.5" />
-          </a>
-        </p>
+        <a
+          href={docsUrl('ai/providers')}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex w-fit items-center gap-0.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          {m.ai_provider_pick_guide()}
+          <ArrowUpRight aria-hidden className="size-3.5" />
+        </a>
       </>
     )
   }

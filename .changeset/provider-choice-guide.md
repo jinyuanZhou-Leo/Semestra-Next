@@ -5,6 +5,6 @@
 
 <!-- area: ai -->
 <!-- en -->
-Clearer guidance when choosing a model provider.
+Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
 <!-- zh -->
-选择模型服务商时提供更清楚的指引。
+添加模型服务商时可直接查看文档，未命名的兼容接口按界面语言命名。

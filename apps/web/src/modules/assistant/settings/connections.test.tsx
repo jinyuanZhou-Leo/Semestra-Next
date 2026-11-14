@@ -13,7 +13,15 @@ afterAll(() => server.close())
 
 const url = 'https://semestra.example/mcp'
 
-const token = {
+const token: {
+  id: string
+  name: string
+  prefix: string
+  scopes: string[]
+  created_at: string
+  last_used_at: string | null
+  expires_at: string | null
+} = {
   id: 't1',
   name: 'Claude Code',
   prefix: 'spat_AbC',
@@ -75,7 +83,7 @@ test('connecting a client creates a token named after it and fills it into the c
   )
   // It says connected once the client has used the token.
   expect(screen.getByText('Waiting for Claude Code to connect…')).toBeInTheDocument()
-  items[0] = { ...token, last_used_at: '2026-11-08T00:01:00Z' } as typeof token
+  items[0] = { ...token, last_used_at: '2026-11-08T00:01:00Z' }
   expect(
     await screen.findByText('Claude Code is connected', undefined, { timeout: 5000 }),
   ).toBeInTheDocument()
