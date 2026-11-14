@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { Suspense, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
-import { useSettingsDialog } from '@/app/settings'
+import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useAiStatus } from '@/hooks/use-ai-status'
 import { useCopy } from '@/hooks/use-copy'
