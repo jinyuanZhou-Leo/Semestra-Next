@@ -1,5 +1,82 @@
 # @semestra/web
 
+## 2.0.0-beta.10
+
+### Minor Changes
+
+- 76adef9: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+  <!-- zh -->
+  Canvas 页面更易阅读，标题和表格更清晰；单元一眼就能看到完成进度。
+- fa5dbbf: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Page headers take less room, leaving more space for content.
+  <!-- zh -->
+  页面顶部更紧凑，内容区有更多空间。
+
+### Patch Changes
+
+- 363075e: <!-- area: canvas -->
+  <!-- en -->
+  After a course is linked to a different Canvas course, the previous course's content no longer shows.
+  <!-- zh -->
+  课程改绑到另一门 Canvas 课程后，不再显示原课程的内容。
+- b52c221: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  The Clear selection button shows its Esc shortcut.
+  <!-- zh -->
+  “取消选择”按钮上直接显示 Esc 快捷键。
+- f4f3825: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+  <!-- zh -->
+  界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The sign-in page loads faster.
+  <!-- zh -->
+  登录页加载更快。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  Checking rows in the gradebook responds right away.
+  <!-- zh -->
+  成绩册勾选行的响应更快。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  With grades hidden, revealing a chart no longer changes the card's height.
+  <!-- zh -->
+  隐藏成绩时，悬停显示图表不再改变卡片高度。
+- c786d14: <!-- area: grades -->
+  <!-- en -->
+  Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+  <!-- zh -->
+  隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。
+- 80f7b4e: <!-- area: courses -->
+  <!-- en -->
+  After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+  <!-- zh -->
+  删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+  <!-- zh -->
+  收起侧边栏、打开 Sem 面板或调整窗口大小时，页面停留在原来的滚动位置。
+- 363075e: <!-- area: courses -->
+  <!-- en -->
+  A term that was just created opens from its link instead of returning to the Program.
+  <!-- zh -->
+  刚创建的学期可以直接从链接打开，不再回到 Program 页。
+- 353431a: <!-- area: canvas -->
+  <!-- en -->
+  The sidebar status lines now animate smoothly when their state changes.
+  <!-- zh -->
+  侧边栏状态行在状态切换时会平滑过渡。
+- @semestra/api-client@2.0.0-beta.10
+
 ## 2.0.0-beta.9
 
 ### Minor Changes

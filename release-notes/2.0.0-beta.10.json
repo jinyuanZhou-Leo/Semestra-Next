@@ -1,0 +1,115 @@
+{
+  "version": "2.0.0-beta.10",
+  "date": "2026-11-14",
+  "level": "minor",
+  "items": [
+    {
+      "kind": "improved",
+      "area": "general",
+      "en": "Page headers take less room, leaving more space for content.",
+      "zh": "页面顶部更紧凑，内容区有更多空间。"
+    },
+    {
+      "kind": "improved",
+      "area": "courses",
+      "en": "The Clear selection button shows its Esc shortcut.",
+      "zh": "“取消选择”按钮上直接显示 Esc 快捷键。"
+    },
+    {
+      "kind": "improved",
+      "area": "canvas",
+      "en": "Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.",
+      "zh": "Canvas 页面更易阅读，标题和表格更清晰；单元一眼就能看到完成进度。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Performance improvements.",
+      "zh": "性能优化。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.",
+      "zh": "界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "The sign-in page loads faster.",
+      "zh": "登录页加载更快。"
+    },
+    {
+      "kind": "fixed",
+      "area": "general",
+      "en": "The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.",
+      "zh": "收起侧边栏、打开 Sem 面板或调整窗口大小时，页面停留在原来的滚动位置。"
+    },
+    {
+      "kind": "fixed",
+      "area": "sem",
+      "en": "Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.",
+      "zh": "用 @ 引用的文件计入存储空间；同一对话里再次引用同一文件不再额外占用。"
+    },
+    {
+      "kind": "fixed",
+      "area": "courses",
+      "en": "After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.",
+      "zh": "删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。"
+    },
+    {
+      "kind": "fixed",
+      "area": "courses",
+      "en": "A term that was just created opens from its link instead of returning to the Program.",
+      "zh": "刚创建的学期可以直接从链接打开，不再回到 Program 页。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "Checking rows in the gradebook responds right away.",
+      "zh": "成绩册勾选行的响应更快。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "With grades hidden, revealing a chart no longer changes the card's height.",
+      "zh": "隐藏成绩时，悬停显示图表不再改变卡片高度。"
+    },
+    {
+      "kind": "fixed",
+      "area": "grades",
+      "en": "Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.",
+      "zh": "隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "After a course is linked to a different Canvas course, the previous course's content no longer shows.",
+      "zh": "课程改绑到另一门 Canvas 课程后，不再显示原课程的内容。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "Ignored assignments no longer reappear in courses with many assignments.",
+      "zh": "作业很多的课程里，已忽略的作业不会再次出现。"
+    },
+    {
+      "kind": "fixed",
+      "area": "canvas",
+      "en": "The sidebar status lines now animate smoothly when their state changes.",
+      "zh": "侧边栏状态行在状态切换时会平滑过渡。"
+    },
+    {
+      "kind": "fixed",
+      "area": "data",
+      "en": "Restoring an older backup keeps your Hide grades setting.",
+      "zh": "恢复旧版备份时会保留“隐藏成绩”设置。"
+    },
+    {
+      "kind": "fixed",
+      "area": "self-hosting",
+      "en": "LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.",
+      "zh": "LMS 同步改由专属的任务进程执行（`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`），上传和导入不再排在它后面。"
+    }
+  ]
+}
