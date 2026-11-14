@@ -191,16 +191,23 @@ class AgentSuggestions(Base, OwnedMixin):
 
 
 class AgentMcpChange(Base, OwnedMixin):
-    """A change an MCP client made with one of the user's API tokens (M12 §5): what the
-    connection's "Recent changes" lists. Kept for `mcp_changes.RETENTION`."""
+    """A change an MCP client made with one of the user's API tokens (M12 §5): what "Recent
+    changes" lists. Kept for `mcp_changes.RETENTION` whatever happens to the token: the record
+    matters most after a connection is revoked."""
 
     __tablename__ = "agent_mcp_changes"
-    __table_args__ = (Index("ix_agent_mcp_changes_token_created", "token_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_agent_mcp_changes_user_created", "user_id", "created_at"),
+        Index("ix_agent_mcp_changes_token_created", "token_id", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    token_id: Mapped[str] = mapped_column(
-        String, ForeignKey("auth_personal_access_tokens.id", ondelete="CASCADE")
+    # Cleared when the token row is deleted (30 days after it is revoked or expires).
+    token_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("auth_personal_access_tokens.id", ondelete="SET NULL")
     )
+    # The connection's name when the change was made, shown once the token is gone.
+    client: Mapped[str] = mapped_column(String)
     capability: Mapped[str] = mapped_column(String)
     # The names of what it changed, as the chat shows them (`display.labels`); may be empty.
     target: Mapped[list[str]] = mapped_column(JSON, default=list)

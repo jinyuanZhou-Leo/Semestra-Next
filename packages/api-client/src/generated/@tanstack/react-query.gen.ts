@@ -1396,14 +1396,14 @@ export const agentAttachmentSaveMutation = (options?: Partial<Options<AgentAttac
     return mutationOptions;
 };
 
-export const agentMcpChangeListQueryKey = (options: Options<AgentMcpChangeListData>) => createQueryKey('agentMcpChangeList', options);
+export const agentMcpChangeListQueryKey = (options?: Options<AgentMcpChangeListData>) => createQueryKey('agentMcpChangeList', options);
 
 /**
- * List what an MCP client changed.
+ * List what MCP clients changed.
  *
- * The latest changes made with one API token, newest first (kept for 90 days). Not for agents.
+ * The latest changes made with the user's API tokens, newest first, optionally for one token (kept for 90 days, revoked tokens included). Not for agents.
  */
-export const agentMcpChangeListOptions = (options: Options<AgentMcpChangeListData>) => queryOptions<AgentMcpChangeListResponse, AgentMcpChangeListError, AgentMcpChangeListResponse, ReturnType<typeof agentMcpChangeListQueryKey>>({
+export const agentMcpChangeListOptions = (options?: Options<AgentMcpChangeListData>) => queryOptions<AgentMcpChangeListResponse, AgentMcpChangeListError, AgentMcpChangeListResponse, ReturnType<typeof agentMcpChangeListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await agentMcpChangeList({
             ...options,

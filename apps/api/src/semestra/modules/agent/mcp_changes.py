@@ -1,6 +1,8 @@
 """What MCP clients changed (M12 §5): every write made with an API token is recorded in the same
-transaction, by the registry's token policy, so REST calls with a token count too. A connection's
-"Recent changes" lists them; the UI names the action by its capability title."""
+transaction, by the registry's token policy, so REST calls with a token count too. "Recent
+changes" lists them for the account (filterable by connection) and keeps them for `RETENTION`
+whatever happens to the token: a revoked connection's changes stay listed under its name. The UI
+names the action by its capability title."""
 
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
@@ -15,6 +17,7 @@ from semestra.core.context import Ctx
 from semestra.core.jobs import periodic
 from semestra.modules.agent import display, service
 from semestra.modules.agent.models import AgentMcpChange
+from semestra.modules.auth import service as auth_service
 
 log = structlog.get_logger()
 
@@ -41,6 +44,7 @@ class McpTokenPolicy:
     ) -> Any:
         token_id = ctx.auth.token_id if ctx.auth is not None else None
         assert token_id is not None
+        client = await auth_service.token_name(ctx, token_id) or ""
         target = await _target(ctx, cap, inp.model_dump(mode="json"))
         out = await run()
         own = display.named(out.model_dump(mode="json") if isinstance(out, BaseModel) else out)
@@ -50,6 +54,7 @@ class McpTokenPolicy:
             AgentMcpChange(
                 user_id=ctx.user_id,
                 token_id=token_id,
+                client=client,
                 capability=cap.name,
                 target=target,
                 created_at=ctx.now,
@@ -69,11 +74,16 @@ async def cleanup(ctx: Ctx) -> None:
 
 
 class McpChangeListInput(BaseModel):
-    token_id: str = Field(description="Id of the API token whose changes to list")
+    token_id: str | None = Field(
+        default=None, description="Only the changes made with this API token"
+    )
 
 
 class McpChangeOut(BaseModel):
     id: str
+    # None once the token row is gone; `client` still names the connection.
+    token_id: str | None
+    client: str
     capability: str
     target: list[str]
     created_at: datetime
@@ -85,26 +95,33 @@ class McpChangeList(BaseModel):
 
 @capability(
     name="agent.mcp_change.list",
-    summary="List what an MCP client changed.",
+    summary="List what MCP clients changed.",
     description=(
-        "The latest changes made with one API token, newest first (kept for 90 days). "
-        "Not for agents."
+        "The latest changes made with the user's API tokens, newest first, optionally for one "
+        "token (kept for 90 days, revoked tokens included). Not for agents."
     ),
     effect="read",
-    http=Http("GET", "/agent/tokens/{token_id}/changes"),
+    http=Http("GET", "/agent/mcp-changes"),
     expose=("http",),
     tags=("agent",),
 )
 async def list_changes(ctx: Ctx, inp: McpChangeListInput) -> McpChangeList:
+    query = select(AgentMcpChange).where(AgentMcpChange.user_id == ctx.user_id)
+    if inp.token_id is not None:
+        query = query.where(AgentMcpChange.token_id == inp.token_id)
     rows = await ctx.db.scalars(
-        select(AgentMcpChange)
-        .where(AgentMcpChange.user_id == ctx.user_id, AgentMcpChange.token_id == inp.token_id)
-        .order_by(AgentMcpChange.created_at.desc(), AgentMcpChange.id.desc())
-        .limit(LIST_LIMIT)
+        query.order_by(AgentMcpChange.created_at.desc(), AgentMcpChange.id.desc()).limit(LIST_LIMIT)
     )
     return McpChangeList(
         items=[
-            McpChangeOut(id=r.id, capability=r.capability, target=r.target, created_at=r.created_at)
+            McpChangeOut(
+                id=r.id,
+                token_id=r.token_id,
+                client=r.client,
+                capability=r.capability,
+                target=r.target,
+                created_at=r.created_at,
+            )
             for r in rows
         ]
     )

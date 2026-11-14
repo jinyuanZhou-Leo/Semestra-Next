@@ -1417,11 +1417,11 @@ export const agentAttachmentSave = <ThrowOnError extends boolean = false>(option
 });
 
 /**
- * List what an MCP client changed.
+ * List what MCP clients changed.
  *
- * The latest changes made with one API token, newest first (kept for 90 days). Not for agents.
+ * The latest changes made with the user's API tokens, newest first, optionally for one token (kept for 90 days, revoked tokens included). Not for agents.
  */
-export const agentMcpChangeList = <ThrowOnError extends boolean = false>(options: Options<AgentMcpChangeListData, ThrowOnError>): RequestResult<AgentMcpChangeListResponses, AgentMcpChangeListErrors, ThrowOnError> => (options.client ?? client).get<AgentMcpChangeListResponses, AgentMcpChangeListErrors, ThrowOnError>({
+export const agentMcpChangeList = <ThrowOnError extends boolean = false>(options?: Options<AgentMcpChangeListData, ThrowOnError>): RequestResult<AgentMcpChangeListResponses, AgentMcpChangeListErrors, ThrowOnError> => (options?.client ?? client).get<AgentMcpChangeListResponses, AgentMcpChangeListErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: 'semestra_session',
@@ -1431,7 +1431,7 @@ export const agentMcpChangeList = <ThrowOnError extends boolean = false>(options
             scheme: 'bearer',
             type: 'http'
         }],
-    url: '/agent/tokens/{token_id}/changes',
+    url: '/agent/mcp-changes',
     ...options
 });
 

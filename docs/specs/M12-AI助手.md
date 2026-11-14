@@ -107,7 +107,7 @@ agent_preferences
 - 使用官方 `mcp` Python SDK 的 Streamable HTTP 传输，挂载在 FastAPI `/mcp`。
 - 认证：`Authorization: Bearer spat_…`（M01 PAT）；不接受 Cookie。
 - **tools**：`registry.list(expose='mcp', user)`，PAT 作用域为 `read` 时只列出 read 工具；工具名同 3.2 规则。write 工具在 MCP 下直接执行（外部客户端自带确认机制），destructive 工具需要 PAT 同时具备 `write` 作用域且在设置中开启"允许 MCP 执行删除类操作"（`agent_preferences.mcp_allow_destructive`，默认关闭）。这条由 agent 模块用 `registry.set_token_policy` 注册（`mcp_changes.McpTokenPolicy`），在 `registry.invoke` 里对令牌的每次调用检查（令牌直接调 REST 接口也一样）；MCP 的工具列表只是按同样的规则过滤显示。
-- **修改记录**：同一个策略在令牌的每次 write/destructive 调用时，和修改同一事务写一行 `agent_mcp_changes`（令牌、能力名、对象名称 `target`）。名称用 Sem 对话步骤同一套 `display.labels`，在执行前读出（删掉的对象也有名字），再补上返回对象自己的名称；读名称失败只让这一行没有名称。保留 90 天（每日 `agent.mcp_changes.cleanup`），随令牌删除级联删除；不随备份导出。`agent.mcp_change.list`（`GET /agent/tokens/{token_id}/changes`，仅 HTTP）返回最近 100 条。设置里读写连接的「⋯ → 最近更改」显示它，操作名用 `capability_<名称>_title`。
+- **修改记录**：同一个策略在令牌的每次 write/destructive 调用时，和修改同一事务写一行 `agent_mcp_changes`（令牌、当时的连接名称 `client`、能力名、对象名称 `target`）。名称用 Sem 对话步骤同一套 `display.labels`，在执行前读出（删掉的对象也有名字），再补上返回对象自己的名称；读名称失败只让这一行没有名称。保留 90 天（每日 `agent.mcp_changes.cleanup`），与令牌的生命周期无关：撤销后照常列出，令牌行 30 天后被删除时 `token_id` 置空，靠 `client` 显示名称；不随备份导出。`agent.mcp_change.list`（`GET /agent/mcp-changes`，可选 `token_id` 筛选，仅 HTTP）返回最近 100 条。设置的「客户端与 API 令牌」标题行有「最近更改」（有记录时才显示，按连接筛选，包括已撤销的连接），读写连接的「⋯ → 最近更改」打开时筛选到该连接；操作名用 `capability_<名称>_title`。
 - **连接状态**：「新建连接」最后一步每 3 秒读一次令牌列表，令牌有了 `last_used_at`（第一次请求就会写入）就显示“已连接”，否则显示“等待连接”。
 - **prompts**：每个 skill 作为一个 MCP prompt（name = skill name，内容为 skill 正文）。
 - **resources**：`semestra://programs`、`semestra://terms/{id}`、`semestra://courses/{id}` 只读概要。

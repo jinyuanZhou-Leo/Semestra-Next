@@ -3606,13 +3606,13 @@
         }
       }
     },
-    "/agent/tokens/{token_id}/changes": {
+    "/agent/mcp-changes": {
       "get": {
         "tags": [
           "agent"
         ],
-        "summary": "List what an MCP client changed.",
-        "description": "The latest changes made with one API token, newest first (kept for 90 days). Not for agents.",
+        "summary": "List what MCP clients changed.",
+        "description": "The latest changes made with the user's API tokens, newest first, optionally for one token (kept for 90 days, revoked tokens included). Not for agents.",
         "operationId": "agentMcpChangeList",
         "security": [
           {
@@ -3625,14 +3625,21 @@
         "parameters": [
           {
             "name": "token_id",
-            "in": "path",
-            "required": true,
+            "in": "query",
+            "required": false,
             "schema": {
-              "type": "string",
-              "description": "Id of the API token whose changes to list",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the changes made with this API token",
               "title": "Token Id"
             },
-            "description": "Id of the API token whose changes to list"
+            "description": "Only the changes made with this API token"
           }
         ],
         "responses": {
@@ -29056,6 +29063,21 @@
             "type": "string",
             "title": "Id"
           },
+          "token_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Id"
+          },
+          "client": {
+            "type": "string",
+            "title": "Client"
+          },
           "capability": {
             "type": "string",
             "title": "Capability"
@@ -29076,6 +29098,8 @@
         "type": "object",
         "required": [
           "id",
+          "token_id",
+          "client",
           "capability",
           "target",
           "created_at"

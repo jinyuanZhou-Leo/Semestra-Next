@@ -1,4 +1,4 @@
-"""agent: what MCP clients changed with an API token (a connection's "Recent changes")
+"""agent: what MCP clients changed with an API token ("Recent changes")
 
 Revision ID: 0049
 Revises: 0048
@@ -26,18 +26,22 @@ def upgrade() -> None:
     op.create_table(
         "agent_mcp_changes",
         sa.Column("id", sa.String(), nullable=False),
-        sa.Column("token_id", sa.String(), nullable=False),
+        sa.Column("token_id", sa.String(), nullable=True),
+        sa.Column("client", sa.String(), nullable=False),
         sa.Column("capability", sa.String(), nullable=False),
         sa.Column("target", sa.JSON(), nullable=False),
         sa.Column("created_at", semestra.core.db.UTCDateTime(timezone=True), nullable=False),
         sa.Column("user_id", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["token_id"], ["auth_personal_access_tokens.id"], ondelete="CASCADE"
+            ["token_id"], ["auth_personal_access_tokens.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(["user_id"], ["auth_users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
     with op.batch_alter_table("agent_mcp_changes", schema=None) as batch_op:
+        batch_op.create_index(
+            "ix_agent_mcp_changes_user_created", ["user_id", "created_at"], unique=False
+        )
         batch_op.create_index(
             "ix_agent_mcp_changes_token_created", ["token_id", "created_at"], unique=False
         )
@@ -52,6 +56,7 @@ def downgrade() -> None:
     with op.batch_alter_table("agent_mcp_changes", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_agent_mcp_changes_user_id"))
         batch_op.drop_index("ix_agent_mcp_changes_token_created")
+        batch_op.drop_index("ix_agent_mcp_changes_user_created")
 
     op.drop_table("agent_mcp_changes")
     # ### end Alembic commands ###

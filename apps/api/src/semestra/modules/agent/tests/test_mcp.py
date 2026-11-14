@@ -121,14 +121,16 @@ async def test_changes_made_with_a_token_are_listed(app: FastAPI, agent: Agent):
     )
     assert r.status_code == 200
 
-    changes = (await agent.call("GET", f"/agent/tokens/{token_id}/changes"))["items"]
-    assert [(c["capability"], c["target"]) for c in changes] == [
-        ("grading.assessment.delete_many", ["APS105H1", "Lab 3"]),
-        ("grading.assessment.update", ["Lab 3"]),
-    ]
     # The user's own changes in the app are not a client's.
     await agent.call("PATCH", f"/courses/{course['id']}", json={"title": "Programming I"})
-    assert len((await agent.call("GET", f"/agent/tokens/{token_id}/changes"))["items"]) == 2
+    # Revoking the connection keeps what it changed, under its name.
+    await agent.call("DELETE", f"/account/tokens/{token_id}")
+    for path in ("/agent/mcp-changes", f"/agent/mcp-changes?token_id={token_id}"):
+        changes = (await agent.call("GET", path))["items"]
+        assert [(c["client"], c["capability"], c["target"]) for c in changes] == [
+            ("Claude", "grading.assessment.delete_many", ["APS105H1", "Lab 3"]),
+            ("Claude", "grading.assessment.update", ["Lab 3"]),
+        ]
 
 
 async def test_prompts_are_skills_and_resources_summarize(app: FastAPI, agent: Agent):

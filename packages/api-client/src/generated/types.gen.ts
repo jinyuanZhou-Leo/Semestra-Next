@@ -6444,6 +6444,14 @@ export type McpChangeOut = {
      */
     id: string;
     /**
+     * Token Id
+     */
+    token_id: string | null;
+    /**
+     * Client
+     */
+    client: string;
+    /**
      * Capability
      */
     capability: string;
@@ -14559,16 +14567,16 @@ export type AgentAttachmentSaveResponse = AgentAttachmentSaveResponses[keyof Age
 
 export type AgentMcpChangeListData = {
     body?: never;
-    path: {
+    path?: never;
+    query?: {
         /**
          * Token Id
          *
-         * Id of the API token whose changes to list
+         * Only the changes made with this API token
          */
-        token_id: string;
+        token_id?: string | null;
     };
-    query?: never;
-    url: '/agent/tokens/{token_id}/changes';
+    url: '/agent/mcp-changes';
 };
 
 export type AgentMcpChangeListErrors = {

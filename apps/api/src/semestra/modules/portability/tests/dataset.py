@@ -309,6 +309,7 @@ async def populate(
             AgentMcpChange(
                 **u,
                 token_id=token.id,
+                client="Claude Desktop",
                 capability="tasks.item.create",
                 target=["Read"],
                 created_at=NOW,

@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { AuthContext } from '@/modules/auth/useAuth'
 import { API, apiError, renderWithRouter, server, user } from '@/test-utils'
+import { SectionFrame } from '@/app/settings/SettingsSections'
 import { ConnectionsSection } from './ConnectionsSection'
 import { mcpSetup } from './mcp-clients'
 
@@ -31,14 +32,37 @@ const token: {
   expires_at: null,
 }
 
-function mount() {
+type Change = {
+  id: string
+  token_id: string | null
+  client: string
+  capability: string
+  target: string[]
+  created_at: string
+}
+
+function mount(changes: Change[] = []) {
   server.use(
+    http.get(`${API}/agent/mcp-changes`, ({ request }) => {
+      const tokenId = new URL(request.url).searchParams.get('token_id')
+      return HttpResponse.json({
+        items: changes.filter((c) => tokenId === null || c.token_id === tokenId),
+      })
+    }),
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
   )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut: async () => {} }}>
-      <ConnectionsSection />
+      <SectionFrame
+        section={{
+          id: 'api-mcp',
+          level: 'account',
+          order: 0,
+          title: () => 'Clients',
+          component: ConnectionsSection,
+        }}
+      />
     </AuthContext.Provider>,
   )
 }
@@ -165,7 +189,7 @@ test('revoking a connection asks for confirmation first', async () => {
   await waitFor(() => expect(revoked).toHaveBeenCalledWith('t1'))
 })
 
-test('a connection that can write lists what it changed; a read-only one has nothing to list', async () => {
+test('recent changes list every connection, revoked ones by name, and narrow to one', async () => {
   server.use(
     http.get(`${API}/account/tokens`, () =>
       HttpResponse.json({
@@ -175,28 +199,28 @@ test('a connection that can write lists what it changed; a read-only one has not
         ],
       }),
     ),
-    http.get(`${API}/agent/tokens/t2/changes`, () =>
-      HttpResponse.json({
-        items: [
-          {
-            id: 'c1',
-            capability: 'grading.assessment.update',
-            target: ['Lab 3'],
-            created_at: '2026-11-08T00:02:00Z',
-          },
-        ],
-      }),
-    ),
   )
-  mount()
+  const change = { capability: 'grading.assessment.update', created_at: '2026-11-08T00:02:00Z' }
+  mount([
+    { ...change, id: 'c2', token_id: 't2', client: 'Cursor', target: ['Lab 3'] },
+    { ...change, id: 'c1', token_id: null, client: 'Old laptop', target: ['Lab 2'] },
+  ])
+  // A read-only connection cannot change anything.
   await userEvent.click(await screen.findByRole('button', { name: 'Actions for Claude Code' }))
   expect(await screen.findByRole('menuitem', { name: 'Revoke' })).toBeInTheDocument()
   expect(screen.queryByRole('menuitem', { name: 'Recent changes' })).not.toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
 
+  await userEvent.click(screen.getByRole('button', { name: 'Recent changes' }))
+  let dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('Old laptop · Lab 2')).toBeInTheDocument()
+  expect(within(dialog).getByText('Cursor · Lab 3')).toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
   await userEvent.click(screen.getByRole('button', { name: 'Actions for Cursor' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Recent changes' }))
-  const dialog = await screen.findByRole('dialog')
-  expect(await within(dialog).findByText('Update an assessment')).toBeInTheDocument()
-  expect(within(dialog).getByText('Lab 3')).toBeInTheDocument()
+  dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText('Lab 3')).toBeInTheDocument()
+  expect(within(dialog).queryByText(/Lab 2/)).not.toBeInTheDocument()
 })

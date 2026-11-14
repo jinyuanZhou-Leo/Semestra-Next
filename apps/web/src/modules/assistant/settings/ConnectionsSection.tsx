@@ -3,7 +3,6 @@ import {
   accountTokenListOptions,
   accountTokenListQueryKey,
   accountTokenRevokeMutation,
-  agentMcpChangeListOptions,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
@@ -22,7 +21,7 @@ import { Button } from '@/ui/button'
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { AddConnectionDialog, ClientTile } from './AddConnectionDialog'
-import { ChangesDialog } from './ChangesDialog'
+import { ChangesDialog, changesOptions } from './ChangesDialog'
 import { clientOfToken } from './mcp-clients'
 
 type RowActions = {
@@ -136,13 +135,15 @@ export function ConnectionsSection() {
   const tokens = useQuery(accountTokenListOptions())
   const [adding, setAdding] = useState(false)
   const revoking = useDialogTarget<{ id: string; name: string }>()
-  const changes = useDialogTarget<{ id: string; name: string }>()
+  // Whether "Recent changes" has anything once no connection can write (revoked ones' changes).
+  const allChanges = useQuery(changesOptions(null))
+  const changes = useDialogTarget<{ tokenId: string | null }>()
   const actions: RowActions = {
     revoke: (t) => revoking.show({ id: t.id, name: t.name }),
-    showChanges: (t) => changes.show({ id: t.id, name: t.name }),
-    prepareChanges: (t) =>
-      void queryClient.prefetchQuery(agentMcpChangeListOptions({ path: { token_id: t.id } })),
+    showChanges: (t) => changes.show({ tokenId: t.id }),
+    prepareChanges: (t) => void queryClient.prefetchQuery(changesOptions(t.id)),
   }
+  const items = tokens.data?.items ?? []
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
   const revoke = useMutation({
@@ -156,6 +157,20 @@ export function ConnectionsSection() {
 
   return (
     <>
+      <SectionAction>
+        {items.some((t) => t.scopes.includes('write')) || allChanges.data?.items.length ? (
+          <Button size="sm" variant="outline" onClick={() => changes.show({ tokenId: null })}>
+            <History aria-hidden />
+            {m.assistant_mcp_changes()}
+          </Button>
+        ) : null}
+        {items.length > 0 ? (
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus aria-hidden />
+            {m.assistant_mcp_add()}
+          </Button>
+        ) : null}
+      </SectionAction>
       <AsyncBoundary
         query={tokens}
         isEmpty={(page) => page.items.length === 0}
@@ -178,12 +193,6 @@ export function ConnectionsSection() {
       >
         {(page) => (
           <RowActionsContext value={actions}>
-            <SectionAction>
-              <Button size="sm" onClick={() => setAdding(true)}>
-                <Plus aria-hidden />
-                {m.assistant_mcp_add()}
-              </Button>
-            </SectionAction>
             <SettingsTable
               label={m.auth_account_tokens_title()}
               data={page.items}
@@ -195,7 +204,7 @@ export function ConnectionsSection() {
         )}
       </AsyncBoundary>
       <AddConnectionDialog open={adding} onOpenChange={setAdding} url={url} />
-      <ChangesDialog {...changes.props} target={changes.target} />
+      <ChangesDialog {...changes.props} target={changes.target} tokens={items} />
       <ConfirmDialog
         {...revoking.props}
         title={m.auth_account_tokens_revoke_title()}
