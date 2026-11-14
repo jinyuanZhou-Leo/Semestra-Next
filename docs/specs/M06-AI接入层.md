@@ -101,7 +101,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 全局 Hook：`useAiStatus(purpose)`（含 `block`：不能用的原因）与 `useAiGate(purpose)`：一处判断，按原因给一句话和一个出口——没连服务商（「连接服务商」）、当前模型做不了（例如读图片，「选择模型」）、服务商出错（密钥无效、余额不足、连不上：「检查服务商」，用设置地址的 `item=<服务商 id>` 直接打开那个服务商的编辑框）。前两种挡住入口；服务商出错**不挡**：它可能已经过去（一次网络抖动），下一次成功的调用就会清掉它，所以只在入口旁说一句、仍然可以开始，真失败了再由 `useProviderProblem` 在失败的地方说明。服务商的健康状态（`last_error_code`）变化时后端发 `ai.provider.updated`，前端立刻重读状态。状态接口 `ai.status.get` 每项给 `reason`（`no_provider`/`unsupported`）和 `provider_error`（服务商最近一次调用的 `ai.invalid_key`/`ai.out_of_credit`/`ai.provider_unreachable`）。对话框以外的入口用 `<AiRequired purpose>` 包裹：入口**保持可见但置灰**，旁边直接一行字和链接（不藏在悬停里）；对话框里的 AI 任务第一步用 `<AiGate purpose>`，不可用时整块换成原因与按钮，不让用户先上传；服务商出错时同样一行放在这一步上方，下面照常可用。任务因服务商的问题失败时用 `useProviderProblem(purpose, code)` 给出同样的说法与「检查服务商」。
 - **UI 规则（所有模块的 AI 界面遵守）**：
   1. **入口在原有流程里**：例如学期向导“导入”菜单中的“从 syllabus 导入”、课程设置里的“从文件识别”、成绩页“添加考核”旁的“从 syllabus 导入”。不做浮动聊天气泡，不在首页放大号 AI 入口。
-  2. **结果就地回填**：单个表单的 AI 结果直接填进表单字段（被填充的字段短暂高亮，字段旁有小的“出处”标记，可一键恢复原值），用户点保存即确认，不弹额外确认框；批量、多对象的导入才进入 M08 审核界面。
+  2. **结果先核对再写入**：多对象的导入进入 M08 审核界面；单个对象的字段（如课程信息）用核对对话框逐项列出旧值 → 新值，可逐项取消，确认前不写入。核对界面的提交就是确认，不再追加确认框。不把 AI 结果直接填进表单（2026-11-14 决定，原先的“就地回填”`useAiFill`/`AiFieldMark` 没有功能使用，已删除）。
   3. **助手是被唤起的**：`Cmd/Ctrl+J`、侧边栏底部入口或命令面板“问 AI”打开，默认不展开。
   4. **AI 动作**：用 `<AiAction>`（见 M00 4.7.1），外观与动画沿用 bid-analysis-agent（运行时扫光、完成时对勾光圈；owner 2026-10-21 决定，取代原先「不用发光/扫光」的约定）；不使用渐变底色和彩色边框；空状态不放营销文案。
   5. **进度低调**：进度只显示在按钮内或侧边栏状态条里，不弹模态对话框；完成时一次短暂的对勾反馈；失败用行内提示加“重试”，不用全屏错误页。
@@ -151,7 +151,7 @@ async def available(ctx, purpose) -> bool            # 前端/其它模块判断
 - 新增环境变量已同步到 `deploy/.env.example` 与自部署 compose。
 
 **前端**
-- 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（`useAiGate`、`useProviderProblem`、`AiRequired`、`AiGate`，见 §7）、`hooks/use-ai-fill.ts` + `components/AiFieldMark.tsx`（AI 回填表单：字段短暂高亮 2 秒、旁边的小标记显示出处页码与原文、一键恢复原值；用户改动字段后标记消失）。
+- 全局：`hooks/use-ai-status.ts`（`useAiStatus(purpose)`、`AI_SETTINGS_LINK`）、`components/AiRequired.tsx`（`useAiGate`、`useProviderProblem`、`AiRequired`、`AiGate`，见 §7）。
 - 模块 `modules/ai/`：账户设置「AI」小标题下三个分组（页面）`ai-providers`、`ai-models`、`ai-usage`，各放同名分区；onboarding 步骤 `ai.connect`（复用添加提供方表单）。兼容端点与 Ollama 在添加时可填一个模型名，自动分配给当时还不可用的对话类用途。
 - 用量明细表用 TanStack Table v9；图表用 shadcn chart（Recharts）按用途堆叠的柱状图，悬停用 `ChartTooltipContent`（`wrapperStyle` 的 z-index 让它压住图例），图例 `itemSorter={null}` 保持堆叠顺序，颜色用 `chart-1..5` 令牌并让相邻层深浅交替；按周的柱子从用户的每周第一天开始；`by_day` 与各分组行带 `cost_complete`，部分调用无价格时显示「至少」。
 - `ui/table.tsx` 是**临时手写**的 shadcn table（shadcn registry 在云端不可达），待 shadcn CLI 全量安装的 PR 合入后以 CLI 版本替换。

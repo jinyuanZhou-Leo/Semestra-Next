@@ -166,7 +166,7 @@ async def create_provider(ctx: Ctx, inp: ProviderCreateInput) -> Provider:
     row = AiProvider(
         user_id=ctx.user_id,
         kind=inp.kind,
-        display_name=(inp.display_name or "").strip() or _default_name(inp.kind),
+        display_name=inp.display_name,
         base_url=base_url,
         api_key_encrypted=encrypt(ctx.settings, key) if key else None,
         key_hint=mask(key) if key else None,
@@ -183,18 +183,6 @@ async def create_provider(ctx: Ctx, inp: ProviderCreateInput) -> Provider:
     await events.publish(ctx, "ai.provider.created", {"provider_id": row.id})
     await _publish_changes(ctx, before)
     return to_schema(row)
-
-
-def _default_name(kind: str) -> str:
-    return {
-        "anthropic": "Anthropic",
-        "anthropic_compatible": "Anthropic-compatible",
-        "openai": "OpenAI",
-        "openai_compatible": "OpenAI-compatible",
-        "openai_responses": "OpenAI Responses",
-        "gemini": "Gemini",
-        "ollama": "Ollama",
-    }[kind]
 
 
 async def update_provider(ctx: Ctx, inp: ProviderUpdateInput) -> Provider:

@@ -23,7 +23,7 @@ const onboardingSteps: readonly OnboardingStep[] = [
   {
     id: 'ai.connect',
     order: 100,
-    icon: Sparkles,
+    icon: KeyRound,
     title: m.ai_onboarding_title,
     description: m.ai_onboarding_body,
     component: preloadable(() => import('./onboarding/ConnectAiStep')),

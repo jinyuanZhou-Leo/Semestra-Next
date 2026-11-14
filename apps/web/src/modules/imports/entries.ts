@@ -113,6 +113,7 @@ export const syllabusGradingSource: AssessmentImportSource = {
     }),
     m.imports_source_syllabus_grading_description,
   ),
+  emptyAction: m.imports_source_syllabus_grading_empty,
   icon: SOURCES.syllabus.icon,
   launch: async ({ programId, courseId }) => {
     await openImport({

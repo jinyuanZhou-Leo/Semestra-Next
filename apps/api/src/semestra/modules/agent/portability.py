@@ -21,6 +21,7 @@ from semestra.modules.agent import memory
 from semestra.modules.agent.models import (
     AgentAttachment,
     AgentAttachmentPage,
+    AgentMcpChange,
     AgentMemory,
     AgentMessage,
     AgentPreferences,
@@ -92,6 +93,8 @@ ADAPTER = table_adapter(
         Table(AgentPreferences, "preferences", id_column=None, exported=False),
         # The small model's wording of suggested questions: rewritten on the next visit.
         Table(AgentSuggestions, "suggestions", exported=False),
+        # What MCP clients changed with this account's API tokens, which do not travel either.
+        Table(AgentMcpChange, "mcp_changes", exported=False),
         Table(
             AgentMemory,
             "memories",

@@ -1,6 +1,7 @@
 import { Bookmark, KeyRound, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
 import {
   accountTokenListOptions,
+  agentMcpChangeListOptions,
   agentMemoryListOptions,
   agentPreferenceGetOptions,
   agentToolListOptions,
@@ -121,7 +122,12 @@ export default defineModule({
       icon: KeyRound,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.ConnectionsSection }))),
-      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(accountTokenListOptions()),
+      prefetch: (_scope, queryClient) =>
+        Promise.all([
+          queryClient.ensureQueryData(accountTokenListOptions()),
+          // Whether "Recent changes" shows in the header.
+          queryClient.ensureQueryData(agentMcpChangeListOptions()),
+        ]),
     },
     {
       id: 'assistant-mcp',

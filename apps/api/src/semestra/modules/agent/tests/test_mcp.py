@@ -101,6 +101,38 @@ async def test_write_token_and_destructive_preference(app: FastAPI, agent: Agent
     assert (await agent.client.post(url, headers=bearer, json=body)).status_code == 200
 
 
+async def test_changes_made_with_a_token_are_listed(app: FastAPI, agent: Agent):
+    _, course, lab = await agent.course_with_lab()
+    await agent.call("PATCH", "/agent/preferences", json={"mcp_allow_destructive": True})
+    token = await _token(agent, ["read", "write"])
+    token_id = (await agent.call("GET", "/account/tokens"))["items"][0]["id"]
+    async with _connector(app)(token) as mcp:
+        await mcp.call_tool("academics__program__list", {})  # reads are not changes
+        await mcp.call_tool(
+            "grading__assessment__update", {"assessment_id": lab["id"], "score_percentage": 90}
+        )
+        refused = await mcp.call_tool("grading__assessment__update", {"assessment_id": "nope"})
+        assert refused.is_error is True
+    # REST calls with the token count too; a deleted row is still named.
+    r = await agent.client.post(
+        f"/courses/{course['id']}/assessments:delete",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assessment_ids": [lab["id"]]},
+    )
+    assert r.status_code == 200
+
+    # The user's own changes in the app are not a client's.
+    await agent.call("PATCH", f"/courses/{course['id']}", json={"title": "Programming I"})
+    # Revoking the connection keeps what it changed, under its name.
+    await agent.call("DELETE", f"/account/tokens/{token_id}")
+    for path in ("/agent/mcp-changes", f"/agent/mcp-changes?token_id={token_id}"):
+        changes = (await agent.call("GET", path))["items"]
+        assert [(c["client"], c["capability"], c["target"]) for c in changes] == [
+            ("Claude", "grading.assessment.delete_many", ["APS105H1", "Lab 3"]),
+            ("Claude", "grading.assessment.update", ["Lab 3"]),
+        ]
+
+
 async def test_prompts_are_skills_and_resources_summarize(app: FastAPI, agent: Agent):
     program, course, _ = await agent.course_with_lab()
     token = await _token(agent, ["read"])

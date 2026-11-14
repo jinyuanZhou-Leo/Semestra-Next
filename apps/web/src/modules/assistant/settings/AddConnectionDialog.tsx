@@ -1,10 +1,11 @@
 import type { TokenCreated } from '@semestra/api-client'
 import {
   accountTokenCreateMutation,
+  accountTokenListOptions,
   accountTokenListQueryKey,
 } from '@semestra/api-client/react-query'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, Copy, ExternalLink, KeyRound } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, ChevronRight, CircleCheck, Copy, ExternalLink, KeyRound } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
@@ -31,6 +32,7 @@ import {
 import { FieldError, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
+import { Spinner } from '@/ui/spinner'
 import { type ClientId, MCP_CLIENTS, mcpSetup, type McpClient } from './mcp-clients'
 
 const clientName = (client: McpClient) => client.name || m.assistant_mcp_client_other()
@@ -206,6 +208,44 @@ function Finish({ client, url, token }: { client: McpClient; url: string; token:
       </div>
       <p className="text-sm text-muted-foreground">{m.assistant_mcp_hint_manual()}</p>
     </div>
+  )
+}
+
+/** How often the finished step asks whether the client has used its token yet. */
+const WAIT_POLL_MS = 3000
+
+/**
+ * Whether the client has connected: the token's first request sets its last-used time. Asked
+ * while the step is open, until it has.
+ */
+function ConnectionStatus({ client, tokenId }: { client: McpClient; tokenId: string }) {
+  const tokens = useQuery({
+    ...accountTokenListOptions(),
+    refetchInterval: (query) =>
+      query.state.data?.items.find((t) => t.id === tokenId)?.last_used_at ? false : WAIT_POLL_MS,
+  })
+  const used = Boolean(tokens.data?.items.find((t) => t.id === tokenId)?.last_used_at)
+  const name = client.name
+  return (
+    <output
+      key={used ? 'used' : 'waiting'}
+      className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+    >
+      {used ? (
+        <CircleCheck aria-hidden className="size-4 shrink-0 text-success" />
+      ) : (
+        <Spinner className="shrink-0" />
+      )}
+      <span className="truncate">
+        {used
+          ? name
+            ? m.assistant_mcp_connected({ client: name })
+            : m.assistant_mcp_connected_any()
+          : name
+            ? m.assistant_mcp_waiting({ client: name })
+            : m.assistant_mcp_waiting_any()}
+      </span>
+    </output>
   )
 }
 
@@ -406,19 +446,20 @@ export function AddConnectionDialog({
               />
               <Finish client={client} url={url} token={created.token} />
               <DialogFooter className="items-center sm:justify-between">
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="px-0"
-                  nativeButton={false}
-                  render={
-                    // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
-                    <a href={docsUrl(client.docs)} target="_blank" rel="noreferrer noopener" />
-                  }
-                >
-                  {m.assistant_mcp_client_docs()}
-                </Button>
-                <DialogClose render={<Button />}>{m.auth_account_tokens_done()}</DialogClose>
+                <ConnectionStatus client={client} tokenId={created.id} />
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    nativeButton={false}
+                    render={
+                      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+                      <a href={docsUrl(client.docs)} target="_blank" rel="noreferrer noopener" />
+                    }
+                  >
+                    {m.assistant_mcp_client_docs()}
+                  </Button>
+                  <DialogClose render={<Button />}>{m.auth_account_tokens_done()}</DialogClose>
+                </div>
               </DialogFooter>
             </>
           ) : null}

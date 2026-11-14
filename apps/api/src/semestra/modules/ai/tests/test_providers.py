@@ -52,7 +52,10 @@ async def test_create_checks_the_key_and_stores_it_encrypted(
 async def test_bad_key_is_rejected_with_the_reason(ai: Ai, mock: respx.MockRouter):
     mock.get(f"{OPENAI}/models").mock(return_value=Response(401, json={"error": {}}))
     body = await ai.call(
-        "POST", "/ai/providers", 400, json={"kind": "openai", "api_key": OPENAI_KEY}
+        "POST",
+        "/ai/providers",
+        400,
+        json={"kind": "openai", "display_name": "OpenAI", "api_key": OPENAI_KEY},
     )
     assert body["error"]["code"] == "ai.provider_check_failed"
     assert body["error"]["params"] == {"reason": "ai.invalid_key"}
@@ -62,10 +65,11 @@ async def test_bad_key_is_rejected_with_the_reason(ai: Ai, mock: respx.MockRoute
 async def test_required_fields_per_kind(ai: Ai, mock: respx.MockRouter):
     models_ok(mock)
     for body in (
-        {"kind": "anthropic"},
-        {"kind": "openai_compatible"},
-        {"kind": "ollama", "base_url": "ftp://x"},
-        {"kind": "anthropic", "api_key": "k" * 20, "capabilities": ["chat"]},
+        {"kind": "anthropic", "display_name": "A"},
+        {"kind": "anthropic", "display_name": "", "api_key": "k" * 20},
+        {"kind": "openai_compatible", "display_name": "A"},
+        {"kind": "ollama", "display_name": "A", "base_url": "ftp://x"},
+        {"kind": "anthropic", "display_name": "A", "api_key": "k" * 20, "capabilities": ["chat"]},
     ):
         err = await ai.call("POST", "/ai/providers", 422, json=body)
         assert err["error"]["code"] == "common.validation"
@@ -89,7 +93,11 @@ async def test_private_base_url_is_refused(ai: Ai):
         "POST",
         "/ai/providers",
         400,
-        json={"kind": "openai_compatible", "base_url": "http://127.0.0.1:9/v1"},
+        json={
+            "kind": "openai_compatible",
+            "display_name": "A",
+            "base_url": "http://127.0.0.1:9/v1",
+        },
     )
     assert body["error"]["params"] == {"reason": "common.egress_blocked"}
 

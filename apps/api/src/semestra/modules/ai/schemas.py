@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, StringConstraints
 
 from semestra.modules.ai.catalog import ProviderKind
 from semestra.modules.ai.llm import ProviderCapability, Purpose
@@ -34,8 +34,10 @@ class ProviderList(BaseModel):
 
 class ProviderCreateInput(BaseModel):
     kind: ProviderKind = Field(description="Provider type.")
-    display_name: str | None = Field(
-        default=None, max_length=60, description="Name shown in the list; defaults to the type."
+    display_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)
+    ] = Field(
+        description="Name shown in the list (the client names an unnamed one after its type)."
     )
     base_url: str | None = Field(
         default=None,
