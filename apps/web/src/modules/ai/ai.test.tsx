@@ -258,9 +258,22 @@ test('typing over an AI value drops its mark', async () => {
   expect(screen.queryByRole('button', { name: 'Filled by AI: Code' })).not.toBeInTheDocument()
 })
 
+test('a link naming a provider opens its edit dialog, then lets go of it', async () => {
+  world.providers.push(provider())
+  const { router } = renderWithRouter(<ProvidersSection />, undefined, {
+    path: '/',
+    at: '/?settings=account/ai-providers&item=pv1',
+  })
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByRole('heading', { name: 'Edit provider' })).toBeInTheDocument()
+  await waitFor(() =>
+    expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' }),
+  )
+})
+
 test('adding a provider checks the key; a rejected key is explained in the form', async () => {
   const user = userEvent.setup()
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   expect(await screen.findByText('No provider connected yet.')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
@@ -294,7 +307,7 @@ test('adding a provider checks the key; a rejected key is explained in the form'
 
 test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for unserved tasks', async () => {
   const user = userEvent.setup()
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   await user.click(await screen.findByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
   await user.click(within(dialog).getByRole('button', { name: /^Other compatible API/ }))
@@ -328,7 +341,7 @@ test('an OpenAI-compatible endpoint asks for a URL, capabilities and a model for
 
 test('a known service fills in its address, format and model; only the key is asked for', async () => {
   const user = userEvent.setup()
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   await user.click(await screen.findByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
   await user.click(within(dialog).getByRole('button', { name: /^DeepSeek/ }))
@@ -360,7 +373,7 @@ test('a known service fills in its address, format and model; only the key is as
 
 test('a service with two sites asks which one the key is from and saves its default model', async () => {
   const user = userEvent.setup()
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   await user.click(await screen.findByRole('button', { name: 'Add provider' }))
   const dialog = await screen.findByRole('dialog')
   await user.click(within(dialog).getByRole('button', { name: /^Kimi/ }))
@@ -387,7 +400,7 @@ test('a service with two sites asks which one the key is from and saves its defa
 test('a provider row shows name, type and state; its menu tests, switches off and deletes', async () => {
   world.providers.push(provider())
   const user = userEvent.setup()
-  renderWithQuery(
+  renderWithRouter(
     <>
       <ProvidersSection />
       <Toaster />
@@ -429,7 +442,7 @@ test('a provider row shows name, type and state; its menu tests, switches off an
 test('a failing provider names the problem in its badge and explains it on hover', async () => {
   world.providers.push(provider({ last_error_code: 'ai.invalid_key' }))
   const user = userEvent.setup()
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
   await user.hover(within(row).getByText('Key rejected'))
   expect(
@@ -439,14 +452,14 @@ test('a failing provider names the problem in its badge and explains it on hover
 
 test('a provider whose account ran out of money says so in its badge', async () => {
   world.providers.push(provider({ last_error_code: 'ai.out_of_credit' }))
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
   expect(within(row).getByText('Out of credit')).toBeInTheDocument()
 })
 
 test('an error the badge has no word for shows "Error"', async () => {
   world.providers.push(provider({ last_error_code: 'ai.request_rejected' }))
-  renderWithQuery(<ProvidersSection />)
+  renderWithRouter(<ProvidersSection />)
   const row = within(await screen.findByRole('table')).getAllByRole('row')[1]!
   expect(within(row).getByText('Error')).toBeInTheDocument()
 })

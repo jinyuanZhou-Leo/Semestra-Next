@@ -12,10 +12,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import or_, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import OperationalError
 from starlette.datastructures import State
 
+from semestra.core.events import Event, events
 from semestra.modules.ai.adapters.base import Endpoint, ModelInfo
 from semestra.modules.ai.adapters.limits import Gate, Limiters, no_gate
 from semestra.modules.ai.models import AiProvider, AiUsageEvent
@@ -53,23 +54,28 @@ class AiRuntime:
             return no_gate  # the instance provider, unless the server set a limit
         return self._limiters.gate(ep.base_url, ep.provider_id, ep.max_concurrency)
 
-    def _spawn(self, state: State, write: Any, gave_up: Any = None) -> None:
+    def _spawn(self, state: State, write: Any, gave_up: Any = None, saved: Any = None) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # e.g. a stream garbage-collected after the loop stopped
             log.warning("ai_bookkeeping_skipped")
             return
-        task = loop.create_task(self._write(state, write, gave_up))
+        task = loop.create_task(self._write(state, write, gave_up, saved))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _write(self, state: State, write: Any, gave_up: Any = None) -> None:
-        """Runs `write` in its own session; `gave_up()` when it could not be saved."""
+    async def _write(
+        self, state: State, write: Any, gave_up: Any = None, saved: Any = None
+    ) -> None:
+        """Runs `write` in its own session; `gave_up()` when it could not be saved, `await
+        saved()` once it was when `write` returned true."""
         for attempt in range(WRITE_ATTEMPTS):
             try:
                 async with state.session_factory() as db:
-                    await write(db)
+                    changed = await write(db)
                     await db.commit()
+                if changed and saved is not None:
+                    await saved()
                 return
             except OperationalError:  # database locked: the caller still holds the write lock
                 if attempt == WRITE_ATTEMPTS - 1:
@@ -89,13 +95,20 @@ class AiRuntime:
         self._spawn(state, write)
 
     def mark_provider(
-        self, state: State, provider_id: str, *, error_code: str | None, checked_at: datetime
+        self,
+        state: State,
+        provider_id: str,
+        *,
+        user_id: str | None,
+        error_code: str | None,
+        checked_at: datetime,
     ) -> None:
         """Remembers the outcome of calls for the provider card (`ai.invalid_key`, ...). Written
         only when it changes (or every `HEALTH_REFRESH`), not on every call, and without touching
         `updated_at` (which keys the model list cache). The writes run in the background in no
         set order, so one that a later outcome has replaced is skipped, and none replaces a check
-        written later (a test of the provider)."""
+        written later (a test of the provider). A changed outcome is sent as `ai.provider.updated`,
+        so what depends on the provider's health (`ai.status.get`) is read again."""
         last = self._health.get(provider_id)
         if last is not None and last[0] == error_code and checked_at - last[1] < HEALTH_REFRESH:
             return
@@ -106,10 +119,13 @@ class AiRuntime:
             latest = self._health.get(provider_id)
             return latest is not None and latest[2] is not token
 
-        async def write(db: Any) -> None:
+        async def write(db: Any) -> bool:
             if replaced():
-                return
-            await db.execute(
+                return False
+            before = await db.scalar(
+                select(AiProvider.last_error_code).where(AiProvider.id == provider_id)
+            )
+            result = await db.execute(
                 update(AiProvider)
                 .where(
                     AiProvider.id == provider_id,
@@ -127,12 +143,19 @@ class AiRuntime:
             )
             if replaced():  # while it waited for the write lock: the later outcome stands
                 await db.rollback()
+                return False
+            return result.rowcount == 1 and before != error_code  # pyright: ignore[reportAttributeAccessIssue]
+
+        async def saved() -> None:
+            await events.dispatch(
+                state, Event("ai.provider.updated", {"provider_id": provider_id}, user_id)
+            )
 
         def gave_up() -> None:
             if not replaced():  # not saved: the next call with the same outcome writes it
                 self._health.pop(provider_id, None)
 
-        self._spawn(state, write, gave_up)
+        self._spawn(state, write, gave_up, saved)
 
     def forget_provider(self, provider_id: str) -> None:
         """The provider's health was written elsewhere (a test, a new key): the next call writes

@@ -1,5 +1,6 @@
 ---
 "@semestra/web": minor
+"@semestra/api": minor
 ---
 
 <!-- area: imports -->

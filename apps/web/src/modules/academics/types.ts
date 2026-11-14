@@ -66,14 +66,14 @@ export type TermWizardImportSource = {
   id: string
   title: Message
   /** Shown instead of `title` in the menu when the label depends on the Program (M09's platform). */
-  Title?: ComponentType<{ programId: string }>
+  Title?: ComponentType<TermWizardContext>
   /** What `Title` reads, loaded with the wizard so the menu label does not change when opened. */
   // oxlint-disable-next-line no-explicit-any
   query?: (programId: string) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
   description?: Message
-  /** Shown instead of `description`: e.g. where an import from this source stands. */
-  Detail?: ComponentType<{ programId: string }>
+  /** Shown instead of `description`: e.g. where an import from this source for this term stands. */
+  Detail?: ComponentType<TermWizardContext>
   /**
    * What the source needs set up first (a key an onboarding step `provides`, e.g. `ai.vision`,
    * `lms`). Onboarding lists only sources whose needs are met; elsewhere they gate themselves.

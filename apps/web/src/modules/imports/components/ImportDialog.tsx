@@ -1,6 +1,7 @@
-import type { ImportSessionDetail } from '@semestra/api-client'
+import { type ImportSessionDetail, importsSessionDiscard } from '@semestra/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { invalidateOperations } from '@/app/api'
 import { AiGate } from '@/components/AiRequired'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -10,7 +11,7 @@ import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
 import { isReading } from '../status'
 import type { FileImportRequest, ImportOutcome, ImportRequest, ImportSourceKind } from '../types'
-import { matchesKey, requestKey, useUnfinishedImports } from '../unfinished'
+import { isUnfinished, matchesKey, requestKey, useUnfinishedImports } from '../unfinished'
 import { CourseInfoReview } from './CourseInfoReview'
 import { ExtractionDone, SessionView } from './SessionView'
 import { SourcePicker } from './SourcePicker'
@@ -56,12 +57,23 @@ export function ImportDialog({
     request.source === 'session' ? request.sessionId : null,
   )
   const [resolved, setResolved] = useState(request.source === 'session' || key === null)
+  // Picked up from the list rather than started or asked for by id.
+  const [resumed, setResumed] = useState(false)
   if (!resolved && (unfinished.data || unfinished.isError)) {
     setResolved(true)
     const found = key && unfinished.data?.items.find((s) => matchesKey(s, key))
-    if (found) setSessionId(found.id)
+    if (found) {
+      setSessionId(found.id)
+      setResumed(true)
+    }
   }
   const session = useImportSession(sessionId).data
+  // The list can be a moment behind (discarded in another tab or by Sem): one that has ended
+  // since is not picked up, and the entry starts afresh.
+  if (resumed && session && !isUnfinished(session)) {
+    setResumed(false)
+    setSessionId(null)
+  }
   const files = fileRequest(request, session)
   // File and text imports keep their picker (the "Read" progress) until the reading is done and
   // its check has shown; an import opened later on a finished reading goes straight to review.
@@ -94,12 +106,23 @@ export function ImportDialog({
           : null
   const purpose = files ? SOURCES[files.source].purpose : undefined
 
+  // A failure stays waiting until the user has seen it; closing the dialog that shows it is that.
+  const close = (outcome: ImportOutcome) => {
+    if (session?.status === 'failed') {
+      void importsSessionDiscard({ path: { session_id: session.id } }).then(() =>
+        invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList']),
+      )
+    }
+    onClose(outcome)
+  }
+
   // The term wizard waits for the courses, so its imports are not sent to the background
   // (closing still keeps them, and the same source picks them up again).
-  const background = request.mode === 'wizard' ? undefined : () => onClose(null)
+  const background = request.mode === 'wizard' ? undefined : () => close(null)
 
   const started = (detail: ImportSessionDetail) => {
     storeSession(queryClient, detail)
+    setResumed(false)
     setSessionId(detail.id)
   }
 
@@ -114,6 +137,7 @@ export function ImportDialog({
         onStarted={(id) => {
           // Started here: its outcome (a failure too) is said where it was started.
           setWatched(true)
+          setResumed(false)
           setSessionId(id)
         }}
         onFinished={() => setReviewing(true)}
@@ -130,7 +154,7 @@ export function ImportDialog({
     body = (
       <CourseInfoReview
         session={session}
-        onDone={(done) => onClose(done ? { session: done } : null)}
+        onDone={(done) => close(done ? { session: done } : null)}
       />
     )
   } else if (session) {
@@ -140,7 +164,7 @@ export function ImportDialog({
         mode={request.mode}
         className="min-h-0 flex-1"
         onBackground={background}
-        onDone={(done) => onClose(done ? { session: done } : null)}
+        onDone={(done) => close(done ? { session: done } : null)}
       />
     )
   } else if (request.source === 'picker') {
@@ -148,7 +172,7 @@ export function ImportDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose(null)}>
+    <Dialog open onOpenChange={(open) => !open && close(null)}>
       <DialogContent
         className={cn(
           'flex flex-col',

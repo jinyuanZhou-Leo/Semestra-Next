@@ -1,6 +1,11 @@
 """How an import session moves between its states (M08 §3). Every status change goes through
-`move`, so the paths a session can take are listed here and nowhere else."""
+`move`, so the paths a session can take are listed here and nowhere else, and every change is
+announced as `imports.session.<status>` (what lists of imports follow)."""
 
+from typing import Any
+
+from semestra.core.context import Ctx
+from semestra.core.events import events
 from semestra.modules.imports.models import ImportsSession
 from semestra.modules.imports.schemas import SessionStatus
 
@@ -34,7 +39,27 @@ def can_move(current: str, to: SessionStatus) -> bool:
     return to in _NEXT.get(current, frozenset())
 
 
-def move(row: ImportsSession, to: SessionStatus) -> None:
+def event_data(row: ImportsSession) -> dict[str, Any]:
+    return {"session_id": row.id, "program_id": row.program_id, "status": row.status}
+
+
+async def announce(ctx: Ctx, row: ImportsSession, extra: dict[str, Any] | None = None) -> None:
+    """Sends the session's status as `imports.session.<status>` (after commit). A new session
+    sends `imports.session.extracting`."""
+    await events.publish(
+        ctx,
+        f"imports.session.{row.status}",
+        {**event_data(row), **(extra or {})},
+        user_id=row.user_id,
+    )
+
+
+async def move(
+    ctx: Ctx, row: ImportsSession, to: SessionStatus, extra: dict[str, Any] | None = None
+) -> None:
     if not can_move(row.status, to):
         raise InvalidTransition(f"import session {row.id}: {row.status} → {to}")
     row.status = to
+    # `committing` holds the session inside the commit's own transaction: never seen outside.
+    if to != "committing":
+        await announce(ctx, row, extra)

@@ -3,6 +3,7 @@ import { errorMessage } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { weekdayName } from '@/modules/schedule/time'
 import { m } from '@/paraglide/messages'
+import { FIELDS } from './fields'
 import type {
   AssessmentData,
   CategoryData,
@@ -102,10 +103,26 @@ export function itemWeight(item: ImportItem): number | null {
  */
 export const SETTLED = new Set(['import.binds_assessment'])
 
-/** The fields read with less than high confidence, of those given (all when omitted). */
-export function unsureFields(item: ImportItem, fields?: readonly string[]): string[] {
+/** What the review shows of an item: its editor's fields, or the fields a change sets. */
+function shownFields(item: ImportItem): readonly string[] {
+  if (item.type.endsWith('_patch')) {
+    return Object.keys((item.data as { changes?: Record<string, unknown> }).changes ?? {})
+  }
+  return (FIELDS[item.type as keyof typeof FIELDS] ?? []).map((spec) => spec.key)
+}
+
+/**
+ * The values to check (M08 §6.2): fields the review shows that were read with less than high
+ * confidence, of those given (all shown when omitted). The one rule behind the footer's count,
+ * the marks in the table and the editor, and "Looks right", so checking them all ends at zero.
+ */
+export function unsureFields(item: ImportItem, among?: readonly string[]): string[] {
+  const shown = shownFields(item)
   return Object.entries(item.confidence)
-    .filter(([field, level]) => level !== 'high' && (!fields || fields.includes(field)))
+    .filter(
+      ([field, level]) =>
+        level !== 'high' && shown.includes(field) && (!among || among.includes(field)),
+    )
     .map(([field]) => field)
 }
 

@@ -9,7 +9,6 @@ from sqlalchemy import select, update
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
-from semestra.core.events import events
 from semestra.core.storage import delete_after_commit, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.grading import service as grading
@@ -20,7 +19,6 @@ from semestra.modules.imports.schemas import (
     ImportSessionDetail,
 )
 from semestra.modules.imports.service.context import revalidate, target_of, term_dates_of
-from semestra.modules.imports.service.create import event_data
 from semestra.modules.imports.service.rows import detail, for_agent, get_session_row, session_items
 from semestra.modules.imports.service.uploads import session_uploads
 from semestra.modules.imports.states import CLOSED, can_move, move
@@ -480,11 +478,10 @@ async def commit(ctx: Ctx, inp: CommitInput) -> tuple[ImportSessionDetail, dict[
         await hook(ctx, row, created)
     await _file_uploads(ctx, row, c)
 
-    move(row, "committed")
     row.committed_at = row.committed_at or ctx.now
     row.text = None
+    await move(ctx, row, "committed", counts)
     await revalidate(ctx, row, items)
-    await events.publish(ctx, "imports.session.committed", {**event_data(row), **counts})
     failed = {i.id for i in items if i.result and i.result.get("error_code")}
     return await detail(ctx, row, item_ids=failed if for_agent(ctx) else None), counts
 
@@ -512,7 +509,7 @@ async def _claim(ctx: Ctx, row: ImportsSession) -> None:
         # Same status, newer version: an item was edited while this commit was sent. Nothing
         # was written; sending it again commits what the session holds now.
         raise AppError("import.session_changed", 409)
-    move(row, "committing")
+    await move(ctx, row, "committing")
     row.updated_at = ctx.now
 
 

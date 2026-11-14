@@ -1,7 +1,7 @@
 import { lmsSyllabusImport } from '@semestra/api-client'
 import { lmsSyllabusGetOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ScrollText } from 'lucide-react'
+import { CircleAlert, ScrollText } from 'lucide-react'
 import { useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { AiAction } from '@/components/AiAction'
@@ -56,9 +56,13 @@ export function SyllabusImportButton() {
   if (waiting && state) {
     const review = () =>
       void openImport({ ...sessionRequest(waiting), title: m.canvas_tab_syllabus_import })
-    return state.reading ? (
+    return state.reading || state.failed ? (
       <Button variant="outline" onClick={review}>
-        <Spinner aria-hidden />
+        {state.failed ? (
+          <CircleAlert aria-hidden className="text-destructive" />
+        ) : (
+          <Spinner aria-hidden />
+        )}
         {state.text}
       </Button>
     ) : (

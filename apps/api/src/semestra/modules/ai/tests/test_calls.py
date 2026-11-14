@@ -32,6 +32,7 @@ from semestra.modules.ai.tests.conftest import (
     Ai,
     models_ok,
 )
+from semestra.testing import collect_events
 
 PDF = b"%PDF-1.7 fake"
 PNG = b"\x89PNG fake"
@@ -305,15 +306,18 @@ async def test_an_account_without_credit_is_not_retried_and_flags_the_provider(
     models_ok(mock)
     created = await ai.provider("anthropic")
     route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=reply)
-    async with ai.ctx() as ctx:
-        with pytest.raises(AppError) as exc:
-            await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
+    with collect_events(app, ai.user.id) as pushed:
+        async with ai.ctx() as ctx:
+            with pytest.raises(AppError) as exc:
+                await m06.complete(ctx, "chat", [Message.user("hi")], source_module="test")
     assert exc.value.code == "ai.out_of_credit"
     assert route.call_count == 1
     async with app.state.session_factory() as db:  # the provider's card says so
         row = await db.get(AiProvider, created["id"])
         assert row is not None
         assert row.last_error_code == "ai.out_of_credit"
+    # Open pages learn of it at once (the AI status says the provider has a problem).
+    assert {"type": "ai.provider.updated", "data": {"provider_id": created["id"]}} in pushed
 
 
 async def test_a_gemini_quota_429_is_a_rate_limit(ai: Ai, mock: respx.MockRouter):

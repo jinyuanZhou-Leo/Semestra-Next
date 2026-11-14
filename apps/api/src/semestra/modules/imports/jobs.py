@@ -122,14 +122,11 @@ async def _extract_failed(ctx: Ctx, payload: ExtractPayload, job: CoreJob) -> No
     row = await ctx.db.get(ImportsSession, payload.session_id)
     if row is None or row.job_id != job.id or row.status != "extracting":
         return
-    move(row, "failed")
     row.error_code = "import.extraction_failed"
     row.readings = {}
     row.job_id = None
     row.updated_at = ctx.now
-    await events.publish(
-        ctx, "imports.session.failed", service.event_data(row), user_id=row.user_id
-    )
+    await move(ctx, row, "failed")
 
 
 @job_handler(
@@ -151,7 +148,7 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
         for ref in refs:
             ref["status"] = "waiting" if ref.get("file_item_id") in waiting else "pending"
         row.source_refs = refs
-        move(row, "waiting_files")
+        await move(ctx, row, "waiting_files")
         row.job_id = None
         row.updated_at = ctx.now
         # A file that became ready between the check above and this commit sent its event while
@@ -205,19 +202,18 @@ async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
         for item in builder.items:
             if item.type == "course_patch":
                 item.decision = "reject"
-    if builder.items:
-        await service.add_items(ctx, row, builder.items)
-        move(row, "ready")
-    elif course_info and failed == 0:
-        move(row, "up_to_date")  # read fine; the course is up to date
-    else:
-        move(row, "failed")
-        codes = {r.get("error_code") for r in refs}
-        row.error_code = (codes.pop() if len(codes) == 1 else None) or "import.no_content"
-        await service.revalidate(ctx, row, [])
     row.job_id = None
     row.updated_at = ctx.now
-    await events.publish(ctx, f"imports.session.{row.status}", service.event_data(row))
+    if builder.items:
+        await service.add_items(ctx, row, builder.items)
+        await move(ctx, row, "ready")
+    elif course_info and failed == 0:
+        await move(ctx, row, "up_to_date")  # read fine; the course is up to date
+    else:
+        codes = {r.get("error_code") for r in refs}
+        row.error_code = (codes.pop() if len(codes) == 1 else None) or "import.no_content"
+        await move(ctx, row, "failed")
+        await service.revalidate(ctx, row, [])
     return ExtractResult(
         session_id=row.id,
         program_id=row.program_id,
@@ -249,8 +245,8 @@ async def _restart(ctx: Ctx, row: ImportsSession) -> None:
     job = await enqueue(
         ctx, "imports.extract", ExtractPayload(session_id=row.id), dedupe_key=f"extract:{row.id}"
     )
-    move(row, "extracting")
     row.job_id = job.id
+    await move(ctx, row, "extracting")
     row.updated_at = ctx.now
 
 

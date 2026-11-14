@@ -39116,6 +39116,21 @@
             "title": "Type",
             "description": "Turn an assessment item into a task or back"
           },
+          "confirmed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed",
+            "description": "Fields the user checked and kept as read: they are no longer marked uncertain"
+          },
           "only_touched": {
             "type": "boolean",
             "title": "Only Touched",

@@ -942,7 +942,7 @@
   "ai_gate_unsupported_description": "Choose a model that can, or connect another provider.",
   "ai_gate_pick_model": "Choose model",
   "ai_gate_provider_error": "{provider}: {problem}",
-  "ai_gate_provider_error_description": "Fix it in the provider's settings to continue.",
+  "ai_gate_provider_error_description": "The last request didn't go through. You can still start.",
   "ai_gate_check_provider": "Check provider",
   "ai_fill_mark_aria": "Filled by AI: {field}",
   "ai_fill_title": "Filled by AI",
@@ -3266,5 +3266,9 @@
   "imports_unsure_ok": "Looks right",
   "imports_needs_check": "{count} to check",
   "imports_line_ready": "Imports to review · {count}",
-  "imports_line_reading": "Reading imports · {count}"
+  "imports_line_reading": "Reading imports · {count}",
+  "imports_state_failed": "Couldn't read",
+  "imports_line_failed": "Imports not read · {count}",
+  "imports_unsure_count": "Worth a check · {count}",
+  "imports_unsure_all_ok": "All look right"
 }

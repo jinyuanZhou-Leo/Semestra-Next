@@ -18,7 +18,7 @@ from semestra.modules.imports import extraction, service
 from semestra.modules.imports.service import committing
 from semestra.modules.imports.service import rows as session_rows
 from semestra.modules.imports.tests.test_imports_rules import ACORN, ics, vevent
-from semestra.testing import MakeUser, UserHandle
+from semestra.testing import MakeUser, UserHandle, collect_events
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
 
@@ -514,6 +514,63 @@ async def test_wizard_session_commits_after_the_term_exists(
     assert [h["status"] for h in history["items"]] == ["committed"]
     unfinished = await api.call("GET", f"/programs/{program_id}/imports?unfinished=true")
     assert unfinished["items"] == []
+
+
+async def test_a_failed_reading_waits_until_the_user_has_seen_it(
+    api: Api, app: FastAPI, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    me = await api.call("GET", "/account/me")
+    fake_ai.append({})  # nothing to import in it
+    with collect_events(app, me["id"]) as pushed:
+        session = await api.create(
+            program_id, source_kind="text", target={"kind": "term", "term_id": term_id},
+            text="notes",
+        )  # fmt: skip
+        await run_jobs()
+    # Every status is announced, from the start: open pages follow the list without reloading.
+    statuses = [e["data"]["status"] for e in pushed if e["type"].startswith("imports.session.")]
+    assert statuses == ["extracting", "failed"]
+    # Read in the background and failed: still there to come back to, with its reason.
+    unfinished = await api.call("GET", f"/programs/{program_id}/imports?unfinished=true")
+    assert [(s["id"], s["status"]) for s in unfinished["items"]] == [(session["id"], "failed")]
+
+    with collect_events(app, me["id"]) as pushed:
+        await api.call("POST", f"/imports/{session['id']}:discard")
+    assert [e["type"] for e in pushed] == ["imports.session.discarded"]
+    unfinished = await api.call("GET", f"/programs/{program_id}/imports?unfinished=true")
+    assert unfinished["items"] == []
+
+
+async def test_values_kept_as_read_are_no_longer_uncertain(
+    api: Api, fake_ai: list[dict[str, Any]], run_jobs
+):
+    program_id = await api.program()
+    term_id = await api.term(program_id)
+    quiz = {
+        "title": ev("Quiz"),
+        "weight": {**ev(30), "confidence": 0.6},
+        "due_text": {**ev("Week 3"), "confidence": 0.3},
+    }
+    fake_ai.append({"grading": {"assessments": [quiz]}})
+    course = await api.course(program_id, term_id)
+    session = await api.create(
+        program_id, source_kind="text", text="quiz",
+        target={"kind": "course", "course_id": course["id"], "term_id": term_id},
+    )  # fmt: skip
+    await run_jobs()
+    session = await api.call("GET", f"/imports/{session['id']}")
+    (quiz,) = by_type(session, "assessment")
+    # Only what the review shows is marked: the deadline as written is not.
+    assert {k: v for k, v in quiz["confidence"].items() if v != "high"} == {"weight": "medium"}
+    await api.call(
+        "PATCH", f"/imports/{session['id']}/items/{quiz['id']}", json={"confirmed": ["weight"]}
+    )
+    session = await api.call("GET", f"/imports/{session['id']}")
+    (quiz,) = by_type(session, "assessment")
+    assert "weight" not in quiz["confidence"]
+    assert quiz["data"]["weight"] == 30
 
 
 async def test_failed_items_are_retried_alone(api: Api, fake_ai: list[dict[str, Any]], run_jobs):

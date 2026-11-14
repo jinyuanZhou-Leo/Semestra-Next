@@ -14,7 +14,6 @@ from semestra.modules.imports.service.create import (
     add_items,
     add_items_capability,
     create_session,
-    event_data,
     read_upload_bytes,
 )
 from semestra.modules.imports.service.retention import cleanup
@@ -53,7 +52,6 @@ __all__ = [
     "create_session",
     "detail",
     "discard",
-    "event_data",
     "for_agent",
     "get_session_row",
     "get_upload",

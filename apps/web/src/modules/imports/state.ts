@@ -23,32 +23,36 @@ export function importItemCount(session: Pick<ImportSession, 'summary'>): number
   return Object.values(session.summary.counts ?? {}).reduce((sum, n) => sum + n, 0)
 }
 
+export type ImportState = {
+  text: string
+  reading: boolean
+  /** Ended without anything to review, and not seen yet (opening it shows why). */
+  failed: boolean
+  progress: number | null
+}
+
 /**
  * Where an unfinished import stands, in a few words for its entry point and the status line:
- * "Reading · 46%" (or what it waits for), "To review · 12". Null for anything else.
+ * "Reading · 46%" (or what it waits for), "To review · 12", "Couldn't read". Null otherwise.
  */
 export function useImportState(
   session: Pick<ImportSession, 'status' | 'job_id' | 'summary' | 'source_refs'> | undefined,
-): { text: string; reading: boolean; progress: number | null } | null {
+): ImportState | null {
   const reading = isReading(session)
   const job = useJob(reading ? session?.job_id : null)
   if (!session) return null
-  if (session.status === 'waiting_files') {
-    return { text: m.imports_waiting_files(), reading, progress: null }
-  }
+  const state = { reading, failed: false, progress: null }
+  if (session.status === 'waiting_files') return { ...state, text: m.imports_waiting_files() }
   if (reading) {
     const progress = readingProgress(session, job.progress)
     const text = job.waiting
       ? job.stageLabel
       : m.imports_state_reading({ percent: Math.round(progress) })
-    return { text, reading, progress }
+    return { ...state, text, progress }
   }
   if (session.status === 'ready') {
-    return {
-      text: m.imports_state_ready({ count: importItemCount(session) }),
-      reading,
-      progress: null,
-    }
+    return { ...state, text: m.imports_state_ready({ count: importItemCount(session) }) }
   }
+  if (session.status === 'failed') return { ...state, failed: true, text: m.imports_state_failed() }
   return null
 }

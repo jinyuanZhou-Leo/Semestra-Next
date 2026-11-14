@@ -29,7 +29,10 @@ export function AddCoursesMenu({
   trigger: ReactElement
   align?: 'start' | 'center' | 'end'
 }) {
-  const { candidates, sources, continueCourse, importFrom } = useAddCourseOptions(programId, termId)
+  const { candidates, sources, context, continueCourse, importFrom } = useAddCourseOptions(
+    programId,
+    termId,
+  )
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={trigger} />
@@ -70,7 +73,7 @@ export function AddCoursesMenu({
             <ImportSourceItems
               sources={sources}
               onPick={(source) => void importFrom(source)}
-              titleProps={{ programId }}
+              titleProps={context}
             />
           </>
         ) : null}

@@ -97,6 +97,8 @@ export function CourseInfoFill({
   }
 
   const start = (picked: { fileItemIds: string[]; upload: File[] }) => {
+    // Reading again: the failure this row showed has been seen.
+    if (waiting?.status === 'failed') discard.mutate({ path: { session_id: waiting.id } })
     setPickerOpen(false)
     setStartedId(null)
     setStartError(null)
@@ -152,8 +154,8 @@ export function CourseInfoFill({
     note = errorMessage(startError)
   } else if (!waiting && started?.status === 'up_to_date') {
     note = m.imports_up_to_date()
-  } else if (!waiting && started?.status === 'failed') {
-    failedCode = started.error_code ?? 'import.no_content'
+  } else if (session?.status === 'failed') {
+    failedCode = session.error_code ?? 'import.no_content'
     note = errorMessage({ error: { code: failedCode, params: {} } })
   } else if (waiting?.status === 'ready') {
     note = m.imports_status_ready()

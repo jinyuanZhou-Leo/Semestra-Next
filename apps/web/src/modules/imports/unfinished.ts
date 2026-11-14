@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import type { ImportRequest } from './types'
 
 /**
- * Imports the user can still go back to (reading, or read and waiting for review), straight from
- * the server: every entry point, the status line and the dialog derive their state from this one
+ * Imports the user can still go back to (reading, read and waiting for review, or failed and not
+ * seen yet), straight from the server: every entry point, the status line and the dialog derive their state from this one
  * list, so closing a dialog or leaving a page never loses an import (M08 §6.3).
  */
 export function unfinishedImportsOptions(programId: string) {
@@ -34,16 +34,43 @@ function lmsKind(session: ImportSession): string | null {
   return lms?.kind ?? null
 }
 
+/** Still open on the server: what `imports.session.list?unfinished=true` returns. */
+export function isUnfinished(session: Pick<ImportSession, 'status'>): boolean {
+  return ['extracting', 'waiting_files', 'ready', 'failed'].includes(session.status)
+}
+
+const TERM_FIELDS = ['term_id', 'start_date', 'end_date'] as const
+
 export function matchesKey(session: ImportSession, key: ImportKey): boolean {
   const { target } = key
+  const same = (field: keyof SessionTarget) =>
+    (session.target[field] ?? null) === (target[field] ?? null)
   return (
     session.source_kind === key.source &&
     (session.source_meta.only ?? null) === (key.only ?? null) &&
     lmsKind(session) === (key.lms ?? null) &&
     session.target.kind === target.kind &&
-    (target.course_id === undefined || (session.target.course_id ?? null) === target.course_id) &&
-    (target.term_id === undefined || (session.target.term_id ?? null) === target.term_id)
+    (target.course_id === undefined || same('course_id')) &&
+    // A term wizard's import belongs to the term being made: another term (other dates) never
+    // picks it up, so every part of the term's identity has to agree, absent ones too.
+    (target.kind === 'term_wizard'
+      ? TERM_FIELDS.every(same)
+      : target.term_id === undefined || same('term_id'))
   )
+}
+
+/** The term a wizard import is for, as its key's target. */
+export function wizardTarget(context: {
+  termId?: string
+  startDate?: string
+  endDate?: string
+}): ImportKey['target'] {
+  return {
+    kind: 'term_wizard',
+    term_id: context.termId ?? null,
+    start_date: context.startDate ?? null,
+    end_date: context.endDate ?? null,
+  }
 }
 
 /** The unfinished import an entry point would start, if one is waiting. */

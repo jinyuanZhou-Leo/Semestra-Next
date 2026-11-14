@@ -15,7 +15,7 @@ import {
   EmptyTitle,
 } from '@/ui/empty'
 import { FieldError } from '@/ui/field'
-import type { TermWizardImportSource } from '../types'
+import type { TermWizardContext, TermWizardImportSource } from '../types'
 import { CourseRowsTable, type WizardRow } from './CourseRowsTable'
 import { type DraftRow, filledRows, importedRow, newRowKey, rowsInvalid } from './draft'
 
@@ -52,11 +52,12 @@ export function CourseRowsEditor({
   onContinue?: (courseId: string, kept: boolean) => void
 }) {
   const [importing, setImporting] = useState<string | null>(null)
+  const context: TermWizardContext = { programId, startDate, endDate }
 
   const launch = async (source: TermWizardImportSource) => {
     setImporting(source.id)
     try {
-      const drafts = await source.launch({ programId, startDate, endDate })
+      const drafts = await source.launch(context)
       onRowsChange((current) => [
         ...filledRows(current),
         ...drafts.map((d) => importedRow(source.id, d)),
@@ -97,7 +98,7 @@ export function CourseRowsEditor({
           <ImportSourceItems
             sources={sources}
             onPick={(source) => void launch(source)}
-            titleProps={{ programId }}
+            titleProps={context}
           />
         </DropdownMenuContent>
       </DropdownMenu>

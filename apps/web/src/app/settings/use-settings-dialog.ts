@@ -11,11 +11,14 @@ export type SettingsTarget = {
   group?: string
   section?: string
   scope?: string
+  /** One entry of the section to open (a provider's edit dialog); the section clears it. */
+  item?: string
 }
 
 const LEVELS: readonly string[] = ['account', 'program', 'term', 'course']
 const PARAM = 'settings'
 const SCOPE_PARAM = 'scope'
+const ITEM_PARAM = 'item'
 
 type Place = { pathname: string; searchStr: string }
 
@@ -36,6 +39,7 @@ export function setSettingsPrefetcher(fn: (target: SettingsTarget) => void): () 
 export function parseSettingsParam(
   value: string | null,
   scope?: string | null,
+  item?: string | null,
 ): SettingsTarget | undefined {
   const [level, group] = (value ?? '').split('/')
   if (!level || !LEVELS.includes(level)) return undefined
@@ -43,6 +47,7 @@ export function parseSettingsParam(
     level: level as SettingsLevel,
     group: group || undefined,
     scope: (level !== 'account' && scope) || undefined,
+    ...(item ? { item } : {}),
   }
 }
 
@@ -53,13 +58,15 @@ export function settingsHref(place: Place, target?: SettingsTarget): string {
   else params.delete(PARAM)
   if (target?.scope && target.level !== 'account') params.set(SCOPE_PARAM, target.scope)
   else params.delete(SCOPE_PARAM)
+  if (target?.item) params.set(ITEM_PARAM, target.item)
+  else params.delete(ITEM_PARAM)
   const query = params.toString()
   const hash = target?.section ? `#${target.section}` : ''
   return `${place.pathname}${query ? `?${query}` : ''}${hash}`
 }
 
 /**
- * The settings dialog lives in the URL (`?settings=<level>/<group>&scope=<id>#section`) so a link
+ * The settings dialog lives in the URL (`?settings=<level>/<group>&scope=<id>&item=<id>#section`) so a link
  * opens it and Back closes it. Only opening from a closed dialog adds an entry: switching groups or
  * levels, and links inside the dialog that open other settings ("Add a provider" in AI models),
  * replace it, so one Close (or Back) always leaves the dialog instead of stepping to the
@@ -69,7 +76,11 @@ export function useSettingsDialog() {
   const router = useRouter()
   const { pathname, searchStr, state } = useLocation()
   const search = new URLSearchParams(searchStr)
-  const target = parseSettingsParam(search.get(PARAM), search.get(SCOPE_PARAM))
+  const target = parseSettingsParam(
+    search.get(PARAM),
+    search.get(SCOPE_PARAM),
+    search.get(ITEM_PARAM),
+  )
   // Set on the history entry that opened the dialog, so closing goes back instead of stacking.
   const opened = (state as { settingsOpened?: boolean }).settingsOpened === true
   const place = { pathname, searchStr }
@@ -81,7 +92,14 @@ export function useSettingsDialog() {
   }
   const select = (group: string, section?: string) => {
     if (!target) return
-    router.history.replace(settingsHref(place, { ...target, group, section }), {
+    router.history.replace(settingsHref(place, { ...target, group, section, item: undefined }), {
+      settingsOpened: opened,
+    })
+  }
+  /** The section has opened the entry the target named (or it no longer exists). */
+  const clearItem = () => {
+    if (!target?.item) return
+    router.history.replace(settingsHref(place, { ...target, item: undefined }), {
       settingsOpened: opened,
     })
   }
@@ -95,5 +113,5 @@ export function useSettingsDialog() {
   }
   /** For an entry point being hovered or focused: what it opens starts loading. */
   const prepare = (next: SettingsTarget) => prefetcher?.(next)
-  return { target, open, prepare, select, switchTo, close }
+  return { target, open, prepare, select, switchTo, clearItem, close }
 }

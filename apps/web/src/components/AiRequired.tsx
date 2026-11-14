@@ -3,7 +3,6 @@ import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { type AiBlock, type AiPurpose, useAiStatus } from '@/hooks/use-ai-status'
 import { PROVIDER_ERROR_LABEL } from '@/modules/ai/labels'
-import { requestProviderEdit } from '@/modules/ai/provider-request'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/ui/item'
@@ -17,6 +16,11 @@ const ICONS = { no_provider: KeyRound, unsupported: ScanSearch, provider_error: 
 
 export type AiGateState = {
   block: AiBlock
+  /**
+   * Nothing can run until it is fixed. A provider's last reported problem is said but does not
+   * stop anyone: it may have passed (a network blip), and the next call that works clears it.
+   */
+  blocking: boolean
   /** What is missing, as a heading ("Your current model can't read images"). */
   title: string
   /** The one-line form beside a button ("Available once a model provider is connected"). */
@@ -35,22 +39,24 @@ export function useAiGate(purpose: AiPurpose): AiGateState | null {
   const { block, status } = useAiStatus(purpose)
   const settings = useSettingsDialog()
   if (!block) return null
-  const providers = () =>
-    settings.open({ level: 'account', group: 'ai-providers', section: 'ai-providers' })
+  const providers = (item?: string) =>
+    settings.open({ level: 'account', group: 'ai-providers', section: 'ai-providers', item })
   if (block === 'no_provider') {
     return {
       block,
+      blocking: true,
       title: m.ai_gate_no_provider_title(),
       line: m.ai_gate_no_provider_line(),
       description: m.ai_gate_no_provider_description(),
       action: m.ai_gate_connect(),
-      fix: providers,
+      fix: () => providers(),
     }
   }
   if (block === 'unsupported') {
     const title = (UNSUPPORTED[purpose] ?? m.ai_gate_unsupported)()
     return {
       block,
+      blocking: true,
       title,
       line: title,
       description: m.ai_gate_unsupported_description(),
@@ -60,11 +66,9 @@ export function useAiGate(purpose: AiPurpose): AiGateState | null {
   }
   return {
     block,
+    blocking: false,
     ...providerProblem(status?.provider_name ?? '', status?.provider_error ?? ''),
-    fix: () => {
-      if (status?.provider_id) requestProviderEdit(status.provider_id)
-      providers()
-    },
+    fix: () => providers(status?.provider_id ?? undefined),
   }
 }
 
@@ -95,10 +99,13 @@ export function useProviderProblem(
   return {
     title,
     action,
-    fix: () => {
-      if (status?.provider_id) requestProviderEdit(status.provider_id)
-      settings.open({ level: 'account', group: 'ai-providers', section: 'ai-providers' })
-    },
+    fix: () =>
+      settings.open({
+        level: 'account',
+        group: 'ai-providers',
+        section: 'ai-providers',
+        item: status?.provider_id ?? undefined,
+      }),
   }
 }
 
@@ -116,7 +123,7 @@ export function AiRequired({
 }) {
   const gate = useAiGate(purpose)
   const { pending } = useAiStatus(purpose)
-  const available = !gate && !pending
+  const available = !gate?.blocking && !pending
   const content =
     typeof children === 'function'
       ? children({ available })
@@ -139,12 +146,25 @@ export function AiRequired({
 
 /**
  * The first step of an AI task in a dialog (an import): when the feature can't run, says why in
- * one row with its way out instead of the step, so nothing is picked or uploaded first. Without
- * a `purpose` (nothing to ask, or no longer) it is just its children.
+ * one row with its way out instead of the step, so nothing is picked or uploaded first. A
+ * provider's last problem is the same row above the step, which stays usable. Without a
+ * `purpose` (nothing to ask, or no longer) it is just its children.
  */
 export function AiGate({ purpose, children }: { purpose?: AiPurpose; children: ReactNode }) {
-  const gate = useAiGate(purpose ?? 'extraction')
-  if (!purpose || !gate) return children
+  const found = useAiGate(purpose ?? 'extraction')
+  const gate = purpose ? found : null
+  const row = gate ? <GateRow gate={gate} /> : null
+  if (gate?.blocking) return row
+  // The same shape with or without the row, so the step keeps its state when the row goes.
+  return (
+    <>
+      {row}
+      {children}
+    </>
+  )
+}
+
+function GateRow({ gate }: { gate: AiGateState }) {
   const Icon = ICONS[gate.block]
   return (
     <Item variant="muted" className="rounded-2xl">
@@ -156,7 +176,9 @@ export function AiGate({ purpose, children }: { purpose?: AiPurpose; children: R
         <ItemDescription>{gate.description}</ItemDescription>
       </ItemContent>
       <ItemActions>
-        <Button onClick={gate.fix}>{gate.action}</Button>
+        <Button variant={gate.blocking ? 'default' : 'outline'} onClick={gate.fix}>
+          {gate.action}
+        </Button>
       </ItemActions>
     </Item>
   )

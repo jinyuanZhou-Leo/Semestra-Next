@@ -21,12 +21,22 @@ const courseInfoFill: CourseInfoFill = {
   ),
 }
 
+/** Every status a session moves to is announced (M08 §3): new ones too, and discarded ones. */
 const SESSION_EVENTS = [
+  'imports.session.extracting',
+  'imports.session.waiting_files',
   'imports.session.ready',
   'imports.session.up_to_date',
   'imports.session.failed',
   'imports.session.committed',
+  'imports.session.discarded',
 ] as const
+
+/** The session that moved, and the lists of sessions. */
+const ofSession = (data: Readonly<Record<string, unknown>>) => [
+  { _id: 'importsSessionGet', path: { session_id: String(data.session_id) } },
+  'importsSessionList',
+]
 
 /**
  * M08 导入中心: import sessions from ICS files, syllabi, timetable screenshots and pasted text,
@@ -74,7 +84,5 @@ export default defineModule({
     [MEETING_IMPORT_SOURCES]: [meetingSource('ics'), meetingSource('timetable_image')],
     [COURSE_INFO_FILLS]: [courseInfoFill],
   },
-  realtimeInvalidations: Object.fromEntries(
-    SESSION_EVENTS.map((event) => [event, ['importsSessionGet', 'importsSessionList']]),
-  ),
+  realtimeInvalidations: Object.fromEntries(SESSION_EVENTS.map((event) => [event, [ofSession]])),
 })

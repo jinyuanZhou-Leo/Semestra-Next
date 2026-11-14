@@ -1,6 +1,6 @@
 import type { ImportSession } from '@semestra/api-client'
 import { useParams } from '@tanstack/react-router'
-import { ListChecks, LoaderCircle } from 'lucide-react'
+import { CircleAlert, ListChecks, LoaderCircle } from 'lucide-react'
 import type { StatusItem } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { SOURCE_KIND_LABELS } from './labels'
@@ -18,21 +18,33 @@ function importName(session: ImportSession): string {
 
 /**
  * The imports' line in the status bar (M08 §6.3): the one way back to an import that is still
- * being read or waits for review, from any page. Clicking it opens the import dialog where the
- * import stands. Term-wizard imports have their way back in the wizard instead.
+ * being read, waits for review or failed while the user was away, from any page. Clicking it
+ * opens the import dialog where the import stands (a failure says why; closing it is seeing it).
+ * Term-wizard imports have their way back in the wizard instead.
  */
 export function useImportLine(): StatusItem | null {
   const { programId } = useParams({ strict: false }) as { programId?: string }
   const list = (useUnfinishedImports(programId).data?.items ?? []).filter(
     (session) => session.target.kind !== 'term_wizard',
   )
+  const failed = list.filter((session) => session.status === 'failed')
   const ready = list.filter((session) => session.status === 'ready')
   const reading = list.filter((session) => isReading(session))
   // What waits for the user comes first.
-  const first = ready[0] ?? reading[0]
+  const first = failed[0] ?? ready[0] ?? reading[0]
   const state = useImportState(first)
   if (!first || !state) return null
   const onSelect = () => void openImport(sessionRequest(first))
+  const label = `${importName(first)} · ${state.text}`
+  if (failed.length > 0) {
+    return {
+      icon: CircleAlert,
+      tone: 'error',
+      rank: 'error',
+      label: failed.length > 1 ? m.imports_line_failed({ count: failed.length }) : label,
+      onSelect,
+    }
+  }
   if (list.length > 1) {
     return ready.length > 0
       ? {
@@ -50,7 +62,6 @@ export function useImportLine(): StatusItem | null {
           onSelect,
         }
   }
-  const label = `${importName(first)} · ${state.text}`
   return state.reading
     ? {
         icon: LoaderCircle,

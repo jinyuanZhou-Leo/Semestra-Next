@@ -12310,6 +12310,12 @@ export type SemestraCoreCapabilityItemUpdateInputBody2 = {
      */
     type?: 'assessment' | 'task' | null;
     /**
+     * Confirmed
+     *
+     * Fields the user checked and kept as read: they are no longer marked uncertain
+     */
+    confirmed?: Array<string> | null;
+    /**
      * Only Touched
      *
      * Return only the items this change touched instead of all of them

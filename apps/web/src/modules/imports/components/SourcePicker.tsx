@@ -187,6 +187,8 @@ export function SourcePicker({
       .then(() => invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList']))
 
   const start = () => {
+    // Trying again: the failure it replaces has been seen.
+    if (session?.status === 'failed') void discard(session.id)
     const controller = new AbortController()
     abort.current = controller
     stopRequested.current = false

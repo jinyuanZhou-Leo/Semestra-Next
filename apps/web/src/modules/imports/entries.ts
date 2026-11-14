@@ -13,6 +13,7 @@ import { importDetail } from './entry-detail'
 import { openImport } from './launcher'
 import { SOURCES } from './sources'
 import type { CourseData, ImportRequest, ImportSourceKind } from './types'
+import { wizardTarget } from './unfinished'
 
 /**
  * The import sources M08 contributes to other modules' extension points (M08 §6.1). Each one
@@ -26,7 +27,10 @@ export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
     id: `imports.${source}`,
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
-    Detail: importDetail(() => ({ source, target: { kind: 'term_wizard' } }), SOURCES[source].hint),
+    Detail: importDetail(
+      (context) => ({ source, target: wizardTarget(context) }),
+      SOURCES[source].hint,
+    ),
     icon: SOURCES[source].icon,
     requires: SOURCES[source].purpose ? `ai.${SOURCES[source].purpose}` : undefined,
     request: ({ programId, startDate, endDate, termId }) => ({

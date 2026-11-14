@@ -5,7 +5,7 @@ import { type ImportKey, useUnfinishedImport } from './unfinished'
 
 /**
  * The second line of an import source in an "Add" menu: where the import it would start stands
- * ("Reading · 46%", "To review · 12"), else what it brings in. Picking the source then opens
+ * ("Reading · 46%", "To review · 12", "Couldn't read"), else what it brings in. Picking the source then opens
  * that import where it stands (M08 §6.3).
  */
 export function importDetail<P extends { programId: string }>(
@@ -16,7 +16,8 @@ export function importDetail<P extends { programId: string }>(
     const waiting = useUnfinishedImport(props.programId, key(props))
     const state = useImportState(waiting)
     if (state) {
-      return <span className={state.reading ? undefined : 'text-primary'}>{state.text}</span>
+      const tone = state.failed ? 'text-destructive' : state.reading ? undefined : 'text-primary'
+      return <span className={tone}>{state.text}</span>
     }
     return description ? description() : null
   }

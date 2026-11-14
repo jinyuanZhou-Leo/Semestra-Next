@@ -116,6 +116,21 @@ export function EvidenceButton({ evidence, field }: { evidence?: EvidenceData; f
   )
 }
 
+/** "Looks right": keeps the values as read, which takes their marks off. */
+export function useConfirmUnsure(item: ImportItem) {
+  const save = useItemUpdate({ onError: toastError })
+  const run = (confirmed: string[]) =>
+    void trackEdit(
+      save
+        .mutateAsync({
+          path: { session_id: item.session_id, item_id: item.id },
+          body: { confirmed },
+        })
+        .catch(() => undefined), // reported by onError
+    )
+  return { run, pending: save.isPending }
+}
+
 /** Beside a field's label in an opened item: this value is worth a look. */
 export function UnsureIcon({ unsure }: { unsure: boolean }) {
   if (!unsure) return null
@@ -149,19 +164,10 @@ export function UnsureMark({
   onEdit: () => void
   children: ReactNode
 }) {
-  const save = useItemUpdate({ onError: toastError })
+  const confirm = useConfirmUnsure(item)
   const unsure = item.decision === 'accept' && !item.result ? unsureFields(item, fields) : []
   if (unsure.length === 0) return children
   const evidence = unsure.map((field) => item.evidence[field]).find((e) => e?.quote)
-  const confirm = () => {
-    // Saving a value as it is clears its mark (the server keeps marks only for unedited values).
-    const data = Object.fromEntries(unsure.map((field) => [field, item.data[field] ?? null]))
-    void trackEdit(
-      save
-        .mutateAsync({ path: { session_id: item.session_id, item_id: item.id }, body: { data } })
-        .catch(() => undefined), // reported by onError
-    )
-  }
   return (
     <Popover>
       <PopoverTrigger
@@ -197,7 +203,12 @@ export function UnsureMark({
             <Button variant="ghost" size="sm" onClick={onEdit}>
               {m.imports_unsure_edit()}
             </Button>
-            <Button variant="outline" size="sm" disabled={save.isPending} onClick={confirm}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={confirm.pending}
+              onClick={() => confirm.run(unsure)}
+            >
               {m.imports_unsure_ok()}
             </Button>
           </div>

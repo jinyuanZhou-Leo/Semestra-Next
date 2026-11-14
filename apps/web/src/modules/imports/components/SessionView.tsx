@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { invalidateOperations } from '@/app/api'
 import { AiAction } from '@/components/AiAction'
+import { useProviderProblem } from '@/components/AiRequired'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useJob } from '@/hooks/use-job'
 import { errorMessage, toastError } from '@/lib/errors'
@@ -27,6 +28,8 @@ import {
 import { needsCheck } from '../labels'
 import { readingProgress } from '../state'
 import { settleEdits, storeSession } from '../queries'
+import { SOURCES } from '../sources'
+import type { ImportSourceKind } from '../types'
 import { FileStatusList, sessionRows } from './FileStatusList'
 import { ImportReview } from './ImportReview'
 import { useWorthKeeping } from './worth-keeping'
@@ -111,6 +114,15 @@ export function SessionView({
   const keep = useWorthKeeping(session)
   const [confirming, setConfirming] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const failedCode =
+    session.status === 'failed' ? (session.error_code ?? 'import.no_content') : null
+  // A rejected key, no credit, unreachable: the way forward is the provider's settings.
+  const provider = useProviderProblem(
+    (session.source_kind in SOURCES
+      ? SOURCES[session.source_kind as ImportSourceKind].purpose
+      : undefined) ?? 'extraction',
+    failedCode,
+  )
 
   if (isReading(session)) {
     // Laid out like the first step: the files in the body, the progress where "Read" was.
@@ -140,22 +152,37 @@ export function SessionView({
     )
   }
 
-  if (session.status === 'failed') {
-    const reason = errorMessage({
-      error: { code: session.error_code ?? 'import.no_content', params: {} },
-    })
-    // Nothing to review: the dialog's body says why, centered, with one way out.
+  if (failedCode) {
+    const reason = provider?.title ?? errorMessage({ error: { code: failedCode, params: {} } })
+    // Nothing to review: the dialog's body says why, centered. Closing it is having seen it
+    // (the import then ends); a provider's problem is fixed in its settings.
     return (
       <Empty className={className}>
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <SearchX aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>{m.imports_failed_title()}</EmptyTitle>
+          <EmptyTitle>
+            {failedCode === 'import.no_content'
+              ? m.imports_failed_title()
+              : m.imports_state_failed()}
+          </EmptyTitle>
           <EmptyDescription>{reason}</EmptyDescription>
         </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={() => onDone(null)}>{m.common_close()}</Button>
+        <EmptyContent className="flex-row justify-center">
+          <Button variant={provider ? 'outline' : 'default'} onClick={() => onDone(null)}>
+            {m.common_close()}
+          </Button>
+          {provider ? (
+            <Button
+              onClick={() => {
+                onDone(null)
+                provider.fix()
+              }}
+            >
+              {provider.action}
+            </Button>
+          ) : null}
         </EmptyContent>
       </Empty>
     )

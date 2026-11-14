@@ -8,6 +8,7 @@ import type { AssessmentImportSource } from '@/modules/grading/types'
 import { wizardImportSource } from '@/modules/imports/entries'
 import { importDetail } from '@/modules/imports/entry-detail'
 import { openImport } from '@/modules/imports/launcher'
+import { wizardTarget } from '@/modules/imports/unfinished'
 import { m } from '@/paraglide/messages'
 import { useProgramProviderName } from '../providers'
 import type { CourseImportTarget } from './CoursePicker'
@@ -53,7 +54,8 @@ function courseRequest(programId: string, target: CourseImportTarget) {
           <CoursePicker programId={programId} target={target} onStarted={onStarted} />
         </Suspense>
       ),
-      resumes: { source: 'lms' as const, target: { kind: 'term_wizard' as const }, lms: 'courses' },
+      // The LMS's wizard imports carry the new term's dates only.
+      resumes: { source: 'lms' as const, target: wizardTarget(target), lms: 'courses' },
     },
   }
 }
@@ -66,7 +68,11 @@ export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
   Detail: importDetail(
-    () => ({ source: 'lms', target: { kind: 'term_wizard' }, lms: 'courses' }),
+    ({ startDate, endDate }) => ({
+      source: 'lms',
+      target: wizardTarget({ startDate, endDate }),
+      lms: 'courses',
+    }),
     m.lms_import_courses_hint,
   ),
   icon: School,

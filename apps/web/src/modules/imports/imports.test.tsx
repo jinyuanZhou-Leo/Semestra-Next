@@ -177,7 +177,7 @@ test('the review groups items by course, marks problems and values to check on t
   await userEvent.click(weight)
   await userEvent.click(await screen.findByRole('button', { name: 'Looks right' }))
   await waitFor(() =>
-    expect(patched).toHaveBeenCalledWith({ data: { weight: 30 }, only_touched: true }),
+    expect(patched).toHaveBeenCalledWith({ confirmed: ['weight'], only_touched: true }),
   )
 })
 
@@ -531,10 +531,42 @@ test('stopping while reading discards the session and returns to the start', asy
   expect(await screen.findByRole('button', { name: 'Read' })).toBeEnabled()
 })
 
+test('a reading that failed while away says why, and closing it ends the import', async () => {
+  let discarded = false
+  server.use(
+    http.get(`${API}/imports/s1`, () =>
+      HttpResponse.json(session({ status: 'failed', error_code: 'import.no_content', items: [] })),
+    ),
+    http.post(`${API}/imports/s1:discard`, () => {
+      discarded = true
+      return HttpResponse.json(session({ status: 'discarded', items: [] }))
+    }),
+  )
+  const closed = vi.fn<(outcome: unknown) => void>()
+  renderWithRouter(
+    <ImportDialog
+      request={{ programId: 'p1', mode: 'direct', source: 'session', sessionId: 's1' }}
+      onClose={closed}
+    />,
+  )
+  expect(
+    await screen.findByText(errorMessage({ error: { code: 'import.no_content', params: {} } })),
+  ).toBeInTheDocument()
+  await userEvent.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!)
+  expect(closed).toHaveBeenCalledWith(null)
+  await waitFor(() => expect(discarded).toBe(true))
+})
+
 test("a retry that fails shows its own reason, not the failed session's", async () => {
   let attempts = 0
+  let discarded = false
   server.use(
     ...upload(),
+    // Trying again: the failure that was seen ends.
+    http.post(`${API}/imports/s1:discard`, () => {
+      discarded = true
+      return HttpResponse.json(session({ status: 'discarded', items: [] }))
+    }),
     http.post(`${API}/programs/p1/imports`, () => {
       attempts += 1
       if (attempts === 1) {
@@ -568,6 +600,7 @@ test("a retry that fails shows its own reason, not the failed session's", async 
   expect(
     screen.queryByText(errorMessage({ error: { code: 'import.no_content', params: {} } })),
   ).toBeNull()
+  expect(discarded).toBe(true)
 })
 
 test('a single-file source replaces the file, a multi-file one adds to the list', async () => {
@@ -900,5 +933,6 @@ test('a reading the provider refused points to its settings, retrying stays poss
   expect(await screen.findByText('DeepSeek: Key rejected')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   await userEvent.click(screen.getByRole('button', { name: 'Check provider' }))
-  expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' })
+  // That provider's edit dialog opens from the settings link.
+  expect(router.state.location.search).toEqual({ settings: 'account/ai-providers', item: 'pv1' })
 })
