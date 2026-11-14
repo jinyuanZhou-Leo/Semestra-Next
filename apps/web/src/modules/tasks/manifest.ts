@@ -7,7 +7,7 @@ import NewTaskButton from './cards/NewTaskButton'
 import { completeFromCalendar, rescheduleFromCalendar } from './calendar'
 import AssessmentTaskCell from './components/AssessmentTaskCell'
 import { CalendarOpenLabel } from './components/CalendarOpenLabel'
-import { prefetchTodayTasks } from './queries'
+import { courseTasksOptions, prefetchTodayTasks } from './queries'
 
 const TASK_QUERIES = ['tasksItemQuery', 'tasksItemGet', 'tasksListList', 'tasksItemCount'] as const
 const CALENDAR_QUERIES = ['calendarOccurrenceList', 'calendarTodayGet'] as const
@@ -128,7 +128,12 @@ export default defineModule({
   ],
   extensions: {
     [ASSESSMENT_COLUMNS]: [
-      { id: 'tasks.todo', header: m.tasks_assessment_column, Cell: AssessmentTaskCell },
+      {
+        id: 'tasks.todo',
+        header: m.tasks_assessment_column,
+        Cell: AssessmentTaskCell,
+        query: ({ programId, courseId }) => courseTasksOptions(programId, courseId),
+      },
     ] satisfies AssessmentColumn[],
   },
   uiPrefPrefixes: ['tasks.'],

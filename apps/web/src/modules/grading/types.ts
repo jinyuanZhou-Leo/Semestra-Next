@@ -16,6 +16,7 @@ export type AssessmentDraft = AssessmentCreateInputBody & {
   source_ref: string
 }
 
+/** The course a gradebook contribution's `query` is for. */
 export type AssessmentImportContext = { programId: string; courseId: string }
 
 /**
@@ -46,6 +47,9 @@ export type AssessmentColumn = {
   id: string
   header: Message
   Cell: ComponentType<{ assessment: Assessment; programId: string }>
+  /** What `Cell` reads for a course, so the grades page starts it along with the gradebook. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'
@@ -61,6 +65,9 @@ export type AssessmentAction = {
   /** The menu item; renders nothing when the action does not apply to this assessment. */
   Item: ComponentType<AssessmentActionItemProps>
   Dialog: ComponentType<AssessmentActionDialogProps>
+  /** What `Item` reads for a course, so the grades page starts it along with the gradebook. */
+  // oxlint-disable-next-line no-explicit-any
+  query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
 }
 
 export type AssessmentActionItemProps = {

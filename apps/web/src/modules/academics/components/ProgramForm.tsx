@@ -1,7 +1,7 @@
 import type { JsonValue, ProgramCreateInputBody } from '@semestra/api-client'
 import { type FormEvent, type ReactNode, useId, useState } from 'react'
 import { useExtensions } from '@/app/registry'
-import { SettingRow, SettingsGroup } from '@/app/settings'
+import { SettingRow, SettingsGroup } from '@/app/settings/rows'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { Input } from '@/ui/input'

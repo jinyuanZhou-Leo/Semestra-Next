@@ -1,6 +1,7 @@
 import type { Assessment, Task, TaskPage } from '@semestra/api-client'
 import { useQuery } from '@tanstack/react-query'
-import { courseTasksOptions, TaskCheck } from './TaskCheck'
+import { courseTasksOptions } from '../queries'
+import { TaskCheck } from './TaskCheck'
 
 const byAssessment = (page: TaskPage): ReadonlyMap<string, Task> =>
   new Map(page.items.flatMap((t) => (t.assessment_id ? [[t.assessment_id, t] as const] : [])))
