@@ -5,7 +5,7 @@ import {
   type SettingsSectionContribution,
   preload,
 } from '../extensions'
-import { prefetchNamespaceForm } from './NamespaceForm'
+import { prefetchNamespaceForm } from './namespace-queries'
 
 /**
  * Longest the dialog keeps the previous group up while the next one loads: on a slow connection

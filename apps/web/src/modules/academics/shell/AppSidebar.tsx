@@ -323,6 +323,8 @@ export function AppSidebar({ programId }: { programId: string }) {
                 tooltip={m.settings_title()}
                 isActive={settings.target?.level === 'account'}
                 onClick={() => settings.open({ level: 'account' })}
+                onPointerEnter={() => settings.prepare({ level: 'account' })}
+                onFocus={() => settings.prepare({ level: 'account' })}
               >
                 <Settings aria-hidden />
                 <span>{m.settings_title()}</span>

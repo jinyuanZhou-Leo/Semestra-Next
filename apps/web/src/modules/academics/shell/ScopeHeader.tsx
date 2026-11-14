@@ -229,6 +229,8 @@ export function ScopeHeader({
                   size="icon-sm"
                   aria-label={m.academics_scope_settings()}
                   onClick={() => settings.open({ level: scope.kind })}
+                  onPointerEnter={() => settings.prepare({ level: scope.kind })}
+                  onFocus={() => settings.prepare({ level: scope.kind })}
                 />
               }
             >

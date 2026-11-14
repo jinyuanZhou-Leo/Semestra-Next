@@ -19,6 +19,19 @@ const SCOPE_PARAM = 'scope'
 
 type Place = { pathname: string; searchStr: string }
 
+let prefetcher: ((target: SettingsTarget) => void) | undefined
+
+/**
+ * Set by the mounted `SettingsDialog`: starts the code and data of the group `target` opens on, so
+ * the dialog can show it at once (M11 §5.2). Returns a function that removes it.
+ */
+export function setSettingsPrefetcher(fn: (target: SettingsTarget) => void): () => void {
+  prefetcher = fn
+  return () => {
+    if (prefetcher === fn) prefetcher = undefined
+  }
+}
+
 /** `account/preferences` → the level and group; anything else means the dialog is closed. */
 export function parseSettingsParam(
   value: string | null,
@@ -62,6 +75,7 @@ export function useSettingsDialog() {
   const place = { pathname, searchStr }
 
   const open = (next: SettingsTarget) => {
+    prefetcher?.(next)
     if (target) router.history.replace(settingsHref(place, next), { settingsOpened: opened })
     else router.history.push(settingsHref(place, next), { settingsOpened: true })
   }
@@ -79,5 +93,7 @@ export function useSettingsDialog() {
     if (opened) router.history.back()
     else router.history.replace(settingsHref(place))
   }
-  return { target, open, select, switchTo, close }
+  /** For an entry point being hovered or focused: what it opens starts loading. */
+  const prepare = (next: SettingsTarget) => prefetcher?.(next)
+  return { target, open, prepare, select, switchTo, close }
 }

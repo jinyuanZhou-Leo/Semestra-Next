@@ -3,7 +3,6 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { accountSettingsHandlers } from '@/app/settings/test-data'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { routeTree } from '@/routeTree.gen'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
@@ -86,7 +85,10 @@ test('/login/reset renders the reset form, not the sign-in form', async () => {
   expect(await screen.findByRole('heading', { name: 'Reset password' })).toBeInTheDocument()
 })
 
-const settingsData = accountSettingsHandlers()
+const settingsData = [
+  http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
+  http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
+]
 
 test('signing out navigates to /login once the server has cleared the session', async () => {
   let loggedOut = false

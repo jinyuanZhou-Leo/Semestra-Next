@@ -1,12 +1,10 @@
 import {
-  settingsSchemaListOptions,
-  settingsValueGetOptions,
   settingsValueGetQueryKey,
   settingsValueResetMutation,
   settingsValueUpdateMutation,
 } from '@semestra/api-client/react-query'
 import type { ResolvedSettings } from '@semestra/api-client'
-import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -19,52 +17,11 @@ import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
 import { ItemSeparator } from '@/ui/item'
 import type { FieldOverrides, Scope, SettingsLevel } from '../extensions'
 import { useAutosave } from './autosave'
+import { type ScopeParams, namespaceQueries, scopeParamsFor } from './namespace-queries'
 import { FieldControlView, type Inheritance, valueText } from './fields'
 import { SettingRow, SettingsGroup } from './rows'
 import { type FieldDescriptor, type JsonSchema, describeFields } from './schema'
 import { fieldDescription, fieldLabel } from './texts'
-
-type ScopeParams = { scope_type: SettingsLevel; scope_id?: string }
-
-/** Which id of the page's scope belongs to the level being edited. */
-export function scopeParamsFor(level: SettingsLevel, scope?: Scope): ScopeParams | null {
-  if (level === 'account') return { scope_type: 'account' }
-  const id =
-    level === 'program'
-      ? scope?.programId
-      : level === 'term'
-        ? scope?.kind === 'term'
-          ? scope.termId
-          : undefined
-        : scope?.kind === 'course'
-          ? scope.courseId
-          : undefined
-  return id ? { scope_type: level, scope_id: id } : null
-}
-
-/** What a namespace's form reads: the schemas (one list for all) and its values at `params`. */
-function namespaceQueries(namespace: string, params: ScopeParams) {
-  return {
-    schemas: { ...settingsSchemaListOptions(), staleTime: Infinity },
-    values: settingsValueGetOptions({ path: { namespace }, query: params }),
-  }
-}
-
-/** Loads what `NamespaceForm` shows, for the settings dialog to show it complete (M11 §5.2). */
-export function prefetchNamespaceForm(
-  namespace: string,
-  level: SettingsLevel,
-  scope: Scope | undefined,
-  queryClient: QueryClient,
-): Promise<unknown> {
-  const params = scopeParamsFor(level, scope)
-  if (params === null) return Promise.resolve()
-  const queries = namespaceQueries(namespace, params)
-  return Promise.all([
-    queryClient.ensureQueryData(queries.schemas),
-    queryClient.ensureQueryData(queries.values),
-  ])
-}
 
 export const LEVEL_ORDER: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
 

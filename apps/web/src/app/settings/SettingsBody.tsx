@@ -65,12 +65,13 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from '@/ui/sidebar'
-import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
+import { type Scope, type SettingsGroup, type SettingsLevel, preload } from '../extensions'
 import { useModules, useSettingsSections } from '../registry'
 import {
   CLUSTER_TITLES,
   GROUP_ALIASES,
   GROUP_TITLES,
+  type NavGroup,
   buildNavigation,
   clusterNavigation,
 } from './groups'
@@ -214,19 +215,16 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
   // A group of a course, term or Program that is gone (deleted here) is not kept up.
   const kept = shown && scopeIdAt(shown.level, path) === shown.scopeId ? shown : undefined
 
-  // Once a group shows, the other groups of the level load in an idle moment, so switching to
-  // them is immediate.
-  const loadOthers = useEffectEvent(
-    () =>
-      void loadSections(
-        groups.flatMap((group) => group.sections),
-        scope,
-        queryClient,
-        modules,
-      ),
-  )
+  // Once a group shows, the code of the level's other groups loads in an idle moment; their data
+  // loads when the group's button is hovered or focused, like a page's on a link (M11 §5.2).
+  const preloadOthers = useEffectEvent(() => {
+    for (const group of groups)
+      for (const section of group.sections) void preload(section.component)
+  })
   const shownPane = shown ? `${shown.level}:${shown.scopeId ?? ''}` : undefined
-  useEffect(() => (shownPane === undefined ? undefined : whenIdle(loadOthers)), [shownPane])
+  useEffect(() => (shownPane === undefined ? undefined : whenIdle(preloadOthers)), [shownPane])
+  const prepare = (group: NavGroup) =>
+    void loadSections(group.sections, scope, queryClient, modules)
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
   const shownGroupKey = kept?.key
@@ -281,6 +279,8 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
                             <SidebarMenuButton
                               isActive={active}
                               aria-current={active ? 'page' : undefined}
+                              onPointerEnter={() => prepare(group)}
+                              onFocus={() => prepare(group)}
                               onClick={() => {
                                 setQuery('')
                                 select(group.id)
