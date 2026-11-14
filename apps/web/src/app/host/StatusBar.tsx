@@ -192,20 +192,18 @@ function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
           ? 'text-primary'
           : 'text-muted-foreground',
   )
-  // Keyed by the icon's state: a new state fades in where the old one was.
+  // One key for the icon and the text together: a new state replaces both and fades in where the
+  // old one was, while a label that only counts on ("3 min ago") stays put.
   const key = `${spin ? 'spin' : Icon.displayName}:${tone ?? ''}`
   return (
-    <>
+    <Fragment key={key}>
       {spin ? (
-        <Spinner key={key} aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
+        <Spinner aria-hidden className={cn(iconClass, 'motion-reduce:animate-none')} />
       ) : (
-        <Icon key={key} aria-hidden="true" className={iconClass} />
+        <Icon aria-hidden="true" className={iconClass} />
       )}
-      {/* Keyed like the icon: a new state fades in, a label that only counts on ("3 min ago") does not. */}
-      <span key={key} className={enter}>
-        {label}
-      </span>
-    </>
+      <span className={enter}>{label}</span>
+    </Fragment>
   )
 }
 

@@ -1,8 +1,8 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Timer } from 'lucide-react'
+import { CircleAlert, School, Timer } from 'lucide-react'
 import { http, HttpResponse } from 'msw'
-import type { ReactElement } from 'react'
+import { act, type ReactElement, useSyncExternalStore } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import template from '@/modules/_template/manifest'
 import { FakeEventSource } from '@/test-event-source'
@@ -240,6 +240,55 @@ test('the status bar shows running jobs and module items, and hides empty lines'
   expect(screen.getByRole('link', { name: '12:00 left' })).toHaveAttribute('href', '/')
   // Lines with nothing to show stay in place, closed (they open with a height transition).
   expect(bar.querySelectorAll('li[data-shown="true"]')).toHaveLength(2)
+})
+
+test('a line that changes state shows only its new icon and text', async () => {
+  server.use(http.get(`${API}/jobs`, () => HttpResponse.json({ items: [], next_cursor: null })))
+  const states: StatusItem[] = [
+    { icon: School, label: 'Synced' },
+    { icon: School, label: 'Syncing', spin: true },
+    { icon: CircleAlert, label: 'Reconnect', tone: 'error' },
+    { icon: School, label: 'Synced again' },
+  ]
+  let index = 0
+  const listeners = new Set<() => void>()
+  const sync = {
+    ...template,
+    id: 'sync',
+    statusItems: [
+      {
+        id: 'sync.line',
+        order: 1,
+        useStatus: () =>
+          states[
+            useSyncExternalStore(
+              (listener) => {
+                listeners.add(listener)
+                return () => void listeners.delete(listener)
+              },
+              () => index,
+            )
+          ] ?? null,
+      },
+    ],
+  }
+  renderWithRouter(
+    <ModuleRegistry value={[sync]}>
+      <SidebarProvider>
+        <StatusBar />
+      </SidebarProvider>
+    </ModuleRegistry>,
+  )
+  await screen.findByText('Synced')
+  const line = document.querySelector('[data-status-line="sync.line"]') as HTMLElement
+  for (const [i, state] of states.entries()) {
+    act(() => {
+      index = i
+      for (const listener of listeners) listener()
+    })
+    expect(line).toHaveTextContent(new RegExp(`^${state.label}$`))
+    expect(line.querySelectorAll('svg')).toHaveLength(1)
+  }
 })
 
 test('extension points collect contributions from every module', () => {
