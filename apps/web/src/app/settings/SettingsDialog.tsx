@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouterState } from '@tanstack/react-router'
 import { Suspense, useEffect, useEffectEvent } from 'react'
 import { m } from '@/paraglide/messages'
@@ -5,11 +6,16 @@ import { Dialog, DialogContent, DialogTitle } from '@/ui/dialog'
 import { Spinner } from '@/ui/spinner'
 import { whenSettled } from '@/lib/when-settled'
 import { useHostAction } from '../commands'
-import { type SettingsLevel, preload, preloadable } from '../extensions'
+import { type Scope, type SettingsLevel, preload, preloadable } from '../extensions'
 import { useModules } from '../registry'
-import { buildNavigation } from './groups'
+import { GROUP_ALIASES, buildNavigation } from './groups'
+import { loadSections } from './prefetch'
 import type { Params } from './SettingsBody'
-import { type SettingsTarget, useSettingsDialog } from './use-settings-dialog'
+import {
+  type SettingsTarget,
+  setSettingsPrefetcher,
+  useSettingsDialog,
+} from './use-settings-dialog'
 
 // The groups and their forms are not part of the first load: they load once the page has
 // settled (see `whenSettled`), or when settings open before that.
@@ -18,6 +24,25 @@ const SettingsBody = preloadable<{ target: SettingsTarget; page: Params }>(() =>
 )
 
 const LEVELS: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
+
+/**
+ * The scope `target` opens on, from its own id and the page's (what the dialog resolves once it
+ * opens, minus the cases that need a request: a course of another Program, say).
+ */
+function scopeOf(target: SettingsTarget, page: Params): Scope | undefined {
+  const programId = target.level === 'program' ? (target.scope ?? page.programId) : page.programId
+  if (!programId) return undefined
+  const termId = target.level === 'term' ? (target.scope ?? page.termId) : page.termId
+  const courseId = target.level === 'course' ? (target.scope ?? page.courseId) : page.courseId
+  if (target.level === 'program') return { kind: 'program', programId }
+  if (target.level === 'term') return termId ? { kind: 'term', programId, termId } : undefined
+  if (target.level === 'course')
+    return courseId ? { kind: 'course', programId, courseId } : undefined
+  // Account sections read nothing of the page; its scope is what the dialog passes them too.
+  if (courseId) return { kind: 'course', programId, courseId }
+  if (termId) return { kind: 'term', programId, termId }
+  return { kind: 'program', programId }
+}
 
 /**
  * Settings as a dialog (M11 §5.2), shaped like shadcn's "sidebar in a dialog": the level path and
@@ -46,6 +71,23 @@ export function SettingsDialog() {
     }
   })
   useEffect(() => whenSettled(preloadSettings), [])
+
+  // Opening settings, or hovering an entry point, starts the group it opens on: its data comes
+  // with the click instead of after the dialog has mounted.
+  const queryClient = useQueryClient()
+  useEffect(
+    () =>
+      setSettingsPrefetcher((next) => {
+        const sections = modules.flatMap((module) => module.settingsSections ?? [])
+        const groups = buildNavigation(sections, next.level)
+        const wanted = next.group ? (GROUP_ALIASES[next.group] ?? next.group) : undefined
+        const group = groups.find((g) => g.id === wanted) ?? groups[0]
+        const scope = scopeOf(next, params)
+        if (!group || (next.level !== 'account' && !scope)) return
+        void loadSections(group.sections, scope, queryClient, modules)
+      }),
+    [modules, params, queryClient],
+  )
 
   return (
     <Dialog open={target !== undefined} onOpenChange={(next) => !next && close()}>

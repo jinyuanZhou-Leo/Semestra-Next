@@ -43,9 +43,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { KIND_INFO, PURPOSE_TITLES, type ProviderKind } from '../labels'
+import {
+  DEFAULT_USAGE_RANGE,
+  USAGE_RANGE_KEY,
+  type UsageRange,
+  browserTimeZone,
+  usageOptions,
+} from '../queries'
 import { daysBetween, plusDays, weekStartOf } from '@/lib/day'
-
-type UsageRange = '1' | '7' | '30' | 'all'
 
 const RANGES: readonly UsageRange[] = ['1', '7', '30', 'all']
 
@@ -71,10 +76,6 @@ const PURPOSE_COLORS: Record<AiPurpose, string> = {
 
 /** Longer ranges are drawn a week per bar. */
 const DAILY_BARS_MAX = 90
-
-function browserTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-}
 
 /** `YYYY-MM-DD` plus `n` days. */
 function cost(value: number | null, complete = true): string {
@@ -416,15 +417,13 @@ type Selection = { range: UsageRange; start: string; end: string }
 /** Account settings → AI → usage over today, the last 7 or 30 days or all time (M06 §7). Costs are estimates. */
 export function UsageSection() {
   const [grouping, setGrouping] = useState<Grouping>('purpose')
-  const [range, setRange] = useUiPref<UsageRange>('ai.usage_range', '30')
+  const [range, setRange] = useUiPref<UsageRange>(USAGE_RANGE_KEY, DEFAULT_USAGE_RANGE)
   const [picked, setPicked] = useState<Selection | null>(null)
   // A bar picked in another range no longer exists.
   const selection = picked?.range === range ? picked : null
   const tz = browserTimeZone()
   const usage = useQuery({
-    ...aiUsageSummarizeOptions({
-      query: { ...(range === 'all' ? {} : { days: Number(range) }), tz },
-    }),
+    ...usageOptions(range),
     // Every chat adds usage without an event, so opening this page asks again.
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,

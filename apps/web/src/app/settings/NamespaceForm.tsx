@@ -1,6 +1,4 @@
 import {
-  settingsSchemaListOptions,
-  settingsValueGetOptions,
   settingsValueGetQueryKey,
   settingsValueResetMutation,
   settingsValueUpdateMutation,
@@ -19,28 +17,11 @@ import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
 import { ItemSeparator } from '@/ui/item'
 import type { FieldOverrides, Scope, SettingsLevel } from '../extensions'
 import { useAutosave } from './autosave'
+import { type ScopeParams, namespaceQueries, scopeParamsFor } from './namespace-queries'
 import { FieldControlView, type Inheritance, valueText } from './fields'
 import { SettingRow, SettingsGroup } from './rows'
 import { type FieldDescriptor, type JsonSchema, describeFields } from './schema'
 import { fieldDescription, fieldLabel } from './texts'
-
-type ScopeParams = { scope_type: SettingsLevel; scope_id?: string }
-
-/** Which id of the page's scope belongs to the level being edited. */
-export function scopeParamsFor(level: SettingsLevel, scope?: Scope): ScopeParams | null {
-  if (level === 'account') return { scope_type: 'account' }
-  const id =
-    level === 'program'
-      ? scope?.programId
-      : level === 'term'
-        ? scope?.kind === 'term'
-          ? scope.termId
-          : undefined
-        : scope?.kind === 'course'
-          ? scope.courseId
-          : undefined
-  return id ? { scope_type: level, scope_id: id } : null
-}
 
 export const LEVEL_ORDER: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
 
@@ -67,14 +48,9 @@ type Props = {
  */
 export function NamespaceForm({ namespace, level, scope, fields, className }: Props) {
   const params = scopeParamsFor(level, scope)
-  const schemas = useQuery({ ...settingsSchemaListOptions(), staleTime: Infinity })
-  const values = useQuery({
-    ...settingsValueGetOptions({
-      path: { namespace },
-      query: params ?? { scope_type: 'account' },
-    }),
-    enabled: params !== null,
-  })
+  const queries = namespaceQueries(namespace, params ?? { scope_type: 'account' })
+  const schemas = useQuery(queries.schemas)
+  const values = useQuery({ ...queries.values, enabled: params !== null })
   if (params === null) return null
 
   return (

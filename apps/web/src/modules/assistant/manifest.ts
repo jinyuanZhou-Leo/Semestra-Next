@@ -1,9 +1,19 @@
 import { Bookmark, KeyRound, ListChecks, MessageCircle, Plug, PlugZap, Trash2 } from 'lucide-react'
+import {
+  accountTokenListOptions,
+  agentMemoryListOptions,
+  agentPreferenceGetOptions,
+  agentToolListOptions,
+} from '@semestra/api-client/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { defineModule, scopePath, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 import { assistantPage, panel } from './store'
 
 const settings = () => import('./settings/sections')
+
+const preferences = (_scope: unknown, queryClient: QueryClient) =>
+  queryClient.ensureQueryData(agentPreferenceGetOptions())
 
 /**
  * M12 AI 助手 (shown as Sem): the side panel (`Cmd/Ctrl + J`) and full page, confirmation cards for writes, and
@@ -54,6 +64,11 @@ export default defineModule({
       icon: ListChecks,
       order: 20,
       component: preloadable(() => settings().then((s) => ({ default: s.ApprovalsSection }))),
+      prefetch: (_scope, queryClient) =>
+        Promise.all([
+          queryClient.ensureQueryData(agentToolListOptions()),
+          preferences(_scope, queryClient),
+        ]),
     },
     {
       id: 'assistant-mcp-permissions',
@@ -64,6 +79,7 @@ export default defineModule({
       icon: PlugZap,
       order: 30,
       component: preloadable(() => settings().then((s) => ({ default: s.McpPermissionsSection }))),
+      prefetch: preferences,
     },
     {
       id: 'assistant-memory-enabled',
@@ -84,6 +100,7 @@ export default defineModule({
       icon: Bookmark,
       order: 40,
       component: preloadable(() => settings().then((s) => ({ default: s.MemorySection }))),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(agentMemoryListOptions()),
     },
     {
       id: 'assistant-memory-clear',
@@ -104,6 +121,7 @@ export default defineModule({
       icon: KeyRound,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.ConnectionsSection }))),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(accountTokenListOptions()),
     },
     {
       id: 'assistant-mcp',
@@ -114,6 +132,7 @@ export default defineModule({
       icon: Plug,
       order: 20,
       component: preloadable(() => settings().then((s) => ({ default: s.McpSection }))),
+      prefetch: preferences,
     },
   ],
   realtimeInvalidations: {

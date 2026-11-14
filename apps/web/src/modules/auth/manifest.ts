@@ -1,3 +1,4 @@
+import { accountSessionListOptions, authConfigOptions } from '@semestra/api-client/react-query'
 import { MonitorSmartphone, ShieldCheck, UserRound } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
@@ -33,6 +34,7 @@ export default defineModule({
       component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.SignInMethodsSettings })),
       ),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(authConfigOptions()),
     },
     {
       id: 'sessions',
@@ -45,6 +47,7 @@ export default defineModule({
       component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.SessionsSettings })),
       ),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(accountSessionListOptions()),
     },
   ],
 })

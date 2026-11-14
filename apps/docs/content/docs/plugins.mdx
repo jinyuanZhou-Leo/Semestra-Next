@@ -75,6 +75,11 @@ export default defineModule({
   functions from a file of their own, not from a component's file (`entry:check` in `pnpm lint`
   catches it and prints the chain of imports). Pass
   `m.xxx` as the function itself; do not call it at module level (switching language remounts).
+- A settings section with its own `component` that reads data declares
+  `prefetch: (scope, queryClient) => queryClient.ensureQueryData(...)` with the same query options
+  the section uses. The settings dialog keeps the previous group on screen until the new group's
+  code and data are in, so it never shows spinners that then push the page down. Sections with a
+  `namespace` need nothing: the dialog loads their schema and values.
 - Add the new plugin's manifest to the list in `app/registry.ts`.
 - Card settings load with the card, not with the app: `settings` imports a file whose default
   export is `{ schema, component?, fields? } satisfies CardSettings`. `schema` is a zod schema;

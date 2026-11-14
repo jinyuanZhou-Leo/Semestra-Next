@@ -1,3 +1,4 @@
+import { scheduleEventTypeListOptions } from '@semestra/api-client/react-query'
 import {
   CalendarClock,
   CalendarDays,
@@ -164,6 +165,10 @@ export default defineModule({
       component: preloadable(() =>
         import('./settings/EventTypesSection').then((s) => ({ default: s.EventTypesSection })),
       ),
+      prefetch: (scope, queryClient) =>
+        queryClient.ensureQueryData(
+          scheduleEventTypeListOptions({ path: { program_id: scope?.programId ?? '' } }),
+        ),
     },
     ...(['program', 'term'] as const).map((level) => ({
       id: 'calendar',

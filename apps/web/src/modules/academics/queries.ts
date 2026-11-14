@@ -4,11 +4,12 @@ import {
   academicsCourseListOptions,
   academicsProgramGetOptions,
   academicsProgramListOptions,
+  academicsTermGetOptions,
   academicsTermListOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQueries, useQuery } from '@tanstack/react-query'
-import type { ModuleManifest, Scope } from '@/app/extensions'
-import { COURSE_COLUMNS, type CourseColumn } from './types'
+import { type ModuleManifest, type Scope, preload } from '@/app/extensions'
+import { COURSE_COLUMNS, COURSE_INFO_FILLS, type CourseColumn, type CourseInfoFill } from './types'
 
 export function usePrograms() {
   return useQuery(academicsProgramListOptions())
@@ -122,4 +123,52 @@ export function useColumnData(
     ),
   })
   return new Map(columns.map((column, i) => [column.id, results[i]?.data]))
+}
+
+/**
+ * `prefetch` of the settings sections (M11 §5.2): what each reads for the scope it is shown for.
+ * Programs, terms and courses are usually cached already by the pages.
+ */
+export const settingsPrefetch = {
+  program: (scope: Scope | undefined, queryClient: QueryClient) =>
+    queryClient.ensureQueryData(
+      academicsProgramGetOptions({ path: { program_id: scope?.programId ?? '' } }),
+    ),
+  subjectColors: (scope: Scope | undefined, queryClient: QueryClient) =>
+    Promise.all([
+      settingsPrefetch.program(scope, queryClient),
+      queryClient.ensureQueryData(courseListOptions(scope?.programId ?? '')),
+    ]),
+  programDanger: (scope: Scope | undefined, queryClient: QueryClient) =>
+    Promise.all([
+      settingsPrefetch.program(scope, queryClient),
+      queryClient.ensureQueryData(academicsProgramListOptions()),
+    ]),
+  term: (scope: Scope | undefined, queryClient: QueryClient) =>
+    queryClient.ensureQueryData(
+      academicsTermGetOptions({ path: { term_id: scope?.kind === 'term' ? scope.termId : '' } }),
+    ),
+  course: (scope: Scope | undefined, queryClient: QueryClient) =>
+    queryClient.ensureQueryData(
+      academicsCourseGetOptions({
+        path: { course_id: scope?.kind === 'course' ? scope.courseId : '' },
+      }),
+    ),
+  // Above the fields: what other modules offer to fill them in ("Read from a file").
+  courseBasics: (
+    scope: Scope | undefined,
+    queryClient: QueryClient,
+    { modules }: { modules: readonly ModuleManifest[] },
+  ) =>
+    Promise.all([
+      ...modules.flatMap((module) =>
+        ((module.extensions?.[COURSE_INFO_FILLS] ?? []) as readonly CourseInfoFill[]).map((fill) =>
+          preload(fill.component),
+        ),
+      ),
+      settingsPrefetch.course(scope, queryClient),
+      queryClient.ensureQueryData(
+        academicsTermListOptions({ path: { program_id: scope?.programId ?? '' } }),
+      ),
+    ]),
 }

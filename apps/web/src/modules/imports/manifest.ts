@@ -1,3 +1,4 @@
+import { importsSessionListOptions } from '@semestra/api-client/react-query'
 import { History, Import } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import {
@@ -53,6 +54,10 @@ export default defineModule({
           default: s.ImportHistorySection,
         })),
       ),
+      prefetch: (scope, queryClient) =>
+        queryClient.ensureQueryData(
+          importsSessionListOptions({ path: { program_id: scope?.programId ?? '' } }),
+        ),
     },
   ],
   jobKinds: [

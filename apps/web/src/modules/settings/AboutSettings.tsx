@@ -6,26 +6,13 @@ import { m } from '@/paraglide/messages'
 import { SettingRow, SettingsBlock, SettingsGroup } from '@/app/settings'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion'
 import { Button } from '@/ui/button'
-import { compareVersions, loadRelease, releaseVersions } from './release-notes'
+import { EARLIER_VERSIONS, aboutReleasesOptions } from './release-notes'
 import { ReleaseNotes } from './ReleaseNotes'
 
 export const REPOSITORY_URL = 'https://github.com/jinyuanZhou-Leo/Semestra-Next'
 
-/** Versions listed under "Earlier versions"; the docs changelog has all of them. */
-const EARLIER_VERSIONS = 5
-
 export default function AboutSettings() {
-  const versions = releaseVersions()
-    .filter((v) => compareVersions(v, SEMESTRA_VERSION) <= 0)
-    .slice(0, EARLIER_VERSIONS + 1)
-  const { data: releases = [] } = useQuery({
-    queryKey: ['release-notes', versions],
-    queryFn: async () => {
-      const loaded = await Promise.all(versions.map(loadRelease))
-      return loaded.filter((release) => release !== undefined)
-    },
-    staleTime: Infinity,
-  })
+  const { data: releases = [] } = useQuery(aboutReleasesOptions())
   const current = releases.find((release) => release.version === SEMESTRA_VERSION)
   const earlier = releases.filter((release) => release !== current).slice(0, EARLIER_VERSIONS)
   const docsHome = docsUrl()

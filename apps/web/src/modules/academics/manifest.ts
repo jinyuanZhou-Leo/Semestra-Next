@@ -13,7 +13,7 @@ import TermsActions from './cards/TermsActions'
 import { m } from '@/paraglide/messages'
 import { addCourseCommand, academicsNavigation, newTermCommand } from './commands'
 import { AddCourseHost } from './components/AddCourseHost'
-import { prefetchTermCourses } from './queries'
+import { prefetchTermCourses, settingsPrefetch } from './queries'
 
 /** Every query this module shows; any academics change refetches them (they are small). */
 const ACADEMICS_QUERIES = [
@@ -123,6 +123,7 @@ export default defineModule({
       icon: Info,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.ProgramBasicsSection }))),
+      prefetch: settingsPrefetch.program,
     },
     {
       id: 'subject-colors',
@@ -133,6 +134,7 @@ export default defineModule({
       icon: Palette,
       order: 20,
       component: preloadable(() => settings().then((s) => ({ default: s.SubjectColorsSection }))),
+      prefetch: settingsPrefetch.subjectColors,
     },
     {
       id: 'term-basics',
@@ -142,6 +144,7 @@ export default defineModule({
       icon: Info,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.TermBasicsSection }))),
+      prefetch: settingsPrefetch.term,
     },
     {
       id: 'course-basics',
@@ -151,6 +154,7 @@ export default defineModule({
       icon: Info,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.CourseBasicsSection }))),
+      prefetch: settingsPrefetch.courseBasics,
     },
     {
       id: 'program-danger',
@@ -161,6 +165,7 @@ export default defineModule({
       icon: Trash2,
       order: 900,
       component: preloadable(() => settings().then((s) => ({ default: s.ProgramDangerSection }))),
+      prefetch: settingsPrefetch.programDanger,
     },
     {
       id: 'term-danger',
@@ -171,6 +176,7 @@ export default defineModule({
       icon: Trash2,
       order: 900,
       component: preloadable(() => settings().then((s) => ({ default: s.TermDangerSection }))),
+      prefetch: settingsPrefetch.term,
     },
     {
       id: 'course-danger',
@@ -181,6 +187,7 @@ export default defineModule({
       icon: Trash2,
       order: 900,
       component: preloadable(() => settings().then((s) => ({ default: s.CourseDangerSection }))),
+      prefetch: settingsPrefetch.course,
     },
   ],
   uiPrefPrefixes: ['academics.', 'onboarding.'],
