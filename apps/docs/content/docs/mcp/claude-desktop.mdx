@@ -1,0 +1,50 @@
+---
+title: Claude Desktop
+description: Connect Claude Desktop with an API token when Semestra isn't reachable over HTTPS.
+---
+
+Use this page when your Semestra address isn't HTTPS, for example a self-hosted server on your local network. With an HTTPS address, add Semestra as a [Claude](./claude.mdx) connector instead: you sign in once and it works on the web, desktop and phone.
+
+## Connect from Semestra
+
+1. In Semestra, open **AI** in settings, go to **API & MCP** and click **New connection**.
+2. Choose **Claude Desktop**, pick **Read only** or **Read and write**, and click **Create API token**.
+3. The next step shows the config with your token filled in. Copy it into the file named there. If the file already lists servers, add `semestra` next to them instead of replacing the file.
+4. Restart Claude Desktop. The Semestra window changes from “Waiting” to “Connected”.
+
+The token is named after Claude Desktop and shown only in that window. To disconnect, revoke it under **Clients and API tokens**.
+
+## Set it up by hand
+
+Create an API token first: under **New connection**, choose **Other client or script**. Replace `<token>` below with it, and the example address with the one shown under **MCP server**.
+
+Claude Desktop's config file only starts programs on your computer, so it reaches Semestra through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), which needs [Node.js](https://nodejs.org) 18 or later.
+
+1. In Claude Desktop's settings, go to **Developer** and click **Edit Config**. This opens `claude_desktop_config.json`:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+2. Add `semestra` under `mcpServers`, next to any servers already there:
+
+```json
+{
+  "mcpServers": {
+    "semestra": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://192.168.1.10:8000/mcp", "--allow-http", "--header", "Authorization:${AUTH_HEADER}"],
+      "env": { "AUTH_HEADER": "Bearer <token>" }
+    }
+  }
+}
+```
+
+3. Save the file, quit Claude Desktop completely and open it again.
+
+`--allow-http` lets `mcp-remote` use an address that isn't HTTPS. Use it only on a network you trust, and leave it out for an HTTPS address. The token sits in `env`, with no space after the colon in the header, so Windows doesn't split the argument.
+
+## Check the connection
+
+Click the tools button below the message box. **semestra** and its tools should be listed. If not, open **Developer** in settings to see the error log.
+
+## Disconnect
+
+Remove `semestra` from the config file and restart. Revoking its token under **Clients and API tokens** also disconnects it right away.

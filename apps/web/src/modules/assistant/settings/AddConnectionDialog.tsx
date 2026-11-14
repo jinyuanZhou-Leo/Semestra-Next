@@ -205,6 +205,7 @@ function Finish({
   if (setup.kind === 'config') {
     const hint: Partial<Record<TokenClientId, () => string>> = {
       vscode: m.assistant_mcp_hint_vscode,
+      'claude-desktop': m.assistant_mcp_hint_claude_desktop,
     }
     return (
       <div className="space-y-2">
