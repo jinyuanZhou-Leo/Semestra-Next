@@ -20540,12 +20540,28 @@
           "client_name": {
             "type": "string",
             "title": "Client Name",
-            "description": "The app's name, as it calls itself"
+            "description": "The app's name, as it calls itself: not checked"
           },
-          "redirect_host": {
+          "app": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chatgpt",
+                  "claude"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App",
+            "description": "The app this is known to be; none when it only named itself"
+          },
+          "host": {
             "type": "string",
-            "title": "Redirect Host",
-            "description": "Where the browser returns after the answer"
+            "title": "Host",
+            "description": "The site the app is: where its metadata document is, or where the browser returns to after the answer"
           },
           "local": {
             "type": "boolean",
@@ -20568,7 +20584,8 @@
         "type": "object",
         "required": [
           "client_name",
-          "redirect_host",
+          "app",
+          "host",
           "local",
           "scopes"
         ],
@@ -38594,6 +38611,22 @@
             "title": "Prefix",
             "description": "Start of a pasted token; none for OAuth"
           },
+          "app": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chatgpt",
+                  "claude"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App",
+            "description": "The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves"
+          },
           "scopes": {
             "items": {
               "type": "string",
@@ -38646,6 +38679,7 @@
           "kind",
           "name",
           "prefix",
+          "app",
           "scopes",
           "created_at",
           "last_used_at",
@@ -38701,6 +38735,22 @@
             "title": "Prefix",
             "description": "Start of a pasted token; none for OAuth"
           },
+          "app": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chatgpt",
+                  "claude"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App",
+            "description": "The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves"
+          },
           "scopes": {
             "items": {
               "type": "string",
@@ -38748,6 +38798,7 @@
           "kind",
           "name",
           "prefix",
+          "app",
           "scopes",
           "created_at",
           "last_used_at",

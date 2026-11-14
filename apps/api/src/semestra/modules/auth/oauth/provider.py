@@ -7,6 +7,7 @@ Clients are known two ways: by a Client ID Metadata Document, an https `client_i
 we fetch (ChatGPT and Claude prefer this), or by registering (RFC 7591), stored in
 `auth_oauth_clients`."""
 
+import asyncio
 import json
 import time
 from datetime import datetime, timedelta
@@ -32,8 +33,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import State
 
 from semestra.core.config import Settings
+from semestra.core.errors import AppError
 from semestra.core.http import safe_client
-from semestra.modules.auth import crypto
+from semestra.modules.auth import crypto, ratelimit
 from semestra.modules.auth.models import AuthOAuthClient, AuthOAuthGrant, AuthPersonalAccessToken
 from semestra.modules.auth.oauth import common
 
@@ -47,6 +49,27 @@ CIMD_MAX_BYTES = 5_000
 CIMD_TIMEOUT = 5.0
 CIMD_TTL = (300, 86_400)  # seconds: least and most
 CIMD_FAILED_TTL = 60
+# Anyone can make us fetch a document: per address (a /64 for IPv6) and at once, only so many.
+CIMD_FETCH_LIMIT = 30
+CIMD_FETCH_WINDOW = timedelta(hours=1)
+CIMD_CONCURRENT = 4
+# What a registered client may keep with us.
+MAX_REDIRECT_URIS = 10
+MAX_CLIENT_NAME = 100
+
+
+STORED_CLIENT_FIELDS = {
+    "client_id",
+    "client_secret",
+    "client_id_issued_at",
+    "client_secret_expires_at",
+    "client_name",
+    "redirect_uris",
+    "token_endpoint_auth_method",
+    "grant_types",
+    "response_types",
+    "scope",
+}
 
 
 def _scopes() -> str:
@@ -94,15 +117,24 @@ def _max_age(cache_control: str | None) -> int:
     return 3600
 
 
+def _same_site_or_local(redirect: str, url: str) -> bool:
+    """A document's redirect goes back to the site the document is on, or to this computer (a
+    desktop app's listener): the site vouches for where the codes go."""
+    return common.is_loopback(redirect) or common.host_of(redirect) == common.host_of(url)
+
+
 def _client_from_document(url: str, doc: Any) -> Client | None:
     """A Client ID Metadata Document's client, if the document is one: it names itself by
-    exactly the URL it was fetched from, and redirects only where we allow."""
+    exactly the URL it was fetched from, and redirects only where we allow, on its own site."""
     if not isinstance(doc, dict) or doc.get("client_id") != url:
         return None
     redirects = doc.get("redirect_uris")
-    if not isinstance(redirects, list) or not redirects:
+    if not isinstance(redirects, list) or not redirects or len(redirects) > MAX_REDIRECT_URIS:
         return None
-    if not all(isinstance(r, str) and _redirect_allowed(r) for r in redirects):
+    if not all(
+        isinstance(r, str) and _redirect_allowed(r) and _same_site_or_local(r, url)
+        for r in redirects
+    ):
         return None
     # A public client: we hold no key to check a signed assertion with.
     methods = doc.get("token_endpoint_auth_methods_supported") or [
@@ -114,7 +146,9 @@ def _client_from_document(url: str, doc: Any) -> Client | None:
     try:
         return Client(
             client_id=url,
-            client_name=name if isinstance(name, str) and name.strip() else urlsplit(url).hostname,
+            client_name=name.strip()[:MAX_CLIENT_NAME]
+            if isinstance(name, str) and name.strip()
+            else urlsplit(url).hostname,
             redirect_uris=redirects,
             token_endpoint_auth_method="none",  # noqa: S106  (a method, not a secret)
             grant_types=["authorization_code", "refresh_token"],
@@ -132,6 +166,9 @@ class Provider:
     def __init__(self, state: State) -> None:
         self.state = state
         self._documents = TTLCache[str, tuple[float, Client | None]](maxsize=256, ttl=CIMD_TTL[1])
+        # One fetch per document at a time, however many requests wait for it.
+        self._fetching: dict[str, asyncio.Task[tuple[Client | None, int] | None]] = {}
+        self._fetch_slots = asyncio.Semaphore(CIMD_CONCURRENT)
 
     @property
     def settings(self) -> Settings:
@@ -159,11 +196,41 @@ class Provider:
         cached = self._documents.get(url)
         if cached is not None and cached[0] > time.monotonic():
             return cached[1]
-        client, ttl = await self._fetch_document(url)
+        task = self._fetching.get(url)
+        if task is None:
+            task = self._fetching[url] = asyncio.create_task(self._fetch_document(url))
+            task.add_done_callback(lambda _: self._fetching.pop(url, None))
+        fetched = await asyncio.shield(task)
+        if fetched is None:
+            return None  # over the limit: nothing learned about the document
+        client, ttl = fetched
         self._documents[url] = (time.monotonic() + ttl, client)
         return client
 
-    async def _fetch_document(self, url: str) -> tuple[Client | None, int]:
+    async def _may_fetch(self) -> bool:
+        """Counts a document fetch against the requesting address (a /64 for IPv6)."""
+        async with self._db() as db:
+            try:
+                await ratelimit.hit(
+                    db,
+                    self.settings,
+                    self._now(),
+                    "oauth_client_document",
+                    ratelimit.network(common.request_ip.get()),
+                    limit=CIMD_FETCH_LIMIT,
+                    window=CIMD_FETCH_WINDOW,
+                )
+            except AppError:
+                return False
+        return True
+
+    async def _fetch_document(self, url: str) -> tuple[Client | None, int] | None:
+        if not await self._may_fetch():
+            return None
+        async with self._fetch_slots:
+            return await self._download_document(url)
+
+    async def _download_document(self, url: str) -> tuple[Client | None, int]:
         try:
             async with (
                 safe_client(self.settings, timeout=CIMD_TIMEOUT) as http,
@@ -185,15 +252,20 @@ class Provider:
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         uris = [str(u) for u in client_info.redirect_uris or []]
-        if not uris or not all(_redirect_allowed(u) for u in uris):
+        if not uris or len(uris) > MAX_REDIRECT_URIS or not all(_redirect_allowed(u) for u in uris):
             raise RegistrationError(
-                "invalid_redirect_uri", "redirect URIs must be https or http://localhost"
+                "invalid_redirect_uri",
+                f"up to {MAX_REDIRECT_URIS} redirect URIs, https or http://localhost",
             )
+        name = (client_info.client_name or "").strip()[:MAX_CLIENT_NAME] or None
         async with self._db() as db:
             db.add(
                 AuthOAuthClient(
                     id=client_info.client_id,
-                    info=client_info.model_dump(mode="json", exclude_none=True),
+                    # Only what the server uses; the rest of what a client sends is not kept.
+                    info=client_info.model_copy(update={"client_name": name}).model_dump(
+                        mode="json", exclude_none=True, include=STORED_CLIENT_FIELDS
+                    ),
                     created_at=self._now(),
                 )
             )
@@ -269,33 +341,43 @@ class Provider:
             grant = await db.get(AuthOAuthGrant, grant_id) if grant_id else None
             if grant is None:
                 raise TokenError("invalid_grant", "authorization code does not exist")
-            await self._replace_earlier(db, grant, now)
             row = AuthPersonalAccessToken(
                 user_id=grant.user_id,
                 kind="oauth",
-                name=grant.client_name,
+                app=common.known_app(grant.client_id),
+                name=common.connection_name(grant.client_id, grant.client_name, grant.redirect_uri),
                 scopes=list(grant.scopes),
                 created_at=now,
             )
+            await self._replace_earlier(db, grant, row.app, now)
             db.add(row)
             await db.flush()
             refresh = crypto.new_token(REFRESH_PREFIX)
             grant.token_id = row.id
             grant.refresh_token_hash = crypto.hash_token(refresh)
             grant.refreshed_at = now
-            token = self._tokens(grant, row.id, list(grant.scopes), refresh, now)
+            token = self._tokens(grant, list(row.scopes), refresh, now)
             await db.commit()
         return token
 
     async def _replace_earlier(
-        self, db: AsyncSession, grant: AuthOAuthGrant, now: datetime
+        self, db: AsyncSession, grant: AuthOAuthGrant, app: str | None, now: datetime
     ) -> None:
         """Connecting an app again replaces its earlier connection, so the list has one row per
-        app. Apps that register anew each time get a new client id, so this goes by name."""
-        earlier = select(AuthOAuthGrant.token_id).where(
-            AuthOAuthGrant.user_id == grant.user_id,
-            AuthOAuthGrant.client_name == grant.client_name,
-            AuthOAuthGrant.token_id.is_not(None),
+        app: a known app's earlier connections, or else the same client's. Never by name, which
+        any client can claim: an app calling itself "ChatGPT" must not end the real one."""
+        earlier = (
+            select(AuthPersonalAccessToken.id).where(
+                AuthPersonalAccessToken.user_id == grant.user_id,
+                AuthPersonalAccessToken.kind == "oauth",
+                AuthPersonalAccessToken.app == app,
+            )
+            if app
+            else select(AuthOAuthGrant.token_id).where(
+                AuthOAuthGrant.user_id == grant.user_id,
+                AuthOAuthGrant.client_id == grant.client_id,
+                AuthOAuthGrant.token_id.is_not(None),
+            )
         )
         await db.execute(
             update(AuthPersonalAccessToken)
@@ -308,16 +390,13 @@ class Provider:
         )
 
     def _tokens(
-        self, grant: AuthOAuthGrant, token_id: str, scopes: list[str], refresh: str, now: datetime
+        self, grant: AuthOAuthGrant, scopes: list[str], refresh: str, now: datetime
     ) -> OAuthToken:
-        access = common.issue_access_token(
-            self.settings,
-            user_id=grant.user_id,
-            token_id=token_id,
-            client_id=grant.client_id,
-            scopes=scopes,
-            now=now,
-        )
+        """A new access token for `grant` (the last one stops working) beside `refresh`. The
+        access the connection has is its row's; a token never carries any of its own."""
+        access = crypto.new_token(common.ACCESS_PREFIX)
+        grant.access_token_hash = crypto.hash_token(access)
+        grant.access_expires_at = now + common.ACCESS_TTL
         return OAuthToken(
             access_token=access,
             token_type="Bearer",  # noqa: S106
@@ -396,9 +475,10 @@ class Provider:
                 .returning(AuthOAuthGrant.id)
             )
             grant = await db.get(AuthOAuthGrant, grant_id) if grant_id else None
-            if grant is None or grant.token_id is None:
+            row = await db.get(AuthPersonalAccessToken, grant.token_id) if grant else None
+            if grant is None or row is None:
                 raise TokenError("invalid_grant", "refresh token does not exist")
-            token = self._tokens(grant, grant.token_id, scopes, new, now)
+            token = self._tokens(grant, list(row.scopes), new, now)
             await db.commit()
         return token
 
@@ -410,17 +490,26 @@ class Provider:
     # --- access tokens and revocation -----------------------------------------------------
 
     async def load_access_token(self, token: str) -> AccessToken | None:
-        claims = common.read_access_token(self.settings, token, self._now())
-        if claims is None:
+        async with self._db() as db:
+            grant = await db.scalar(
+                select(AuthOAuthGrant).where(
+                    AuthOAuthGrant.access_token_hash == crypto.hash_token(token)
+                )
+            )
+        if (
+            grant is None
+            or grant.access_expires_at is None
+            or grant.access_expires_at <= self._now()
+        ):
             return None
         return AccessToken(
             token=token,
-            client_id=claims.client_id,
-            scopes=claims.scopes,
-            expires_at=claims.expires_at,
-            resource=common.resource(self.settings),
-            subject=claims.user_id,
-            claims={"tid": claims.token_id},
+            client_id=grant.client_id,
+            scopes=list(grant.scopes),
+            expires_at=int(grant.access_expires_at.timestamp()),
+            resource=grant.resource,
+            subject=grant.user_id,
+            claims={"tid": grant.token_id},
         )
 
     async def revoke_token(self, token: AccessToken | RefreshToken) -> None:

@@ -1346,15 +1346,21 @@ export type AuthorizationRequestOut = {
     /**
      * Client Name
      *
-     * The app's name, as it calls itself
+     * The app's name, as it calls itself: not checked
      */
     client_name: string;
     /**
-     * Redirect Host
+     * App
      *
-     * Where the browser returns after the answer
+     * The app this is known to be; none when it only named itself
      */
-    redirect_host: string;
+    app: 'chatgpt' | 'claude' | null;
+    /**
+     * Host
+     *
+     * The site the app is: where its metadata document is, or where the browser returns to after the answer
+     */
+    host: string;
     /**
      * Local
      *
@@ -11892,6 +11898,12 @@ export type TokenCreated = {
      */
     prefix: string | null;
     /**
+     * App
+     *
+     * The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves
+     */
+    app: 'chatgpt' | 'claude' | null;
+    /**
      * Scopes
      */
     scopes: Array<'read' | 'write'>;
@@ -11949,6 +11961,12 @@ export type TokenOut = {
      * Start of a pasted token; none for OAuth
      */
     prefix: string | null;
+    /**
+     * App
+     *
+     * The app an OAuth connection is known to be (its metadata document is served from that app's site); none for tokens and for apps that only named themselves
+     */
+    app: 'chatgpt' | 'claude' | null;
     /**
      * Scopes
      */

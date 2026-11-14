@@ -47,6 +47,8 @@ def upgrade() -> None:
         sa.Column("refresh_token_hash", sa.String(), nullable=True),
         sa.Column("previous_refresh_token_hash", sa.String(), nullable=True),
         sa.Column("refreshed_at", semestra.core.db.UTCDateTime(timezone=True), nullable=True),
+        sa.Column("access_token_hash", sa.String(), nullable=True),
+        sa.Column("access_expires_at", semestra.core.db.UTCDateTime(timezone=True), nullable=True),
         sa.Column("created_at", semestra.core.db.UTCDateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["token_id"], ["auth_personal_access_tokens.id"], ondelete="CASCADE"
@@ -55,6 +57,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("code_hash"),
         sa.UniqueConstraint("refresh_token_hash"),
+        sa.UniqueConstraint("access_token_hash"),
         sa.UniqueConstraint("token_id"),
     )
     with op.batch_alter_table("auth_oauth_grants", schema=None) as batch_op:
@@ -67,6 +70,7 @@ def upgrade() -> None:
 
     with op.batch_alter_table("auth_personal_access_tokens", schema=None) as batch_op:
         batch_op.add_column(sa.Column("kind", sa.String(), nullable=False, server_default="token"))
+        batch_op.add_column(sa.Column("app", sa.String(), nullable=True))
         batch_op.alter_column("token_hash", existing_type=sa.VARCHAR(), nullable=True)
         batch_op.alter_column("prefix", existing_type=sa.VARCHAR(), nullable=True)
 
@@ -79,6 +83,7 @@ def downgrade() -> None:
     with op.batch_alter_table("auth_personal_access_tokens", schema=None) as batch_op:
         batch_op.alter_column("prefix", existing_type=sa.VARCHAR(), nullable=False)
         batch_op.alter_column("token_hash", existing_type=sa.VARCHAR(), nullable=False)
+        batch_op.drop_column("app")
         batch_op.drop_column("kind")
 
     with op.batch_alter_table("auth_oauth_grants", schema=None) as batch_op:

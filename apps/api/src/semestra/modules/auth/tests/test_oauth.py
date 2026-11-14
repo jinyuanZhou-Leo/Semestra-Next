@@ -33,6 +33,8 @@ pytestmark = pytest.mark.usefixtures("signed_in")
 
 MCP_URL = f"{TEST_ORIGIN}/mcp"
 DOCUMENT_URL = "https://app.example/oauth/client.json"
+CHATGPT_DOCUMENT = "https://chatgpt.com/oauth/client.json"
+CHATGPT_REDIRECT = "https://chatgpt.com/connector/oauth/abc"
 REDIRECT = "https://app.example/callback"
 
 
@@ -97,9 +99,9 @@ class Consent:
         return AuthorizationCodeResult(code=query["code"][0], state=query.get("state", [None])[0])
 
 
-def _metadata(redirect: str = REDIRECT) -> OAuthClientMetadata:
+def _metadata(redirect: str = REDIRECT, name: str = "Example AI") -> OAuthClientMetadata:
     return OAuthClientMetadata(
-        client_name="Example AI",
+        client_name=name,
         redirect_uris=[AnyUrl(redirect)],
         token_endpoint_auth_method="none",
         application_type="web",
@@ -117,11 +119,12 @@ def connect(app: FastAPI, client: AsyncClient) -> Connect:
         storage: Storage | None = None,
         document: str | None = None,
         redirect: str = REDIRECT,
+        name: str = "Example AI",
     ) -> AsyncIterator[ClientSession]:
         consent = consent or Consent(app, client)
         auth = OAuthClientProvider(
             MCP_URL,
-            _metadata(redirect),
+            _metadata(redirect, name),
             storage or Storage(),
             redirect_handler=consent.redirect,
             callback_handler=consent.callback,
@@ -157,7 +160,8 @@ async def test_a_registered_app_signs_in_and_gets_the_chosen_access(
     assert consent.seen == [
         {
             "client_name": "Example AI",
-            "redirect_host": "app.example",
+            "app": None,
+            "host": "app.example",
             "local": False,
             "scopes": ["read", "write"],
         }
@@ -165,7 +169,7 @@ async def test_a_registered_app_signs_in_and_gets_the_chosen_access(
     [row] = await _connections(client)
     assert (row["kind"], row["name"], row["scopes"], row["prefix"]) == (
         "oauth",
-        "Example AI",
+        "Example AI (app.example)",  # a name anyone could give: listed with its site
         ["read"],
         None,
     )
@@ -214,6 +218,7 @@ async def test_a_metadata_document_identifies_the_app(
             await mcp.list_tools()
     assert fetched.called
     assert consent.seen[0]["client_name"] == "Doc App"
+    assert consent.seen[0]["app"] is None  # a document, but not on a site we know
     assert consent.seen[0]["local"] is True
     r = await client.get(
         "/authorize",
@@ -266,15 +271,34 @@ async def test_refresh_tokens_rotate_and_a_copied_one_ends_the_connection(
     assert (await _refresh(client, storage)).status_code == 400
 
 
-async def test_connecting_an_app_again_replaces_its_connection(
+async def test_a_known_app_replaces_its_connection_and_a_lookalike_cannot(
     app: FastAPI, client: AsyncClient, connect: Connect
 ):
-    async with connect() as mcp:
-        await mcp.list_tools()  # a call finishes the handshake before closing
-    async with connect(Consent(app, client, scopes=["read", "write"])) as mcp:
-        await mcp.list_tools()  # a call finishes the handshake before closing
-    [row] = await _connections(client)
-    assert row["scopes"] == ["read", "write"]
+    document = {
+        "client_id": CHATGPT_DOCUMENT,
+        "client_name": "ChatGPT",
+        "redirect_uris": [CHATGPT_REDIRECT],
+        "token_endpoint_auth_method": "none",
+    }
+    consent = Consent(app, client, scopes=["read", "write"])
+    with respx.mock(assert_all_mocked=False) as mock:
+        mock.get(CHATGPT_DOCUMENT).mock(return_value=Response(200, json=document))
+        async with connect(document=CHATGPT_DOCUMENT, redirect=CHATGPT_REDIRECT) as mcp:
+            await mcp.list_tools()  # a call finishes the handshake before closing
+        async with connect(consent, document=CHATGPT_DOCUMENT, redirect=CHATGPT_REDIRECT) as mcp:
+            await mcp.list_tools()
+    assert consent.seen[0]["app"] == "chatgpt"
+    [real] = await _connections(client)
+    assert (real["app"], real["scopes"]) == ("chatgpt", ["read", "write"])
+
+    # Any app can call itself ChatGPT: it is listed as an unknown app and replaces nothing.
+    async with connect(name="ChatGPT") as mcp:
+        await mcp.list_tools()
+    rows = await _connections(client)
+    assert sorted((r["name"], r["app"] or "") for r in rows) == [
+        ("ChatGPT", "chatgpt"),
+        ("ChatGPT (app.example)", ""),
+    ]
 
 
 def _pkce() -> tuple[str, str]:
@@ -351,24 +375,69 @@ async def test_metadata_points_apps_at_signing_in(client: AsyncClient):
     assert server["code_challenge_methods_supported"] == ["S256"]
 
 
-async def test_only_tokens_issued_for_this_server_are_accepted(
-    app: FastAPI, client: AsyncClient, connect: Connect
+async def test_access_tokens_last_an_hour_and_a_refresh_replaces_them(
+    app: FastAPI, client: AsyncClient, connect: Connect, clock: Clock
 ):
-    import jwt
-
     storage = Storage()
     async with connect(storage=storage) as mcp:
         await mcp.list_tools()  # a call finishes the handshake before closing
     assert storage.tokens is not None
-    claims = jwt.decode(storage.tokens.access_token, options={"verify_signature": False})
-    elsewhere = jwt.encode(
-        {**claims, "aud": "https://other.example/mcp"},
-        app.state.settings.secret_key,
-        algorithm="HS256",
-    )
-    r = await client.post(
-        "/mcp",
-        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-        headers={"Authorization": f"Bearer {elsewhere}"},
-    )
-    assert r.status_code == 401
+    first = storage.tokens.access_token
+    assert first.startswith("soat_")
+
+    async def tools(token: str) -> int:
+        r = await client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        )
+        return r.status_code
+
+    assert await tools(first) == 200
+    r = await _refresh(client, storage)
+    assert r.status_code == 200
+    second = r.json()["access_token"]
+    assert (await tools(first), await tools(second)) == (401, 200)
+    clock.advance(hours=1, seconds=1)
+    assert await tools(second) == 401
+
+
+async def test_a_metadata_document_redirects_only_to_its_own_site(client: AsyncClient):
+    url = "https://lookalike.example/client.json"
+    document = {
+        "client_id": url,
+        "client_name": "ChatGPT",
+        "redirect_uris": ["https://elsewhere.example/callback"],
+        "token_endpoint_auth_method": "none",
+    }
+    with respx.mock(assert_all_mocked=False) as mock:
+        mock.get(url).mock(return_value=Response(200, json=document))
+        r = await client.get(
+            "/authorize",
+            params={
+                "client_id": url,
+                "redirect_uri": "https://elsewhere.example/callback",
+                "response_type": "code",
+                "code_challenge": "x" * 43,
+                "code_challenge_method": "S256",
+            },
+        )
+    assert r.status_code == 400  # no such client: no redirect, no consent page
+
+
+async def test_documents_are_fetched_only_so_often_per_address(client: AsyncClient):
+    with respx.mock(assert_all_mocked=False) as mock:
+        fetched = mock.get(url__regex=r"https://docs\.example/.*").mock(return_value=Response(404))
+        for i in range(32):
+            await client.get(
+                "/authorize",
+                params={"client_id": f"https://docs.example/{i}.json", "response_type": "code"},
+            )
+    assert fetched.call_count == 30
+
+
+async def test_registration_is_kept_small(client: AsyncClient):
+    many = {"client_name": "x", "redirect_uris": [f"https://a.example/{i}" for i in range(11)]}
+    assert (await client.post("/register", json=many)).status_code == 400
+    huge = {"client_name": "x" * 200_000, "redirect_uris": ["https://a.example/cb"]}
+    assert (await client.post("/register", json=huge)).status_code == 413

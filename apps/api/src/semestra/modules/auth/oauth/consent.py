@@ -10,7 +10,7 @@ from semestra.core.errors import AppError
 from semestra.modules.auth import crypto
 from semestra.modules.auth.models import AuthOAuthGrant
 from semestra.modules.auth.oauth import common
-from semestra.modules.auth.schemas import TokenScope
+from semestra.modules.auth.schemas import KnownApp, TokenScope
 from semestra.modules.auth.service import require_recent_auth
 
 HTTP_ONLY = ("http",)
@@ -29,8 +29,14 @@ class AuthorizationRequestInput(BaseModel):
 
 
 class AuthorizationRequestOut(BaseModel):
-    client_name: str = Field(description="The app's name, as it calls itself")
-    redirect_host: str = Field(description="Where the browser returns after the answer")
+    client_name: str = Field(description="The app's name, as it calls itself: not checked")
+    app: KnownApp | None = Field(
+        description="The app this is known to be; none when it only named itself"
+    )
+    host: str = Field(
+        description="The site the app is: where its metadata document is, or where the browser "
+        "returns to after the answer"
+    )
     local: bool = Field(description="The app runs on this computer (a localhost redirect)")
     scopes: list[TokenScope] = Field(description="The access levels the user may choose from")
 
@@ -49,7 +55,8 @@ async def authorization_get(ctx: Ctx, inp: AuthorizationRequestInput) -> Authori
     req = _pending(ctx, inp.request)
     return AuthorizationRequestOut(
         client_name=req.client_name,
-        redirect_host=common.host_of(req.redirect_uri),
+        app=common.known_app(req.client_id),
+        host=common.client_host(req.client_id, req.redirect_uri),
         local=common.is_loopback(req.redirect_uri),
         scopes=req.scopes or ["read", "write"],
     )

@@ -1,5 +1,6 @@
 """Database-backed fixed-window rate limits (M01 §4)."""
 
+import ipaddress
 import math
 from datetime import datetime, timedelta
 
@@ -12,6 +13,18 @@ from semestra.core.db import new_id
 from semestra.core.errors import AppError
 from semestra.modules.auth.crypto import rate_limit_key
 from semestra.modules.auth.models import AuthRateLimit
+
+
+def network(ip: str) -> str:
+    """The key an address is limited by: an IPv6 address by its /64, which one subscriber
+    usually holds whole (counting single addresses there limits nothing); IPv4 as is."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if address.version == 6:
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return ip
 
 
 def _retry_after(until: datetime, now: datetime) -> int:

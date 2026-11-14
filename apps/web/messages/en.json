@@ -3285,5 +3285,6 @@
   "assistant_oauth_expired_title": "This request has expired",
   "assistant_oauth_expired_description": "Go back to the app and connect Semestra again.",
   "assistant_oauth_open_app": "Open Semestra",
-  "error_auth_authorization_expired": "This request has expired. Connect again from the app."
+  "error_auth_authorization_expired": "This request has expired. Connect again from the app.",
+  "assistant_oauth_unverified": "It calls itself “{name}”, which Semestra can't check. Allow only if you know this site."
 }

@@ -15,13 +15,11 @@ from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOption
 from mcp.shared.auth import OAuthMetadata, ProtectedResourceMetadata
 from pydantic import AnyHttpUrl
 from starlette.datastructures import State
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route, Router
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from semestra.core.config import Settings
-from semestra.core.context import client_ip
 from semestra.core.errors import AppError
 from semestra.modules.auth import ratelimit
 from semestra.modules.auth.oauth import common
@@ -68,8 +66,8 @@ def _resource_metadata(settings: Settings) -> ProtectedResourceMetadata:
 
 
 class _RateLimited:
-    """An ASGI app: `app`, with a per-address limit on POSTs (an object, so `Route` treats it
-    as an app rather than a request handler)."""
+    """An ASGI app: `app`, with a limit on POSTs per address (a /64 for IPv6; an object, so
+    `Route` treats it as an app rather than a request handler)."""
 
     def __init__(self, state: State, app: ASGIApp) -> None:
         self.state = state
@@ -77,16 +75,14 @@ class _RateLimited:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("method") == "POST":
-            settings = self.state.settings
-            ip = client_ip(Request(scope), settings.trusted_proxy_hops) or "unknown"
             async with self.state.session_factory() as db:
                 try:
                     await ratelimit.hit(
                         db,
-                        settings,
+                        self.state.settings,
                         self.state.now(),
                         "oauth_register",
-                        ip,
+                        ratelimit.network(common.request_ip.get()),
                         limit=REGISTER_LIMIT,
                         window=REGISTER_WINDOW,
                     )

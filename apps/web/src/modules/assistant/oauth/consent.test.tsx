@@ -17,17 +17,35 @@ afterAll(() => server.close())
 // Back to the app: a change of hash is the one navigation jsdom performs.
 const back = (answer: string) => `${window.location.href.split('#')[0]}#${answer}`
 
-function mount(request: { scopes: string[]; local?: boolean } | 'expired') {
+type Request = { scopes: string[]; local?: boolean; unverified?: boolean }
+
+const details = (request: Request) =>
+  request.local
+    ? { client_name: 'Desk AI', app: null, host: 'localhost', local: true, scopes: request.scopes }
+    : request.unverified
+      ? {
+          client_name: 'ChatGPT',
+          app: null,
+          host: 'evil.example',
+          local: false,
+          scopes: request.scopes,
+        }
+      : {
+          client_name: 'ChatGPT',
+          app: 'chatgpt',
+          host: 'chatgpt.com',
+          local: false,
+          scopes: request.scopes,
+        }
+
+function mount(request: Request | 'expired' | 'down') {
   server.use(
     http.get(`${API}/account/authorizations/request`, () =>
       request === 'expired'
         ? HttpResponse.json(apiError('auth.authorization_expired', 400).body, { status: 400 })
-        : HttpResponse.json({
-            client_name: 'ChatGPT',
-            redirect_host: request.local ? 'localhost' : 'chatgpt.com',
-            local: request.local ?? false,
-            scopes: request.scopes,
-          }),
+        : request === 'down'
+          ? HttpResponse.json(apiError('common.internal', 500).body, { status: 500 })
+          : HttpResponse.json(details(request)),
     ),
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
@@ -69,7 +87,32 @@ test('an app that asked to read only gets no choice to write', async () => {
   mount({ scopes: ['read'], local: true })
   expect(await screen.findByRole('radio', { name: /Read only/ })).toBeChecked()
   expect(screen.queryByRole('radio', { name: /Read and write/ })).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('heading', { name: 'Allow Desk AI to access your account?' }),
+  ).toBeInTheDocument()
   expect(screen.getByText(/runs on your computer/)).toBeInTheDocument()
+})
+
+test('an app the server cannot verify is named by its site, with its claim beneath', async () => {
+  mount({ scopes: ['read'], unverified: true })
+  expect(
+    await screen.findByRole('heading', { name: 'Allow evil.example to access your account?' }),
+  ).toBeInTheDocument()
+  expect(screen.getByText(/calls itself “ChatGPT”/)).toBeInTheDocument()
+})
+
+test('a request that fails to load can be retried', async () => {
+  mount('down')
+  const retry = await screen.findByRole('button', { name: 'Retry' })
+  server.use(
+    http.get(`${API}/account/authorizations/request`, () =>
+      HttpResponse.json(details({ scopes: ['read'] })),
+    ),
+  )
+  await userEvent.click(retry)
+  expect(
+    await screen.findByRole('heading', { name: 'Allow ChatGPT to access your account?' }),
+  ).toBeInTheDocument()
 })
 
 test('denying returns to the app', async () => {

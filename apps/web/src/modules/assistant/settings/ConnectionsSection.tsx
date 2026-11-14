@@ -22,7 +22,7 @@ import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { AddConnectionDialog, ClientTile } from './AddConnectionDialog'
 import { ChangesDialog, changesOptions } from './ChangesDialog'
-import { clientOfToken } from './mcp-clients'
+import { clientOf } from './mcp-clients'
 
 type RowActions = {
   revoke: (token: TokenOut) => void
@@ -43,7 +43,7 @@ function NameCell({ row }: CellProps) {
   const t = row.original
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <ClientTile client={clientOfToken(t.name)} />
+      <ClientTile client={clientOf(t)} />
       <div className="min-w-0">
         <div className="truncate font-medium">{t.name}</div>
         <div className="truncate text-xs text-muted-foreground">

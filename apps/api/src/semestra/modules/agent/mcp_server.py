@@ -306,7 +306,7 @@ def _unauthorized(settings: Settings) -> Response:
 async def _authenticate(request: Request) -> Identity | None:
     """A pasted token, or an access token the app got by signing in (M12 §5.3)."""
     from semestra.modules.auth.crypto import PAT_PREFIX
-    from semestra.modules.auth.oauth.common import authenticate_access_token
+    from semestra.modules.auth.oauth.common import ACCESS_PREFIX, authenticate_access_token
 
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     token = token.strip()
@@ -316,8 +316,10 @@ async def _authenticate(request: Request) -> Identity | None:
     async with state.session_factory() as db:
         if token.startswith(PAT_PREFIX):
             identity = await state.authenticator(request, Response(), db, state.now())
+        elif token.startswith(ACCESS_PREFIX):
+            identity = await authenticate_access_token(db, token, state.now())
         else:
-            identity = await authenticate_access_token(db, state.settings, token, state.now())
+            identity = None
         await db.commit()
     return identity if identity is not None and identity.auth.kind == "pat" else None
 

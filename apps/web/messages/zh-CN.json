@@ -3285,5 +3285,6 @@
   "assistant_oauth_expired_title": "这个授权请求已失效",
   "assistant_oauth_expired_description": "回到应用，重新连接 Semestra。",
   "assistant_oauth_open_app": "打开 Semestra",
-  "error_auth_authorization_expired": "授权请求已失效，请回到应用重新连接。"
+  "error_auth_authorization_expired": "授权请求已失效，请回到应用重新连接。",
+  "assistant_oauth_unverified": "它自称“{name}”，Semestra 无法核实。只有你认识这个网站时才允许。"
 }

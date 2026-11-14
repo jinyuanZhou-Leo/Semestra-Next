@@ -7,10 +7,14 @@ import importlib
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
+from starlette.requests import Request
 from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
-from semestra.modules.auth.oauth import consent  # noqa: F401  (registers on import)
+from semestra.core.context import client_ip
+from semestra.core.errors import AppError
+from semestra.core.uploads import limit_upload
+from semestra.modules.auth.oauth import common, consent  # noqa: F401  (registers on import)
 
 if TYPE_CHECKING:
     from starlette.routing import Router
@@ -25,6 +29,16 @@ PATHS = {
     "/revoke": ["POST", "OPTIONS"],
 }
 
+# A registration is a few hundred bytes; nothing bigger is read.
+MAX_REGISTRATION_BYTES = 8 * 1024
+limit_upload(
+    "/register",
+    lambda _: (
+        MAX_REGISTRATION_BYTES,
+        AppError("common.payload_too_large", 413, limit_bytes=MAX_REGISTRATION_BYTES),
+    ),
+)
+
 
 class LazyRoutes:
     """The OAuth routes, importing the MCP SDK on their first request instead of at start (as
@@ -35,6 +49,8 @@ class LazyRoutes:
         self.lock = asyncio.Lock()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        settings = scope["app"].state.settings
+        common.request_ip.set(client_ip(Request(scope), settings.trusted_proxy_hops) or "unknown")
         router = self.router
         if router is None:
             async with self.lock:

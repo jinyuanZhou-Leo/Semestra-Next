@@ -488,7 +488,10 @@ export function AddConnectionDialog({
               <SignInSteps name={client.name} url={url} signIn={client.signIn} />
               <WaitFooter
                 client={client}
-                connected={(tokens) => tokens.some((t) => t.kind === 'oauth' && !known.has(t.id))}
+                // A new connection the server knows is this app (any app can take its name).
+                connected={(tokens) =>
+                  tokens.some((t) => t.kind === 'oauth' && t.app === client.id && !known.has(t.id))
+                }
               />
             </>
           ) : null}

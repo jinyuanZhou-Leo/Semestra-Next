@@ -114,6 +114,8 @@ class AuthPersonalAccessToken(Base):
         String, ForeignKey("auth_users.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String, default="token")  # 'token' | 'oauth'
+    # OAuth only: the app this is known to be ('chatgpt' | 'claude'), see `oauth.common.known_app`.
+    app: Mapped[str | None] = mapped_column(String, default=None)
     name: Mapped[str] = mapped_column(String)
     token_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
     prefix: Mapped[str | None] = mapped_column(String, default=None)  # first 8 chars, for the UI
@@ -168,4 +170,7 @@ class AuthOAuthGrant(Base):
         String, index=True, default=None
     )
     refreshed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    # The current access token (random, like a pasted token); a new one with each refresh.
+    access_token_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
+    access_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)

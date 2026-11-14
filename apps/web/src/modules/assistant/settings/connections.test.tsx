@@ -18,6 +18,7 @@ const url = 'https://semestra.example/mcp'
 const token: {
   id: string
   kind: 'token' | 'oauth'
+  app: 'chatgpt' | 'claude' | null
   name: string
   prefix: string | null
   scopes: string[]
@@ -27,6 +28,7 @@ const token: {
 } = {
   id: 't1',
   kind: 'token',
+  app: null,
   name: 'Claude Code',
   prefix: 'spat_AbC',
   scopes: ['read'],
@@ -245,7 +247,7 @@ test('an app that signs in gets the address and its steps, and shows once it has
   expect(within(dialog).queryByRole('button', { name: /Create API token/ })).not.toBeInTheDocument()
   expect(within(dialog).getByText('Waiting for ChatGPT to connect…')).toBeInTheDocument()
   // Signing in on the consent page adds a connection.
-  items.push({ ...token, id: 't2', kind: 'oauth', name: 'ChatGPT', prefix: null })
+  items.push({ ...token, id: 't2', kind: 'oauth', app: 'chatgpt', name: 'ChatGPT', prefix: null })
   expect(
     await within(dialog).findByText('ChatGPT is connected', undefined, { timeout: 5000 }),
   ).toBeInTheDocument()
@@ -253,7 +255,14 @@ test('an app that signs in gets the address and its steps, and shows once it has
 
 test('an app that signed in is listed as such and disconnected after confirming', async () => {
   const revoked = vi.fn<(id: string) => void>()
-  const chatgpt = { ...token, id: 't2', kind: 'oauth' as const, name: 'ChatGPT', prefix: null }
+  const chatgpt = {
+    ...token,
+    id: 't2',
+    kind: 'oauth' as const,
+    app: 'chatgpt' as const,
+    name: 'ChatGPT',
+    prefix: null,
+  }
   server.use(
     http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [chatgpt] })),
     http.delete(`${API}/account/tokens/:id`, ({ params }) => {

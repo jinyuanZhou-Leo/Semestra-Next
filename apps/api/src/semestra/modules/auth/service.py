@@ -225,7 +225,9 @@ async def start_challenge(
     await ratelimit.hit(db, s, ctx.now, "email_start_email", email, limit=count, window=window)
     if meta.ip:
         count, window = EMAIL_START_PER_IP
-        await ratelimit.hit(db, s, ctx.now, "email_start_ip", meta.ip, limit=count, window=window)
+        await ratelimit.hit(
+            db, s, ctx.now, "email_start_ip", ratelimit.network(meta.ip), limit=count, window=window
+        )
 
     stmt = select(AuthEmailChallenge).where(
         AuthEmailChallenge.email == email,
@@ -540,7 +542,9 @@ async def login_with_password(
     await ratelimit.hit(db, s, ctx.now, "login_email", email, limit=count, window=window)
     if meta.ip:
         count, window = LOGIN_PER_IP
-        await ratelimit.hit(db, s, ctx.now, "login_ip", meta.ip, limit=count, window=window)
+        await ratelimit.hit(
+            db, s, ctx.now, "login_ip", ratelimit.network(meta.ip), limit=count, window=window
+        )
     user = await user_by_email(db, email)
     ok = await crypto.verify_password(password, user.password_hash if user else None)
     if not ok or user is None or user.password_hash is None:
@@ -970,6 +974,7 @@ def _token_out(row: AuthPersonalAccessToken) -> TokenOut:
         kind="oauth" if row.kind == "oauth" else "token",
         name=row.name,
         prefix=row.prefix,
+        app="chatgpt" if row.app == "chatgpt" else "claude" if row.app == "claude" else None,
         scopes=[s for s in row.scopes if s in ("read", "write")],
         created_at=row.created_at,
         last_used_at=row.last_used_at,

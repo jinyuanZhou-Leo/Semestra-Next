@@ -7,6 +7,7 @@ import claudeLogo from '@lobehub/icons-static-svg/icons/claude.svg?url'
 import openaiLogo from '@lobehub/icons-static-svg/icons/openai.svg?url'
 import codexLogo from '@lobehub/icons-static-svg/icons/codex.svg?url'
 import devinLogo from '@lobehub/icons-static-svg/icons/devin.svg?url'
+import type { TokenOut } from '@semestra/api-client'
 import { m } from '@/paraglide/messages'
 
 /**
@@ -183,9 +184,13 @@ export function mcpSetup(client: TokenClientId, url: string, token: string): Set
 }
 
 /**
- * The client a connection belongs to, from its name ("Cursor", or the name an app signed in
- * with); none for connections named otherwise.
+ * The client a connection belongs to: an app that signed in only when the server knows it is
+ * that app (any app can call itself ChatGPT); a pasted token by the name it was made with
+ * ("Cursor"). None for connections named otherwise.
  */
-export function clientOfToken(name: string): McpClient | undefined {
-  return MCP_CLIENTS.find((c) => c.name !== '' && c.name === name)
+export function clientOf(
+  connection: Pick<TokenOut, 'kind' | 'app' | 'name'>,
+): McpClient | undefined {
+  if (connection.kind === 'oauth') return MCP_CLIENTS.find((c) => c.id === connection.app)
+  return MCP_CLIENTS.find((c) => !c.signIn && c.name !== '' && c.name === connection.name)
 }

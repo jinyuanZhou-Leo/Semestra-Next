@@ -26,7 +26,8 @@ import {
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from '@/ui/field'
 import { RadioGroup, RadioGroupItem } from '@/ui/radio-group'
 import { Spinner } from '@/ui/spinner'
-import { clientOfToken } from '../settings/mcp-clients'
+import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { MCP_CLIENTS, type McpClient } from '../settings/mcp-clients'
 
 type Scope = 'read' | 'write'
 
@@ -53,9 +54,9 @@ function Expired() {
   )
 }
 
-/** The app's mark beside Semestra's. */
-function Pair({ client }: { client: string }) {
-  const logo = clientOfToken(client)?.logo
+/** The app's mark beside Semestra's: a key unless the server knows which app it is. */
+function Pair({ known }: { known: McpClient | undefined }) {
+  const logo = known?.logo
   return (
     <div className="flex items-center gap-3">
       <BrandTile className="size-11 rounded-xl">
@@ -117,93 +118,99 @@ export function ConsentPage({ request }: { request: string }) {
       </AuthLayout>
     )
   }
-  if (!details.data) {
-    return (
-      <AuthLayout>
-        <output className="flex items-center justify-center gap-2 py-12 text-sm">
-          <Spinner aria-hidden className="motion-reduce:animate-none" />
-          <span className="text-muted-foreground">{m.common_loading()}</span>
-        </output>
-      </AuthLayout>
-    )
-  }
-
-  const { client_name: client, redirect_host: host, local, scopes } = details.data
-  const options = [
-    {
-      value: 'read' as const,
-      title: m.auth_account_tokens_scope_read(),
-      description: m.assistant_oauth_read_description(),
-    },
-    {
-      value: 'write' as const,
-      title: m.auth_account_tokens_scope_write(),
-      description: m.assistant_oauth_write_description(),
-    },
-  ].filter((o) => scopes.includes(o.value))
+  const options = (scopes: readonly string[]) =>
+    [
+      {
+        value: 'read' as const,
+        title: m.auth_account_tokens_scope_read(),
+        description: m.assistant_oauth_read_description(),
+      },
+      {
+        value: 'write' as const,
+        title: m.auth_account_tokens_scope_write(),
+        description: m.assistant_oauth_write_description(),
+      },
+    ].filter((o) => scopes.includes(o.value))
 
   return (
     <AuthLayout>
-      <div className="grid gap-6">
-        <Pair client={client} />
-        <div className="grid gap-1.5">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            {m.assistant_oauth_title({ client })}
-          </h1>
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate text-muted-foreground">
-              {m.assistant_oauth_signed_in_as()}{' '}
-              <span className="font-medium text-foreground">{user.email}</span>
-            </span>
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto shrink-0 px-0"
-              disabled={busy}
-              onClick={() => setSwitching(true)}
-            >
-              {m.assistant_oauth_switch_account()}
-            </Button>
-          </div>
-        </div>
-        <ReauthGate error={approve.error} enabled={details.isSuccess} onVerified={allow}>
-          <RadioGroup
-            aria-label={m.auth_account_tokens_scope_label()}
-            value={scope}
-            onValueChange={(value) => setScope(value as Scope)}
-            disabled={busy}
-          >
-            {options.map((o) => (
-              <FieldLabel key={o.value} htmlFor={`${id}-${o.value}`}>
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldTitle>{o.title}</FieldTitle>
-                    <FieldDescription>{o.description}</FieldDescription>
-                  </FieldContent>
-                  <RadioGroupItem value={o.value} id={`${id}-${o.value}`} />
-                </Field>
-              </FieldLabel>
-            ))}
-          </RadioGroup>
-        </ReauthGate>
-        <p className="text-xs text-muted-foreground">
-          {local ? m.assistant_oauth_local() : m.assistant_oauth_return({ host })}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => deny.mutate({ body: { request } })}
-          >
-            {deny.isPending || deny.isSuccess ? <Spinner aria-hidden /> : null}
-            {m.assistant_oauth_deny()}
-          </Button>
-          <Button disabled={busy || reauth} onClick={allow}>
-            {approve.isPending || approve.isSuccess ? <Spinner aria-hidden /> : null}
-            {m.assistant_oauth_allow()}
-          </Button>
-        </div>
-      </div>
+      <AsyncBoundary query={details}>
+        {({ client_name: name, app, host, local, scopes }) => {
+          // Named by what the server could check: a known app, else its site. The name it
+          // gives itself is shown only as its claim (or, for an app on this computer, as is).
+          const known = MCP_CLIENTS.find((c) => c.id === app)
+          const client = known?.name ?? (local ? name : host)
+          return (
+            <div className="grid gap-6">
+              <Pair known={known} />
+              <div className="grid gap-1.5">
+                <h1 className="font-heading text-2xl font-semibold tracking-tight">
+                  {m.assistant_oauth_title({ client })}
+                </h1>
+                {known ? null : (
+                  <p className="text-sm">
+                    {local ? m.assistant_oauth_local() : m.assistant_oauth_unverified({ name })}
+                  </p>
+                )}
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {m.assistant_oauth_signed_in_as()}{' '}
+                    <span className="font-medium text-foreground">{user.email}</span>
+                  </span>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto shrink-0 px-0"
+                    disabled={busy}
+                    onClick={() => setSwitching(true)}
+                  >
+                    {m.assistant_oauth_switch_account()}
+                  </Button>
+                </div>
+              </div>
+              <ReauthGate error={approve.error} enabled={details.isSuccess} onVerified={allow}>
+                <RadioGroup
+                  aria-label={m.auth_account_tokens_scope_label()}
+                  value={scope}
+                  onValueChange={(value) => setScope(value as Scope)}
+                  disabled={busy}
+                >
+                  {options(scopes).map((o) => (
+                    <FieldLabel key={o.value} htmlFor={`${id}-${o.value}`}>
+                      <Field orientation="horizontal">
+                        <FieldContent>
+                          <FieldTitle>{o.title}</FieldTitle>
+                          <FieldDescription>{o.description}</FieldDescription>
+                        </FieldContent>
+                        <RadioGroupItem value={o.value} id={`${id}-${o.value}`} />
+                      </Field>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+              </ReauthGate>
+              {local ? null : (
+                <p className="text-xs text-muted-foreground">
+                  {m.assistant_oauth_return({ host })}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => deny.mutate({ body: { request } })}
+                >
+                  {deny.isPending || deny.isSuccess ? <Spinner aria-hidden /> : null}
+                  {m.assistant_oauth_deny()}
+                </Button>
+                <Button disabled={busy || reauth} onClick={allow}>
+                  {approve.isPending || approve.isSuccess ? <Spinner aria-hidden /> : null}
+                  {m.assistant_oauth_allow()}
+                </Button>
+              </div>
+            </div>
+          )
+        }}
+      </AsyncBoundary>
       <SignOutDialog
         open={switching}
         onOpenChange={setSwitching}
