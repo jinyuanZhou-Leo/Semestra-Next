@@ -106,6 +106,14 @@ export function useTasksDueBetween(programId: string, from: string, to: string) 
   })
 }
 
+/** A course's to-dos, done ones included: one request for every row of a course's table. */
+export function courseTasksOptions(programId: string, courseId: string) {
+  return tasksItemQueryOptions({
+    path: { program_id: programId },
+    query: { course_id: courseId, completed: 'include', limit: 500 },
+  })
+}
+
 /** The Today card's data (`CardContribution.prefetch`). */
 export function prefetchTodayTasks(scope: Scope, queryClient: QueryClient) {
   const termId = scope.kind === 'term' ? scope.termId : undefined

@@ -72,6 +72,7 @@ function LazyUnbindDialog(props: AssessmentActionDialogProps) {
 
 export const bindAction: AssessmentAction = {
   id: 'lms.bind',
+  query: ({ courseId }) => lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
   Item: BindItem,
   Dialog: LazyBindDialog,
 }
