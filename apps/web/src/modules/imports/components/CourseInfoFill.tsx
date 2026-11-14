@@ -1,18 +1,14 @@
-import type { ImportSessionDetail, ItemOut } from '@semestra/api-client'
-import {
-  importsSessionCommitMutation,
-  importsSessionDiscardMutation,
-} from '@semestra/api-client/react-query'
+import type { ImportSession, ItemOut } from '@semestra/api-client'
+import { importsSessionDiscardMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FileText, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { invalidateOperations } from '@/app/api'
 import { SettingRow, SettingsGroup } from '@/app/settings'
 import { AiAction } from '@/components/AiAction'
-import { AiRequired } from '@/components/AiRequired'
+import { AiRequired, useProviderProblem } from '@/components/AiRequired'
 import { useJob } from '@/hooks/use-job'
-import { errorMessage, toastError } from '@/lib/errors'
+import { errorCode, errorMessage, toastError } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { useCourseFiles } from '@/modules/files/queries'
 import { m } from '@/paraglide/messages'
@@ -27,21 +23,14 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/ui/command'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover'
-import { settleEdits, storeSession, useImportSession } from '../queries'
+import { openImport } from '../launcher'
+import { storeSession, useImportSession } from '../queries'
 import { SOURCES, readableCourseFile } from '../sources'
-import type { FileImportRequest } from '../types'
-import { PatchEditor } from './ItemEditor'
-import { uploadAndCreate } from './SourcePicker'
 import { isReading } from '../status'
+import type { FileImportRequest } from '../types'
+import { type ImportKey, sessionRequest, useUnfinishedImport } from '../unfinished'
+import { uploadAndCreate } from './SourcePicker'
 
 /** What the upload picker offers: the syllabus source's types and extensions. */
 const ACCEPT = Object.entries(SOURCES.syllabus.accept ?? {})
@@ -64,8 +53,10 @@ export function syllabusCandidates(items: readonly ItemOut[]): ItemOut[] {
 
 /**
  * "Read from a file" at the top of a course's basics (M08 §6.1): pick a course file or upload
- * one and watch it being read in place; the changed fields then open in a dialog to tick and
- * apply. Applying is the confirmation; nothing is written before.
+ * one and watch it being read in place; the changed fields then open in the import dialog to
+ * tick and apply. Applying is the confirmation; nothing is written before. The row follows the
+ * course's unfinished import on the server, so leaving the page loses nothing: coming back shows
+ * it still reading, or waiting for review with a button to open it.
  */
 export function CourseInfoFill({
   programId,
@@ -77,14 +68,23 @@ export function CourseInfoFill({
   onApplied: () => void
 }) {
   const queryClient = useQueryClient()
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const key: ImportKey = {
+    source: 'syllabus',
+    target: { kind: 'course', course_id: courseId },
+    only: 'course_info',
+  }
+  const waiting = useUnfinishedImport(programId, key)
+  // Started here: its review opens when the reading ends (the user is watching this row), and
+  // an outcome without a review ("up to date", a failure) is said in the row.
+  const [startedId, setStartedId] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
-  const [startError, setStartError] = useState<string | null>(null)
+  const [startError, setStartError] = useState<unknown>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
-  const session = useImportSession(sessionId).data
+  const started = useImportSession(startedId).data
+  const session: Pick<ImportSession, 'id' | 'status' | 'job_id' | 'error_code'> | undefined =
+    waiting ?? started
   const job = useJob(isReading(session) ? session?.job_id : null)
-  const commit = useMutation({ ...importsSessionCommitMutation(), onError: toastError })
   const discard = useMutation({ ...importsSessionDiscardMutation(), onError: toastError })
   const files = syllabusCandidates(useCourseFiles(courseId).data?.items ?? [])
 
@@ -98,7 +98,7 @@ export function CourseInfoFill({
 
   const start = (picked: { fileItemIds: string[]; upload: File[] }) => {
     setPickerOpen(false)
-    setSessionId(null)
+    setStartedId(null)
     setStartError(null)
     setStarting(true)
     uploadAndCreate(
@@ -112,50 +112,53 @@ export function CourseInfoFill({
     )
       .then((created) => {
         storeSession(queryClient, created)
-        setSessionId(created.id)
+        setStartedId(created.id)
+        void invalidateOperations(queryClient, ['importsSessionList'])
       })
-      .catch((caught: unknown) => setStartError(errorMessage(caught)))
+      .catch((caught: unknown) => setStartError(caught))
       .then(() => setStarting(false))
   }
 
-  const reset = () => {
-    setSessionId(null)
-    setStartError(null)
-  }
-  const stop = (current: ImportSessionDetail) =>
+  const stop = (id: string) =>
     discard.mutate(
-      { path: { session_id: current.id } },
+      { path: { session_id: id } },
       {
         onSuccess: () => {
           void invalidateOperations(queryClient, ['importsSessionGet', 'importsSessionList'])
-          reset()
+          setStartedId(null)
         },
       },
     )
-  const apply = async (current: ImportSessionDetail) => {
-    await settleEdits()
-    const result = await commit
-      .mutateAsync({ path: { session_id: current.id }, body: {} })
-      .catch(() => null) // reported by onError
-    if (!result) return
-    toast.success(m.imports_course_info_applied())
-    reset()
-    onApplied()
+  const review = async (target: ImportSession) => {
+    const outcome = await openImport(sessionRequest(target))
+    if (outcome?.session.status === 'committed') onApplied()
   }
 
-  const extracting = starting || isReading(session)
-  const patch =
-    session?.status === 'ready' ? session.items.find((i) => i.type === 'course_patch') : undefined
+  // The reading started here has ended while the user watched: its review opens.
+  const readyHere = waiting?.status === 'ready' && waiting.id === startedId ? waiting : null
+  const readyId = readyHere?.id
+  const openReady = useEffectEvent(() => {
+    if (readyHere) void review(readyHere)
+  })
+  useEffect(() => {
+    if (readyId) openReady()
+  }, [readyId])
+
+  const reading = starting || isReading(session)
+  let failedCode: string | null = null
   let note: string | null = null
-  let failed = Boolean(startError)
-  if (startError) note = startError
-  else if (session?.status === 'up_to_date') note = m.imports_up_to_date()
-  else if (session?.status === 'failed') {
-    failed = true
-    note = errorMessage({
-      error: { code: session.error_code ?? 'import.no_content', params: {} },
-    })
+  if (startError) {
+    failedCode = errorCode(startError)
+    note = errorMessage(startError)
+  } else if (!waiting && started?.status === 'up_to_date') {
+    note = m.imports_up_to_date()
+  } else if (!waiting && started?.status === 'failed') {
+    failedCode = started.error_code ?? 'import.no_content'
+    note = errorMessage({ error: { code: failedCode, params: {} } })
+  } else if (waiting?.status === 'ready') {
+    note = m.imports_status_ready()
   }
+  const provider = useProviderProblem('extraction', failedCode)
 
   const picker = (
     <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -211,6 +214,38 @@ export function CourseInfoFill({
     </Popover>
   )
 
+  let control
+  if (reading) {
+    control = (
+      <AiAction
+        state="running"
+        label={m.imports_extracting()}
+        progress={session?.job_id ? job.progress : undefined}
+        stageLabel={job.stageLabel || m.imports_extracting()}
+        cancelling={discard.isPending}
+        className="w-60"
+        onCancel={session ? () => stop(session.id) : undefined}
+      />
+    )
+  } else if (waiting?.status === 'ready') {
+    control = (
+      <Button size="sm" onClick={() => void review(waiting)}>
+        {m.imports_review_open()}
+      </Button>
+    )
+  } else if (provider) {
+    control = (
+      <span className="inline-flex items-center gap-2">
+        {picker}
+        <Button size="sm" onClick={provider.fix}>
+          {provider.action}
+        </Button>
+      </span>
+    )
+  } else {
+    control = picker
+  }
+
   return (
     <>
       <SettingsGroup>
@@ -218,62 +253,18 @@ export function CourseInfoFill({
           label={m.imports_course_info_title()}
           description={
             note ? (
-              <span className={failed ? 'text-destructive' : undefined}>{note}</span>
+              <span className={failedCode ? 'text-destructive' : undefined}>
+                {provider?.title ?? note}
+              </span>
             ) : (
               m.imports_course_info_description()
             )
           }
         >
-          {() =>
-            extracting ? (
-              <AiAction
-                state="running"
-                label={m.imports_extracting()}
-                progress={session?.job_id ? job.progress : undefined}
-                stageLabel={job.stageLabel || m.imports_extracting()}
-                cancelling={discard.isPending}
-                className="w-56"
-                onCancel={session ? () => stop(session) : undefined}
-              />
-            ) : (
-              picker
-            )
-          }
+          {() => control}
         </SettingRow>
       </SettingsGroup>
-      {/* Outside the group, which puts a separator before every child. The review opens over
-          the settings, so the section keeps its height. Closing it without applying discards
-          the session. */}
-      <Dialog
-        open={Boolean(session && patch)}
-        onOpenChange={(open) => {
-          if (!open && session && !commit.isPending) stop(session)
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{m.imports_course_info_review_title()}</DialogTitle>
-            <DialogDescription>{m.imports_review_hint()}</DialogDescription>
-          </DialogHeader>
-          {patch ? (
-            <div className="max-h-[60vh] overflow-y-auto">
-              <PatchEditor item={patch} editable={!commit.isPending} />
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              disabled={discard.isPending || commit.isPending}
-              onClick={() => session && stop(session)}
-            >
-              {m.imports_discard()}
-            </Button>
-            <Button disabled={commit.isPending} onClick={() => session && void apply(session)}>
-              {m.imports_course_info_apply()}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Outside the group, which puts a separator before every child. */}
       <input
         ref={fileInput}
         type="file"

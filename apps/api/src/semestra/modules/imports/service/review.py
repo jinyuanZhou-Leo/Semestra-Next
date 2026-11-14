@@ -239,15 +239,22 @@ async def bulk_decide(ctx: Ctx, inp: BulkDecideInput) -> tuple[int, ImportSessio
     return changed, await detail(ctx, row, item_ids=set() if for_agent(ctx) else None)
 
 
+# Imports the user can still go back to: reading, or read and waiting for review.
+UNFINISHED = ("extracting", "waiting_files", "ready")
+
+
 async def list_sessions(
-    ctx: Ctx, program_id: str, cursor: str | None, limit: int
+    ctx: Ctx, program_id: str, cursor: str | None, limit: int, *, unfinished: bool = False
 ) -> ImportSessionPage:
     await academics.get_program_row(ctx, program_id)
+    query = select(ImportsSession).where(
+        ImportsSession.user_id == ctx.user_id, ImportsSession.program_id == program_id
+    )
+    if unfinished:
+        query = query.where(ImportsSession.status.in_(UNFINISHED))
     rows = (
         await ctx.db.scalars(
-            select(ImportsSession)
-            .where(ImportsSession.user_id == ctx.user_id, ImportsSession.program_id == program_id)
-            .order_by(ImportsSession.created_at.desc(), ImportsSession.id.desc())
+            query.order_by(ImportsSession.created_at.desc(), ImportsSession.id.desc())
         )
     ).all()
     offset = int(cursor) if cursor and cursor.isdigit() else 0

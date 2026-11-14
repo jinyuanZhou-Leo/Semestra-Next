@@ -1,4 +1,4 @@
-import type { ImportItem, ImportSession, ImportSessionDetail, Issue } from '@semestra/api-client'
+import type { ImportItem, ImportSession, Issue } from '@semestra/api-client'
 import { errorMessage } from '@/lib/errors'
 import { formatDate } from '@/lib/format'
 import { weekdayName } from '@/modules/schedule/time'
@@ -96,34 +96,26 @@ export function itemWeight(item: ImportItem): number | null {
   return null
 }
 
-const ISSUE_SHORT: Record<string, (p: { count: number }) => string> = {
-  'import.date_unresolved': m.imports_issue_dates,
-  'import.date_outside_term': m.imports_issue_dates,
-  'import.duplicate_course': m.imports_issue_duplicates,
-  'import.duplicate_assessment': m.imports_issue_duplicates,
-  'import.term_unresolved': m.imports_issue_terms,
-  'import.outside_term': m.imports_issue_weeks,
-  'import.no_teaching_weeks': m.imports_issue_weeks,
-  'import.course_ref_missing': m.imports_issue_refs,
-  'import.weight_missing': m.imports_issue_weights_missing,
-}
-
 /**
  * Issues that record a choice already made (an assignment bound to the gradebook's assessment of
  * its title): they keep the import in review, where the row shows the choice, not a problem.
  */
 export const SETTLED = new Set(['import.binds_assessment'])
 
-/** "3 dates to check · weights don't add up" for the accepted items, or null without issues. */
-export function issueSummary(session: ImportSessionDetail): string | null {
-  const counts = new Map<(p: { count: number }) => string, number>()
-  for (const [code, count] of Object.entries(session.summary.issues ?? {})) {
-    if (SETTLED.has(code)) continue
-    const fn = ISSUE_SHORT[code] ?? m.imports_issue_other
-    counts.set(fn, (counts.get(fn) ?? 0) + count)
-  }
-  if (counts.size === 0) return null
-  return [...counts].map(([fn, count]) => fn({ count })).join(' · ')
+/** The fields read with less than high confidence, of those given (all when omitted). */
+export function unsureFields(item: ImportItem, fields?: readonly string[]): string[] {
+  return Object.entries(item.confidence)
+    .filter(([field, level]) => level !== 'high' && (!fields || fields.includes(field)))
+    .map(([field]) => field)
+}
+
+/**
+ * An item to look at before importing: one of its values was read uncertainly, or it has an open
+ * issue (a date to pick, a duplicate). Unticked items are not imported, so they need nothing.
+ */
+export function needsCheck(item: ImportItem): boolean {
+  if (item.decision !== 'accept' || item.result) return false
+  return unsureFields(item).length > 0 || item.issues.some((issue) => !SETTLED.has(issue.code))
 }
 
 export const SOURCE_KIND_LABELS: Record<ImportSession['source_kind'], () => string> = {

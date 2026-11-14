@@ -10,6 +10,7 @@ import { Spinner } from '@/ui/spinner'
  * A box to drop files on or select to choose them (imports, backup restore). Files of the wrong
  * type or over `maxSize` are refused with a toast; with `multiple` off, extra files are dropped
  * silently. `pending` (e.g. while uploading) shows a spinner and that text, and takes no files.
+ * `compact` lays it out as one row (icon, then the text) for adding more beside a file list.
  * Files dragged onto existing content use `FileDropOverlay` instead.
  */
 export function FileDropzone({
@@ -20,6 +21,7 @@ export function FileDropzone({
   maxSize,
   disabled = false,
   pending,
+  compact = false,
   onFiles,
   className,
 }: {
@@ -30,6 +32,7 @@ export function FileDropzone({
   maxSize?: number
   disabled?: boolean
   pending?: string
+  compact?: boolean
   onFiles: (files: File[]) => void
   className?: string
 }) {
@@ -55,7 +58,8 @@ export function FileDropzone({
     <div
       {...getRootProps({
         className: cn(
-          'flex h-40 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 text-center text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+          'flex shrink-0 cursor-pointer items-center rounded-2xl border border-dashed px-4 text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+          compact ? 'h-20 gap-3 text-left' : 'h-40 flex-col justify-center gap-2 text-center',
           isDragActive && 'border-primary bg-primary/5',
           disabled && 'pointer-events-none opacity-50',
           pending !== undefined && 'pointer-events-none',
@@ -66,16 +70,18 @@ export function FileDropzone({
       <input {...getInputProps()} aria-label={title} />
       <span
         className={cn(
-          'flex size-10 items-center justify-center rounded-full bg-muted text-foreground transition-colors',
+          'flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors',
           isDragActive && 'bg-primary text-primary-foreground',
         )}
       >
         {pending !== undefined ? <Spinner /> : <FileUp aria-hidden className="size-5" />}
       </span>
-      <span className="text-foreground">
-        {pending ?? (isDragActive ? m.common_drop_to_add() : title)}
+      <span className={cn('flex flex-col gap-1', compact ? 'min-w-0' : 'items-center')}>
+        <span className="text-foreground">
+          {pending ?? (isDragActive ? m.common_drop_to_add() : title)}
+        </span>
+        {hint ? <span className="text-xs">{hint}</span> : null}
       </span>
-      {hint ? <span className="text-xs">{hint}</span> : null}
     </div>
   )
 }

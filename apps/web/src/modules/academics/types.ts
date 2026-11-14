@@ -72,6 +72,8 @@ export type TermWizardImportSource = {
   query?: (programId: string) => UseQueryOptions<any, any, any, any>
   icon: LucideIcon
   description?: Message
+  /** Shown instead of `description`: e.g. where an import from this source stands. */
+  Detail?: ComponentType<{ programId: string }>
   /**
    * What the source needs set up first (a key an onboarding step `provides`, e.g. `ai.vision`,
    * `lms`). Onboarding lists only sources whose needs are met; elsewhere they gate themselves.

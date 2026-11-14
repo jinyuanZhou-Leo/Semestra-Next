@@ -482,6 +482,10 @@ async def test_wizard_session_commits_after_the_term_exists(
     evidence = midterm["evidence"]["title"]
     assert evidence["upload_id"] == upload
 
+    # Waiting for review: listed among the unfinished imports until it is committed.
+    unfinished = await api.call("GET", f"/programs/{program_id}/imports?unfinished=true")
+    assert [h["id"] for h in unfinished["items"]] == [session["id"]]
+
     # Not committable before the wizard created the term.
     err = await api.commit(session["id"], 422)
     assert err["error"]["code"] == "import.term_unresolved"
@@ -508,6 +512,8 @@ async def test_wizard_session_commits_after_the_term_exists(
     # M07 it stays with the session until the session expires.
     history = await api.call("GET", f"/programs/{program_id}/imports")
     assert [h["status"] for h in history["items"]] == ["committed"]
+    unfinished = await api.call("GET", f"/programs/{program_id}/imports?unfinished=true")
+    assert unfinished["items"] == []
 
 
 async def test_failed_items_are_retried_alone(api: Api, fake_ai: list[dict[str, Any]], run_jobs):

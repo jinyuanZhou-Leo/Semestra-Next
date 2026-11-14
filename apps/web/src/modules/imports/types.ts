@@ -5,6 +5,7 @@ import type {
   SourceOptions,
 } from '@semestra/api-client'
 import type { ComponentType } from 'react'
+import type { ImportKey } from './unfinished'
 
 /**
  * The draft fields of each item type (`ImportItem.data`), as the backend stores them
@@ -98,6 +99,8 @@ export type ImportPicker = {
   Title?: ComponentType
   hint: () => string
   component: ComponentType<{ onStarted: (session: ImportSessionDetail) => void }>
+  /** The imports this picker starts: an unfinished one opens where it stands instead. */
+  resumes?: ImportKey
 }
 
 /**
@@ -114,12 +117,13 @@ export type ImportRequest = {
       target: SessionTarget
       /** Passed to `imports.session.create` (e.g. `{ only: 'course_info' }`). */
       sourceMeta?: SourceOptions
-      /** Course files picked beforehand (a file's "Read with AI…"); the dialog opens on them. */
-      fileItemIds?: string[]
     }
   | { source: 'picker'; picker: ImportPicker }
-  /** A session created elsewhere (e.g. M09's review of changed assignments): straight to the review. */
-  | { source: 'session'; sessionId: string; title: () => string }
+  /**
+   * An import that already exists (one created elsewhere, e.g. M09's changed assignments, or
+   * one the user comes back to): it opens where it stands. `title` defaults to its source's.
+   */
+  | { source: 'session'; sessionId: string; title?: () => string }
 )
 
 export type FileImportRequest = Extract<ImportRequest, { source: ImportSourceKind }>

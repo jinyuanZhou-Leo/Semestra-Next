@@ -1,4 +1,4 @@
-import { Check, CircleAlert, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
+import { Check, LoaderCircle, type LucideIcon, RotateCcw, Sparkles, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { cn } from '@/lib/utils'
@@ -18,8 +18,8 @@ type AiActionProps = {
   progress?: number
   /** Running text, e.g. `useJob().stageLabel`; defaults to a generic "Working". */
   stageLabel?: string
-  /** Inline reason shown in the error state. */
-  error?: string | null
+  /** The idle icon; the running, done and retry ones are the action's own. */
+  icon?: LucideIcon
   variant?: AiActionVariant
   cancelling?: boolean
   onClick?: () => void
@@ -31,7 +31,7 @@ type AiActionProps = {
 const SUCCESS_MS = 1_200
 const EASE = 'ease-[cubic-bezier(0.22,1,0.36,1)]'
 
-function ActionIcon({ state }: { state: AiActionState }) {
+function ActionIcon({ state, icon = Sparkles }: { state: AiActionState; icon?: LucideIcon }) {
   if (state === 'success') {
     return (
       <span aria-hidden="true" className="relative flex size-4 items-center justify-center">
@@ -40,7 +40,7 @@ function ActionIcon({ state }: { state: AiActionState }) {
       </span>
     )
   }
-  const Icon = state === 'error' ? RotateCcw : state === 'running' ? LoaderCircle : Sparkles
+  const Icon = state === 'error' ? RotateCcw : state === 'running' ? LoaderCircle : icon
   return (
     <Icon
       aria-hidden="true"
@@ -59,7 +59,7 @@ export function AiAction({
   label,
   progress,
   stageLabel,
-  error,
+  icon,
   variant = 'integrated',
   cancelling = false,
   onClick,
@@ -136,7 +136,7 @@ export function AiAction({
               shown === 'error' && 'bg-destructive/10 text-destructive',
             )}
           >
-            <ActionIcon state={shown} />
+            <ActionIcon state={shown} icon={icon} />
           </span>
           <span
             key={labelKey}
@@ -179,7 +179,7 @@ export function AiAction({
       >
         <Ring ratio={fill / 100} color="currentColor" strokeWidth={10} className="size-6">
           <span className="flex scale-75">
-            <ActionIcon state={shown} />
+            <ActionIcon state={shown} icon={icon} />
           </span>
         </Ring>
         <span
@@ -233,9 +233,12 @@ export function AiAction({
             className="ai-action-success-sweep absolute inset-0 motion-reduce:hidden"
           />
         ) : null}
-        <span className="relative flex w-full items-center">
+        {/* Idle, the label sits in the middle of a fixed-width action; running, it reads from the left. */}
+        <span
+          className={cn('relative flex w-full items-center', shown === 'idle' && 'justify-center')}
+        >
           <span className="mr-2 flex shrink-0 items-center">
-            <ActionIcon state={shown} />
+            <ActionIcon state={shown} icon={icon} />
           </span>
           <span
             key={labelKey}
@@ -260,8 +263,10 @@ export function AiAction({
     )
   }
 
+  // The reason of an error is the caller's to place (a dialog footer's free side), so the action
+  // never changes height or width with it.
   return (
-    <div className="inline-flex flex-col gap-1">
+    <div className="inline-flex">
       {onCancel == null ? (
         action
       ) : (
@@ -301,12 +306,6 @@ export function AiAction({
           </div>
         </div>
       )}
-      {shown === 'error' && error ? (
-        <p className="flex items-start gap-1.5 text-xs text-destructive">
-          <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
-          {error}
-        </p>
-      ) : null}
       <output aria-live="polite" className="sr-only">
         {statusText}
       </output>

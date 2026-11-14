@@ -101,6 +101,8 @@ export type LineEntry = {
   to?: string
   /** It opens a panel: the overflow list opens it in its place. */
   panel?: boolean
+  /** It runs `onSelect`: the overflow list runs it too. */
+  select?: boolean
 }
 
 /**
@@ -137,6 +139,8 @@ type LinesState = {
 class Lines {
   private state: LinesState = { entries: new Map(), open: null }
   private readonly listeners = new Set<() => void>()
+  /** Each line's `onSelect`, for the overflow list (not state: nothing renders from it). */
+  readonly actions = new Map<string, () => void>()
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -241,8 +245,8 @@ const signatureOf = (item: StatusItem | null) =>
 
 /**
  * One place in the bar. It tells the bar what it shows (`report`), opens and closes with a 200 ms
- * height transition, and keeps its last content while it closes. Its button follows `to`, opens
- * `panel` in a popover, or does nothing.
+ * height transition, and keeps its last content while it closes. Its button opens `panel` in a
+ * popover, runs `onSelect`, follows `to`, or does nothing.
  */
 function Slot({
   id,
@@ -268,18 +272,24 @@ function Slot({
   const lines = bar?.lines
   const { state } = useSidebar()
   const rank = item ? rankOf(item) : null
-  const { label, icon, tone, to } = item ?? {}
+  const { label, icon, tone, to, onSelect } = item ?? {}
   const hasPanel = panel !== undefined
+  const select = onSelect !== undefined
   useEffect(() => {
     if (!lines || !report) return
     lines.set(
       id,
       rank !== null && label !== undefined && icon !== undefined
-        ? { rank, order, label, icon, tone, to, panel: hasPanel }
+        ? { rank, order, label, icon, tone, to, panel: hasPanel, select }
         : null,
     )
-  }, [lines, report, id, rank, order, label, icon, tone, to, hasPanel])
+  }, [lines, report, id, rank, order, label, icon, tone, to, hasPanel, select])
   useEffect(() => () => lines?.set(id, null), [lines, id])
+  useEffect(() => {
+    if (!lines || !onSelect) return
+    lines.actions.set(id, onSelect)
+    return () => void lines.actions.delete(id)
+  }, [lines, id, onSelect])
   // The bar follows `open` itself, so a panel closed by its own buttons or a link counts too.
   useEffect(() => {
     if (!lines || !open) return
@@ -316,6 +326,12 @@ function Slot({
           <Suspense fallback={<Spinner className="mx-auto" />}>{panel}</Suspense>
         </PopoverContent>
       </Popover>
+    )
+  } else if (content?.onSelect) {
+    button = (
+      <SidebarMenuButton tooltip={content.label} size="sm" onClick={content.onSelect}>
+        <LineFace {...content} />
+      </SidebarMenuButton>
     )
   } else if (content?.to) {
     button = (
@@ -566,6 +582,7 @@ function JobsLine() {
  * A line there that has a panel opens it in its own place; one with a link follows it.
  */
 function MoreLine({ entries }: { entries: readonly (LineEntry & { id: string })[] }) {
+  const lines = use(BarContext)?.lines
   const [open, setOpen] = useState(false)
   const names = entries.map((entry) => entry.label).join(m.common_list_separator())
   const item: StatusItem | null =
@@ -584,7 +601,7 @@ function MoreLine({ entries }: { entries: readonly (LineEntry & { id: string })[
         <>
           <p className="text-xs font-medium text-muted-foreground">{m.status_more_title()}</p>
           <ItemGroup className="gap-0">
-            {entries.map(({ id, icon: Icon, label, to, tone, panel }, index) => (
+            {entries.map(({ id, icon: Icon, label, to, tone, panel, select }, index) => (
               <Fragment key={id}>
                 {index > 0 ? <ItemSeparator className="my-0" /> : null}
                 <Item render={<li />} size="xs" className="gap-2 px-0">
@@ -597,7 +614,18 @@ function MoreLine({ entries }: { entries: readonly (LineEntry & { id: string })[
                   />
                   <ItemContent className="min-w-0">
                     <ItemTitle className="w-full">
-                      {to ? (
+                      {select ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpen(false)
+                            lines?.actions.get(id)?.()
+                          }}
+                          className="truncate text-left hover:underline"
+                        >
+                          {label}
+                        </button>
+                      ) : to ? (
                         <Link
                           to={to}
                           onClick={() => setOpen(false)}

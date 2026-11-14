@@ -14,7 +14,7 @@ import { FIELDS, type FieldSpec, PATCH_LABELS } from '../fields'
 import { issueText, SETTLED } from '../labels'
 import { trackEdit, useItemUpdate } from '../queries'
 import type { CoursePatchData, FieldChange } from '../types'
-import { ConfidenceDot, EvidenceButton } from './Evidence'
+import { EvidenceButton, UnsureIcon } from './Evidence'
 
 type Values = Record<string, unknown>
 
@@ -128,7 +128,7 @@ function FieldInput({
   const head = (
     <div className="flex items-center gap-1.5">
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <ConfidenceDot confidence={item.confidence[spec.key]} />
+      <UnsureIcon unsure={isUnsure(item, spec.key)} />
       <EvidenceButton evidence={item.evidence[spec.key]} field={label} />
     </div>
   )
@@ -226,7 +226,11 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
       {Object.entries(changes).map(([field, change]) => {
         const label = PATCH_LABELS[field]?.() ?? field
         return (
-          <li key={field} className="flex gap-3 p-3">
+          <li
+            key={field}
+            data-unsure={isUnsure(item, field) || undefined}
+            className="flex gap-3 p-3"
+          >
             <Checkbox
               aria-label={m.imports_patch_apply({ field: label })}
               checked={change.apply !== false}
@@ -237,7 +241,7 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
             <div className="min-w-0 flex-1 space-y-1 text-sm">
               <div className="flex items-center gap-1.5 font-medium">
                 {label}
-                <ConfidenceDot confidence={item.confidence[field]} />
+                <UnsureIcon unsure={isUnsure(item, field)} />
                 <EvidenceButton evidence={item.evidence[field]} field={label} />
               </div>
               <p className="text-muted-foreground line-through">{display(change.old) || '—'}</p>
@@ -248,6 +252,11 @@ export function PatchEditor({ item, editable }: { item: ImportItem; editable: bo
       })}
     </ul>
   )
+}
+
+function isUnsure(item: ImportItem, field: string): boolean {
+  const level = item.confidence[field]
+  return level != null && level !== 'high'
 }
 
 function display(value: unknown): string {

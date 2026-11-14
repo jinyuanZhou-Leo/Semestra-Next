@@ -1,50 +1,75 @@
 import { lmsSyllabusImport } from '@semestra/api-client'
 import { lmsSyllabusGetOptions } from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ScrollText } from 'lucide-react'
 import { useState } from 'react'
+import { invalidateOperations } from '@/app/api'
 import { AiAction } from '@/components/AiAction'
 import { AiRequired } from '@/components/AiRequired'
-import { errorMessage } from '@/lib/errors'
+import { toastError } from '@/lib/errors'
 import { openImport } from '@/modules/imports/launcher'
+import { useImportState } from '@/modules/imports/state'
+import { sessionRequest, useUnfinishedImport } from '@/modules/imports/unfinished'
 import { m } from '@/paraglide/messages'
+import { Button } from '@/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Spinner } from '@/ui/spinner'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { CanvasHtml, ViewHeader } from './common'
 
 /**
- * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): an AI extraction of the
- * grading scheme and dates, reviewed in the import dialog (M08).
+ * "Smart import" of the Canvas syllabus (M09 `lms.syllabus.import`): the grading scheme and dates
+ * read from it, reviewed in the import dialog (M08). The button follows the course's unfinished
+ * syllabus import on the server: while it is read it shows how far, once read "To review", and
+ * either opens the dialog where it stands. Nothing opens by itself when the reading ends.
  */
 export function SyllabusImportButton() {
   const { programId, courseId } = useCanvasPage()
-  const [state, setState] = useState<'idle' | 'running' | 'error'>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const waiting = useUnfinishedImport(programId, {
+    source: 'text',
+    target: { kind: 'course', course_id: courseId },
+    lms: 'syllabus',
+  })
+  const state = useImportState(waiting)
+  const [starting, setStarting] = useState(false)
+  const open = (sessionId: string) =>
+    openImport({
+      programId,
+      mode: 'direct',
+      source: 'session',
+      sessionId,
+      title: m.canvas_tab_syllabus_import,
+    })
   const start = () => {
-    setState('running')
+    setStarting(true)
     lmsSyllabusImport({ path: { course_id: courseId }, throwOnError: true })
       .then(({ data }) => {
-        setState('idle')
-        return openImport({
-          programId,
-          mode: 'direct',
-          source: 'session',
-          sessionId: data.session_id,
-          title: m.canvas_tab_syllabus_import,
-        })
+        void invalidateOperations(queryClient, ['importsSessionList'])
+        // The user asked for it just now: the dialog shows it being read.
+        void open(data.session_id)
       })
-      .catch((err: unknown) => {
-        setError(errorMessage(err))
-        setState('error')
-      })
+      .catch(toastError)
+      .finally(() => setStarting(false))
+  }
+  if (waiting && state) {
+    const review = () =>
+      void openImport({ ...sessionRequest(waiting), title: m.canvas_tab_syllabus_import })
+    return state.reading ? (
+      <Button variant="outline" onClick={review}>
+        <Spinner aria-hidden />
+        {state.text}
+      </Button>
+    ) : (
+      <Button onClick={review}>{state.text}</Button>
+    )
   }
   return (
     <AiRequired purpose="extraction">
       <AiAction
-        state={state}
+        state={starting ? 'running' : 'idle'}
         label={m.canvas_tab_syllabus_import()}
-        error={error}
         onClick={start}
       />
     </AiRequired>

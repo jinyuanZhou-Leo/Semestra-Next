@@ -17,7 +17,7 @@ import {
   PowerOff,
   Trash2,
 } from 'lucide-react'
-import { createContext, use, useId, useState, type FormEvent } from 'react'
+import { createContext, use, useEffect, useId, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -28,6 +28,7 @@ import { type DialogTargetProps, useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { takeProviderRequest, useProviderRequest } from '../provider-request'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
@@ -380,6 +381,14 @@ export function ProvidersSection() {
   }
   const editing = useDialogTarget<Provider>()
   const deleting = useDialogTarget<Provider>()
+  // "Check provider" from elsewhere (a failed import): open that provider's edit dialog.
+  const wanted = useProviderRequest()
+  const wantedProvider = wanted ? providers.data?.items.find((p) => p.id === wanted) : undefined
+  if (wantedProvider && editing.target?.id !== wantedProvider.id) editing.show(wantedProvider)
+  const opened = editing.open && editing.target?.id === wanted
+  useEffect(() => {
+    if (opened) takeProviderRequest()
+  }, [opened])
   const remove = useMutation({
     ...aiProviderDeleteMutation(),
     onSuccess: async () => {

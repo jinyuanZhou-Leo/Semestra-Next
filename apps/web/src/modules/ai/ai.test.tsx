@@ -168,21 +168,20 @@ beforeEach(() => {
   server.use(...aiHandlers())
 })
 
-test('AiRequired greys out the entry and points to the settings until AI is connected', async () => {
+test('AiRequired greys out the entry and says beside it what is needed until AI is connected', async () => {
   const user = userEvent.setup()
   const { queryClient, router } = renderWithRouter(
     <AiRequired purpose="extraction">
       <Button>Import from syllabus</Button>
     </AiRequired>,
   )
-  // Once the status is known, the greyed-out entry sits inside a focusable hint trigger.
-  const hint = await screen.findByRole('button', { name: 'Import from syllabus', expanded: false })
-  expect(within(hint).getByRole('button')).toBeDisabled()
-  // Opens on hover in a browser; jsdom has no hover intent, so press the wrapper (as keyboard users do).
-  await user.click(hint)
-  expect(await screen.findByText('Available once AI is connected in Settings.')).toBeInTheDocument()
-  // The link opens the AI section of the account settings dialog over the current page.
-  await user.click(screen.getByRole('button', { name: 'Open settings' }))
+  // Once the status is known the entry is disabled, with the reason in plain sight.
+  expect(
+    await screen.findByText(/Available once a model provider is connected/),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Import from syllabus' })).toBeDisabled()
+  // The link opens the providers section of the account settings over the current page.
+  await user.click(screen.getByRole('button', { name: 'Connect provider' }))
   expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' })
   expect(router.state.location.hash).toBe('ai-providers')
 
@@ -191,6 +190,7 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Import from syllabus' })).toBeEnabled(),
   )
+  expect(screen.queryByText(/Available once/)).not.toBeInTheDocument()
 })
 
 function FillForm() {

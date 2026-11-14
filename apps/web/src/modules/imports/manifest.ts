@@ -11,6 +11,7 @@ import { MEETING_IMPORT_SOURCES } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
 import { ImportHost } from './components/ImportHost'
 import { meetingSource, syllabusGradingSource, wizardSource } from './entries'
+import { useImportLine } from './status-line'
 
 /** "Read from a file" above the course's basics in its settings. */
 const courseInfoFill: CourseInfoFill = {
@@ -60,18 +61,8 @@ export default defineModule({
         ),
     },
   ],
-  jobKinds: [
-    {
-      kind: 'imports.extract',
-      title: m.imports_job_title,
-      to: (job) => {
-        const result = job.result as { session_id?: string; program_id?: string } | null
-        return result?.session_id && result.program_id
-          ? `/p/${result.program_id}/imports/${result.session_id}`
-          : undefined
-      },
-    },
-  ],
+  jobKinds: [{ kind: 'imports.extract', title: m.imports_job_title }],
+  statusItems: [{ id: 'imports.unfinished', order: 30, useStatus: useImportLine }],
   extensions: {
     [TERM_WIZARD_IMPORT_SOURCES]: [
       wizardSource('ics'),

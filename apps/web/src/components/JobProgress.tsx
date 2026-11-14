@@ -1,7 +1,6 @@
 import type { JobOut } from '@semestra/api-client'
 import { Clock3 } from 'lucide-react'
-import { jobIsWaiting, jobWaitingText, jobWaitsUntil, useJob } from '@/hooks/use-job'
-import { useNow } from '@/hooks/use-now'
+import { useJob } from '@/hooks/use-job'
 import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -26,12 +25,9 @@ export function JobProgress({
   variant?: 'bar' | 'ring' | 'inline' | 'compact'
   className?: string
 }) {
-  const { job, status, progress, stageLabel, stageName, count } = useJob(jobId, seed)
+  const { job, status, progress, stageLabel, stageName, count, waiting } = useJob(jobId, seed)
   const active = status === 'pending' || status === 'running'
-  const waiting = job ? jobIsWaiting(job) : false
   const displayed = Math.round(useSmoothedProgress(progress, status === 'running' && !waiting))
-  // Ticks while a rate limit's wait counts down.
-  const now = useNow(1000, (at) => job != null && (jobWaitsUntil(job) ?? 0) > at)
   if (!job) return null
 
   const text =
@@ -43,9 +39,7 @@ export function JobProgress({
           })
         : status === 'cancelled'
           ? m.job_cancelled()
-          : waiting
-            ? jobWaitingText(job, now)
-            : stageLabel
+          : stageLabel
   const value = status === 'succeeded' ? 100 : displayed
   const tone = status === 'failed' ? 'error' : status === 'succeeded' ? 'success' : 'default'
   const percent = active ? `${value}%` : ''

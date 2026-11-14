@@ -187,7 +187,11 @@ function TermSchedule({
           <ChevronDown aria-hidden data-icon="inline-end" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
-          <ImportSourceItems sources={importers} onPick={launchImport} />
+          <ImportSourceItems
+            sources={importers}
+            onPick={launchImport}
+            titleProps={{ programId, courseId: course.id, termId }}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     ) : null

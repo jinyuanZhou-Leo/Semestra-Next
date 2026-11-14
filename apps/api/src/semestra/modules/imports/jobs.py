@@ -132,7 +132,9 @@ async def _extract_failed(ctx: Ctx, payload: ExtractPayload, job: CoreJob) -> No
     )
 
 
-@job_handler("imports.extract", stages=STAGES, max_attempts=6, on_failure=_extract_failed)
+@job_handler(
+    "imports.extract", stages=STAGES, max_attempts=6, on_failure=_extract_failed, listed=False
+)
 async def extract(ctx: JobCtx, payload: ExtractPayload) -> ExtractResult:
     row = await ctx.db.get(ImportsSession, payload.session_id)
     if row is None or row.status != "extracting":

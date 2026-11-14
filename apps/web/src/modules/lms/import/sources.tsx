@@ -6,6 +6,7 @@ import { preload, preloadable } from '@/app/extensions'
 import type { TermWizardImportSource } from '@/modules/academics/types'
 import type { AssessmentImportSource } from '@/modules/grading/types'
 import { wizardImportSource } from '@/modules/imports/entries'
+import { importDetail } from '@/modules/imports/entry-detail'
 import { openImport } from '@/modules/imports/launcher'
 import { m } from '@/paraglide/messages'
 import { useProgramProviderName } from '../providers'
@@ -52,6 +53,7 @@ function courseRequest(programId: string, target: CourseImportTarget) {
           <CoursePicker programId={programId} target={target} onStarted={onStarted} />
         </Suspense>
       ),
+      resumes: { source: 'lms' as const, target: { kind: 'term_wizard' as const }, lms: 'courses' },
     },
   }
 }
@@ -63,6 +65,10 @@ export const wizardCourseSource: TermWizardImportSource = wizardImportSource({
   Title: CoursesTitle,
   query: (programId) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   description: m.lms_import_courses_hint,
+  Detail: importDetail(
+    () => ({ source: 'lms', target: { kind: 'term_wizard' }, lms: 'courses' }),
+    m.lms_import_courses_hint,
+  ),
   icon: School,
   requires: 'lms',
   request: ({ programId, startDate, endDate }) => courseRequest(programId, { startDate, endDate }),
@@ -76,6 +82,14 @@ export const assignmentSource: AssessmentImportSource = {
   query: ({ programId }) => lmsProgramBindingGetOptions({ path: { program_id: programId } }),
   icon: ClipboardList,
   description: m.lms_import_assignments_hint,
+  Detail: importDetail(
+    ({ courseId }: { programId: string; courseId: string }) => ({
+      source: 'lms',
+      target: { kind: 'course', course_id: courseId },
+      lms: 'assignments',
+    }),
+    m.lms_import_assignments_hint,
+  ),
   launch: async ({ programId, courseId }) => {
     void preload(AssignmentPicker)
     await openImport({
@@ -91,6 +105,11 @@ export const assignmentSource: AssessmentImportSource = {
             <AssignmentPicker courseId={courseId} onStarted={onStarted} />
           </Suspense>
         ),
+        resumes: {
+          source: 'lms',
+          target: { kind: 'course', course_id: courseId },
+          lms: 'assignments',
+        },
       },
     })
     return []

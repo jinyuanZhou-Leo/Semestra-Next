@@ -8745,6 +8745,18 @@
               "title": "Limit"
             },
             "description": "Page size"
+          },
+          {
+            "name": "unfinished",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only imports still being read or waiting for review (extracting, waiting_files, ready)",
+              "default": false,
+              "title": "Unfinished"
+            },
+            "description": "Only imports still being read or waiting for review (extracting, waiting_files, ready)"
           }
         ],
         "responses": {
@@ -32623,6 +32635,32 @@
               }
             ],
             "title": "Model"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "no_provider",
+                  "unsupported"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "provider_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Error"
           }
         },
         "type": "object",

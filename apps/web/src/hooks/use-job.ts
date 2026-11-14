@@ -7,6 +7,7 @@ import type { JobOut } from '@semestra/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toastError } from '@/lib/errors'
 import { jobStepMessages } from '@/lib/message-groups/job-steps.gen'
+import { useNow } from '@/hooks/use-now'
 import { m } from '@/paraglide/messages'
 
 export type JobCount = { current: number; total: number }
@@ -87,6 +88,9 @@ export function useJob(jobId: string | null | undefined, seed?: JobOut) {
       queryClient.setQueryData(coreJobGetQueryKey({ path: { job_id: job.id } }), job),
   })
   const job = query.data
+  const waiting = job ? jobIsWaiting(job) : false
+  // Ticks while a rate limit's wait counts down.
+  const now = useNow(1000, (at) => job != null && (jobWaitsUntil(job) ?? 0) > at)
   const counted: JobCount | null =
     job?.step_current != null && job.step_total != null
       ? { current: job.step_current, total: job.step_total }
@@ -99,7 +103,10 @@ export function useJob(jobId: string | null | undefined, seed?: JobOut) {
     job,
     status: job?.status,
     progress: job?.progress ?? 0,
-    stageLabel: job ? jobStageLabel(job) : '',
+    /** True while queued or waiting for the provider (`stageLabel` then says what for). */
+    waiting,
+    /** What the job does now, or what it waits for ("约 30 秒后继续"), for every place it shows. */
+    stageLabel: job ? (waiting ? jobWaitingText(job, now) : jobStageLabel(job)) : '',
     /** The stage without its count, for layouts that show `count.text` separately. */
     stageName: job ? jobStageLabel(job, false) : '',
     count,

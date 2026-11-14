@@ -1,13 +1,14 @@
 import type { ImportSessionDetail } from '@semestra/api-client'
 import { lmsAssignmentListOptions, lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { ClipboardList, Link2 } from 'lucide-react'
+import { ArrowRight, ClipboardList, Link2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { AiAction } from '@/components/AiAction'
 import { errorMessage } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format'
+import { FooterError } from '@/modules/imports/components/FooterError'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
@@ -162,13 +163,14 @@ function AssignmentList({
           )}
         </AsyncBoundary>
       </div>
-      <DialogFooter>
+      <DialogFooter className="items-center">
+        {startError ? <FooterError text={startError} /> : null}
         <AiAction
           state={starting ? 'running' : startError ? 'error' : 'idle'}
           label={m.lms_import_count({ count: picked.size })}
-          error={startError}
+          icon={ArrowRight}
           disabled={picked.size === 0}
-          className="w-56"
+          className="w-60"
           onClick={start}
         />
       </DialogFooter>

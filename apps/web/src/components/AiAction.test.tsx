@@ -50,17 +50,9 @@ test('success shows briefly, then the action is ready again', () => {
   }
 })
 
-test('errors offer a retry and show the reason inline', async () => {
+test('errors offer a retry', async () => {
   const retry = vi.fn<() => void>()
-  render(
-    <AiAction
-      state="error"
-      label="Summarise"
-      error="The file could not be read."
-      onClick={retry}
-    />,
-  )
-  expect(screen.getByText('The file could not be read.')).toBeInTheDocument()
+  render(<AiAction state="error" label="Summarise" onClick={retry} />)
   await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(retry).toHaveBeenCalledOnce()
 })

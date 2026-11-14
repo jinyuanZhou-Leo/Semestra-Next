@@ -52,7 +52,7 @@ async def on_import_ready(ctx: Ctx, event: Event) -> None:
     session_id, program_id = event.data.get("session_id"), event.data.get("program_id")
     message = Message(
         kind="import_ready",
-        url=f"/p/{program_id}/imports/{session_id}" if program_id else "/",
+        url=f"/p/{program_id}?import={session_id}" if program_id else "/",
         tag=f"import:{session_id}",
     )
     service.notify_after_commit(ctx, message, user_id=event.user_id)

@@ -1,44 +1,45 @@
-import type { ImportSession, ImportSessionDetail } from '@semestra/api-client'
-import { importsSessionListOptions } from '@semestra/api-client/react-query'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ImportSessionDetail } from '@semestra/api-client'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { AiGate } from '@/components/AiRequired'
 import { cn } from '@/lib/utils'
+import { m } from '@/paraglide/messages'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/ui/dialog'
+import { SOURCE_KIND_LABELS } from '../labels'
 import { storeSession, useImportSession } from '../queries'
 import { SOURCES } from '../sources'
-import type { ImportOutcome, ImportRequest } from '../types'
+import { isReading } from '../status'
+import type { FileImportRequest, ImportOutcome, ImportRequest, ImportSourceKind } from '../types'
+import { matchesKey, requestKey, useUnfinishedImports } from '../unfinished'
+import { CourseInfoReview } from './CourseInfoReview'
 import { ExtractionDone, SessionView } from './SessionView'
 import { SourcePicker } from './SourcePicker'
-import { isReading } from '../status'
 
-/**
- * The unfinished import this request opened before (same source and target, still reading or
- * waiting for review): opening the dialog again resumes it instead of asking for the files again.
- * Not for a request that comes with its own files.
- */
-function unfinished(request: ImportRequest, sessions: ImportSession[]): ImportSession | undefined {
-  if (request.source === 'session' || request.source === 'picker' || request.fileItemIds?.length)
-    return undefined
-  const { target } = request
-  const only = request.sourceMeta?.only ?? null
-  return sessions.find(
-    (s) =>
-      (isReading(s) || s.status === 'ready') &&
-      s.source_kind === request.source &&
-      (s.source_meta.only ?? null) === only &&
-      s.target.kind === target.kind &&
-      (s.target.course_id ?? null) === (target.course_id ?? null) &&
-      (s.target.term_id ?? null) === (target.term_id ?? null),
-  )
+const FILE_SOURCES = new Set<string>(Object.keys(SOURCES))
+
+/** The picker request a waiting file or text import was started from, to show it where it stands. */
+function fileRequest(
+  request: ImportRequest,
+  session: ImportSessionDetail | undefined,
+): FileImportRequest | null {
+  if (request.source !== 'session' && request.source !== 'picker') return request
+  if (!session || !FILE_SOURCES.has(session.source_kind) || session.source_meta.lms) return null
+  if (session.source_meta.only === 'course_info') return null
+  return {
+    programId: session.program_id,
+    mode: request.mode,
+    source: session.source_kind as ImportSourceKind,
+    target: session.target,
+  }
 }
 
 /**
- * The import dialog an import source opens (M08 §6.2): pick the files (or paste text), then the
- * same session view as the session page. Started on a picker, its size is fixed from the first
- * step on, so nothing jumps when the review appears; opened on a review (Canvas assignments), it
- * is as tall as the review, up to the same height. Closing it keeps the import: a reading goes
- * on in the background, and the import history (or the task in the status bar) opens the review
- * again, and so does opening the same dialog again. Only "Discard" discards it.
+ * The import dialog (M08 §6.2): one straight path, choose → read → review → done, on one
+ * surface. Every import is a session on the server, so the dialog only ever shows a session
+ * where it stands: opening an entry point whose import is still reading or waiting for review
+ * comes back to that step (the files being read, or the review), and so does the status line.
+ * Closing never loses anything; only "Discard" ends an import. The height is fixed from the
+ * first step on, so nothing moves when files are added or the review appears.
  */
 export function ImportDialog({
   request,
@@ -48,83 +49,126 @@ export function ImportDialog({
   onClose: (outcome: ImportOutcome) => void
 }) {
   const queryClient = useQueryClient()
+  // An entry point with an import waiting opens it (the list is the one the entry point read).
+  const unfinished = useUnfinishedImports(request.programId)
+  const key = request.source === 'picker' ? (request.picker.resumes ?? null) : requestKey(request)
   const [sessionId, setSessionId] = useState<string | null>(
     request.source === 'session' ? request.sessionId : null,
   )
-  const session = useImportSession(sessionId).data
-  // File and text sources keep their picker (the "Read" progress) until extraction has finished.
-  const [reviewing, setReviewing] = useState(false)
-  // An unfinished import of the same source and target is resumed (fresh list: it may have been
-  // started moments ago).
-  const resumes = request.source !== 'session' && request.source !== 'picker'
-  const sessions = useQuery({
-    ...importsSessionListOptions({ path: { program_id: request.programId } }),
-    enabled: resumes,
-    refetchOnMount: 'always',
-  })
-  const [checked, setChecked] = useState(!resumes)
-  if (!checked && (sessions.isFetchedAfterMount || sessions.isError)) {
-    setChecked(true)
-    const found = unfinished(request, sessions.data?.items ?? [])
-    if (found) {
-      setSessionId(found.id)
-      setReviewing(true)
-    }
+  const [resolved, setResolved] = useState(request.source === 'session' || key === null)
+  if (!resolved && (unfinished.data || unfinished.isError)) {
+    setResolved(true)
+    const found = key && unfinished.data?.items.find((s) => matchesKey(s, key))
+    if (found) setSessionId(found.id)
   }
-  const inPicker = request.source !== 'session' && request.source !== 'picker' && !reviewing
-  // Other starts (Canvas, LMS) hand over an extracting session: show its check before the review.
+  const session = useImportSession(sessionId).data
+  const files = fileRequest(request, session)
+  // File and text imports keep their picker (the "Read" progress) until the reading is done and
+  // its check has shown; an import opened later on a finished reading goes straight to review.
+  const [reviewing, setReviewing] = useState(false)
   const [watched, setWatched] = useState(false)
-  if (!inPicker && isReading(session) && !watched) setWatched(true)
-  const finishing = !inPicker && watched && !reviewing && session && !isReading(session)
-  const spec =
+  if (session && isReading(session) && !watched) setWatched(true)
+  const picking = files !== null && !reviewing && (!session || isReading(session) || watched)
+  const finishing = !files && watched && !reviewing && session && !isReading(session)
+  const courseInfo = session?.source_meta.only === 'course_info'
+
+  const title =
+    request.source === 'picker' ? (
+      request.picker.Title ? (
+        <request.picker.Title />
+      ) : (
+        request.picker.title()
+      )
+    ) : request.source === 'session' ? (
+      (request.title?.() ?? (session ? sessionTitle(session) : ''))
+    ) : (
+      SOURCES[request.source].title()
+    )
+  const hint =
     request.source === 'picker'
-      ? request.picker
-      : request.source === 'session'
-        ? { title: request.title, hint: null }
-        : SOURCES[request.source]
+      ? request.picker.hint()
+      : files && picking
+        ? SOURCES[files.source].hint()
+        : courseInfo
+          ? m.imports_review_hint()
+          : null
+  const purpose = files ? SOURCES[files.source].purpose : undefined
+
+  // The term wizard waits for the courses, so its imports are not sent to the background
+  // (closing still keeps them, and the same source picks them up again).
+  const background = request.mode === 'wizard' ? undefined : () => onClose(null)
 
   const started = (detail: ImportSessionDetail) => {
     storeSession(queryClient, detail)
     setSessionId(detail.id)
   }
 
+  let body = null
+  if (!resolved || (sessionId && !session)) {
+    body = null
+  } else if (picking && files) {
+    const picker = (
+      <SourcePicker
+        request={files}
+        session={session}
+        onStarted={(id) => {
+          // Started here: its outcome (a failure too) is said where it was started.
+          setWatched(true)
+          setSessionId(id)
+        }}
+        onFinished={() => setReviewing(true)}
+        onBackground={background}
+      />
+    )
+    // Asked before anything is picked or uploaded, by the one rule every entry shares; once an
+    // import exists it says itself what went wrong. (One tree either way: the picker keeps its
+    // files when the import starts.)
+    body = <AiGate purpose={session ? undefined : purpose}>{picker}</AiGate>
+  } else if (finishing) {
+    body = <ExtractionDone session={session} onFinished={() => setReviewing(true)} />
+  } else if (session && courseInfo && session.status === 'ready') {
+    body = (
+      <CourseInfoReview
+        session={session}
+        onDone={(done) => onClose(done ? { session: done } : null)}
+      />
+    )
+  } else if (session) {
+    body = (
+      <SessionView
+        session={session}
+        mode={request.mode}
+        className="min-h-0 flex-1"
+        onBackground={background}
+        onDone={(done) => onClose(done ? { session: done } : null)}
+      />
+    )
+  } else if (request.source === 'picker') {
+    body = <request.picker.component onStarted={started} />
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose(null)}>
       <DialogContent
         className={cn(
-          'flex flex-col sm:max-w-4xl',
-          request.source === 'session'
-            ? 'max-h-[min(44rem,calc(100vh-4rem))]'
-            : 'h-[min(44rem,calc(100vh-4rem))]',
+          'flex flex-col',
+          courseInfo
+            ? 'max-h-[min(44rem,calc(100vh-4rem))] sm:max-w-lg'
+            : 'h-[min(44rem,calc(100vh-4rem))] sm:max-w-4xl',
         )}
       >
         <DialogHeader>
-          <DialogTitle>{'Title' in spec && spec.Title ? <spec.Title /> : spec.title()}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           {/* The review explains itself; the description is for picking what to read. */}
-          {spec.hint && (inPicker || !session) ? (
-            <DialogDescription>{spec.hint()}</DialogDescription>
-          ) : null}
+          {hint ? <DialogDescription>{hint}</DialogDescription> : null}
         </DialogHeader>
-        {!checked ? null : inPicker ? (
-          <SourcePicker
-            request={request}
-            session={session}
-            onStarted={setSessionId}
-            onFinished={() => setReviewing(true)}
-          />
-        ) : finishing ? (
-          <ExtractionDone session={session} onFinished={() => setReviewing(true)} />
-        ) : session ? (
-          <SessionView
-            session={session}
-            mode={request.mode}
-            className="min-h-0 flex-1"
-            onDone={(done) => onClose(done ? { session: done } : null)}
-          />
-        ) : sessionId || request.source === 'session' ? null : request.source === 'picker' ? (
-          <request.picker.component onStarted={started} />
-        ) : null}
+        {body}
       </DialogContent>
     </Dialog>
   )
+}
+
+function sessionTitle(session: ImportSessionDetail) {
+  if (session.source_meta.only === 'course_info') return m.imports_course_info_review_title()
+  return SOURCE_KIND_LABELS[session.source_kind]()
 }

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
 
 /**
@@ -11,6 +12,8 @@ export type MeetingImportSource = {
   title: Message
   icon: LucideIcon
   description?: Message
+  /** Shown instead of `description`: e.g. where an import from this source stands. */
+  Detail?: ComponentType<{ programId: string; courseId: string; termId: string }>
   launch: (ctx: { programId: string; courseId: string; termId: string }) => Promise<void>
 }
 

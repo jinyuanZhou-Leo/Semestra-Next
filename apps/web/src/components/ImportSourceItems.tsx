@@ -11,6 +11,8 @@ type Source<P> = {
   /** Shown instead of `title` when the name depends on loaded data (M09's platform name). */
   Title?: ComponentType<P>
   description?: Message
+  /** Shown instead of `description` (rendered with `titleProps`): e.g. an import's progress. */
+  Detail?: ComponentType<P>
 }
 
 /**
@@ -38,7 +40,11 @@ export function ImportSourceItems<P extends object, S extends Source<P>>({
             <span className="block">
               {source.Title && titleProps ? <source.Title {...titleProps} /> : source.title()}
             </span>
-            {source.description ? (
+            {source.Detail && titleProps ? (
+              <span className="block text-xs text-muted-foreground">
+                <source.Detail {...titleProps} />
+              </span>
+            ) : source.description ? (
               <span className="block text-xs text-muted-foreground">{source.description()}</span>
             ) : null}
           </span>

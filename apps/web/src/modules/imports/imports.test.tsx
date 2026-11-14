@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vi
 import { API, renderWithRouter, server } from '@/test-utils'
 import { CourseInfoFill, syllabusCandidates } from './components/CourseInfoFill'
 import { ImportDialog } from './components/ImportDialog'
+import { ImportHost } from './components/ImportHost'
 import { SessionView } from './components/SessionView'
 import { wizardSource } from './entries'
 import { errorMessage } from '@/lib/errors'
@@ -27,6 +28,20 @@ beforeEach(() => {
         quota_bytes: 52_428_800,
         max_upload_bytes: 26_214_400,
         vector_files: 0,
+      }),
+    ),
+    // Reading is available (tests that need it otherwise override this).
+    http.get(`${API}/ai/status`, () =>
+      HttpResponse.json({
+        items: ['extraction', 'vision'].map((purpose) => ({
+          purpose,
+          available: true,
+          provider_id: 'pv1',
+          provider_name: 'DeepSeek',
+          model: 'm',
+          reason: null,
+          provider_error: null,
+        })),
       }),
     ),
     http.get(`${API}/jobs/j1`, () =>
@@ -120,8 +135,15 @@ test('an assessment can be imported as a to-do from its destination', async () =
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ type: 'task', only_touched: true }))
 })
 
-test('the review groups items by course, marks problems on their cell and opens an item in place', async () => {
-  server.use(courses())
+test('the review groups items by course, marks problems and values to check on their cell', async () => {
+  const patched = vi.fn<(body: unknown) => void>()
+  server.use(
+    courses(),
+    http.patch(`${API}/imports/s1/items/a1`, async ({ request }) => {
+      patched(await request.json())
+      return HttpResponse.json(session())
+    }),
+  )
   renderWithRouter(
     <SessionView
       session={session({
@@ -134,20 +156,29 @@ test('the review groups items by course, marks problems on their cell and opens 
       onDone={() => {}}
     />,
   )
-  expect(await screen.findByText('1 dates to check')).toBeInTheDocument()
   expect(await screen.findByText('MAT137Y1 · Calculus')).toBeInTheDocument()
   // The total counts what the gradebook already has, said on hover.
   expect(screen.getByText(/Weights total 105%/)).toHaveTextContent(
     'Includes 1 already in the gradebook',
   )
-  // The undated midterm is marked on its date cell.
+  // The undated midterm is marked on its date cell, its uncertain weight on the weight cell.
   const midterm = screen.getByText('Midterm').closest('tr')!
   expect(within(midterm).getByText("Couldn't work out the date “Week 7”")).toBeInTheDocument()
+  const weight = within(midterm).getByRole('button', { name: /30%.*Worth a check/ })
 
-  await userEvent.click(midterm)
+  // The footer points at it (nothing blocks importing), and opens it in place.
+  await userEvent.click(screen.getByRole('button', { name: '1 to check' }))
   expect(midterm).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getAllByText("Couldn't work out the date “Week 7”")).toHaveLength(2)
   expect(screen.getByRole('button', { name: 'Where Title came from' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Import 2 items' })).toBeEnabled()
+
+  // "Looks right" keeps the value as read, which clears its mark.
+  await userEvent.click(weight)
+  await userEvent.click(await screen.findByRole('button', { name: 'Looks right' }))
+  await waitFor(() =>
+    expect(patched).toHaveBeenCalledWith({ data: { weight: 30 }, only_touched: true }),
+  )
 })
 
 test('saving commits the accepted items and reports what was written', async () => {
@@ -603,14 +634,9 @@ test('a course file is read where it is, without uploading it again', async () =
       return HttpResponse.json(session({ status: 'extracting', job_id: 'j1', items: [] }))
     }),
   )
-  renderWithRouter(
-    <ImportDialog
-      request={{ ...icsRequest('syllabus'), fileItemIds: ['f1'] }}
-      onClose={() => {}}
-    />,
-  )
-  // Files picked beforehand open the course files with them ticked.
-  expect(await screen.findByRole('checkbox', { name: /syllabus\.pdf/ })).toBeChecked()
+  renderWithRouter(<ImportDialog request={icsRequest('syllabus')} onClose={() => {}} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'From course files' }))
+  await userEvent.click(await screen.findByRole('checkbox', { name: /syllabus\.pdf/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Read' }))
   await waitFor(() => expect(body).not.toBeNull())
   expect(body).toMatchObject({ upload_ids: [], file_item_ids: ['f1'] })
@@ -731,6 +757,9 @@ test('reading course info from settings applies only the ticked fields', async (
   })
   let created: Record<string, unknown> | null = null
   const commit = vi.fn<(body: unknown) => void>()
+  const meta = { source_meta: { only: 'course_info' } }
+  const reading = session({ ...meta, status: 'extracting', job_id: 'j1', items: [] })
+  const read = session({ ...meta, items: [patch] })
   server.use(
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
@@ -756,12 +785,20 @@ test('reading course info from settings applies only the ticked fields', async (
     ),
     http.post(`${API}/programs/p1/imports`, async ({ request }) => {
       created = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json(session({ items: [patch] }))
+      return HttpResponse.json(reading)
     }),
-    http.get(`${API}/imports/s1`, () => HttpResponse.json(session({ items: [patch] }))),
+    // Once started it is the course's unfinished import, read and waiting for review.
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({
+        items: created ? [{ ...read, items: undefined }] : [],
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${API}/imports/s1`, () => HttpResponse.json(read)),
     http.patch(`${API}/imports/s1/items/p1`, () =>
       HttpResponse.json(
         session({
+          ...meta,
           items: [
             {
               ...patch,
@@ -780,7 +817,7 @@ test('reading course info from settings applies only the ticked fields', async (
     http.post(`${API}/imports/s1:commit`, async ({ request }) => {
       commit(await request.json())
       return HttpResponse.json({
-        session: session({ status: 'committed', items: [patch] }),
+        session: session({ ...meta, status: 'committed', items: [patch] }),
         created: 0,
         updated: 1,
         failed: 0,
@@ -788,7 +825,12 @@ test('reading course info from settings applies only the ticked fields', async (
     }),
   )
   const onApplied = vi.fn<() => void>()
-  renderWithRouter(<CourseInfoFill programId="p1" courseId="c1" onApplied={onApplied} />)
+  renderWithRouter(
+    <>
+      <CourseInfoFill programId="p1" courseId="c1" onApplied={onApplied} />
+      <ImportHost />
+    </>,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Choose file…' }))
   await userEvent.click(await screen.findByRole('option', { name: /syllabus\.pdf/ }))
   await waitFor(() => expect(created).not.toBeNull())
@@ -799,7 +841,10 @@ test('reading course info from settings applies only the ticked fields', async (
     upload_ids: [],
     source_meta: { only: 'course_info' },
   })
-  await userEvent.click(await screen.findByRole('checkbox', { name: /website/i }))
+  // The reading started here ends while the user watches: its review opens by itself.
+  await userEvent.click(
+    await screen.findByRole('checkbox', { name: /website/i }, { timeout: 4000 }),
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
   await waitFor(() => expect(onApplied).toHaveBeenCalled())
   expect(commit).toHaveBeenCalledWith({})
@@ -837,4 +882,23 @@ test('opening the same import again resumes the one left unfinished', async () =
   // Straight to its review, not the file picker.
   expect(await screen.findByText('Final exam')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Read' })).toBeNull()
+})
+
+test('a reading the provider refused points to its settings, retrying stays possible', async () => {
+  server.use(
+    ...upload(),
+    http.post(`${API}/programs/p1/imports`, () =>
+      HttpResponse.json(session({ status: 'failed', error_code: 'ai.invalid_key', items: [] })),
+    ),
+  )
+  const { router } = renderWithRouter(
+    <ImportDialog request={icsRequest('syllabus')} onClose={() => {}} />,
+  )
+  await screen.findByRole('button', { name: 'Read' })
+  await pickFile('a.pdf')
+  await userEvent.click(screen.getByRole('button', { name: 'Read' }))
+  expect(await screen.findByText('DeepSeek: Key rejected')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+  await userEvent.click(screen.getByRole('button', { name: 'Check provider' }))
+  expect(router.state.location.search).toEqual({ settings: 'account/ai-providers' })
 })

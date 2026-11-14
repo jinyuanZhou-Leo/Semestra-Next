@@ -24,6 +24,7 @@ from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEve
 from semestra.modules.ai.resolve import (
     can_serve,
     endpoint_for,
+    instance_endpoint,
     provider_capabilities,
     try_resolve,
 )
@@ -415,8 +416,22 @@ async def _local_choice(ctx: Ctx, purpose: Purpose) -> str | None:
     return None
 
 
+# Errors of a provider the user has to fix in its settings; any other failure may pass.
+PROVIDER_ERRORS = frozenset({"ai.invalid_key", "ai.out_of_credit", "ai.provider_unreachable"})
+
+
 async def status(ctx: Ctx) -> AiStatusGet:
     items: list[PurposeStatus] = []
+    providers = (
+        await ctx.db.scalars(
+            select(AiProvider).where(
+                AiProvider.user_id == ctx.user_id, AiProvider.enabled.is_(True)
+            )
+        )
+    ).all()
+    by_id = {p.id: p for p in providers}
+    # Whether anything is connected: then a purpose nothing serves is "unsupported".
+    connected = bool(providers) or instance_endpoint(ctx.settings) is not None
     for purpose in PURPOSES:
         local = await _local_choice(ctx, purpose)
         if local is not None:
@@ -443,10 +458,13 @@ async def status(ctx: Ctx) -> AiStatusGet:
                     provider_kind=None,
                     provider_name=None,
                     model=None,
+                    reason="unsupported" if connected else "no_provider",
                 )
             )
             continue
         ep = resolved.endpoint
+        row = by_id.get(ep.provider_id or "")
+        error = row.last_error_code if row is not None else None
         items.append(
             PurposeStatus(
                 purpose=purpose,
@@ -456,6 +474,7 @@ async def status(ctx: Ctx) -> AiStatusGet:
                 provider_kind=ep.kind,  # pyright: ignore[reportArgumentType]
                 provider_name=ep.display_name if ep.provider_id else None,
                 model=resolved.model,
+                provider_error=error if error in PROVIDER_ERRORS else None,
             )
         )
     local_models: list[LocalModels] = []

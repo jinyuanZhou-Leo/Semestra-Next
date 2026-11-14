@@ -132,6 +132,10 @@ beforeEach(() => {
   display = 'simplified'
   puts.mockClear()
   server.use(
+    // No syllabus import waiting (the smart import button follows it).
+    http.get(`${API}/programs/:programId/imports`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
     http.post(`${API}/me/ui-state\\:get`, async ({ request }) => {
       const { keys = [], prefixes = [] } = (await request.json()) as {
         keys?: string[]

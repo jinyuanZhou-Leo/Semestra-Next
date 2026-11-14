@@ -9,6 +9,7 @@ import type {
 import type { AssessmentImportSource } from '@/modules/grading/types'
 import type { MeetingImportSource } from '@/modules/schedule/types'
 import { m } from '@/paraglide/messages'
+import { importDetail } from './entry-detail'
 import { openImport } from './launcher'
 import { SOURCES } from './sources'
 import type { CourseData, ImportRequest, ImportSourceKind } from './types'
@@ -25,6 +26,7 @@ export function wizardSource(source: ImportSourceKind): TermWizardImportSource {
     id: `imports.${source}`,
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
+    Detail: importDetail(() => ({ source, target: { kind: 'term_wizard' } }), SOURCES[source].hint),
     icon: SOURCES[source].icon,
     requires: SOURCES[source].purpose ? `ai.${SOURCES[source].purpose}` : undefined,
     request: ({ programId, startDate, endDate, termId }) => ({
@@ -100,6 +102,13 @@ export const syllabusGradingSource: AssessmentImportSource = {
   id: 'imports.syllabus',
   title: m.imports_source_syllabus_grading,
   description: m.imports_source_syllabus_grading_description,
+  Detail: importDetail(
+    ({ courseId }: { programId: string; courseId: string }) => ({
+      source: 'syllabus',
+      target: { kind: 'course', course_id: courseId },
+    }),
+    m.imports_source_syllabus_grading_description,
+  ),
   icon: SOURCES.syllabus.icon,
   launch: async ({ programId, courseId }) => {
     await openImport({
@@ -117,6 +126,13 @@ export function meetingSource(source: 'ics' | 'timetable_image'): MeetingImportS
     id: `imports.${source}`,
     title: SOURCES[source].title,
     description: SOURCES[source].hint,
+    Detail: importDetail(
+      ({ courseId, termId }: { programId: string; courseId: string; termId: string }) => ({
+        source,
+        target: { kind: 'course', course_id: courseId, term_id: termId },
+      }),
+      SOURCES[source].hint,
+    ),
     icon: SOURCES[source].icon,
     launch: async ({ programId, courseId, termId }) => {
       await openImport({

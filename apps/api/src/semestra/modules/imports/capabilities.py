@@ -120,7 +120,9 @@ imports.session.get. Closed imports are kept for 30 days.""",
     ),
 )
 async def session_list(ctx: Ctx, inp: SessionListInput) -> ImportSessionPage:
-    return await service.list_sessions(ctx, inp.program_id, inp.cursor, inp.limit)
+    return await service.list_sessions(
+        ctx, inp.program_id, inp.cursor, inp.limit, unfinished=inp.unfinished
+    )
 
 
 @capability(
