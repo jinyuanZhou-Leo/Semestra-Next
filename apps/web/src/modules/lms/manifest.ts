@@ -30,13 +30,13 @@ import { CourseInfoLms } from './components/CourseInfoLms'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
-import { LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
+import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
 import { LMS_PROVIDER_UI } from './types'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
 import { FollowButton } from './sync/FollowButton'
 import { FIELD_ORIGINS, type FieldOrigin } from '@/components/FieldOrigins'
-import { openStatusPanel } from '@/app/host/StatusBar'
+import { openStatusPanel } from '@/app/host/status-panel'
 import { toastError } from '@/lib/errors'
 
 // A connection's change can change what every course reads; the rest only the LMS state.
@@ -49,6 +49,14 @@ const CONNECTION_EVENTS = [
 const STATE_EVENTS = ['lms.program.bound', 'lms.course.link_updated'] as const
 // Linking or unlinking also changes which courses the term announcements card reads.
 const LINK_EVENTS = ['lms.course.linked', 'lms.course.unlinked'] as const
+
+/** The platforms' own UI; a new platform is one more entry. */
+const PROVIDER_UIS = [canvasUi]
+
+/** A course's kept reads are of the platform course it is linked to: gone with that link. */
+const ofCourse = (data: Readonly<Record<string, unknown>>) => [
+  { path: { course_id: data.course_id } },
+]
 
 const sections = () => import('./settings/sections')
 
@@ -108,7 +116,7 @@ export default defineModule({
     {
       id: 'lms.sync',
       title: m.lms_sync_command_title,
-      keywords: ['lms', 'canvas', 'sync', '同步'],
+      keywords: ['lms', ...PROVIDER_UIS.map((ui) => ui.kind), 'sync', '同步'],
       icon: RefreshCw,
       isAvailable: ({ programId, queryClient }) =>
         Boolean(
@@ -235,7 +243,7 @@ export default defineModule({
     },
   ],
   extensions: {
-    [LMS_PROVIDER_UI]: [canvasUi],
+    [LMS_PROVIDER_UI]: PROVIDER_UIS,
     [ONBOARDING_STEPS]: onboardingSteps,
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
@@ -247,6 +255,15 @@ export default defineModule({
     ] satisfies TaskDetailSection[],
   },
   uiPrefPrefixes: ['lms.'],
+  keptQueries: {
+    operations: LMS_KEPT_QUERIES,
+    dropOn: {
+      'lms.course.linked': ofCourse,
+      'lms.course.unlinked': ofCourse,
+      // Its courses' links go with it.
+      'lms.connection.deleted': () => [{}],
+    },
+  },
   realtimeInvalidations: {
     ...Object.fromEntries(CONNECTION_EVENTS.map((event) => [event, LMS_QUERIES])),
     ...Object.fromEntries(STATE_EVENTS.map((event) => [event, LMS_STATE_QUERIES])),

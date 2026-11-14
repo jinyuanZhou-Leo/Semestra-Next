@@ -1,8 +1,10 @@
+import { academicsTermGetOptions } from '@semestra/api-client/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { errorCode } from '@/lib/errors'
 import { programPath } from './paths'
-import { useCourse, useProgram, useTerms } from './queries'
+import { useCourse, useProgram } from './queries'
 
 const gone = (error: unknown) => error != null && errorCode(error) === 'common.not_found'
 
@@ -13,16 +15,19 @@ const gone = (error: unknown) => error != null && errorCode(error) === 'common.n
  */
 function useDeletedScopeExit(): string | undefined {
   const { programId, termId, courseId } = useParams({ strict: false })
-  // The shell has these already; only a course page adds its course.
+  // Each is asked for by itself: a list that lacks it may only be behind (a term Sem just created,
+  // whose link is followed before the list was read again). The shell has the Program already.
   const program = useProgram(programId)
-  const terms = useTerms(programId ?? '')
+  const term = useQuery({
+    ...academicsTermGetOptions({ path: { term_id: termId ?? '' } }),
+    enabled: termId !== undefined,
+  })
   const course = useCourse(courseId ?? '', { enabled: courseId !== undefined })
   if (gone(program.error)) return '/'
   if (!programId) return undefined
-  if (termId && terms.data && !terms.data.items.some((term) => term.id === termId)) {
-    return programPath(programId)
-  }
-  if (gone(course.error)) return programPath(programId)
+  // A term of another Program (an edited link) is not on this Program's pages either.
+  const elsewhere = term.data !== undefined && term.data.program_id !== programId
+  if (gone(term.error) || elsewhere || gone(course.error)) return programPath(programId)
   return undefined
 }
 

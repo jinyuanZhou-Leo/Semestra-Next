@@ -36,6 +36,25 @@ export const LMS_CONTENT_QUERIES = [
 
 export const LMS_QUERIES = [...LMS_STATE_QUERIES, ...LMS_CONTENT_QUERIES]
 
+/**
+ * What a course's platform pages show (the provider's tab, cards, pickers), kept in the browser
+ * between visits (`keptQueries`): opened again, a view shows what it showed last time at once
+ * and fetches the platform's current state behind it.
+ */
+export const LMS_KEPT_QUERIES = [
+  'lmsCourseOverview',
+  'lmsAnnouncementList',
+  'lmsAssignmentList',
+  'lmsQuizList',
+  'lmsSubmissionGet',
+  'lmsModuleList',
+  'lmsModuleItemList',
+  'lmsPageList',
+  'lmsPageGet',
+  'lmsSyllabusGet',
+  'lmsFolderGet',
+]
+
 /** hey-api's query key: `_id` is the operation, `path` its path parameters. */
 function keyOf(query: Query) {
   return query.queryKey[0] as { _id?: unknown; path?: { course_id?: unknown } } | undefined

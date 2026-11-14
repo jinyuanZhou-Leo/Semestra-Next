@@ -32,6 +32,7 @@ import schedule from '@/modules/schedule/manifest'
 import settings from '@/modules/settings/manifest'
 import tasks from '@/modules/tasks/manifest'
 import type {
+  KeptQueries,
   BoardKind,
   CalendarSourceContribution,
   CardContribution,
@@ -299,6 +300,11 @@ export function mergeInvalidations(
     }
   }
   return merged
+}
+
+/** Every module's reads kept in the browser between visits (`app/kept-queries.ts`). */
+export function keptQueries(modules: readonly ModuleManifest[] = builtInModules): KeptQueries[] {
+  return modules.flatMap((m) => (m.keptQueries ? [m.keptQueries] : []))
 }
 
 /** UI state the host itself keeps (sidebar, status bar, command palette). */

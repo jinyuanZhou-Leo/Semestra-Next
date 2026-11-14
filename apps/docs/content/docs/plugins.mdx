@@ -70,7 +70,10 @@ export default defineModule({
 - Load every heavy component on demand. A page's `component` and the `component`
   of cards and settings sections use `preloadable()` (`@/app/extensions`), so the router and the
   settings dialog can fetch the code early and render it as soon as it is there. A plain
-  `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Pass
+  `lazy()` flashes a placeholder on every first render (`registry.test.ts` catches it). Whatever
+  the manifest imports statically is part of the first load, so import constants and small
+  functions from a file of their own, not from a component's file (`entry:check` in `pnpm lint`
+  catches it and prints the chain of imports). Pass
   `m.xxx` as the function itself; do not call it at module level (switching language remounts).
 - Add the new plugin's manifest to the list in `app/registry.ts`.
 - Card settings load with the card, not with the app: `settings` imports a file whose default

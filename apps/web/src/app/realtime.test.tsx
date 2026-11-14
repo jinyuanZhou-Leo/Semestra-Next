@@ -144,3 +144,25 @@ test('job progress patches cached jobs and refetches only on status changes', ()
   expect(queryClient.getQueryState(get)?.isInvalidated).toBe(true)
   expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false)
 })
+
+test('an event a module names drops its kept reads: they start over instead of showing what was', async () => {
+  const { queryClient, source } = setup({
+    invalidations: {},
+    kept: [
+      {
+        operations: ['lmsAssignmentList'],
+        dropOn: { 'lms.course.linked': (d) => [{ path: { course_id: d.course_id } }] },
+      },
+    ],
+  })
+  const relinked = [{ _id: 'lmsAssignmentList', baseUrl: 'x', path: { course_id: 'c1' } }]
+  const other = [{ _id: 'lmsAssignmentList', baseUrl: 'x', path: { course_id: 'c2' } }]
+  const unkept = [{ _id: 'gradebookGet', baseUrl: 'x', path: { course_id: 'c1' } }]
+  for (const key of [relinked, other, unkept]) queryClient.setQueryData(key, 1)
+
+  // This tab's own change counts too: the old course's content must not flash by.
+  source.emit({ type: 'lms.course.linked', data: { course_id: 'c1' }, origin: CLIENT_ID })
+  await vi.waitFor(() => expect(queryClient.getQueryData(relinked)).toBeUndefined())
+  expect(queryClient.getQueryData(other)).toBe(1)
+  expect(queryClient.getQueryData(unkept)).toBe(1)
+})

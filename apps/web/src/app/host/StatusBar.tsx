@@ -52,6 +52,7 @@ import {
   type StatusRank,
 } from '../extensions'
 import { useModules, useStatusItems } from '../registry'
+import { onStatusPanelRequest, openStatusPanel } from './status-panel'
 import { useUiPref } from '../ui-pref'
 
 /** How long a finished job stays in the bar. */
@@ -173,13 +174,6 @@ type Bar = { lines: Lines; shown: readonly string[] }
 
 const BarContext = createContext<Bar | null>(null)
 
-const panelRequests = new EventTarget()
-
-/** Opens the panel of a status line (e.g. from a command), if the line is there. */
-export function openStatusPanel(id: string) {
-  panelRequests.dispatchEvent(new CustomEvent<string>('open', { detail: id }))
-}
-
 /** The icon and text of a line; the text is clipped (never wrapped) while the rail narrows. */
 function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
   const enter =
@@ -294,11 +288,9 @@ function Slot({
   }, [lines, id, open])
   useEffect(() => {
     if (!onOpenChange) return
-    const onRequest = (event: Event) => {
-      if ((event as CustomEvent<string>).detail === id) onOpenChange(true)
-    }
-    panelRequests.addEventListener('open', onRequest)
-    return () => panelRequests.removeEventListener('open', onRequest)
+    return onStatusPanelRequest((asked) => {
+      if (asked === id) onOpenChange(true)
+    })
   }, [id, onOpenChange])
 
   // What it showed last, kept while it closes (a line that just ended still reads as itself).
@@ -666,17 +658,16 @@ export function StatusBar({ className }: { className?: string }) {
   }
   const placement = frozen ?? live
 
-  useEffect(() => {
-    const onRequest = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail
-      if (!lines.get().entries.get(id)?.panel) return
-      setPinned(id)
-      // Placed again, with the pinned line in it, when the panel opens.
-      setFrozen(null)
-    }
-    panelRequests.addEventListener('open', onRequest)
-    return () => panelRequests.removeEventListener('open', onRequest)
-  }, [lines])
+  useEffect(
+    () =>
+      onStatusPanelRequest((id) => {
+        if (!lines.get().entries.get(id)?.panel) return
+        setPinned(id)
+        // Placed again, with the pinned line in it, when the panel opens.
+        setFrozen(null)
+      }),
+    [lines],
+  )
 
   const bar: Bar = { lines, shown: placement.shown }
   const hidden = placement.hidden.flatMap((id) => {

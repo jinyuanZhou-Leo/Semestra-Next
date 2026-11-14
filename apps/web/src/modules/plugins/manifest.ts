@@ -1,5 +1,5 @@
 import { Keyboard, LayoutGrid, PanelTop, Pencil, Plus, Puzzle } from 'lucide-react'
-import { hasHostAction, runHostAction } from '@/app/commands'
+import { hasHostAction, runHostAction } from '@/app/commands/bus'
 import { defineModule, preloadable } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
 

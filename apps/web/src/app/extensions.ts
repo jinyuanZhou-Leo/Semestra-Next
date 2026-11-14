@@ -448,6 +448,23 @@ export type InvalidationTarget =
   | QueryKeyPrefix
   | ((data: Readonly<Record<string, unknown>>) => readonly (QueryKeyPrefix | QueryMatch)[])
 
+/** Part of a query key's first element, e.g. `{ path: { course_id } }`; `{}` matches every read. */
+export type KeptQueryMatch = Readonly<Record<string, unknown>>
+
+/** Reads the browser keeps between visits (`app/kept-queries.ts`). */
+export type KeptQueries = {
+  /** Generated operation ids; every component reading one of them shares the kept copy. */
+  operations: readonly string[]
+  /**
+   * SSE event type → the kept reads that stopped describing the same thing (a course linked to
+   * another one on its platform). They are deleted, in the browser and in memory, instead of
+   * being shown once more; data that only changed needs no entry, it is refetched as usual.
+   */
+  dropOn?: Readonly<
+    Record<string, (data: Readonly<Record<string, unknown>>) => readonly KeptQueryMatch[]>
+  >
+}
+
 export type ModuleManifest = {
   id: string
   /** 'core' cannot be uninstalled; 'plugin' is installed per account (M10). */
@@ -479,6 +496,8 @@ export type ModuleManifest = {
   defaultBoard?: Readonly<Partial<Record<BoardKind, readonly BoardSlot[]>>>
   /** Prefixes of the UI state keys the module reads (`useUiPref`), prefetched at sign-in. */
   uiPrefPrefixes?: readonly string[]
+  /** Reads kept in the browser between visits, shown at once when a view opens again. */
+  keptQueries?: KeptQueries
   /** SSE event type → queries to refetch when it arrives (see `app/realtime.ts`). */
   realtimeInvalidations?: Readonly<Record<string, readonly InvalidationTarget[]>>
   /**

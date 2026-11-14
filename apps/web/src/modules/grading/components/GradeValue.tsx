@@ -19,22 +19,28 @@ export function useHideGrades(): boolean {
   return useContext(HideGradesContext)
 }
 
+/** Shown while the pointer is over it or it has focus, so the keyboard and a tap can show it too. */
+function useReveal() {
+  const [shown, setShown] = useState(false)
+  return {
+    shown,
+    handlers: {
+      onPointerEnter: () => setShown(true),
+      onPointerLeave: () => setShown(false),
+      onFocus: () => setShown(true),
+      onBlur: () => setShown(false),
+    },
+  }
+}
+
 /**
  * What hides a grade while the Program hides grades: "•••" in its place, the grade itself while
  * the pointer is over it or it has focus (so a touch screen can tap it). Without hiding it is
- * just `children`. `mask` replaces the "•••" for larger figures such as a chart.
+ * just `children`.
  */
-export function Concealed({
-  children,
-  className,
-  mask,
-}: {
-  children: ReactNode
-  className?: string
-  mask?: ReactNode
-}) {
+export function Concealed({ children, className }: { children: ReactNode; className?: string }) {
   const hidden = useHideGrades()
-  const [shown, setShown] = useState(false)
+  const { shown, handlers } = useReveal()
   if (!hidden) return children
   return (
     <span
@@ -43,17 +49,18 @@ export function Concealed({
       tabIndex={0}
       aria-label={shown ? undefined : m.grading_gpa_show()}
       className={cn('rounded-sm outline-offset-2', className)}
-      onPointerEnter={() => setShown(true)}
-      onPointerLeave={() => setShown(false)}
-      onFocus={() => setShown(true)}
-      onBlur={() => setShown(false)}
+      {...handlers}
     >
-      {shown ? children : (mask ?? GRADE_MASK)}
+      {shown ? children : GRADE_MASK}
     </span>
   )
 }
 
-/** A chart that shows only while the pointer is over its placeholder. */
+/**
+ * A chart that shows only while the pointer is over it or it has focus. The chart is always
+ * there and a placeholder covers it, so the placeholder is as large as the chart whatever the
+ * chart holds, showing it moves nothing, and the chart is not drawn anew on every hover.
+ */
 export function ConcealedChart({
   children,
   className,
@@ -61,17 +68,31 @@ export function ConcealedChart({
   children: ReactNode
   className?: string
 }) {
+  const hidden = useHideGrades()
+  const { shown, handlers } = useReveal()
+  if (!hidden) return children
   return (
-    <Concealed
-      className={cn('block', className)}
-      mask={
-        <span className="grid h-24 place-items-center rounded-xl border border-dashed text-muted-foreground">
+    <div
+      // Focusable so the keyboard and touch can show it too (it is not a control).
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      aria-label={shown ? undefined : m.grading_gpa_show()}
+      className={cn('relative rounded-sm outline-offset-2', className)}
+      {...handlers}
+    >
+      {/* Out of sight and out of the accessibility tree, tooltips included, until shown. */}
+      <div aria-hidden={!shown} className={shown ? undefined : 'invisible'}>
+        {children}
+      </div>
+      {shown ? null : (
+        <span
+          aria-hidden
+          className="absolute inset-0 grid place-items-center rounded-xl border border-dashed text-muted-foreground"
+        >
           {GRADE_MASK}
         </span>
-      }
-    >
-      {children}
-    </Concealed>
+      )}
+    </div>
   )
 }
 

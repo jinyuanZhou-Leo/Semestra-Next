@@ -31,6 +31,7 @@ import {
   useState,
 } from 'react'
 import { rank } from '@/app/commands/rank'
+import { useDebounced } from '@/hooks/use-debounced'
 import { courseLabel } from '@/modules/academics/color'
 import { courseTermId } from '@/modules/academics/queries'
 import { fileIcon } from '@/modules/files/kinds'
@@ -274,12 +275,14 @@ export function PromptEditor({
   const { terms, courses } = useProgramEntities(programId)
   // Skills already in the input are not offered again.
   const [pickedSkills, setPickedSkills] = useState<string[]>([])
-  // Found by name on the server while `@` is being typed; the last list stays while the next loads.
+  // Found by name on the server while `@` is being typed, once the typing pauses; the last list
+  // stays while the next loads.
+  const fileQuery = useDebounced(menu?.char === '@' ? menu.query : '', 150)
   const courseFiles =
     useQuery({
       ...filesItemSearchOptions({
         path: { program_id: programId ?? '' },
-        query: { query: menu?.char === '@' ? menu.query : '', limit: FILE_MATCHES },
+        query: { query: fileQuery, limit: FILE_MATCHES },
       }),
       enabled: Boolean(programId) && menu?.char === '@',
       placeholderData: keepPreviousData,

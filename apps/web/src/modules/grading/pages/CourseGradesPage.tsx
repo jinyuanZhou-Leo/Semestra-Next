@@ -6,12 +6,12 @@ import { toast } from 'sonner'
 import type { PageProps } from '@/app/extensions'
 import { updateUiPref, useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { useRowSelection } from '@/components/row-selection'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { omitKey } from '@/lib/omit'
 import { m } from '@/paraglide/messages'
 import { AssessmentDialog } from '../components/AssessmentDialog'
 import { AssessmentTable } from '../components/AssessmentTable'
-import type { AssessmentSelection } from '../components/assessment-columns'
 import { type BatchTarget, BatchDialogs } from '../components/BatchDialogs'
 import { GradebookToolbar } from '../components/GradebookToolbar'
 import { useHighlightedAssessment } from '../components/use-highlight'
@@ -49,7 +49,6 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const [filter, setFilter] = useState<AssessmentFilter>('all')
   const [search, setSearch] = useState('')
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
-  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set())
   const highlighted = useHighlightedAssessment()
   const batch = useDialogTarget<BatchTarget>()
   const queryClient = useQueryClient()
@@ -58,10 +57,6 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
   const planning = whatIf.plan && canPlan
   const state = { scores: whatIf.scores, plan: planning }
   const planned = usePlanSimulation(gradebook, state)
-
-  if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
-    return <ManualGrade gradebook={gradebook} />
-  }
 
   // Only rows on screen are checked: a filter or a collapsed group hides a row from the batch,
   // plan mode all of them.
@@ -81,26 +76,13 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
           )
           .flatMap((g) => g.items)
       : matching
-  const selected = shown.filter((a) => checked.has(a.id))
-  const clearSelection = () => setChecked(new Set())
-  const selection: AssessmentSelection = {
-    has: (id) => checked.has(id),
-    state: (ids) => {
-      const count = ids.filter((id) => checked.has(id)).length
-      return count === 0 ? false : count === ids.length ? true : 'some'
-    },
-    toggle: (ids) =>
-      setChecked((prev) => {
-        const next = new Set(prev)
-        const all = ids.every((id) => prev.has(id))
-        for (const id of ids) {
-          if (all) next.delete(id)
-          else next.add(id)
-        }
-        return next
-      }),
-    shown: shown.map((a) => a.id),
+  const selection = useRowSelection(shown.map((a) => a.id))
+
+  if (result.basis === 'pass_fail' || !result.gradebook_enabled) {
+    return <ManualGrade gradebook={gradebook} />
   }
+
+  const selected = shown.filter((a) => selection.has(a.id))
 
   const assumed = activeScores(gradebook.assessments, whatIf.scores)
   const assume = (assessmentId: string, percent: number | null) => {
@@ -162,7 +144,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
               canPlan={canPlan}
               hasAssumptions={Object.keys(assumed).length > 0}
               onPlanningChange={(plan) => {
-                clearSelection()
+                selection.clear()
                 setWhatIf({ ...whatIf, plan })
               }}
               onClearAssumptions={clearAssumptions}
@@ -173,7 +155,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
               selected={selected}
               onBatchWeight={() => batch.show({ kind: 'weight', assessments: selected })}
               onBatchDelete={() => batch.show({ kind: 'delete', assessments: selected })}
-              onClearSelection={clearSelection}
+              onClearSelection={selection.clear}
             />
           }
         />
@@ -208,7 +190,7 @@ function CourseGrades({ gradebook, programId }: { gradebook: Gradebook; programI
         courseId={courseId}
         target={batch.target}
         close={batch.close}
-        onDeleted={clearSelection}
+        onDeleted={selection.clear}
       />
     </div>
   )
