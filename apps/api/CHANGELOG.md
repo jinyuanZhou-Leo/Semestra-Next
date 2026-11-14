@@ -1,5 +1,86 @@
 # @semestra/api
 
+## 2.0.0-beta.10
+
+### Minor Changes
+
+- a49e533: <!-- area: ai -->
+  <!-- improved -->
+  <!-- en -->
+  When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+  <!-- zh -->
+  AI 功能不可用时会说明原因（未连接服务商、模型不支持等），并直接带你去处理；服务商出问题时会提醒你，但不会挡住你。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+  <!-- zh -->
+  导入关掉也不会丢：侧边栏显示进度或读取失败的原因，点一下就回到离开时的那一步，读完也不会弹窗打断你。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review underlines values worth a second look, with the source text a click away.
+  <!-- zh -->
+  导入审核会标出需要确认的值，并能直接查看原文。
+- 8523a69: <!-- area: api -->
+  <!-- en -->
+  See when a new MCP connection goes live, and review what each client has changed.
+  <!-- zh -->
+  新建 MCP 连接后可看到连接状态，并可查看每个客户端做过的修改。
+- 12d0b47: <!-- area: api -->
+  <!-- en -->
+  Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+  <!-- zh -->
+  现在可以登录授权，把 Semestra 连接到 ChatGPT 和 Claude，无需 API 令牌。
+
+### Patch Changes
+
+- 3a6a241: <!-- area: general -->
+  <!-- en -->
+  Performance improvements.
+  <!-- zh -->
+  性能优化。
+- f4f3825: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+  <!-- zh -->
+  界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。
+- c786d14: <!-- area: grades -->
+  <!-- en -->
+  Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+  <!-- zh -->
+  隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。
+- 3a6a241: <!-- area: self-hosting -->
+  <!-- en -->
+  LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.
+  <!-- zh -->
+  LMS 同步改由专属的任务进程执行（`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`），上传和导入不再排在它后面。
+- 80f7b4e: <!-- area: courses -->
+  <!-- en -->
+  After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+  <!-- zh -->
+  删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。
+- 3a6a241: <!-- area: canvas -->
+  <!-- en -->
+  Ignored assignments no longer reappear in courses with many assignments.
+  <!-- zh -->
+  作业很多的课程里，已忽略的作业不会再次出现。
+- 8523a69: <!-- area: ai -->
+  <!-- en -->
+  Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+  <!-- zh -->
+  添加模型服务商时可直接查看文档，未命名的兼容接口按界面语言命名。
+- 3a6a241: <!-- area: data -->
+  <!-- en -->
+  Restoring an older backup keeps your Hide grades setting.
+  <!-- zh -->
+  恢复旧版备份时会保留“隐藏成绩”设置。
+- 3a6a241: <!-- area: sem -->
+  <!-- en -->
+  Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.
+  <!-- zh -->
+  用 @ 引用的文件计入存储空间；同一对话里再次引用同一文件不再额外占用。
+
 ## 2.0.0-beta.9
 
 ### Minor Changes
