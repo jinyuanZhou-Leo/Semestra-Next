@@ -6,7 +6,13 @@ import {
   gradingSummaryTermOptions,
 } from '@semestra/api-client/react-query'
 import { type QueryClient, keepPreviousData, useQuery } from '@tanstack/react-query'
-import type { Scope } from '@/app/extensions'
+import type { ModuleManifest, Scope } from '@/app/extensions'
+import {
+  ASSESSMENT_ACTIONS,
+  ASSESSMENT_COLUMNS,
+  type AssessmentAction,
+  type AssessmentColumn,
+} from './types'
 
 export function useGradebook(courseId: string) {
   return useQuery({
@@ -23,12 +29,28 @@ export function useTermGrades(termId: string) {
   return useQuery({ ...termGradesOptions(termId), placeholderData: keepPreviousData })
 }
 
-/** `PageContribution.prefetch` of the grades page: the gradebook, or the term's summary. */
-export function prefetchGradesPage(scope: Scope, queryClient: QueryClient) {
+/**
+ * `PageContribution.prefetch` of the grades page: the gradebook with what its target picker and
+ * the other modules' columns and row actions read, or the term's summary.
+ */
+export function prefetchGradesPage(
+  scope: Scope,
+  queryClient: QueryClient,
+  { modules }: { modules: readonly ModuleManifest[] },
+) {
   if (scope.kind === 'course') {
+    const course = { programId: scope.programId, courseId: scope.courseId }
     void queryClient.prefetchQuery(
       gradingGradebookGetOptions({ path: { course_id: scope.courseId } }),
     )
+    void queryClient.prefetchQuery(
+      gradingScaleGetOptions({ path: { program_id: scope.programId } }),
+    )
+    for (const module of modules) {
+      const columns = (module.extensions?.[ASSESSMENT_COLUMNS] ?? []) as AssessmentColumn[]
+      const actions = (module.extensions?.[ASSESSMENT_ACTIONS] ?? []) as AssessmentAction[]
+      for (const { prefetch } of [...columns, ...actions]) prefetch?.(course, queryClient)
+    }
   } else if (scope.kind === 'term') {
     void queryClient.prefetchQuery(termGradesOptions(scope.termId))
   }

@@ -1,19 +1,11 @@
 import type { Task, TaskPage } from '@semestra/api-client'
-import { tasksItemCompleteMutation, tasksItemQueryOptions } from '@semestra/api-client/react-query'
+import { tasksItemCompleteMutation } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { Checkbox } from '@/ui/checkbox'
-import { invalidateTasks } from '../queries'
-
-/** A course's to-dos, done ones included: one request for every row of a course's table. */
-export function courseTasksOptions(programId: string, courseId: string) {
-  return tasksItemQueryOptions({
-    path: { program_id: programId },
-    query: { course_id: courseId, completed: 'include', limit: 500 },
-  })
-}
+import { courseTasksOptions, invalidateTasks } from '../queries'
 
 /**
  * A to-do's round check, as on the to-do list, in another module's table of a course (the

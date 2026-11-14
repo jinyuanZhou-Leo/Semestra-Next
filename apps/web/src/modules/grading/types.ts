@@ -1,5 +1,5 @@
 import type { Assessment, AssessmentCreateInputBody } from '@semestra/api-client'
-import type { UseQueryOptions } from '@tanstack/react-query'
+import type { QueryClient, UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { Message } from '@/app/extensions'
@@ -46,7 +46,17 @@ export type AssessmentColumn = {
   id: string
   header: Message
   Cell: ComponentType<{ assessment: Assessment; programId: string }>
+  prefetch?: AssessmentPrefetch
 }
+
+/**
+ * Starts what a gradebook contribution reads for a course along with the page (`prefetch` of the
+ * grades page), so its rows do not wait for the table to render before asking.
+ */
+export type AssessmentPrefetch = (
+  course: { programId: string; courseId: string },
+  queryClient: QueryClient,
+) => void
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'
 
@@ -61,6 +71,7 @@ export type AssessmentAction = {
   /** The menu item; renders nothing when the action does not apply to this assessment. */
   Item: ComponentType<AssessmentActionItemProps>
   Dialog: ComponentType<AssessmentActionDialogProps>
+  prefetch?: AssessmentPrefetch
 }
 
 export type AssessmentActionItemProps = {

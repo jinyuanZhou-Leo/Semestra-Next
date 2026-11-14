@@ -45,6 +45,41 @@ function preloadFonts(): Plugin {
   }
 }
 
+// Stable third-party chunks. Rolldown otherwise cuts shared code into many small chunks named after
+// whatever happens to share them, and every release renames them. A group's chunk is downloaded
+// whole by whichever page imports any of its modules, so each group holds only packages used by
+// the same set of pages. Hashes of these chunks change only when the dependency does: a release
+// then makes returning users download the app's own code, not React again.
+const nodeModules = (packages: string) => new RegExp(`node_modules[\\\\/](${packages})[\\\\/]`)
+const vendorGroups = [
+  // Needed by every page, the sign-in page too.
+  { name: 'vendor-react', test: nodeModules('react|react-dom|scheduler|use-sync-external-store') },
+  {
+    name: 'vendor-core',
+    test: nodeModules(
+      '@tanstack[\\\\/](?:router-core|history|react-router|query-core|react-query|query-persist-client-core|store|react-store)|idb-keyval|sonner|semver|class-variance-authority|clsx',
+    ),
+  },
+  // Base UI's positioning engine and shared utilities: every popup and the sign-in page use them.
+  // Its components stay with the pages that use them: Combobox, Menu and Select are not for sign-in.
+  {
+    name: 'vendor-floating',
+    test: nodeModules('@floating-ui[\\\\/][^\\\\/]+|@base-ui[\\\\/]utils'),
+  },
+  // Icons that two or more chunks share (one chunk per icon was the alternative); the rest stay
+  // inside the chunk that uses them.
+  { name: 'vendor-icons', test: nodeModules('lucide-react'), minShareCount: 2 },
+  // The signed-in shell: sidebar pins, assistant dock, shortcuts and tables.
+  {
+    name: 'vendor-shell',
+    test: nodeModules(
+      '@dnd-kit[\\\\/][^\\\\/]+|react-resizable-panels|react-hotkeys-hook|@tanstack[\\\\/](?:table-core|react-table)',
+    ),
+  },
+  // The card boards (Today, term and course overview).
+  { name: 'vendor-board', test: nodeModules('react-grid-layout|react-draggable|react-resizable') },
+].map((group, index, all) => ({ ...group, priority: all.length - index }))
+
 export default defineConfig({
   define: {
     // Shown on the settings "About" section.
@@ -79,5 +114,8 @@ export default defineConfig({
       })),
     }),
   ],
+  build: {
+    rolldownOptions: { output: { codeSplitting: { groups: vendorGroups } } },
+  },
   server: { port: 5173 },
 })
