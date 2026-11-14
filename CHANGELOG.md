@@ -3,6 +3,44 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.10 (2026-11-14)
+
+### New
+
+- **API & MCP:** See when a new MCP connection goes live, and review what each client has changed.
+- **API & MCP:** Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+
+### Improved
+
+- **General:** Page headers take less room, leaving more space for content.
+- **Terms & courses:** The Clear selection button shows its Esc shortcut.
+- **Import:** Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+- **Import:** The import review underlines values worth a second look, with the source text a click away.
+- **Canvas:** Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+- **AI:** When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+
+### Fixed
+
+- **General:** Performance improvements.
+- **General:** Pages open faster, and less is downloaded again after an update.
+- **General:** Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+- **General:** The sign-in page loads faster.
+- **General:** The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+- **Sem:** Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.
+- **Terms & courses:** After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+- **Terms & courses:** A term that was just created opens from its link instead of returning to the Program.
+- **Grades:** Checking rows in the gradebook responds right away.
+- **Grades:** An empty gradebook offers to import from the syllabus.
+- **Grades:** With grades hidden, revealing a chart no longer changes the card's height.
+- **Grades:** Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+- **Canvas:** After a course is linked to a different Canvas course, the previous course's content no longer shows.
+- **Canvas:** Ignored assignments no longer reappear in courses with many assignments.
+- **Canvas:** The sidebar status lines now animate smoothly when their state changes.
+- **AI:** Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+- **Settings:** Settings groups now open with their content in place, without loading spinners or the page shifting as it loads.
+- **Data:** Restoring an older backup keeps your Hide grades setting.
+- **Self-hosting:** LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.
+
 ## 2.0.0-beta.9 (2026-11-12)
 
 ### New

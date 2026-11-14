@@ -1,5 +1,130 @@
 # @semestra/web
 
+## 2.0.0-beta.10
+
+### Minor Changes
+
+- a49e533: <!-- area: ai -->
+  <!-- improved -->
+  <!-- en -->
+  When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+  <!-- zh -->
+  AI 功能不可用时会说明原因（未连接服务商、模型不支持等），并直接带你去处理；服务商出问题时会提醒你，但不会挡住你。
+- 76adef9: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+  <!-- zh -->
+  Canvas 页面更易阅读，标题和表格更清晰；单元一眼就能看到完成进度。
+- fa5dbbf: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Page headers take less room, leaving more space for content.
+  <!-- zh -->
+  页面顶部更紧凑，内容区有更多空间。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+  <!-- zh -->
+  导入关掉也不会丢：侧边栏显示进度或读取失败的原因，点一下就回到离开时的那一步，读完也不会弹窗打断你。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review underlines values worth a second look, with the source text a click away.
+  <!-- zh -->
+  导入审核会标出需要确认的值，并能直接查看原文。
+- 8523a69: <!-- area: api -->
+  <!-- en -->
+  See when a new MCP connection goes live, and review what each client has changed.
+  <!-- zh -->
+  新建 MCP 连接后可看到连接状态，并可查看每个客户端做过的修改。
+- 12d0b47: <!-- area: api -->
+  <!-- en -->
+  Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+  <!-- zh -->
+  现在可以登录授权，把 Semestra 连接到 ChatGPT 和 Claude，无需 API 令牌。
+
+### Patch Changes
+
+- 186dc09: <!-- area: general -->
+  <!-- en -->
+  Pages open faster, and less is downloaded again after an update.
+  <!-- zh -->
+  打开页面更快，更新后再次打开需要下载的内容更少。
+- 363075e: <!-- area: canvas -->
+  <!-- en -->
+  After a course is linked to a different Canvas course, the previous course's content no longer shows.
+  <!-- zh -->
+  课程改绑到另一门 Canvas 课程后，不再显示原课程的内容。
+- b52c221: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  The Clear selection button shows its Esc shortcut.
+  <!-- zh -->
+  “取消选择”按钮上直接显示 Esc 快捷键。
+- f4f3825: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+  <!-- zh -->
+  界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The sign-in page loads faster.
+  <!-- zh -->
+  登录页加载更快。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  Checking rows in the gradebook responds right away.
+  <!-- zh -->
+  成绩册勾选行的响应更快。
+- 8523a69: <!-- area: grades -->
+  <!-- en -->
+  An empty gradebook offers to import from the syllabus.
+  <!-- zh -->
+  空成绩册可直接从课程大纲导入。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  With grades hidden, revealing a chart no longer changes the card's height.
+  <!-- zh -->
+  隐藏成绩时，悬停显示图表不再改变卡片高度。
+- c786d14: <!-- area: grades -->
+  <!-- en -->
+  Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+  <!-- zh -->
+  隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。
+- 80f7b4e: <!-- area: courses -->
+  <!-- en -->
+  After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+  <!-- zh -->
+  删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+  <!-- zh -->
+  收起侧边栏、打开 Sem 面板或调整窗口大小时，页面停留在原来的滚动位置。
+- 363075e: <!-- area: courses -->
+  <!-- en -->
+  A term that was just created opens from its link instead of returning to the Program.
+  <!-- zh -->
+  刚创建的学期可以直接从链接打开，不再回到 Program 页。
+- 8523a69: <!-- area: ai -->
+  <!-- en -->
+  Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+  <!-- zh -->
+  添加模型服务商时可直接查看文档，未命名的兼容接口按界面语言命名。
+- 351b499: <!-- area: settings -->
+  <!-- en -->
+  Settings groups now open with their content in place, without loading spinners or the page shifting as it loads.
+  <!-- zh -->
+  设置分组打开时内容一次到位，不再先显示加载动画、再随内容跳动。
+- 353431a: <!-- area: canvas -->
+  <!-- en -->
+  The sidebar status lines now animate smoothly when their state changes.
+  <!-- zh -->
+  侧边栏状态行在状态切换时会平滑过渡。
+- @semestra/api-client@2.0.0-beta.10
+
 ## 2.0.0-beta.9
 
 ### Minor Changes
