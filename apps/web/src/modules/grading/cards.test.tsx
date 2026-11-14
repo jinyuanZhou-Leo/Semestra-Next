@@ -51,16 +51,16 @@ test('the Program chart shows only on hover while grades are hidden', async () =
   server.use(
     http.get(`${API}/programs/p1/grade-summary`, () => HttpResponse.json(programGrades(true))),
   )
-  const { container } = renderWithRouter(
-    <ProgramChartsCard {...cardProps({ kind: 'program', programId: 'p1' }, 'l')} />,
-  )
+  renderWithRouter(<ProgramChartsCard {...cardProps({ kind: 'program', programId: 'p1' }, 'l')} />)
   const mask = (await screen.findAllByLabelText('Show grade'))[0]!
-  expect(container.querySelector('title')?.textContent ?? '').not.toContain('3.50')
+  // The chart keeps its place under the placeholder (so showing it moves nothing), out of sight
+  // and hidden from assistive technology.
   expect(screen.queryByRole('figure', { name: 'GPA and cumulative GPA by term' })).toBeNull()
-  expect(container).not.toHaveTextContent('3.50')
   await userEvent.hover(mask)
   const chart = await screen.findByRole('figure', { name: 'GPA and cumulative GPA by term' })
   expect(within(chart).getByText('Fall 2025: 3.50')).toBeInTheDocument()
+  await userEvent.unhover(mask)
+  expect(screen.queryByRole('figure', { name: 'GPA and cumulative GPA by term' })).toBeNull()
 })
 
 test('the Program chart is drawn straight away when GPA is not hidden', async () => {

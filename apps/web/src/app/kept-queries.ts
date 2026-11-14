@@ -80,6 +80,8 @@ export function keepQueries(queryClient: QueryClient, operations: readonly strin
  */
 export function claimKeptQueries(userId: string): void {
   if (typeof indexedDB === 'undefined') return
+  // Where the 2.0 betas kept LMS reads: nothing clears it any more, so it goes now.
+  indexedDB.deleteDatabase('semestra-lms')
   owned = (async () => {
     const s = store()
     if ((await get<string>(OWNER, s)) !== userId) {
