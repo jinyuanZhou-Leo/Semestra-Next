@@ -2,7 +2,7 @@
 name = "use-lms"
 title = { en = "Use the LMS", zh-CN = "使用 LMS" }
 command = "/lms"
-description = "Use when the user asks about anything on their LMS (Canvas) courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app."
+description = "Use when the user asks about anything on their {lms} courses, such as announcements, assignments, grades, feedback, pages, modules, files, links or discussions there, or wants to link a course or bring LMS assignments or a syllabus into the app."
 tools = [
   "lms.content.search",
   "lms.content.read",

@@ -224,6 +224,33 @@ async def test_files_picked_with_at_reach_the_model(
     assert "Late work loses 10% a day." in again
 
 
+async def test_a_file_picked_again_is_stored_once_and_counted(
+    agent: Agent, model: FakeModel, run_jobs: Callable[[], Awaitable[None]]
+):
+    _, course, _ = await agent.course_with_lab()
+    r = await agent.client.post(
+        f"/courses/{course['id']}/files",
+        files=[
+            ("files", ("notes.pdf", make_pdf(["Late work loses 10% a day."]), "application/pdf"))
+        ],
+    )
+    item = r.json()["items"][0]
+    await run_jobs()
+    session = await agent.session()
+    ref = {"kind": "file", "id": item["id"], "label": "notes.pdf"}
+    before = (await agent.call("GET", "/files-usage"))["used_bytes"]
+    for text in ("read @notes.pdf", "and again @notes.pdf"):
+        model.then(say("Sure."))
+        await agent.send(session["id"], text, references=[ref])
+        # Its text counts towards the quota, once per conversation.
+        used = (await agent.call("GET", "/files-usage"))["used_bytes"]
+        assert used - before == len("Late work loses 10% a day.")
+    detail = await agent.detail(session["id"])
+    [kept] = detail["attachments"]
+    blocks = [b for m in detail["messages"] for b in m["content"] if b["type"] == "reference"]
+    assert [b["attachment_id"] for b in blocks] == [kept["id"], kept["id"]]
+
+
 async def test_a_file_without_text_says_why(agent: Agent, model: FakeModel):
     _, course, _ = await agent.course_with_lab()
     r = await agent.client.post(

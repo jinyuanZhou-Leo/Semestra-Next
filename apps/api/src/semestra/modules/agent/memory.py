@@ -21,7 +21,7 @@ anything when the user turns memory off (the `memory` settings namespace).
 
 import re
 from datetime import UTC, datetime, timedelta, tzinfo
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from pydantic import BaseModel, Field
@@ -457,15 +457,13 @@ in the language the user wrote in, at most {MAX_DESCRIPTION} characters. Refer t
 with [[its-name]]. Change nothing when nothing needs changing. Reply with the operations only."""
 
 
-def _transcript(rows: list[AgentMessage]) -> str:
+def _transcript(contents: list[list[dict[str, Any]]]) -> str:
     """What the user said. Assistant text can echo tool results and attachments (untrusted text
     the main model sees wrapped), so it is left out: memories come from the user's own words."""
     lines: list[str] = []
-    for row in rows:
-        if row.role != "user":
-            continue
+    for content in contents:
         text = " ".join(
-            b.get("text", "") for b in row.content if b.get("type") == "text" and b.get("text")
+            b.get("text", "") for b in content if b.get("type") == "text" and b.get("text")
         ).strip()
         if text:
             lines.append(f"user: {text}")
@@ -498,11 +496,17 @@ def _pending(ctx: Ctx) -> Select[AgentSession]:
 async def _new_words(ctx: Ctx, session: AgentSession) -> tuple[str, datetime]:
     """What the user said in `session` since it was last read, and the time of its newest
     message (read up to that, not `now`: one written while the model runs is read next time)."""
-    query = select(AgentMessage).where(AgentMessage.session_id == session.id)
+    since = [AgentMessage.session_id == session.id]
     if session.memory_processed_at is not None:
-        query = query.where(AgentMessage.created_at > session.memory_processed_at)
-    rows = list(await ctx.db.scalars(query.order_by(AgentMessage.created_at, AgentMessage.id)))
-    return _transcript(rows), max((r.created_at for r in rows), default=ctx.now)
+        since.append(AgentMessage.created_at > session.memory_processed_at)
+    # Only the user's text: assistant rows carry tool results in `model_parts`, which can be large.
+    contents = await ctx.db.scalars(
+        select(AgentMessage.content)
+        .where(*since, AgentMessage.role == "user")
+        .order_by(AgentMessage.created_at, AgentMessage.id)
+    )
+    newest = await ctx.db.scalar(select(func.max(AgentMessage.created_at)).where(*since))
+    return _transcript(list(contents)), newest or ctx.now
 
 
 async def dream(ctx: Ctx) -> bool:

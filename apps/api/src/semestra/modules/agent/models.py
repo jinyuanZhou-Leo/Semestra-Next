@@ -103,6 +103,9 @@ class AgentAttachment(Base, OwnedMixin):
     mime: Mapped[str] = mapped_column(String)
     size: Mapped[int] = mapped_column(Integer)
     file_item_id: Mapped[str | None] = mapped_column(String, default=None)
+    # A course file picked with `@` (no `storage_key`): the version of it whose text the pages
+    # copy. One snapshot per conversation and version; `size` is the copied text's bytes.
+    file_document_id: Mapped[str | None] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column()
     # When a message first carried it; unsent uploads (null) are removed after a day.
     sent_at: Mapped[datetime | None] = mapped_column(default=None)

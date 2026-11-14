@@ -9737,7 +9737,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "What is new on the LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
+        "summary": "What is new on its LMS (Canvas) for a course or a whole term: announcements, grades and new assignments.",
         "description": "Newest first, the last 7 days unless `since`. Imported assignments follow the\nLMS by themselves (due date, weight, grade); what the user and the LMS both changed waits for the\nuser in the app's sync panel. Read an item in full with lms.content.read.",
         "operationId": "lmsActivityList",
         "security": [
@@ -9853,7 +9853,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Recent announcements of a linked course on Canvas or another LMS, newest first.",
+        "summary": "Recent announcements of a linked course on its LMS (Canvas), newest first.",
         "operationId": "lmsAnnouncementList",
         "security": [
           {
@@ -10280,7 +10280,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Assignments and graded quizzes of a linked course on the LMS (Canvas), with the user's scores and the course total, marked when imported.",
+        "summary": "Assignments and graded quizzes of a linked course on its LMS (Canvas), with the user's scores and the course total, marked when imported.",
         "description": "For \"what is due\", \"what is missing\" and \"what did I get\": filter by `status`\nor due dates; `include_total` adds the course total. Each has a `ref`: lms.content.read gives\nits text, rubric and the teacher's feedback. To add them to the gradebook or tasks use\nlms.assignment.import, never the gradebook or task capabilities directly.",
         "operationId": "lmsAssignmentList",
         "security": [
@@ -10778,7 +10778,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Read one item of a course on the LMS (Canvas) in full, as Markdown.",
+        "summary": "Read one item of a course on its LMS (Canvas) in full, as Markdown.",
         "description": "Takes a `ref` from any lms tool (a page, announcement with its replies,\nassignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's\ntext, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call\nagain with `next_offset`. Links in the text written `lms:<ref>` open with this tool.",
         "operationId": "lmsContentRead",
         "security": [
@@ -10896,7 +10896,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Search everything in a course on the LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
+        "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
         "description": "Use first when looking for something in the course's LMS (a link, a date, a\npolicy, where the slides are). Words are matched, not meanings: search in the course's\nlanguage and try other words before concluding it is not there. Each hit has a `ref` for\nlms.content.read and a snippet; `skipped` says what could not be searched (an area the\ninstructor hid, a limit).",
         "operationId": "lmsContentSearch",
         "security": [
@@ -11186,7 +11186,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "Link a course to its course on the Program's LMS (Canvas or another).",
+        "summary": "Link a course to its course on the Program's LMS (Canvas).",
         "description": "Pick the course from lms.course.list. Uses the Program's bound connection\n(lms.program_not_configured without one: the user connects one in settings).\nAn external course can be linked to only one course of the Program\n(lms.course_already_linked). If the course is already linked to another external course this fails\nwith lms.course_link_exists (naming that course) unless replace is true; replacing stops tracking\nwhat was imported through the old link.",
         "operationId": "lmsCourseLinkSet",
         "security": [
@@ -11366,7 +11366,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "The user's courses on the Program's LMS (e.g. Canvas), marked when already linked.",
+        "summary": "The user's courses on the Program's LMS (Canvas), marked when already linked.",
         "description": "Current-term courses by default; `include_past` for all of them. To link one\nto a course here: lms.course.link.set; to create courses from them: lms.course.import.",
         "operationId": "lmsCourseList",
         "security": [
@@ -11446,7 +11446,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "A course on the LMS (Canvas) at a glance: its modules with every item, in order.",
+        "summary": "A course on its LMS (Canvas) at a glance: its modules with every item, in order.",
         "description": "Each item has a `ref` to read it with lms.content.read (external links and\ntools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas\nof the course open to the user; the instructor may hide some (pages, files...), and their items\nare then reachable only through the modules. Pages in no module are in `other_pages`. Use it to\nsee what a course has; to find something specific, lms.content.search is faster.",
         "operationId": "lmsCourseOutline",
         "security": [
@@ -12040,7 +12040,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "The user's grades on Canvas or another LMS for a linked course.",
+        "summary": "The user's grades on its LMS (Canvas) for a linked course.",
         "description": "The course total first, then one row per assignment, with score, points possible\nand grade as the LMS shows them. The gradebook in this app is grading.gradebook.get; to add LMS\nassignments to it use lms.assignment.import.",
         "operationId": "lmsGradeList",
         "security": [
@@ -12769,7 +12769,7 @@
         "tags": [
           "lms"
         ],
-        "summary": "The syllabus of a linked course on Canvas or another LMS.",
+        "summary": "The syllabus of a linked course on its LMS (Canvas).",
         "description": "To extract its grading scheme use lms.syllabus.import.",
         "operationId": "lmsSyllabusGet",
         "security": [

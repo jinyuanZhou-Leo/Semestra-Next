@@ -6,7 +6,7 @@ and, for reads, the cache (`cache.py`). Imports live in `imports.py`, the calend
 """
 
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -599,6 +599,7 @@ class NotCached(Exception):
 
 
 _cache_only: ContextVar[bool] = ContextVar("lms_cache_only", default=False)
+_memory_only: ContextVar[bool] = ContextVar("lms_memory_only", default=False)
 
 
 @contextmanager
@@ -610,6 +611,18 @@ def cache_only() -> Iterator[None]:
         yield
     finally:
         _cache_only.reset(token)
+
+
+@contextmanager
+def memory_cache() -> Iterator[None]:
+    """Reads inside keep what they fetch in the in-process cache only, not in `lms_cache`: the
+    background sync reads whole lists (assignment descriptions included) that nobody reads
+    again before they expire."""
+    token = _memory_only.set(True)
+    try:
+        yield
+    finally:
+        _memory_only.reset(token)
 
 
 async def cached(
@@ -634,7 +647,8 @@ async def cached(
         raise NotCached
     result, truncated = await call(ctx, b, fn)
     data = dump(result)
-    await cache.put(ctx, key, b.row.id, {"data": data, "truncated": truncated}, scope=scope)
+    entry = {"data": data, "truncated": truncated}
+    await cache.put(ctx, key, b.row.id, entry, scope=scope, persist=not _memory_only.get())
     return data, truncated
 
 
@@ -1018,23 +1032,27 @@ async def forget_program(ctx: Ctx, program_id: str) -> None:
     await ctx.db.flush()
 
 
-async def forget_target(ctx: Ctx, target_kind: str, target_id: str) -> bool:
-    """Forgets what was imported as this object; whether anything was."""
+async def forget_targets(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:
+    """Forgets what was imported as these objects; whether anything was."""
     result = await ctx.db.execute(
         delete(LmsImportedRef).where(
-            LmsImportedRef.target_kind == target_kind, LmsImportedRef.target_id == target_id
+            LmsImportedRef.user_id == ctx.user_id,
+            LmsImportedRef.target_kind == target_kind,
+            LmsImportedRef.target_id.in_(target_ids),
         )
     )
     return bool(getattr(result, "rowcount", 0))
 
 
-async def is_imported(ctx: Ctx, target_kind: str, target_id: str) -> bool:
+async def any_imported(ctx: Ctx, target_kind: str, target_ids: Sequence[str]) -> bool:
     return (
         await ctx.db.scalar(
-            select(LmsImportedRef.id).where(
+            select(LmsImportedRef.id)
+            .where(
                 LmsImportedRef.user_id == ctx.user_id,
                 LmsImportedRef.target_kind == target_kind,
-                LmsImportedRef.target_id == target_id,
+                LmsImportedRef.target_id.in_(target_ids),
             )
+            .limit(1)
         )
     ) is not None

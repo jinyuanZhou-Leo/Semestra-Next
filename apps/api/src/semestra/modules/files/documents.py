@@ -103,6 +103,13 @@ async def read_document(
     return result
 
 
+async def active_document_id(ctx: Ctx, item_id: str) -> str:
+    """The version of a processed file that reads return; raises like `files.document.read`
+    when the file has no readable text."""
+    _, document = await _active_document(ctx, item_id)
+    return document.id
+
+
 async def snapshot(ctx: Ctx, item_id: str) -> tuple[FilesItem, list[FilesDocumentPage]]:
     """A processed file and every page of its active document, for other modules to copy (the
     assistant keeps a referenced file as it was when the message was sent). Raises like

@@ -125,7 +125,6 @@ async def list_delete(ctx: Ctx, inp: TaskListDeleteInput) -> TaskListDeleteResul
     expose=("http",),  # only the UI reorders
     http=Http("PUT", "/programs/{program_id}/task-list-order"),
     tags=TAGS,
-    agent_output_fields=("items.id", "items.name"),
 )
 async def list_reorder(ctx: Ctx, inp: TaskListOrderInput) -> TaskListOut:
     return await service.reorder_lists(ctx, inp.program_id, inp.list_ids)

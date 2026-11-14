@@ -20,14 +20,10 @@ from semestra.modules.lms.schemas.io import (
     AssignmentBindInput,
     AssignmentImportInput,
     AssignmentsImportInput,
-    BindingSetInput,
-    CourseRef,
     CoursesImportInput,
     ExternalCourse,
     FileSaveInput,
     LinkSetInput,
-    LinkUpdateInput,
-    ProgramRef,
 )
 
 # Lists on a card show this many names; `count` says how many there are in all.
@@ -119,46 +115,6 @@ async def preview_link_set(ctx: Ctx, inp: LinkSetInput) -> dict[str, Any]:
         changes.append({"field": "connection", "after": connection})
     changes.append({"field": "sync_enabled", "after": inp.sync_enabled})
     return {"target": await _course(ctx, inp.course_id), "changes": changes}
-
-
-async def preview_link_update(ctx: Ctx, inp: LinkUpdateInput) -> dict[str, Any]:
-    link = await service.link_row(ctx, inp.course_id)
-    change: dict[str, Any] = {"field": "sync_enabled", "after": inp.sync_enabled}
-    if link is not None:
-        change["before"] = link.sync_enabled
-    target = " · ".join(
-        p for p in (await _course(ctx, inp.course_id), await _linked(ctx, inp.course_id)) if p
-    )
-    return {"target": target, "changes": [change]}
-
-
-async def preview_link_delete(ctx: Ctx, inp: CourseRef) -> dict[str, Any]:
-    changes: list[dict[str, Any]] = []
-    if (before := await _linked(ctx, inp.course_id)) is not None:
-        changes.append({"field": "lms_course", "before": before, "after": None})
-    return {"target": await _course(ctx, inp.course_id), "changes": changes}
-
-
-async def preview_binding_set(ctx: Ctx, inp: BindingSetInput) -> dict[str, Any]:
-    program = await academics.get_program_row(ctx, inp.program_id)
-    binding = await service.binding_row(ctx, inp.program_id)
-    change: dict[str, Any] = {
-        "field": "connection",
-        "after": await _connection(ctx, inp.connection_id),
-    }
-    if binding is not None and binding.connection_id != inp.connection_id:
-        change["before"] = await _connection(ctx, binding.connection_id)
-    return {"target": program.name, "changes": [change]}
-
-
-async def preview_binding_clear(ctx: Ctx, inp: ProgramRef) -> dict[str, Any]:
-    program = await academics.get_program_row(ctx, inp.program_id)
-    binding = await service.binding_row(ctx, inp.program_id)
-    changes: list[dict[str, Any]] = []
-    if binding is not None:
-        before = await _connection(ctx, binding.connection_id)
-        changes.append({"field": "connection", "before": before, "after": None})
-    return {"target": program.name, "changes": changes}
 
 
 async def preview_course_import(ctx: Ctx, inp: CoursesImportInput) -> dict[str, Any]:

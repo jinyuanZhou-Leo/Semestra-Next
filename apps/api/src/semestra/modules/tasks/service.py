@@ -232,7 +232,7 @@ async def delete_list(ctx: Ctx, list_id: str, *, delete_tasks: bool) -> TaskList
     doomed = [r for r in items if r.assessment_id is None] if delete_tasks else []
     kept = [r for r in items if r not in doomed]
     result = TaskListDeleteResult(deleted_task_count=len(doomed), moved_task_count=len(kept))
-    await _delete_rows(ctx, row.program_id, doomed)
+    await delete_rows(ctx, row.program_id, doomed)
     await _to_inbox(ctx, kept)
     await ctx.db.delete(row)
     await ctx.db.flush()
@@ -242,7 +242,7 @@ async def delete_list(ctx: Ctx, list_id: str, *, delete_tasks: bool) -> TaskList
     return result
 
 
-async def _delete_rows(ctx: Ctx, program_id: str, rows: Sequence[TasksItem]) -> None:
+async def delete_rows(ctx: Ctx, program_id: str, rows: Sequence[TasksItem]) -> None:
     """Deletes tasks in one statement and announces them as one `tasks.item.deleted` with
     `task_ids` (the LMS module forgets what it imported as those tasks)."""
     if not rows:
@@ -745,7 +745,7 @@ async def preview_clear_completed(ctx: Ctx, inp: TaskClearInput) -> dict[str, An
 async def clear_completed(ctx: Ctx, inp: TaskClearInput) -> TaskClearResult:
     program = await academics.get_program_row(ctx, inp.program_id)
     rows = await _completed_rows(ctx, inp)
-    await _delete_rows(ctx, program.id, rows)
+    await delete_rows(ctx, program.id, rows)
     return TaskClearResult(deleted=len(rows))
 
 
@@ -1037,7 +1037,7 @@ async def detach_course(ctx: Ctx, course_id: str) -> None:
         )
     )
     if managed:
-        await _delete_rows(ctx, managed[0].program_id, managed)
+        await delete_rows(ctx, managed[0].program_id, managed)
     await ctx.db.execute(
         update(TasksItem)
         .where(TasksItem.user_id == ctx.user_id, TasksItem.course_id == course_id)

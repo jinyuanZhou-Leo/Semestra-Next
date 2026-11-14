@@ -233,7 +233,6 @@ async def category_delete(ctx: Ctx, inp: CategoryRef) -> Deleted:
     expose=("http",),  # only the UI reorders
     http=Http("PUT", "/courses/{course_id}/grading-category-order"),
     tags=TAGS,
-    agent_output_fields=("items.id", "items.name"),
 )
 async def category_reorder(ctx: Ctx, inp: CategoryOrderInput) -> CategoryList:
     return CategoryList(
@@ -292,7 +291,6 @@ assessment; use grading.assessment.update.""",
     expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/courses/{course_id}/assessments"),
     tags=TAGS,
-    agent_output_fields=("id", "course_id", "title", "due_date", "weight"),
 )
 async def assessment_create(ctx: Ctx, inp: AssessmentCreateInput) -> Assessment:
     result = await service.create_assessments(ctx, inp.course_id, [inp], dedupe=False)
@@ -345,7 +343,6 @@ grading.assessment.find.""",
     effect="destructive",
     http=Http("DELETE", "/assessments/{assessment_id}"),
     expose=("http",),  # Sem and MCP use delete_many, with one id or more
-    preview=service.preview_assessment_delete,
     tags=TAGS,
 )
 async def assessment_delete(ctx: Ctx, inp: AssessmentRef) -> Deleted:

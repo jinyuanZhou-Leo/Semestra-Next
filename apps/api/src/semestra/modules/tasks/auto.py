@@ -55,14 +55,6 @@ def _info(row: GradingAssessment, course: AcademicsCourse) -> AssessmentInfo:
     )
 
 
-async def task_of(ctx: Ctx, assessment_id: str) -> TasksItem | None:
-    return await ctx.db.scalar(
-        select(TasksItem).where(
-            TasksItem.user_id == ctx.user_id, TasksItem.assessment_id == assessment_id
-        )
-    )
-
-
 async def _same_source(
     ctx: Ctx, infos: Sequence[AssessmentInfo]
 ) -> dict[tuple[str, str], TasksItem]:
@@ -223,9 +215,20 @@ async def _apply(
         await service.announce_item(ctx, "updated", task, calendar=True, changed=changed)
 
 
-async def drop(ctx: Ctx, assessment_id: str) -> None:
-    if (row := await task_of(ctx, assessment_id)) is not None:
-        await _drop(ctx, row)
+async def drop(ctx: Ctx, assessment_ids: Sequence[str]) -> None:
+    """The tasks of these assessments go with them."""
+    rows = list(
+        await ctx.db.scalars(
+            select(TasksItem).where(
+                TasksItem.user_id == ctx.user_id, TasksItem.assessment_id.in_(assessment_ids)
+            )
+        )
+    )
+    by_program: dict[str, list[TasksItem]] = {}
+    for row in rows:
+        by_program.setdefault(row.program_id, []).append(row)
+    for program_id, group in by_program.items():
+        await service.delete_rows(ctx, program_id, group)
 
 
 async def _drop(ctx: Ctx, row: TasksItem) -> None:

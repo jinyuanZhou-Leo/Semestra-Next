@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from semestra.modules.grading.models import GradingAssessment
+from semestra.modules.grading.models import GradingAssessment, GradingScale
 from semestra.modules.lms.models import LmsImportedRef
 from semestra.modules.portability import registry
 from semestra.modules.schedule.models import (
@@ -176,6 +176,10 @@ async def test_a_1_15_backup_restores(
             )
         )
         assert task_settings == {"default_priority": "high"}
+        hidden = await db.scalar(
+            select(GradingScale.hide_grades).where(GradingScale.user_id == user.id)
+        )
+        assert hidden is True  # `hide_gpa` before 2.0
 
     # What it restored exports in the current format.
     started = await client.post("/me/exports", json={"include_files": False})

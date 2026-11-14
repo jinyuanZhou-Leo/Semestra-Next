@@ -226,7 +226,6 @@ async def event_type_delete(ctx: Ctx, inp: EventTypeRef) -> Deleted:
     expose=("http",),  # only the UI reorders
     http=Http("PUT", "/programs/{program_id}/event-types:order"),
     tags=TAGS,
-    agent_output_fields=("items.id", "items.code"),
 )
 async def event_type_reorder(ctx: Ctx, inp: EventTypeOrderInput) -> EventTypeList:
     return EventTypeList(
@@ -484,7 +483,6 @@ that repeats weekly use schedule.meeting.create.""",
     expose=("http",),  # Sem and MCP use create_many, with one item or more
     http=Http("POST", "/programs/{program_id}/events"),
     tags=TAGS,
-    agent_output_fields=("id", "title", "start_at", "end_at"),
 )
 async def event_create(ctx: Ctx, inp: EventCreateInput) -> OneOffEvent:
     return await one_off.create_event(ctx, inp)

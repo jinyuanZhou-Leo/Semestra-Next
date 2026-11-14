@@ -27,7 +27,7 @@ the sentence it supports. Cite only passages you got from `files.document.search
 `files.document.read`, with the id given there.
 
 **The LMS too.** A course whose `sources` (academics.course.find) include `lms` also has
-material on its LMS (Canvas) that may not be in its files. When the files do not answer, search
+material on its {lms} that may not be in its files. When the files do not answer, search
 there with `lms.content.search` and read a hit with `lms.content.read`; cite such an answer by
 naming the LMS item (its title and link), not with `[[cite:…]]`.
 

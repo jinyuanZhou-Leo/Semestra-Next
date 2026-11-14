@@ -15,6 +15,7 @@ from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.modules.agent import tools
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, call, events_named, say
+from semestra.modules.lms.providers import BUILT_IN, get_provider
 
 
 def _defs() -> list[ToolDefinition]:
@@ -41,6 +42,14 @@ async def test_search_ranks_tools_by_what_the_words_mean(agent: Agent):
     assert "imports__session__create" in _search("import syllabus")[:3]
     assert "grading__gradebook__get" in _search("final grade needed")[:5]
     assert "lms__course__link__set" in _search("link canvas course")[:5]
+    # Students name the platform, not "LMS": every built-in provider's name finds the LMS tools.
+    for kind in BUILT_IN:
+        name = get_provider(kind).display_name.lower()
+        found = _search(name)
+        assert found
+        assert all(n.startswith("lms__") for n in found)
+        assert _search(f"{name} grades")[0].startswith("lms__")
+        assert _search(f"search {name}")[0] == "lms__content__search"
     assert len(_search("delete")) == tools.SEARCH_LIMIT
     with pytest.raises(ModelRetry):
         _search("成绩")

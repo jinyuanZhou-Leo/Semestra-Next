@@ -90,6 +90,11 @@ async def bulk(ctx: JobCtx, payload: Payload) -> Result:
     return Result()
 
 
+@job_handler("test.background", lane="background")
+async def background(ctx: JobCtx, payload: Payload) -> Result:
+    return Result()
+
+
 @job_handler("test.waits")
 async def waits(ctx: JobCtx, payload: Payload) -> Result:
     async with jobs.waiting("ai.provider_busy"), ctx.state.session_factory() as db:
@@ -391,6 +396,20 @@ async def test_bulk_jobs_leave_a_worker_for_the_others(app: FastAPI, make_user: 
     runner._bulk_running = 0
     assert await runner.run_one() is True
     assert (await get(app, rebuild)).status == "succeeded"
+
+
+async def test_background_jobs_have_workers_of_their_own(app: FastAPI, make_user: MakeUser):
+    user = await make_user()
+    sync = await start(app, user.id, "test.background")
+    upload = await start(app, user.id, "test.ok")
+    runner = JobRunner(app.state, concurrency=1)
+    # The one worker takes the user's job, not the older sync; the sync's worker takes it.
+    assert await runner.run_one(jobs.FOREGROUND) is True
+    assert (await get(app, upload)).status == "succeeded"
+    assert (await get(app, sync)).status == "pending"
+    assert await runner.run_one(jobs.FOREGROUND) is False
+    assert await runner.run_one(jobs.BACKGROUND) is True
+    assert (await get(app, sync)).status == "succeeded"
 
 
 async def test_a_job_shows_what_it_waits_for(app: FastAPI, make_user: MakeUser):
