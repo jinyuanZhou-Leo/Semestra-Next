@@ -5,8 +5,9 @@ export type AuthState = {
   user: UserOut | undefined
   isLoading: boolean
   /**
-   * Ends the session and goes to the login page. `to` goes elsewhere; `flush: false` skips
-   * saving interface state, for a session the server has already ended (account deleted).
+   * Ends the session and goes to the login page. `to` (a path, with a query if needed) goes
+   * elsewhere; `flush: false` skips saving interface state, for a session the server has
+   * already ended (account deleted).
    */
   signOut: (options?: { to?: string; flush?: boolean }) => Promise<void>
 }

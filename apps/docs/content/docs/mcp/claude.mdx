@@ -1,0 +1,30 @@
+---
+title: Claude
+description: Add Semestra in Claude and sign in. Works on the web, desktop and phone.
+---
+
+Claude connects to Semestra by signing in, with no API token. Add it once and it works in Claude on the web, desktop and phone.
+
+## Connect
+
+1. In Semestra, open **AI** in settings, go to **API & MCP**, click **New connection**, choose **Claude** and copy the server address.
+2. In Claude, open **Customize**, go to **Connectors** and click **Add custom connector**.
+3. Paste the address, click **Add**, then **Connect**.
+4. Your browser opens Semestra's consent page. Sign in if you need to, choose **Read only** or **Read and write**, then click **Allow**.
+5. You're taken back to Claude, connected. Semestra's window shows “Connected” too.
+
+## Access
+
+- **Read only**: Claude can view your courses, schedule, grades, tasks and files.
+- **Read and write**: it can also add and change things. Deleting data needs its own switch under **Client permissions**.
+
+Claude asks you to approve tool calls according to its own settings. To change the access, disconnect and connect again.
+
+## Disconnect
+
+In Semestra, find Claude under **Clients and API tokens**, click **⋯** and choose **Disconnect**. Claude loses access right away. You can also remove it from Claude's connectors. A connection unused for 90 days disconnects on its own.
+
+## Notes
+
+- The Free plan can add one custom connector. On Team and Enterprise, an organization owner adds it under **Connectors** in organization settings, then each member connects.
+- Claude connects to Semestra from its own servers, so a self-hosted Semestra must be reachable from the internet over HTTPS. If you only use it on a local network, use a client on your computer such as [Claude Code](./claude-code.mdx).

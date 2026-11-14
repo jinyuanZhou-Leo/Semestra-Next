@@ -1,6 +1,6 @@
 ---
 title: 连接 MCP 客户端
-description: 在 Claude、Cursor、VS Code、Codex 等 MCP 客户端中使用 Semestra。
+description: 在 ChatGPT、Claude、Cursor、VS Code、Codex 等 MCP 客户端中使用 Semestra。
 ---
 
 Semestra 提供一个 [MCP](https://modelcontextprotocol.io) 服务器，让应用之外的 AI 客户端可以读取你的课表、成绩和待办，并在你允许时修改它们。
@@ -8,17 +8,18 @@ Semestra 提供一个 [MCP](https://modelcontextprotocol.io) 服务器，让应�
 
 - **地址**：`<你的 Semestra 地址>/mcp`，例如 `https://semestra.example.com/mcp`。全局设置 → **AI → API 与 MCP → MCP 服务** 显示准确地址
 - **传输方式**：Streamable HTTP（无状态，返回 JSON）
-- **认证**：`Authorization: Bearer spat_…`，使用 API 令牌。不接受会话 cookie
+- **认证**：ChatGPT 和 Claude 通过登录你的账户连接（OAuth）；其他客户端用 API 令牌，即 `Authorization: Bearer spat_…`。不接受会话 cookie
 
 ## 连接客户端
 
-最快的方式：全局设置 → **AI → API 与 MCP**，点 **新建连接**，选择客户端和权限。Semestra 会为它创建一个以客户端命名的 API 令牌，并直接给出填好令牌的安装链接、命令或配置，不需要来回复制令牌。
+最快的方式：全局设置 → **AI → API 与 MCP**，点 **新建连接**，选择客户端。ChatGPT 和 Claude 只需要服务地址：在应用里添加后登录 Semestra，选择它能做什么。其他客户端先选择权限，Semestra 会为它创建一个以客户端命名的 API 令牌，并直接给出填好令牌的安装链接、命令或配置，不需要来回复制令牌。
 
 | 客户端 | 方式 |
 | --- | --- |
+| [ChatGPT](./chatgpt.mdx)、[Claude](./claude.mdx) | 粘贴地址并登录 |
 | [Cursor](./cursor.mdx)、[LM Studio](./lm-studio.mdx) | 一键打开 |
 | [Claude Code](./claude-code.mdx)、[Gemini CLI](./gemini-cli.mdx) | 运行一条命令 |
-| [VS Code](./vscode.mdx)、[Claude Desktop](./claude-desktop.mdx)、[Codex](./codex.mdx)、[Devin Desktop（原 Windsurf）](./devin.mdx) | 粘贴一段配置 |
+| [VS Code](./vscode.mdx)、[Codex](./codex.mdx)、[Devin Desktop（原 Windsurf）](./devin.mdx) | 粘贴一段配置 |
 | [Cline](./cline.mdx)、[Zed](./zed.mdx) | 手动设置 |
 | [其他客户端](./other.mdx) | 填写地址和令牌 |
 
@@ -44,7 +45,7 @@ Semestra 提供一个 [MCP](https://modelcontextprotocol.io) 服务器，让应�
 | 读写，并打开**删除数据**                     | 可以       | 可以       | 可以       |
 
 - **修改类工具会直接执行。** Sem 会显示确认卡片，而 MCP 调用依赖客户端自己的批准提示。
-- **删除数据**默认关闭，在全局设置 → **AI → API 与 MCP** 的 **客户端权限** 一节里打开。它对令牌的所有调用生效，包括 REST 接口。
+- **删除数据**默认关闭，在全局设置 → **AI → API 与 MCP** 的 **客户端权限** 一节里打开。它对所有连接生效，包括通过 API 令牌调用的 REST 接口。
 - 插件的工具只有在你的账户安装了该插件时才会出现。
 - 通过 MCP 做的修改会立即显示在已打开的浏览器标签页里。
 - **最近更改** 列出客户端在 Semestra 中做过的修改，保留 90 天，已撤销的连接也在内，可以按连接筛选。读写连接的 **⋯ → 最近更改** 直接打开这个连接的修改。

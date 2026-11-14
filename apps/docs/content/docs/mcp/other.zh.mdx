@@ -32,9 +32,6 @@ description: 连接任何支持 Streamable HTTP 和自定义请求头的 MCP 客
 }
 ```
 
-只能启动本机（stdio）服务器的客户端，可以像 [Claude Desktop](./claude-desktop.mdx) 那样通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 连接。
+只能启动本机（stdio）服务器的客户端，可以通过 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) 连接，由它转发请求头。
 
-## 暂时无法连接的客户端
-
-- **ChatGPT** 只支持用 OAuth 或不认证的方式连接 MCP 服务器，无法使用 API 令牌。
-- **Claude 自定义连接器**（claude.ai 与 Claude Desktop 的 设置 → 连接器）同样使用 OAuth 登录。在 Claude Desktop 中请改用[配置文件](./claude-desktop.mdx)。
+像 [ChatGPT](./chatgpt.mdx) 和 [Claude](./claude.mdx) 这样通过登录（OAuth）连接 MCP 服务器的客户端只需要地址：它会打开 Semestra 的授权页，由你选择它能做什么。

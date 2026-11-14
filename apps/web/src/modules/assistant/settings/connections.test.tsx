@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { AuthContext } from '@/modules/auth/useAuth'
 import { API, apiError, renderWithRouter, server, user } from '@/test-utils'
 import { SectionFrame } from '@/app/settings/SettingsSections'
+import { AddConnectionDialog } from './AddConnectionDialog'
 import { ConnectionsSection } from './ConnectionsSection'
 import { mcpSetup } from './mcp-clients'
 
@@ -16,14 +17,16 @@ const url = 'https://semestra.example/mcp'
 
 const token: {
   id: string
+  kind: 'token' | 'oauth'
   name: string
-  prefix: string
+  prefix: string | null
   scopes: string[]
   created_at: string
   last_used_at: string | null
   expires_at: string | null
 } = {
   id: 't1',
+  kind: 'token',
   name: 'Claude Code',
   prefix: 'spat_AbC',
   scopes: ['read'],
@@ -97,6 +100,8 @@ test('connecting a client creates a token named after it and fills it into the c
 
   await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
   const dialog = await screen.findByRole('dialog')
+  // Apps that sign in reach the server from the internet: a local one does not offer them.
+  expect(within(dialog).queryByRole('button', { name: 'ChatGPT' })).not.toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Claude Code' }))
   await userEvent.click(within(dialog).getByRole('combobox', { name: 'Access' }))
   await userEvent.click(await screen.findByRole('option', { name: /Read and write/ }))
@@ -223,4 +228,45 @@ test('recent changes list every connection, revoked ones by name, and narrow to 
   dialog = await screen.findByRole('dialog')
   expect(await within(dialog).findByText('Lab 3')).toBeInTheDocument()
   expect(within(dialog).queryByText(/Lab 2/)).not.toBeInTheDocument()
+})
+
+test('an app that signs in gets the address and its steps, and shows once it has connected', async () => {
+  const items: (typeof token)[] = [token]
+  server.use(
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items })),
+    http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
+  )
+  renderWithRouter(<AddConnectionDialog open onOpenChange={() => {}} url={url} />)
+
+  await userEvent.click(await screen.findByRole('button', { name: 'ChatGPT' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(within(dialog).getByText(url)).toBeInTheDocument()
+  expect(within(dialog).getByText('Add custom MCP server')).toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: /Create API token/ })).not.toBeInTheDocument()
+  expect(within(dialog).getByText('Waiting for ChatGPT to connect…')).toBeInTheDocument()
+  // Signing in on the consent page adds a connection.
+  items.push({ ...token, id: 't2', kind: 'oauth', name: 'ChatGPT', prefix: null })
+  expect(
+    await within(dialog).findByText('ChatGPT is connected', undefined, { timeout: 5000 }),
+  ).toBeInTheDocument()
+})
+
+test('an app that signed in is listed as such and disconnected after confirming', async () => {
+  const revoked = vi.fn<(id: string) => void>()
+  const chatgpt = { ...token, id: 't2', kind: 'oauth' as const, name: 'ChatGPT', prefix: null }
+  server.use(
+    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [chatgpt] })),
+    http.delete(`${API}/account/tokens/:id`, ({ params }) => {
+      revoked(String(params.id))
+      return HttpResponse.json({ ok: true })
+    }),
+  )
+  mount()
+  expect(await screen.findByText(/^Signed in · /)).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Actions for ChatGPT' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Disconnect' }))
+  const dialog = await screen.findByRole('alertdialog')
+  expect(within(dialog).getByText('Disconnect ChatGPT?')).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Disconnect' }))
+  await waitFor(() => expect(revoked).toHaveBeenCalledWith('t2'))
 })

@@ -1,6 +1,6 @@
 ---
 title: Connect an MCP client
-description: Use Semestra from Claude, Cursor, VS Code, Codex and other MCP clients.
+description: Use Semestra from ChatGPT, Claude, Cursor, VS Code, Codex and other MCP clients.
 ---
 
 Semestra runs an [MCP](https://modelcontextprotocol.io) server, so an AI client outside the app
@@ -9,17 +9,18 @@ operations as the in-app assistant Sem.
 
 - **Endpoint**: `<your Semestra address>/mcp`, e.g. `https://semestra.example.com/mcp`. Global settings → **AI → API & MCP → MCP server** shows the exact address
 - **Transport**: Streamable HTTP (stateless, JSON responses)
-- **Authentication**: `Authorization: Bearer spat_…` with an API token. Session cookies are not accepted
+- **Authentication**: ChatGPT and Claude sign in to your account (OAuth). Other clients send an API token as `Authorization: Bearer spat_…`. Session cookies are not accepted
 
 ## Connect a client
 
-The quickest way: in global settings → **AI → API & MCP**, click **New connection**, then choose the client and its access. Semestra creates an API token named after the client and gives you an install link, command or config with the token already filled in, so you never copy the token by hand.
+The quickest way: in global settings → **AI → API & MCP**, click **New connection**, then choose the client. ChatGPT and Claude only need the server address: you add it in the app, sign in to Semestra and choose what it may do. For the other clients you choose the access, and Semestra creates an API token named after the client and gives you an install link, command or config with the token already filled in, so you never copy the token by hand.
 
 | Client | How |
 | --- | --- |
+| [ChatGPT](./chatgpt.mdx), [Claude](./claude.mdx) | Paste the address and sign in |
 | [Cursor](./cursor.mdx), [LM Studio](./lm-studio.mdx) | Open with one click |
 | [Claude Code](./claude-code.mdx), [Gemini CLI](./gemini-cli.mdx) | Run one command |
-| [VS Code](./vscode.mdx), [Claude Desktop](./claude-desktop.mdx), [Codex](./codex.mdx), [Devin Desktop (formerly Windsurf)](./devin.mdx) | Paste a config |
+| [VS Code](./vscode.mdx), [Codex](./codex.mdx), [Devin Desktop (formerly Windsurf)](./devin.mdx) | Paste a config |
 | [Cline](./cline.mdx), [Zed](./zed.mdx) | Set up by hand |
 | [Other clients](./other.mdx) | Enter the address and token |
 
@@ -49,7 +50,8 @@ The token is shown once. Give each client its own token and revoke it under **Cl
 - **Write tools run immediately.** Unlike Sem, which shows a confirmation card, Semestra relies on
   the client's own approval prompt for MCP calls.
 - **Delete data** is off by default. Turn it on in global settings → **AI → API & MCP**, under
-  **Client permissions**. It applies to the token everywhere, including the REST endpoints.
+  **Client permissions**. It applies to every connection, including API tokens used with the REST
+  endpoints.
 - Tools of a plugin appear only while that plugin is installed on your account.
 - Changes made over MCP appear in open browser tabs right away.
 - **Recent changes** lists what clients changed in Semestra over the last 90 days, revoked

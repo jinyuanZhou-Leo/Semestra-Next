@@ -1,11 +1,11 @@
-import type { TokenCreated } from '@semestra/api-client'
+import type { TokenCreated, TokenOut } from '@semestra/api-client'
 import {
   accountTokenCreateMutation,
   accountTokenListOptions,
   accountTokenListQueryKey,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, CircleCheck, Copy, ExternalLink, KeyRound } from 'lucide-react'
+import { Check, ChevronRight, CircleCheck, Copy, ExternalLink, KeyRound, Plus } from 'lucide-react'
 import { useId, useState, type FormEvent } from 'react'
 import { BrandLogo, BrandTile } from '@/components/BrandLogo'
 import { ChoiceControl, type ChoiceOption } from '@/app/settings/choice'
@@ -33,7 +33,14 @@ import { FieldError, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Spinner } from '@/ui/spinner'
-import { type ClientId, MCP_CLIENTS, mcpSetup, type McpClient } from './mcp-clients'
+import {
+  availableClients,
+  mcpSetup,
+  type McpClient,
+  PLUS,
+  type SignIn,
+  type TokenClientId,
+} from './mcp-clients'
 
 const clientName = (client: McpClient) => client.name || m.assistant_mcp_client_other()
 
@@ -71,10 +78,16 @@ function StepHeader({
 }
 
 /** Step one, laid out like the AI provider picker: every client, then any other client or script. */
-function ClientPicker({ onPick }: { onPick: (client: McpClient) => void }) {
+function ClientPicker({
+  clients,
+  onPick,
+}: {
+  clients: readonly McpClient[]
+  onPick: (client: McpClient) => void
+}) {
   return (
     <ItemGroup className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {MCP_CLIENTS.map((c) => (
+      {clients.map((c) => (
         <Item
           key={c.id}
           variant="outline"
@@ -124,7 +137,15 @@ function Code({ value }: { value: string }) {
 }
 
 /** What to do in the client once the token exists: everything already carries it. */
-function Finish({ client, url, token }: { client: McpClient; url: string; token: string }) {
+function Finish({
+  client,
+  url,
+  token,
+}: {
+  client: McpClient & { id: TokenClientId }
+  url: string
+  token: string
+}) {
   const name = clientName(client)
   const setup = mcpSetup(client.id, url, token)
   if (setup.kind === 'link') {
@@ -182,9 +203,8 @@ function Finish({ client, url, token }: { client: McpClient; url: string; token:
     )
   }
   if (setup.kind === 'config') {
-    const hint: Partial<Record<ClientId, () => string>> = {
+    const hint: Partial<Record<TokenClientId, () => string>> = {
       vscode: m.assistant_mcp_hint_vscode,
-      'claude-desktop': m.assistant_mcp_hint_claude_desktop,
     }
     return (
       <div className="space-y-2">
@@ -211,20 +231,80 @@ function Finish({ client, url, token }: { client: McpClient; url: string; token:
   )
 }
 
+/** A menu path in another app, its levels apart by chevrons. */
+function MenuPath({ path }: { path: readonly (string | typeof PLUS)[] }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 align-middle font-medium">
+      {path.map((part, i) => [
+        i > 0 ? (
+          <ChevronRight key={`gap-${i}`} aria-hidden className="size-3.5 text-muted-foreground" />
+        ) : null,
+        <span key={i} className="inline-flex items-center">
+          {part === PLUS ? (
+            <>
+              <Plus aria-hidden className="size-4" />
+              <span className="sr-only">+</span>
+            </>
+          ) : (
+            part
+          )}
+        </span>,
+      ])}
+    </span>
+  )
+}
+
+/** An app that signs in needs only the address: it opens Semestra's consent page itself. */
+function SignInSteps({ name, url, signIn }: { name: string; url: string; signIn: SignIn }) {
+  const steps = [
+    <>
+      {m.assistant_mcp_signin_open({ client: name })} <MenuPath path={signIn.menu()} />
+    </>,
+    signIn.add(),
+    m.assistant_mcp_signin_allow(),
+  ]
+  return (
+    <div className="grid gap-4">
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium">{m.assistant_mcp_endpoint()}</p>
+        <Code value={url} />
+      </div>
+      <ol className="grid gap-2.5 text-sm">
+        {steps.map((step, i) => (
+          // oxlint-disable-next-line react/no-array-index-key -- a fixed list of steps
+          <li key={i} className="flex gap-3">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium tabular-nums">
+              {i + 1}
+            </span>
+            <span className="min-w-0">{step}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 /** How often the finished step asks whether the client has used its token yet. */
 const WAIT_POLL_MS = 3000
 
 /**
- * Whether the client has connected: the token's first request sets its last-used time. Asked
- * while the step is open, until it has.
+ * Whether the client has connected, by `connected` over the connection list: a token's first
+ * request sets its last-used time, an app that signs in adds a connection. Asked while the step
+ * is open, until it has.
  */
-function ConnectionStatus({ client, tokenId }: { client: McpClient; tokenId: string }) {
+function ConnectionStatus({
+  client,
+  connected,
+}: {
+  client: McpClient
+  connected: (tokens: readonly TokenOut[]) => boolean
+}) {
   const tokens = useQuery({
     ...accountTokenListOptions(),
     refetchInterval: (query) =>
-      query.state.data?.items.find((t) => t.id === tokenId)?.last_used_at ? false : WAIT_POLL_MS,
+      query.state.data && connected(query.state.data.items) ? false : WAIT_POLL_MS,
   })
-  const used = Boolean(tokens.data?.items.find((t) => t.id === tokenId)?.last_used_at)
+  const used = tokens.data ? connected(tokens.data.items) : false
   const name = client.name
   return (
     <output
@@ -249,10 +329,40 @@ function ConnectionStatus({ client, tokenId }: { client: McpClient; tokenId: str
   )
 }
 
+/** Ends a step that waits for the client: whether it has connected, its guide, and done. */
+function WaitFooter({
+  client,
+  connected,
+}: {
+  client: McpClient
+  connected: (tokens: readonly TokenOut[]) => boolean
+}) {
+  return (
+    <DialogFooter className="items-center sm:justify-between">
+      <ConnectionStatus client={client} connected={connected} />
+      <div className="flex shrink-0 items-center gap-2">
+        <Button
+          variant="ghost"
+          nativeButton={false}
+          render={
+            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
+            <a href={docsUrl(client.docs)} target="_blank" rel="noreferrer noopener" />
+          }
+        >
+          {m.assistant_mcp_client_docs()}
+        </Button>
+        <DialogClose render={<Button />}>{m.auth_account_tokens_done()}</DialogClose>
+      </div>
+    </DialogFooter>
+  )
+}
+
 /**
  * Adds a connection (M12 §5), in the steps the AI provider dialog uses: pick the client; choose
  * what it may do, which creates an API token named after it; then one link, command or config
  * that already carries the token. "Other client or script" is a plain API token with its own name.
+ * Apps that sign in (ChatGPT, Claude) skip the token: they get the address and where to paste it,
+ * and choose what they may do on Semestra's consent page.
  */
 export function AddConnectionDialog({
   open,
@@ -270,6 +380,8 @@ export function AddConnectionDialog({
   const [scope, setScope] = useState<'read' | 'write'>('read')
   const [days, setDays] = useState('never')
   const [created, setCreated] = useState<TokenCreated | null>(null)
+  // The connections before an app went to sign in: a new one from it means it has.
+  const [known, setKnown] = useState<ReadonlySet<string>>(new Set())
   const create = useMutation({
     ...accountTokenCreateMutation(),
     onSuccess: (token) => {
@@ -330,10 +442,17 @@ export function AddConnectionDialog({
     setScope('read')
     setDays('never')
     setCreated(null)
+    setKnown(new Set())
     create.reset()
   }
 
-  const step = created ? 'finish' : client ? 'form' : 'pick'
+  const pick = (picked: McpClient) => {
+    const existing = queryClient.getQueryData(accountTokenListOptions().queryKey)?.items ?? []
+    setKnown(new Set(existing.map((t) => t.id)))
+    setClient(picked)
+  }
+
+  const step = created ? 'finish' : client ? (client.signIn ? 'sign-in' : 'form') : 'pick'
 
   return (
     <Dialog
@@ -356,10 +475,24 @@ export function AddConnectionDialog({
                 title={m.assistant_mcp_add_title()}
                 description={m.assistant_mcp_add_description()}
               />
-              <ClientPicker onPick={setClient} />
+              <ClientPicker clients={availableClients(url)} onPick={pick} />
             </>
           ) : null}
-          {step === 'form' && client ? (
+          {step === 'sign-in' && client?.signIn ? (
+            <>
+              <StepHeader
+                client={client}
+                title={m.assistant_mcp_connect_title({ client: client.name })}
+                description={m.assistant_mcp_signin_description({ client: client.name })}
+              />
+              <SignInSteps name={client.name} url={url} signIn={client.signIn} />
+              <WaitFooter
+                client={client}
+                connected={(tokens) => tokens.some((t) => t.kind === 'oauth' && !known.has(t.id))}
+              />
+            </>
+          ) : null}
+          {step === 'form' && client && !client.signIn ? (
             <form onSubmit={submit} noValidate className="grid gap-4">
               <StepHeader
                 client={client}
@@ -433,7 +566,7 @@ export function AddConnectionDialog({
               </div>
             </form>
           ) : null}
-          {step === 'finish' && created && client ? (
+          {step === 'finish' && created && client && !client.signIn ? (
             <>
               <StepHeader
                 client={client}
@@ -445,22 +578,12 @@ export function AddConnectionDialog({
                 description={m.assistant_mcp_created({ name: created.name })}
               />
               <Finish client={client} url={url} token={created.token} />
-              <DialogFooter className="items-center sm:justify-between">
-                <ConnectionStatus client={client} tokenId={created.id} />
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    nativeButton={false}
-                    render={
-                      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- the children label it
-                      <a href={docsUrl(client.docs)} target="_blank" rel="noreferrer noopener" />
-                    }
-                  >
-                    {m.assistant_mcp_client_docs()}
-                  </Button>
-                  <DialogClose render={<Button />}>{m.auth_account_tokens_done()}</DialogClose>
-                </div>
-              </DialogFooter>
+              <WaitFooter
+                client={client}
+                connected={(tokens) =>
+                  Boolean(tokens.find((t) => t.id === created.id)?.last_used_at)
+                }
+              />
             </>
           ) : null}
         </div>
