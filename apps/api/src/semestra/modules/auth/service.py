@@ -967,6 +967,7 @@ async def revoke_other_sessions(ctx: Ctx) -> None:
 def _token_out(row: AuthPersonalAccessToken) -> TokenOut:
     return TokenOut(
         id=row.id,
+        kind="oauth" if row.kind == "oauth" else "token",
         name=row.name,
         prefix=row.prefix,
         scopes=[s for s in row.scopes if s in ("read", "write")],

@@ -130,8 +130,11 @@ class SessionList(BaseModel):
 
 class TokenOut(BaseModel):
     id: str
+    kind: Literal["token", "oauth"] = Field(
+        description="`token`: pasted into the client; `oauth`: the client signed in"
+    )
     name: str
-    prefix: str
+    prefix: str | None = Field(description="Start of a pasted token; none for OAuth")
     scopes: list[TokenScope]
     created_at: datetime
     last_used_at: datetime | None

@@ -103,17 +103,69 @@ class AuthRateLimit(Base):
 
 
 class AuthPersonalAccessToken(Base):
+    """An MCP client's way in (M12 §5): a token the user pasted into it (`token`), or one the
+    client got by signing in through OAuth (`oauth`, see `AuthOAuthGrant`). Both are listed,
+    limited and revoked the same way; only a pasted token has a secret of its own."""
+
     __tablename__ = "auth_personal_access_tokens"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("auth_users.id", ondelete="CASCADE"), index=True
     )
+    kind: Mapped[str] = mapped_column(String, default="token")  # 'token' | 'oauth'
     name: Mapped[str] = mapped_column(String)
-    token_hash: Mapped[str] = mapped_column(String, unique=True)
-    prefix: Mapped[str] = mapped_column(String)  # first 8 chars, shown in the UI
+    token_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
+    prefix: Mapped[str | None] = mapped_column(String, default=None)  # first 8 chars, for the UI
     scopes: Mapped[list[Any]] = mapped_column(JSON)  # ['read'] | ['read', 'write']
     last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class AuthOAuthClient(Base):
+    """An MCP client that registered itself (RFC 7591). Clients that publish a Client ID
+    Metadata Document are not stored: their document is fetched and cached (M12 §5.3)."""
+
+    __tablename__ = "auth_oauth_clients"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # the client_id
+    info: Mapped[dict[str, Any]] = mapped_column(JSON)  # the registration response
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class AuthOAuthGrant(Base):
+    """The OAuth side of a connection (M12 §5.3): the authorization code the user approved,
+    then, once the client redeemed it, its connection (`token_id`) and rotating refresh token."""
+
+    __tablename__ = "auth_oauth_grants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("auth_users.id", ondelete="CASCADE"), index=True
+    )
+    token_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("auth_personal_access_tokens.id", ondelete="CASCADE"),
+        unique=True,
+        default=None,
+    )
+    client_id: Mapped[str] = mapped_column(String)
+    client_name: Mapped[str] = mapped_column(String)
+    scopes: Mapped[list[Any]] = mapped_column(JSON)  # ['read'] | ['read', 'write']
+    resource: Mapped[str] = mapped_column(String)
+    redirect_uri: Mapped[str] = mapped_column(String)
+    redirect_uri_explicit: Mapped[bool] = mapped_column(default=True)
+    # Until the client redeems it (once, within a minute).
+    code_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
+    code_challenge: Mapped[str | None] = mapped_column(String, default=None)
+    code_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+    # Rotated on every refresh. The one rotated out last, presented again well after the
+    # rotation, means it was copied: the connection is revoked.
+    refresh_token_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
+    previous_refresh_token_hash: Mapped[str | None] = mapped_column(
+        String, index=True, default=None
+    )
+    refreshed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
