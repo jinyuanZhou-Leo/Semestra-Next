@@ -344,7 +344,7 @@ class Provider:
             row = AuthPersonalAccessToken(
                 user_id=grant.user_id,
                 kind="oauth",
-                app=common.known_app(grant.client_id),
+                app=common.known_app(grant.client_id, grant.redirect_uri),
                 name=common.connection_name(grant.client_id, grant.client_name, grant.redirect_uri),
                 scopes=list(grant.scopes),
                 created_at=now,

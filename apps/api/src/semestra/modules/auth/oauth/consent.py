@@ -55,7 +55,7 @@ async def authorization_get(ctx: Ctx, inp: AuthorizationRequestInput) -> Authori
     req = _pending(ctx, inp.request)
     return AuthorizationRequestOut(
         client_name=req.client_name,
-        app=common.known_app(req.client_id),
+        app=common.known_app(req.client_id, req.redirect_uri),
         host=common.client_host(req.client_id, req.redirect_uri),
         local=common.is_loopback(req.redirect_uri),
         scopes=req.scopes or ["read", "write"],

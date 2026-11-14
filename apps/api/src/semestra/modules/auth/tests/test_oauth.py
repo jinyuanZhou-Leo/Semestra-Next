@@ -27,6 +27,7 @@ from mcp.shared.auth import (
 )
 from pydantic import AnyUrl
 
+from semestra.modules.auth.oauth import common
 from semestra.testing import TEST_ORIGIN, Clock
 
 pytestmark = pytest.mark.usefixtures("signed_in")
@@ -299,6 +300,23 @@ async def test_a_known_app_replaces_its_connection_and_a_lookalike_cannot(
         ("ChatGPT", "chatgpt"),
         ("ChatGPT (app.example)", ""),
     ]
+
+
+@pytest.mark.parametrize(
+    ("client_id", "redirect", "expected"),
+    [
+        (CHATGPT_DOCUMENT, CHATGPT_REDIRECT, "chatgpt"),
+        ("https://claude.ai/oauth/claude", "https://claude.ai/api/mcp/auth_callback", "claude"),
+        # Claude Code's document is on claude.ai too, but it signs in through this computer,
+        # where any program could use the same public id.
+        ("https://claude.ai/oauth/claude-code", "http://localhost:4100/callback", None),
+        ("https://chatgpt.com.evil.example/c.json", "https://chatgpt.com.evil.example/cb", None),
+    ],
+)
+def test_only_an_apps_own_document_and_site_make_it_known(
+    client_id: str, redirect: str, expected: str | None
+):
+    assert common.known_app(client_id, redirect) == expected
 
 
 def _pkce() -> tuple[str, str]:

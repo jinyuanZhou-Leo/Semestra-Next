@@ -76,11 +76,13 @@ def canonical_scopes(scopes: Sequence[str]) -> list[TokenScope]:
     return ["read", "write"] if "write" in scopes else ["read"]
 
 
-def known_app(client_id: str) -> KnownApp | None:
-    """The app a client is, when its id is a metadata document on that app's site; none for
-    registered clients, whose names are only what they say."""
+def known_app(client_id: str, redirect_uri: str) -> KnownApp | None:
+    """The app a client is, when its id is a metadata document on that app's site and the codes
+    go back there; none for registered clients, whose names are only what they say, and none for
+    a redirect to this computer: any program here can use a public client id with it (and the
+    same site serves other apps' documents, such as Claude Code's)."""
     parts = urlsplit(client_id)
-    if parts.scheme != "https":
+    if parts.scheme != "https" or is_loopback(redirect_uri):
         return None
     host = parts.hostname or ""
     for site, app in KNOWN_APPS.items():
@@ -101,7 +103,7 @@ def connection_name(client_id: str, client_name: str, redirect_uri: str) -> str:
     """What a connection is listed and recorded as: a known app by its own name; an app on this
     computer by the name it gave; any other by that name and its site, since the name alone
     could be anyone's."""
-    app = known_app(client_id)
+    app = known_app(client_id, redirect_uri)
     if app is not None:
         return APP_NAMES[app]
     host = client_host(client_id, redirect_uri)
