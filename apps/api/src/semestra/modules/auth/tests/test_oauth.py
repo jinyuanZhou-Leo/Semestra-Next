@@ -101,7 +101,7 @@ def _metadata(redirect: str = REDIRECT) -> OAuthClientMetadata:
     return OAuthClientMetadata(
         client_name="Example AI",
         redirect_uris=[AnyUrl(redirect)],
-        token_endpoint_auth_method="none",  # noqa: S106
+        token_endpoint_auth_method="none",
         application_type="web",
     )
 
@@ -229,7 +229,8 @@ async def test_a_metadata_document_identifies_the_app(
 
 
 async def _refresh(client: AsyncClient, storage: Storage) -> Response:
-    assert storage.tokens is not None and storage.client_info is not None
+    assert storage.tokens is not None
+    assert storage.client_info is not None
     return await client.post(
         "/token",
         data={
