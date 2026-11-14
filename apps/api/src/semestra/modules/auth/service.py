@@ -995,6 +995,16 @@ async def list_tokens(ctx: Ctx) -> list[TokenOut]:
     return [_token_out(r) for r in rows]
 
 
+async def token_name(ctx: Ctx, token_id: str) -> str | None:
+    """The name the user gave one of their tokens (revoked ones included)."""
+    return await ctx.db.scalar(
+        select(AuthPersonalAccessToken.name).where(
+            AuthPersonalAccessToken.id == token_id,
+            AuthPersonalAccessToken.user_id == ctx.user_id,
+        )
+    )
+
+
 async def create_token(
     ctx: Ctx,
     name: str,

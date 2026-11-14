@@ -34,6 +34,11 @@ export type AssessmentImportSource = {
   icon: LucideIcon
   /** One line under the title: what the source brings in. */
   description?: Message
+  /**
+   * Offered in an empty gradebook as its one action, with this label ("Import from syllabus").
+   * The first source that has one is offered.
+   */
+  emptyAction?: Message
   launch: (ctx: AssessmentImportContext) => Promise<AssessmentDraft[]>
 }
 

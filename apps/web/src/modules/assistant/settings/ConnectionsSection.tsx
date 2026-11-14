@@ -6,7 +6,7 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
-import { Ban, KeyRound, Plus } from 'lucide-react'
+import { Ban, History, KeyRound, Plus } from 'lucide-react'
 import { createContext, use, useState } from 'react'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -18,12 +18,24 @@ import { formatDate, formatDateTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
-import { DropdownMenuItem } from '@/ui/dropdown-menu'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { AddConnectionDialog, ClientTile } from './AddConnectionDialog'
+import { ChangesDialog, changesOptions } from './ChangesDialog'
 import { clientOfToken } from './mcp-clients'
 
-const RevokeContext = createContext<(token: TokenOut) => void>(() => {})
+type RowActions = {
+  revoke: (token: TokenOut) => void
+  showChanges: (token: TokenOut) => void
+  /** Starts reading a connection's changes when its menu item is pointed at. */
+  prepareChanges: (token: TokenOut) => void
+}
+
+const RowActionsContext = createContext<RowActions>({
+  revoke: () => {},
+  showChanges: () => {},
+  prepareChanges: () => {},
+})
 
 type CellProps = CellContext<typeof settingsTableFeatures, TokenOut>
 
@@ -53,10 +65,27 @@ function NameCell({ row }: CellProps) {
 }
 
 function ActionsCell({ row }: CellProps) {
-  const onRevoke = use(RevokeContext)
+  const actions = use(RowActionsContext)
+  const token = row.original
+  // A read-only connection cannot change anything.
+  const writes = token.scopes.includes('write')
   return (
-    <RowMenu label={m.auth_account_tokens_actions({ name: row.original.name })}>
-      <DropdownMenuItem variant="destructive" onClick={() => onRevoke(row.original)}>
+    <RowMenu label={m.auth_account_tokens_actions({ name: token.name })}>
+      {writes
+        ? [
+            <DropdownMenuItem
+              key="changes"
+              onPointerEnter={() => actions.prepareChanges(token)}
+              onFocus={() => actions.prepareChanges(token)}
+              onClick={() => actions.showChanges(token)}
+            >
+              <History aria-hidden />
+              {m.assistant_mcp_changes()}
+            </DropdownMenuItem>,
+            <DropdownMenuSeparator key="separator" />,
+          ]
+        : null}
+      <DropdownMenuItem variant="destructive" onClick={() => actions.revoke(token)}>
         <Ban aria-hidden />
         {m.auth_account_tokens_revoke()}
       </DropdownMenuItem>
@@ -106,6 +135,15 @@ export function ConnectionsSection() {
   const tokens = useQuery(accountTokenListOptions())
   const [adding, setAdding] = useState(false)
   const revoking = useDialogTarget<{ id: string; name: string }>()
+  // Whether "Recent changes" has anything once no connection can write (revoked ones' changes).
+  const allChanges = useQuery(changesOptions(null))
+  const changes = useDialogTarget<{ tokenId: string | null }>()
+  const actions: RowActions = {
+    revoke: (t) => revoking.show({ id: t.id, name: t.name }),
+    showChanges: (t) => changes.show({ tokenId: t.id }),
+    prepareChanges: (t) => void queryClient.prefetchQuery(changesOptions(t.id)),
+  }
+  const items = tokens.data?.items ?? []
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: accountTokenListQueryKey() })
   const revoke = useMutation({
@@ -119,6 +157,20 @@ export function ConnectionsSection() {
 
   return (
     <>
+      <SectionAction>
+        {items.some((t) => t.scopes.includes('write')) || allChanges.data?.items.length ? (
+          <Button size="sm" variant="outline" onClick={() => changes.show({ tokenId: null })}>
+            <History aria-hidden />
+            {m.assistant_mcp_changes()}
+          </Button>
+        ) : null}
+        {items.length > 0 ? (
+          <Button size="sm" onClick={() => setAdding(true)}>
+            <Plus aria-hidden />
+            {m.assistant_mcp_add()}
+          </Button>
+        ) : null}
+      </SectionAction>
       <AsyncBoundary
         query={tokens}
         isEmpty={(page) => page.items.length === 0}
@@ -140,13 +192,7 @@ export function ConnectionsSection() {
         }
       >
         {(page) => (
-          <RevokeContext value={(t) => revoking.show({ id: t.id, name: t.name })}>
-            <SectionAction>
-              <Button size="sm" onClick={() => setAdding(true)}>
-                <Plus aria-hidden />
-                {m.assistant_mcp_add()}
-              </Button>
-            </SectionAction>
+          <RowActionsContext value={actions}>
             <SettingsTable
               label={m.auth_account_tokens_title()}
               data={page.items}
@@ -154,10 +200,11 @@ export function ConnectionsSection() {
               getRowId={(t) => t.id}
               columnClassName={COLUMN_CLASS}
             />
-          </RevokeContext>
+          </RowActionsContext>
         )}
       </AsyncBoundary>
       <AddConnectionDialog open={adding} onOpenChange={setAdding} url={url} />
+      <ChangesDialog {...changes.props} target={changes.target} tokens={items} />
       <ConfirmDialog
         {...revoking.props}
         title={m.auth_account_tokens_revoke_title()}

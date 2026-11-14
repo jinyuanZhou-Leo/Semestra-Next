@@ -1,12 +1,9 @@
 import type { Assignment, Provider, PurposeStatus, UsageSummary } from '@semestra/api-client'
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { useState } from 'react'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
-import { AiFieldMark, aiFilledClass } from '@/components/AiFieldMark'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { AiRequired } from '@/components/AiRequired'
-import { AI_FILL_HIGHLIGHT_MS, useAiFill } from '@/hooks/use-ai-fill'
 import { AI_PURPOSES } from '@/hooks/use-ai-status'
 import { API, apiError, renderWithQuery, renderWithRouter, server } from '@/test-utils'
 import { Button } from '@/ui/button'
@@ -191,71 +188,6 @@ test('AiRequired greys out the entry and points to the settings until AI is conn
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Import from syllabus' })).toBeEnabled(),
   )
-})
-
-function FillForm() {
-  const ai = useAiFill<'code', string>()
-  const [code, setCode] = useState('')
-  return (
-    <div>
-      <input
-        aria-label="Code"
-        value={code}
-        className={aiFilledClass(ai.isHighlighted('code'))}
-        onChange={(e) => (setCode(e.target.value), ai.accept('code'))}
-      />
-      <button
-        type="button"
-        onClick={() => {
-          ai.fill('code', code, {
-            evidence: { page: 2, quote: 'Course: MAT 137' },
-            confidence: 0.9,
-          })
-          setCode('MAT137')
-        }}
-      >
-        Fill
-      </button>
-      <AiFieldMark
-        filled={ai.get('code')}
-        fieldLabel="Code"
-        onRevert={() => setCode(ai.revert('code') ?? '')}
-      />
-    </div>
-  )
-}
-
-test('AI fill highlights the field, shows where the value came from, and can be reverted', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true })
-  try {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    renderWithQuery(<FillForm />)
-    const input = screen.getByLabelText('Code')
-    fireEvent.change(input, { target: { value: 'old' } })
-    await user.click(screen.getByRole('button', { name: 'Fill' }))
-    expect(input).toHaveValue('MAT137')
-    expect(input.className).toContain('ring-2')
-    act(() => vi.advanceTimersByTime(AI_FILL_HIGHLIGHT_MS))
-    expect(input.className).not.toContain('ring-2')
-
-    await user.click(screen.getByRole('button', { name: 'Filled by AI: Code' }))
-    expect(await screen.findByText('Course: MAT 137')).toBeInTheDocument()
-    expect(screen.getByText('Page 2')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Restore previous value' }))
-    expect(input).toHaveValue('old')
-    expect(screen.queryByRole('button', { name: 'Filled by AI: Code' })).not.toBeInTheDocument()
-  } finally {
-    vi.useRealTimers()
-  }
-})
-
-test('typing over an AI value drops its mark', async () => {
-  const user = userEvent.setup()
-  renderWithQuery(<FillForm />)
-  await user.click(screen.getByRole('button', { name: 'Fill' }))
-  expect(screen.getByRole('button', { name: 'Filled by AI: Code' })).toBeInTheDocument()
-  await user.type(screen.getByLabelText('Code'), 'X')
-  expect(screen.queryByRole('button', { name: 'Filled by AI: Code' })).not.toBeInTheDocument()
 })
 
 test('adding a provider checks the key; a rejected key is explained in the form', async () => {

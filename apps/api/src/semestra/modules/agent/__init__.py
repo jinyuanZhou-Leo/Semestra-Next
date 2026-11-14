@@ -14,10 +14,10 @@ from semestra.modules.agent import (  # noqa: F401  (registers on import)
     capabilities,
     chats,
     labels,
+    mcp_changes,
     memory,
     models,
     portability,
-    service,
 )
 from semestra.modules.agent.routes import router
 from semestra.modules.agent.runtime import AgentRuntime
@@ -54,6 +54,6 @@ class _LazyMcp:
 
 def register(app: FastAPI) -> None:
     app.state.agent = AgentRuntime()
-    registry.set_token_gate(service.check_token_call)
+    registry.set_token_policy(mcp_changes.McpTokenPolicy())
     app.include_router(router)
     app.router.routes.append(Route("/mcp", endpoint=_LazyMcp(), methods=["GET", "POST", "DELETE"]))

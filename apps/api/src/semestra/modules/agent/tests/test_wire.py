@@ -80,7 +80,9 @@ async def test_finding_a_tool_keeps_the_anthropic_tool_list(
     with respx.mock(assert_all_called=False, assert_all_mocked=True) as mock:
         models_ok(mock)  # pyright: ignore[reportArgumentType]
         await agent.call(
-            "POST", "/ai/providers", json={"kind": "anthropic", "api_key": ANTHROPIC_KEY}
+            "POST",
+            "/ai/providers",
+            json={"kind": "anthropic", "display_name": "Anthropic", "api_key": ANTHROPIC_KEY},
         )
         search = {
             "type": "tool_use",

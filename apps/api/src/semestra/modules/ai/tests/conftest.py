@@ -92,6 +92,7 @@ class Ai:
             body.setdefault("base_url", COMPAT)
         if kind == "ollama":
             body.setdefault("base_url", OLLAMA)
+        body.setdefault("display_name", kind.capitalize())
         return await self.call("POST", "/ai/providers", json={"kind": kind, **body})
 
     @asynccontextmanager
