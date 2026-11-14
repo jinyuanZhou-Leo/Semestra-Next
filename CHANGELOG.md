@@ -3,6 +3,32 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0-beta.10 (2026-11-14)
+
+### Improved
+
+- **General:** Page headers take less room, leaving more space for content.
+- **Terms & courses:** The Clear selection button shows its Esc shortcut.
+- **Canvas:** Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+
+### Fixed
+
+- **General:** Performance improvements.
+- **General:** Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+- **General:** The sign-in page loads faster.
+- **General:** The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+- **Sem:** Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.
+- **Terms & courses:** After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+- **Terms & courses:** A term that was just created opens from its link instead of returning to the Program.
+- **Grades:** Checking rows in the gradebook responds right away.
+- **Grades:** With grades hidden, revealing a chart no longer changes the card's height.
+- **Grades:** Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+- **Canvas:** After a course is linked to a different Canvas course, the previous course's content no longer shows.
+- **Canvas:** Ignored assignments no longer reappear in courses with many assignments.
+- **Canvas:** The sidebar status lines now animate smoothly when their state changes.
+- **Data:** Restoring an older backup keeps your Hide grades setting.
+- **Self-hosting:** LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.
+
 ## 2.0.0-beta.9 (2026-11-12)
 
 ### New
