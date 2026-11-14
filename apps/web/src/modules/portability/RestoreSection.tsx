@@ -19,6 +19,7 @@ import { errorMessage, toastError } from '@/lib/errors'
 import { formatBytes, formatCount, formatDateTime } from '@/lib/format'
 import { portabilityEntityMessages } from '@/lib/message-groups/portability-entities.gen'
 import { m } from '@/paraglide/messages'
+import { RESTORE_KEY } from './keys'
 import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
@@ -54,8 +55,7 @@ function total(counts: Counts): number {
 
 /** Restore from a backup (M13 §7): drop the file, check the preview, choose how, import. */
 export function RestoreSection() {
-  // Remembered so that a running import is still shown after leaving the page.
-  const [uploadId, setUploadId] = useUiPref<string | null>('portability.restore', null)
+  const [uploadId, setUploadId] = useUiPref<string | null>(RESTORE_KEY, null)
   return uploadId ? (
     <UploadedBackup id={uploadId} onDone={() => setUploadId(null)} />
   ) : (

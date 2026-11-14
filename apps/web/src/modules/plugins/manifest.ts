@@ -1,3 +1,4 @@
+import { pluginsCatalogListOptions } from '@semestra/api-client/react-query'
 import { Keyboard, LayoutGrid, PanelTop, Pencil, Plus, Puzzle } from 'lucide-react'
 import { hasHostAction, runHostAction } from '@/app/commands/bus'
 import { defineModule, preloadable } from '@/app/extensions'
@@ -23,6 +24,7 @@ export default defineModule({
       icon: Puzzle,
       order: 10,
       component: preloadable(() => import('./PluginCatalog')),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(pluginsCatalogListOptions()),
     },
   ],
   commands: [

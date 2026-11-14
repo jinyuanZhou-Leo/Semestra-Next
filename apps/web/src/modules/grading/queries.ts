@@ -66,3 +66,20 @@ export function invalidateGrading(queryClient: QueryClient) {
     { cancelRefetch: false },
   )
 }
+
+/** `prefetch` of the grading settings sections (M11 §5.2). */
+export const settingsPrefetch = {
+  program: (scope: Scope | undefined, queryClient: QueryClient) =>
+    Promise.all([
+      queryClient.ensureQueryData(
+        gradingScaleGetOptions({ path: { program_id: scope?.programId ?? '' } }),
+      ),
+      queryClient.ensureQueryData({ ...gradingScaleListPresetsOptions(), staleTime: Infinity }),
+    ]),
+  course: (scope: Scope | undefined, queryClient: QueryClient) =>
+    queryClient.ensureQueryData(
+      gradingGradebookGetOptions({
+        path: { course_id: scope?.kind === 'course' ? scope.courseId : '' },
+      }),
+    ),
+}

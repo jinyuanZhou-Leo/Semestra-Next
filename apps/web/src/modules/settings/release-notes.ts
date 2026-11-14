@@ -62,6 +62,24 @@ export async function loadRelease(version: string): Promise<Release | undefined>
   return byVersion.get(version)?.()
 }
 
+/** Versions listed on the About page under "Earlier versions"; the docs changelog has all of them. */
+export const EARLIER_VERSIONS = 5
+
+/** The About page's notes: this version's and the `EARLIER_VERSIONS` before it, newest first. */
+export function aboutReleasesOptions() {
+  const versions = releaseVersions()
+    .filter((v) => compareVersions(v, SEMESTRA_VERSION) <= 0)
+    .slice(0, EARLIER_VERSIONS + 1)
+  return {
+    queryKey: ['release-notes', versions],
+    queryFn: async () => {
+      const loaded = await Promise.all(versions.map(loadRelease))
+      return loaded.filter((release) => release !== undefined)
+    },
+    staleTime: Infinity,
+  }
+}
+
 /** The notes of every version after `after` up to and including `upTo`, newest first. */
 export async function releasesBetween(after: string, upTo: string): Promise<Release[]> {
   const versions = versionsBetween(releaseVersions(), after, upTo)

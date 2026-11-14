@@ -4,6 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
+import { accountSettingsHandlers } from '@/app/settings/test-data'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { setLocale } from '@/paraglide/runtime'
 import { routeTree } from '@/routeTree.gen'
@@ -45,49 +46,8 @@ beforeEach(() => {
   server.use(
     http.get(`${API}/account/me`, () => HttpResponse.json(user)),
     http.get(`${API}/healthz`, () => HttpResponse.json({ status: 'ok' })),
-    http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
-    http.get(`${API}/account/sessions`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/account/tokens`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/plugins/catalog`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/ai/providers`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/agent/tools`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/agent/preferences`, () =>
-      HttpResponse.json({ auto_approve: [], mcp_allow_destructive: false }),
-    ),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
-    // The rest of the account's sections, empty (search renders every one).
-    http.get(`${API}/ai/assignments`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/ai/usage`, () =>
-      HttpResponse.json({
-        since: '2026-01-01T00:00:00Z',
-        until: '2026-01-31T00:00:00Z',
-        totals: {
-          calls: 0,
-          errors: 0,
-          input_tokens: 0,
-          cached_tokens: 0,
-          output_tokens: 0,
-          cost_usd: 0,
-        },
-        cost_complete: true,
-        by_day: [],
-        by_purpose: [],
-        by_module: [],
-        by_model: [],
-      }),
-    ),
-    http.get(`${API}/agent/memories`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/lms/providers`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [] })),
-    http.get(`${API}/storage/usage`, () =>
-      HttpResponse.json({ used_bytes: 0, quota_bytes: 0, by_module: {} }),
-    ),
-    http.get(`${API}/files-usage/breakdown`, () =>
-      HttpResponse.json({ by_course: [], by_type: [] }),
-    ),
-    http.get(`${API}/me/data-counts`, () => HttpResponse.json({ tables: {}, limits: {} })),
-    http.get(`${API}/me/exports`, () => HttpResponse.json({ items: [] })),
+    ...accountSettingsHandlers(),
     http.get(`${API}/me/preferences`, () => HttpResponse.json(current)),
     http.patch(`${API}/me/preferences`, async ({ request }) => {
       const patch = (await request.json()) as Record<string, unknown>

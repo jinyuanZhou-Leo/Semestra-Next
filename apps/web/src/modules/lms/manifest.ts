@@ -30,7 +30,7 @@ import { CourseInfoLms } from './components/CourseInfoLms'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
-import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES } from './queries'
+import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
 import { LMS_PROVIDER_UI } from './types'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
@@ -147,6 +147,7 @@ export default defineModule({
       icon: Link2,
       order: 10,
       component: preloadable(() => sections().then((s) => ({ default: s.ConnectionsSection }))),
+      prefetch: settingsPrefetch.connections,
     },
     {
       id: 'lms-sync',
@@ -200,6 +201,7 @@ export default defineModule({
       icon: Link2,
       order: 10,
       component: preloadable(() => sections().then((s) => ({ default: s.ProgramLmsSection }))),
+      prefetch: settingsPrefetch.program,
     },
     {
       id: 'course-lms',
@@ -210,6 +212,7 @@ export default defineModule({
       icon: Link2,
       order: 10,
       component: preloadable(() => sections().then((s) => ({ default: s.CourseLmsSection }))),
+      prefetch: settingsPrefetch.course,
     },
   ],
   cards: [

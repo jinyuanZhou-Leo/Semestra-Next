@@ -6,7 +6,7 @@ import {
   settingsValueUpdateMutation,
 } from '@semestra/api-client/react-query'
 import type { ResolvedSettings } from '@semestra/api-client'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import { toApiError } from '@/app/api'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -42,6 +42,30 @@ export function scopeParamsFor(level: SettingsLevel, scope?: Scope): ScopeParams
   return id ? { scope_type: level, scope_id: id } : null
 }
 
+/** What a namespace's form reads: the schemas (one list for all) and its values at `params`. */
+function namespaceQueries(namespace: string, params: ScopeParams) {
+  return {
+    schemas: { ...settingsSchemaListOptions(), staleTime: Infinity },
+    values: settingsValueGetOptions({ path: { namespace }, query: params }),
+  }
+}
+
+/** Loads what `NamespaceForm` shows, for the settings dialog to show it complete (M11 §5.2). */
+export function prefetchNamespaceForm(
+  namespace: string,
+  level: SettingsLevel,
+  scope: Scope | undefined,
+  queryClient: QueryClient,
+): Promise<unknown> {
+  const params = scopeParamsFor(level, scope)
+  if (params === null) return Promise.resolve()
+  const queries = namespaceQueries(namespace, params)
+  return Promise.all([
+    queryClient.ensureQueryData(queries.schemas),
+    queryClient.ensureQueryData(queries.values),
+  ])
+}
+
 export const LEVEL_ORDER: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
 
 const LEVEL_NAMES: Record<SettingsLevel, () => string> = {
@@ -67,14 +91,9 @@ type Props = {
  */
 export function NamespaceForm({ namespace, level, scope, fields, className }: Props) {
   const params = scopeParamsFor(level, scope)
-  const schemas = useQuery({ ...settingsSchemaListOptions(), staleTime: Infinity })
-  const values = useQuery({
-    ...settingsValueGetOptions({
-      path: { namespace },
-      query: params ?? { scope_type: 'account' },
-    }),
-    enabled: params !== null,
-  })
+  const queries = namespaceQueries(namespace, params ?? { scope_type: 'account' })
+  const schemas = useQuery(queries.schemas)
+  const values = useQuery({ ...queries.values, enabled: params !== null })
   if (params === null) return null
 
   return (

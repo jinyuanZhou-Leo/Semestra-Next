@@ -4,6 +4,7 @@ import { useSetTheme } from '@/app/preferences'
 import { useTheme } from '@/app/theme'
 import { THEME_OPTIONS } from '@/app/theme-options'
 import { m } from '@/paraglide/messages'
+import { aboutReleasesOptions } from './release-notes'
 import { WhatsNew } from './WhatsNew'
 
 /** "Change theme →" in the command palette: the three choices of Settings → Appearance. */
@@ -70,6 +71,7 @@ export default defineModule({
       icon: Info,
       order: 10,
       component: preloadable(() => import('./AboutSettings')),
+      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(aboutReleasesOptions()),
     },
   ],
   commands: [themeCommand],

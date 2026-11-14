@@ -5,7 +5,7 @@ import { defineModule, preloadable } from '@/app/extensions'
 import { ONBOARDING_STEPS, type OnboardingStep } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { aiStatusOptions } from '@/hooks/use-ai-status'
-import { AI_QUERIES } from './queries'
+import { AI_QUERIES, settingsPrefetch } from './queries'
 
 const EVENTS = [
   'ai.provider.created',
@@ -64,6 +64,7 @@ export default defineModule({
       // After storage: both say what takes space.
       order: 7,
       component: preloadable(() => settings().then((s) => ({ default: s.LocalModelsSection }))),
+      prefetch: settingsPrefetch.status,
     },
     {
       id: 'ai-providers',
@@ -74,6 +75,7 @@ export default defineModule({
       icon: KeyRound,
       order: 10,
       component: preloadable(() => settings().then((s) => ({ default: s.ProvidersSection }))),
+      prefetch: settingsPrefetch.providers,
     },
     {
       id: 'ai-models',
@@ -84,6 +86,7 @@ export default defineModule({
       icon: Boxes,
       order: 11,
       component: preloadable(() => settings().then((s) => ({ default: s.ModelsSection }))),
+      prefetch: settingsPrefetch.models,
     },
     {
       id: 'ai-usage',
@@ -94,6 +97,7 @@ export default defineModule({
       icon: BarChart3,
       order: 12,
       component: preloadable(() => settings().then((s) => ({ default: s.UsageSection }))),
+      prefetch: settingsPrefetch.usage,
     },
   ],
   extensions: { [ONBOARDING_STEPS]: onboardingSteps },

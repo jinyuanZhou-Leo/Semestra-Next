@@ -234,8 +234,28 @@ type SettingsSectionBase = {
  */
 export type SettingsSectionContribution = SettingsSectionBase &
   (
-    | { component: Lazy<SettingsSectionProps>; namespace?: undefined; fields?: undefined }
-    | { namespace: string; fields?: FieldOverrides; component?: undefined }
+    | {
+        component: Lazy<SettingsSectionProps>
+        /**
+         * Loads what the section shows when it opens, so the dialog can show its group complete
+         * instead of titles over spinners that then push the page down (M11 §5.2). The dialog
+         * calls it with the section's code: for the group about to show (keeping the previous one
+         * up until it resolves, at most a moment) and, when idle, for the other groups of the
+         * level. Use `queryClient.ensureQueryData` with the options the section's queries use: it
+         * waits only for what is not cached, and a read that needs another's result chains on it.
+         * Errors are ignored (the section shows them). Sections whose content needs no request
+         * leave it out; `namespace` sections need none, the dialog loads their schema and values.
+         * `modules` are the modules in use, for what other modules contribute to the section.
+         */
+        prefetch?: (
+          scope: Scope | undefined,
+          queryClient: QueryClient,
+          options: { modules: readonly ModuleManifest[] },
+        ) => Promise<unknown>
+        namespace?: undefined
+        fields?: undefined
+      }
+    | { namespace: string; fields?: FieldOverrides; component?: undefined; prefetch?: undefined }
   )
 
 export type CommandContext = {

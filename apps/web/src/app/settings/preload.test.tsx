@@ -26,8 +26,11 @@ beforeEach(() => {
   )
 })
 
-/** One account-level section per group, each with its own loader to watch. */
-function demoModule(groups: SettingsGroup[]) {
+/** One account-level section per group, each with its own loader to watch (and data to wait for). */
+function demoModule(
+  groups: SettingsGroup[],
+  prefetch: Partial<Record<SettingsGroup, () => Promise<unknown>>> = {},
+) {
   const loads = Object.fromEntries(
     groups.map((group) => [
       group,
@@ -49,6 +52,7 @@ function demoModule(groups: SettingsGroup[]) {
       icon: Info,
       order: i,
       component: preloadable(loads[group]!),
+      prefetch: prefetch[group],
     })),
   } as unknown as ModuleManifest
   return { module, loads }
@@ -85,4 +89,29 @@ test('an open dialog loads the other groups of its level, so switching shows the
     expect(loads.preferences).toHaveBeenCalledTimes(1)
     expect(loads.data).toHaveBeenCalledTimes(1)
   })
+})
+
+test('switching groups keeps the shown group until the next one has its data', async () => {
+  let release = () => {}
+  const data = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const { module } = demoModule(['account', 'preferences'], { preferences: () => data })
+  const { router } = renderWithRouter(
+    <AuthProvider>
+      <ModuleRegistry value={[module]}>
+        <SettingsDialog />
+      </ModuleRegistry>
+    </AuthProvider>,
+  )
+  await act(() => router.navigate({ to: '/', search: { settings: 'account' } as never }))
+  expect(await screen.findByText('account form')).toBeInTheDocument()
+  await act(() =>
+    router.navigate({ to: '/', search: { settings: 'account/preferences' } as never }),
+  )
+  expect(screen.getByText('account form')).toBeInTheDocument()
+  expect(screen.queryByText('preferences section')).not.toBeInTheDocument()
+  release()
+  expect(await screen.findByText('preferences form')).toBeInTheDocument()
+  expect(screen.queryByText('account form')).not.toBeInTheDocument()
 })

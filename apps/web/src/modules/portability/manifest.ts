@@ -1,6 +1,15 @@
+import {
+  coreStorageGetOptions,
+  filesUsageBreakdownOptions,
+  portabilityDataCountGetOptions,
+  portabilityExportListOptions,
+  portabilityImportGetOptions,
+} from '@semestra/api-client/react-query'
 import { DatabaseBackup, Download, HardDrive, Trash2, Upload } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
+import { readUiPref } from '@/app/ui-pref'
 import { m } from '@/paraglide/messages'
+import { RESTORE_KEY } from './keys'
 
 const sections = () => import('./sections')
 
@@ -21,6 +30,12 @@ export default defineModule({
       icon: HardDrive,
       order: 5,
       component: preloadable(() => sections().then((s) => ({ default: s.StorageSection }))),
+      prefetch: (_scope, queryClient) =>
+        Promise.all([
+          queryClient.ensureQueryData(coreStorageGetOptions()),
+          queryClient.ensureQueryData(filesUsageBreakdownOptions()),
+          queryClient.ensureQueryData(portabilityDataCountGetOptions()),
+        ]),
     },
     {
       id: 'export',
@@ -31,6 +46,11 @@ export default defineModule({
       icon: Download,
       order: 10,
       component: preloadable(() => sections().then((s) => ({ default: s.ExportSection }))),
+      prefetch: (_scope, queryClient) =>
+        Promise.all([
+          queryClient.ensureQueryData(coreStorageGetOptions()),
+          queryClient.ensureQueryData(portabilityExportListOptions()),
+        ]),
     },
     {
       id: 'restore',
@@ -41,6 +61,16 @@ export default defineModule({
       icon: Upload,
       order: 20,
       component: preloadable(() => sections().then((s) => ({ default: s.RestoreSection }))),
+      prefetch: async (_scope, queryClient) => {
+        // A backup uploaded earlier is still waiting to be restored.
+        const id = await readUiPref<string | null>(queryClient, RESTORE_KEY)
+        if (id) {
+          await queryClient.ensureQueryData({
+            ...portabilityImportGetOptions({ path: { id } }),
+            retry: false,
+          })
+        }
+      },
     },
     {
       id: 'delete-account',

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 import {
   BarChart3,
@@ -29,6 +30,7 @@ import {
   useEffectEvent,
   useState,
 } from 'react'
+import { whenIdle } from '@/lib/when-settled'
 import { courseLabel } from '@/modules/academics/color'
 import { m } from '@/paraglide/messages'
 import {
@@ -63,8 +65,8 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from '@/ui/sidebar'
-import { type SettingsGroup, type SettingsLevel, preload } from '../extensions'
-import { useSettingsSections } from '../registry'
+import type { Scope, SettingsGroup, SettingsLevel } from '../extensions'
+import { useModules, useSettingsSections } from '../registry'
 import {
   CLUSTER_TITLES,
   GROUP_ALIASES,
@@ -73,6 +75,7 @@ import {
   clusterNavigation,
 } from './groups'
 import { type PathIds, type SettingsPath, scopeIdAt, useSettingsPath } from './scope-path'
+import { loadSections, sectionsReady } from './prefetch'
 import { PATH_LEVEL_NAMES, ScopePath } from './ScopePath'
 import { searchWords, useSectionSearch } from './search'
 import { SectionFrame, SettingsSections } from './SettingsSections'
@@ -99,6 +102,15 @@ const GROUP_ICONS: Record<SettingsGroup, LucideIcon> = {
 }
 
 export type Params = { programId?: string; termId?: string; courseId?: string }
+
+/** The group in the pane, which follows the one picked once its code and data are in. */
+type Shown = {
+  key: string
+  level: SettingsLevel
+  scope: Scope | undefined
+  scopeId: string | undefined
+  group: SettingsGroup
+}
 
 /** The name shown above the groups: the Program, term or course being configured. */
 function scopeName(path: SettingsPath): string | undefined {
@@ -174,23 +186,53 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
     if (stale) switchTo({ level, group: shownGroup, scope: shownScope })
   }, [stale, level, shownGroup, shownScope, switchTo])
 
-  // The other groups of the level load their code once the one on screen has, so switching
-  // groups shows them at once.
-  const preloadGroups = useEffectEvent(() => {
-    const shown = current?.sections ?? []
-    void Promise.all(shown.map((section) => preload(section.component))).then(() =>
-      sections.forEach((section) => void preload(section.component)),
-    )
+  // The pane changes to the picked group once its code and data are in (at most a moment), so a
+  // group shows complete instead of titles over spinners that then push it down (M11 §5.2). Until
+  // then the previous group stays; when the dialog opens, the pane is empty.
+  const queryClient = useQueryClient()
+  const modules = useModules()
+  const [shown, setShown] = useState<Shown | undefined>(undefined)
+  const wantedKey = path.pending || !current ? undefined : `${paneKey}:${current.id}`
+  const showWanted = useEffectEvent((key: string) => {
+    if (!current) return undefined
+    const next: Shown = {
+      key,
+      level,
+      scope,
+      scopeId: scopeIdAt(level, path),
+      group: current.id,
+    }
+    let live = true
+    void sectionsReady(current.sections, scope, queryClient, modules).then(() => {
+      if (live) setShown(next)
+    })
+    return () => {
+      live = false
+    }
   })
-  const shownKey = path.pending ? undefined : `${level}:${shownGroup ?? ''}`
-  useEffect(() => {
-    if (shownKey !== undefined) preloadGroups()
-  }, [shownKey])
+  useEffect(() => (wantedKey === undefined ? undefined : showWanted(wantedKey)), [wantedKey])
+  // A group of a course, term or Program that is gone (deleted here) is not kept up.
+  const kept = shown && scopeIdAt(shown.level, path) === shown.scopeId ? shown : undefined
+
+  // Once a group shows, the other groups of the level load in an idle moment, so switching to
+  // them is immediate.
+  const loadOthers = useEffectEvent(
+    () =>
+      void loadSections(
+        groups.flatMap((group) => group.sections),
+        scope,
+        queryClient,
+        modules,
+      ),
+  )
+  const shownPane = shown ? `${shown.level}:${shown.scopeId ?? ''}` : undefined
+  useEffect(() => (shownPane === undefined ? undefined : whenIdle(loadOthers)), [shownPane])
 
   // Jump to `#section` when the dialog opens with a hash or the group changes.
+  const shownGroupKey = kept?.key
   useEffect(() => {
-    if (hash && shownGroup !== undefined) document.getElementById(hash)?.scrollIntoView()
-  }, [hash, shownGroup])
+    if (hash && shownGroupKey !== undefined) document.getElementById(hash)?.scrollIntoView()
+  }, [hash, shownGroupKey])
 
   return (
     <>
@@ -323,7 +365,7 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
           </header>
           {/* Keyed by scope and group: a new one opens at its top and its forms start fresh. */}
           <div
-            key={`${paneKey}:${searching ? '?' : (current?.id ?? '')}`}
+            key={searching ? `${paneKey}:?` : (kept?.key ?? '')}
             className="flex flex-1 flex-col overflow-y-auto px-4 pb-8 md:px-6"
           >
             {path.pending ? null : searching ? (
@@ -362,11 +404,11 @@ export function SettingsBody({ target, page }: { target: SettingsTarget; page: P
                   ))}
                 </div>
               </>
-            ) : current ? (
+            ) : kept ? (
               <div className="mx-auto w-full max-w-3xl">
-                <SettingsSections level={level} scope={scope} group={current.id} />
+                <SettingsSections level={kept.level} scope={kept.scope} group={kept.group} />
               </div>
-            ) : (
+            ) : current ? null : (
               <Empty>
                 <EmptyHeader>
                   <EmptyTitle>{m.settings_empty()}</EmptyTitle>

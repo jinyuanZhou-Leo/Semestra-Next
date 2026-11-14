@@ -1,4 +1,13 @@
+import {
+  academicsCourseGetOptions,
+  lmsConnectionListOptions,
+  lmsCourseLinkGetOptions,
+  lmsCourseListOptions,
+  lmsProgramBindingGetOptions,
+  lmsProviderListOptions,
+} from '@semestra/api-client/react-query'
 import type { Query, QueryClient } from '@tanstack/react-query'
+import type { Scope } from '@/app/extensions'
 
 /**
  * Generated query ids of the LMS state: connections, bindings, links, the platform's course
@@ -93,4 +102,45 @@ export function invalidateLms(
       return course?.(query) ?? false
     },
   })
+}
+
+const bindingOf = (scope: Scope | undefined, queryClient: QueryClient) =>
+  queryClient.ensureQueryData(
+    lmsProgramBindingGetOptions({ path: { program_id: scope?.programId ?? '' } }),
+  )
+
+/** `prefetch` of the LMS settings sections (M11 §5.2). */
+export const settingsPrefetch = {
+  connections: (_scope: unknown, queryClient: QueryClient) =>
+    Promise.all([
+      queryClient.ensureQueryData(lmsConnectionListOptions()),
+      queryClient.ensureQueryData(lmsProviderListOptions()),
+    ]),
+  program: (scope: Scope | undefined, queryClient: QueryClient) =>
+    Promise.all([
+      queryClient.ensureQueryData(lmsConnectionListOptions()),
+      bindingOf(scope, queryClient),
+    ]),
+  // A linked course shows its link; an unlinked one the platform's courses to pick from; one in an
+  // unbound Program a way to connect.
+  course: async (scope: Scope | undefined, queryClient: QueryClient) => {
+    const courseId = scope?.kind === 'course' ? scope.courseId : ''
+    const [state] = await Promise.all([
+      queryClient.ensureQueryData(lmsCourseLinkGetOptions({ path: { course_id: courseId } })),
+      bindingOf(scope, queryClient),
+    ])
+    if (!state.program_connection_id) {
+      return queryClient.ensureQueryData(lmsConnectionListOptions())
+    }
+    if (state.link) return undefined
+    return Promise.all([
+      queryClient.ensureQueryData(academicsCourseGetOptions({ path: { course_id: courseId } })),
+      queryClient.ensureQueryData(
+        lmsCourseListOptions({
+          path: { program_id: scope?.programId ?? '' },
+          query: { include_past: false },
+        }),
+      ),
+    ])
+  },
 }
