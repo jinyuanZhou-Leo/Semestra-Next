@@ -42,6 +42,8 @@ import {
 } from 'lucide-react'
 import { Nav } from '@/components/Nav'
 import { ExploreButton, GitHubButton, StartButton, StartLink } from '@/components/Cta'
+import Clip from '@/components/Clip.astro'
+import clips from '@/clips.json'
 import Shot from '@/components/Shot.astro'
 import { APP_URL, GITHUB_URL, asset, copy, docs, home, shotLang, type Lang } from '@/i18n'
 import { buttonVariants } from '@/ui/button'
@@ -65,6 +67,15 @@ const todayIcons = [Clock, Flag]
 const tasksIcons = [Sparkles, CircleCheck, CalendarDays]
 const notifyIcons = [Clock, Megaphone, MoonStar]
 const paletteIcons = [Search, ArrowUpDown]
+// The captions follow their clip: each shows for a stretch of the scroll (a fraction of the block,
+// see landing.ts), between moments video.mjs noted while recording.
+const beat = (clip: string, ...marks: string[]) => {
+  const { duration, marks: at } = clips[clip as keyof typeof clips]
+  const edges = [0, ...marks.map((m) => at[m as keyof typeof at] / duration), 2]
+  return edges.slice(1).map((end, i) => `${edges[i].toFixed(3)},${end.toFixed(3)}`)
+}
+const semBeats = beat(`sem-dark-${l}`, 'sent', 'proposed')
+const tasksBeats = beat(`quickadd-light-${l}`, 'added')
 const lmsIcons = [ClipboardList, Scale, BookOpen]
 const more = [
   [Cpu, t.more.local],
@@ -123,7 +134,7 @@ const login = `${APP_URL}/login`
                 <Shot class="screen" src="shots/today" lang={lang} width={2000} height={1250} eager />
                 <div class="float a"><Shot cut src="parts/upcoming" lang={lang} width={1128} height={680} eager /></div>
                 <div class="float b"><Shot cut src="parts/proposal" lang={lang} width={1496} height={428} eager /></div>
-                <div class="float c"><Shot cut src="parts/lmstoast" lang={lang} width={720} height={124} eager /></div>
+                <div class="float c"><Shot src="parts/lmsnew" lang={lang} width={768} height={340} eager /></div>
               </div>
             </div>
           </div>
@@ -276,26 +287,33 @@ const login = `${APP_URL}/login`
               <div class="big-ic"><History aria-hidden="true" /></div>
             </div>
           </div>
-          <div class="showcase">
-            <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
-            <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
-            <div data-reveal style="--d: 2">
-              <Shot dark src="shots/sem" lang={lang} width={2000} height={1250} />
+          <div class="showcase scrub" style="--len: 280vh; --pin-h: 50vh">
+            <div class="pin">
+              <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
+              <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
+              <ol class="beats" data-reveal style="--d: 2">
+                {t.sem.beats.map((text, i) => (
+                  <li data-beat={semBeats[i]}>{text}</li>
+                ))}
+              </ol>
+              <div class="sem-clip" data-reveal style="--d: 2">
+                <Clip dark src="clips/sem" lang={lang} width={1600} height={1786} />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="s" id="tasks">
-        <div class="wrap split">
+      <section class="s scrub" id="tasks" style="--len: 200vh; --pin-h: 280px">
+        <div class="wrap split pin">
           <div class="words">
             <span class="eyebrow" data-reveal><ListChecks aria-hidden="true" />{t.tasks.eyebrow}</span>
             <h2 class="h2" data-reveal style="--d: 1">{t.tasks.h2}</h2>
-            <ul class="bullets">
+            <ul class="bullets beating">
               {t.tasks.bullets.map(([title, text], i) => {
                 const Icon = tasksIcons[i]!
                 return (
-                  <li data-reveal style={`--d: ${i + 2}`}>
+                  <li data-reveal data-beat={tasksBeats[Math.min(i, 1)]} style={`--d: ${i + 2}`}>
                     <span class="ic"><Icon aria-hidden="true" /></span>
                     <div><b>{title}</b><span>{text}</span></div>
                   </li>
@@ -304,8 +322,8 @@ const login = `${APP_URL}/login`
             </ul>
             <div class="words-cta"><StartLink label={t.tasks.cta} /></div>
           </div>
-          <div class="panel layered" data-reveal style="--d: 1">
-            <Shot depth={-40} style="left: 8%; top: 14%; width: 125%" src="parts/tasklist" lang={lang} width={1600} height={566} />
+          <div data-reveal style="--d: 1">
+            <Clip src="clips/quickadd" lang={lang} width={1600} height={642} />
           </div>
         </div>
       </section>
@@ -316,8 +334,8 @@ const login = `${APP_URL}/login`
           <h2 class="h2" data-reveal style="--d: 1">{t.lms.h2}</h2>
           <p class="sub" data-reveal style="--d: 2">{t.lms.sub}</p>
           <div class="lms-stage" data-reveal style="--d: 2">
-            <Shot src="parts/lms" lang={lang} width={1600} height={919} />
-            <Shot cut class="lms-toast" src="parts/lmstoast" lang={lang} width={720} height={124} />
+            <Shot src="parts/lms" lang={lang} width={1600} height={1138} />
+            <Shot cut class="lms-sync" src="parts/lmssync" lang={lang} width={776} height={492} />
           </div>
           <div class="mini">
             {t.lms.cards.map(([title, text], i) => {

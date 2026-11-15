@@ -47,26 +47,6 @@ await part(
 )
 await p.close()
 
-// A new task being added in place, under the last few tasks of the list.
-p = await open(P + '/tasks', 1400)
-await p
-  .getByRole('button', { name: /^(New task|新待办)$/ })
-  .first()
-  .click()
-await p.waitForTimeout(600)
-await p.keyboard.type(
-  locale === 'zh-CN' ? 'ECE216 期中复习：Laplace 变换' : 'ECE216 midterm review: Laplace',
-)
-await p.waitForTimeout(800)
-// The row being written, with its date, priority, course and flag chips.
-const editor = p.locator(':focus').locator('xpath=ancestor::li[1]')
-const rows = p.locator('main li')
-const count = await rows.count()
-const list = await around(rows.nth(Math.max(0, count - 4)), editor)
-// Less margin on top, where the row above would peek in.
-await part(p, `tasklist-${tag}`, { ...list, y: list.y + 14, height: list.height - 14 }, { pad: 20 })
-await p.close()
-
 p = await open(`${P}/c/${ids.courses.ECE244H1}/grades`)
 await exitPlan(p)
 const gpa = p.locator('aside section').first()

@@ -618,7 +618,8 @@ section.s {
   margin-top: 128px;
   padding-block: 112px;
   position: relative;
-  overflow: hidden;
+  /* clip, not hidden: hidden would make the band a scroll container and stop the Sem clip pinning. */
+  overflow: clip;
   isolation: isolate;
 }
 .band::before {
@@ -670,7 +671,7 @@ section.s {
   border-radius: 16px;
 }
 
-/* LMS: the Canvas tab, with the new-assignments toast over its corner */
+/* LMS: the Canvas tab, with the sync panel over its corner */
 .lms-stage {
   position: relative;
   margin-top: 48px;
@@ -678,11 +679,11 @@ section.s {
 .lms-stage > .shot {
   border-radius: 16px;
 }
-.lms-toast {
+.lms-sync {
   position: absolute;
-  width: 34%;
+  width: 27%;
   right: -3%;
-  bottom: -5%;
+  bottom: -8%;
 }
 
 /* Everyday */
@@ -873,10 +874,10 @@ footer .legal {
       transform: none;
     }
   }
-  .lms-toast {
-    width: 62%;
+  .lms-sync {
+    width: 46%;
     right: -2%;
-    bottom: -8%;
+    bottom: -10%;
   }
   .float.b {
     width: 78%;
@@ -956,4 +957,79 @@ footer .legal {
 }
 .not-found .ctas {
   margin-top: 16px;
+}
+
+/* Scroll-driven clips: the block is taller than the screen and pins its content while the
+   recording inside plays through with the scroll (src/scripts/landing.ts). */
+.scrub {
+  height: var(--len, 220vh);
+}
+.scrub > .pin {
+  position: sticky;
+  top: max(72px, calc(50vh - var(--pin-h, 300px)));
+}
+.clip video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.split .clip {
+  border-radius: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrub {
+    height: auto;
+  }
+  .scrub > .pin {
+    position: static;
+  }
+}
+
+/* Words in step with a clip: the bullet or caption for the stretch that is playing. */
+.bullets.beating li[data-beat] {
+  transition: opacity 0.35s ease;
+}
+.bullets.beating li[data-beat]:not(.on) {
+  opacity: 0.4;
+}
+.beats {
+  list-style: none;
+  padding: 0;
+  margin: 28px auto 0;
+  display: grid;
+  max-width: 40em;
+}
+.beats li {
+  grid-area: 1 / 1;
+  font-size: 20px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+.beats li.on {
+  opacity: 1;
+  transform: none;
+}
+.sem-clip {
+  margin: 28px auto 0;
+  /* The conversation is taller than wide: size it by the screen's height so it fits while pinned. */
+  width: min(100%, calc((100vh - 300px) * 0.9));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bullets.beating li[data-beat]:not(.on) {
+    opacity: 1;
+  }
+  .beats li {
+    grid-area: auto;
+    opacity: 1;
+    transform: none;
+  }
+}
+:root:not(.js) .beats li {
+  grid-area: auto;
+  opacity: 1;
+  transform: none;
 }

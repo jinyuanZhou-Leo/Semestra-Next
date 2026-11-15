@@ -35,10 +35,10 @@ export const copy = {
     today: {
       eyebrow: '今日概览',
       h2: '今日事，今日知。',
-      sub: '今天的课和待办，并排摆在眼前。',
+      sub: '今天的课与待办，一眼看全。',
       bullets: [
-        ['实时时间线', '正在进行与即将开始的事件。'],
-        ['七日截止', '未来七天的截止，按日期排好。'],
+        ['实时时间线', '正在上什么，接下来是什么，心里有数。'],
+        ['七日截止', '未来七天的截止，提前看见。'],
       ] as Item[],
     },
     calendar: {
@@ -46,22 +46,22 @@ export const copy = {
       h2: '整个学期，历历在目。',
       week: [
         '课程、截止、待办，同框呈现',
-        '拖动即可改期，周、月、列表与课表视图随心切换。',
+        '拖一下就改期，周、月、列表与课表视图随心切换。',
       ] as Item,
       filters: ['想看什么，只看什么', '按类型与课程筛选。'] as Item,
       subscribe: ['订阅到你的日历', '一条链接，同步到 Google 日历、Apple 日历与 Outlook。'] as Item,
-      meetings: ['所有事件，一处搞定', '讲座、小课、实验，类型由你定义。'] as Item,
+      meetings: ['所有事件，一处搞定', '讲座、小课、实验，各归其位。'] as Item,
       import: ['轻松配置', '从 LMS、日历文件或课程大纲导入，不必手动填写。'] as Item,
     },
     grades: {
       eyebrow: '成绩与 GPA',
       h2: '每一分，都算数。',
       live: ['实时更新', '考核绑定 LMS，出分即同步。'] as Item,
-      book: ['加权成绩册', '按分类与权重记录，总评自动算好。'] as Item,
+      book: ['加权成绩册', '按分类与权重记录，总评不用手算。'] as Item,
       forecast: ['预测与模拟', '按已有成绩推算剩余考核，也能代入假设。'] as Item,
       plan: ['设立目标', '定下目标绩点，每项考核要考多少，一算便知。'] as Item,
       scales: ['国际通用', '内置多伦多大学、美国 4.0、澳大利亚 7 分制等标准，也可自定义。'] as Item,
-      hide: ['低调模式', '成绩一键隐藏，悬停才显示。'] as Item,
+      hide: ['低调模式', '成绩先藏起来，想看时再看。'] as Item,
       prev: '上一张',
       next: '下一张',
     },
@@ -72,18 +72,23 @@ export const copy = {
       memory: ['越用，越懂你', '记住你的偏好与学习习惯。'] as Item,
       mcp: ['你熟悉的 AI，也懂你的学业', '通过 MCP 连接 ChatGPT、Claude、Cursor 等工具。'] as Item,
       hitl: ['Human in the loop', '每一处改动，都先经你确认。'] as Item,
-      refs: ['@ 文件，/ 技能', '引用课件，或调用技能，一句话说清。'] as Item,
+      refs: ['@ 文件，/ 技能', '输入 @ 引用课程文件，输入 / 选择技能。'] as Item,
       ask: ['拿不准，先问你', '需要你拿主意时，Sem 给出选项让你挑。'] as Item,
-      recall: ['聊过的，都记得', '翻出以前的对话，附上出处。'] as Item,
-      trace: ['长程任务，步步可查。', '每一步的推理、工具与改动，都看得见。'] as Item,
+      recall: ['聊过的，都记得', '以前聊过的，随时翻得出来。'] as Item,
+      beats: [
+        '说出你的目标。',
+        'Sem 查看课表和截止日期，拟好复习安排。',
+        '你批准后，安排才写进待办。',
+      ],
+      trace: ['长程任务，步步可查。', 'Sem 的每一步推理与改动，清清楚楚。'] as Item,
     },
     tasks: {
       eyebrow: '待办',
       h2: '让待办，不再待办。',
       bullets: [
-        ['随手一写', '日期、优先级与课程，从标题里自动识别。'],
+        ['随手一写', '日期、优先级与课程，自动识别。'],
         ['自动完成', '在 LMS 提交或出分后，自动勾选。'],
-        ['排进日历', '在日历里拖动改期，顺手勾选。'],
+        ['排进日历', '在日历里拖一下改期，点一下完成。'],
       ] as Item[],
       cta: '开始使用',
     },
@@ -92,7 +97,7 @@ export const copy = {
       h2: '作业成绩，打包搞定。',
       sub: '课程绑定 LMS，作业、测验、公告与成绩自动同步。现已支持 Canvas。',
       cards: [
-        ['后台同步，自动跟随', '平台上一有变化就跟着更新，需要你定夺时才来问。'],
+        ['后台同步，自动跟随', '平台一有变化就跟上，只在需要你拿主意时才打扰你。'],
         ['权重分类，一并带来', '作业组对应成绩分类，已出的分数一起导入。'],
         ['Sem 也读得懂', '关于课程的问题，Sem 会去 LMS 里找答案。'],
       ] as Item[],
@@ -106,9 +111,9 @@ export const copy = {
       eyebrow: '通知',
       h2: '事事有提醒，时时不误事。',
       bullets: [
-        ['上课与截止提醒', '提前多久，由你决定。'],
+        ['上课与截止提醒', '提前多久，你说了算。'],
         ['LMS 动态', '新成绩、作业变更与公告，及时送达。'],
-        ['免打扰时段', '安静时间里，一律不打扰。'],
+        ['免打扰时段', '安静时段，一律不打扰。'],
       ] as Item[],
     },
     palette: {
@@ -126,7 +131,7 @@ export const copy = {
       mobile: ['口袋里的今天', '在手机上看安排、清待办、问 Sem。'] as Item,
       plugins: ['看板，由你布置', '卡片随意排列，小工具按需添加。'] as Item,
       passkey: ['通行密钥', '用指纹或面容登录，不用记密码。'] as Item,
-      data: ['数据随时带走', '完整导出，随时恢复。'] as Item,
+      data: ['数据随时带走', '一键导出，随时恢复。'] as Item,
     },
     close: {
       h2: '下一个学期，从容开始。',
@@ -175,10 +180,10 @@ export const copy = {
     today: {
       eyebrow: 'Today',
       h2: "Where to be. What's due. At a glance.",
-      sub: "Today's classes and tasks, side by side.",
+      sub: "Today's classes and tasks, all in one look.",
       bullets: [
-        ['A live timeline', "What's on now, and what's next."],
-        ['Seven days ahead', 'Every deadline this week, by day.'],
+        ['A live timeline', "Know what's on now, and what's next."],
+        ['Seven days ahead', "See the week's deadlines coming."],
       ] as Item[],
     },
     calendar: {
@@ -186,7 +191,7 @@ export const copy = {
       h2: 'One calendar. The whole semester.',
       week: [
         'Classes, deadlines and tasks. Together.',
-        'Drag to reschedule. Switch between week, month, list and timetable views.',
+        'Drag to reschedule. Week, month, list or timetable, your call.',
       ] as Item,
       filters: ['See only what matters.', 'Filter by type and course.'] as Item,
       subscribe: [
@@ -195,11 +200,11 @@ export const copy = {
       ] as Item,
       meetings: [
         'Every event. One place.',
-        'Lectures, tutorials, labs. Define your own types.',
+        'Lectures, tutorials and labs, each in its place.',
       ] as Item,
       import: [
         "Import. Don't retype.",
-        'Bring it in from your LMS, a calendar file or a syllabus.',
+        'Import from your LMS, a calendar file or a syllabus instead of typing it in.',
       ] as Item,
     },
     grades: {
@@ -211,7 +216,7 @@ export const copy = {
       ] as Item,
       book: [
         'A gradebook that does the math.',
-        'Weight by category. The course grade takes care of itself.',
+        'Record by category and weight. Never work out a course grade by hand again.',
       ] as Item,
       forecast: [
         'See it coming.',
@@ -225,7 +230,10 @@ export const copy = {
         'Fluent in every scale.',
         'University of Toronto, US 4.0, Australian 7-point and more, or your own.',
       ] as Item,
-      hide: ['Keep it private.', 'Hide your grades. Hover to reveal.'] as Item,
+      hide: [
+        'Keep it private.',
+        'Keep your grades out of sight until you want to see them.',
+      ] as Item,
       prev: 'Previous',
       next: 'Next',
     },
@@ -242,30 +250,32 @@ export const copy = {
         'Connect ChatGPT, Claude, Cursor and more through MCP.',
       ] as Item,
       hitl: ['Human in the loop', 'Nothing changes until you approve it.'] as Item,
-      refs: [
-        '@ files. / skills.',
-        'Point Sem at a lecture, or hand it a skill, mid-sentence.',
-      ] as Item,
+      refs: ['@ files. / skills.', 'Type @ to attach a course file, or / to pick a skill.'] as Item,
       ask: [
         'Asks before it guesses.',
         'When the call is yours, Sem gives you options to choose from.',
       ] as Item,
       recall: [
         'Remembers the conversation.',
-        'Sem finds what you talked about before, with a link back.',
+        'Anything you talked about before, back in a moment.',
       ] as Item,
+      beats: [
+        'Tell Sem what you need.',
+        'Sem checks your schedule and deadlines and drafts a study plan.',
+        'Approve it, and only then does the plan go into your tasks.',
+      ],
       trace: [
         'Long tasks. Every step in the open.',
-        "See each step's reasoning, tools and changes.",
+        "Every step of Sem's reasoning, and every change, in the open.",
       ] as Item,
     },
     tasks: {
       eyebrow: 'Tasks',
       h2: 'Jot it down. Watch it check itself off.',
       bullets: [
-        ['Just type', 'Dates, priority and course, picked up from the title.'],
+        ['Just type', 'Dates, priority and course fill themselves in.'],
         ['Checks itself off', 'Submit on your LMS or get a grade, and the task is done.'],
-        ['On your calendar', 'Drag to reschedule. Select to complete.'],
+        ['On your calendar', 'Drag to reschedule. Check it off right there.'],
       ] as Item[],
       cta: 'Get started',
     },
@@ -276,7 +286,7 @@ export const copy = {
       cards: [
         [
           'Syncs in the background',
-          'Changes on your LMS follow automatically. Sem only asks when the call is yours.',
+          'Keeps up with every change, and only interrupts you when it needs your call.',
         ],
         ['The weights come along', 'Assignment groups become grade categories, scores included.'],
         ['Sem reads it too', 'Ask about a course and Sem looks it up on your LMS.'],
@@ -293,7 +303,7 @@ export const copy = {
       bullets: [
         ['Class and deadline reminders', 'As early as you like.'],
         ['LMS updates', 'New grades, changed assignments and announcements, as they happen.'],
-        ['Quiet hours', 'Nothing interrupts them.'],
+        ['Quiet hours', 'Quiet hours stay quiet.'],
       ] as Item[],
     },
     palette: {
@@ -319,11 +329,8 @@ export const copy = {
         'Check your day, clear tasks and ask Sem on your phone.',
       ] as Item,
       plugins: ['Your board, your way', 'Arrange cards and add the tools you want.'] as Item,
-      passkey: [
-        'Passkeys',
-        'Sign in with your fingerprint or face. No password to remember.',
-      ] as Item,
-      data: ['Your data goes where you go', 'Export everything. Restore anytime.'] as Item,
+      passkey: ['Passkeys', 'Sign in with your fingerprint or face instead of a password.'] as Item,
+      data: ['Your data goes where you go', 'Export it all. Restore it anytime.'] as Item,
     },
     close: {
       h2: 'Next semester starts calmer.',

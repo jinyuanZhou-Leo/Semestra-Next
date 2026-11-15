@@ -1,0 +1,24 @@
+---
+// A screen recording of the real app (scripts/capture/video.mjs) whose playback follows the page's
+// scroll: put it inside a `.scrub` block, which pins its content while the clip plays through.
+// Like Shot, it picks the visitor's theme and the page's language; inside a `.dark` band, pass `dark`.
+import { asset, shotLang, type Lang } from '@/i18n'
+
+interface Props {
+  src: string
+  lang: Lang
+  width: number
+  height: number
+  dark?: boolean
+  class?: string
+  style?: string
+}
+const { src, lang, width, height, dark, class: className, style } = Astro.props
+const l = shotLang(lang)
+---
+<div class:list={['shot', 'clip', className]} style={style}>
+  <video muted playsinline preload="auto" width={width} height={height} data-scrub-video aria-hidden="true">
+    {!dark && <source src={asset(`/${src}-dark-${l}.mp4`)} type="video/mp4" media="(prefers-color-scheme: dark)" />}
+    <source src={asset(`/${src}-${dark ? 'dark' : 'light'}-${l}.mp4`)} type="video/mp4" />
+  </video>
+</div>

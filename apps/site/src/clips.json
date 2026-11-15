@@ -1,0 +1,42 @@
+{
+  "quickadd-dark-en": {
+    "duration": 8,
+    "marks": {
+      "added": 5.81
+    }
+  },
+  "quickadd-dark-zh": {
+    "duration": 6.89,
+    "marks": {
+      "added": 4.69
+    }
+  },
+  "quickadd-light-en": {
+    "duration": 8.08,
+    "marks": {
+      "added": 5.9
+    }
+  },
+  "quickadd-light-zh": {
+    "duration": 7.05,
+    "marks": {
+      "added": 4.84
+    }
+  },
+  "sem-dark-en": {
+    "duration": 8.06,
+    "marks": {
+      "sent": 4.68,
+      "proposed": 5.58,
+      "approved": 6.33
+    }
+  },
+  "sem-dark-zh": {
+    "duration": 5.56,
+    "marks": {
+      "sent": 2.57,
+      "proposed": 3.06,
+      "approved": 4.09
+    }
+  }
+}

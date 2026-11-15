@@ -58,7 +58,8 @@ def assignment(cid, aid, name, due, points, sub, kinds=("online_upload",), quiz=
     }
 
 
-# ECE244: the gradebook's assessments, plus Lab 7, posted this week and not imported yet.
+# ECE244: the gradebook's assessments with the same weights, plus Lab 7 and Quiz 3, posted since and
+# not imported yet.
 ECE244 = [
     {"id": 2441, "name": "Labs", "group_weight": 28, "assignments": [
         assignment(101, 24401, "Lab 1", "2026-09-20T03:59:00Z", 10, submission(10, "2026-09-19T20:00:00Z", "2026-09-23T14:00:00Z")),
@@ -69,17 +70,16 @@ ECE244 = [
         assignment(101, 24406, "Lab 6", "2026-11-15T04:59:00Z", 10, submission()),
         assignment(101, 24407, "Lab 7: Hash tables", "2026-11-29T04:59:00Z", 10, submission()),
     ]},
-    {"id": 2442, "name": "Quizzes", "group_weight": 10, "assignments": [
+    {"id": 2442, "name": "Quizzes", "group_weight": 15, "assignments": [
         assignment(101, 24411, "Quiz 1", "2026-09-30T13:00:00Z", 20, submission(16.8, "2026-09-30T13:30:00Z", "2026-09-30T14:00:00Z"), ("online_quiz",), True),
         assignment(101, 24412, "Quiz 2", "2026-10-14T13:00:00Z", 20, submission(18, "2026-10-14T13:30:00Z", "2026-10-14T14:00:00Z"), ("online_quiz",), True),
         assignment(101, 24413, "Quiz 3", "2026-11-04T14:00:00Z", 20, submission(), ("online_quiz",), True),
     ]},
-    {"id": 2443, "name": "Exams", "group_weight": 62, "assignments": [
+    {"id": 2443, "name": "Midterm", "group_weight": 26, "assignments": [
         assignment(101, 24421, "Midterm", "2026-10-16T22:00:00Z", 100, submission(78, None, "2026-10-20T14:00:00Z"), ("on_paper",)),
-        assignment(101, 24422, "Final exam", "2026-12-14T14:00:00Z", 100, submission(), ("on_paper",)),
     ]},
-    {"id": 2444, "name": "Readings", "group_weight": 0, "assignments": [
-        assignment(101, 24431, "Read Ch. 9 before lecture", "2026-10-26T13:00:00Z", 0, submission(), ("none",)),
+    {"id": 2444, "name": "Final exam", "group_weight": 40, "assignments": [
+        assignment(101, 24422, "Final exam", "2026-12-14T14:00:00Z", 100, submission(), ("on_paper",)),
     ]},
 ]
 

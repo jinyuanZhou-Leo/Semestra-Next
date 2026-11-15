@@ -70,6 +70,7 @@ const tiltByScript = !reduce && tilt !== null && !CSS.supports('animation-timeli
 function frame() {
   nav?.classList.toggle('stuck', scrollY > 8)
   if (reduce) return
+  scrub()
   const vh = innerHeight
   if (tiltByScript && tilt) {
     const p = clamp(scrollY / (vh * 0.7))
@@ -87,6 +88,41 @@ function frame() {
   }
 }
 
+// Clips in a `.scrub` block play as the block scrolls past: the frame follows how far the pinned
+// content has travelled. With reduced motion they rest on their last frame.
+const clips = [...document.querySelectorAll<HTMLVideoElement>('[data-scrub-video]')].map(
+  (video) => ({
+    video,
+    block: video.closest<HTMLElement>('.scrub'),
+  }),
+)
+// Words that go with a stretch of a clip: `data-beat="from,to"` (fractions of the block's scroll)
+// marks them `.on` while the clip is in that stretch.
+const beats = [...document.querySelectorAll<HTMLElement>('[data-beat]')].map((el) => {
+  const [from, to] = el.dataset.beat!.split(',').map(Number)
+  return { el, from: from!, to: to!, block: el.closest<HTMLElement>('.scrub') }
+})
+// How far a `.scrub` block's pinned content has travelled, from 0 to 1.
+function progress(block: HTMLElement) {
+  const b = block.getBoundingClientRect()
+  return clamp(-b.top / Math.max(1, b.height - innerHeight))
+}
+function scrub() {
+  const vh = innerHeight
+  for (const { video, block } of clips) {
+    if (!block || !video.duration) continue
+    const b = block.getBoundingClientRect()
+    if (b.bottom < 0 || b.top > vh) continue
+    const t = progress(block) * (video.duration - 0.05)
+    if (Math.abs(video.currentTime - t) > 1 / 60) video.currentTime = t
+  }
+  for (const { el, from, to, block } of beats) {
+    if (!block) continue
+    const p = progress(block)
+    el.classList.toggle('on', p >= from && p < to)
+  }
+}
+
 let queued = false
 const tick = () => {
   if (queued) return
@@ -99,3 +135,11 @@ const tick = () => {
 addEventListener('scroll', tick, { passive: true })
 addEventListener('resize', tick)
 frame()
+for (const { video } of clips) {
+  const ready = () => {
+    if (reduce) video.currentTime = Math.max(0, video.duration - 0.05)
+    tick()
+  }
+  if (video.readyState >= 1) ready()
+  else video.addEventListener('loadedmetadata', ready, { once: true })
+}
