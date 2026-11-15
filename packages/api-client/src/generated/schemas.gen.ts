@@ -13593,6 +13593,174 @@ export const PaletteColorSchema = {
     title: 'PaletteColor'
 } as const;
 
+export const PasskeyAnswerSchema = {
+    properties: {
+        credential: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Credential',
+            description: 'The browser\'s PublicKeyCredential as JSON (`toJSON()`)'
+        }
+    },
+    type: 'object',
+    required: [
+        'credential'
+    ],
+    title: 'PasskeyAnswer'
+} as const;
+
+export const PasskeyListSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/PasskeyOut'
+            },
+            type: 'array',
+            title: 'Items'
+        },
+        rp_id: {
+            type: 'string',
+            title: 'Rp Id',
+            description: 'For the browser\'s signals about which passkeys still work'
+        },
+        user_handle: {
+            type: 'string',
+            title: 'User Handle',
+            description: 'The user\'s id in WebAuthn (base64url)'
+        }
+    },
+    type: 'object',
+    required: [
+        'items',
+        'rp_id',
+        'user_handle'
+    ],
+    title: 'PasskeyList'
+} as const;
+
+export const PasskeyOutSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        credential_id: {
+            type: 'string',
+            title: 'Credential Id',
+            description: 'The credential\'s id (base64url)'
+        },
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name',
+            description: 'Given by the user'
+        },
+        aaguid: {
+            type: 'string',
+            title: 'Aaguid',
+            description: 'Its provider\'s model id; the client looks up the name'
+        },
+        device: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Device',
+            description: 'The browser and system it was added on'
+        },
+        backed_up: {
+            type: 'boolean',
+            title: 'Backed Up',
+            description: 'Synced to the user\'s other devices by its provider'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        last_used_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Last Used At'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'credential_id',
+        'name',
+        'aaguid',
+        'device',
+        'backed_up',
+        'created_at',
+        'last_used_at'
+    ],
+    title: 'PasskeyOut'
+} as const;
+
+export const PasskeyRegisterInputBodySchema = {
+    properties: {
+        credential: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Credential',
+            description: 'The browser\'s answer to account.passkey.register_options, as JSON'
+        },
+        device: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 60
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Device',
+            description: 'The browser and system it is added on, shown when no name is given'
+        }
+    },
+    type: 'object',
+    required: [
+        'credential'
+    ],
+    title: 'PasskeyRegisterInputBody'
+} as const;
+
+export const PasskeyRenameInputBodySchema = {
+    properties: {
+        name: {
+            type: 'string',
+            maxLength: 60,
+            minLength: 1,
+            title: 'Name',
+            description: 'New name'
+        }
+    },
+    type: 'object',
+    required: [
+        'name'
+    ],
+    title: 'PasskeyRenameInputBody'
+} as const;
+
 export const PasswordChangeInputBodySchema = {
     properties: {
         current_password: {
@@ -15480,6 +15648,22 @@ export const ReauthEmailVerifyInputBodySchema = {
         'code'
     ],
     title: 'ReauthEmailVerifyInputBody'
+} as const;
+
+export const ReauthPasskeyInputBodySchema = {
+    properties: {
+        credential: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Credential',
+            description: 'The browser\'s answer to account.reauth.passkey_options, as JSON'
+        }
+    },
+    type: 'object',
+    required: [
+        'credential'
+    ],
+    title: 'ReauthPasskeyInputBody'
 } as const;
 
 export const ReauthPasswordInputBodySchema = {
@@ -21662,6 +21846,11 @@ export const UserOutSchema = {
             type: 'boolean',
             title: 'Has Password'
         },
+        has_passkey: {
+            type: 'boolean',
+            title: 'Has Passkey',
+            description: 'Whether the user registered at least one passkey'
+        },
         identities: {
             items: {
                 $ref: '#/components/schemas/IdentityOut'
@@ -21683,6 +21872,7 @@ export const UserOutSchema = {
         'avatar_url',
         'locale',
         'has_password',
+        'has_passkey',
         'identities',
         'created_at'
     ],
@@ -21771,6 +21961,22 @@ export const ValuesUpdateInputBodySchema = {
         'values'
     ],
     title: 'ValuesUpdateInputBody'
+} as const;
+
+export const WebAuthnOptionsSchema = {
+    properties: {
+        options: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Options'
+        }
+    },
+    type: 'object',
+    required: [
+        'options'
+    ],
+    title: 'WebAuthnOptions',
+    description: 'Options for `navigator.credentials.create/get`, as WebAuthn\'s JSON form (what\n`PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take).'
 } as const;
 
 export const WizardCourseSchema = {
