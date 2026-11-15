@@ -60,7 +60,7 @@ docs/                设计稿与模块规格
 - 用户可见字符串全部走 Paraglide（`messages/en.json` 与 `zh-CN.json` 同步，`pnpm --filter @semestra/web i18n:lint` 检查）。
 - 不要用拼出来的键在整个 `messages` 命名空间上查文案（`import * as m` 再 ``m[`error_${code}`]``），那会把全部文案打进首屏。按前缀查的文案放在 `src/lib/message-groups/*.gen.ts`（`scripts/gen-message-groups.mjs` 生成，新前缀加到 `scripts/message-groups.mjs` 的 `GROUPS`，改了文案跑 `pnpm --filter @semestra/web i18n:groups`）。`i18n:lint` 也会拦下 `src`（不算测试）里没用到的文案键，删功能时把文案一起删掉。
 - 颜色只用 token，不写死颜色值。
-- **桌面页面按内容区宽度排版，不按窗口宽度**：外壳的内容区是 `@container/main`（`academics/shell/AppShell.tsx`），侧边栏和 Sem 面板都会挤占它，所以页面的分栏、侧栏显隐用 `@3xl/main:` 这类容器断点，不用 `lg:`/`sm:`（1024 宽打开 Sem 面板时内容区只剩约 350px）。对话框和手机页面不在其内，照常用视口断点。
+- **桌面页面按内容区宽度排版，不按窗口宽度**：外壳的内容区是 `@container/main`（`academics/shell/AppShell.tsx`），侧边栏和 Sem 面板都会挤占它，所以页面的分栏、侧栏显隐用 `@page-lg/main:` 这类容器断点（`theme.css` 的 `--container-page-*`：视口断点减去侧边栏和滚动条），不用 `lg:`/`sm:`（1024 宽打开 Sem 面板时内容区只剩约 350px）。对话框和手机页面不在其内，照常用视口断点。
 - **输入框的长度上限从 API 的 schema 读**（`@semestra/api-client/schemas`，`@hey-api/schemas` 生成，例：`tasks/limits.ts`），不要在前端另写数字，否则和后端不一致时保存会 422。
 - **页面首屏会显示的文字不要靠第二个请求补上**：后到的文字会把标题撑宽、工具栏换行、内容下跳。属于对象本身的派生值跟着对象返回（如学期的 `this_week`），页面离不开的数据就等它到了再渲染（如日历等周次）。
 - Alembic 保持单一 head；合并前基于最新 head 重新生成迁移。

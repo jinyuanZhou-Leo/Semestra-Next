@@ -2,7 +2,7 @@ import type { Task, TaskList } from '@semestra/api-client'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { delay, http, HttpResponse } from 'msw'
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest'
 import { academicsHandlers, defaultWorld } from '@/modules/academics/test-data'
 import { gradebook } from '@/modules/grading/test-data'
 import { API, renderWithRouter, server } from '@/test-utils'
@@ -129,6 +129,15 @@ beforeEach(() => {
   )
 })
 
+/** The page as on a computer: in the app shell, whose sidebar provider the lists column uses. */
+function renderTasksPage() {
+  return renderWithRouter(
+    <SidebarProvider>
+      <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
+    </SidebarProvider>,
+  )
+}
+
 test('a cold start fetches the remembered list only, not the default one first', async () => {
   server.use(
     http.post(`${API}/me/ui-state\\:get`, async () => {
@@ -136,14 +145,14 @@ test('a cold start fetches the remembered list only, not the default one first',
       return HttpResponse.json({ items: { 'tasks.selection.p1': 'flagged' } })
     }),
   )
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await waitFor(() => expect(log.queries.length).toBeGreaterThan(0))
   await act(() => new Promise((resolve) => setTimeout(resolve, 100)))
   expect(log.queries.map((q) => q.view)).toEqual(log.queries.map(() => 'flagged'))
 })
 
 test('the page lists the tasks and adds one from the header button with its chips', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   expect(await screen.findByText('Read chapter 3')).toBeTruthy()
   expect(screen.getByText('Lab report')).toBeTruthy()
   // The header's button comes first; the empty row at the end of the list is the other one.
@@ -158,7 +167,7 @@ test('the page lists the tasks and adds one from the header button with its chip
 })
 
 test('a checked-off task waits in place, can be unchecked, and is then completed', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   const check = await screen.findByRole('checkbox', { name: 'Complete Lab report' })
   await userEvent.click(check)
   expect(check).toBeChecked()
@@ -172,7 +181,7 @@ test('a checked-off task waits in place, can be unchecked, and is then completed
 })
 test('an empty list says so, and the header button opens a new task in its place', async () => {
   items = []
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   expect(await screen.findByText('No tasks here')).toBeTruthy()
   await userEvent.click(screen.getByRole('button', { name: 'New task' }))
   expect(screen.getByRole('textbox', { name: 'New task' })).toHaveFocus()
@@ -213,7 +222,7 @@ test('the counter card shows the open count', async () => {
 })
 
 test('the completed view has one empty state and no add box', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await pickList('All', /^Completed/)
   expect(await screen.findByText('Nothing completed yet')).toBeTruthy()
   expect(screen.queryByText('No tasks here')).toBeNull()
@@ -225,7 +234,7 @@ test('clearing completed tasks is offered only where it deletes what is listed',
     task({ id: 't1', title: 'Open' }),
     task({ id: 't2', title: 'Done one', completed_at: stamp }),
   ]
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await screen.findByText('Open')
   await screen.findByRole('button', { name: /1 completed/ })
   expect(screen.queryByRole('button', { name: 'Clear completed' })).toBeNull()
@@ -240,7 +249,7 @@ test('folded completed tasks are only counted, and long lists load more on deman
       task({ id: `d${n}`, title: `Done ${n}`, completed_at: stamp }),
     ),
   ]
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   // The total comes from the server, not from the rows loaded: one row is fetched for it.
   const folded = await screen.findByRole('button', { name: /4 completed/ })
   slow = true
@@ -253,7 +262,7 @@ test('folded completed tasks are only counted, and long lists load more on deman
 })
 
 test('clicking a title edits it in place without opening the side panel', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
   const input = screen.getByRole('textbox', { name: 'Title' })
   await userEvent.clear(input)
@@ -264,7 +273,7 @@ test('clicking a title edits it in place without opening the side panel', async 
 })
 
 test('an open row shows notes and chips; opening another row saves it first', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Read chapter 3' }))
   const notes = screen.getByRole('textbox', { name: 'Notes' })
   expect(screen.getByRole('button', { name: 'Date' })).toBeTruthy()
@@ -281,7 +290,7 @@ test('an open row shows notes and chips; opening another row saves it first', as
 })
 
 test('Esc throws away the edit, and a chip saves right away', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
   const input = screen.getByRole('textbox', { name: 'Title' })
   await userEvent.type(input, ' draft')
@@ -295,7 +304,7 @@ test('Esc throws away the edit, and a chip saves right away', async () => {
 })
 
 test('clicking outside saves; a title left empty deletes the task without asking', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
   await userEvent.clear(screen.getByRole('textbox', { name: 'Title' }))
   await userEvent.click(document.body)
@@ -305,7 +314,7 @@ test('clicking outside saves; a title left empty deletes the task without asking
 })
 
 test('checking off a row being edited keeps what was typed', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
   await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' v2')
   await userEvent.click(screen.getByRole('checkbox', { name: 'Complete Lab report' }))
@@ -315,7 +324,7 @@ test('checking off a row being edited keeps what was typed', async () => {
 })
 
 test('Esc on a chip closes the row, and focus goes back to its title', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Lab report' }))
   screen.getByRole('button', { name: 'Date' }).focus()
   await userEvent.keyboard('{Escape}')
@@ -331,7 +340,7 @@ test('Esc on a chip closes the row, and focus goes back to its title', async () 
 })
 
 test('the empty row at the end adds tasks one after another', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   // The header's button comes first; the empty row is the last one.
   await screen.findByText('Lab report')
   await userEvent.click(screen.getAllByRole('button', { name: 'New task' }).at(-1)!)
@@ -346,7 +355,7 @@ test('the empty row at the end adds tasks one after another', async () => {
 })
 
 test('a new title sets the date, priority and course it names; a pressed word stays text', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await screen.findByText('Lab report')
   await userEvent.click(screen.getAllByRole('button', { name: 'New task' })[0]!)
   const input = screen.getByRole('textbox', { name: 'New task' })
@@ -382,7 +391,7 @@ test('with smart parsing off the title is saved as typed', async () => {
       HttpResponse.json({ namespace: 'tasks', values: { smart_parsing: false }, inherited: {} }),
     ),
   )
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await screen.findByText('Lab report')
   await userEvent.click(screen.getAllByRole('button', { name: 'New task' })[0]!)
   await userEvent.type(
@@ -394,7 +403,7 @@ test('with smart parsing off the title is saved as typed', async () => {
 })
 
 test('"Edit details" opens the side panel, and saving closes it', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'More actions for Lab report' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit details' }))
   const sheet = await screen.findByRole('dialog', { name: 'Details' })
@@ -421,7 +430,7 @@ test("an assessment's task keeps its title, date and course, and shows its grade
       HttpResponse.json({ course_id: 'c1', link: null, program_connection_id: null }),
     ),
   )
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(
     await screen.findByRole('button', { name: 'Edit title: APS105H1 · Final exam' }),
   )
@@ -454,7 +463,7 @@ test("an assessment's task keeps its title, date and course, and shows its grade
 })
 
 test('Enter opens the selected task, but a focused button keeps Enter for itself', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   const row = (await screen.findByText('Lab report')).closest('li')!
   await userEvent.click(row)
   expect(row.hasAttribute('data-selected')).toBe(true)
@@ -472,18 +481,18 @@ test('Enter opens the selected task, but a focused button keeps Enter for itself
 
 test('an urgent task shows as high and stays urgent unless changed', async () => {
   items = [task({ id: 't1', title: 'Exam prep', priority: 'urgent' })]
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   expect(await screen.findByLabelText('Priority: High')).toBeTruthy()
 })
 
 test('tasks in no list are called Unsorted', async () => {
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'All' }))
   expect(await screen.findByRole('menuitemradio', { name: /^Unsorted/ })).toBeTruthy()
   expect(screen.queryByText('Inbox')).toBeNull()
 })
 
-test('on a wide page the lists sit in a column beside the tasks, and the title is plain', async () => {
+test('a list picked in the lists column opens, and the column marks it', async () => {
   lists = [
     {
       id: 'l1',
@@ -497,29 +506,14 @@ test('on a wide page the lists sit in a column beside the tasks, and the title i
       updated_at: stamp,
     } as TaskList,
   ]
-  // jsdom has no layout: give every element a desktop width.
-  const width = vi
-    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-    .mockReturnValue(new DOMRect(0, 0, 1000, 0))
-  try {
-    // On a computer the page sits in the app shell, whose sidebar provider the column uses.
-    renderWithRouter(
-      <SidebarProvider>
-        <TasksPage scope={{ kind: 'program', programId: 'p1' }} />
-      </SidebarProvider>,
-    )
-    const column = await screen.findByRole('navigation', { name: 'Lists' })
-    await userEvent.click(await within(column).findByRole('button', { name: 'Personal' }))
-    expect(await screen.findByRole('heading', { level: 2, name: 'Personal' })).toBeTruthy()
-    expect(within(column).getByRole('button', { name: 'Personal' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    )
-    // No menu of lists on the title while the column shows them.
-    expect(screen.getAllByRole('button', { name: 'Personal' })).toHaveLength(1)
-  } finally {
-    width.mockRestore()
-  }
+  renderTasksPage()
+  const column = await screen.findByRole('navigation', { name: 'Lists' })
+  await userEvent.click(await within(column).findByRole('button', { name: 'Personal' }))
+  expect(await screen.findByRole('region', { name: 'Personal' })).toBeTruthy()
+  expect(within(column).getByRole('button', { name: 'Personal' })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
 })
 
 const many = () =>
@@ -529,7 +523,7 @@ const many = () =>
 
 test('a long list renders only the rows near the screen, and says how long it is', async () => {
   items = many()
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   const first = (await screen.findByText('Task 001')).closest('li')!
   expect(first.getAttribute('aria-posinset')).toBe('1')
   expect(first.getAttribute('aria-setsize')).toBe('300')
@@ -541,7 +535,7 @@ test('a long list renders only the rows near the screen, and says how long it is
 
 test('the row being edited stays rendered when the list scrolls away from it', async () => {
   items = many()
-  renderWithRouter(<TasksPage scope={{ kind: 'program', programId: 'p1' }} />)
+  renderTasksPage()
   await userEvent.click(await screen.findByRole('button', { name: 'Edit title: Task 001' }))
   expect(screen.getByRole('textbox', { name: 'Title' })).toBeTruthy()
 

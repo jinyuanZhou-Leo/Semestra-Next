@@ -16,7 +16,9 @@ function ShellInset({ children }: { children: ReactNode }) {
   const { open } = useSidebar()
   const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
   return (
-    <SidebarInset className="h-full min-w-0 overflow-hidden">
+    // Pages lay out by this width (`@page-lg/main:`), not the window's: the sidebar and the
+    // assistant panel take part of it. On the inset so the top row's page tools follow it too.
+    <SidebarInset className="@container/main h-full min-w-0 overflow-hidden">
       <header className="group/shell-header flex h-12 shrink-0 items-center gap-2">
         <div className="flex min-w-0 items-center gap-2 px-4">
           <SidebarTrigger
@@ -35,9 +37,7 @@ function ShellInset({ children }: { children: ReactNode }) {
           className="flex min-w-0 flex-1 items-center gap-1 pr-4"
         />
       </header>
-      {/* Pages lay out by this width (`@3xl/main:`), not the window's: the sidebar and the
-          assistant panel take part of it. */}
-      <div className="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <ShellToolbarSlot value={toolbar}>{children}</ShellToolbarSlot>
       </div>
     </SidebarInset>

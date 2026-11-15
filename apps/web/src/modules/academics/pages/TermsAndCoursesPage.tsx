@@ -230,8 +230,8 @@ function TermsTab({
   const pins = usePins(programId)
   const items = terms.map((t) => ({ value: t.id, label: t.name }))
   return (
-    <div className="grid gap-6 @3xl/main:grid-cols-[18rem_minmax(0,1fr)]">
-      <div className="@3xl/main:hidden">
+    <div className="grid gap-6 @page-lg/main:grid-cols-[18rem_minmax(0,1fr)]">
+      <div className="@page-lg/main:hidden">
         <Select
           value={selected.id}
           items={items}
@@ -251,7 +251,7 @@ function TermsTab({
           </SelectContent>
         </Select>
       </div>
-      <ItemGroup aria-label={m.academics_terms()} className="hidden gap-1 @3xl/main:flex">
+      <ItemGroup aria-label={m.academics_terms()} className="hidden gap-1 @page-lg/main:flex">
         {terms.map((term) => (
           <TermRow
             key={term.id}
@@ -354,7 +354,7 @@ function TermPane({
   return (
     <section aria-label={term.name} className="min-w-0 space-y-4">
       <div className="flex min-h-9 flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 shrink-0 @xl/main:shrink">
+        <div className="min-w-0 shrink-0 @page-sm/main:shrink">
           <h2 className="flex items-center gap-2 font-heading text-lg font-semibold">
             <span className="truncate">{term.name}</span>
             {isCurrent ? <Badge>{m.academics_term_current_badge()}</Badge> : null}

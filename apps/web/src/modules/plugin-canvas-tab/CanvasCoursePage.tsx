@@ -130,8 +130,8 @@ function viewTitle(overview: CourseOverview | undefined, location: CanvasLocatio
 
 function PageSkeleton() {
   return (
-    <div className="gap-6 @5xl/main:grid @5xl/main:grid-cols-[12rem_minmax(0,1fr)]">
-      <div className="hidden space-y-2 @5xl/main:block">
+    <div className="gap-6 @page-xl/main:grid @page-xl/main:grid-cols-[12rem_minmax(0,1fr)]">
+      <div className="hidden space-y-2 @page-xl/main:block">
         {Array.from({ length: 8 }, (_, i) => (
           <Skeleton key={i} className="h-7 w-full" />
         ))}
@@ -153,7 +153,7 @@ function Body({
   const resolved = resolveLocation(location, entries)
   const activeKey = resolved.kind === 'native' ? resolved.view : resolved.entry.key
   return (
-    <div className="flex flex-1 flex-col gap-4 @5xl/main:grid @5xl/main:grid-cols-[12rem_minmax(0,1fr)] @5xl/main:gap-6">
+    <div className="flex flex-1 flex-col gap-4 @page-xl/main:grid @page-xl/main:grid-cols-[12rem_minmax(0,1fr)] @page-xl/main:gap-6">
       <CourseNav
         overview={overview}
         entries={entries}
@@ -258,7 +258,7 @@ function CourseNav({
   }
   return (
     <>
-      <div className="flex items-center gap-2 @5xl/main:hidden">
+      <div className="flex items-center gap-2 @page-xl/main:hidden">
         <Select
           value={activeKey}
           items={items}
@@ -266,7 +266,10 @@ function CourseNav({
             if (typeof next === 'string') pick(next)
           }}
         >
-          <SelectTrigger aria-label={m.canvas_tab_nav_label()} className="w-full @xl/main:w-64">
+          <SelectTrigger
+            aria-label={m.canvas_tab_nav_label()}
+            className="w-full @page-sm/main:w-64"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -292,13 +295,13 @@ function CourseNav({
             ) : null}
           </SelectContent>
         </Select>
-        <div className="ml-auto shrink-0 @xl/main:min-w-48">
+        <div className="ml-auto shrink-0 @page-sm/main:min-w-48">
           <SyncControls overview={overview} fetching={fetching} onRefresh={onRefresh} />
         </div>
       </div>
       <nav
         aria-label={m.canvas_tab_nav_label()}
-        className="hidden flex-col gap-3 self-start @5xl/main:sticky @5xl/main:top-4 @5xl/main:flex"
+        className="hidden flex-col gap-3 self-start @page-xl/main:sticky @page-xl/main:top-4 @page-xl/main:flex"
       >
         <ul className="space-y-0.5">
           {native.map((e) => {

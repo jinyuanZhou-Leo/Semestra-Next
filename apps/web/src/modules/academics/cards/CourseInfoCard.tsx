@@ -12,7 +12,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-2 py-1">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
+      <dd className="min-w-0 wrap-break-word">{children}</dd>
     </div>
   )
 }
@@ -115,7 +115,9 @@ export default function CourseInfoCard({ scope, size }: CardProps) {
         {extras(Row)}
       </dl>
       {course.description ? (
-        <p className="mt-2 whitespace-pre-line text-muted-foreground">{course.description}</p>
+        <p className="mt-2 wrap-break-word whitespace-pre-line text-muted-foreground">
+          {course.description}
+        </p>
       ) : null}
     </div>
   )

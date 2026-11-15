@@ -11,6 +11,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Breakpoints for the content area (`@container/main` in the app shell), used as `@page-lg/main:`:
+ * the window breakpoint less the open sidebar (16rem) and a classic scrollbar (1rem), so with
+ * the Sem panel closed a page lays out as it would by window width; with it open, it narrows.
+ */
+@theme {
+  --container-page-sm: 23rem; /* sm (40rem) */
+  --container-page-lg: 47rem; /* lg (64rem) */
+  --container-page-xl: 63rem; /* xl (80rem) */
+}
+
 @theme inline {
   /* The bar at the top while a page's code loads (NavigationProgress). */
   --animate-navigation-progress: navigation-progress 1.1s ease-in-out infinite;

@@ -16,7 +16,7 @@ import '@fullcalendar/react/skeleton.css'
 import classicThemePlugin from '@fullcalendar/react/themes/classic'
 import '@fullcalendar/react/themes/classic/theme.css'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
-import type { OneOffEvent, Occurrence, Term, TermWeek } from '@semestra/api-client'
+import type { OneOffEvent, Occurrence, Term } from '@semestra/api-client'
 import {
   scheduleEventGetOptions,
   scheduleEventUpdateMutation,
@@ -182,10 +182,8 @@ export default function CalendarPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const timezone = useProgramTimezone(scope.programId)
   const term = useTerms(scope.programId).data?.items.find((t) => t.id === termId)
-  // The toolbar names the shown week ("Week 3"): drawn without it, it would grow and wrap.
-  const weeks = useCalendarInfo(termId).data?.weeks
-  if (!timezone || !term || !weeks) return null
-  return <TermCalendar programId={scope.programId} term={term} timezone={timezone} weeks={weeks} />
+  if (!timezone || !term) return null
+  return <TermCalendar programId={scope.programId} term={term} timezone={timezone} />
 }
 
 type DragState = {
@@ -199,18 +197,18 @@ function TermCalendar({
   programId,
   term,
   timezone,
-  weeks,
 }: {
   programId: string
   term: Term
   timezone: string
-  weeks: readonly TermWeek[]
 }) {
   const queryClient = useQueryClient()
   const calendarRef = useRef<CalendarRef>(null)
   const settings = useCalendarSettings(term.id)
   const sources = useCalendarSources()
   const courses = useCourses(programId, term.id).data?.items ?? []
+  const loadedWeeks = useCalendarInfo(term.id).data?.weeks
+  const weeks = loadedWeeks ?? []
   const [nav, setNav] = useUiPref<CalendarNav | null>('calendar.nav', null, { scope: term.id })
   const [filters, setFilters] = useUiPref<CalendarFilters>('calendar.filters', DEFAULT_FILTERS, {
     scope: term.id,
@@ -222,16 +220,24 @@ function TermCalendar({
   const anchor = calendarAnchor(nav, term, today)
   // The day the calendar reports showing; until it has drawn, the one it opens on.
   const [shownDate, setShownDate] = useState<string | null>(null)
-  // FullCalendar measures and sizes its grid in the frame after it reports its dates.
-  const [sized, setSized] = useState(false)
+  // The view FullCalendar has measured and sized, in the frame after it reports its dates; each
+  // view is a new calendar (its `key`), drawn once before it is measured.
+  const [sizedView, setSizedView] = useState<CalendarView | null>(null)
   // The toolbar's title comes from the days shown, not from FullCalendar once it has drawn: a
   // title arriving after the first paint would widen the toolbar and wrap it onto a second row.
   const shownView = view === 'timetable' ? 'week' : view
   const shownRange = occurrenceRange(shownView, shownDate ?? anchor, firstDayOfWeek())
+  // Without weekends, the days FullCalendar draws: the week less its Saturday and Sunday.
+  const shownDays = Array.from({ length: 7 }, (_, i) => plusDays(shownRange.start, i)).filter(
+    (day) => settings.show_weekends || isoWeekday(dayDate(day)) < 6,
+  )
   const title =
     shownView === 'month'
       ? intl(Intl.DateTimeFormat, MONTH_TITLE).format(dayDate(shownDate ?? anchor))
-      : rangeTitle(dayDate(shownRange.start), dayDate(plusDays(shownRange.end, -1)))
+      : rangeTitle(
+          dayDate(shownDays[0] ?? shownRange.start),
+          dayDate(shownDays.at(-1) ?? shownRange.start),
+        )
 
   const details = useDialogTarget<{ occurrence: Occurrence; anchor: DetailsAnchor }>()
   // The details are placed against the clicked item, measured within this box.
@@ -514,7 +520,7 @@ function TermCalendar({
 
   return (
     <div className="flex gap-6">
-      <aside className="hidden w-52 shrink-0 @3xl/main:block">{filterPanel}</aside>
+      <aside className="hidden w-52 shrink-0 @page-lg/main:block">{filterPanel}</aside>
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Sheet>
@@ -523,7 +529,7 @@ function TermCalendar({
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  className="@3xl/main:hidden"
+                  className="@page-lg/main:hidden"
                   aria-label={m.schedule_filters()}
                 />
               }
@@ -562,9 +568,12 @@ function TermCalendar({
               </Button>
               <h2 className="font-heading text-base font-medium">
                 {title}
-                {view !== 'month' && currentWeek ? (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    {weekLabel(currentWeek.number, currentWeek.break_info?.name)}
+                {/* Its room is kept while the weeks load, so the toolbar does not widen and wrap. */}
+                {view !== 'month' ? (
+                  <span className="ml-2 inline-block w-24 truncate align-bottom text-sm font-normal text-muted-foreground">
+                    {currentWeek
+                      ? weekLabel(currentWeek.number, currentWeek.break_info?.name)
+                      : null}
                   </span>
                 ) : null}
               </h2>
@@ -642,80 +651,90 @@ function TermCalendar({
         ) : (
           <div ref={frameRef} className="relative overflow-x-auto">
             {/* Hidden until FullCalendar has sized it: it draws the header and rows once before
-                measuring them, and they would jump into place under the page. */}
-            <div className={cn('semestra-calendar', !sized && 'invisible')} style={{ minWidth }}>
-              <FullCalendar
-                // A new view (the toggle, or the stored one arriving) starts a fresh calendar.
-                key={view}
-                ref={calendarRef}
-                plugins={PLUGINS}
-                initialView={FC_VIEW[view]}
-                initialDate={anchor}
-                height="auto"
-                locales={LOCALES}
-                locale={getLocale().startsWith('zh') ? 'zh-cn' : 'en'}
-                firstDay={firstDayOfWeek() % 7}
-                weekends={settings.show_weekends}
-                slotMinTime={settings.day_start}
-                slotMaxTime={settings.day_end === '24:00' ? '24:00:00' : settings.day_end}
-                scrollTime={settings.day_start}
-                nowIndicator
-                now={now}
-                weekNumbers
-                weekNumberHeaderContent={(arg) =>
-                  arg.date ? weekNumberLabel(midWeek(isoDay(arg.date))) : ''
-                }
-                inlineWeekNumberContent={(arg) => weekNumberLabel(midWeek(isoDay(arg.date)))}
-                dayHeaderFormat={DAY_HEADER_FORMAT}
-                views={VIEWS}
-                rowEventClass={ROW_EVENT_CLASS}
-                eventOrder={EVENT_ORDER}
-                // Items without an end (a to-do due at a time) are points: one due at 23:59 must
-                // not run into the next day.
-                defaultTimedEventDuration="00:01"
-                slotDuration="01:00:00"
-                snapDuration="00:15:00"
-                slotHeaderFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
-                eventTimeFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
-                allDayText={m.schedule_all_day()}
-                noEventsText={m.schedule_no_events()}
-                events={fcEvents}
-                selectable
-                selectMirror
-                editable
-                eventStartEditable
-                select={(arg) => {
-                  const end = arg.allDay ? plusDays(isoDay(arg.end), -1) : wall(arg.end)
-                  openNew({
-                    start: arg.allDay ? `${isoDay(arg.start)}T00:00` : wall(arg.start).slice(0, 16),
-                    end: arg.allDay ? `${end}T00:00` : end.slice(0, 16),
-                    allDay: arg.allDay,
-                  })
-                  arg.view.calendar.unselect()
-                }}
-                eventClick={(arg) => {
-                  // The item's checkbox checks it off without opening its details.
-                  if ((arg.jsEvent.target as Element | null)?.closest('[data-calendar-check]')) {
-                    return
+                measuring them, and they would jump into place. Drawn once the weeks are in, as
+                its week-number column sizes to them. */}
+            <div
+              className={cn('semestra-calendar', sizedView !== view && 'invisible')}
+              style={{ minWidth }}
+            >
+              {loadedWeeks ? (
+                <FullCalendar
+                  // A new view (the toggle, or the stored one arriving) starts a fresh calendar.
+                  key={view}
+                  ref={calendarRef}
+                  plugins={PLUGINS}
+                  initialView={FC_VIEW[view]}
+                  initialDate={anchor}
+                  height="auto"
+                  locales={LOCALES}
+                  locale={getLocale().startsWith('zh') ? 'zh-cn' : 'en'}
+                  firstDay={firstDayOfWeek() % 7}
+                  weekends={settings.show_weekends}
+                  slotMinTime={settings.day_start}
+                  slotMaxTime={settings.day_end === '24:00' ? '24:00:00' : settings.day_end}
+                  scrollTime={settings.day_start}
+                  nowIndicator
+                  now={now}
+                  weekNumbers
+                  weekNumberHeaderContent={(arg) =>
+                    arg.date ? weekNumberLabel(midWeek(isoDay(arg.date))) : ''
                   }
-                  const o = arg.event.extendedProps.occurrence as Occurrence | undefined
-                  if (o) showDetails(o, arg.el)
-                }}
-                eventDrop={onChange}
-                eventResize={onChange}
-                eventContent={renderEventContent}
-                datesSet={(arg) => {
-                  const type = arg.view.type
-                  const nextView =
-                    type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
-                  const date = isoDay(arg.view.calendar.getDate())
-                  setShownDate(date)
-                  if (!sized)
-                    requestAnimationFrame(() => requestAnimationFrame(() => setSized(true)))
-                  saveNav({ view: nextView, date })
-                  loadNeighbours(nextView, date)
-                }}
-              />
+                  inlineWeekNumberContent={(arg) => weekNumberLabel(midWeek(isoDay(arg.date)))}
+                  dayHeaderFormat={DAY_HEADER_FORMAT}
+                  views={VIEWS}
+                  rowEventClass={ROW_EVENT_CLASS}
+                  eventOrder={EVENT_ORDER}
+                  // Items without an end (a to-do due at a time) are points: one due at 23:59 must
+                  // not run into the next day.
+                  defaultTimedEventDuration="00:01"
+                  slotDuration="01:00:00"
+                  snapDuration="00:15:00"
+                  slotHeaderFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
+                  eventTimeFormat={TIME_FORMATS[getFormatPreferences().timeFormat]}
+                  allDayText={m.schedule_all_day()}
+                  noEventsText={m.schedule_no_events()}
+                  events={fcEvents}
+                  selectable
+                  selectMirror
+                  editable
+                  eventStartEditable
+                  select={(arg) => {
+                    const end = arg.allDay ? plusDays(isoDay(arg.end), -1) : wall(arg.end)
+                    openNew({
+                      start: arg.allDay
+                        ? `${isoDay(arg.start)}T00:00`
+                        : wall(arg.start).slice(0, 16),
+                      end: arg.allDay ? `${end}T00:00` : end.slice(0, 16),
+                      allDay: arg.allDay,
+                    })
+                    arg.view.calendar.unselect()
+                  }}
+                  eventClick={(arg) => {
+                    // The item's checkbox checks it off without opening its details.
+                    if ((arg.jsEvent.target as Element | null)?.closest('[data-calendar-check]')) {
+                      return
+                    }
+                    const o = arg.event.extendedProps.occurrence as Occurrence | undefined
+                    if (o) showDetails(o, arg.el)
+                  }}
+                  eventDrop={onChange}
+                  eventResize={onChange}
+                  eventContent={renderEventContent}
+                  datesSet={(arg) => {
+                    const type = arg.view.type
+                    const nextView =
+                      type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
+                    const date = isoDay(arg.view.calendar.getDate())
+                    setShownDate(date)
+                    if (sizedView !== nextView)
+                      requestAnimationFrame(() =>
+                        requestAnimationFrame(() => setSizedView(nextView)),
+                      )
+                    saveNav({ view: nextView, date })
+                    loadNeighbours(nextView, date)
+                  }}
+                />
+              ) : null}
             </div>
             {shownDetails && shownAnchor ? (
               <OccurrenceDetails
