@@ -84,6 +84,16 @@ test('install links carry the server config with the token, without going over t
   }
 })
 
+test('Claude Desktop bridges to a server on the local network over plain http', () => {
+  const args = (address: string) => {
+    const setup = mcpSetup('claude-desktop', address, 'spat_x')
+    if (setup.kind !== 'config') throw new Error(setup.kind)
+    return JSON.parse(setup.text).mcpServers.semestra.args as string[]
+  }
+  expect(args('http://192.168.1.5:8000/mcp')).toContain('--allow-http')
+  expect(args(url)).not.toContain('--allow-http')
+})
+
 test('connecting a client creates a token named after it and fills it into the command', async () => {
   const items: (typeof token)[] = []
   server.use(
@@ -102,8 +112,11 @@ test('connecting a client creates a token named after it and fills it into the c
 
   await userEvent.click(await screen.findByRole('button', { name: 'New connection' }))
   const dialog = await screen.findByRole('dialog')
-  // Apps that sign in reach the server from the internet: a local one does not offer them.
+  // Apps that sign in reach the server from the internet: a local one offers Claude through
+  // Claude Desktop instead.
   expect(within(dialog).queryByRole('button', { name: 'ChatGPT' })).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('button', { name: 'Claude' })).not.toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: 'Claude Desktop' })).toBeInTheDocument()
   await userEvent.click(within(dialog).getByRole('button', { name: 'Claude Code' }))
   await userEvent.click(within(dialog).getByRole('combobox', { name: 'Access' }))
   await userEvent.click(await screen.findByRole('option', { name: /Read and write/ }))
@@ -240,7 +253,11 @@ test('an app that signs in gets the address and its steps, and shows once it has
   )
   renderWithRouter(<AddConnectionDialog open onOpenChange={() => {}} url={url} />)
 
-  await userEvent.click(await screen.findByRole('button', { name: 'ChatGPT' }))
+  const chatgpt = await screen.findByRole('button', { name: 'ChatGPT' })
+  // Claude itself signs in here, so Claude Desktop isn't offered alongside it.
+  expect(screen.getByRole('button', { name: 'Claude' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Claude Desktop' })).not.toBeInTheDocument()
+  await userEvent.click(chatgpt)
   const dialog = await screen.findByRole('dialog')
   expect(within(dialog).getByText(url)).toBeInTheDocument()
   expect(within(dialog).getByText('Add custom MCP server')).toBeInTheDocument()

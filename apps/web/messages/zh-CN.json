@@ -3303,5 +3303,6 @@
   "assistant_oauth_expired_description": "回到应用，重新连接 Semestra。",
   "assistant_oauth_open_app": "打开 Semestra",
   "error_auth_authorization_expired": "授权请求已失效，请回到应用重新连接。",
-  "assistant_oauth_unverified": "它自称“{name}”，Semestra 无法核实。只有你认识这个网站时才允许。"
+  "assistant_oauth_unverified": "它自称“{name}”，Semestra 无法核实。只有你认识这个网站时才允许。",
+  "assistant_mcp_hint_claude_desktop": "在 Claude Desktop 的设置中进入“开发者”，点“编辑配置”打开该文件。文件中已有其他服务器时，把 semestra 一项并列加入，保存后重启 Claude Desktop。需要已安装 Node.js。"
 }

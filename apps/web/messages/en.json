@@ -3303,5 +3303,6 @@
   "assistant_oauth_expired_description": "Go back to the app and connect Semestra again.",
   "assistant_oauth_open_app": "Open Semestra",
   "error_auth_authorization_expired": "This request has expired. Connect again from the app.",
-  "assistant_oauth_unverified": "It calls itself “{name}”, which Semestra can't check. Allow only if you know this site."
+  "assistant_oauth_unverified": "It calls itself “{name}”, which Semestra can't check. Allow only if you know this site.",
+  "assistant_mcp_hint_claude_desktop": "In Claude Desktop's settings, go to Developer and click Edit Config to open the file. If it already lists other servers, add semestra next to them. Save, then restart Claude Desktop. Requires Node.js."
 }

@@ -27,6 +27,7 @@ export type TokenClientId =
   | 'claude-code'
   | 'gemini-cli'
   | 'vscode'
+  | 'claude-desktop'
   | 'codex'
   | 'devin'
   | 'other'
@@ -61,6 +62,12 @@ interface BaseClient {
    * for `other`: any client or script, named by the user.
    */
   logo: string | null
+  /**
+   * The sign-in app this client stands in for where that app can't reach the server: Claude
+   * Desktop connects from this computer with a token, so a server without HTTPS (most
+   * self-hosted ones) still has a way into Claude.
+   */
+  standsInFor?: SignInClientId
 }
 
 export type McpClient =
@@ -97,6 +104,13 @@ export const MCP_CLIENTS: readonly McpClient[] = [
     },
   },
   {
+    id: 'claude-desktop',
+    name: 'Claude Desktop',
+    docs: 'mcp/claude-desktop',
+    logo: claudeLogo,
+    standsInFor: 'claude',
+  },
+  {
     id: 'claude-code',
     name: 'Claude Code',
     docs: 'mcp/claude-code',
@@ -118,11 +132,12 @@ export const MCP_CLIENTS: readonly McpClient[] = [
 
 /**
  * The clients this server can offer: ChatGPT and Claude reach it from their own servers, so they
- * need an address on the internet over HTTPS (a local one is left out).
+ * need an address on the internet over HTTPS; without one, a client that connects from this
+ * computer takes Claude's place (Claude Desktop), and with one it gives way to signing in.
  */
 export function availableClients(url: string): readonly McpClient[] {
   const reachable = new URL(url).protocol === 'https:'
-  return MCP_CLIENTS.filter((c) => reachable || !c.signIn)
+  return MCP_CLIENTS.filter((c) => (c.signIn ? reachable : !(reachable && c.standsInFor)))
 }
 
 const SERVER = 'semestra'
@@ -165,6 +180,30 @@ export function mcpSetup(client: TokenClientId, url: string, token: string): Set
         kind: 'config',
         file: 'mcp.json',
         text: json({ servers: { [SERVER]: { type: 'http', url, headers } } }),
+      }
+    case 'claude-desktop':
+      // Claude Desktop starts only local (stdio) servers from its config file: mcp-remote bridges
+      // to the HTTP server, and takes a plain http address (a LAN server) only when told to. No
+      // space after the colon, safe from argument splitting on Windows.
+      return {
+        kind: 'config',
+        file: 'claude_desktop_config.json',
+        text: json({
+          mcpServers: {
+            [SERVER]: {
+              command: 'npx',
+              args: [
+                '-y',
+                'mcp-remote',
+                url,
+                ...(new URL(url).protocol === 'http:' ? ['--allow-http'] : []),
+                '--header',
+                'Authorization:${AUTH_HEADER}',
+              ],
+              env: { AUTH_HEADER: `Bearer ${token}` },
+            },
+          },
+        }),
       }
     case 'codex':
       return {
