@@ -44,7 +44,7 @@ export function ManualGrade({ gradebook }: { gradebook: Gradebook }) {
     )
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 @page-sm/main:grid-cols-2">
       <Stat label={m.grading_final_grade()} hint={hideGrades ? null : s.final_letter}>
         <InlineInput
           key={`m-${result.manual_percentage ?? ''}`}

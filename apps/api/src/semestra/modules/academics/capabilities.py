@@ -46,7 +46,7 @@ _PROGRAM_FIELDS = (
 )  # fmt: skip
 _TERM_FIELDS = (
     "id", "name", "start_date", "end_date", "breaks", "count_break_weeks", "is_current",
-    "course_count",
+    "course_count", "this_week",
 )  # fmt: skip
 _COURSE_FIELDS = (
     "id", "code", "title", "alias", "subject_code", "credits", "include_in_gpa", "instructors",

@@ -57,6 +57,14 @@ function restore(queryClient: QueryClient, snapshot: Snapshot | undefined) {
 }
 
 /**
+ * A failure is toasted (and an optimistic change rolled back) by the mutation itself, so the
+ * action does not reject: it resolves with what was saved, or `undefined` when nothing was.
+ */
+function settle<T>(saving: Promise<T>): Promise<T | undefined> {
+  return saving.catch(() => undefined)
+}
+
+/**
  * Every change a task view can make, each refreshing the task queries and toasting failures.
  * `actions` stays the same object while the mutations run, so the rows handed it are not
  * re-rendered; `pending` (adding, deleting or clearing in progress) is kept out of it for that.
@@ -146,9 +154,9 @@ export function useTaskActions() {
   }
   const actions = {
     create: (programId: string, body: TaskCreateInputBody) =>
-      run.create({ path: { program_id: programId }, body }),
+      settle(run.create({ path: { program_id: programId }, body })),
     update: (taskId: string, body: TaskUpdateInputBody) =>
-      run.update({ path: { task_id: taskId }, body }),
+      settle(run.update({ path: { task_id: taskId }, body })),
     /**
      * Checking a task off waits in place for a few seconds before it is saved (`completion.ts`);
      * unchecking it in that time just stops the wait.
@@ -168,27 +176,27 @@ export function useTaskActions() {
         return
       }
       if (cancelCompletion(taskId)) return
-      await run.complete({ path: { task_id: taskId }, body: { completed } })
+      await settle(run.complete({ path: { task_id: taskId }, body: { completed } }))
     },
     move: (taskId: string, body: { list_id?: string | null; before_task_id?: string | null }) =>
-      run.move({ path: { task_id: taskId }, body }),
+      settle(run.move({ path: { task_id: taskId }, body })),
     remove: (taskId: string) => {
       // A task deleted while it waits to be completed is not completed afterwards.
       cancelCompletion(taskId)
-      return run.remove({ path: { task_id: taskId } })
+      return settle(run.remove({ path: { task_id: taskId } }))
     },
     clearCompleted: (
       programId: string,
       body: { list_id?: string; term_id?: string; course_id?: string },
-    ) => run.clear({ path: { program_id: programId }, body }),
+    ) => settle(run.clear({ path: { program_id: programId }, body })),
     createList: (programId: string, body: { name: string; term_id?: string | null }) =>
-      run.createList({ path: { program_id: programId }, body }),
+      settle(run.createList({ path: { program_id: programId }, body })),
     renameList: (listId: string, name: string) =>
-      run.updateList({ path: { list_id: listId }, body: { name } }),
+      settle(run.updateList({ path: { list_id: listId }, body: { name } })),
     deleteList: (listId: string, deleteTasks: boolean) =>
-      run.deleteList({ path: { list_id: listId }, query: { delete_tasks: deleteTasks } }),
+      settle(run.deleteList({ path: { list_id: listId }, query: { delete_tasks: deleteTasks } })),
     reorderLists: (programId: string, listIds: string[]) =>
-      run.reorderLists({ path: { program_id: programId }, body: { list_ids: listIds } }),
+      settle(run.reorderLists({ path: { program_id: programId }, body: { list_ids: listIds } })),
   }
   const pending = create.isPending || clear.isPending || deleteList.isPending || remove.isPending
   return { actions, pending }

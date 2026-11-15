@@ -18,7 +18,6 @@ import type { Task } from '@semestra/api-client'
 import { ArrowDownUp, ChevronRight, CircleCheck, ListChecks, Plus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
-import { useElementWidth } from '@/hooks/use-element-size'
 import { useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -78,8 +77,6 @@ const DEFAULT_VIEW_PREF: ViewPref = { sort: 'manual', doneOpen: null }
 /** Tasks loaded at a time; "Show more" loads the next as many. */
 const PAGE = 500
 const DONE_PAGE = 200
-/** The page width (px) from which the lists sit in a column beside the tasks. */
-const LISTS_COLUMN_MIN_WIDTH = 720
 
 /**
  * Tasks of a term, a course or the whole Program (M05 §5.1, §5.2): the tasks of one list, with
@@ -95,10 +92,6 @@ export default function TasksPage({ scope }: PageProps) {
   const taskScope = { programId, termId, courseId }
   const scopeId = courseId ?? termId ?? programId
   const [selection, setSelection, selectionLoaded] = useTaskSelection(scopeId)
-  // The lists get a column of their own where the page is wide enough (not on a course's page).
-  const [root, setRoot] = useState<HTMLDivElement | null>(null)
-  const width = useElementWidth(root)
-  const listsColumn = !courseId && width >= LISTS_COLUMN_MIN_WIDTH
   const key = selectionKey(selection)
   const [viewPref, setViewPref, viewLoaded] = useUiPref('tasks.view', DEFAULT_VIEW_PREF, {
     scope: `${scopeId}.${key}`,
@@ -315,10 +308,13 @@ export default function TasksPage({ scope }: PageProps) {
   }
 
   return (
-    <div ref={setRoot} className="flex gap-6">
-      {listsColumn ? (
+    <div className="flex gap-6">
+      {/* The lists get a column of their own where the page is wide enough, a menu by the title
+          where it is not (not on a course's page). By the content's width in CSS, so the page
+          is drawn at once in its final layout. */}
+      {courseId ? null : (
         <TaskListsColumn
-          className="sticky top-0 self-start"
+          className="sticky top-0 hidden self-start @page-lg/main:flex"
           programId={programId}
           termId={termId}
           selection={selection}
@@ -328,7 +324,7 @@ export default function TasksPage({ scope }: PageProps) {
           courses={courses}
           actions={actions}
         />
-      ) : null}
+      )}
       <section ref={listRef} className="flex min-w-0 flex-1 flex-col gap-3" aria-label={title}>
         <div className="flex flex-wrap items-center justify-between gap-2 px-2">
           {courseId ? (
@@ -344,20 +340,25 @@ export default function TasksPage({ scope }: PageProps) {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-          ) : listsColumn ? (
-            <h2 className="truncate font-heading text-xl font-semibold tracking-tight">{title}</h2>
           ) : (
-            <TasksViewMenu
-              programId={programId}
-              termId={termId}
-              title={title}
-              selection={selection}
-              onSelect={select}
-              counts={counts.data}
-              lists={lists.data?.items ?? []}
-              courses={courses}
-              actions={actions}
-            />
+            <>
+              <h2 className="hidden truncate font-heading text-xl font-semibold tracking-tight @page-lg/main:block">
+                {title}
+              </h2>
+              <div className="min-w-0 @page-lg/main:hidden">
+                <TasksViewMenu
+                  programId={programId}
+                  termId={termId}
+                  title={title}
+                  selection={selection}
+                  onSelect={select}
+                  counts={counts.data}
+                  lists={lists.data?.items ?? []}
+                  courses={courses}
+                  actions={actions}
+                />
+              </div>
+            </>
           )}
           <div className="flex items-center gap-1">
             <DropdownMenu>
@@ -530,7 +531,9 @@ export default function TasksPage({ scope }: PageProps) {
         confirmLabel={m.tasks_clear_completed()}
         pending={pending}
         onConfirm={() => {
-          void actions.clearCompleted(programId, clearScope).then(() => setClearing(false))
+          void actions.clearCompleted(programId, clearScope).then((cleared) => {
+            if (cleared) setClearing(false)
+          })
         }}
       />
     </div>

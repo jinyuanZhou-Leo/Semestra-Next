@@ -11477,6 +11477,10 @@ export type Term = {
      */
     course_count: number;
     /**
+     * Today's week, when today is within the term
+     */
+    this_week: TermWeek | null;
+    /**
      * Created At
      */
     created_at: string;

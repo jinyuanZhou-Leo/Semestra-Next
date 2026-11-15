@@ -108,7 +108,7 @@ function TermSwitcher({
           {term.name}
           {term.id === current?.id ? (
             <span className="text-sidebar-foreground/50">
-              <TermWeekLine termId={term.id} />
+              <TermWeekLine term={term} />
             </span>
           ) : null}
         </span>

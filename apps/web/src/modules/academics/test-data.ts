@@ -33,6 +33,7 @@ export function term(overrides: Partial<Term> & { id: string }): Term {
     count_break_weeks: false,
     is_current: false,
     course_count: 0,
+    this_week: null,
     ...stamp,
     ...overrides,
   }

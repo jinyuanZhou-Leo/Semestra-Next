@@ -7,6 +7,7 @@ import { focusAt, useEditorExit } from './editor-exit'
 import { useNewTaskDraft } from '../draft'
 import { TaskChips } from './TaskChips'
 import { TitleInput } from './TitleInput'
+import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 type Props = {
   /** Set while the row is open; a new value starts a fresh task. */
@@ -25,6 +26,7 @@ type Props = {
   smartParsing: boolean
   /** Smaller, for board cards. */
   compact?: boolean
+  /** Resolves with the new task, or `undefined` when it was not saved. */
   onAdd: (body: TaskCreateInputBody) => Promise<unknown>
 }
 
@@ -104,7 +106,9 @@ function NewTaskEditor({
     draft.reset()
     setNotes('')
     // What was typed comes back, so the words read from it are read again.
-    void onAdd(body).catch(() => draft.setTitle((current) => current || typed))
+    void onAdd(body).then((added) => {
+      if (!added) draft.setTitle((current) => current || typed)
+    })
   }
   const finish = (save: boolean) => {
     if (closed.current) return
@@ -143,7 +147,7 @@ function NewTaskEditor({
             compact ? 'text-sm' : 'text-base',
           )}
           value={draft.title}
-          maxLength={300}
+          maxLength={TITLE_MAX}
           onChange={(event) => draft.setTitle(event.target.value)}
           onKeyDown={(event) => keys(event, true)}
         />
@@ -151,7 +155,7 @@ function NewTaskEditor({
           aria-label={m.tasks_notes_label()}
           placeholder={m.tasks_notes_label()}
           rows={Math.min(Math.max(notes.split('\n').length, 1), 8)}
-          maxLength={20000}
+          maxLength={NOTES_MAX}
           className={cn(
             'block w-full resize-none bg-transparent p-0 text-muted-foreground outline-none placeholder:text-muted-foreground/70',
             compact ? 'text-xs' : 'text-sm',

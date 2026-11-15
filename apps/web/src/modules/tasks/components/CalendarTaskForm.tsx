@@ -46,12 +46,15 @@ export default function CalendarTaskForm({
     e.preventDefault()
     setTouched(true)
     if (titleMissing) return
-    await actions.create(programId, newTaskBody(place, { title: title.trim(), notes, values }))
-    onDone()
+    const added = await actions.create(
+      programId,
+      newTaskBody(place, { title: title.trim(), notes, values }),
+    )
+    if (added) onDone()
   }
 
   return (
-    <form noValidate onSubmit={(e) => void submit(e).catch(() => undefined)} className="grid gap-4">
+    <form noValidate onSubmit={(e) => void submit(e)} className="grid gap-4">
       <Field data-invalid={(touched && titleMissing) || undefined}>
         <FieldLabel htmlFor={`${fid}-title`}>{m.tasks_title_label()}</FieldLabel>
         <Input

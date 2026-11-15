@@ -333,7 +333,8 @@ async def program_out(ctx: Ctx, row: AcademicsProgram) -> Program:
 async def _terms_out(
     ctx: Ctx, program: AcademicsProgram, rows: Sequence[AcademicsTerm]
 ) -> list[Term]:
-    current = rules.current_term(await program_terms(ctx, program.id), program_today(ctx, program))
+    today = program_today(ctx, program)
+    current = rules.current_term(await program_terms(ctx, program.id), today)
     counts: dict[str, int] = {}
     if rows:
         result = await ctx.db.execute(
@@ -351,10 +352,19 @@ async def _terms_out(
                 **_columns(r),
                 "is_current": current is not None and current.id == r.id,
                 "course_count": counts.get(r.id, 0),
+                "this_week": await _this_week(ctx, r, today),
             }
         )
         for r in rows
     ]
+
+
+async def _this_week(ctx: Ctx, term: AcademicsTerm, today: date) -> TermWeek | None:
+    """Today's week, sent with the term so its header does not grow once a second request lands."""
+    if not term.start_date <= today <= term.end_date:
+        return None
+    week = next((w for w in await weeks_of(ctx, term) if w.start_date <= today <= w.end_date), None)
+    return _week_out(week) if week else None
 
 
 async def term_out(ctx: Ctx, row: AcademicsTerm) -> Term:
@@ -753,6 +763,15 @@ async def term_week_of(ctx: Ctx, term: AcademicsTerm, day: date) -> int | rules.
     return rules.term_week_of(await weeks_of(ctx, term), day)
 
 
+def _week_out(w: rules.Week) -> TermWeek:
+    return TermWeek(
+        start_date=w.start_date,
+        end_date=w.end_date,
+        number=w.number,
+        break_info=BreakRef(id=w.break_.id, name=w.break_.name) if w.break_ else None,
+    )
+
+
 async def calendar_info(ctx: Ctx, term_id: str) -> CalendarInfo:
     term = await get_term_row(ctx, term_id)
     program = await get_program_row(ctx, term.program_id)
@@ -773,15 +792,7 @@ async def calendar_info(ctx: Ctx, term_id: str) -> CalendarInfo:
         term_id=term.id,
         timezone=program.timezone,
         week_start=start,
-        weeks=[
-            TermWeek(
-                start_date=w.start_date,
-                end_date=w.end_date,
-                number=w.number,
-                break_info=BreakRef(id=w.break_.id, name=w.break_.name) if w.break_ else None,
-            )
-            for w in weeks
-        ],
+        weeks=[_week_out(w) for w in weeks],
         today=today,
         today_week=today_week,
     )
