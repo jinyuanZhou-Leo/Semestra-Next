@@ -2,6 +2,11 @@
 import '@/styles/site.css'
 import {
   ArrowUpDown,
+  AtSign,
+  EyeOff,
+  History,
+  KeyRound,
+  MessageCircleQuestion,
   ArrowUpRight,
   Blocks,
   BellRing,
@@ -18,7 +23,6 @@ import {
   GraduationCap,
   Import,
   Keyboard,
-  LayoutGrid,
   Link,
   ListChecks,
   MoonStar,
@@ -31,7 +35,6 @@ import {
   Sun,
   Target,
   CircleCheck,
-  Layers,
   ClipboardList,
   Scale,
   School,
@@ -59,7 +62,7 @@ const integrations = [
   'Model Context Protocol',
 ]
 const todayIcons = [Clock, Flag]
-const tasksIcons = [CircleCheck, Layers, CalendarDays]
+const tasksIcons = [Sparkles, CircleCheck, CalendarDays]
 const notifyIcons = [Clock, Megaphone, MoonStar]
 const paletteIcons = [Search, ArrowUpDown]
 const lmsIcons = [ClipboardList, Scale, BookOpen]
@@ -68,7 +71,7 @@ const more = [
   [Code, t.more.open],
   [Smartphone, t.more.mobile],
   [Blocks, t.more.plugins],
-  [LayoutGrid, t.more.layout],
+  [KeyRound, t.more.passkey],
   [Download, t.more.data],
 ] as const
 const login = `${APP_URL}/login`
@@ -229,6 +232,10 @@ const login = `${APP_URL}/login`
               <div class="t"><h3>{t.grades.scales[0]}</h3><p>{t.grades.scales[1]}</p></div>
               <div class="big-ic"><SlidersHorizontal aria-hidden="true" /></div>
             </div>
+            <div class="card">
+              <div class="t"><h3>{t.grades.hide[0]}</h3><p>{t.grades.hide[1]}</p></div>
+              <div class="big-ic"><EyeOff aria-hidden="true" /></div>
+            </div>
           </div>
         </div>
       </section>
@@ -255,6 +262,18 @@ const login = `${APP_URL}/login`
             <div class="card span2" data-reveal style="--d: 1">
               <div class="t"><h3>{t.sem.hitl[0]}</h3><p>{t.sem.hitl[1]}</p></div>
               <div class="peek center"><Shot cut dark src="parts/proposal" lang={lang} width={1496} height={428} /></div>
+            </div>
+            <div class="card text" data-reveal>
+              <div class="t"><h3>{t.sem.refs[0]}</h3><p>{t.sem.refs[1]}</p></div>
+              <div class="big-ic"><AtSign aria-hidden="true" /></div>
+            </div>
+            <div class="card text" data-reveal style="--d: 1">
+              <div class="t"><h3>{t.sem.ask[0]}</h3><p>{t.sem.ask[1]}</p></div>
+              <div class="big-ic"><MessageCircleQuestion aria-hidden="true" /></div>
+            </div>
+            <div class="card text" data-reveal style="--d: 2">
+              <div class="t"><h3>{t.sem.recall[0]}</h3><p>{t.sem.recall[1]}</p></div>
+              <div class="big-ic"><History aria-hidden="true" /></div>
             </div>
           </div>
           <div class="showcase">
