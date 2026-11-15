@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "lint": "oxlint src && oxfmt --check src && pnpm i18n:lint && pnpm compiler:check && pnpm entry:check",
-    "format": "oxfmt src",
+    "lint": "oxlint src bombadil && oxfmt --check src bombadil && pnpm i18n:lint && pnpm compiler:check && pnpm entry:check",
+    "format": "oxfmt src bombadil",
     "typecheck": "pnpm i18n:compile && tsc --noEmit",
     "test": "pnpm i18n:compile && vitest run",
     "test:related": "pnpm i18n:compile && vitest related --run --passWithNoTests",
@@ -18,7 +18,8 @@
     "compiler:check": "node scripts/check-react-compiler.mjs",
     "entry:check": "node scripts/check-entry.mjs",
     "manifest:export": "pnpm i18n:compile && UPDATE_MANIFEST=1 vitest run src/app/manifest-export.test.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "bombadil": "VITE_API_ORIGIN= pnpm build && node bombadil/run.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
@@ -97,6 +98,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@antithesishq/bombadil": "0.7.10",
     "@inlang/paraglide-js": "2.29.3",
     "@playwright/test": "1.64.1",
     "@tailwindcss/typography": "0.5.20",
