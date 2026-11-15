@@ -86,8 +86,9 @@ const vendorGroups = [
 // What the sign-in page downloads before it renders (the entry, the login route and everything
 // they import statically), gzipped, in kB. `entry:check` follows source imports and cannot see a
 // chunk group pulling more code into these chunks, so the build measures the result and fails
-// above the budget (356 kB before the vendor groups). Raise it on purpose, with the reason in the commit, not to get a build through.
-const LOGIN_BUDGET_KB = 360
+// above the budget (356 kB before the vendor groups; 362 kB with passkey sign-in). Raise it on
+// purpose, with the reason in the commit, not to get a build through.
+const LOGIN_BUDGET_KB = 370
 
 function loginBudget(): Plugin {
   return {
