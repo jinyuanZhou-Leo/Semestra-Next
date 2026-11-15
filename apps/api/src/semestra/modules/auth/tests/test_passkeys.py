@@ -1,5 +1,6 @@
 """Passkeys: adding them, signing in, confirming it's you, and the list (M01 §4.9)."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -36,6 +37,7 @@ class Authenticator:
     origin: str = ORIGIN
     keys: dict[bytes, tuple[ec.EllipticCurvePrivateKey, bytes]] = field(default_factory=dict)
     counter: int = 0
+    verifies_user: bool = True  # False: a security key without a PIN, touched only
 
     def create(self, options: dict[str, Any]) -> dict[str, Any]:
         key = ec.generate_private_key(ec.SECP256R1())
@@ -69,7 +71,8 @@ class Authenticator:
         credential_id = credential_id or next(iter(self.keys))
         key, user_handle = self.keys[credential_id]
         self.counter += 1
-        auth_data = self._head(options["rpId"], 0x01 | 0x04 | 0x08 | 0x10)
+        uv = 0x04 if self.verifies_user else 0
+        auth_data = self._head(options["rpId"], 0x01 | uv | 0x08 | 0x10)
         client_data = self._client_data("webauthn.get", options["challenge"])
         signature = key.sign(
             auth_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256())
@@ -102,7 +105,7 @@ class Authenticator:
 async def add_passkey(client: AsyncClient, device: Authenticator) -> dict[str, Any]:
     options = (await client.post("/account/passkeys/options", json={})).json()
     created = device.create(options["options"])
-    body = {"challenge_id": options["challenge_id"], "credential": created, "device": "Firefox"}
+    body = {"credential": created, "device": "Firefox · macOS"}
     r = await client.post("/account/passkeys", json=body)
     assert r.status_code == 200, r.text
     return r.json()
@@ -112,10 +115,7 @@ async def sign_in(app: FastAPI, device: Authenticator) -> tuple[AsyncClient, Any
     c = AsyncClient(transport=ASGITransport(app), base_url="https://test")
     options = (await c.post("/auth/passkey/options")).json()
     answer = device.get(options["options"])
-    r = await c.post(
-        "/auth/passkey", json={"challenge_id": options["challenge_id"], "credential": answer}
-    )
-    return c, r
+    return c, await c.post("/auth/passkey", json={"credential": answer})
 
 
 async def test_a_passkey_signs_in_without_an_email_address(
@@ -124,7 +124,7 @@ async def test_a_passkey_signs_in_without_an_email_address(
     await login_as(client, await make_user(email="me@example.com", password=PASSWORD))
     device = Authenticator(aaguid=GOOGLE_PM)
     added = await add_passkey(client, device)
-    assert added["name"] == "Google Password Manager"
+    assert (added["name"], added["aaguid"]) == (None, GOOGLE_PM)  # the client names its provider
     assert added["backed_up"] is True
     assert (await client.get("/account/me")).json()["has_passkey"] is True
 
@@ -141,23 +141,42 @@ async def test_answers_count_once_and_only_from_the_app(
 ) -> None:
     await login_as(client, await make_user(password=PASSWORD))
     device = Authenticator()
-    added = await add_passkey(client, device)
-    assert added["name"] == "Firefox"  # an unknown provider is named after the browser
+    assert (await add_passkey(client, device))["device"] == "Firefox · macOS"
 
     c = AsyncClient(transport=ASGITransport(app), base_url="https://test")
     options = (await c.post("/auth/passkey/options")).json()
-    body = {"challenge_id": options["challenge_id"], "credential": device.get(options["options"])}
-    assert (await c.post("/auth/passkey", json=body)).status_code == 200
+    body = {"credential": device.get(options["options"])}
+    # Sent twice at once: only one of them signs in.
+    both = await asyncio.gather(*(c.post("/auth/passkey", json=body) for _ in range(2)))
+    assert sorted(r.status_code for r in both) == [200, 401]
     replayed = await c.post("/auth/passkey", json=body)
     assert replayed.json()["error"]["code"] == "auth.passkey_failed"
 
     # A look-alike site relaying its visitor's passkey prompt: the origin gives it away.
     phished = Authenticator(origin="https://semestra.evil", keys=device.keys)
     options = (await c.post("/auth/passkey/options")).json()
-    body = {"challenge_id": options["challenge_id"], "credential": phished.get(options["options"])}
+    body = {"credential": phished.get(options["options"])}
     assert (await c.post("/auth/passkey", json=body)).json()["error"][
         "code"
     ] == "auth.passkey_failed"
+
+    # A key that only checks someone touched it, not who: not enough for the only factor.
+    touched = Authenticator(keys=device.keys, verifies_user=False)
+    _, r = await sign_in(app, touched)
+    assert r.json()["error"]["code"] == "auth.passkey_failed"
+
+
+async def test_a_challenge_left_waiting_too_long_expires(
+    app: FastAPI, client: AsyncClient, make_user: MakeUser, login_as: LoginAs, clock: Clock
+) -> None:
+    await login_as(client, await make_user(password=PASSWORD))
+    device = Authenticator()
+    await add_passkey(client, device)
+    c = AsyncClient(transport=ASGITransport(app), base_url="https://test")
+    options = (await c.post("/auth/passkey/options")).json()
+    clock.advance(minutes=11)
+    r = await c.post("/auth/passkey", json={"credential": device.get(options["options"])})
+    assert r.json()["error"]["code"] == "auth.passkey_expired"
 
 
 async def test_adding_needs_a_recent_check_and_a_passkey_confirms_it_is_you(
@@ -173,8 +192,7 @@ async def test_adding_needs_a_recent_check_and_a_passkey_confirms_it_is_you(
 
     clock.advance(minutes=11)
     options = (await client.post("/account/reauth/passkey-options", json={})).json()
-    answer = device.get(options["options"])
-    body = {"challenge_id": options["challenge_id"], "credential": answer}
+    body = {"credential": device.get(options["options"])}
     ok = await client.post("/account/reauth/passkey", json=body)
     assert ok.json() == {"remaining_seconds": 600}
 
@@ -192,7 +210,7 @@ async def test_someone_elses_passkey_cannot_confirm_or_be_removed(
 
     clock.advance(minutes=11)
     options = (await client.post("/account/reauth/passkey-options", json={})).json()
-    body = {"challenge_id": options["challenge_id"], "credential": theirs.get(options["options"])}
+    body = {"credential": theirs.get(options["options"])}
     wrong = await client.post("/account/reauth/passkey", json=body)
     assert wrong.json()["error"]["code"] == "auth.passkey_failed"
     gone = await client.delete(f"/account/passkeys/{their_key['id']}")
@@ -210,4 +228,7 @@ async def test_a_removed_passkey_no_longer_signs_in(
     assert (await client.delete(f"/account/passkeys/{added['id']}")).status_code == 200
     assert (await client.get("/account/me")).json()["has_passkey"] is False
     _, r = await sign_in(app, device)
-    assert r.json()["error"]["code"] == "auth.passkey_failed"
+    # The browser is told which one, so its password manager can drop it too.
+    error = r.json()["error"]
+    assert error["code"] == "auth.passkey_unknown"
+    assert error["params"]["credential_id"] == _b64(next(iter(device.keys)))

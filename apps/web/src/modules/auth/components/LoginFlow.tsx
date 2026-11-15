@@ -1,4 +1,4 @@
-import { authPasskeyLogin, authPasskeyOptions, type UserOut } from '@semestra/api-client'
+import type { UserOut } from '@semestra/api-client'
 import {
   accountProfileGetQueryKey,
   authConfigOptions,
@@ -12,16 +12,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { KeyRound } from 'lucide-react'
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
-import {
-  cancelPasskeyRequest,
-  getPasskey,
-  passkeyAutofillAvailable,
-  passkeyCancelled,
-  passkeysSupported,
-} from '@/modules/auth/passkey'
+import { passkeysSupported } from '@/modules/auth/passkey'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -36,6 +30,7 @@ import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { EmailField } from './EmailField'
 import { GoogleSignInButton } from './GoogleSignInButton'
+import { usePasskeySignIn } from './usePasskeySignIn'
 import { useCountdown } from './useCountdown'
 
 type Step =
@@ -89,35 +84,12 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
   const register = useMutation(authRegisterCompleteMutation())
   const passwordLogin = useMutation(authPasswordLoginMutation())
   const googleLogin = useMutation(authGoogleLoginMutation())
-  const passkeyLogin = useMutation({
-    // `autofill`: the browser offers the account's passkeys in the email field and the request
-    // waits until one is picked there; the button asks right away (and replaces that request).
-    mutationFn: async (autofill: boolean) => {
-      const { data: options } = await authPasskeyOptions({ throwOnError: true })
-      const credential = await getPasskey(options, autofill)
-      const { data } = await authPasskeyLogin({
-        body: { challenge_id: options.challenge_id, credential },
-        throwOnError: true,
-      })
-      return data
-    },
-    onSuccess: (data) => finish(data.user),
-  })
-  const passkeyError =
-    passkeyLogin.error && !passkeyCancelled(passkeyLogin.error) ? passkeyLogin.error : null
-  const { mutate: loginWithPasskey } = passkeyLogin
   const onEmailStep = step.name === 'email'
-  useEffect(() => {
-    if (!onEmailStep) return
-    let active = true
-    void passkeyAutofillAvailable().then((available) => {
-      if (available && active) loginWithPasskey(true)
-    })
-    return () => {
-      active = false
-      void cancelPasskeyRequest()
-    }
-  }, [onEmailStep, loginWithPasskey])
+  const passkeyLogin = usePasskeySignIn({
+    autofill: onEmailStep && passkeysSupported(),
+    onSignedIn: (data) => finish(data.user),
+  })
+  const passkeyError = passkeyLogin.error
   const resendIn = useCountdown(step.name === 'code' ? step.resendAt : 0)
 
   const trimmedEmail = email.trim()
@@ -198,8 +170,8 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       variant="outline"
       size="lg"
       className="w-full"
-      disabled={passkeyLogin.isPending && passkeyLogin.variables === false}
-      onClick={() => passkeyLogin.mutate(false)}
+      disabled={passkeyLogin.pending}
+      onClick={passkeyLogin.signIn}
     >
       <KeyRound aria-hidden />
       {m.auth_passkey_signin()}

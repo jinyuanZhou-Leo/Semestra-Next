@@ -90,6 +90,13 @@ export function ReauthGate({
   const queryClient = useQueryClient()
   // The confirmation stays in the stack after it is done, so the height does not change back.
   const [shown, setShown] = useState(false)
+  // Each time it is needed again it starts afresh (no old code, password or "sent").
+  const [round, setRound] = useState(0)
+  const [wasRequired, setWasRequired] = useState(required)
+  if (required !== wasRequired) {
+    setWasRequired(required)
+    if (required) setRound(round + 1)
+  }
   const verified = (status: ReauthStatus) => {
     queryClient.setQueryData(accountReauthStatusQueryKey(), status)
     setShown(true)
@@ -103,7 +110,7 @@ export function ReauthGate({
       </Layer>
       {required || shown ? (
         <Layer active={required}>
-          <ReauthChoice plain={plain} onVerified={verified} onCancel={onCancel} />
+          <ReauthChoice key={round} plain={plain} onVerified={verified} onCancel={onCancel} />
         </Layer>
       ) : null}
     </Stack>
@@ -228,10 +235,7 @@ function ReauthChoice({
     mutationFn: async () => {
       const { data: options } = await accountReauthPasskeyOptions({ throwOnError: true })
       const credential = await getPasskey(options)
-      const { data } = await accountReauthPasskey({
-        body: { challenge_id: options.challenge_id, credential },
-        throwOnError: true,
-      })
+      const { data } = await accountReauthPasskey({ body: { credential }, throwOnError: true })
       return data
     },
     onSuccess: onVerified,

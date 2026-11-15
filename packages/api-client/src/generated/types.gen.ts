@@ -7702,10 +7702,6 @@ export type PaletteColor = {
  */
 export type PasskeyAnswer = {
     /**
-     * Challenge Id
-     */
-    challenge_id: string;
-    /**
      * Credential
      *
      * The browser's PublicKeyCredential as JSON (`toJSON()`)
@@ -7723,6 +7719,18 @@ export type PasskeyList = {
      * Items
      */
     items: Array<PasskeyOut>;
+    /**
+     * Rp Id
+     *
+     * For the browser's signals about which passkeys still work
+     */
+    rp_id: string;
+    /**
+     * User Handle
+     *
+     * The user's id in WebAuthn (base64url)
+     */
+    user_handle: string;
 };
 
 /**
@@ -7734,11 +7742,29 @@ export type PasskeyOut = {
      */
     id: string;
     /**
+     * Credential Id
+     *
+     * The credential's id (base64url)
+     */
+    credential_id: string;
+    /**
      * Name
      *
-     * Null: the client names it (e.g. after the device)
+     * Given by the user
      */
     name: string | null;
+    /**
+     * Aaguid
+     *
+     * Its provider's model id; the client looks up the name
+     */
+    aaguid: string;
+    /**
+     * Device
+     *
+     * The browser and system it was added on
+     */
+    device: string | null;
     /**
      * Backed Up
      *
@@ -7760,15 +7786,9 @@ export type PasskeyOut = {
  */
 export type PasskeyRegisterInputBody = {
     /**
-     * Challenge Id
-     *
-     * From account.passkey.register_options
-     */
-    challenge_id: string;
-    /**
      * Credential
      *
-     * The browser's new credential, as JSON
+     * The browser's answer to account.passkey.register_options, as JSON
      */
     credential: {
         [key: string]: unknown;
@@ -7776,7 +7796,7 @@ export type PasskeyRegisterInputBody = {
     /**
      * Device
      *
-     * Names the passkey when its provider is not a known one (e.g. the browser)
+     * The browser and system it is added on, shown when no name is given
      */
     device?: string | null;
 };
@@ -8794,15 +8814,9 @@ export type ReauthEmailVerifyInputBody = {
  */
 export type ReauthPasskeyInputBody = {
     /**
-     * Challenge Id
-     *
-     * From account.reauth.passkey_options
-     */
-    challenge_id: string;
-    /**
      * Credential
      *
-     * The browser's answer, as JSON
+     * The browser's answer to account.reauth.passkey_options, as JSON
      */
     credential: {
         [key: string]: unknown;
@@ -12518,12 +12532,6 @@ export type ValuesUpdateInputBody = {
  * `PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take).
  */
 export type WebAuthnOptions = {
-    /**
-     * Challenge Id
-     *
-     * Send back with the answer
-     */
-    challenge_id: string;
     /**
      * Options
      */

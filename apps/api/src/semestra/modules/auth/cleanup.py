@@ -13,7 +13,7 @@ from semestra.modules.auth.models import (
     AuthPersonalAccessToken,
     AuthRateLimit,
     AuthSession,
-    AuthWebAuthnChallenge,
+    AuthUsedWebAuthnChallenge,
 )
 from semestra.modules.auth.oauth.common import REFRESH_IDLE
 
@@ -36,7 +36,7 @@ async def cleanup(ctx: Ctx) -> None:
     )
     await ctx.db.execute(delete(AuthEmailChallenge).where(AuthEmailChallenge.expires_at < short))
     await ctx.db.execute(
-        delete(AuthWebAuthnChallenge).where(AuthWebAuthnChallenge.expires_at < ctx.now)
+        delete(AuthUsedWebAuthnChallenge).where(AuthUsedWebAuthnChallenge.expires_at < ctx.now)
     )
     await ctx.db.execute(
         delete(AuthSession).where(

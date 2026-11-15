@@ -6,12 +6,21 @@ created, so signing in needs no email address first. Attestation is not requeste
 authenticator made a key only names it in the list.
 """
 
+import base64
+import hashlib
+import hmac
 import json
-from datetime import timedelta
-from typing import Any, Literal
+import os
+import struct
+from datetime import UTC, datetime, timedelta
+from functools import cache
+from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
-from sqlalchemy import delete, select
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from sqlalchemy import CursorResult, select
+from sqlalchemy.dialects.sqlite import insert
 from webauthn import (
     base64url_to_bytes,
     generate_authentication_options,
@@ -33,37 +42,21 @@ from webauthn.helpers.structs import (
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.modules.auth import ratelimit, service
-from semestra.modules.auth.models import AuthPasskey, AuthUser, AuthWebAuthnChallenge
-from semestra.modules.auth.schemas import PasskeyOut, WebAuthnOptions
+from semestra.modules.auth.models import AuthPasskey, AuthUsedWebAuthnChallenge, AuthUser
+from semestra.modules.auth.schemas import PasskeyList, PasskeyOut, WebAuthnOptions
 
-CHALLENGE_TTL = timedelta(minutes=5)
-TIMEOUT_MS = 300_000
-MAX_PASSKEYS = 20
 Purpose = Literal["login", "reauth", "register"]
 
-# Names for well-known passkey providers, by the AAGUID their keys report. Keys of other
-# providers (and Apple's, which report zeros) are named after the device by the client.
-KNOWN_AAGUIDS = {
-    "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4": "Google Password Manager",
-    "adce0002-35bc-c60a-648b-0b25f1f05503": "Chrome on Mac",
-    "771b48fd-d3d4-4f74-9232-fc157ab0507a": "Edge on Mac",
-    "08987058-cadc-4b81-b6e1-30de50dcbe96": "Windows Hello",
-    "9ddd1817-af5a-4672-a2b9-3e3dd95000a9": "Windows Hello",
-    "6028b017-b1d4-4c02-b4b3-afcdafc96bb2": "Windows Hello",
-    "fbfc3007-154e-4ecc-8c0b-6e020557d7bd": "iCloud Keychain",
-    "dd4ec289-e01d-41c9-bb89-70fa845d4bf2": "iCloud Keychain",
-    "d3452668-01fd-4c12-926c-83a4204853aa": "Microsoft Password Manager",
-    "53414d53-554e-4700-0000-000000000000": "Samsung Pass",
-    "bada5566-a7aa-401f-bd96-45619a55120d": "1Password",
-    "d548826e-79b4-db40-a3d8-11116f7e8349": "Bitwarden",
-    "531126d6-e717-415c-9320-3d9aa6981239": "Dashlane",
-    "b84e4048-15dc-4dd0-8640-f4f60813c8af": "NordPass",
-    "0ea242b4-43c4-4a1b-8b17-dd6d0b6baec6": "Keeper",
-    "b78a0a55-6ef8-d246-a042-ba0f6d55050c": "LastPass",
-    "50726f74-6f6e-5061-7373-50726f746f6e": "Proton Pass",
-    "f3809540-7f14-49c1-a8b3-8f813b225541": "Enpass",
-    "fdb141b2-5d84-443e-8a35-4698c205a502": "KeePassXC",
+# Signing in waits in the email field's autofill until the user picks a passkey, so its
+# challenge lives longer; the browser gives up at the same time and the page asks again.
+TTL: dict[Purpose, timedelta] = {
+    "login": timedelta(minutes=10),
+    "reauth": timedelta(minutes=5),
+    "register": timedelta(minutes=5),
 }
+MAX_PASSKEYS = 20
+UV = UserVerificationRequirement.REQUIRED  # a passkey is the only factor: always ask for it
+_NONCE, _EXPIRY, _MAC = 16, 8, 16
 
 
 def _origin(ctx: Ctx) -> str:
@@ -81,7 +74,10 @@ def _failed() -> AppError:
 def passkey_out(row: AuthPasskey) -> PasskeyOut:
     return PasskeyOut(
         id=row.id,
+        credential_id=row.credential_id,
         name=row.name,
+        aaguid=row.aaguid,
+        device=row.device,
         backed_up=row.backed_up,
         created_at=row.created_at,
         last_used_at=row.last_used_at,
@@ -112,52 +108,84 @@ def _descriptors(rows: list[AuthPasskey]) -> list[PublicKeyCredentialDescriptor]
     return out
 
 
-async def _challenge(
-    ctx: Ctx, purpose: Purpose, challenge: bytes, session_id: str | None
-) -> AuthWebAuthnChallenge:
-    row = AuthWebAuthnChallenge(
-        purpose=purpose,
-        session_id=session_id,
-        challenge=challenge,
-        expires_at=ctx.now + CHALLENGE_TTL,
-    )
-    ctx.db.add(row)
-    await ctx.db.flush()
-    return row
+# --- challenges -----------------------------------------------------------------------------
+# A challenge is `nonce ‖ expiry ‖ MAC(purpose, session, nonce, expiry)`: asking for one stores
+# nothing (the sign-in page asks on every visit, without an account). Answering records the
+# challenge in `auth_webauthn_used_challenges` first, whose primary key lets only one answer
+# through even when two arrive at once, and only then checks the answer.
 
 
-async def _take_challenge(
-    ctx: Ctx, challenge_id: str, purpose: Purpose, session_id: str | None
+@cache
+def _mac_key(secret_key: str) -> bytes:
+    return HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=None, info=b"semestra webauthn challenge"
+    ).derive(secret_key.encode())
+
+
+def _mac(ctx: Ctx, purpose: Purpose, session_id: str | None, body: bytes) -> bytes:
+    message = f"{purpose}\n{session_id or ''}\n".encode() + body
+    return hmac.new(_mac_key(ctx.settings.secret_key), message, hashlib.sha256).digest()[:_MAC]
+
+
+def _new_challenge(ctx: Ctx, purpose: Purpose, session_id: str | None) -> bytes:
+    expires = int((ctx.now + TTL[purpose]).timestamp())
+    body = os.urandom(_NONCE) + struct.pack(">Q", expires)
+    return body + _mac(ctx, purpose, session_id, body)
+
+
+def _answered_challenge(credential: dict[str, Any]) -> bytes:
+    """The challenge the authenticator signed, read from the answer's client data."""
+    response = credential.get("response")
+    data = response.get("clientDataJSON") if isinstance(response, dict) else None
+    try:
+        challenge = json.loads(base64url_to_bytes(str(data)))["challenge"]
+        return base64url_to_bytes(challenge)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise _failed() from exc
+
+
+async def _use_challenge(
+    ctx: Ctx, credential: dict[str, Any], purpose: Purpose, session_id: str | None
 ) -> bytes:
-    """The challenge's bytes; it is used up whether the answer turns out right or not."""
-    row = await ctx.db.get(AuthWebAuthnChallenge, challenge_id)
-    if row is None or row.purpose != purpose or row.session_id != session_id:
+    """The challenge of an answer, if this server made it for this purpose and session and it
+    has not been answered before; used up whether the answer turns out right or not."""
+    challenge = _answered_challenge(credential)
+    body, mac = challenge[:-_MAC], challenge[-_MAC:]
+    if len(body) != _NONCE + _EXPIRY or not hmac.compare_digest(
+        mac, _mac(ctx, purpose, session_id, body)
+    ):
         raise _failed()
-    await ctx.db.execute(
-        delete(AuthWebAuthnChallenge).where(AuthWebAuthnChallenge.id == challenge_id)
+    expires = datetime.fromtimestamp(struct.unpack(">Q", body[_NONCE:])[0], UTC)
+    if expires < ctx.now:
+        raise AppError("auth.passkey_expired", 401)
+    used = base64.urlsafe_b64encode(hashlib.sha256(challenge).digest()).decode()
+    result = await ctx.db.execute(
+        insert(AuthUsedWebAuthnChallenge)
+        .values(id=used, expires_at=expires)
+        .on_conflict_do_nothing()
     )
+    if not cast(CursorResult[Any], result).rowcount:
+        raise _failed()  # answered before
     # Committed now, so a wrong answer cannot be retried against the same challenge.
     await ctx.db.commit()
-    if row.expires_at < ctx.now:
-        raise _failed()
-    return row.challenge
+    return challenge
 
 
-def _options(row: AuthWebAuthnChallenge, options: Any) -> WebAuthnOptions:
-    return WebAuthnOptions(challenge_id=row.id, options=json.loads(options_to_json(options)))
+def _options(options: Any) -> WebAuthnOptions:
+    return WebAuthnOptions(options=json.loads(options_to_json(options)))
 
 
 # --- signing in -----------------------------------------------------------------------------
 
 
-async def login_options(ctx: Ctx) -> WebAuthnOptions:
+def login_options(ctx: Ctx) -> WebAuthnOptions:
     options = generate_authentication_options(
         rp_id=_rp_id(ctx),
-        timeout=TIMEOUT_MS,
-        user_verification=UserVerificationRequirement.PREFERRED,
+        challenge=_new_challenge(ctx, "login", None),
+        timeout=int(TTL["login"].total_seconds() * 1000),
+        user_verification=UV,
     )
-    row = await _challenge(ctx, "login", options.challenge, None)
-    return _options(row, options)
+    return _options(options)
 
 
 async def _verify(
@@ -167,11 +195,13 @@ async def _verify(
     credential_id = credential.get("id")
     if not isinstance(credential_id, str):
         raise _failed()
-    query = select(AuthPasskey).where(AuthPasskey.credential_id == credential_id)
-    if user_id is not None:
-        query = query.where(AuthPasskey.user_id == user_id)
-    passkey = await ctx.db.scalar(query)
+    passkey = await ctx.db.scalar(
+        select(AuthPasskey).where(AuthPasskey.credential_id == credential_id)
+    )
     if passkey is None:
+        # Removed here (or never saved): the client tells the password manager to drop it.
+        raise AppError("auth.passkey_unknown", 401, credential_id=credential_id)
+    if user_id is not None and passkey.user_id != user_id:
         raise _failed()
     try:
         result = verify_authentication_response(
@@ -181,9 +211,10 @@ async def _verify(
             expected_origin=_origin(ctx),
             credential_public_key=passkey.public_key,
             credential_current_sign_count=passkey.sign_count,
+            require_user_verification=True,
         )
-    except WebAuthnException as exc:
-        raise _failed() from exc
+    except WebAuthnException as error:
+        raise _failed() from error
     passkey.sign_count = result.new_sign_count
     passkey.backed_up = result.credential_backed_up
     passkey.last_used_at = ctx.now
@@ -192,7 +223,6 @@ async def _verify(
 
 async def login(
     ctx: Ctx,
-    challenge_id: str,
     credential: dict[str, Any],
     client: service.Client,
     meta: service.RequestMeta,
@@ -208,7 +238,7 @@ async def login(
             limit=count,
             window=window,
         )
-    challenge = await _take_challenge(ctx, challenge_id, "login", None)
+    challenge = await _use_challenge(ctx, credential, "login", None)
     passkey = await _verify(ctx, credential, challenge, None)
     user = await ctx.db.get(AuthUser, passkey.user_id)
     if user is None or user.deleted_at is not None:
@@ -229,18 +259,18 @@ async def reauth_options(ctx: Ctx) -> WebAuthnOptions:
         raise AppError("auth.passkey_none", 409)
     options = generate_authentication_options(
         rp_id=_rp_id(ctx),
-        timeout=TIMEOUT_MS,
+        challenge=_new_challenge(ctx, "reauth", session_id),
+        timeout=int(TTL["reauth"].total_seconds() * 1000),
         allow_credentials=_descriptors(rows),
-        user_verification=UserVerificationRequirement.PREFERRED,
+        user_verification=UV,
     )
-    row = await _challenge(ctx, "reauth", options.challenge, session_id)
-    return _options(row, options)
+    return _options(options)
 
 
-async def reauth(ctx: Ctx, challenge_id: str, credential: dict[str, Any]) -> None:
+async def reauth(ctx: Ctx, credential: dict[str, Any]) -> None:
     user = service.require_user(ctx)
     session_id = service.current_session_id(ctx)
-    challenge = await _take_challenge(ctx, challenge_id, "reauth", session_id)
+    challenge = await _use_challenge(ctx, credential, "reauth", session_id)
     await _verify(ctx, credential, challenge, user.id)
     await service.mark_verified(ctx, session_id)
 
@@ -248,9 +278,14 @@ async def reauth(ctx: Ctx, challenge_id: str, credential: dict[str, Any]) -> Non
 # --- the user's passkeys --------------------------------------------------------------------
 
 
-async def list_passkeys(ctx: Ctx) -> list[PasskeyOut]:
+async def list_passkeys(ctx: Ctx) -> PasskeyList:
+    """With what the browser needs to tell the user's password manager which ones still work."""
     user = service.require_user(ctx)
-    return [passkey_out(row) for row in await _passkeys(ctx, user.id)]
+    return PasskeyList(
+        items=[passkey_out(row) for row in await _passkeys(ctx, user.id)],
+        rp_id=_rp_id(ctx),
+        user_handle=bytes_to_base64url(user.id.encode()),
+    )
 
 
 async def register_options(ctx: Ctx) -> WebAuthnOptions:
@@ -267,34 +302,32 @@ async def register_options(ctx: Ctx) -> WebAuthnOptions:
         user_id=user.id.encode(),
         user_name=user.email,
         user_display_name=user.display_name,
-        timeout=TIMEOUT_MS,
+        challenge=_new_challenge(ctx, "register", session_id),
+        timeout=int(TTL["register"].total_seconds() * 1000),
         authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.REQUIRED,
-            user_verification=UserVerificationRequirement.PREFERRED,
+            resident_key=ResidentKeyRequirement.REQUIRED, user_verification=UV
         ),
         # The authenticator refuses to make a second key for the same account.
         exclude_credentials=_descriptors(rows),
     )
-    row = await _challenge(ctx, "register", options.challenge, session_id)
-    return _options(row, options)
+    return _options(options)
 
 
-async def register(
-    ctx: Ctx, challenge_id: str, credential: dict[str, Any], device: str | None
-) -> PasskeyOut:
+async def register(ctx: Ctx, credential: dict[str, Any], device: str | None) -> PasskeyOut:
     user = service.require_user(ctx)
     await service.require_recent_auth(ctx)
     session_id = service.current_session_id(ctx)
-    challenge = await _take_challenge(ctx, challenge_id, "register", session_id)
+    challenge = await _use_challenge(ctx, credential, "register", session_id)
     try:
         result = verify_registration_response(
             credential=credential,
             expected_challenge=challenge,
             expected_rp_id=_rp_id(ctx),
             expected_origin=_origin(ctx),
+            require_user_verification=True,
         )
-    except WebAuthnException as exc:
-        raise _failed() from exc
+    except WebAuthnException as error:
+        raise _failed() from error
     credential_id = bytes_to_base64url(result.credential_id)
     taken = await ctx.db.scalar(
         select(AuthPasskey.id).where(AuthPasskey.credential_id == credential_id)
@@ -312,7 +345,7 @@ async def register(
         if isinstance(transports, list)
         else [],
         aaguid=result.aaguid,
-        name=KNOWN_AAGUIDS.get(result.aaguid) or device,
+        device=device,
         backed_up=result.credential_backed_up,
         created_at=ctx.now,
     )

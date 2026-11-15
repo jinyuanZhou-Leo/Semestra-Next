@@ -12,8 +12,9 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
+import providers from 'aaguids/aaguids.json'
 import { Fingerprint, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react'
-import { createContext, type FormEvent, use, useId, useState } from 'react'
+import { createContext, type FormEvent, use, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { SettingsNote } from '@/app/settings/rows'
@@ -24,7 +25,12 @@ import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { ReauthGate, useReauthRequired } from '@/modules/auth/components/ReauthGate'
-import { createPasskey, passkeyCancelled, passkeysSupported } from '@/modules/auth/passkey'
+import {
+  createPasskey,
+  passkeyCancelled,
+  passkeysSupported,
+  syncAcceptedPasskeys,
+} from '@/modules/auth/passkey'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -50,13 +56,20 @@ import { Input } from '@/ui/input'
 
 // Settings → Account → Passkeys (M01 §4.9): the passkeys that can sign in to this account.
 
+const PROVIDERS: Record<string, string | undefined> = providers
+
 type Handlers = { onRename: (p: PasskeyOut) => void; onDelete: (p: PasskeyOut) => void }
 const HandlersContext = createContext<Handlers>({ onRename: () => {}, onDelete: () => {} })
 
 type CellProps = CellContext<typeof settingsTableFeatures, PasskeyOut>
 
+/**
+ * The user's name for it, else its provider's (from the community list of authenticator models,
+ * looked up when shown so the list's updates reach old passkeys), else the browser it was added
+ * on (Apple's keys do not say who made them).
+ */
 function passkeyName(p: PasskeyOut): string {
-  return p.name ?? m.auth_passkeys_unnamed()
+  return p.name ?? PROVIDERS[p.aaguid] ?? p.device ?? m.auth_passkeys_unnamed()
 }
 
 function NameCell({ row }: CellProps) {
@@ -115,6 +128,10 @@ export function PasskeysSection() {
   const queryClient = useQueryClient()
   const passkeys = useQuery(accountPasskeyListOptions())
   const supported = passkeysSupported()
+  // Lets the password manager drop the ones removed here (also from another device).
+  useEffect(() => {
+    if (passkeys.data && supported) void syncAcceptedPasskeys(passkeys.data)
+  }, [passkeys.data, supported])
   const [adding, setAdding] = useState(false)
   const renaming = useDialogTarget<PasskeyOut>()
   const deleting = useDialogTarget<PasskeyOut>()
@@ -128,6 +145,7 @@ export function PasskeysSection() {
     ...accountPasskeyRenameMutation(),
     onSuccess: () => (renaming.close(), refresh()),
   })
+  const { reset: resetRename } = rename
   const remove = useMutation({
     ...accountPasskeyDeleteMutation(),
     onSuccess: () => (deleting.close(), refresh()),
@@ -186,6 +204,10 @@ export function PasskeysSection() {
       />
       <RenameDialog
         {...renaming.props}
+        onOpenChangeComplete={(open) => {
+          renaming.props.onOpenChangeComplete(open)
+          if (!open) resetRename()
+        }}
         passkey={renaming.target}
         pending={rename.isPending}
         error={rename.error}
@@ -227,7 +249,6 @@ function AddPasskeyDialog({
       const credential = await createPasskey(options)
       const { data } = await accountPasskeyRegister({
         body: {
-          challenge_id: options.challenge_id,
           credential,
           device: deviceLabel(navigator.userAgent),
         },
@@ -293,18 +314,22 @@ function RenameDialog({
   onSubmit: (name: string) => void
 }) {
   const id = useId()
-  const [draft, setDraft] = useState<{ for: string | null; value: string }>({
-    for: null,
-    value: '',
-  })
-  // Starts from the passkey's name each time the dialog is about another one.
-  const value = draft.for === passkey?.id ? draft.value : passkey ? passkeyName(passkey) : ''
+  // Null until edited: each opening starts from the passkey's current name.
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? (passkey ? passkeyName(passkey) : '')
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (value.trim()) onSubmit(value.trim())
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={(next) => {
+        if (!next) setDraft(null)
+        onOpenChangeComplete(next)
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{m.auth_passkeys_rename_title()}</DialogTitle>
@@ -316,7 +341,7 @@ function RenameDialog({
               id={id}
               maxLength={60}
               value={value}
-              onChange={(e) => setDraft({ for: passkey?.id ?? null, value: e.target.value })}
+              onChange={(e) => setDraft(e.target.value)}
             />
             {error ? <FieldError>{errorMessage(error)}</FieldError> : null}
           </Field>

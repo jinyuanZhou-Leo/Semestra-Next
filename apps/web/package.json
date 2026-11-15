@@ -54,6 +54,7 @@
     "@tiptap/pm": "3.32.2",
     "@tiptap/react": "3.32.2",
     "@tiptap/suggestion": "3.32.2",
+    "aaguids": "0.0.73",
     "calligraph": "1.4.1",
     "canvas-confetti": "1.9.4",
     "chrono-node": "2.10.3",

@@ -191,23 +191,20 @@ class AuthPasskey(Base):
     sign_count: Mapped[int] = mapped_column(Integer, default=0)
     transports: Mapped[list[Any]] = mapped_column(JSON, default=list)
     aaguid: Mapped[str] = mapped_column(String)
-    # Set by the user, else named after the authenticator or the device it was added on.
+    # Given by the user; without one the client names it after its provider (by `aaguid`) or
+    # the browser and system it was added on (`device`, as the client reported them).
     name: Mapped[str | None] = mapped_column(String, default=None)
+    device: Mapped[str | None] = mapped_column(String, default=None)
     backed_up: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
 
 
-class AuthWebAuthnChallenge(Base):
-    """A one-time WebAuthn challenge, removed when it is answered (or expires)."""
+class AuthUsedWebAuthnChallenge(Base):
+    """A WebAuthn challenge that has been answered, kept until it expires so it is not answered
+    twice (M01 §4.9). Challenges themselves are signed, not stored."""
 
-    __tablename__ = "auth_webauthn_challenges"
+    __tablename__ = "auth_webauthn_used_challenges"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    purpose: Mapped[str] = mapped_column(String)  # 'login' | 'reauth' | 'register'
-    # For 'reauth' and 'register': the session that asked; the answer must come from it.
-    session_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("auth_sessions.id", ondelete="CASCADE"), default=None, index=True
-    )
-    challenge: Mapped[bytes] = mapped_column(LargeBinary)
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # SHA-256 of the challenge
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)

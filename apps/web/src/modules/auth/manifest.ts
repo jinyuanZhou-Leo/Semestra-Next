@@ -1,5 +1,6 @@
 import {
   accountPasskeyListOptions,
+  accountReauthStatusOptions,
   accountSessionListOptions,
   authConfigOptions,
 } from '@semestra/api-client/react-query'
@@ -51,7 +52,12 @@ export default defineModule({
       component: preloadable(() =>
         import('./settings/sections').then((s) => ({ default: s.PasskeysSettings })),
       ),
-      prefetch: (_scope, queryClient) => queryClient.ensureQueryData(accountPasskeyListOptions()),
+      // The reauth status too: "Add passkey" opens on the confirmation when one is due.
+      prefetch: (_scope, queryClient) =>
+        Promise.all([
+          queryClient.ensureQueryData(accountPasskeyListOptions()),
+          queryClient.ensureQueryData(accountReauthStatusOptions()),
+        ]),
     },
     {
       id: 'sessions',

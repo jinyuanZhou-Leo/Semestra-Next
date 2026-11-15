@@ -145,3 +145,55 @@ test('offers common email domains after the @ and Tab accepts the first', async 
   await userEvent.tab()
   expect(input).toHaveValue('ann@gmail.com')
 })
+
+/** A browser with passkeys: `get` resolves or fails when the test says so. */
+function stubPasskeyBrowser() {
+  const requests: { mediation?: string; signal?: AbortSignal; fail: (name: string) => void }[] = []
+  vi.stubGlobal('isSecureContext', true)
+  vi.stubGlobal(
+    'PublicKeyCredential',
+    Object.assign(function PublicKeyCredential() {}, {
+      isConditionalMediationAvailable: () => Promise.resolve(true),
+    }),
+  )
+  const get = vi.fn<(options: CredentialRequestOptions) => Promise<never>>(
+    ({ mediation, signal }) =>
+      new Promise((_, reject) => {
+        const fail = (name: string) => reject(new DOMException('', name))
+        signal?.addEventListener('abort', () => fail('AbortError'))
+        requests.push({ mediation, signal, fail })
+      }),
+  )
+  Object.defineProperty(navigator, 'credentials', { value: { get }, configurable: true })
+  return requests
+}
+
+const passkeyOptions = {
+  options: { challenge: 'AAAA', rpId: 'localhost', userVerification: 'required' },
+}
+
+test('the passkey button is not cancelled by a late autofill request, which asks again after', async () => {
+  const requests = stubPasskeyBrowser()
+  let calls = 0
+  server.use(
+    config,
+    http.post(`${API}/auth/passkey/options`, async () => {
+      // The page's first (autofill) request is slow; the button's arrives first.
+      if (++calls === 1) await new Promise((r) => setTimeout(r, 100))
+      return HttpResponse.json(passkeyOptions)
+    }),
+  )
+  renderWithRouter(<LoginFlow onSignedIn={vi.fn<(user: UserOut) => void>()} />)
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Sign in with a passkey' }))
+  await waitFor(() => expect(requests).toHaveLength(1))
+  await new Promise((r) => setTimeout(r, 200)) // the replaced autofill request has answered
+  expect(requests).toHaveLength(1)
+  expect(requests[0]?.mediation).not.toBe('conditional')
+  expect(requests[0]?.signal?.aborted).toBe(false)
+
+  requests[0]?.fail('NotAllowedError') // the user closes the browser's prompt
+  await waitFor(() => expect(requests[1]?.mediation).toBe('conditional'))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  vi.unstubAllGlobals()
+})

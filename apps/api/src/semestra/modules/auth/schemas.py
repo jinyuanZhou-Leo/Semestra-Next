@@ -158,7 +158,10 @@ class TokenList(BaseModel):
 
 class PasskeyOut(BaseModel):
     id: str
-    name: str | None = Field(description="Null: the client names it (e.g. after the device)")
+    credential_id: str = Field(description="The credential's id (base64url)")
+    name: str | None = Field(description="Given by the user")
+    aaguid: str = Field(description="Its provider's model id; the client looks up the name")
+    device: str | None = Field(description="The browser and system it was added on")
     backed_up: bool = Field(description="Synced to the user's other devices by its provider")
     created_at: datetime
     last_used_at: datetime | None
@@ -166,18 +169,18 @@ class PasskeyOut(BaseModel):
 
 class PasskeyList(BaseModel):
     items: list[PasskeyOut]
+    rp_id: str = Field(description="For the browser's signals about which passkeys still work")
+    user_handle: str = Field(description="The user's id in WebAuthn (base64url)")
 
 
 class WebAuthnOptions(BaseModel):
     """Options for `navigator.credentials.create/get`, as WebAuthn's JSON form (what
     `PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take)."""
 
-    challenge_id: str = Field(description="Send back with the answer")
     options: dict[str, Any]
 
 
 class PasskeyAnswer(BaseModel):
-    challenge_id: str = Field(max_length=64)
     credential: dict[str, Any] = Field(
         description="The browser's PublicKeyCredential as JSON (`toJSON()`)"
     )

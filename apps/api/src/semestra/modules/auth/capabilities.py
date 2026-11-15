@@ -359,8 +359,9 @@ async def reauth_google(ctx: Ctx, inp: GoogleLinkInput) -> ReauthStatus:
 
 
 class ReauthPasskeyInput(BaseModel):
-    challenge_id: str = Field(max_length=64, description="From account.reauth.passkey_options")
-    credential: dict[str, Any] = Field(description="The browser's answer, as JSON")
+    credential: dict[str, Any] = Field(
+        description="The browser's answer to account.reauth.passkey_options, as JSON"
+    )
 
 
 @capability(
@@ -386,7 +387,7 @@ async def reauth_passkey_options(ctx: Ctx, inp: NoInput) -> WebAuthnOptions:
     tags=("account",),
 )
 async def reauth_passkey(ctx: Ctx, inp: ReauthPasskeyInput) -> ReauthStatus:
-    await passkeys.reauth(ctx, inp.challenge_id, inp.credential)
+    await passkeys.reauth(ctx, inp.credential)
     return _verified(ctx)
 
 
@@ -400,7 +401,7 @@ async def reauth_passkey(ctx: Ctx, inp: ReauthPasskeyInput) -> ReauthStatus:
     tags=("account",),
 )
 async def passkey_list(ctx: Ctx, inp: NoInput) -> PasskeyList:
-    return PasskeyList(items=await passkeys.list_passkeys(ctx))
+    return await passkeys.list_passkeys(ctx)
 
 
 @capability(
@@ -418,12 +419,13 @@ async def passkey_register_options(ctx: Ctx, inp: NoInput) -> WebAuthnOptions:
 
 
 class PasskeyRegisterInput(BaseModel):
-    challenge_id: str = Field(max_length=64, description="From account.passkey.register_options")
-    credential: dict[str, Any] = Field(description="The browser's new credential, as JSON")
+    credential: dict[str, Any] = Field(
+        description="The browser's answer to account.passkey.register_options, as JSON"
+    )
     device: str | None = Field(
         default=None,
         max_length=60,
-        description="Names the passkey when its provider is not a known one (e.g. the browser)",
+        description="The browser and system it is added on, shown when no name is given",
     )
 
 
@@ -438,7 +440,7 @@ class PasskeyRegisterInput(BaseModel):
     tags=("account",),
 )
 async def passkey_register(ctx: Ctx, inp: PasskeyRegisterInput) -> PasskeyOut:
-    return await passkeys.register(ctx, inp.challenge_id, inp.credential, inp.device)
+    return await passkeys.register(ctx, inp.credential, inp.device)
 
 
 class PasskeyRenameInput(BaseModel):

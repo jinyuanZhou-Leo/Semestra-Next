@@ -31851,11 +31851,6 @@
       },
       "PasskeyAnswer": {
         "properties": {
-          "challenge_id": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Challenge Id"
-          },
           "credential": {
             "additionalProperties": true,
             "type": "object",
@@ -31865,7 +31860,6 @@
         },
         "type": "object",
         "required": [
-          "challenge_id",
           "credential"
         ],
         "title": "PasskeyAnswer"
@@ -31878,11 +31872,23 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "rp_id": {
+            "type": "string",
+            "title": "Rp Id",
+            "description": "For the browser's signals about which passkeys still work"
+          },
+          "user_handle": {
+            "type": "string",
+            "title": "User Handle",
+            "description": "The user's id in WebAuthn (base64url)"
           }
         },
         "type": "object",
         "required": [
-          "items"
+          "items",
+          "rp_id",
+          "user_handle"
         ],
         "title": "PasskeyList"
       },
@@ -31891,6 +31897,11 @@
           "id": {
             "type": "string",
             "title": "Id"
+          },
+          "credential_id": {
+            "type": "string",
+            "title": "Credential Id",
+            "description": "The credential's id (base64url)"
           },
           "name": {
             "anyOf": [
@@ -31902,7 +31913,24 @@
               }
             ],
             "title": "Name",
-            "description": "Null: the client names it (e.g. after the device)"
+            "description": "Given by the user"
+          },
+          "aaguid": {
+            "type": "string",
+            "title": "Aaguid",
+            "description": "Its provider's model id; the client looks up the name"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device",
+            "description": "The browser and system it was added on"
           },
           "backed_up": {
             "type": "boolean",
@@ -31930,7 +31958,10 @@
         "type": "object",
         "required": [
           "id",
+          "credential_id",
           "name",
+          "aaguid",
+          "device",
           "backed_up",
           "created_at",
           "last_used_at"
@@ -31939,17 +31970,11 @@
       },
       "PasskeyRegisterInputBody": {
         "properties": {
-          "challenge_id": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Challenge Id",
-            "description": "From account.passkey.register_options"
-          },
           "credential": {
             "additionalProperties": true,
             "type": "object",
             "title": "Credential",
-            "description": "The browser's new credential, as JSON"
+            "description": "The browser's answer to account.passkey.register_options, as JSON"
           },
           "device": {
             "anyOf": [
@@ -31962,12 +31987,11 @@
               }
             ],
             "title": "Device",
-            "description": "Names the passkey when its provider is not a known one (e.g. the browser)"
+            "description": "The browser and system it is added on, shown when no name is given"
           }
         },
         "type": "object",
         "required": [
-          "challenge_id",
           "credential"
         ],
         "title": "PasskeyRegisterInputBody"
@@ -33858,22 +33882,15 @@
       },
       "ReauthPasskeyInputBody": {
         "properties": {
-          "challenge_id": {
-            "type": "string",
-            "maxLength": 64,
-            "title": "Challenge Id",
-            "description": "From account.reauth.passkey_options"
-          },
           "credential": {
             "additionalProperties": true,
             "type": "object",
             "title": "Credential",
-            "description": "The browser's answer, as JSON"
+            "description": "The browser's answer to account.reauth.passkey_options, as JSON"
           }
         },
         "type": "object",
         "required": [
-          "challenge_id",
           "credential"
         ],
         "title": "ReauthPasskeyInputBody"
@@ -40037,11 +40054,6 @@
       },
       "WebAuthnOptions": {
         "properties": {
-          "challenge_id": {
-            "type": "string",
-            "title": "Challenge Id",
-            "description": "Send back with the answer"
-          },
           "options": {
             "additionalProperties": true,
             "type": "object",
@@ -40050,7 +40062,6 @@
         },
         "type": "object",
         "required": [
-          "challenge_id",
           "options"
         ],
         "title": "WebAuthnOptions",

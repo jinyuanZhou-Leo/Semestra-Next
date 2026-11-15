@@ -3331,6 +3331,9 @@
   "auth_passkeys_delete_title": "删除这个通行密钥？",
   "auth_passkeys_delete_desc": "它将无法再登录 Semestra。你也可以在密码管理器里把它删掉。",
   "error_auth_passkey_failed": "无法验证这个通行密钥，请重试。",
+  "error_auth_passkey_expired": "等待时间过长，请重试。",
+  "error_auth_passkey_unknown": "这个通行密钥已从账户中删除，请用其他方式登录。",
+  "error_auth_passkey_unavailable": "这个网址不能使用通行密钥。",
   "error_auth_passkey_none": "这个账户还没有通行密钥。",
   "error_auth_passkey_limit": "最多只能添加 {max} 个通行密钥。",
   "error_auth_passkey_exists": "这个通行密钥已经添加过了。"

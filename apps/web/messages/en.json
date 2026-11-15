@@ -3331,6 +3331,9 @@
   "auth_passkeys_delete_title": "Delete this passkey?",
   "auth_passkeys_delete_desc": "It will no longer sign in to Semestra. You can also remove it from your password manager.",
   "error_auth_passkey_failed": "That passkey couldn't be verified. Try again.",
+  "error_auth_passkey_expired": "That took too long. Try again.",
+  "error_auth_passkey_unknown": "This passkey was removed from your account. Use another way to sign in.",
+  "error_auth_passkey_unavailable": "Passkeys can't be used at this address.",
   "error_auth_passkey_none": "This account has no passkeys.",
   "error_auth_passkey_limit": "You can add up to {max} passkeys.",
   "error_auth_passkey_exists": "This passkey has already been added."

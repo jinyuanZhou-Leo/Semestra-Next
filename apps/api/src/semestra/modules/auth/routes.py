@@ -165,9 +165,7 @@ async def google_login(
 @router.post("/passkey/options", operation_id="authPasskeyOptions", response_model=WebAuthnOptions)
 async def passkey_options(ctx: AnonCtx) -> WebAuthnOptions:
     """A challenge for signing in with any passkey of this site (no email address needed)."""
-    options = await passkeys.login_options(ctx)
-    await ctx.db.commit()
-    return options
+    return passkeys.login_options(ctx)
 
 
 @router.post("/passkey", operation_id="authPasskeyLogin", response_model=AuthResult)
@@ -179,9 +177,7 @@ async def passkey_login(
     ctx: AnonCtx,
     client: ClientParam = "web",
 ) -> AuthResult:
-    signed_in = await passkeys.login(
-        ctx, body.challenge_id, body.credential, client, _meta(request, ctx)
-    )
+    signed_in = await passkeys.login(ctx, body.credential, client, _meta(request, ctx))
     return await _finish(ctx, response, tasks, signed_in, client)
 
 
