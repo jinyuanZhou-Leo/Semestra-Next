@@ -414,6 +414,87 @@
         }
       }
     },
+    "/auth/passkey/options": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Passkey Options",
+        "description": "A challenge for signing in with any passkey of this site (no email address needed).",
+        "operationId": "authPasskeyOptions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnOptions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/passkey": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Passkey Login",
+        "operationId": "authPasskeyLogin",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "web",
+                "native"
+              ],
+              "type": "string",
+              "description": "`native` returns tokens in the body instead of setting cookies",
+              "default": "web",
+              "title": "Client"
+            },
+            "description": "`native` returns tokens in the body instead of setting cookies"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/token/refresh": {
       "post": {
         "tags": [
@@ -2996,6 +3077,248 @@
         ]
       }
     },
+    "/account/passkeys/{passkey_id}": {
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Remove a passkey.",
+        "description": "It can no longer sign in. Not available to agents.",
+        "operationId": "accountPasskeyDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "passkey_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id of the passkey",
+              "title": "Passkey Id"
+            },
+            "description": "Id of the passkey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Revoked"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Rename a passkey.",
+        "description": "Changes the name shown in the list. Not available to agents.",
+        "operationId": "accountPasskeyRename",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "passkey_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Id of the passkey",
+              "title": "Passkey Id"
+            },
+            "description": "Id of the passkey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRenameInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/account/passkeys": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "summary": "List the user's passkeys.",
+        "description": "Passkeys registered for signing in. Not available to agents.",
+        "operationId": "accountPasskeyList",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Add a passkey.",
+        "description": "Saves the credential created for account.passkey.register_options. Not available to agents.",
+        "operationId": "accountPasskeyRegister",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegisterInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/passkeys/options": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Start adding a passkey.",
+        "description": "A WebAuthn creation challenge; needs a recent confirmation that it is the user. Not available to agents.",
+        "operationId": "accountPasskeyRegisterOptions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnOptions"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
     "/account/password/change": {
       "post": {
         "tags": [
@@ -3254,6 +3577,96 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth/passkey": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Confirm it is you with a passkey.",
+        "description": "Checks the answer to account.reauth.passkey_options. Renews re-authentication for the current session. Not available to agents.",
+        "operationId": "accountReauthPasskey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthPasskeyInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ]
+      }
+    },
+    "/account/reauth/passkey-options": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Start confirming it is you with a passkey.",
+        "description": "A WebAuthn challenge for one of the user's passkeys. Not available to agents.",
+        "operationId": "accountReauthPasskeyOptions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnOptions"
                 }
               }
             }
@@ -31436,6 +31849,145 @@
         ],
         "title": "PaletteColor"
       },
+      "PasskeyAnswer": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Challenge Id"
+          },
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential",
+            "description": "The browser's PublicKeyCredential as JSON (`toJSON()`)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "credential"
+        ],
+        "title": "PasskeyAnswer"
+      },
+      "PasskeyList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PasskeyOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PasskeyList"
+      },
+      "PasskeyOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Null: the client names it (e.g. after the device)"
+          },
+          "backed_up": {
+            "type": "boolean",
+            "title": "Backed Up",
+            "description": "Synced to the user's other devices by its provider"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "backed_up",
+          "created_at",
+          "last_used_at"
+        ],
+        "title": "PasskeyOut"
+      },
+      "PasskeyRegisterInputBody": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Challenge Id",
+            "description": "From account.passkey.register_options"
+          },
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential",
+            "description": "The browser's new credential, as JSON"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device",
+            "description": "Names the passkey when its provider is not a known one (e.g. the browser)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "credential"
+        ],
+        "title": "PasskeyRegisterInputBody"
+      },
+      "PasskeyRenameInputBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "description": "New name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PasskeyRenameInputBody"
+      },
       "PasswordChangeInputBody": {
         "properties": {
           "current_password": {
@@ -33303,6 +33855,28 @@
           "code"
         ],
         "title": "ReauthEmailVerifyInputBody"
+      },
+      "ReauthPasskeyInputBody": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Challenge Id",
+            "description": "From account.reauth.passkey_options"
+          },
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential",
+            "description": "The browser's answer, as JSON"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "credential"
+        ],
+        "title": "ReauthPasskeyInputBody"
       },
       "ReauthPasswordInputBody": {
         "properties": {
@@ -39347,6 +39921,11 @@
             "type": "boolean",
             "title": "Has Password"
           },
+          "has_passkey": {
+            "type": "boolean",
+            "title": "Has Passkey",
+            "description": "Whether the user registered at least one passkey"
+          },
           "identities": {
             "items": {
               "$ref": "#/components/schemas/IdentityOut"
@@ -39368,6 +39947,7 @@
           "avatar_url",
           "locale",
           "has_password",
+          "has_passkey",
           "identities",
           "created_at"
         ],
@@ -39454,6 +40034,27 @@
           "values"
         ],
         "title": "ValuesUpdateInputBody"
+      },
+      "WebAuthnOptions": {
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "title": "Challenge Id",
+            "description": "Send back with the answer"
+          },
+          "options": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "options"
+        ],
+        "title": "WebAuthnOptions",
+        "description": "Options for `navigator.credentials.create/get`, as WebAuthn's JSON form (what\n`PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take)."
       },
       "WizardCourse": {
         "properties": {
