@@ -26,6 +26,8 @@ export {
 declare global {
   interface Window {
     bombadilFailedRequests?: string[]
+    bombadilLayoutShifts?: string[]
+    bombadilWatchesDestructive?: boolean
   }
 }
 
@@ -130,6 +132,117 @@ const horizontalOverflow = extract((state) => {
 export const noHorizontalScroll = always(
   eventually(() => horizontalOverflow.current <= 0).within(1, 'seconds'),
 )
+
+// Project conventions (CLAUDE.md, UI section) that show at run time.
+
+/**
+ * Content does not jump on its own: layout shifts that no click or key press caused (data
+ * arriving after a spinner that was smaller than the content, a settings group growing after it
+ * opened). Shifts within half a second of input are left out by the browser.
+ */
+const layoutShifts = extract((state) => {
+  const win = state.window
+  if (!win.bombadilLayoutShifts) {
+    const shifts: string[] = []
+    win.bombadilLayoutShifts = shifts
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number
+        hadRecentInput: boolean
+        sources?: {
+          node?: Node | null
+          previousRect: DOMRectReadOnly
+          currentRect: DOMRectReadOnly
+        }[]
+      })[]) {
+        if (entry.hadRecentInput || entry.value < 0.05) continue
+        const source = entry.sources?.find((each) => each.node instanceof Element)
+        const where =
+          source?.node instanceof Element ? source.node.outerHTML.slice(0, 160) : 'unknown element'
+        const moved = source
+          ? ` from y ${Math.round(source.previousRect.y)} to ${Math.round(source.currentRect.y)}`
+          : ''
+        shifts.push(`${entry.value.toFixed(3)} ${win.location.href}${moved}: ${where}`)
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  }
+  return [...win.bombadilLayoutShifts]
+})
+
+export const noLayoutJumps = always(() => layoutShifts.current.length === 0)
+
+/**
+ * Every open dialog, sheet or drawer has a title a screen reader announces (`DialogTitle` and the
+ * like, `sr-only` where it is not shown). Popovers are dialogs to Base UI too, but need none.
+ */
+const DIALOGS = ['dialog-content', 'alert-dialog-content', 'sheet-content', 'drawer-content'].map(
+  (slot) => `[data-slot="${slot}"]`,
+)
+
+const untitledDialogs = extract((state) =>
+  [...state.document.querySelectorAll(DIALOGS.join(', '))]
+    .filter((surface) => surface.checkVisibility())
+    // The drawer's content sits inside the element with the dialog role, which holds the name.
+    .map((surface) => surface.closest('[role="dialog"], [role="alertdialog"]') ?? surface)
+    .filter((dialog) => {
+      const label = dialog.getAttribute('aria-label')?.trim()
+      const titles = (dialog.getAttribute('aria-labelledby') ?? '')
+        .split(/\s+/)
+        .map((id) => state.document.getElementById(id)?.textContent?.trim())
+      return !label && !titles.some(Boolean)
+    })
+    .map((dialog) => dialog.outerHTML.slice(0, 160)),
+)
+
+export const dialogsHaveTitles = always(() => untitledDialogs.current.length === 0)
+
+/** Settings choose between options with `ChoiceControl`, never with tabs. */
+const settingsTabs = extract(
+  (state) =>
+    state.window.location.search.includes('settings=') &&
+    [...state.document.querySelectorAll('[role="dialog"] [role="tablist"]')].some((tabs) =>
+      tabs.checkVisibility(),
+    ),
+)
+
+export const settingsUseChoiceControl = always(() => !settingsTabs.current)
+
+/**
+ * A destructive menu item (delete, revoke, disconnect, sign out) asks in a confirmation dialog
+ * before it acts. Buttons are left out: removing a row of a form that is not saved yet is red
+ * but asks nothing. A click on one is kept in sessionStorage, since acting may load a new page
+ * (signing out does); an open confirmation settles it.
+ */
+const UNCONFIRMED = 'bombadil.unconfirmed'
+
+const unconfirmed = extract((state) => {
+  const win = state.window
+  if (!win.bombadilWatchesDestructive) {
+    win.bombadilWatchesDestructive = true
+    win.document.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target instanceof Element ? event.target : null
+        const item = target?.closest('[role="menuitem"][data-variant="destructive"]')
+        if (!item) return
+        const click = { at: Date.now(), what: item.outerHTML.slice(0, 160) }
+        win.sessionStorage.setItem(UNCONFIRMED, JSON.stringify(click))
+      },
+      true,
+    )
+  }
+  if (state.document.querySelector('[role="alertdialog"]')) {
+    win.sessionStorage.removeItem(UNCONFIRMED)
+    return null
+  }
+  const click = JSON.parse(win.sessionStorage.getItem(UNCONFIRMED) ?? 'null') as {
+    at: number
+    what: string
+  } | null
+  return click && Date.now() - click.at > 1000 ? click.what : null
+})
+
+export const destructiveActionsConfirm = always(() => unconfirmed.current === null)
 
 // Actions: Bombadil's defaults, plus now and then waiting for whatever is loading. The boot
 // screen offers nothing to click, so there waiting is the only action.

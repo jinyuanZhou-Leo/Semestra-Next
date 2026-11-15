@@ -184,6 +184,16 @@ async function seed() {
   return http.cookies
 }
 
+// Another server on the port would answer the readiness check and get the seed data instead.
+const taken = await fetch(`${origin}/readyz`).then(
+  () => true,
+  () => false,
+)
+if (taken) {
+  console.error(`Something already listens on ${origin}; stop it or set BOMBADIL_PORT.`)
+  process.exit(1)
+}
+
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(130))
 
 const migrate = await exited(
@@ -195,6 +205,7 @@ if (migrate !== 0) process.exit(migrate)
 const server = uv(['semestra', 'serve', '--host', '127.0.0.1', '--port', String(port)], {
   stdio: ['ignore', 'ignore', 'inherit'],
 })
+const serverExited = exited(server)
 process.on('exit', () => server.exitCode === null && server.kill('SIGTERM'))
 await waitUntilReady(server)
 const cookies = await seed()
@@ -218,6 +229,9 @@ const bombadil = spawn(
   { cwd: web, stdio: 'inherit' },
 )
 const status = await exited(bombadil)
+// Let the port go before returning, so a run right after this one can take it.
+server.kill('SIGTERM')
+await serverExited
 // Bombadil's own "Reproduce this test" line needs this instance, which is gone by now; replays
 // rarely line up anyway (React's generated element ids differ between runs).
 if (status === 2) console.log(`Trace and screenshots: ${path.relative(web, output)}`)
