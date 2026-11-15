@@ -1,4 +1,4 @@
-import type { UserOut } from '@semestra/api-client'
+import { authPasskeyLogin, authPasskeyOptions, type UserOut } from '@semestra/api-client'
 import {
   accountProfileGetQueryKey,
   authConfigOptions,
@@ -11,9 +11,17 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import { KeyRound } from 'lucide-react'
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
+import {
+  cancelPasskeyRequest,
+  getPasskey,
+  passkeyAutofillAvailable,
+  passkeyCancelled,
+  passkeysSupported,
+} from '@/modules/auth/passkey'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -81,6 +89,35 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
   const register = useMutation(authRegisterCompleteMutation())
   const passwordLogin = useMutation(authPasswordLoginMutation())
   const googleLogin = useMutation(authGoogleLoginMutation())
+  const passkeyLogin = useMutation({
+    // `autofill`: the browser offers the account's passkeys in the email field and the request
+    // waits until one is picked there; the button asks right away (and replaces that request).
+    mutationFn: async (autofill: boolean) => {
+      const { data: options } = await authPasskeyOptions({ throwOnError: true })
+      const credential = await getPasskey(options, autofill)
+      const { data } = await authPasskeyLogin({
+        body: { challenge_id: options.challenge_id, credential },
+        throwOnError: true,
+      })
+      return data
+    },
+    onSuccess: (data) => finish(data.user),
+  })
+  const passkeyError =
+    passkeyLogin.error && !passkeyCancelled(passkeyLogin.error) ? passkeyLogin.error : null
+  const { mutate: loginWithPasskey } = passkeyLogin
+  const onEmailStep = step.name === 'email'
+  useEffect(() => {
+    if (!onEmailStep) return
+    let active = true
+    void passkeyAutofillAvailable().then((available) => {
+      if (available && active) loginWithPasskey(true)
+    })
+    return () => {
+      active = false
+      void cancelPasskeyRequest()
+    }
+  }, [onEmailStep, loginWithPasskey])
   const resendIn = useCountdown(step.name === 'code' ? step.resendAt : 0)
 
   const trimmedEmail = email.trim()
@@ -154,6 +191,20 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       { onSuccess: (data) => finish(data.user) },
     )
   }
+
+  const passkey = passkeysSupported() ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      className="w-full"
+      disabled={passkeyLogin.isPending && passkeyLogin.variables === false}
+      onClick={() => passkeyLogin.mutate(false)}
+    >
+      <KeyRound aria-hidden />
+      {m.auth_passkey_signin()}
+    </Button>
+  ) : null
 
   const google = googleClientId ? (
     <GoogleSignInButton
@@ -340,6 +391,8 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             error={emailError}
             ref={focusOnMount}
             readOnly={compact && Boolean(initialEmail)}
+            // Lets the browser list this site's passkeys among the field's suggestions.
+            autoComplete="username webauthn"
           />
           <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
@@ -357,11 +410,18 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           {m.auth_use_password()}
         </Button>
       </div>
-      {google ? (
-        <div className="mt-4 flex flex-col gap-6">
-          <FieldSeparator className="text-xs">{m.auth_or()}</FieldSeparator>
+      {passkey || google ? (
+        <div className="mt-4 flex flex-col gap-3">
+          <FieldSeparator className="mb-3 text-xs">{m.auth_or()}</FieldSeparator>
+          {passkey}
           {google}
-          <FieldError>{googleLogin.error ? errorMessage(googleLogin.error) : null}</FieldError>
+          <FieldError>
+            {passkeyError
+              ? errorMessage(passkeyError)
+              : googleLogin.error
+                ? errorMessage(googleLogin.error)
+                : null}
+          </FieldError>
         </div>
       ) : null}
     </div>
