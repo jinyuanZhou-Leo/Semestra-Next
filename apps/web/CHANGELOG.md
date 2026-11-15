@@ -1,5 +1,693 @@
 # @semestra/web
 
+## 2.0.0
+
+### Major Changes
+
+- 85173ea: <!-- area: api -->
+  <!-- en -->
+  The unused endpoint for reordering assessments (PUT /courses/{course_id}/assessment-order) has been removed.
+  <!-- zh -->
+  移除了未使用的考核排序接口（PUT /courses/{course_id}/assessment-order）。
+
+### Minor Changes
+
+- a295909: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+  Confirming it's you now starts with your easiest sign-in method, with other ways one click away.
+  <!-- zh -->
+  确认身份时默认使用最方便的方式，其他方式一键切换。
+- a295909: <!-- area: account -->
+  <!-- en -->
+  Sign in and confirm it's you with a passkey, and manage your passkeys in account settings.
+  <!-- zh -->
+  支持用通行密钥登录和确认身份，并可在账户设置中管理通行密钥。
+- 0629c7c: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Tables now add entries from a button beside their heading instead of a row at the bottom.
+  <!-- zh -->
+  表格的新建入口统一移到标题旁的按钮，不再放在表格末行。
+- a49e533: <!-- area: ai -->
+  <!-- improved -->
+  <!-- en -->
+  When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+  <!-- zh -->
+  AI 功能不可用时会说明原因（未连接服务商、模型不支持等），并直接带你去处理；服务商出问题时会提醒你，但不会挡住你。
+- 75d9a15: <!-- area: canvas -->
+  <!-- en -->
+  Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+  <!-- zh -->
+  手动添加的考核可以绑定到 Canvas 作业，导入同名作业时会绑定到已有考核，不再重复添加。
+- ee1cb26: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas events in the calendar carry a Canvas mark and open in Canvas from their details.
+  <!-- zh -->
+  日历中的 Canvas 事件带有 Canvas 标记，可从详情直接在 Canvas 中打开。
+- 8d8f504: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Calendar item details open beside the item without covering the calendar, with clearer actions.
+  <!-- zh -->
+  日历条目的详情改为在条目旁弹出，不再遮挡日历，操作更清晰。
+- 56d3ac2: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab combines assignments, quizzes and grades into one list; grades already on Canvas come along when importing to the gradebook.
+  <!-- zh -->
+  Canvas 页签把作业、测验和成绩合并为一个列表；导入到成绩簿时会带上 Canvas 上已有的成绩。
+- 5d3aacd: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas assignment groups are imported into the course's existing grade categories, and remember where you moved them.
+  <!-- zh -->
+  导入 Canvas 作业时，作业组会归入课程已有的成绩分类，并记住你调整过的归类。
+- ec74a72: <!-- area: notifications -->
+  <!-- en -->
+  Notifications for new Canvas grades, assignment changes and announcements, and a daily reminder for habits.
+  <!-- zh -->
+  新增 Canvas 新成绩、作业变更与公告的通知，以及习惯打卡的每日提醒。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  A notification points out new Canvas assignments, with one click to import or ignore them.
+  <!-- zh -->
+  Canvas 上有新作业时会弹出通知，可一键导入或忽略。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  Importing Canvas assignments puts those worth points in the gradebook and the rest in to-dos, and saves right away unless something needs checking; a to-do can be added to the gradebook later.
+  <!-- zh -->
+  导入 Canvas 作业时，有分值的进入成绩簿，其余成为待办；没有需要确认的内容时直接保存。只是待办的作业之后也可以加入成绩簿。
+- 3cb1352: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab shows what you last saw right away and updates it in the background.
+  <!-- zh -->
+  Canvas 页签打开即显示上次的内容，并在后台更新为最新版本。
+- 76adef9: <!-- area: canvas -->
+  <!-- improved -->
+  <!-- en -->
+  Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+  <!-- zh -->
+  Canvas 页面更易阅读，标题和表格更清晰；单元一眼就能看到完成进度。
+- fa5dbbf: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Page headers take less room, leaving more space for content.
+  <!-- zh -->
+  页面顶部更紧凑，内容区有更多空间。
+- 3358bb5: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  A year-long course's terms are now chosen as a start and end term, and instructors are listed in their own table in course settings.
+  <!-- zh -->
+  跨学期课程改为选择开始与结束学期，课程设置中的授课教师改为独立表格。
+- 9375f05: <!-- area: files -->
+  <!-- en -->
+  The file preview is larger, with the file's contents on the left, a search for this file, page and zoom controls, and a recognized-text view for PDFs.
+  <!-- zh -->
+  文件预览更大了：左侧显示文件目录，可在当前文件中搜索，支持翻页与缩放，PDF 还可切换查看识别出的文字。
+- 1652960: <!-- area: files -->
+  <!-- en -->
+  Select several files and folders to move or delete them together, pick a destination from the folder tree, or drag them onto a folder.
+  <!-- zh -->
+  可以多选文件和文件夹一起移动或删除，从文件夹树中选择目标位置，也可以直接拖到文件夹上。
+- e355327: <!-- area: grades -->
+  <!-- en -->
+  The gradebook has a To-do column for checking off assessments, and an assessment's to-do shows its weight and score with a link back to the gradebook.
+  <!-- zh -->
+  成绩册新增“待办”列，可直接勾选完成；考核的待办详情显示权重和成绩，并可跳回成绩册。
+- 3e5c369: <!-- area: grades -->
+  <!-- en -->
+  Change several assessments at once: tick them to set a category or weight, split a total weight evenly, drop them from the grade, or delete them.
+  <!-- zh -->
+  可以一次修改多项考核：勾选后统一设置分类或权重、平分总权重、不计入成绩，或一起删除。
+- 01a43ea: <!-- area: grades -->
+  <!-- en -->
+  Redesigned the grades page: filter and search assessments, see a forecast chart for the remaining work, and pick a target GPA from your scale. Forecasts now appear as soon as anything is graded.
+  <!-- zh -->
+  重新设计成绩页：考核可筛选与搜索，预测卡片用图表展示剩余考核，目标 GPA 从换算表中选择；只要有成绩录入就会给出预测。
+- 85173ea: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Calendar files are read by term: full calendar app exports work, classes spanning two terms are added to each, and every-other-week classes across a reading week are recognized.
+  <!-- zh -->
+  日历文件按学期读取：支持日历应用的完整导出，跨两个学期的课会分别加入各学期，隔周课跨阅读周也能正确识别。
+- ee1cb26: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review is one table by course, with problems marked where they occur and weight totals that include the gradebook. Closing the dialog keeps the import, and opening the same import again picks it up.
+  <!-- zh -->
+  导入审核改为按课程分组的表格，问题标在对应位置，权重合计包含成绩簿里已有的考核。关闭对话框不会丢弃导入，再次打开同一导入即可继续。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+  <!-- zh -->
+  导入关掉也不会丢：侧边栏显示进度或读取失败的原因，点一下就回到离开时的那一步，读完也不会弹窗打断你。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review underlines values worth a second look, with the source text a click away.
+  <!-- zh -->
+  导入审核会标出需要确认的值，并能直接查看原文。
+- a9eb8c8: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+  Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.
+  <!-- zh -->
+  敏感的账户操作改为就地确认身份（密码、邮箱验证码或 Google），不再需要退出重新登录。
+- f0dafdd: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Linked courses now sync in the background: imported assignments follow Canvas, and you're only asked about new assignments, values changed on both sides, and the kinds of change you choose to review first. The sync's status, updates you can undo and a manual sync are in the sidebar.
+
+  <!-- zh -->
+
+  已关联的课程现在在后台同步：导入的作业自动跟随 Canvas，只有新作业、两边都改过的内容和你选择先过目的变化才会询问你。同步状态、可撤销的更新和手动同步都在侧边栏。
+
+- d9a7988: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Values you changed that no longer match Canvas are now easy to find and restore, from the sync panel or right where you edit them.
+
+  <!-- zh -->
+
+  自己改过、和 Canvas 不一致的值现在一目了然，可以在同步面板或编辑处一键改回。
+
+- d65890a: <!-- area: data -->
+  <!-- en -->
+  Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+  <!-- zh -->
+  自部署服务器可在设置 → 数据中查看、下载和删除本地 OCR 与搜索模型。
+- c92f7be: <!-- area: api -->
+  <!-- improved -->
+
+  <!-- en -->
+
+  Connect Cursor, Claude Code, VS Code, Codex and other MCP clients from Settings in two steps, with the API token already filled in.
+
+  <!-- zh -->
+
+  在设置中两步连接 Cursor、Claude Code、VS Code、Codex 等 MCP 客户端，API 令牌自动填好。
+
+- 8523a69: <!-- area: api -->
+  <!-- en -->
+  See when a new MCP connection goes live, and review what each client has changed.
+  <!-- zh -->
+  新建 MCP 连接后可看到连接状态，并可查看每个客户端做过的修改。
+- c160f2b: <!-- area: api -->
+  <!-- improved -->
+
+  <!-- en -->
+
+  Connect an MCP client or create an API token from one "New connection" button, with each client's icon in the token list.
+
+  <!-- zh -->
+
+  连接 MCP 客户端与创建 API 令牌合并为一个「新建连接」入口，令牌列表显示各客户端的图标。
+
+- 12d0b47: <!-- area: api -->
+  <!-- en -->
+  Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+  <!-- zh -->
+  现在可以登录授权，把 Semestra 连接到 ChatGPT 和 Claude，无需 API 令牌。
+- 1c7aeab: <!-- area: general -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned onboarding: connect AI and your learning platform before creating your first term, go back to any earlier step, and review everything on a summary page.
+  <!-- zh -->
+  重新设计新用户引导：创建第一个学期前即可连接 AI 和学习平台，可以返回上一步修改，最后在汇总页确认所有设置。
+- 0629c7c: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  A course's schedule lists one row per section, expandable to its times; the section dialog edits times in a table and shows set weeks only when needed.
+  <!-- zh -->
+  课程课表改为每个教学班一行，可展开查看每节课；编辑教学班时上课时间以表格填写，周次需要时再设置。
+- e419fab: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.
+  <!-- zh -->
+  课程课表按教学班类型分组，新建时预填下一个编号，并可将教学班并入编号相同的已有教学班。
+- 29d2459: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Weeks are now set per section, so all times of a section always run in the same weeks.
+  <!-- zh -->
+  周次改为按教学班设置，同一教学班的各节课周次始终一致。
+- 3e5c369: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  Selecting rows in tables is smoother and works the same way everywhere, with Clear selection next to the batch actions.
+  <!-- zh -->
+  表格多选更流畅，各处的操作方式一致，“取消选择”放在批量操作旁边。
+- 1d48402: <!-- area: sem -->
+  <!-- en -->
+  Sem can ask you a question with a few options when it needs your choice, and its questions and change approvals now appear in place of the input box.
+  <!-- zh -->
+  Sem 需要你做选择时可以提问并给出选项，提问和修改确认现在都显示在输入框的位置。
+- cd685d3: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Auto Dream tidies Sem's memories in the background at most once a day, after a number of new conversations you choose.
+  <!-- zh -->
+  Auto Dream 每天最多一次在后台整理 Sem 的记忆，频率按新对话数量可调。
+- d1014b7: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Ask Sem to compact the conversation.
+  <!-- zh -->
+  可以直接让 Sem 压缩对话。
+- e6e69a4: <!-- area: sem -->
+
+  <!-- en -->
+
+  Sem's page lists your conversations in a column beside the open one, like the Tasks page; the sidebar no longer shows recent chats.
+
+  <!-- zh -->
+
+  Sem 页面像待办页一样在左侧一栏列出所有对话，边栏不再显示最近对话。
+
+- 06d10a2: <!-- area: sem -->
+  <!-- en -->
+  Reference course files with @, and use several skills in one message with /.
+  <!-- zh -->
+  可以用 @ 引用课程文件，一条消息里也能用 / 选择多个技能。
+- d1014b7: <!-- area: sem -->
+  <!-- en -->
+  Sem can search and reference your earlier conversations, and link to the one it drew on.
+  <!-- zh -->
+  Sem 可以搜索并引用以前的对话，回答里会附上来源对话的链接。
+- ccc294c: <!-- area: sem -->
+  <!-- en -->
+  Sem searches and reads everything in your Canvas courses, including page text, discussions and your teachers' feedback, and can tell you what is new across a term.
+  <!-- zh -->
+  Sem 可以搜索和读取 Canvas 课程里的全部内容（包括页面正文、讨论和老师的评语），还能告诉你整个学期有哪些新动态。
+- 1529763: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Suggested questions in new conversations now come from your deadlines, classes and grades, and can be personalized by the light-task model (can be turned off in settings).
+  <!-- zh -->
+  新对话的推荐问题改为根据你的截止、课程和成绩生成，并可由轻量任务模型个性化改写（可在设置中关闭）。
+- 66b0206: <!-- area: settings -->
+  <!-- improved -->
+  <!-- en -->
+  API tokens, the MCP server and client permissions now share one API & MCP page; Integrations is renamed Learning platforms.
+  <!-- zh -->
+  API 令牌、MCP 服务与客户端权限合并到「API 与 MCP」一页，「集成」更名为「学习平台」。
+- 459f19e: <!-- area: settings -->
+  <!-- improved -->
+  <!-- en -->
+  Settings are easier to find: the top level is now called Global, and groups use the same names for programs, terms and courses.
+  <!-- zh -->
+  设置更好找：最上层改名为“全局”，学业项目、学期和课程使用同一套分组。
+- be0d883: <!-- area: tasks -->
+  <!-- improved -->
+  <!-- en -->
+  New tasks are created in the list with due date, priority, course and flag set as you add them, from the New task button on the Tasks page, on Today and list cards, and on phones.
+  <!-- zh -->
+  新待办改为在列表中直接添加，添加时即可设置截止日期、优先级、课程和标记；待办页、“今天”与列表卡片以及手机端都提供“新待办”按钮。
+- 44ad318: <!-- area: tasks -->
+  <!-- en -->
+  New tasks recognize dates, times, priority marks and course codes typed in the title, such as “Fri 5pm APS105 lab report !!!”.
+  <!-- zh -->
+  新建待办时会识别标题里的日期、时间、优先级记号和课号，例如“周五下午5点 APS105 lab 报告 !!!”。
+- 5802219: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+
+  Confirming it's you for sensitive account actions now appears up front in place of the form, so the dialog no longer changes size.
+
+  <!-- zh -->
+
+  敏感账户操作的身份确认改为一打开就显示在表单的位置，对话框不再变高。
+
+- 9e622fd: <!-- area: notifications -->
+  <!-- en -->
+  System notifications: reminders before classes, events and due to-dos, a daily summary, and alerts for imports, Sem approvals and new sign-ins, with quiet hours.
+  <!-- zh -->
+  新增系统通知：上课、事件和待办截止前提醒，每日摘要，以及导入、Sem 等待确认和新登录通知，支持免打扰时段。
+- db96d79: <!-- area: tasks -->
+  <!-- improved -->
+  <!-- en -->
+  Tasks now expand into place when added and collapse smoothly when completed, deleted or moved, on computers and phones.
+  <!-- zh -->
+  待办在添加时平滑展开，完成、删除或移走时平滑收起，电脑与手机端均已支持。
+- d0ecead: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned the assessment dialog with grouped fields and a switch for leaving an assessment out of the grade.
+  <!-- zh -->
+  重新设计了考核对话框：字段分组排列，“不计入成绩”改为开关。
+- d0ecead: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  Redesigned the meeting, event and cancel-or-move dialogs with grouped fields, a weekday picker and one-line time ranges.
+  <!-- zh -->
+  重新设计了上课时间、单次事件和停课调课对话框：字段分组排列，星期一键选择，起止时间并为一行。
+- 08d582e: <!-- area: calendar -->
+  <!-- en -->
+  To-dos appear in the calendar: check them off in place, drag them to another day, and create a to-do or an event from New.
+  <!-- zh -->
+  待办显示在日历中：可直接勾选完成、拖动改日期，“新建”可选择建事件或待办。
+
+### Patch Changes
+
+- 84a28c3: <!-- area: api -->
+  <!-- en -->
+  On servers without HTTPS, such as most self-hosted ones, Claude Desktop connects with an API token again.
+  <!-- zh -->
+  没有 HTTPS 的服务器（如多数自部署）可以再次用 API 令牌连接 Claude Desktop。
+- 7357142: <!-- area: general -->
+  <!-- en -->
+  Pages fit beside the Sem panel on smaller screens instead of overflowing.
+  <!-- zh -->
+  在较小的屏幕上打开 Sem 面板时，页面会自动调整布局，不再超出边界。
+- 7357142: <!-- area: tasks -->
+  <!-- en -->
+  On a phone, a task change that can't be saved now says so and goes back to what was saved.
+  <!-- zh -->
+  手机上待办的修改保存失败时会给出提示，并恢复为已保存的内容。
+- 69436d7: <!-- area: general -->
+  <!-- en -->
+  Fixed sidebar status lines piling up several icons after their state changed.
+  <!-- zh -->
+  修复侧边栏状态行切换状态后叠加多个图标的问题。
+- 7357142: <!-- area: courses -->
+  <!-- en -->
+  Terms & courses and the term calendar no longer shift down after they load.
+  <!-- zh -->
+  学期与课程页和学期日历加载后不再向下跳动。
+- d95d08c: <!-- area: api -->
+  <!-- en -->
+  Import sessions report the waiting_files and up_to_date states, and Sem's approval cards report executing.
+  <!-- zh -->
+  导入会话新增 waiting_files 与 up_to_date 状态，Sem 的确认卡片新增 executing 状态。
+- 4d69039: <!-- area: grades -->
+  <!-- en -->
+  Past-due assessments without a grade are no longer marked overdue; the upcoming card lists only deadlines still ahead.
+  <!-- zh -->
+  已过截止但未出分的考核不再标为逾期，“即将截止”卡片只列出尚未到期的考核。
+- e80a1c2: <!-- area: data -->
+  <!-- en -->
+  Stopping a backup export or restore no longer reports an error; a stopped restore can be started again.
+  <!-- zh -->
+  停止导出或恢复备份不再显示出错，停止的恢复可以重新开始。
+- 85173ea: <!-- area: general -->
+  <!-- en -->
+  Faster imports and updates involving many assessments or to-dos, and lighter calendar subscription refreshes.
+  <!-- zh -->
+  批量导入与更新考核、待办更快，日历订阅刷新的开销更小。
+- 186dc09: <!-- area: general -->
+  <!-- en -->
+  Pages open faster, and less is downloaded again after an update.
+  <!-- zh -->
+  打开页面更快，更新后再次打开需要下载的内容更少。
+- 9dc8362: <!-- area: calendar -->
+  <!-- en -->
+  Exported timetable images and PDFs now carry the Semestra mark.
+  <!-- zh -->
+  导出的课表图片和 PDF 现在带有 Semestra 标识。
+- ccc294c: <!-- area: canvas -->
+  <!-- en -->
+  A part of a course the instructor hid in Canvas now says so instead of failing to load.
+  <!-- zh -->
+  老师在 Canvas 里隐藏的课程部分现在会直接说明，不再显示加载失败。
+- 1af5abc: <!-- area: canvas -->
+  <!-- en -->
+  Long assignment names in the Canvas tab now stay on one line next to their icon instead of pushing it onto its own line.
+  <!-- zh -->
+  Canvas 页签中过长的作业名称现在与图标保持在同一行，不再把图标挤到单独一行。
+- 363075e: <!-- area: canvas -->
+  <!-- en -->
+  After a course is linked to a different Canvas course, the previous course's content no longer shows.
+  <!-- zh -->
+  课程改绑到另一门 Canvas 课程后，不再显示原课程的内容。
+- 5b0f752: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas assignments table now says in words whether each assignment is in the gradebook, in to-dos or not added, with a link to it.
+  <!-- zh -->
+  Canvas 作业表直接用文字标明每项作业已加入成绩簿、已加入待办还是未加入，并可点击跳转。
+- 85173ea: <!-- area: canvas -->
+  <!-- en -->
+  Fixed missed announcement notifications, all-day events landing on the previous day, and repeated assignment changes not being notified again.
+  <!-- zh -->
+  修复部分公告不通知、全天事件显示在前一天，以及作业再次改动时不再通知的问题。
+- b52c221: <!-- area: courses -->
+  <!-- improved -->
+  <!-- en -->
+  The Clear selection button shows its Esc shortcut.
+  <!-- zh -->
+  “取消选择”按钮上直接显示 Esc 快捷键。
+- f4f3825: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+  <!-- zh -->
+  界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。
+- a1c1c00: <!-- area: courses -->
+  <!-- en -->
+  The LMS line on the course info card now fits on one line, and the card size switcher no longer has a squared-off edge.
+  <!-- zh -->
+  课程信息卡片中的 LMS 一行现在只占一行，卡片尺寸切换条也不再有被裁成直角的边缘。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The sign-in page loads faster.
+  <!-- zh -->
+  登录页加载更快。
+- d95d08c: <!-- area: files -->
+  <!-- en -->
+  Files whose processing was stopped or interrupted no longer stay in processing; they show why and can be processed again.
+  <!-- zh -->
+  处理被停止或中断的文件不再一直显示处理中，会显示原因并可重新处理。
+- fc50828: <!-- area: grades -->
+  <!-- en -->
+  The forecast chart shows each assessment's full name without overlapping, labels the hidden GPA, and the grade breakdown's tooltip no longer slides in on hover.
+  <!-- zh -->
+  成绩预测图完整显示每项考核的名称、不再重叠，隐藏的 GPA 有了标注，成绩构成的提示框悬停时也不再滑动。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  Checking rows in the gradebook responds right away.
+  <!-- zh -->
+  成绩册勾选行的响应更快。
+- 8523a69: <!-- area: grades -->
+  <!-- en -->
+  An empty gradebook offers to import from the syllabus.
+  <!-- zh -->
+  空成绩册可直接从课程大纲导入。
+- 363075e: <!-- area: grades -->
+  <!-- en -->
+  With grades hidden, revealing a chart no longer changes the card's height.
+  <!-- zh -->
+  隐藏成绩时，悬停显示图表不再改变卡片高度。
+- c786d14: <!-- area: grades -->
+  <!-- en -->
+  Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+  <!-- zh -->
+  隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。
+- 85173ea: <!-- area: imports -->
+  <!-- en -->
+  Fixed a calendar file import dropping a class whose time changed partway through the term.
+  <!-- zh -->
+  修复导入日历文件时，学期中途改时间的课只保留一个时间的问题。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+  <!-- zh -->
+  导入到课程时可正确解析“第 5 周周五”“10 月 3 日”等大纲日期，远在学期之外的日期会在审核时标出。
+- d95d08c: <!-- area: imports -->
+  <!-- en -->
+  Imports show when they are waiting for course files, and an import that found the course already up to date is no longer listed as failed.
+  <!-- zh -->
+  导入在等待课程文件处理时会显示出来，课程信息已是最新的导入不再在导入历史中显示为失败。
+- 3358bb5: <!-- area: general -->
+  <!-- en -->
+  Dialogs keep their content while closing, expanding sections animate, and loading and error states look the same across the app.
+  <!-- zh -->
+  对话框关闭时内容不再提前消失，展开区域带过渡动画，各处的加载与出错状态保持一致。
+- 80f7b4e: <!-- area: courses -->
+  <!-- en -->
+  After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+  <!-- zh -->
+  删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。
+- 363075e: <!-- area: general -->
+  <!-- en -->
+  The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+  <!-- zh -->
+  收起侧边栏、打开 Sem 面板或调整窗口大小时，页面停留在原来的滚动位置。
+- 720ae3b: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Importing assignments from Canvas always opens the import review first, so you can choose each one's category and edit it before anything is saved. The sync panel also shows a clear Reconnect button when the connection has expired.
+
+  <!-- zh -->
+
+  从 Canvas 导入作业时始终先打开导入审核，可以先选好每个作业的分类并修改，确认后才保存。连接失效时，同步面板也会直接给出「重新连接」按钮。
+
+- 0e8790e: <!-- area: canvas -->
+
+  <!-- en -->
+
+  Sync questions are now answered one field at a time, and a value you keep can still be restored to the Canvas value later.
+
+  <!-- zh -->
+
+  同步询问改为逐个字段回答，保留的值之后仍可改回 Canvas 的值。
+
+- 8026738: <!-- area: api -->
+  <!-- en -->
+  The copy button for MCP connection settings now works on a self-hosted instance opened over http.
+  <!-- zh -->
+  通过 http 打开自托管实例时，MCP 连接配置的复制按钮也能使用。
+- 4fa1812: <!-- area: tasks -->
+  <!-- en -->
+  Fixed section headings overlapping the previous group's last task on phones.
+  <!-- zh -->
+  修复手机上分组标题压住上一组最后一个待办的问题。
+- c4651cf: <!-- area: tasks -->
+  <!-- en -->
+  The new task row is spaced from the task above it.
+  <!-- zh -->
+  新待办行与上方待办之间留出间距。
+- 363075e: <!-- area: courses -->
+  <!-- en -->
+  A term that was just created opens from its link instead of returning to the Program.
+  <!-- zh -->
+  刚创建的学期可以直接从链接打开，不再回到 Program 页。
+- f088b87: <!-- area: general -->
+  <!-- en -->
+  Addresses that don't exist now show a friendly not-found page with a way back home.
+  <!-- zh -->
+  访问不存在的地址时，会显示友好的“页面不存在”提示，并可一键回到首页。
+- 66b0206: <!-- area: notifications -->
+  <!-- en -->
+  Turning notifications on or off for this device no longer shifts the settings layout.
+  <!-- zh -->
+  开关本设备通知时，设置页布局不再跳动。
+- 61e922d: <!-- area: general -->
+  <!-- en -->
+  Fewer repeated requests after saving changes and when returning to the app.
+  <!-- zh -->
+  保存修改后和切回应用时不再重复请求数据。
+- 61e922d: <!-- area: files -->
+  <!-- en -->
+  Uploading or processing files in one course no longer reloads the file lists of other courses.
+  <!-- zh -->
+  上传或处理某门课的文件时，不再重新加载其他课程的文件列表。
+- 61e922d: <!-- area: general -->
+  <!-- en -->
+  Faster first load: less code is downloaded before the first page appears.
+  <!-- zh -->
+  首屏下载的代码更少，打开更快。
+- 61e922d: <!-- area: tasks -->
+  <!-- en -->
+  The tasks page opens the last viewed list without loading other lists first.
+  <!-- zh -->
+  待办页直接打开上次查看的列表，不再先加载其他列表。
+- 8523a69: <!-- area: ai -->
+  <!-- en -->
+  Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+  <!-- zh -->
+  添加模型服务商时可直接查看文档，未命名的兼容接口按界面语言命名。
+- cd3d559: <!-- area: calendar -->
+  <!-- en -->
+  Removed redundant hover tooltips from the calendar and timetable pages.
+  <!-- zh -->
+  去掉了日历与课表页面上多余的悬停提示。
+- 61e922d: <!-- area: settings -->
+  <!-- en -->
+  Reduce motion now applies to all animations, including progress bars and card effects.
+  <!-- zh -->
+  “减少动画”现在对所有动画生效，包括进度条和卡片动效。
+- e33ca74: <!-- area: notifications -->
+  <!-- en -->
+  Classes, events and to-dos moved to a new time are reminded again at the new time.
+  <!-- zh -->
+  课程、事件和待办改到新时间后，会按新时间再次提醒。
+- 85173ea: <!-- area: notifications -->
+  <!-- en -->
+  Reminders now follow changes to term dates, breaks and the program time zone right away, and keep arriving after the browser renews its subscription.
+  <!-- zh -->
+  修改学期日期、假期或学业项目时区后提醒立即更新；浏览器更新推送订阅后通知不再中断。
+- e419fab: <!-- area: calendar -->
+  <!-- en -->
+  Expanding a section in the course schedule no longer shifts the table, and its times slide open smoothly.
+  <!-- zh -->
+  展开课表中的教学班时表格不再跳动，上课时间平滑展开。
+- eb15d29: <!-- area: self-hosting -->
+  <!-- en -->
+  A self-hosted instance opened over plain http from another device on the network now loads, and copy buttons and duplicate-upload detection work there too.
+  <!-- zh -->
+  从局域网其他设备用 http 打开自托管实例时可以正常加载，复制按钮和重复上传检测也能使用。
+- d95d08c: <!-- area: sem -->
+  <!-- en -->
+  An approved change that is still being applied no longer briefly shows as failed in another tab.
+  <!-- zh -->
+  已批准、仍在执行的修改不再在其他标签页中短暂显示为失败。
+- 423e864: <!-- area: sem -->
+  <!-- en -->
+  Unsent messages and attachments in Sem are kept when you open settings, switch pages or close the panel, and Sem reopens the conversation you were in.
+  <!-- zh -->
+  打开设置、切换页面或关闭面板时，Sem 中未发送的内容和附件会保留，再次打开时回到原来的对话。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+  <!-- zh -->
+  Sem 在请求失败后仍保留对话摘要，更好地处理大量阅读的长回合，重命名或置顶对话时不再丢失正在生成的回答。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Older conversations started on a course page now work in that course's term.
+  <!-- zh -->
+  在课程页开始的旧对话改为在该课程所在学期中工作。
+- cc73b39: <!-- area: sem -->
+  <!-- en -->
+  When your session expires during a conversation, Sem asks you to sign in again and then continues.
+  <!-- zh -->
+  对话中登录过期时，Sem 会请你重新登录，然后继续。
+- 351b499: <!-- area: settings -->
+  <!-- en -->
+  Settings groups now open with their content in place, without loading spinners or the page shifting as it loads.
+  <!-- zh -->
+  设置分组打开时内容一次到位，不再先显示加载动画、再随内容跳动。
+- cd3d559: <!-- area: courses -->
+  <!-- en -->
+  The sidebar shows a course's full title on hover only when the row shows its alias or code.
+  <!-- zh -->
+  侧边栏的课程行只在显示别名或代码时，才在悬停时显示完整课程名称。
+- 9dc8362: <!-- area: general -->
+  <!-- en -->
+  Fixed the loading screen with a collapsed sidebar and icon alignment in settings dropdowns.
+  <!-- zh -->
+  修复侧边栏收起时的加载画面，以及设置下拉菜单中图标未对齐的问题。
+- 9dc8362: <!-- area: files -->
+  <!-- en -->
+  File preview now supports custom zoom levels and Ctrl/⌘ + scroll zoom, and wide tables no longer overflow.
+  <!-- zh -->
+  文件预览支持自定义缩放比例和 Ctrl/⌘ + 滚轮缩放，宽表格不再溢出。
+- 353431a: <!-- area: canvas -->
+  <!-- en -->
+  The sidebar status lines now animate smoothly when their state changes.
+  <!-- zh -->
+  侧边栏状态行在状态切换时会平滑过渡。
+- 3b4a0e3: <!-- area: general -->
+  <!-- en -->
+  Add buttons above lists and tables now use the accent color, so they are easier to find.
+  <!-- zh -->
+  列表和表格上方的添加按钮改用强调色，更容易找到。
+- 3cefff2: <!-- area: general -->
+  <!-- en -->
+  Unified the look of file drop areas across imports, backup restore, files and Sem; backup restore now says why a file was refused.
+  <!-- zh -->
+  统一了导入、备份恢复、文件和 Sem 中拖放文件区域的外观；备份恢复会说明文件被拒收的原因。
+- 56d3ac2: <!-- area: files -->
+  <!-- en -->
+  Course files and Canvas files open in the same preview, with actions at the bottom; a failed import shows a short message instead of a full-size error.
+  <!-- zh -->
+  课程文件和 Canvas 文件使用同一种预览，操作按钮统一放在底部；导入失败时显示简短说明，不再是占满窗口的报错。
+- @semestra/api-client@2.0.0
+
 ## 2.0.0-beta.10
 
 ### Minor Changes
