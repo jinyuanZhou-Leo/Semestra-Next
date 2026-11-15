@@ -3,6 +3,170 @@
 Generated from `release-notes/*.json` by `scripts/release.mjs`; do not edit by hand.
 The same notes in Chinese are in the JSON files and on the docs site.
 
+## 2.0.0 (2026-11-15)
+
+### New
+
+- **Sem:** Sem can ask you a question with a few options when it needs your choice, and its questions and change approvals now appear in place of the input box.
+- **Sem:** Sem's page lists your conversations in a column beside the open one, like the Tasks page; the sidebar no longer shows recent chats.
+- **Sem:** Reference course files with @, and use several skills in one message with /.
+- **Sem:** Sem can search and reference your earlier conversations, and link to the one it drew on.
+- **Sem:** Sem searches and reads everything in your Canvas courses, including page text, discussions and your teachers' feedback, and can tell you what is new across a term.
+- **Grades:** The gradebook has a To-do column for checking off assessments, and an assessment's to-do shows its weight and score with a link back to the gradebook.
+- **Grades:** Change several assessments at once: tick them to set a category or weight, split a total weight evenly, drop them from the grade, or delete them.
+- **Grades:** Redesigned the grades page: filter and search assessments, see a forecast chart for the remaining work, and pick a target GPA from your scale. Forecasts now appear as soon as anything is graded.
+- **Calendar:** To-dos appear in the calendar: check them off in place, drag them to another day, and create a to-do or an event from New.
+- **Tasks:** New tasks recognize dates, times, priority marks and course codes typed in the title, such as “Fri 5pm APS105 lab report !!!”.
+- **Notifications:** Notifications for new Canvas grades, assignment changes and announcements, and a daily reminder for habits.
+- **Notifications:** System notifications: reminders before classes, events and due to-dos, a daily summary, and alerts for imports, Sem approvals and new sign-ins, with quiet hours.
+- **Files:** The file preview is larger, with the file's contents on the left, a search for this file, page and zoom controls, and a recognized-text view for PDFs.
+- **Files:** Select several files and folders to move or delete them together, pick a destination from the folder tree, or drag them onto a folder.
+- **Canvas:** Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+- **Canvas:** The Canvas tab combines assignments, quizzes and grades into one list; grades already on Canvas come along when importing to the gradebook.
+- **Canvas:** A notification points out new Canvas assignments, with one click to import or ignore them.
+- **Canvas:** Importing Canvas assignments puts those worth points in the gradebook and the rest in to-dos, and saves right away unless something needs checking; a to-do can be added to the gradebook later.
+- **Canvas:** To-dos of imported assignments are checked off once Canvas shows them submitted; this can be turned off in the integration settings.
+- **Canvas:** The Canvas tab shows what you last saw right away and updates it in the background.
+- **Canvas:** Linked courses now sync in the background: imported assignments follow Canvas, and you're only asked about new assignments, values changed on both sides, and the kinds of change you choose to review first. The sync's status, updates you can undo and a manual sync are in the sidebar.
+- **Canvas:** Values you changed that no longer match Canvas are now easy to find and restore, from the sync panel or right where you edit them.
+- **Account:** Sign in and confirm it's you with a passkey, and manage your passkeys in account settings.
+- **Data:** Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+- **API & MCP:** See when a new MCP connection goes live, and review what each client has changed.
+- **API & MCP:** Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+- **API & MCP:** The unused endpoint for reordering assessments (PUT /courses/{course_id}/assessment-order) has been removed.
+- **API & MCP:** Schedule endpoints and MCP tools are organized by section: weekly times are listed and added through schedule.section.*, and integrations that used schedule.meeting.list or schedule.meeting.create_many need updating.
+- **Self-hosting:** The `-ocr` image tags are no longer published; use the `-local` tags instead.
+- **Self-hosting:** Behind the bundled Caddy or another reverse proxy, set SEMESTRA_TRUSTED_PROXY_HOPS=1 so sign-in limits see the real client address; FORWARDED_ALLOW_IPS is no longer used.
+
+### Improved
+
+- **General:** Tables now add entries from a button beside their heading instead of a row at the bottom.
+- **General:** Page headers take less room, leaving more space for content.
+- **General:** Redesigned onboarding: connect AI and your learning platform before creating your first term, go back to any earlier step, and review everything on a summary page.
+- **Sem:** Auto Dream tidies Sem's memories in the background at most once a day, after a number of new conversations you choose.
+- **Sem:** Ask Sem to compact the conversation.
+- **Sem:** Suggested questions in new conversations now come from your deadlines, classes and grades, and can be personalized by the light-task model (can be turned off in settings).
+- **Terms & courses:** The Clear selection button shows its Esc shortcut.
+- **Terms & courses:** A year-long course's terms are now chosen as a start and end term, and instructors are listed in their own table in course settings.
+- **Terms & courses:** Selecting rows in tables is smoother and works the same way everywhere, with Clear selection next to the batch actions.
+- **Grades:** Every assessment with a due date has a to-do that follows it and is finished when the assessment is graded; the calendar shows each deadline once.
+- **Grades:** Redesigned the assessment dialog with grouped fields and a switch for leaving an assessment out of the grade.
+- **Calendar:** Canvas events in the calendar carry a Canvas mark and open in Canvas from their details.
+- **Calendar:** Calendar item details open beside the item without covering the calendar, with clearer actions.
+- **Calendar:** A course's schedule lists one row per section, expandable to its times; the section dialog edits times in a table and shows set weeks only when needed.
+- **Calendar:** The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.
+- **Calendar:** Weeks are now set per section, so all times of a section always run in the same weeks.
+- **Calendar:** Redesigned the meeting, event and cancel-or-move dialogs with grouped fields, a weekday picker and one-line time ranges.
+- **Tasks:** New tasks are created in the list with due date, priority, course and flag set as you add them, from the New task button on the Tasks page, on Today and list cards, and on phones.
+- **Tasks:** Tasks now expand into place when added and collapse smoothly when completed, deleted or moved, on computers and phones.
+- **Import:** Calendar files are read by term: full calendar app exports work, classes spanning two terms are added to each, and every-other-week classes across a reading week are recognized.
+- **Import:** The import review is one table by course, with problems marked where they occur and weight totals that include the gradebook. Closing the dialog keeps the import, and opening the same import again picks it up.
+- **Import:** Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+- **Import:** The import review underlines values worth a second look, with the source text a click away.
+- **Canvas:** Canvas assignment groups are imported into the course's existing grade categories, and remember where you moved them.
+- **Canvas:** Canvas pages are easier to read, with clearer headings and tables, and modules show your progress at a glance.
+- **AI:** When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+- **Settings:** API tokens, the MCP server and client permissions now share one API & MCP page; Integrations is renamed Learning platforms.
+- **Settings:** Settings are easier to find: the top level is now called Global, and groups use the same names for programs, terms and courses.
+- **Account:** Confirming it's you now starts with your easiest sign-in method, with other ways one click away.
+- **Account:** Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.
+- **Account:** Confirming it's you for sensitive account actions now appears up front in place of the form, so the dialog no longer changes size.
+- **Data:** Backups made with 1.x can be restored.
+- **API & MCP:** Connect Cursor, Claude Code, VS Code, Codex and other MCP clients from Settings in two steps, with the API token already filled in.
+- **API & MCP:** Connect an MCP client or create an API token from one "New connection" button, with each client's icon in the token list.
+
+### Fixed
+
+- **General:** Pages fit beside the Sem panel on smaller screens instead of overflowing.
+- **General:** Fixed sidebar status lines piling up several icons after their state changed.
+- **General:** Performance improvements.
+- **General:** Faster imports and updates involving many assessments or to-dos, and lighter calendar subscription refreshes.
+- **General:** Pages open faster, and less is downloaded again after an update.
+- **General:** Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+- **General:** Deleting terms, programs, folders and Sem conversations is faster, and uploading a backup no longer holds up other changes.
+- **General:** The sign-in page loads faster.
+- **General:** Dialogs keep their content while closing, expanding sections animate, and loading and error states look the same across the app.
+- **General:** The page keeps its scroll position when the sidebar collapses, the Sem panel opens or the window is resized.
+- **General:** Addresses that don't exist now show a friendly not-found page with a way back home.
+- **General:** Fewer repeated requests after saving changes and when returning to the app.
+- **General:** Faster first load: less code is downloaded before the first page appears.
+- **General:** Fixed the loading screen with a collapsed sidebar and icon alignment in settings dropdowns.
+- **General:** Add buttons above lists and tables now use the accent color, so they are easier to find.
+- **General:** Unified the look of file drop areas across imports, backup restore, files and Sem; backup restore now says why a file was refused.
+- **Sem:** An approved change that is still being applied no longer briefly shows as failed in another tab.
+- **Sem:** Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.
+- **Sem:** Fixed Sem and MCP clients failing to look up assessments by name in courses that use grading categories.
+- **Sem:** Unsent messages and attachments in Sem are kept when you open settings, switch pages or close the panel, and Sem reopens the conversation you were in.
+- **Sem:** Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+- **Sem:** Older conversations started on a course page now work in that course's term.
+- **Sem:** When your session expires during a conversation, Sem asks you to sign in again and then continues.
+- **Terms & courses:** Terms & courses and the term calendar no longer shift down after they load.
+- **Terms & courses:** The LMS line on the course info card now fits on one line, and the card size switcher no longer has a squared-off edge.
+- **Terms & courses:** After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+- **Terms & courses:** A term that was just created opens from its link instead of returning to the Program.
+- **Terms & courses:** The sidebar shows a course's full title on hover only when the row shows its alias or code.
+- **Grades:** Past-due assessments without a grade are no longer marked overdue; the upcoming card lists only deadlines still ahead.
+- **Grades:** The forecast chart shows each assessment's full name without overlapping, labels the hidden GPA, and the grade breakdown's tooltip no longer slides in on hover.
+- **Grades:** Grade forecasts are steadier when a category has only a few scores so far.
+- **Grades:** Checking rows in the gradebook responds right away.
+- **Grades:** An empty gradebook offers to import from the syllabus.
+- **Grades:** With grades hidden, revealing a chart no longer changes the card's height.
+- **Grades:** Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+- **Calendar:** Exported timetable images and PDFs now carry the Semestra mark.
+- **Calendar:** Removed redundant hover tooltips from the calendar and timetable pages.
+- **Calendar:** Changing a section to a code that is already taken no longer fails with an unknown error.
+- **Calendar:** Expanding a section in the course schedule no longer shifts the table, and its times slide open smoothly.
+- **Tasks:** On a phone, a task change that can't be saved now says so and goes back to what was saved.
+- **Tasks:** Fixed section headings overlapping the previous group's last task on phones.
+- **Tasks:** The new task row is spaced from the task above it.
+- **Tasks:** The tasks page opens the last viewed list without loading other lists first.
+- **Notifications:** Turning notifications on or off for this device no longer shifts the settings layout.
+- **Notifications:** Classes, events and to-dos moved to a new time are reminded again at the new time.
+- **Notifications:** Reminders now follow changes to term dates, breaks and the program time zone right away, and keep arriving after the browser renews its subscription.
+- **Files:** Headings and search snippets from PDFs no longer show Markdown symbols such as asterisks.
+- **Files:** Files that finish processing while you switch search models are indexed again with the new model.
+- **Files:** Files whose processing was stopped or interrupted no longer stay in processing; they show why and can be processed again.
+- **Files:** Fixed scanned files failing to process with on-server OCR.
+- **Files:** Uploading or processing files in one course no longer reloads the file lists of other courses.
+- **Files:** Searching selected files now stays within the current term or course.
+- **Files:** File preview now supports custom zoom levels and Ctrl/⌘ + scroll zoom, and wide tables no longer overflow.
+- **Files:** Course files and Canvas files open in the same preview, with actions at the bottom; a failed import shows a short message instead of a full-size error.
+- **Files:** Storage quota is enforced the same way for course files, import uploads and Sem attachments, including uploads made at the same time.
+- **Import:** Fixed a calendar file import dropping a class whose time changed partway through the term.
+- **Import:** Importing the same syllabus again no longer duplicates its deadline tasks and calendar events.
+- **Import:** An interrupted import resumes without reading files it already read, avoiding repeat AI charges.
+- **Import:** Sources quoted from scanned pages of an imported document now point to the right page.
+- **Import:** Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+- **Import:** Imports show when they are waiting for course files, and an import that found the course already up to date is no longer listed as failed.
+- **Canvas:** A part of a course the instructor hid in Canvas now says so instead of failing to load.
+- **Canvas:** Long assignment names in the Canvas tab now stay on one line next to their icon instead of pushing it onto its own line.
+- **Canvas:** Links and images in Canvas pages and announcements now open on Canvas instead of a "Page not found" screen.
+- **Canvas:** After a course is linked to a different Canvas course, the previous course's content no longer shows.
+- **Canvas:** The Canvas assignments table now says in words whether each assignment is in the gradebook, in to-dos or not added, with a link to it.
+- **Canvas:** Fixed missed announcement notifications, all-day events landing on the previous day, and repeated assignment changes not being notified again.
+- **Canvas:** Ignored assignments no longer reappear in courses with many assignments.
+- **Canvas:** Importing assignments from Canvas always opens the import review first, so you can choose each one's category and edit it before anything is saved. The sync panel also shows a clear Reconnect button when the connection has expired.
+- **Canvas:** Sync questions are now answered one field at a time, and a value you keep can still be restored to the Canvas value later.
+- **Canvas:** The sidebar status lines now animate smoothly when their state changes.
+- **AI:** AI providers are no longer marked unreachable by errors unrelated to the provider, and model lists load faster.
+- **AI:** Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+- **Settings:** Reduce motion now applies to all animations, including progress bars and card effects.
+- **Settings:** Settings groups now open with their content in place, without loading spinners or the page shifting as it loads.
+- **Data:** Stopping a backup export or restore no longer reports an error; a stopped restore can be started again.
+- **Data:** Restoring an older backup keeps your Hide grades setting.
+- **API & MCP:** On servers without HTTPS, such as most self-hosted ones, Claude Desktop connects with an API token again.
+- **API & MCP:** Import sessions report the waiting_files and up_to_date states, and Sem's approval cards report executing.
+- **API & MCP:** Added an endpoint that lists all course links of a program, and an option to include active jobs when listing jobs.
+- **API & MCP:** The copy button for MCP connection settings now works on a self-hosted instance opened over http.
+- **API & MCP:** API tokens follow the same limits on REST endpoints as over MCP: deleting needs the "Delete data" permission, and settings only you may change stay protected.
+- **API & MCP:** When a tool fails on the server, Sem and MCP clients are told to get the information another way instead of retrying.
+- **Self-hosting:** Lower memory use with local embedding, and faster repeated searches and attachment cleanup.
+- **Self-hosting:** LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.
+- **Self-hosting:** Self-hosted servers use less memory, and the images are slightly smaller.
+- **Self-hosting:** A local embedding model that fails no longer interrupts search and indexing for other users of the server.
+- **Self-hosting:** Link-local and cloud metadata addresses are now always blocked for outbound requests, even when private network access is allowed.
+- **Self-hosting:** A self-hosted instance opened over plain http from another device on the network now loads, and copy buttons and duplicate-upload detection work there too.
+
 ## 2.0.0-beta.10 (2026-11-14)
 
 ### New

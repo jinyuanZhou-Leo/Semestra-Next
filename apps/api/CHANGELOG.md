@@ -1,5 +1,333 @@
 # @semestra/api
 
+## 2.0.0
+
+### Major Changes
+
+- e6a7e58: <!-- area: self-hosting -->
+  <!-- en -->
+  The `-ocr` image tags are no longer published; use the `-local` tags instead.
+  <!-- zh -->
+  不再发布 `-ocr` 镜像标签，请改用 `-local` 标签。
+- 29d2459: <!-- area: api -->
+  <!-- en -->
+  Schedule endpoints and MCP tools are organized by section: weekly times are listed and added through schedule.section.*, and integrations that used schedule.meeting.list or schedule.meeting.create_many need updating.
+  <!-- zh -->
+  课表接口与 MCP 工具改为以教学班为单位：上课时间通过 schedule.section.* 列出和添加，使用 schedule.meeting.list 或 schedule.meeting.create_many 的集成需要更新。
+- 475d435: <!-- area: self-hosting -->
+  <!-- en -->
+  Behind the bundled Caddy or another reverse proxy, set SEMESTRA_TRUSTED_PROXY_HOPS=1 so sign-in limits see the real client address; FORWARDED_ALLOW_IPS is no longer used.
+  <!-- zh -->
+  使用内置 Caddy 或其他反向代理时，请设置 SEMESTRA_TRUSTED_PROXY_HOPS=1，登录限流才能识别真实的客户端地址；不再使用 FORWARDED_ALLOW_IPS。
+
+### Minor Changes
+
+- a49e533: <!-- area: ai -->
+  <!-- improved -->
+  <!-- en -->
+  When an AI feature can't run, it says why, such as no provider connected or a model that can't do it, with a direct way to fix it. A provider problem is pointed out without stopping you.
+  <!-- zh -->
+  AI 功能不可用时会说明原因（未连接服务商、模型不支持等），并直接带你去处理；服务商出问题时会提醒你，但不会挡住你。
+- 08d582e: <!-- area: grades -->
+  <!-- improved -->
+  <!-- en -->
+  Every assessment with a due date has a to-do that follows it and is finished when the assessment is graded; the calendar shows each deadline once.
+  <!-- zh -->
+  每个有截止日期的考核都有一个跟随它的待办，出分后自动完成；日历中每个截止日期只显示一次。
+- 75d9a15: <!-- area: canvas -->
+  <!-- en -->
+  Assessments added by hand can be bound to Canvas assignments, and importing an assignment of the same name binds it instead of adding a duplicate.
+  <!-- zh -->
+  手动添加的考核可以绑定到 Canvas 作业，导入同名作业时会绑定到已有考核，不再重复添加。
+- 56d3ac2: <!-- area: canvas -->
+  <!-- en -->
+  The Canvas tab combines assignments, quizzes and grades into one list; grades already on Canvas come along when importing to the gradebook.
+  <!-- zh -->
+  Canvas 页签把作业、测验和成绩合并为一个列表；导入到成绩簿时会带上 Canvas 上已有的成绩。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  A notification points out new Canvas assignments, with one click to import or ignore them.
+  <!-- zh -->
+  Canvas 上有新作业时会弹出通知，可一键导入或忽略。
+- ee1cb26: <!-- area: canvas -->
+  <!-- en -->
+  Importing Canvas assignments puts those worth points in the gradebook and the rest in to-dos, and saves right away unless something needs checking; a to-do can be added to the gradebook later.
+  <!-- zh -->
+  导入 Canvas 作业时，有分值的进入成绩簿，其余成为待办；没有需要确认的内容时直接保存。只是待办的作业之后也可以加入成绩簿。
+- 969865c: <!-- area: canvas -->
+  <!-- en -->
+  To-dos of imported assignments are checked off once Canvas shows them submitted; this can be turned off in the integration settings.
+  <!-- zh -->
+  导入的作业在 Canvas 上显示已提交后，对应待办自动完成；可在集成设置中关闭。
+- 3e5c369: <!-- area: grades -->
+  <!-- en -->
+  Change several assessments at once: tick them to set a category or weight, split a total weight evenly, drop them from the grade, or delete them.
+  <!-- zh -->
+  可以一次修改多项考核：勾选后统一设置分类或权重、平分总权重、不计入成绩，或一起删除。
+- 01a43ea: <!-- area: grades -->
+  <!-- en -->
+  Redesigned the grades page: filter and search assessments, see a forecast chart for the remaining work, and pick a target GPA from your scale. Forecasts now appear as soon as anything is graded.
+  <!-- zh -->
+  重新设计成绩页：考核可筛选与搜索，预测卡片用图表展示剩余考核，目标 GPA 从换算表中选择；只要有成绩录入就会给出预测。
+- ee1cb26: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review is one table by course, with problems marked where they occur and weight totals that include the gradebook. Closing the dialog keeps the import, and opening the same import again picks it up.
+  <!-- zh -->
+  导入审核改为按课程分组的表格，问题标在对应位置，权重合计包含成绩簿里已有的考核。关闭对话框不会丢弃导入，再次打开同一导入即可继续。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  Imports keep going when you close them: the sidebar shows their progress, or why a file couldn't be read, and takes you back to where you left off. Nothing pops up when reading finishes.
+  <!-- zh -->
+  导入关掉也不会丢：侧边栏显示进度或读取失败的原因，点一下就回到离开时的那一步，读完也不会弹窗打断你。
+- a49e533: <!-- area: imports -->
+  <!-- improved -->
+  <!-- en -->
+  The import review underlines values worth a second look, with the source text a click away.
+  <!-- zh -->
+  导入审核会标出需要确认的值，并能直接查看原文。
+- a9eb8c8: <!-- area: account -->
+  <!-- improved -->
+  <!-- en -->
+  Sensitive account actions now confirm it's you in place, with your password, an email code or Google, instead of signing you out.
+  <!-- zh -->
+  敏感的账户操作改为就地确认身份（密码、邮箱验证码或 Google），不再需要退出重新登录。
+- f0dafdd: <!-- area: canvas -->
+  
+  <!-- en -->
+  Linked courses now sync in the background: imported assignments follow Canvas, and you're only asked about new assignments, values changed on both sides, and the kinds of change you choose to review first. The sync's status, updates you can undo and a manual sync are in the sidebar.
+  
+  <!-- zh -->
+  已关联的课程现在在后台同步：导入的作业自动跟随 Canvas，只有新作业、两边都改过的内容和你选择先过目的变化才会询问你。同步状态、可撤销的更新和手动同步都在侧边栏。
+- d9a7988: <!-- area: canvas -->
+  
+  <!-- en -->
+  Values you changed that no longer match Canvas are now easy to find and restore, from the sync panel or right where you edit them.
+  
+  <!-- zh -->
+  自己改过、和 Canvas 不一致的值现在一目了然，可以在同步面板或编辑处一键改回。
+- d65890a: <!-- area: data -->
+  <!-- en -->
+  Self-hosted servers: see, download and delete local OCR and search models under Settings → Data.
+  <!-- zh -->
+  自部署服务器可在设置 → 数据中查看、下载和删除本地 OCR 与搜索模型。
+- 8523a69: <!-- area: api -->
+  <!-- en -->
+  See when a new MCP connection goes live, and review what each client has changed.
+  <!-- zh -->
+  新建 MCP 连接后可看到连接状态，并可查看每个客户端做过的修改。
+- 12d0b47: <!-- area: api -->
+  <!-- en -->
+  Connect Semestra to ChatGPT and Claude by signing in, with no API token.
+  <!-- zh -->
+  现在可以登录授权，把 Semestra 连接到 ChatGPT 和 Claude，无需 API 令牌。
+- aba17fc: <!-- area: data -->
+  <!-- improved -->
+  <!-- en -->
+  Backups made with 1.x can be restored.
+  <!-- zh -->
+  可以恢复 1.x 导出的备份。
+- e419fab: <!-- area: calendar -->
+  <!-- improved -->
+  <!-- en -->
+  The course schedule groups sections by type, pre-fills the next section code, and can merge a section into an existing one with the same code.
+  <!-- zh -->
+  课程课表按教学班类型分组，新建时预填下一个编号，并可将教学班并入编号相同的已有教学班。
+- 1529763: <!-- area: sem -->
+  <!-- improved -->
+  <!-- en -->
+  Suggested questions in new conversations now come from your deadlines, classes and grades, and can be personalized by the light-task model (can be turned off in settings).
+  <!-- zh -->
+  新对话的推荐问题改为根据你的截止、课程和成绩生成，并可由轻量任务模型个性化改写（可在设置中关闭）。
+- 9e622fd: <!-- area: notifications -->
+  <!-- en -->
+  System notifications: reminders before classes, events and due to-dos, a daily summary, and alerts for imports, Sem approvals and new sign-ins, with quiet hours.
+  <!-- zh -->
+  新增系统通知：上课、事件和待办截止前提醒，每日摘要，以及导入、Sem 等待确认和新登录通知，支持免打扰时段。
+
+### Patch Changes
+
+- cc73b39: <!-- area: self-hosting -->
+  <!-- en -->
+  Lower memory use with local embedding, and faster repeated searches and attachment cleanup.
+  <!-- zh -->
+  降低本机 embedding 的内存占用，加快重复搜索与附件清理。
+- 3abc029: <!-- area: ai -->
+  <!-- en -->
+  AI providers are no longer marked unreachable by errors unrelated to the provider, and model lists load faster.
+  <!-- zh -->
+  AI 服务商不再因与其无关的错误被标为无法连接，模型列表加载更快。
+- 61e922d: <!-- area: api -->
+  <!-- en -->
+  Added an endpoint that lists all course links of a program, and an option to include active jobs when listing jobs.
+  <!-- zh -->
+  新增列出学业项目全部课程关联的接口；列出任务时可附带进行中的任务。
+- 3a6a241: <!-- area: general -->
+  <!-- en -->
+  Performance improvements.
+  <!-- zh -->
+  性能优化。
+- 7e697ec: <!-- area: canvas -->
+  <!-- en -->
+  Links and images in Canvas pages and announcements now open on Canvas instead of a "Page not found" screen.
+  <!-- zh -->
+  Canvas 页面与公告中的链接和图片现在指向 Canvas，不再打开“页面不存在”。
+- f4f3825: <!-- area: general -->
+  <!-- en -->
+  Clearer, more consistent wording throughout the app: to-dos are now called tasks everywhere, and settings descriptions are shorter.
+  <!-- zh -->
+  界面文案更清晰统一：Program、Section 与 LMS 不再翻译，“AI 服务商”改称“模型服务商”，设置说明更简洁。
+- 1626ed9: <!-- area: general -->
+  <!-- en -->
+  Deleting terms, programs, folders and Sem conversations is faster, and uploading a backup no longer holds up other changes.
+  <!-- zh -->
+  删除学期、学业项目、文件夹和 Sem 对话更快，上传备份时不再阻塞其他修改。
+- 9375f05: <!-- area: files -->
+  <!-- en -->
+  Headings and search snippets from PDFs no longer show Markdown symbols such as asterisks.
+  <!-- zh -->
+  PDF 的标题和搜索摘要不再显示星号等 Markdown 符号。
+- cc73b39: <!-- area: files -->
+  <!-- en -->
+  Files that finish processing while you switch search models are indexed again with the new model.
+  <!-- zh -->
+  切换搜索模型时正在处理的文件，处理完成后会用新模型重新建立索引。
+- eff4c90: <!-- area: grades -->
+  <!-- en -->
+  Grade forecasts are steadier when a category has only a few scores so far.
+  <!-- zh -->
+  成绩预测在分类里分数较少时更稳定。
+- c786d14: <!-- area: grades -->
+  <!-- en -->
+  Hide grades now also masks percentages and shows a value when you hover over it, and gradebook due dates are shorter.
+  <!-- zh -->
+  隐藏成绩现在会同时隐藏百分制成绩，鼠标移上去即可查看，成绩册的截止日期也更简洁。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Importing the same syllabus again no longer duplicates its deadline tasks and calendar events.
+  <!-- zh -->
+  再次导入同一份课程大纲不再重复创建截止待办和日历事件。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  An interrupted import resumes without reading files it already read, avoiding repeat AI charges.
+  <!-- zh -->
+  中断的导入恢复后不再重新读取已读过的文件，避免重复的 AI 费用。
+- cc73b39: <!-- area: imports -->
+  <!-- en -->
+  Sources quoted from scanned pages of an imported document now point to the right page.
+  <!-- zh -->
+  导入文档中引自扫描页的出处现在指向正确的页码。
+- c148c1b: <!-- area: imports -->
+  <!-- en -->
+  Syllabus dates such as "Week 5, Friday" or "Oct 3" now resolve when importing into a course, and dates far outside the term are flagged for review.
+  <!-- zh -->
+  导入到课程时可正确解析“第 5 周周五”“10 月 3 日”等大纲日期，远在学期之外的日期会在审核时标出。
+- 3a6a241: <!-- area: self-hosting -->
+  <!-- en -->
+  LMS syncing runs on workers of its own (`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`), so uploads and imports never wait behind it.
+  <!-- zh -->
+  LMS 同步改由专属的任务进程执行（`SEMESTRA_JOB_BACKGROUND_CONCURRENCY`），上传和导入不再排在它后面。
+- 80f7b4e: <!-- area: courses -->
+  <!-- en -->
+  After a program, term or course is deleted, including from Sem or another tab, the app moves straight to one that still exists, and your only program can no longer be deleted.
+  <!-- zh -->
+  删除 Program、学期或课程后（包括在 Sem 或其他标签页里删除），应用会立即跳到仍存在的页面；唯一的 Program 不能再被删除。
+- f3202e6: <!-- area: self-hosting -->
+  <!-- en -->
+  Self-hosted servers use less memory, and the images are slightly smaller.
+  <!-- zh -->
+  自部署的服务器占用更少内存，镜像也略小一些。
+- 3a6a241: <!-- area: canvas -->
+  <!-- en -->
+  Ignored assignments no longer reappear in courses with many assignments.
+  <!-- zh -->
+  作业很多的课程里，已忽略的作业不会再次出现。
+- 720ae3b: <!-- area: canvas -->
+  
+  <!-- en -->
+  Importing assignments from Canvas always opens the import review first, so you can choose each one's category and edit it before anything is saved. The sync panel also shows a clear Reconnect button when the connection has expired.
+  
+  <!-- zh -->
+  从 Canvas 导入作业时始终先打开导入审核，可以先选好每个作业的分类并修改，确认后才保存。连接失效时，同步面板也会直接给出「重新连接」按钮。
+- 0e8790e: <!-- area: canvas -->
+  
+  <!-- en -->
+  Sync questions are now answered one field at a time, and a value you keep can still be restored to the Canvas value later.
+  
+  <!-- zh -->
+  同步询问改为逐个字段回答，保留的值之后仍可改回 Canvas 的值。
+- 3abc029: <!-- area: self-hosting -->
+  <!-- en -->
+  A local embedding model that fails no longer interrupts search and indexing for other users of the server.
+  <!-- zh -->
+  某个本机 embedding 模型出错时，不再影响同一服务器上其他用户的搜索与索引。
+- aee046d: <!-- area: files -->
+  <!-- en -->
+  Fixed scanned files failing to process with on-server OCR.
+  <!-- zh -->
+  修复使用本机 OCR 时扫描文件处理失败的问题。
+- 8523a69: <!-- area: ai -->
+  <!-- en -->
+  Adding a model provider links to its documentation, and unnamed compatible endpoints are named in your language.
+  <!-- zh -->
+  添加模型服务商时可直接查看文档，未命名的兼容接口按界面语言命名。
+- 3a6a241: <!-- area: data -->
+  <!-- en -->
+  Restoring an older backup keeps your Hide grades setting.
+  <!-- zh -->
+  恢复旧版备份时会保留“隐藏成绩”设置。
+- f042585: <!-- area: files -->
+  <!-- en -->
+  Searching selected files now stays within the current term or course.
+  <!-- zh -->
+  在指定文件中搜索时，结果不再超出当前学期或课程。
+- e419fab: <!-- area: calendar -->
+  <!-- en -->
+  Changing a section to a code that is already taken no longer fails with an unknown error.
+  <!-- zh -->
+  把教学班改成已被使用的编号时不再提示未知错误。
+- 475d435: <!-- area: self-hosting -->
+  <!-- en -->
+  Link-local and cloud metadata addresses are now always blocked for outbound requests, even when private network access is allowed.
+  <!-- zh -->
+  出站请求始终拒绝链路本地和云主机元数据地址，即使允许访问内网也是如此。
+- 3a6a241: <!-- area: sem -->
+  <!-- en -->
+  Files you mention with @ count toward your storage, and mentioning the same file again in a chat takes no extra space.
+  <!-- zh -->
+  用 @ 引用的文件计入存储空间；同一对话里再次引用同一文件不再额外占用。
+- 9e52342: <!-- area: sem -->
+  <!-- en -->
+  Fixed Sem and MCP clients failing to look up assessments by name in courses that use grading categories.
+  <!-- zh -->
+  修复了课程设有成绩分类时，Sem 和 MCP 客户端按名称查找考核失败的问题。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Sem keeps conversation summaries after a failed request, handles long reading sessions better, and no longer loses a streaming answer when a conversation is renamed or pinned.
+  <!-- zh -->
+  Sem 在请求失败后仍保留对话摘要，更好地处理大量阅读的长回合，重命名或置顶对话时不再丢失正在生成的回答。
+- f042585: <!-- area: sem -->
+  <!-- en -->
+  Older conversations started on a course page now work in that course's term.
+  <!-- zh -->
+  在课程页开始的旧对话改为在该课程所在学期中工作。
+- 475d435: <!-- area: api -->
+  <!-- en -->
+  API tokens follow the same limits on REST endpoints as over MCP: deleting needs the "Delete data" permission, and settings only you may change stay protected.
+  <!-- zh -->
+  API 令牌调用 REST 接口时与 MCP 遵守相同的限制：删除需要开启“删除数据”权限，只能由你本人修改的设置不会被令牌改动。
+- 9e52342: <!-- area: api -->
+  <!-- en -->
+  When a tool fails on the server, Sem and MCP clients are told to get the information another way instead of retrying.
+  <!-- zh -->
+  工具在服务器端出错时，Sem 和 MCP 客户端会被提示改用其他方式获取信息，而不是反复重试。
+- 1626ed9: <!-- area: files -->
+  <!-- en -->
+  Storage quota is enforced the same way for course files, import uploads and Sem attachments, including uploads made at the same time.
+  <!-- zh -->
+  课程文件、导入上传和 Sem 附件统一按存储配额检查，同时上传也不会超出配额。
+
 ## 2.0.0-beta.10
 
 ### Minor Changes
