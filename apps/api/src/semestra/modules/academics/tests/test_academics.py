@@ -366,6 +366,9 @@ async def test_calendar_info_numbers_weeks(api: Api):
     assert info["weeks"][6]["break_info"]["name"] == "Reading week"
     assert info["today"] == "2026-01-15"
     assert info["today_week"] == 1
+    # The term itself carries today's week, so its header needs no second request.
+    terms = await api.call("GET", f"/programs/{program['id']}/terms")
+    assert terms["items"][0]["this_week"] == info["weeks"][1]
 
     await api.call("PATCH", f"/terms/{term['id']}", json={"count_break_weeks": True})
     info = await api.call("GET", f"/terms/{term['id']}/calendar-info")

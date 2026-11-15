@@ -1,5 +1,4 @@
-import { academicsTermGetWeeksOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import type { Term } from '@semestra/api-client'
 import type { Scope } from '@/app/extensions'
 import { PluginBoundary } from '@/app/host/PluginBoundary'
 import { ScopePage } from '@/app/host/ScopePage'
@@ -77,11 +76,9 @@ export function ProgramView({
   )
 }
 
-export function TermWeekLine({ termId }: { termId: string }) {
-  const info = useQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } })).data
-  if (!info) return null
-  // `today_week` is already limited to the term's own dates (its first and last weeks reach past them).
-  const week = info.today_week == null ? undefined : info.weeks[info.today_week]
+/** " · Week 3" (or the break's name) for the week today falls in; nothing outside the term. */
+export function TermWeekLine({ term }: { term: Term }) {
+  const week = term.this_week
   if (week?.break_info && week.number == null) return <> · {week.break_info.name}</>
   if (week?.number == null) return null
   return <> · {m.academics_week_number({ number: week.number })}</>
@@ -122,7 +119,7 @@ export function TermView({
                     <>
                       {term.name} · {formatDate(`${term.start_date}T00:00`)} –{' '}
                       {formatDate(`${term.end_date}T00:00`)}
-                      {term.is_current ? <TermWeekLine termId={term.id} /> : null}
+                      {term.is_current ? <TermWeekLine term={term} /> : null}
                     </>
                   }
                 />

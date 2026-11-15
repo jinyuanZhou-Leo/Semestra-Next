@@ -16,7 +16,7 @@ import '@fullcalendar/react/skeleton.css'
 import classicThemePlugin from '@fullcalendar/react/themes/classic'
 import '@fullcalendar/react/themes/classic/theme.css'
 import timeGridPlugin from '@fullcalendar/react/timegrid'
-import type { OneOffEvent, Occurrence, Term } from '@semestra/api-client'
+import type { OneOffEvent, Occurrence, Term, TermWeek } from '@semestra/api-client'
 import {
   scheduleEventGetOptions,
   scheduleEventUpdateMutation,
@@ -85,7 +85,7 @@ import {
   useOccurrences,
   useTermSections,
 } from '../queries'
-import { isoDay, isoWeekday, plusDays } from '@/lib/day'
+import { dayDate, isoDay, isoWeekday, plusDays } from '@/lib/day'
 import { hhmm, toWall, todayIn, wall } from '../time'
 
 const FC_VIEW: Record<Exclude<CalendarView, 'timetable'>, string> = {
@@ -155,6 +155,7 @@ const VIEWS = {
 const ROW_EVENT_CLASS = `${TINTED} relative rounded-[calc(var(--radius)-6px)]! pl-[3px]! before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:rounded-l-[inherit] before:bg-(--fc-event-color)`
 
 const LONG_DATE = { year: 'numeric', month: 'long', day: 'numeric' } as const
+const MONTH_TITLE = { year: 'numeric', month: 'long' } as const
 /**
  * A week's days, "November 2 – 8, 2026". ICU has no Chinese range pattern and falls back to
  * "2026/11/2 – 2026/11/8", unlike the long dates around it, so Chinese drops from the end what
@@ -181,8 +182,10 @@ export default function CalendarPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const timezone = useProgramTimezone(scope.programId)
   const term = useTerms(scope.programId).data?.items.find((t) => t.id === termId)
-  if (!timezone || !term) return null
-  return <TermCalendar programId={scope.programId} term={term} timezone={timezone} />
+  // The toolbar names the shown week ("Week 3"): drawn without it, it would grow and wrap.
+  const weeks = useCalendarInfo(termId).data?.weeks
+  if (!timezone || !term || !weeks) return null
+  return <TermCalendar programId={scope.programId} term={term} timezone={timezone} weeks={weeks} />
 }
 
 type DragState = {
@@ -196,17 +199,18 @@ function TermCalendar({
   programId,
   term,
   timezone,
+  weeks,
 }: {
   programId: string
   term: Term
   timezone: string
+  weeks: readonly TermWeek[]
 }) {
   const queryClient = useQueryClient()
   const calendarRef = useRef<CalendarRef>(null)
   const settings = useCalendarSettings(term.id)
   const sources = useCalendarSources()
   const courses = useCourses(programId, term.id).data?.items ?? []
-  const weeks = useCalendarInfo(term.id).data?.weeks ?? []
   const [nav, setNav] = useUiPref<CalendarNav | null>('calendar.nav', null, { scope: term.id })
   const [filters, setFilters] = useUiPref<CalendarFilters>('calendar.filters', DEFAULT_FILTERS, {
     scope: term.id,
@@ -218,9 +222,16 @@ function TermCalendar({
   const anchor = calendarAnchor(nav, term, today)
   // The day the calendar reports showing; until it has drawn, the one it opens on.
   const [shownDate, setShownDate] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
-  // The first day the view shows, so the week label agrees with the week-number column.
-  const [rangeStart, setRangeStart] = useState<string | null>(null)
+  // FullCalendar measures and sizes its grid in the frame after it reports its dates.
+  const [sized, setSized] = useState(false)
+  // The toolbar's title comes from the days shown, not from FullCalendar once it has drawn: a
+  // title arriving after the first paint would widen the toolbar and wrap it onto a second row.
+  const shownView = view === 'timetable' ? 'week' : view
+  const shownRange = occurrenceRange(shownView, shownDate ?? anchor, firstDayOfWeek())
+  const title =
+    shownView === 'month'
+      ? intl(Intl.DateTimeFormat, MONTH_TITLE).format(dayDate(shownDate ?? anchor))
+      : rangeTitle(dayDate(shownRange.start), dayDate(plusDays(shownRange.end, -1)))
 
   const details = useDialogTarget<{ occurrence: Occurrence; anchor: DetailsAnchor }>()
   // The details are placed against the clicked item, measured within this box.
@@ -475,7 +486,8 @@ function TermCalendar({
     const week = weekOf(weeks, day)
     return week ? weekLabel(week.number, week.break_info?.name) : ''
   }
-  const currentWeek = weekOf(weeks, rangeStart ? midWeek(rangeStart) : anchor)
+  // Named after the week holding most of the days shown, as the week-number column is.
+  const currentWeek = weekOf(weeks, midWeek(shownRange.start))
   const shownDetails = details.target?.occurrence
   const shownAnchor = details.target?.anchor
   const detailsCourse = shownDetails
@@ -502,7 +514,7 @@ function TermCalendar({
 
   return (
     <div className="flex gap-6">
-      <aside className="hidden w-52 shrink-0 lg:block">{filterPanel}</aside>
+      <aside className="hidden w-52 shrink-0 @3xl/main:block">{filterPanel}</aside>
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Sheet>
@@ -511,7 +523,7 @@ function TermCalendar({
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  className="lg:hidden"
+                  className="@3xl/main:hidden"
                   aria-label={m.schedule_filters()}
                 />
               }
@@ -629,7 +641,9 @@ function TermCalendar({
           />
         ) : (
           <div ref={frameRef} className="relative overflow-x-auto">
-            <div className="semestra-calendar" style={{ minWidth }}>
+            {/* Hidden until FullCalendar has sized it: it draws the header and rows once before
+                measuring them, and they would jump into place under the page. */}
+            <div className={cn('semestra-calendar', !sized && 'invisible')} style={{ minWidth }}>
               <FullCalendar
                 // A new view (the toggle, or the stored one arriving) starts a fresh calendar.
                 key={view}
@@ -691,18 +705,13 @@ function TermCalendar({
                 eventResize={onChange}
                 eventContent={renderEventContent}
                 datesSet={(arg) => {
-                  // FullCalendar 7 titles a week by its month alone; ours names the days.
-                  setTitle(
-                    arg.view.type === 'dayGridMonth'
-                      ? arg.view.title
-                      : rangeTitle(arg.start, new Date(arg.end.getTime() - 1)),
-                  )
-                  setRangeStart(isoDay(arg.start))
                   const type = arg.view.type
                   const nextView =
                     type === 'dayGridMonth' ? 'month' : type === 'listWeek' ? 'list' : 'week'
                   const date = isoDay(arg.view.calendar.getDate())
                   setShownDate(date)
+                  if (!sized)
+                    requestAnimationFrame(() => requestAnimationFrame(() => setSized(true)))
                   saveNav({ view: nextView, date })
                   loadNeighbours(nextView, date)
                 }}

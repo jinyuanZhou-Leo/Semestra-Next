@@ -145,6 +145,18 @@ class Break(BaseModel):
     end_date: date
 
 
+class BreakRef(BaseModel):
+    id: str
+    name: str
+
+
+class TermWeek(BaseModel):
+    start_date: date = Field(description="First day of the week (user's week start)")
+    end_date: date
+    number: int | None = Field(description="Week number; null for an uncounted break week")
+    break_info: BreakRef | None = Field(description="The break, for a break week")
+
+
 class Term(BaseModel):
     id: str
     program_id: str
@@ -155,6 +167,7 @@ class Term(BaseModel):
     count_break_weeks: bool
     is_current: bool = Field(description="The term the Program is in now (see academics rules)")
     course_count: int
+    this_week: TermWeek | None = Field(description="Today's week, when today is within the term")
     created_at: datetime
     updated_at: datetime
 
@@ -254,18 +267,6 @@ class TermDeletePreview(BaseModel):
 class TermDeleteResult(BaseModel):
     deleted_course_count: int
     kept_course_count: int
-
-
-class BreakRef(BaseModel):
-    id: str
-    name: str
-
-
-class TermWeek(BaseModel):
-    start_date: date = Field(description="First day of the week (user's week start)")
-    end_date: date
-    number: int | None = Field(description="Week number; null for an uncounted break week")
-    break_info: BreakRef | None = Field(description="The break, for a break week")
 
 
 class CalendarInfo(BaseModel):

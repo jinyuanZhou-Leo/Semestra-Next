@@ -530,7 +530,9 @@ export default function TasksPage({ scope }: PageProps) {
         confirmLabel={m.tasks_clear_completed()}
         pending={pending}
         onConfirm={() => {
-          void actions.clearCompleted(programId, clearScope).then(() => setClearing(false))
+          void actions.clearCompleted(programId, clearScope).then((cleared) => {
+            if (cleared) setClearing(false)
+          })
         }}
       />
     </div>

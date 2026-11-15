@@ -12,6 +12,7 @@ import {
 import { Field, FieldLabel } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { ChoiceControl } from '@/app/settings/choice'
+import { LIST_NAME_MAX } from '../limits'
 
 export type ListDialogValue = { name: string; termLevel: boolean }
 
@@ -35,6 +36,7 @@ export function ListDialog({
   canChooseLevel?: boolean
   /** The primary button: "Create" for a new list, "Save" (default) when renaming. */
   submitLabel?: string
+  /** Resolves with what was saved, or `undefined` when it failed. */
   onSubmit: (value: ListDialogValue) => Promise<unknown>
 }) {
   const [name, setName] = useState(initialName)
@@ -45,10 +47,7 @@ export function ListDialog({
     if (!valid || busy) return
     setBusy(true)
     // On failure the action already showed why (e.g. the name is taken); keep the dialog open.
-    const ok = await onSubmit({ name: name.trim(), termLevel }).then(
-      () => true,
-      () => false,
-    )
+    const ok = (await onSubmit({ name: name.trim(), termLevel })) !== undefined
     setBusy(false)
     if (ok) onOpenChange(false)
   }
@@ -73,7 +72,7 @@ export function ListDialog({
             <FieldLabel htmlFor="task-list-name">{m.tasks_list_name_label()}</FieldLabel>
             <Input
               id="task-list-name"
-              maxLength={100}
+              maxLength={LIST_NAME_MAX}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />

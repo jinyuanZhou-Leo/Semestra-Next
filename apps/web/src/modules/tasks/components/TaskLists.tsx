@@ -137,7 +137,8 @@ function useListEditing({
               name,
               term_id: termId && termLevel ? termId : null,
             })
-            onSelect({ kind: 'list', listId: created.id })
+            if (created) onSelect({ kind: 'list', listId: created.id })
+            return created
           }}
         />
       ) : null}

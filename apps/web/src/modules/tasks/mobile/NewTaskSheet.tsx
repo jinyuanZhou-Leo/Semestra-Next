@@ -8,6 +8,7 @@ import { TaskChips } from '../components/TaskChips'
 import { TitleInput } from '../components/TitleInput'
 import { useNewTaskDraft } from '../draft'
 import { type NewTaskPlace, newTaskBody } from '../new-task'
+import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 /**
  * A new task on a phone (M17), in a drawer from the bottom: the title, the notes and the same
@@ -31,6 +32,7 @@ export function NewTaskSheet({
   today: string
   timezone: string
   smartParsing: boolean
+  /** Resolves with the new task, or `undefined` when it was not saved. */
   onAdd: (body: TaskCreateInputBody) => Promise<unknown>
 }) {
   const [notes, setNotes] = useState('')
@@ -49,7 +51,9 @@ export function NewTaskSheet({
     if (!draft.savedTitle) return false
     const body = newTaskBody(place, { title: draft.savedTitle, notes, values: draft.values })
     reset()
-    void onAdd(body).catch(() => draft.setTitle((current) => current || typed))
+    void onAdd(body).then((added) => {
+      if (!added) draft.setTitle((current) => current || typed)
+    })
     return true
   }
   return (
@@ -81,7 +85,7 @@ export function NewTaskSheet({
               value={draft.title}
               tokens={draft.tokens}
               onKeep={draft.keep}
-              maxLength={300}
+              maxLength={TITLE_MAX}
               enterKeyHint="next"
               placeholder={m.tasks_new_row()}
               aria-label={m.tasks_new_row()}
@@ -95,7 +99,7 @@ export function NewTaskSheet({
             />
             <Textarea
               value={notes}
-              maxLength={20000}
+              maxLength={NOTES_MAX}
               placeholder={m.tasks_notes_label()}
               aria-label={m.tasks_notes_label()}
               className="min-h-0 resize-none border-0 bg-transparent px-0 py-0 text-base text-muted-foreground shadow-none focus-visible:ring-0 dark:bg-transparent"

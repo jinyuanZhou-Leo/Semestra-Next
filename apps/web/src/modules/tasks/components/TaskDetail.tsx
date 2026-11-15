@@ -41,6 +41,7 @@ import {
   type TaskDetailSection,
 } from '../types'
 import { PRIORITY_NAMES, PriorityMarks } from './priority'
+import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 type Draft = {
   title: string
@@ -101,10 +102,7 @@ export function TaskDetail({
       if (base[key] !== draft[key]) body[key] = key === 'title' ? draft.title.trim() : draft[key]
     }
     if (draft.due_date === null) delete body.due_time
-    const saved = await actions.update(task.id, body).then(
-      () => true,
-      () => false,
-    )
+    const saved = (await actions.update(task.id, body)) !== undefined
     setSaving(false)
     // Saving finishes the edit; on failure the panel stays open with the changes (the error toasts).
     if (saved) onClose()
@@ -134,7 +132,7 @@ export function TaskDetail({
                 aria-label={m.tasks_title_label()}
                 className="h-9 text-base font-medium"
                 value={draft.title}
-                maxLength={300}
+                maxLength={TITLE_MAX}
                 aria-invalid={!valid}
                 onChange={(event) => set('title', event.target.value)}
               />
@@ -150,7 +148,7 @@ export function TaskDetail({
             <Textarea
               id="task-notes"
               rows={5}
-              maxLength={20000}
+              maxLength={NOTES_MAX}
               placeholder={m.tasks_notes_placeholder()}
               value={draft.notes}
               onChange={(event) => set('notes', event.target.value)}

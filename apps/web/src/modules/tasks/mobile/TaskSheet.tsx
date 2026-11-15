@@ -19,6 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import type { TaskActions } from '../actions'
 import { PRIORITY_NAMES } from '../components/priority'
 import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
+import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 const NONE = ''
 
@@ -49,9 +50,20 @@ export function TaskSheet({
   // An assessment's task follows it: title, date and course change in the gradebook.
   const managed = task.assessment_id !== null
   const done = draft.completed_at !== null
+  // A change shows at once; one that is not saved (the error toasts) is taken back.
   const save = (body: TaskUpdateInputBody) => {
+    const before = draft
     setDraft((current) => ({ ...current, ...body }) as Task)
-    void actions.update(task.id, body)
+    void actions.update(task.id, body).then((saved) => {
+      if (saved) return
+      const keys = Object.keys(body) as (keyof TaskUpdateInputBody & keyof Task)[]
+      setDraft((current) => ({
+        ...current,
+        ...Object.fromEntries(keys.map((k) => [k, before[k]])),
+      }))
+      if ('title' in body) setTitle(before.title)
+      if ('notes' in body) setNotes(before.notes)
+    })
   }
   const saveTitle = () => {
     const next = title.trim()
@@ -72,7 +84,7 @@ export function TaskSheet({
                 <Input
                   id="task-sheet-title"
                   value={title}
-                  maxLength={400}
+                  maxLength={TITLE_MAX}
                   disabled={managed}
                   onChange={(event) => setTitle(event.target.value)}
                   onBlur={saveTitle}
@@ -148,8 +160,11 @@ export function TaskSheet({
                   value={draft.list_id ?? NONE}
                   onChange={(event) => {
                     const listId = event.target.value || null
+                    const before = draft.list_id
                     setDraft((current) => ({ ...current, list_id: listId }))
-                    void actions.move(task.id, { list_id: listId })
+                    void actions.move(task.id, { list_id: listId }).then((moved) => {
+                      if (!moved) setDraft((current) => ({ ...current, list_id: before }))
+                    })
                   }}
                 >
                   <NativeSelectOption value={NONE}>{m.tasks_view_inbox()}</NativeSelectOption>
@@ -177,6 +192,7 @@ export function TaskSheet({
                   id="task-sheet-notes"
                   value={notes}
                   placeholder={m.tasks_notes_placeholder()}
+                  maxLength={NOTES_MAX}
                   onChange={(event) => setNotes(event.target.value)}
                   onBlur={() => notes !== draft.notes && save({ notes })}
                 />

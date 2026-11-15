@@ -97,7 +97,7 @@ export function GradebookToolbar({
     </Button>
   )
   return (
-    <div className="flex h-8 items-center gap-2">
+    <div className="flex min-h-8 flex-wrap items-center gap-2">
       <SelectionToolbar
         className="mr-auto"
         count={selected.length}

@@ -35,7 +35,9 @@ function ShellInset({ children }: { children: ReactNode }) {
           className="flex min-w-0 flex-1 items-center gap-1 pr-4"
         />
       </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Pages lay out by this width (`@3xl/main:`), not the window's: the sidebar and the
+          assistant panel take part of it. */}
+      <div className="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
         <ShellToolbarSlot value={toolbar}>{children}</ShellToolbarSlot>
       </div>
     </SidebarInset>

@@ -33,6 +33,7 @@ import { PRIORITIES, type ShownPriority, shownPriority } from '../types'
 import { PRIORITY_NAMES, PriorityMarks, TaskPriority } from './priority'
 import { CourseMenuItems, TaskChips } from './TaskChips'
 import type { VirtualRow } from './VirtualTaskList'
+import { NOTES_MAX, TITLE_MAX } from '../limits'
 
 /** Where the cursor goes when a row opens for editing: the field, and the caret in it. */
 export type EditFocus = { field: 'title' | 'notes'; caret?: number }
@@ -134,7 +135,7 @@ function RowEditor({
         aria-label={m.tasks_title_label()}
         className="block w-full bg-transparent p-0 text-base font-medium outline-none"
         value={title}
-        maxLength={300}
+        maxLength={TITLE_MAX}
         readOnly={task.assessment_id !== null}
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => keys(event, true)}
@@ -144,7 +145,7 @@ function RowEditor({
         aria-label={m.tasks_notes_label()}
         placeholder={m.tasks_notes_label()}
         rows={Math.min(Math.max(notes.split('\n').length, 1), 8)}
-        maxLength={20000}
+        maxLength={NOTES_MAX}
         className="block w-full resize-none bg-transparent p-0 text-sm text-muted-foreground outline-none placeholder:text-muted-foreground/70"
         value={notes}
         onChange={(event) => setNotes(event.target.value)}

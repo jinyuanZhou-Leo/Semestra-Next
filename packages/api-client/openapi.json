@@ -37715,6 +37715,17 @@
             "type": "integer",
             "title": "Course Count"
           },
+          "this_week": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TermWeek"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Today's week, when today is within the term"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -37737,6 +37748,7 @@
           "count_break_weeks",
           "is_current",
           "course_count",
+          "this_week",
           "created_at",
           "updated_at"
         ],
