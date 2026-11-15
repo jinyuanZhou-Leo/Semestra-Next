@@ -24,6 +24,7 @@ apps/web/src/paraglide/
 .vscode/
 playwright-report/
 test-results/
+apps/web/bombadil/.runs/
 
 # local tool state
 .pnpm-store/

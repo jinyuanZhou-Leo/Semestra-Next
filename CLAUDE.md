@@ -24,6 +24,7 @@ docs/                设计稿与模块规格
 | `pnpm gen:api` | 导出 OpenAPI → 重新生成 `packages/api-client`，提交生成结果 |
 | `pnpm --filter @semestra/api migrate` | `alembic upgrade head` |
 | `pnpm --filter @semestra/web e2e` | Playwright 冒烟：注册登录、onboarding、ICS 导入（需先 `pnpm exec playwright install chromium`；默认起 dev 服务器，`E2E_BUILT=1` 则先 `VITE_API_ORIGIN= pnpm build`，由 API 同源托管构建产物，CI 这样跑） |
+| `pnpm --filter @semestra/web bombadil` | Bombadil 随机探索检查（只在本地跑，不进 CI；需要本机的 Chrome，或用 `CHROME` 指定，后端依赖要先 `uv sync`）：构建 SPA，在 :8010 起一个数据目录独立的同源实例并通过 API 建好账号与数据，再让 Bombadil 带着会话随机点击、输入、后退、刷新约 2 分钟，每一步检查 `apps/web/bombadil/spec.ts` 的属性（无未捕获异常/console error、API 无 5xx 与登录状态下的 401/403、等加载时 10 s 内结束、纵向滚动区不横向溢出、按钮与链接有可读名称）。参数传给 Bombadil，如 `-- --time-limit 10m`、`-- --width 375 --height 812`（手机外壳）；退出码 2 表示有属性失败，轨迹与截图在 `bombadil/.runs/<时间>/`，用 `pnpm exec bombadil browser inspect <目录>` 逐步看。它打印的 “Reproduce” 命令用不了：实例已经关掉，且 React 生成的元素 id 每次不同，回放会对不上。改 UI 后自检可以跑一次；新属性要先植入一个故障确认它会失败 |
 
 后端也可直接在 `apps/api` 下用 `uv run semestra dev|serve|openapi`、`uv run alembic ...`、`uv run pytest`（加 `-n auto` 并行，CI 也这样跑，测试之间不能共享文件或全局状态）。
 
