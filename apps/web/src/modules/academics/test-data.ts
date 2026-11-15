@@ -150,6 +150,10 @@ export function academicsHandlers(world: World) {
     }),
     // Signed in just now: sensitive account actions do not ask to confirm it's the user.
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
+    // The account settings group opens with the passkey list.
+    http.get(`${API}/account/passkeys`, () =>
+      HttpResponse.json({ items: [], rp_id: 'localhost', user_handle: 'dTE' }),
+    ),
     // No AI configured (the shell's Sem entry and AI actions ask).
     http.get(`${API}/ai/status`, () => HttpResponse.json({ items: [] })),
     // No learning platform bound: the shell's LMS sync line and reminders stay away.

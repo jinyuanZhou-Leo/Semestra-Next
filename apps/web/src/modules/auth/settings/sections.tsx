@@ -3,6 +3,7 @@ import { ActionRow } from '@/app/settings'
 import { m } from '@/paraglide/messages'
 import { SignOutDialog } from '../components/SignOutDialog'
 import { useUser } from '../useAuth'
+import { PasskeysSection } from './PasskeysSection'
 import { ProfileSection } from './ProfileSection'
 import { SessionsSection } from './SessionsSection'
 import { SignInMethodsSection } from './SignInMethodsSection'
@@ -30,4 +31,8 @@ export function SignInMethodsSettings() {
 
 export function SessionsSettings() {
   return <SessionsSection />
+}
+
+export function PasskeysSettings() {
+  return <PasskeysSection />
 }

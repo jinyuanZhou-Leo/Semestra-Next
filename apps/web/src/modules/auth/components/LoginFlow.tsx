@@ -11,9 +11,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
+import { KeyRound } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
+import { passkeysSupported } from '@/modules/auth/passkey'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import {
@@ -28,6 +30,7 @@ import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { EmailField } from './EmailField'
 import { GoogleSignInButton } from './GoogleSignInButton'
+import { usePasskeySignIn } from './usePasskeySignIn'
 import { useCountdown } from './useCountdown'
 
 type Step =
@@ -81,6 +84,12 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
   const register = useMutation(authRegisterCompleteMutation())
   const passwordLogin = useMutation(authPasswordLoginMutation())
   const googleLogin = useMutation(authGoogleLoginMutation())
+  const onEmailStep = step.name === 'email'
+  const passkeyLogin = usePasskeySignIn({
+    autofill: onEmailStep && passkeysSupported(),
+    onSignedIn: (data) => finish(data.user),
+  })
+  const passkeyError = passkeyLogin.error
   const resendIn = useCountdown(step.name === 'code' ? step.resendAt : 0)
 
   const trimmedEmail = email.trim()
@@ -154,6 +163,20 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       { onSuccess: (data) => finish(data.user) },
     )
   }
+
+  const passkey = passkeysSupported() ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      className="w-full"
+      disabled={passkeyLogin.pending}
+      onClick={passkeyLogin.signIn}
+    >
+      <KeyRound aria-hidden />
+      {m.auth_passkey_signin()}
+    </Button>
+  ) : null
 
   const google = googleClientId ? (
     <GoogleSignInButton
@@ -340,6 +363,8 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             error={emailError}
             ref={focusOnMount}
             readOnly={compact && Boolean(initialEmail)}
+            // Lets the browser list this site's passkeys among the field's suggestions.
+            autoComplete="username webauthn"
           />
           <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
@@ -357,11 +382,18 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           {m.auth_use_password()}
         </Button>
       </div>
-      {google ? (
-        <div className="mt-4 flex flex-col gap-6">
-          <FieldSeparator className="text-xs">{m.auth_or()}</FieldSeparator>
+      {passkey || google ? (
+        <div className="mt-4 flex flex-col gap-3">
+          <FieldSeparator className="mb-3 text-xs">{m.auth_or()}</FieldSeparator>
+          {passkey}
           {google}
-          <FieldError>{googleLogin.error ? errorMessage(googleLogin.error) : null}</FieldError>
+          <FieldError>
+            {passkeyError
+              ? errorMessage(passkeyError)
+              : googleLogin.error
+                ? errorMessage(googleLogin.error)
+                : null}
+          </FieldError>
         </div>
       ) : null}
     </div>

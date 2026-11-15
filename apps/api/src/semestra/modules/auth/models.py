@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, Index, Integer, LargeBinary, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from semestra.core.db import Base, TimestampMixin, UTCDateTime, new_id, utcnow
@@ -174,3 +174,37 @@ class AuthOAuthGrant(Base):
     access_token_hash: Mapped[str | None] = mapped_column(String, unique=True, default=None)
     access_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+
+
+class AuthPasskey(Base):
+    """A WebAuthn credential (passkey) the user registered for signing in (M01 §4.9)."""
+
+    __tablename__ = "auth_passkeys"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        String, ForeignKey("auth_users.id", ondelete="CASCADE"), index=True
+    )
+    # The authenticator's credential id, base64url without padding (what the browser reports).
+    credential_id: Mapped[str] = mapped_column(String, unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary)
+    sign_count: Mapped[int] = mapped_column(Integer, default=0)
+    transports: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    aaguid: Mapped[str] = mapped_column(String)
+    # Given by the user; without one the client names it after its provider (by `aaguid`) or
+    # the browser and system it was added on (`device`, as the client reported them).
+    name: Mapped[str | None] = mapped_column(String, default=None)
+    device: Mapped[str | None] = mapped_column(String, default=None)
+    backed_up: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+
+
+class AuthUsedWebAuthnChallenge(Base):
+    """A WebAuthn challenge that has been answered, kept until it expires so it is not answered
+    twice (M01 §4.9). Challenges themselves are signed, not stored."""
+
+    __tablename__ = "auth_webauthn_used_challenges"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)  # SHA-256 of the challenge
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)

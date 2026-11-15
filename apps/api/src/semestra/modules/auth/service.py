@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import exists, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from semestra.modules.auth.mailer import Mailer, OutgoingEmail
 from semestra.modules.auth.models import (
     AuthEmailChallenge,
     AuthIdentity,
+    AuthPasskey,
     AuthPersonalAccessToken,
     AuthSession,
     AuthUser,
@@ -137,6 +138,8 @@ async def user_out(db: AsyncSession, user: AuthUser) -> UserOut:
         avatar_url=user.avatar_url,
         locale=user.locale,
         has_password=user.password_hash is not None,
+        has_passkey=await db.scalar(select(exists().where(AuthPasskey.user_id == user.id)))
+        or False,
         identities=[
             IdentityOut(provider="google", email=i.email, created_at=i.created_at)
             for i in identities
@@ -464,7 +467,7 @@ async def refresh_native(ctx: Ctx, refresh_token: str, meta: RequestMeta) -> Sig
 # --- flows ----------------------------------------------------------------------------------
 
 
-async def _notify_new_sign_in(ctx: Ctx, signed_in: SignedIn, meta: RequestMeta) -> None:
+async def notify_new_sign_in(ctx: Ctx, signed_in: SignedIn, meta: RequestMeta) -> None:
     user = signed_in.user
     # Pushed to the account's other devices (M18); the email is the instance's choice.
     data = {"session_id": signed_in.session.id, "user_agent": meta.user_agent}
@@ -498,7 +501,7 @@ async def verify_email_code(
         if user.email_verified_at is None:
             user.email_verified_at = ctx.now
         signed_in = await create_session(ctx, user, client, meta)
-        await _notify_new_sign_in(ctx, signed_in, meta)
+        await notify_new_sign_in(ctx, signed_in, meta)
         return signed_in, None
     token = crypto.new_token(crypto.REGISTRATION_PREFIX)
     challenge.verification_token_hash = crypto.hash_token(token)
@@ -552,7 +555,7 @@ async def login_with_password(
     if crypto.needs_rehash(user.password_hash):
         user.password_hash = await crypto.hash_password(password)
     signed_in = await create_session(ctx, user, client, meta)
-    await _notify_new_sign_in(ctx, signed_in, meta)
+    await notify_new_sign_in(ctx, signed_in, meta)
     return signed_in
 
 
@@ -630,7 +633,7 @@ async def login_with_google(
     elif identity is not None:
         identity.email = claims.email  # the Google account's address may have changed
     signed_in = await create_session(ctx, user, client, meta)
-    await _notify_new_sign_in(ctx, signed_in, meta)
+    await notify_new_sign_in(ctx, signed_in, meta)
     return signed_in
 
 
@@ -663,35 +666,35 @@ def reauth_remaining(ctx: Ctx) -> int:
     return max(0, math.floor((verified + REAUTH_WINDOW - ctx.now).total_seconds()))
 
 
-def _current_session_id(ctx: Ctx) -> str:
+def current_session_id(ctx: Ctx) -> str:
     # Personal access tokens have no session to verify; they cannot reach these anyway.
     if ctx.auth is None or ctx.auth.session_id is None:
         raise AppError("auth.reauth_required", 403)
     return ctx.auth.session_id
 
 
-async def _mark_verified(ctx: Ctx, session_id: str) -> None:
+async def mark_verified(ctx: Ctx, session_id: str) -> None:
     await ctx.db.execute(
         update(AuthSession).where(AuthSession.id == session_id).values(verified_at=ctx.now)
     )
 
 
 async def reauth_with_password(ctx: Ctx, password: str) -> None:
-    user = _require_user(ctx)
-    session_id = _current_session_id(ctx)
+    user = require_user(ctx)
+    session_id = current_session_id(ctx)
     count, window = REAUTH_PASSWORD_PER_USER
     await ratelimit.hit(
         ctx.db, ctx.settings, ctx.now, "reauth_password_user", user.id, limit=count, window=window
     )
     if not await crypto.verify_password(password, user.password_hash):
         raise AppError("auth.wrong_password", 400)
-    await _mark_verified(ctx, session_id)
+    await mark_verified(ctx, session_id)
 
 
 async def reauth_email_start(ctx: Ctx) -> EmailStartResult:
     """Emails a code to the account's own address; works for every account."""
-    user = _require_user(ctx)
-    _current_session_id(ctx)
+    user = require_user(ctx)
+    current_session_id(ctx)
     meta = RequestMeta(ip=None, user_agent=None)
     return await start_challenge(
         ctx, email=user.email, purpose="reauth", meta=meta, user_id=user.id
@@ -699,19 +702,19 @@ async def reauth_email_start(ctx: Ctx) -> EmailStartResult:
 
 
 async def reauth_email_verify(ctx: Ctx, code: str) -> None:
-    user = _require_user(ctx)
-    session_id = _current_session_id(ctx)
+    user = require_user(ctx)
+    session_id = current_session_id(ctx)
     challenge = await _check_code(
         ctx, email=user.email, purpose="reauth", code=code, user_id=user.id
     )
     challenge.verified_at = challenge.consumed_at = ctx.now
-    await _mark_verified(ctx, session_id)
+    await mark_verified(ctx, session_id)
 
 
 async def reauth_with_google(ctx: Ctx, claims: GoogleClaims) -> None:
     """The Google account must be the one linked to this user, not just any signed-in one."""
-    user = _require_user(ctx)
-    session_id = _current_session_id(ctx)
+    user = require_user(ctx)
+    session_id = current_session_id(ctx)
     issued = claims.issued_at
     if issued is None or not ctx.now - REAUTH_GOOGLE_MAX_AGE <= issued <= ctx.now + timedelta(
         minutes=1
@@ -728,7 +731,7 @@ async def reauth_with_google(ctx: Ctx, claims: GoogleClaims) -> None:
     ).scalar_one_or_none()
     if linked is None:
         raise AppError("auth.identity_mismatch", 403)
-    await _mark_verified(ctx, session_id)
+    await mark_verified(ctx, session_id)
 
 
 async def revoke_tokens(db: AsyncSession, user_id: str, now: datetime) -> None:
@@ -746,7 +749,7 @@ async def revoke_tokens(db: AsyncSession, user_id: str, now: datetime) -> None:
 
 
 async def upload_avatar(ctx: Ctx, raw: bytes) -> UserOut:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     new_url = await avatar.store(ctx, user.id, raw)
     avatar.discard_after_commit(ctx, user.avatar_url)
     user.avatar_url = new_url
@@ -757,7 +760,7 @@ async def upload_avatar(ctx: Ctx, raw: bytes) -> UserOut:
 async def update_profile(
     ctx: Ctx, display_name: str | None, avatar_url: str | None, *, set_avatar: bool
 ) -> UserOut:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     if display_name is not None:
         user.display_name = display_name
     if set_avatar and avatar_url != user.avatar_url:
@@ -769,17 +772,17 @@ async def update_profile(
 
 def set_locale_cache(ctx: Ctx, locale: str | None) -> None:
     """Keep `auth_users.locale` (read for emails and request locale) equal to the M11 preference."""
-    _require_user(ctx).locale = locale
+    require_user(ctx).locale = locale
 
 
-def _require_user(ctx: Ctx) -> AuthUser:
+def require_user(ctx: Ctx) -> AuthUser:
     if ctx.user is None:
         raise AppError("common.unauthenticated", 401)
     return ctx.user
 
 
 async def change_password(ctx: Ctx, current_password: str | None, new_password: str) -> UserOut:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     s = ctx.settings
     if user.password_hash is not None:
         await ratelimit.hit(
@@ -809,7 +812,7 @@ async def change_password(ctx: Ctx, current_password: str | None, new_password: 
 
 
 async def change_email_start(ctx: Ctx, new_email: str, meta: RequestMeta) -> EmailStartResult:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     await require_recent_auth(ctx)
     if new_email == user.email:
         raise AppError("auth.email_in_use", 409)
@@ -827,7 +830,7 @@ async def change_email_start(ctx: Ctx, new_email: str, meta: RequestMeta) -> Ema
 
 
 async def change_email_confirm(ctx: Ctx, code: str) -> UserOut:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     pending = (
         (
             await ctx.db.execute(
@@ -871,7 +874,7 @@ async def change_email_confirm(ctx: Ctx, code: str) -> UserOut:
 
 
 async def link_google(ctx: Ctx, claims: GoogleClaims) -> UserOut:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     # A new sign-in method is a way back into the account (and into `reauth_with_google`).
     await require_recent_auth(ctx)
     identity = (
@@ -901,7 +904,7 @@ async def link_google(ctx: Ctx, claims: GoogleClaims) -> UserOut:
 
 async def unlink_google(ctx: Ctx) -> UserOut:
     """Always allowed: the email code is a login method that cannot be removed."""
-    user = _require_user(ctx)
+    user = require_user(ctx)
     identities = (
         (
             await ctx.db.execute(
@@ -920,7 +923,7 @@ async def unlink_google(ctx: Ctx) -> UserOut:
 
 
 async def list_sessions(ctx: Ctx) -> list[SessionOut]:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     rows = (
         (
             await ctx.db.execute(
@@ -953,7 +956,7 @@ async def list_sessions(ctx: Ctx) -> list[SessionOut]:
 
 
 async def revoke_session(ctx: Ctx, session_id: str) -> None:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     session = await ctx.db.get(AuthSession, session_id)
     if session is None or session.user_id != user.id:
         raise not_found("session", session_id)
@@ -962,7 +965,7 @@ async def revoke_session(ctx: Ctx, session_id: str) -> None:
 
 
 async def revoke_other_sessions(ctx: Ctx) -> None:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     await revoke_sessions(
         ctx.db, user.id, ctx.now, except_id=ctx.auth.session_id if ctx.auth else None
     )
@@ -983,7 +986,7 @@ def _token_out(row: AuthPersonalAccessToken) -> TokenOut:
 
 
 async def list_tokens(ctx: Ctx) -> list[TokenOut]:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     rows = (
         (
             await ctx.db.execute(
@@ -1017,7 +1020,7 @@ async def create_token(
     scopes: list[TokenScope],
     expires_in_days: int | None,
 ) -> TokenCreated:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     # A token outlives the session that made it: a stolen cookie must not be able to mint one.
     await require_recent_auth(ctx)
     plaintext = crypto.new_token(crypto.PAT_PREFIX)
@@ -1038,7 +1041,7 @@ async def create_token(
 
 
 async def revoke_token(ctx: Ctx, token_id: str) -> None:
-    user = _require_user(ctx)
+    user = require_user(ctx)
     row = await ctx.db.get(AuthPersonalAccessToken, token_id)
     if row is None or row.user_id != user.id:
         raise not_found("token", token_id)

@@ -15,7 +15,7 @@ These are read by `docker-compose.yml` itself.
 | --------------------- | ----------------------- | -------------------------------------------------------------------------- |
 | `SEMESTRA_VERSION`    | `latest`                | Image version, e.g. `1.2.0` ([Images](./images.mdx))                       |
 | `SEMESTRA_IMAGE_VARIANT` | `-local`             | Empty for the image without local OCR and embedding                        |
-| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Used in email and calendar links; `https://` makes cookies Secure |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | The address users open. Used in email and calendar links; `https://` makes cookies Secure. Passkeys work only at this address and need `https://` (except on `localhost`) |
 | `SEMESTRA_PORT`       | `8000`                  | Host port                                                                  |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | Host interface. Use `127.0.0.1` behind a reverse proxy                     |
 | `SEMESTRA_DOMAIN`     | (empty)                 | Domain for the bundled Caddy ([Server with a domain](./domain.mdx))        |
