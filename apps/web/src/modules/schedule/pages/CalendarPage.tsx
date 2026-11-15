@@ -82,6 +82,7 @@ import {
   stepPeriod,
   useCalendarInfo,
   useCalendarSettings,
+  useCalendarSettingsState,
   useOccurrences,
   useTermSections,
 } from '../queries'
@@ -182,7 +183,11 @@ export default function CalendarPage({ scope }: PageProps) {
   const termId = scope.kind === 'term' ? scope.termId : ''
   const timezone = useProgramTimezone(scope.programId)
   const term = useTerms(scope.programId).data?.items.find((t) => t.id === termId)
-  if (!timezone || !term) return null
+  // What decides the view, its days and so the toolbar: drawn before them, the toolbar would
+  // change and wrap when they arrive (the page's prefetch has them unless the page is reloaded).
+  const settings = useCalendarSettingsState(termId)
+  const [, , navReady] = useUiPref<CalendarNav | null>('calendar.nav', null, { scope: termId })
+  if (!timezone || !term || settings.isPending || !navReady) return null
   return <TermCalendar programId={scope.programId} term={term} timezone={timezone} />
 }
 
