@@ -26,9 +26,11 @@ class H(BaseHTTPRequestHandler):
             d = {"id": "x", "object": "chat.completion.chunk", "created": 0, "model": "sem-demo", "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
             if usage: d["usage"] = usage
             self.wfile.write(f"data: {json.dumps(d)}\n\n".encode()); self.wfile.flush()
+        # A step that calls tools takes a moment, as a real model's would: Sem's steps show one by one.
+        if calls: time.sleep(0.9)
         chunk({"role": "assistant", "content": ""})
         for i in range(0, len(text or ''), 6):
-            chunk({"content": text[i:i+6]}); time.sleep(0.01)
+            chunk({"content": text[i:i+6]}); time.sleep(0.04)
         for i, (n, a) in enumerate(calls):
             chunk({"tool_calls": [{"index": i, "id": f"call_{int(time.time()*1000)}_{i}", "type": "function", "function": {"name": n, "arguments": json.dumps(a)}}]})
         chunk({}, "tool_calls" if calls else "stop", {"prompt_tokens": 1200, "completion_tokens": 180, "total_tokens": 1380})

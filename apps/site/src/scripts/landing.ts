@@ -103,6 +103,7 @@ const beats = [...document.querySelectorAll<HTMLElement>('[data-beat]')].map((el
   const [from, to] = el.dataset.beat!.split(',').map(Number)
   return { el, from: from!, to: to!, block: el.closest<HTMLElement>('.scrub') }
 })
+const stages = [...document.querySelectorAll<HTMLElement>('.sem-stage')]
 // How far a `.scrub` block's pinned content has travelled, from 0 to 1.
 function progress(block: HTMLElement) {
   const b = block.getBoundingClientRect()
@@ -118,6 +119,12 @@ function scrub() {
     if (Math.abs(video.currentTime - t) > 1 / 60) video.currentTime = t
     // The camera follows the frame on screen, which lands when the seek is done (see below).
     if (camera) aim(video, camera, video.currentTime)
+  }
+  // A stage grows into place while its block scrolls in.
+  for (const stage of stages) {
+    const top = stage.closest<HTMLElement>('.scrub')!.getBoundingClientRect().top
+    if (top > vh || top < -vh) continue
+    stage.style.setProperty('--grow', String(0.86 + 0.14 * ease(clamp(1 - top / vh))))
   }
   for (const { el, from, to, block } of beats) {
     if (!block) continue

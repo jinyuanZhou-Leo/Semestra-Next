@@ -74,7 +74,8 @@ const beat = (clip: string, ...marks: string[]) => {
   const edges = [0, ...marks.map((m) => at[m as keyof typeof at] / duration), 2]
   return edges.slice(1).map((end, i) => `${edges[i].toFixed(3)},${end.toFixed(3)}`)
 }
-const semBeats = beat(`sem-dark-${l}`, 'sent', 'proposed')
+// Sem's notes: from the start to Sem at work, its work, then the changes until you decide.
+const semNotes = beat(`sem-dark-${l}`, 'sent', 'proposed', 'decide').slice(0, 3)
 const tasksBeats = beat(`quickadd-light-${l}`, 'added')
 const lmsIcons = [ClipboardList, Scale, BookOpen]
 const more = [
@@ -257,22 +258,27 @@ const login = `${APP_URL}/login`
           <span class="eyebrow" data-reveal><Sparkles aria-hidden="true" />Sem · AI Agent</span>
           <h2 class="h2" data-reveal style="--d: 1">{t.sem.h2}</h2>
           <p class="sub" data-reveal style="--d: 2">{t.sem.sub}</p>
+          <div class="scrub stage-scrub" style="--len: 640vh">
+            <div class="pin stage-pin">
+              <div class="sem-stage">
+                <Clip dark src="clips/sem" lang={lang} width={2400} height={2680} camera={clips[`sem-dark-${l}`].focus} aspect={1.6} />
+                <!-- Words only where the take does not speak for itself, on the side the camera leaves free. -->
+                <ol class="beats notes">
+                  {t.sem.notes.map((text, i) => (
+                    <li data-beat={semNotes[i]} data-at={i === 1 ? 'bottom' : 'top'}>{text}</li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </div>
           <div class="bento">
-            <div class="card span2" data-reveal>
-              <div class="t"><h3>{t.sem.run[0]}</h3><p>{t.sem.run[1]}</p></div>
-              <div class="peek center"><Shot dark src="parts/answer" lang={lang} width={1576} height={lang === 'en' ? 808 : 762} /></div>
+            <div class="card text span2" data-reveal>
+              <div class="t"><h3>{t.sem.mcp[0]}</h3><p>{t.sem.mcp[1]}</p></div>
+              <div class="big-ic"><Plug aria-hidden="true" /></div>
             </div>
             <div class="card text" data-reveal style="--d: 1">
               <div class="t"><h3>{t.sem.memory[0]}</h3><p>{t.sem.memory[1]}</p></div>
               <div class="big-ic"><Bookmark aria-hidden="true" /></div>
-            </div>
-            <div class="card text" data-reveal>
-              <div class="t"><h3>{t.sem.mcp[0]}</h3><p>{t.sem.mcp[1]}</p></div>
-              <div class="big-ic"><Plug aria-hidden="true" /></div>
-            </div>
-            <div class="card span2" data-reveal style="--d: 1">
-              <div class="t"><h3>{t.sem.hitl[0]}</h3><p>{t.sem.hitl[1]}</p></div>
-              <div class="peek center"><Shot cut dark src="parts/proposal" lang={lang} width={1496} height={428} /></div>
             </div>
             <div class="card text" data-reveal>
               <div class="t"><h3>{t.sem.refs[0]}</h3><p>{t.sem.refs[1]}</p></div>
@@ -287,20 +293,6 @@ const login = `${APP_URL}/login`
               <div class="big-ic"><History aria-hidden="true" /></div>
             </div>
           </div>
-          <div class="showcase scrub" style="--len: 280vh; --pin-h: 50vh">
-            <div class="pin">
-              <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
-              <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
-              <ol class="beats" data-reveal style="--d: 2">
-                {t.sem.beats.map((text, i) => (
-                  <li data-beat={semBeats[i]}>{text}</li>
-                ))}
-              </ol>
-              <div class="sem-clip" data-reveal style="--d: 2">
-                <Clip dark src="clips/sem" lang={lang} width={2400} height={2680} camera={clips[`sem-dark-${l}`].focus} aspect={1.6} />
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -308,7 +300,9 @@ const login = `${APP_URL}/login`
         <div class="wrap split pin">
           <div class="words">
             <span class="eyebrow" data-reveal><ListChecks aria-hidden="true" />{t.tasks.eyebrow}</span>
-            <h2 class="h2" data-reveal style="--d: 1">{t.tasks.h2}</h2>
+            <h2 class="h2 done" data-reveal style="--d: 1">
+              <svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="m7.5 12.5 3 3 6-6.5" /></svg><span class="struck">{t.tasks.h2}</span>
+            </h2>
             <ul class="bullets beating">
               {t.tasks.bullets.map(([title, text], i) => {
                 const Icon = tasksIcons[i]!
@@ -355,7 +349,7 @@ const login = `${APP_URL}/login`
       <section class="s" id="files">
         <div class="wrap">
           <span class="eyebrow" data-reveal><FolderOpen aria-hidden="true" />{t.files.eyebrow}</span>
-          <h2 class="h2" data-reveal style="--d: 1">{t.files.h2}</h2>
+          <h2 class="h2 hit" data-reveal style="--d: 1">{t.files.h2.split(t.files.hit)[0]}<mark>{t.files.hit}</mark>{t.files.h2.split(t.files.hit)[1]}</h2>
           <p class="sub" data-reveal style="--d: 2">{t.files.sub}</p>
           <div class="showcase" data-reveal style="--d: 2">
             <Shot cut src="parts/preview" lang={lang} width={1600} height={1096} />
@@ -367,7 +361,7 @@ const login = `${APP_URL}/login`
         <div class="wrap split">
           <div class="words">
             <span class="eyebrow" data-reveal><BellRing aria-hidden="true" />{t.notify.eyebrow}</span>
-            <h2 class="h2" data-reveal style="--d: 1">{t.notify.h2}</h2>
+            <h2 class="h2 chime" data-reveal style="--d: 1"><BellRing className="bell" aria-hidden="true" />{t.notify.h2}</h2>
             <ul class="bullets">
               {t.notify.bullets.map(([title, text], i) => {
                 const Icon = notifyIcons[i]!
@@ -390,7 +384,7 @@ const login = `${APP_URL}/login`
         <div class="wrap split flip">
           <div class="words">
             <span class="eyebrow" data-reveal><Keyboard aria-hidden="true" />{t.palette.eyebrow}</span>
-            <h2 class="h2" data-reveal style="--d: 1">{t.palette.h2}</h2>
+            <h2 class="h2 keys" data-reveal style="--d: 1"><span class="caps" aria-hidden="true"><kbd>Ctrl</kbd><kbd>K</kbd></span>{t.palette.h2}</h2>
             <ul class="bullets">
               {t.palette.bullets.map(([title, text], i) => {
                 const Icon = paletteIcons[i]!

@@ -58,25 +58,5 @@ if (process.env.APPROVE) {
   await p.waitForTimeout(2000)
 }
 await p.screenshot({ path: `${OUT}/out/${out}-${scheme}-${locale}.png` })
-if (process.env.APPROVE) {
-  // The conversation, from the question to the end of the answer, without the chat list beside it.
-  const question = await p.getByText(msg).first().boundingBox()
-  const thought = await p
-    .getByText(/^(Thought for|思考了)/)
-    .first()
-    .boundingBox()
-  const copy = await p
-    .locator('main button')
-    .filter({ has: p.locator('svg.lucide-copy') })
-    .last()
-    .boundingBox()
-  const left = thought.x - 24
-  await part(p, `answer-${tag}`, {
-    x: left,
-    y: question.y - 12,
-    width: question.x + question.width + 20 - left,
-    height: copy.y + copy.height - question.y + 24,
-  })
-}
 console.log(p.url())
 await b.close()
