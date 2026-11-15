@@ -56,7 +56,7 @@ for (const f of existsSync(OUT + '/clips') ? readdirSync(OUT + '/clips').sort() 
 if (Object.keys(timings).length)
   writeFileSync(resolve(here, '../../src/clips.json'), JSON.stringify(timings, null, 2) + '\n')
 
-// Pieces of the UI (parts.mjs, and the proposal and answer from chat.mjs) → public/parts/, at most
+// Pieces of the UI (parts.mjs, and the proposal from chat.mjs) → public/parts/, at most
 // 1600 px wide (they are captured at 2x).
 const parts = resolve(here, '../../public/parts')
 mkdirSync(parts, { recursive: true })

@@ -239,7 +239,7 @@ if (want('sem')) {
         ask,
       )
       // The screencast shows it a moment later.
-      await p.waitForTimeout(1200)
+      await p.waitForTimeout(500)
       // The question and Sem's steps, at the top of the conversation.
       await mark('sent', { x: column.x, y: 40, width: column.width, height: 420 })
       await approve.first().waitFor({ timeout: 60000 })

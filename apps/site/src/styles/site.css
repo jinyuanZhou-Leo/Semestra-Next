@@ -1022,22 +1022,22 @@ footer .legal {
   opacity: 1;
   transform: none;
 }
-/* Sem's clip as a stage: one long take that fills the screen while it plays, with its caption
-   below. It is wider than the page column, and grows into place as it arrives (landing.ts). */
+/* Sem's clip as a stage: one long take that fills the screen while it plays. It is wider than the
+   page column and grows into place as it arrives (landing.ts). Its few words sit inside the frame,
+   on a shade over the edge the camera leaves free. */
 .stage-scrub {
-  margin-top: 56px;
+  margin-top: 64px;
 }
 .stage-scrub > .stage-pin {
   top: 64px;
   height: calc(100vh - 64px);
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 28px;
 }
 .sem-stage {
-  width: min(96vw, calc((100vh - 64px - 200px) * 1.6));
+  position: relative;
+  width: min(96vw, calc((100vh - 64px - 64px) * 1.6));
   flex: none;
   scale: var(--grow, 1);
   transform-origin: 50% 30%;
@@ -1045,15 +1045,30 @@ footer .legal {
 .sem-stage .shot {
   border-radius: 20px;
 }
-.stage-beats {
+.notes {
+  position: absolute;
+  inset: 0;
   margin: 0;
-  width: min(96vw, 46em);
-  text-align: center;
+  max-width: none;
+  pointer-events: none;
 }
-.stage-beats li {
-  font-size: clamp(20px, 2.2vw, 30px);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.notes li {
+  align-self: start;
+  padding: clamp(24px, 4vw, 48px) clamp(24px, 4vw, 56px) clamp(56px, 8vw, 112px);
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(oklch(0 0 0 / 0.78), oklch(0 0 0 / 0.5) 55%, transparent);
+  color: oklch(1 0 0);
+  font-size: clamp(24px, 3vw, 44px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+.notes li[data-at='bottom'] {
+  align-self: end;
+  padding: clamp(56px, 8vw, 112px) clamp(24px, 4vw, 56px) clamp(24px, 4vw, 48px);
+  border-radius: 0 0 20px 20px;
+  background: linear-gradient(transparent, oklch(0 0 0 / 0.5) 45%, oklch(0 0 0 / 0.78));
 }
 @media (prefers-reduced-motion: reduce) {
   .stage-scrub > .stage-pin {
@@ -1072,4 +1087,165 @@ footer .legal {
   grid-area: auto;
   opacity: 1;
   transform: none;
+}
+
+/* Titles that act out what they say once they are in view: a task gets checked off and struck
+   through, a bell rings, keys are pressed, a search hit lights up. */
+.done .tick,
+.chime .bell {
+  display: inline-block;
+  width: 0.78em;
+  height: 0.78em;
+  margin-right: 0.28em;
+  vertical-align: -0.06em;
+}
+.done .tick {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.done .tick circle {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.6;
+  stroke-dasharray: 64;
+  transition:
+    fill 0.3s ease 1s,
+    stroke 0.3s ease 1s;
+}
+.done .tick path {
+  stroke: var(--primary-foreground);
+  stroke-width: 2.4;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  transition: stroke-dashoffset 0.35s ease 1.15s;
+}
+.done .struck {
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 0% 0.07em;
+  transition:
+    background-size 0.7s cubic-bezier(0.6, 0, 0.3, 1) 1.55s,
+    color 0.5s ease 2.1s;
+}
+.done.in .tick circle {
+  fill: var(--primary);
+  stroke: var(--primary);
+}
+.done.in .tick path {
+  stroke-dashoffset: 0;
+}
+.done.in .struck {
+  background-size: 100% 0.07em;
+  color: var(--muted-foreground);
+}
+.chime .bell {
+  color: var(--primary);
+  transform-origin: 50% 8%;
+}
+.chime.in .bell {
+  animation: ring 1.1s ease-in-out 0.9s;
+}
+@keyframes ring {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  12% {
+    rotate: 18deg;
+  }
+  28% {
+    rotate: -15deg;
+  }
+  44% {
+    rotate: 11deg;
+  }
+  60% {
+    rotate: -7deg;
+  }
+  76% {
+    rotate: 3deg;
+  }
+}
+.keys .caps {
+  display: flex;
+  gap: 0.14em;
+  margin-bottom: 0.3em;
+}
+.keys kbd {
+  font: 600 0.42em/1 var(--font-sans, inherit);
+  padding: 0.45em 0.6em;
+  border-radius: 0.5em;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 0.18em 0 var(--border);
+}
+.keys.in kbd {
+  animation: press 0.32s ease 1s;
+}
+.keys.in kbd + kbd {
+  animation-delay: 1.08s;
+}
+@keyframes press {
+  50% {
+    translate: 0 0.14em;
+    box-shadow: 0 0.04em 0 var(--border);
+    color: var(--primary);
+  }
+}
+.hit mark {
+  color: inherit;
+  background: linear-gradient(
+      color-mix(in oklch, var(--primary) 22%, transparent),
+      color-mix(in oklch, var(--primary) 22%, transparent)
+    )
+    no-repeat 0 0 / 0% 100%;
+  border-radius: 0.12em;
+  transition: background-size 0.6s cubic-bezier(0.6, 0, 0.3, 1) 0.9s;
+}
+.hit.in mark {
+  background-size: 100% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .done .tick *,
+  .done .struck,
+  .hit mark {
+    transition: none;
+  }
+  .chime .bell,
+  .keys kbd {
+    animation: none !important;
+  }
+  .notes {
+    position: static;
+    margin-top: 24px;
+  }
+  .notes li {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-size: 20px;
+    text-align: center;
+  }
+}
+:root:not(.js) .done .tick circle {
+  fill: var(--primary);
+  stroke: var(--primary);
+}
+:root:not(.js) .done .tick path {
+  stroke-dashoffset: 0;
+}
+:root:not(.js) .done .struck {
+  background-size: 100% 0.07em;
+  color: var(--muted-foreground);
+}
+:root:not(.js) .hit mark {
+  background-size: 100% 100%;
+}
+:root:not(.js) .notes {
+  position: static;
+  margin-top: 24px;
+}
+:root:not(.js) .notes li {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: 20px;
 }

@@ -68,22 +68,16 @@ export const copy = {
     sem: {
       h2: '交给 Sem，你的学业助理。',
       sub: '它熟悉你的课程、成绩与安排，有问必答。',
-      run: ['无需解释，直奔主题', '报出课程代码或考核名称，Sem 秒懂。'] as Item,
       memory: ['越用，越懂你', '记住你的偏好与学习习惯。'] as Item,
       mcp: ['你熟悉的 AI，也懂你的学业', '通过 MCP 连接 ChatGPT、Claude、Cursor 等工具。'] as Item,
-      hitl: ['Human in the loop', '每一处改动，都先经你确认。'] as Item,
       refs: ['@ 文件，/ 技能', '输入 @ 引用课程文件，输入 / 选择技能。'] as Item,
       ask: ['拿不准，先问你', '需要你拿主意时，Sem 给出选项让你挑。'] as Item,
       recall: ['聊过的，都记得', '以前聊过的，随时翻得出来。'] as Item,
-      beats: [
-        '说出你的目标。',
+      notes: [
+        '无需解释，直奔主题。',
         'Sem 翻看你的课表，和每一个截止日期。',
-        '在空档里，排好复习。',
-        '每一项改动，都先摆在你面前。',
-        '你点头，才会写进去。',
-        '安排好了，就在待办里。',
+        '每一处改动，都先经你确认。',
       ],
-      trace: ['长程任务，步步可查。', 'Sem 的每一步推理与改动，清清楚楚。'] as Item,
     },
     tasks: {
       eyebrow: '待办',
@@ -108,6 +102,7 @@ export const copy = {
     files: {
       eyebrow: '课程资料',
       h2: '翻遍课件，只需一搜。',
+      hit: '一搜',
       sub: '上传即可全文搜索，扫描版 PDF 也不例外。Sem 引用时标明页码，一点直达原文。',
     },
     notify: {
@@ -243,16 +238,11 @@ export const copy = {
     sem: {
       h2: 'Hand it to Sem. Consider it done.',
       sub: 'Sem knows your courses, grades and schedule. Just ask.',
-      run: [
-        'Skip the explaining.',
-        'Name a course code or an assessment. Sem knows what you mean.',
-      ] as Item,
       memory: ['Gets to know you.', 'Sem remembers your preferences and study habits.'] as Item,
       mcp: [
         'Your AI tools, fluent in your semester.',
         'Connect ChatGPT, Claude, Cursor and more through MCP.',
       ] as Item,
-      hitl: ['Human in the loop', 'Nothing changes until you approve it.'] as Item,
       refs: ['@ files. / skills.', 'Type @ to attach a course file, or / to pick a skill.'] as Item,
       ask: [
         'Asks before it guesses.',
@@ -262,18 +252,11 @@ export const copy = {
         'Remembers the conversation.',
         'Anything you talked about before, back in a moment.',
       ] as Item,
-      beats: [
-        'Tell Sem what you need.',
+      notes: [
+        'Skip the explaining.',
         'It reads your schedule, and every deadline.',
-        'It fits the review into the gaps.',
-        'Every change, laid out for you first.',
-        'Nothing is written until you say so.',
-        "Done. It's on your list.",
+        'Nothing changes until you approve it.',
       ],
-      trace: [
-        'Long tasks. Every step in the open.',
-        "Every step of Sem's reasoning, and every change, in the open.",
-      ] as Item,
     },
     tasks: {
       eyebrow: 'Tasks',
@@ -301,6 +284,7 @@ export const copy = {
     files: {
       eyebrow: 'Course files',
       h2: 'Every slide. One search away.',
+      hit: 'One search',
       sub: "Upload and search every word, even in scanned PDFs. The page numbers in Sem's answers take you straight to the source.",
     },
     notify: {
