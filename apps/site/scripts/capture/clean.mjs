@@ -1,4 +1,5 @@
-// Resets what the Sem chat leaves behind: its sessions, and the task its approved proposal added.
+// Resets what the Sem chat and the clips leave behind: Sem's sessions, the task its approved proposal
+// added and the task the quick-add clip wrote.
 import { readFileSync } from 'node:fs'
 import { API, OUT, WEB, launch } from './env.mjs'
 
@@ -17,7 +18,7 @@ const list = async (path) => {
 const sessions = await list('/agent/sessions')
 for (const s of sessions) await p.request.delete(API + '/agent/sessions/' + s.id, { headers })
 const tasks = (await list(`/programs/${ids.prog}/tasks?limit=200`)).filter((t) =>
-  /2025|formula sheet|公式表/.test(t.title),
+  /2025|formula sheet|公式表|midterm review|期中复习/.test(t.title),
 )
 for (const t of tasks) await p.request.delete(API + '/tasks/' + t.id, { headers })
 console.log('deleted', sessions.length, 'sessions', tasks.length, 'tasks')

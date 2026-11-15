@@ -1,6 +1,6 @@
-// The LMS pieces, once lms.mjs has connected the stand-in Canvas: ECE244's Canvas tab with its
-// changes banner, and the toast offering the new assignments. Runs after every other shot, since
-// that toast shows up on any page of the Program.
+// The LMS pieces, once lms.mjs has connected the stand-in Canvas: ECE244's Canvas tab and the sync
+// panel with what was posted since. Runs after every other shot, since the sync status line shows
+// up in the sidebar of every page once Canvas is connected.
 import { readFileSync } from 'node:fs'
 import { OUT, WEB, NOW, around, launch, part } from './env.mjs'
 
@@ -26,27 +26,29 @@ await p
   .first()
   .click()
 await p.waitForTimeout(2500)
-const toast = p.locator('[data-sonner-toast]', { hasText: /new assignments|个新作业/ }).first()
-await toast.waitFor()
-// Let it finish sliding in, or the box is taken mid-way.
+// The assignments table, from its toolbar to the bottom of the Quizzes rows.
+const toolbar = p.getByRole('button', { name: /^(All|全部)$/ }).first()
+const box = await around(toolbar, p.locator('main tr').nth(12))
+// The margin stops at the last row's bottom border, so the next group doesn't peek in.
+await part(
+  p,
+  `lms-${tag}`,
+  { x: box.x - 28, y: box.y - 24, width: box.width + 52, height: box.height + 25 },
+  { pad: 0 },
+)
+
+// The sync panel, opened from its status line in the sidebar: what changed on Canvas, waiting for a
+// decision. `lmssync` is its header and first item, for the hero.
+await p
+  .getByText(/^Canvas · /)
+  .first()
+  .click()
 await p.waitForTimeout(1500)
-// Only this toast: others stack behind it.
-await p.addStyleTag({
-  content: '[data-sonner-toast]:not([data-front]) { display: none !important }',
-})
-// The toast is translucent: nothing of the page may show through it.
-const blank = await p.addStyleTag({ content: 'main { opacity: 0 !important }' })
-await toast.evaluate((el) => el.setAttribute('data-front', ''))
-await p.waitForTimeout(300)
-await part(p, `lmstoast-${tag}`, toast, { cut: true })
-await toast.evaluate((el) => el.style.setProperty('visibility', 'hidden'))
-await blank.evaluate((n) => n.remove())
-await p.waitForTimeout(300)
-const banner = p
-  .getByText(/imported assignments have changes|项已导入的作业有变化/)
-  .locator('xpath=ancestor::*[contains(@class, "rounded")][1]')
-const box = await around(banner, p.locator('main tr').nth(9))
-// Ends at the bottom of the Quizzes row, without the next row peeking in.
-await part(p, `lms-${tag}`, { ...box, height: box.height - 24 }, { pad: 24 })
+const panel = p.locator('[data-slot=popover-content]').first()
+await part(p, `lmssync-${tag}`, panel, { cut: true })
+const first = panel.getByRole('button', { name: /^(Import|导入)$/ }).first()
+const head = await panel.boundingBox()
+const item = await first.boundingBox()
+await part(p, `lmsnew-${tag}`, { ...head, height: item.y + item.height + 14 - head.y }, { pad: 0 })
 console.log('lms parts', tag)
 await b.close()

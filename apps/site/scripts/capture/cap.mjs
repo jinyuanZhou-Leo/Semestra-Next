@@ -16,8 +16,16 @@ const ctx = await b.newContext({
 const p = await ctx.newPage()
 await p.clock.setFixedTime(NOW)
 const P = `/p/${ids.prog}`
-// The full-window shots; the smaller pieces of UI come from parts.mjs.
-const shots = { today: P + '/today' }
+// The full-window shots: the site's hero and the README's screenshots. The smaller pieces of UI
+// come from parts.mjs.
+const shots = {
+  today: P + '/today',
+  academics: P + '/academics',
+  schedule: `${P}/t/${ids.fall}/calendar`,
+  grades: `${P}/c/${ids.courses.ECE244H1}/grades`,
+  tasks: P + '/tasks',
+  plugins: P + '/today?settings=account/plugins',
+}
 for (const [name, url] of Object.entries(shots)) {
   if (only && !only.split(',').includes(name)) continue
   await p.goto(web + url)

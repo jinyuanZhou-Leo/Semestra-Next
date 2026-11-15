@@ -175,16 +175,16 @@ for (const [key, name] of [
 ])
   cat[key] = (await api('POST', `/courses/${ece244}/grading-categories`, { name, key })).id
 const assess = [
-  ['Lab 1', 'labs', 4, 100, '2026-09-19'],
-  ['Lab 2', 'labs', 4, 95, '2026-09-26'],
-  ['Lab 3', 'labs', 4, 92, '2026-10-03'],
-  ['Lab 4', 'labs', 4, 88, '2026-10-17'],
-  ['Lab 5', 'labs', 4, null, '2026-10-31'],
-  ['Lab 6', 'labs', 4, null, '2026-11-14'],
-  ['Quiz 1', 'quizzes', 5, 84, '2026-09-30'],
-  ['Quiz 2', 'quizzes', 5, 90, '2026-10-14'],
-  ['Midterm', 'midterm', 26, 78, '2026-10-16'],
-  ['Final exam', 'final', 40, null, '2026-12-14'],
+  ['Lab 1', 'labs', 4, 100, '2026-09-20T03:59:00Z'],
+  ['Lab 2', 'labs', 4, 95, '2026-09-27T03:59:00Z'],
+  ['Lab 3', 'labs', 4, 92, '2026-10-04T03:59:00Z'],
+  ['Lab 4', 'labs', 4, 88, '2026-10-18T03:59:00Z'],
+  ['Lab 5', 'labs', 4, null, '2026-11-01T03:59:00Z'],
+  ['Lab 6', 'labs', 4, null, '2026-11-15T04:59:00Z'],
+  ['Quiz 1', 'quizzes', 5, 84, '2026-09-30T13:00:00Z'],
+  ['Quiz 2', 'quizzes', 5, 90, '2026-10-14T13:00:00Z'],
+  ['Midterm', 'midterm', 26, 78, '2026-10-16T22:00:00Z'],
+  ['Final exam', 'final', 40, null, '2026-12-14T14:00:00Z'],
 ]
 for (const [title, c, weight, score, due] of assess)
   await soft(
@@ -193,7 +193,8 @@ for (const [title, c, weight, score, due] of assess)
       category_id: cat[c],
       weight,
       score_percentage: score,
-      due_date: due,
+      // The same deadlines as the stand-in Canvas (canvas.py), so syncing finds nothing to ask about.
+      due_at: due,
     }),
   )
 // Other fall courses: a few marks each so the term GPA exists.
