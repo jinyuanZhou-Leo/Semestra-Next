@@ -1,42 +1,244 @@
 {
   "quickadd-dark-en": {
-    "duration": 8,
+    "duration": 10.9,
     "marks": {
-      "added": 5.81
-    }
+      "list": 0.51,
+      "typing": 2.31,
+      "added": 8.48
+    },
+    "focus": [
+      {
+        "name": "list",
+        "t": 0.51,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "name": "typing",
+        "t": 2.31,
+        "x": 0.022,
+        "y": 0.559,
+        "w": 0.526,
+        "h": 0.269
+      },
+      {
+        "name": "added",
+        "t": 8.48,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
   },
   "quickadd-dark-zh": {
-    "duration": 6.89,
+    "duration": 9.66,
     "marks": {
-      "added": 4.69
-    }
+      "list": 0.52,
+      "typing": 2.32,
+      "added": 7.11
+    },
+    "focus": [
+      {
+        "name": "list",
+        "t": 0.52,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "name": "typing",
+        "t": 2.32,
+        "x": 0.022,
+        "y": 0.559,
+        "w": 0.526,
+        "h": 0.269
+      },
+      {
+        "name": "added",
+        "t": 7.11,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
   },
   "quickadd-light-en": {
-    "duration": 8.08,
+    "duration": 10.94,
     "marks": {
-      "added": 5.9
-    }
+      "list": 0.5,
+      "typing": 2.3,
+      "added": 8.35
+    },
+    "focus": [
+      {
+        "name": "list",
+        "t": 0.5,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "name": "typing",
+        "t": 2.3,
+        "x": 0.022,
+        "y": 0.559,
+        "w": 0.526,
+        "h": 0.269
+      },
+      {
+        "name": "added",
+        "t": 8.35,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
   },
   "quickadd-light-zh": {
-    "duration": 7.05,
+    "duration": 10.11,
     "marks": {
-      "added": 4.84
-    }
+      "list": 0.54,
+      "typing": 2.34,
+      "added": 7.36
+    },
+    "focus": [
+      {
+        "name": "list",
+        "t": 0.54,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      },
+      {
+        "name": "typing",
+        "t": 2.34,
+        "x": 0.022,
+        "y": 0.559,
+        "w": 0.526,
+        "h": 0.269
+      },
+      {
+        "name": "added",
+        "t": 7.36,
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 1
+      }
+    ]
   },
   "sem-dark-en": {
-    "duration": 8.06,
+    "duration": 15.29,
     "marks": {
-      "sent": 4.68,
-      "proposed": 5.58,
-      "approved": 6.33
-    }
+      "ask": 0.78,
+      "sent": 7.42,
+      "proposed": 8.95,
+      "decide": 10.15,
+      "approved": 11.52,
+      "answered": 14.09
+    },
+    "focus": [
+      {
+        "name": "ask",
+        "t": 0.78,
+        "x": 0.033,
+        "y": 0.869,
+        "w": 0.578,
+        "h": 0.122
+      },
+      {
+        "name": "sent",
+        "t": 7.42,
+        "x": 0,
+        "y": 0.044,
+        "w": 1,
+        "h": 0.467
+      },
+      {
+        "name": "proposed",
+        "t": 8.95,
+        "x": 0.038,
+        "y": 0.753,
+        "w": 0.554,
+        "h": 0.233
+      },
+      {
+        "name": "decide",
+        "t": 10.15,
+        "x": 0.507,
+        "y": 0.888,
+        "w": 0.434,
+        "h": 0.036
+      },
+      {
+        "name": "answered",
+        "t": 14.09,
+        "x": 0,
+        "y": 0.044,
+        "w": 1,
+        "h": 0.445
+      }
+    ]
   },
   "sem-dark-zh": {
-    "duration": 5.56,
+    "duration": 13.14,
     "marks": {
-      "sent": 2.57,
-      "proposed": 3.06,
-      "approved": 4.09
-    }
+      "ask": 0.81,
+      "sent": 5.34,
+      "proposed": 6.69,
+      "decide": 7.89,
+      "approved": 9.24,
+      "answered": 11.94
+    },
+    "focus": [
+      {
+        "name": "ask",
+        "t": 0.81,
+        "x": 0.033,
+        "y": 0.869,
+        "w": 0.578,
+        "h": 0.122
+      },
+      {
+        "name": "sent",
+        "t": 5.34,
+        "x": 0,
+        "y": 0.044,
+        "w": 1,
+        "h": 0.467
+      },
+      {
+        "name": "proposed",
+        "t": 6.69,
+        "x": 0.038,
+        "y": 0.753,
+        "w": 0.554,
+        "h": 0.233
+      },
+      {
+        "name": "decide",
+        "t": 7.89,
+        "x": 0.507,
+        "y": 0.888,
+        "w": 0.434,
+        "h": 0.036
+      },
+      {
+        "name": "answered",
+        "t": 11.94,
+        "x": 0,
+        "y": 0.044,
+        "w": 1,
+        "h": 0.42
+      }
+    ]
   }
 }

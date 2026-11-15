@@ -94,6 +94,7 @@ const clips = [...document.querySelectorAll<HTMLVideoElement>('[data-scrub-video
   (video) => ({
     video,
     block: video.closest<HTMLElement>('.scrub'),
+    camera: video.dataset.camera ? (JSON.parse(video.dataset.camera) as Focus[]) : null,
   }),
 )
 // Words that go with a stretch of a clip: `data-beat="from,to"` (fractions of the block's scroll)
@@ -109,18 +110,65 @@ function progress(block: HTMLElement) {
 }
 function scrub() {
   const vh = innerHeight
-  for (const { video, block } of clips) {
+  for (const { video, block, camera } of clips) {
     if (!block || !video.duration) continue
     const b = block.getBoundingClientRect()
     if (b.bottom < 0 || b.top > vh) continue
     const t = progress(block) * (video.duration - 0.05)
     if (Math.abs(video.currentTime - t) > 1 / 60) video.currentTime = t
+    // The camera follows the frame on screen, which lands when the seek is done (see below).
+    if (camera) aim(video, camera, video.currentTime)
   }
   for (const { el, from, to, block } of beats) {
     if (!block) continue
     const p = progress(block)
     el.classList.toggle('on', p >= from && p < to)
   }
+}
+
+// The camera of a clip with focus boxes: [time in s, x, y, width, height], the box as fractions of
+// the clip. The view holds on a box until the next one's time, then moves to it over `MOVE` seconds
+// (less when the box after it comes sooner), framing the box with a margin and never zooming past `ZOOM`.
+type Focus = [number, number, number, number, number]
+const MOVE = 0.7
+const ZOOM = 2.2
+const MARGIN = 0.06
+function region(focus: Focus, aspect: number, ratio: number) {
+  // In units of the clip's width; the clip is `ratio` tall.
+  const [, fx, fy, fw, fh] = focus
+  let w = Math.max(fw + MARGIN * 2, (fh * ratio + MARGIN * 2) * aspect)
+  w = Math.min(Math.max(w, 1 / ZOOM), 1, ratio * aspect)
+  const h = w / aspect
+  const cx = fx + fw / 2
+  const cy = (fy + fh / 2) * ratio
+  return {
+    x: Math.min(Math.max(cx - w / 2, 0), 1 - w),
+    y: Math.min(Math.max(cy - h / 2, 0), ratio - h),
+    w,
+  }
+}
+const ease = (x: number) => x * x * (3 - 2 * x)
+function aim(video: HTMLVideoElement, camera: Focus[], t: number) {
+  const frame = video.parentElement!
+  const aspect = frame.clientWidth / Math.max(1, frame.clientHeight)
+  const ratio = video.videoHeight / Math.max(1, video.videoWidth)
+  let i = 0
+  while (i + 1 < camera.length && camera[i + 1]![0] <= t) i++
+  let view = region(camera[i]!, aspect, ratio)
+  if (i > 0) {
+    const prev = region(camera[i - 1]!, aspect, ratio)
+    // Arrive before the next box takes over.
+    const gap = (camera[i + 1]?.[0] ?? Infinity) - camera[i]![0]
+    const k = ease(clamp((t - camera[i]![0]) / Math.min(MOVE, gap * 0.8)))
+    view = {
+      x: prev.x + (view.x - prev.x) * k,
+      y: prev.y + (view.y - prev.y) * k,
+      w: prev.w + (view.w - prev.w) * k,
+    }
+  } else if (t < camera[0]![0]) view = region(camera[0]!, aspect, ratio)
+  const scale = 1 / view.w
+  const px = frame.clientWidth
+  video.style.transform = `scale(${scale}) translate(${-view.x * px}px, ${-view.y * px}px)`
 }
 
 let queued = false
@@ -135,11 +183,12 @@ const tick = () => {
 addEventListener('scroll', tick, { passive: true })
 addEventListener('resize', tick)
 frame()
-for (const { video } of clips) {
+for (const { video, camera } of clips) {
   const ready = () => {
     if (reduce) video.currentTime = Math.max(0, video.duration - 0.05)
     tick()
   }
+  if (camera) video.addEventListener('seeked', () => aim(video, camera, video.currentTime))
   if (video.readyState >= 1) ready()
   else video.addEventListener('loadedmetadata', ready, { once: true })
 }

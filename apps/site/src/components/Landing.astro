@@ -297,7 +297,7 @@ const login = `${APP_URL}/login`
                 ))}
               </ol>
               <div class="sem-clip" data-reveal style="--d: 2">
-                <Clip dark src="clips/sem" lang={lang} width={1600} height={1786} />
+                <Clip dark src="clips/sem" lang={lang} width={2400} height={2680} camera={clips[`sem-dark-${l}`].focus} aspect={1.6} />
               </div>
             </div>
           </div>
@@ -323,7 +323,7 @@ const login = `${APP_URL}/login`
             <div class="words-cta"><StartLink label={t.tasks.cta} /></div>
           </div>
           <div data-reveal style="--d: 1">
-            <Clip src="clips/quickadd" lang={lang} width={1600} height={642} />
+            <Clip src="clips/quickadd" lang={lang} width={2400} height={962} camera={clips[`quickadd-light-${l}`].focus} />
           </div>
         </div>
       </section>

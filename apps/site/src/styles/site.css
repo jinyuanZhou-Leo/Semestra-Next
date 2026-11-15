@@ -976,6 +976,15 @@ footer .legal {
 .split .clip {
   border-radius: 14px;
 }
+/* A clip with a camera: the frame stays put while the view inside moves in and out. */
+.clip.camera {
+  position: relative;
+  overflow: hidden;
+}
+.clip.camera video {
+  transform-origin: 0 0;
+  will-change: transform;
+}
 @media (prefers-reduced-motion: reduce) {
   .scrub {
     height: auto;
@@ -1015,8 +1024,8 @@ footer .legal {
 }
 .sem-clip {
   margin: 28px auto 0;
-  /* The conversation is taller than wide: size it by the screen's height so it fits while pinned. */
-  width: min(100%, calc((100vh - 300px) * 0.9));
+  /* A wide frame, sized by the screen's height so it fits while pinned. */
+  width: min(100%, calc((100vh - 300px) * 1.6));
 }
 @media (prefers-reduced-motion: reduce) {
   .bullets.beating li[data-beat]:not(.on) {

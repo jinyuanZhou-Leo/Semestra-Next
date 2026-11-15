@@ -2,22 +2,42 @@
 // A screen recording of the real app (scripts/capture/video.mjs) whose playback follows the page's
 // scroll: put it inside a `.scrub` block, which pins its content while the clip plays through.
 // Like Shot, it picks the visitor's theme and the page's language; inside a `.dark` band, pass `dark`.
+// With `camera` (the focus boxes video.mjs noted), the clip plays in a frame of the given `aspect`
+// and the view moves in on each part as it matters (src/scripts/landing.ts).
 import { asset, shotLang, type Lang } from '@/i18n'
 
+interface Focus {
+  t: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
 interface Props {
   src: string
   lang: Lang
   width: number
   height: number
   dark?: boolean
+  camera?: Focus[]
+  aspect?: number
   class?: string
-  style?: string
 }
-const { src, lang, width, height, dark, class: className, style } = Astro.props
+const { src, lang, width, height, dark, camera, aspect, class: className } = Astro.props
 const l = shotLang(lang)
+const frame = camera ? `aspect-ratio: ${aspect ?? width / height}` : undefined
 ---
-<div class:list={['shot', 'clip', className]} style={style}>
-  <video muted playsinline preload="auto" width={width} height={height} data-scrub-video aria-hidden="true">
+<div class:list={['shot', 'clip', camera && 'camera', className]} style={frame}>
+  <video
+    muted
+    playsinline
+    preload="auto"
+    width={width}
+    height={height}
+    data-scrub-video
+    data-camera={camera && JSON.stringify(camera.map(({ t, x, y, w, h }) => [t, x, y, w, h]))}
+    aria-hidden="true"
+  >
     {!dark && <source src={asset(`/${src}-dark-${l}.mp4`)} type="video/mp4" media="(prefers-color-scheme: dark)" />}
     <source src={asset(`/${src}-${dark ? 'dark' : 'light'}-${l}.mp4`)} type="video/mp4" />
   </video>
