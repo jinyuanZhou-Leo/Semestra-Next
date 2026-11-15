@@ -21,13 +21,15 @@ function escTakenElsewhere(event: KeyboardEvent): boolean {
 }
 
 const LAYER =
-  'col-start-1 row-start-1 flex min-w-0 items-center gap-2 transition-[opacity,translate] duration-150 ease-out motion-reduce:transition-none'
+  'col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-2 transition-[opacity,translate] duration-150 ease-out motion-reduce:transition-none'
 
 /**
  * The part of a table's toolbar that its batch actions replace while rows are checked (M00
  * §4.8): the filters and search (`children`) give way to the count, then the actions (one button
  * each, the destructive one last) and "Clear selection" after them. Both sit in one grid cell, so the row
  * keeps its height and the table never moves; they cross-fade, and the hidden one is `inert`.
+ * Where the table is narrow either may wrap; the cell is then as tall as the taller one in both
+ * states, and the filters stay at its bottom, by the table.
  * Esc clears the selection unless a dialog, menu or popover is open (Esc closes that instead).
  */
 export function SelectionToolbar({
@@ -57,7 +59,11 @@ export function SelectionToolbar({
     <div className={cn('grid min-w-0', className)}>
       <div
         inert={selecting}
-        className={cn(LAYER, selecting && 'pointer-events-none -translate-y-1 opacity-0')}
+        className={cn(
+          LAYER,
+          'self-end',
+          selecting && 'pointer-events-none -translate-y-1 opacity-0',
+        )}
       >
         {children}
       </div>
