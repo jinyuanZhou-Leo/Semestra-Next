@@ -14,7 +14,7 @@ from semestra.core.context import (
     run_after_commit,
 )
 from semestra.core.errors import not_found
-from semestra.modules.auth import avatar, service
+from semestra.modules.auth import avatar, passkeys, service
 from semestra.modules.auth.identity import clear_session_cookies, set_session_cookies
 from semestra.modules.auth.schemas import (
     AuthConfig,
@@ -24,12 +24,14 @@ from semestra.modules.auth.schemas import (
     EmailStartResult,
     EmailVerifyIn,
     GoogleLoginIn,
+    PasskeyAnswer,
     PasswordLoginIn,
     PasswordResetIn,
     RefreshIn,
     RegisterCompleteIn,
     TokenPair,
     UserOut,
+    WebAuthnOptions,
 )
 from semestra.modules.auth.service import Client, SignedIn
 
@@ -157,6 +159,25 @@ async def google_login(
 ) -> AuthResult:
     claims = await ctx.state.auth_runtime.google.verify(body.id_token)
     signed_in = await service.login_with_google(ctx, claims, client, _meta(request, ctx))
+    return await _finish(ctx, response, tasks, signed_in, client)
+
+
+@router.post("/passkey/options", operation_id="authPasskeyOptions", response_model=WebAuthnOptions)
+async def passkey_options(ctx: AnonCtx) -> WebAuthnOptions:
+    """A challenge for signing in with any passkey of this site (no email address needed)."""
+    return passkeys.login_options(ctx)
+
+
+@router.post("/passkey", operation_id="authPasskeyLogin", response_model=AuthResult)
+async def passkey_login(
+    body: PasskeyAnswer,
+    request: Request,
+    response: Response,
+    tasks: BackgroundTasks,
+    ctx: AnonCtx,
+    client: ClientParam = "web",
+) -> AuthResult:
+    signed_in = await passkeys.login(ctx, body.credential, client, _meta(request, ctx))
     return await _finish(ctx, response, tasks, signed_in, client)
 
 

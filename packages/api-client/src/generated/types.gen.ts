@@ -7698,6 +7698,122 @@ export type PaletteColor = {
 };
 
 /**
+ * PasskeyAnswer
+ */
+export type PasskeyAnswer = {
+    /**
+     * Credential
+     *
+     * The browser's PublicKeyCredential as JSON (`toJSON()`)
+     */
+    credential: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * PasskeyList
+ */
+export type PasskeyList = {
+    /**
+     * Items
+     */
+    items: Array<PasskeyOut>;
+    /**
+     * Rp Id
+     *
+     * For the browser's signals about which passkeys still work
+     */
+    rp_id: string;
+    /**
+     * User Handle
+     *
+     * The user's id in WebAuthn (base64url)
+     */
+    user_handle: string;
+};
+
+/**
+ * PasskeyOut
+ */
+export type PasskeyOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Credential Id
+     *
+     * The credential's id (base64url)
+     */
+    credential_id: string;
+    /**
+     * Name
+     *
+     * Given by the user
+     */
+    name: string | null;
+    /**
+     * Aaguid
+     *
+     * Its provider's model id; the client looks up the name
+     */
+    aaguid: string;
+    /**
+     * Device
+     *
+     * The browser and system it was added on
+     */
+    device: string | null;
+    /**
+     * Backed Up
+     *
+     * Synced to the user's other devices by its provider
+     */
+    backed_up: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+};
+
+/**
+ * PasskeyRegisterInputBody
+ */
+export type PasskeyRegisterInputBody = {
+    /**
+     * Credential
+     *
+     * The browser's answer to account.passkey.register_options, as JSON
+     */
+    credential: {
+        [key: string]: unknown;
+    };
+    /**
+     * Device
+     *
+     * The browser and system it is added on, shown when no name is given
+     */
+    device?: string | null;
+};
+
+/**
+ * PasskeyRenameInputBody
+ */
+export type PasskeyRenameInputBody = {
+    /**
+     * Name
+     *
+     * New name
+     */
+    name: string;
+};
+
+/**
  * PasswordChangeInputBody
  */
 export type PasswordChangeInputBody = {
@@ -8691,6 +8807,20 @@ export type ReauthEmailVerifyInputBody = {
      * The 6-digit code from account.reauth.email_start
      */
     code: string;
+};
+
+/**
+ * ReauthPasskeyInputBody
+ */
+export type ReauthPasskeyInputBody = {
+    /**
+     * Credential
+     *
+     * The browser's answer to account.reauth.passkey_options, as JSON
+     */
+    credential: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -12326,6 +12456,12 @@ export type UserOut = {
      */
     has_password: boolean;
     /**
+     * Has Passkey
+     *
+     * Whether the user registered at least one passkey
+     */
+    has_passkey: boolean;
+    /**
      * Identities
      */
     identities: Array<IdentityOut>;
@@ -12386,6 +12522,21 @@ export type ValuesUpdateInputBody = {
      */
     values: {
         [key: string]: JsonValue;
+    };
+};
+
+/**
+ * WebAuthnOptions
+ *
+ * Options for `navigator.credentials.create/get`, as WebAuthn's JSON form (what
+ * `PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take).
+ */
+export type WebAuthnOptions = {
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
     };
 };
 
@@ -12992,6 +13143,54 @@ export type AuthGoogleLoginResponses = {
 };
 
 export type AuthGoogleLoginResponse = AuthGoogleLoginResponses[keyof AuthGoogleLoginResponses];
+
+export type AuthPasskeyOptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/passkey/options';
+};
+
+export type AuthPasskeyOptionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: WebAuthnOptions;
+};
+
+export type AuthPasskeyOptionsResponse = AuthPasskeyOptionsResponses[keyof AuthPasskeyOptionsResponses];
+
+export type AuthPasskeyLoginData = {
+    body: PasskeyAnswer;
+    path?: never;
+    query?: {
+        /**
+         * Client
+         *
+         * `native` returns tokens in the body instead of setting cookies
+         */
+        client?: 'web' | 'native';
+    };
+    url: '/auth/passkey';
+};
+
+export type AuthPasskeyLoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthPasskeyLoginError = AuthPasskeyLoginErrors[keyof AuthPasskeyLoginErrors];
+
+export type AuthPasskeyLoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthResult;
+};
+
+export type AuthPasskeyLoginResponse = AuthPasskeyLoginResponses[keyof AuthPasskeyLoginResponses];
 
 export type AuthTokenRefreshData = {
     body: RefreshIn;
@@ -14339,6 +14538,145 @@ export type AccountGoogleUnlinkResponses = {
 
 export type AccountGoogleUnlinkResponse = AccountGoogleUnlinkResponses[keyof AccountGoogleUnlinkResponses];
 
+export type AccountPasskeyDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Passkey Id
+         *
+         * Id of the passkey
+         */
+        passkey_id: string;
+    };
+    query?: never;
+    url: '/account/passkeys/{passkey_id}';
+};
+
+export type AccountPasskeyDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasskeyDeleteError = AccountPasskeyDeleteErrors[keyof AccountPasskeyDeleteErrors];
+
+export type AccountPasskeyDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: Revoked;
+};
+
+export type AccountPasskeyDeleteResponse = AccountPasskeyDeleteResponses[keyof AccountPasskeyDeleteResponses];
+
+export type AccountPasskeyRenameData = {
+    body: PasskeyRenameInputBody;
+    path: {
+        /**
+         * Passkey Id
+         *
+         * Id of the passkey
+         */
+        passkey_id: string;
+    };
+    query?: never;
+    url: '/account/passkeys/{passkey_id}';
+};
+
+export type AccountPasskeyRenameErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasskeyRenameError = AccountPasskeyRenameErrors[keyof AccountPasskeyRenameErrors];
+
+export type AccountPasskeyRenameResponses = {
+    /**
+     * Successful Response
+     */
+    200: PasskeyOut;
+};
+
+export type AccountPasskeyRenameResponse = AccountPasskeyRenameResponses[keyof AccountPasskeyRenameResponses];
+
+export type AccountPasskeyListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/passkeys';
+};
+
+export type AccountPasskeyListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasskeyListError = AccountPasskeyListErrors[keyof AccountPasskeyListErrors];
+
+export type AccountPasskeyListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PasskeyList;
+};
+
+export type AccountPasskeyListResponse = AccountPasskeyListResponses[keyof AccountPasskeyListResponses];
+
+export type AccountPasskeyRegisterData = {
+    body: PasskeyRegisterInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/passkeys';
+};
+
+export type AccountPasskeyRegisterErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasskeyRegisterError = AccountPasskeyRegisterErrors[keyof AccountPasskeyRegisterErrors];
+
+export type AccountPasskeyRegisterResponses = {
+    /**
+     * Successful Response
+     */
+    200: PasskeyOut;
+};
+
+export type AccountPasskeyRegisterResponse = AccountPasskeyRegisterResponses[keyof AccountPasskeyRegisterResponses];
+
+export type AccountPasskeyRegisterOptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/passkeys/options';
+};
+
+export type AccountPasskeyRegisterOptionsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountPasskeyRegisterOptionsError = AccountPasskeyRegisterOptionsErrors[keyof AccountPasskeyRegisterOptionsErrors];
+
+export type AccountPasskeyRegisterOptionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: WebAuthnOptions;
+};
+
+export type AccountPasskeyRegisterOptionsResponse = AccountPasskeyRegisterOptionsResponses[keyof AccountPasskeyRegisterOptionsResponses];
+
 export type AccountPasswordChangeData = {
     body: PasswordChangeInputBody;
     path?: never;
@@ -14488,6 +14826,56 @@ export type AccountReauthGoogleResponses = {
 };
 
 export type AccountReauthGoogleResponse = AccountReauthGoogleResponses[keyof AccountReauthGoogleResponses];
+
+export type AccountReauthPasskeyData = {
+    body: ReauthPasskeyInputBody;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/passkey';
+};
+
+export type AccountReauthPasskeyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthPasskeyError = AccountReauthPasskeyErrors[keyof AccountReauthPasskeyErrors];
+
+export type AccountReauthPasskeyResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReauthStatus;
+};
+
+export type AccountReauthPasskeyResponse = AccountReauthPasskeyResponses[keyof AccountReauthPasskeyResponses];
+
+export type AccountReauthPasskeyOptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/account/reauth/passkey-options';
+};
+
+export type AccountReauthPasskeyOptionsErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type AccountReauthPasskeyOptionsError = AccountReauthPasskeyOptionsErrors[keyof AccountReauthPasskeyOptionsErrors];
+
+export type AccountReauthPasskeyOptionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: WebAuthnOptions;
+};
+
+export type AccountReauthPasskeyOptionsResponse = AccountReauthPasskeyOptionsResponses[keyof AccountReauthPasskeyOptionsResponses];
 
 export type AccountReauthPasswordData = {
     body: ReauthPasswordInputBody;

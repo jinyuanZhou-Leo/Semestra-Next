@@ -26,6 +26,8 @@ PUBLIC_ROUTES = {
     "POST /auth/password/login": "signing in",
     "POST /auth/password/reset": "signing in",
     "POST /auth/google": "signing in",
+    "POST /auth/passkey/options": "signing in",
+    "POST /auth/passkey": "signing in",
     "POST /auth/token/refresh": "signing in",
     "POST /auth/logout": "succeeds whether or not a session is left",
     "GET /account/avatars/{user_id}/{version}": "unguessable, cacheable URL",

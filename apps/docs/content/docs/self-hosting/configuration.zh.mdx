@@ -14,7 +14,7 @@ description: 所有设置都是 deploy/selfhost/.env 里的环境变量。
 | --------------------- | ----------------------- | -------------------------------------------------------- |
 | `SEMESTRA_VERSION`    | `latest`                | 镜像版本，例如 `1.2.0`（见[镜像](./images.mdx)）          |
 | `SEMESTRA_IMAGE_VARIANT` | `-local`             | 留空则使用不带本机 OCR 与 embedding 的镜像               |
-| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。用于邮件和日历链接；`https://` 时 cookie 带 Secure |
+| `SEMESTRA_PUBLIC_URL` | `http://localhost:8000` | 用户打开的地址。用于邮件和日历链接；`https://` 时 cookie 带 Secure。通行密钥只在这个地址上可用，并且需要 `https://`（`localhost` 除外） |
 | `SEMESTRA_PORT`       | `8000`                  | 宿主机端口                                               |
 | `SEMESTRA_BIND`       | `0.0.0.0`               | 宿主机网卡。放在反向代理后面时用 `127.0.0.1`             |
 | `SEMESTRA_DOMAIN`     | （空）                  | 内置 Caddy 使用的域名（见[有域名的服务器](./domain.mdx)） |

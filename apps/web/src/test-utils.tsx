@@ -54,6 +54,7 @@ export const user = {
   avatar_url: null,
   locale: 'en',
   has_password: true,
+  has_passkey: false,
   identities: [],
   created_at: '2026-01-01T00:00:00Z',
 }

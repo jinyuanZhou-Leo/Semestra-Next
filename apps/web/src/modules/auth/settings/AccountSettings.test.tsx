@@ -29,6 +29,7 @@ function mount(signOut: () => Promise<void> = async () => {}) {
   server.use(
     http.get(`${API}/auth/config`, () => HttpResponse.json({ google_client_id: null })),
     http.get(`${API}/account/reauth`, () => HttpResponse.json({ remaining_seconds: 600 })),
+    http.get(`${API}/account/passkeys`, () => HttpResponse.json({ items: [] })),
   )
   return renderWithRouter(
     <AuthContext.Provider value={{ user, isLoading: false, signOut }}>
@@ -113,7 +114,8 @@ test('an action refused for an old sign-in is sent again after an emailed code',
   await userEvent.click(await screen.findByRole('button', { name: 'Change email' }))
   await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
   await userEvent.click(screen.getByRole('button', { name: 'Send code' }))
-  await userEvent.click(await screen.findByRole('button', { name: 'Use an email code instead' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Use another way' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Email code' }))
   await userEvent.click(screen.getByRole('button', { name: 'Send code' }))
   await userEvent.type(await screen.findByLabelText('Verification code'), '123456')
 

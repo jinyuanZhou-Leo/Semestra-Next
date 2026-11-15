@@ -1,21 +1,26 @@
 """Account capabilities (M01 §5). Only `account.profile.get` is open to agents and MCP clients."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
-from semestra.modules.auth import service
+from semestra.modules.auth import passkeys, service
 from semestra.modules.auth.schemas import (
     Code,
     DisplayName,
     Email,
     EmailStartResult,
+    PasskeyList,
+    PasskeyOut,
     Password,
     SessionList,
     TokenCreated,
     TokenList,
     TokenScope,
     UserOut,
+    WebAuthnOptions,
 )
 
 HTTP_ONLY = ("http",)
@@ -351,3 +356,124 @@ async def reauth_google(ctx: Ctx, inp: GoogleLinkInput) -> ReauthStatus:
     claims = await ctx.state.auth_runtime.google.verify(inp.id_token)
     await service.reauth_with_google(ctx, claims)
     return _verified(ctx)
+
+
+class ReauthPasskeyInput(BaseModel):
+    credential: dict[str, Any] = Field(
+        description="The browser's answer to account.reauth.passkey_options, as JSON"
+    )
+
+
+@capability(
+    name="account.reauth.passkey_options",
+    summary="Start confirming it is you with a passkey.",
+    description="A WebAuthn challenge for one of the user's passkeys. Not available to agents.",
+    effect="write",
+    http=Http("POST", "/account/reauth/passkey-options"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_passkey_options(ctx: Ctx, inp: NoInput) -> WebAuthnOptions:
+    return await passkeys.reauth_options(ctx)
+
+
+@capability(
+    name="account.reauth.passkey",
+    summary="Confirm it is you with a passkey.",
+    description="Checks the answer to account.reauth.passkey_options." + REAUTH_NOTE,
+    effect="write",
+    http=Http("POST", "/account/reauth/passkey"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def reauth_passkey(ctx: Ctx, inp: ReauthPasskeyInput) -> ReauthStatus:
+    await passkeys.reauth(ctx, inp.credential)
+    return _verified(ctx)
+
+
+@capability(
+    name="account.passkey.list",
+    summary="List the user's passkeys.",
+    description="Passkeys registered for signing in. Not available to agents.",
+    effect="read",
+    http=Http("GET", "/account/passkeys"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def passkey_list(ctx: Ctx, inp: NoInput) -> PasskeyList:
+    return await passkeys.list_passkeys(ctx)
+
+
+@capability(
+    name="account.passkey.register_options",
+    summary="Start adding a passkey.",
+    description="A WebAuthn creation challenge; needs a recent confirmation that it is the "
+    "user. Not available to agents.",
+    effect="write",
+    http=Http("POST", "/account/passkeys/options"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def passkey_register_options(ctx: Ctx, inp: NoInput) -> WebAuthnOptions:
+    return await passkeys.register_options(ctx)
+
+
+class PasskeyRegisterInput(BaseModel):
+    credential: dict[str, Any] = Field(
+        description="The browser's answer to account.passkey.register_options, as JSON"
+    )
+    device: str | None = Field(
+        default=None,
+        max_length=60,
+        description="The browser and system it is added on, shown when no name is given",
+    )
+
+
+@capability(
+    name="account.passkey.register",
+    summary="Add a passkey.",
+    description="Saves the credential created for account.passkey.register_options. "
+    "Not available to agents.",
+    effect="write",
+    http=Http("POST", "/account/passkeys"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def passkey_register(ctx: Ctx, inp: PasskeyRegisterInput) -> PasskeyOut:
+    return await passkeys.register(ctx, inp.credential, inp.device)
+
+
+class PasskeyRenameInput(BaseModel):
+    passkey_id: str = Field(description="Id of the passkey")
+    name: DisplayName = Field(description="New name")
+
+
+@capability(
+    name="account.passkey.rename",
+    summary="Rename a passkey.",
+    description="Changes the name shown in the list. Not available to agents.",
+    effect="write",
+    http=Http("PATCH", "/account/passkeys/{passkey_id}"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def passkey_rename(ctx: Ctx, inp: PasskeyRenameInput) -> PasskeyOut:
+    return await passkeys.rename(ctx, inp.passkey_id, inp.name)
+
+
+class PasskeyDeleteInput(BaseModel):
+    passkey_id: str = Field(description="Id of the passkey")
+
+
+@capability(
+    name="account.passkey.delete",
+    summary="Remove a passkey.",
+    description="It can no longer sign in. Not available to agents.",
+    effect="destructive",
+    http=Http("DELETE", "/account/passkeys/{passkey_id}"),
+    expose=HTTP_ONLY,
+    tags=("account",),
+)
+async def passkey_delete(ctx: Ctx, inp: PasskeyDeleteInput) -> Revoked:
+    await passkeys.delete_passkey(ctx, inp.passkey_id)
+    return Revoked()
