@@ -1022,12 +1022,43 @@ footer .legal {
   opacity: 1;
   transform: none;
 }
-.sem-clip {
-  margin: 28px auto 0;
-  /* A wide frame, sized by the screen's height so it fits while pinned. */
-  width: min(100%, calc((100vh - 300px) * 1.6));
+/* Sem's clip as a stage: one long take that fills the screen while it plays, with its caption
+   below. It is wider than the page column, and grows into place as it arrives (landing.ts). */
+.stage-scrub {
+  margin-top: 56px;
+}
+.stage-scrub > .stage-pin {
+  top: 64px;
+  height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 28px;
+}
+.sem-stage {
+  width: min(96vw, calc((100vh - 64px - 200px) * 1.6));
+  flex: none;
+  scale: var(--grow, 1);
+  transform-origin: 50% 30%;
+}
+.sem-stage .shot {
+  border-radius: 20px;
+}
+.stage-beats {
+  margin: 0;
+  width: min(96vw, 46em);
+  text-align: center;
+}
+.stage-beats li {
+  font-size: clamp(20px, 2.2vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 @media (prefers-reduced-motion: reduce) {
+  .stage-scrub > .stage-pin {
+    height: auto;
+  }
   .bullets.beating li[data-beat]:not(.on) {
     opacity: 1;
   }

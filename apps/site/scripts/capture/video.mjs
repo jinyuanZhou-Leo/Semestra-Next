@@ -100,7 +100,7 @@ async function clip(name, p, act, box) {
   // holds the screen of that moment for `dwell`, the beat where the camera moves in and the caption
   // changes.
   const hold = 0.3
-  const dwell = 0.9
+  const dwell = 1.4
   const cuts = Object.values(marks).sort((x, y) => x - y)
   const pieces = frames.flatMap((f, i) => {
     const end = frames[i + 1]?.t ?? Math.max(f.t, ...cuts) + 0.6
@@ -228,7 +228,7 @@ if (want('sem')) {
       const composer = await holder(box, 110)
       await mark('ask', { ...composer, width: composer.width * 0.62 })
       await box.focus()
-      await p.keyboard.type(ask, { delay: 45 })
+      await p.keyboard.type(ask, { delay: 60 })
       await p.waitForTimeout(400)
       await p.keyboard.press('Enter')
       // Wait for the question to leave the message box and show in the conversation.
@@ -248,6 +248,25 @@ if (want('sem')) {
       const card = await holder(approve.first(), 200)
       await mark('proposed', { ...card, width: card.width * 0.6 })
       await p.waitForTimeout(1200)
+      // Sem proposed two changes: page to the second one.
+      const next = p.locator('main button:has(svg.lucide-chevron-right)').last()
+      if (await next.isVisible().catch(() => false)) {
+        await next.evaluate((el) => el.click())
+        // The card swaps in with a blur, which runs even with reduced motion: let it settle, or the
+        // mark would hold a blurred frame.
+        await p.waitForTimeout(300)
+        await p
+          .waitForFunction(
+            () => document.getAnimations().every((a) => a.playState !== 'running'),
+            null,
+            {
+              timeout: 3000,
+            },
+          )
+          .catch(() => undefined)
+        await mark('second', { ...card, width: card.width * 0.6 })
+        await p.waitForTimeout(1200)
+      }
       const bar = await approve.first().evaluate((el) => {
         const { x, y, width, height } = el.parentElement.getBoundingClientRect()
         return { x, y, width, height }
@@ -263,7 +282,9 @@ if (want('sem')) {
         ? all
         : approve
       await button.first().evaluate((el) => el.click())
-      await mark('approved')
+      // Sem carries on, and its answer streams in at the top of the conversation.
+      await p.waitForTimeout(500)
+      await mark('approved', { x: column.x, y: 40, width: column.width, height: 520 })
       const copy = p
         .locator('main button')
         .filter({ has: p.locator('svg.lucide-copy') })

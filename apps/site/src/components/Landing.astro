@@ -74,7 +74,7 @@ const beat = (clip: string, ...marks: string[]) => {
   const edges = [0, ...marks.map((m) => at[m as keyof typeof at] / duration), 2]
   return edges.slice(1).map((end, i) => `${edges[i].toFixed(3)},${end.toFixed(3)}`)
 }
-const semBeats = beat(`sem-dark-${l}`, 'sent', 'proposed')
+const semBeats = beat(`sem-dark-${l}`, 'sent', 'proposed', 'second', 'decide', 'approved')
 const tasksBeats = beat(`quickadd-light-${l}`, 'added')
 const lmsIcons = [ClipboardList, Scale, BookOpen]
 const more = [
@@ -287,18 +287,20 @@ const login = `${APP_URL}/login`
               <div class="big-ic"><History aria-hidden="true" /></div>
             </div>
           </div>
-          <div class="showcase scrub" style="--len: 280vh; --pin-h: 50vh">
-            <div class="pin">
-              <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
-              <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
-              <ol class="beats" data-reveal style="--d: 2">
+          <div class="showcase">
+            <h3 class="h2" data-reveal>{t.sem.trace[0]}</h3>
+            <p class="sub" data-reveal style="--d: 1">{t.sem.trace[1]}</p>
+          </div>
+          <div class="scrub stage-scrub" style="--len: 720vh">
+            <div class="pin stage-pin">
+              <div class="sem-stage">
+                <Clip dark src="clips/sem" lang={lang} width={2400} height={2680} camera={clips[`sem-dark-${l}`].focus} aspect={1.6} />
+              </div>
+              <ol class="beats stage-beats">
                 {t.sem.beats.map((text, i) => (
                   <li data-beat={semBeats[i]}>{text}</li>
                 ))}
               </ol>
-              <div class="sem-clip" data-reveal style="--d: 2">
-                <Clip dark src="clips/sem" lang={lang} width={2400} height={2680} camera={clips[`sem-dark-${l}`].focus} aspect={1.6} />
-              </div>
             </div>
           </div>
         </div>

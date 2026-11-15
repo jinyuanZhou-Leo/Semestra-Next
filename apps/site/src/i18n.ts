@@ -77,8 +77,11 @@ export const copy = {
       recall: ['聊过的，都记得', '以前聊过的，随时翻得出来。'] as Item,
       beats: [
         '说出你的目标。',
-        'Sem 查看课表和截止日期，拟好复习安排。',
-        '你批准后，安排才写进待办。',
+        'Sem 翻看你的课表，和每一个截止日期。',
+        '在空档里，排好复习。',
+        '每一项改动，都先摆在你面前。',
+        '你点头，才会写进去。',
+        '安排好了，就在待办里。',
       ],
       trace: ['长程任务，步步可查。', 'Sem 的每一步推理与改动，清清楚楚。'] as Item,
     },
@@ -261,8 +264,11 @@ export const copy = {
       ] as Item,
       beats: [
         'Tell Sem what you need.',
-        'Sem checks your schedule and deadlines and drafts a study plan.',
-        'Approve it, and only then does the plan go into your tasks.',
+        'It reads your schedule, and every deadline.',
+        'It fits the review into the gaps.',
+        'Every change, laid out for you first.',
+        'Nothing is written until you say so.',
+        "Done. It's on your list.",
       ],
       trace: [
         'Long tasks. Every step in the open.',
