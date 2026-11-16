@@ -10235,6 +10235,28 @@ export const ItemOutSchema = {
             type: 'boolean',
             title: 'Pinned'
         },
+        week: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Week',
+            description: 'First day of the teaching week it is for; null: the whole term'
+        },
+        week_source: {
+            type: 'string',
+            enum: [
+                'rule',
+                'user'
+            ],
+            title: 'Week Source',
+            description: 'Who set the week: worked out from its name and place, or by the user'
+        },
         source_kind: {
             anyOf: [
                 {
@@ -10337,6 +10359,8 @@ export const ItemOutSchema = {
         'stored',
         'follows_source',
         'pinned',
+        'week',
+        'week_source',
         'source_kind',
         'source_ref',
         'doc_status',
@@ -22275,6 +22299,57 @@ export const WebAuthnOptionsSchema = {
     ],
     title: 'WebAuthnOptions',
     description: 'Options for `navigator.credentials.create/get`, as WebAuthn\'s JSON form (what\n`PublicKeyCredential.parseCreationOptionsFromJSON` and @simplewebauthn/browser take).'
+} as const;
+
+export const WeekSetSchema = {
+    properties: {
+        updated: {
+            type: 'integer',
+            title: 'Updated',
+            description: 'Files and links given the week'
+        }
+    },
+    type: 'object',
+    required: [
+        'updated'
+    ],
+    title: 'WeekSet'
+} as const;
+
+export const WeekSetInputBodySchema = {
+    properties: {
+        item_ids: {
+            items: {
+                type: 'string',
+                maxLength: 64,
+                minLength: 1
+            },
+            type: 'array',
+            maxItems: 1000,
+            minItems: 1,
+            title: 'Item Ids',
+            description: 'Files and links'
+        },
+        week: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Week',
+            description: 'A day of the teaching week they are for (week dates from academics.term.get_weeks); null: the whole term'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_ids',
+        'week'
+    ],
+    title: 'WeekSetInputBody'
 } as const;
 
 export const WizardCourseSchema = {

@@ -1,9 +1,11 @@
 """Course files: folders, uploads, links, listing and removal (M07 §2, §4, §5)."""
 
 import hashlib
+import mimetypes
 import re
 from collections.abc import AsyncIterable, AsyncIterator, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -26,6 +28,7 @@ from semestra.core.storage import (
     storage_usage_provider,
 )
 from semestra.core.storage import usage as core_usage
+from semestra.modules.academics import rules
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content, indexing
 from semestra.modules.files.models import (
@@ -214,6 +217,8 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 stored=bool(r.storage_key),
                 follows_source=content.follows_source(r),
                 pinned=r.pinned,
+                week=r.week,
+                week_source=r.week_source,  # pyright: ignore[reportArgumentType]
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
                 doc_status=r.doc_status,  # pyright: ignore[reportArgumentType]
@@ -268,7 +273,7 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     stmt = select(FilesItem).where(
         FilesItem.user_id == ctx.user_id, FilesItem.course_id == inp.course_id
     )
-    if not inp.recursive:
+    if not inp.recursive and inp.week is None:
         stmt = stmt.where(
             FilesItem.folder_id == inp.folder_id
             if inp.folder_id is not None
@@ -279,6 +284,9 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
         stmt = stmt.where(
             func.lower(FilesItem.display_name).like(f"%{needle.replace('_', '\\_')}%", escape="\\")
         )
+    if inp.week is not None:
+        first = rules.week_start_of(inp.week, await academics.week_start(ctx))
+        stmt = stmt.where(FilesItem.week.between(first, first + timedelta(days=6)))
     name = func.lower(FilesItem.display_name)
     key = {
         "name": name,
@@ -1069,7 +1077,7 @@ async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
 # --- several at once (the file page's selection) -------------------------------------------
 
 
-async def _course_items(ctx: Ctx, course_id: str, item_ids: Sequence[str]) -> list[FilesItem]:
+async def course_items(ctx: Ctx, course_id: str, item_ids: Sequence[str]) -> list[FilesItem]:
     """The course's items with these ids; any id that is not one of them is not found."""
     ids = list(dict.fromkeys(item_ids))
     if not ids:
@@ -1103,7 +1111,7 @@ async def move_entries(
     the request's transaction: if one cannot move (a name taken, too deep), none do."""
     await academics.get_course_row(ctx, course_id)
     await _folder_for(ctx, course_id, to_folder_id)
-    items = await _course_items(ctx, course_id, item_ids)
+    items = await course_items(ctx, course_id, item_ids)
     folder_ids = list(dict.fromkeys(folder_ids))
     for folder_id in folder_ids:
         await get_folder(ctx, folder_id, course_id)
@@ -1135,7 +1143,7 @@ async def _entries_to_delete(
     tree: set[str] = set()
     for folder in chosen:
         tree |= {folder.id} | _descendants(folder.id, folders)
-    items = await _course_items(ctx, course_id, item_ids)
+    items = await course_items(ctx, course_id, item_ids)
     if tree:
         items += list(
             (
@@ -1176,6 +1184,62 @@ async def delete_entries(
         await events.publish(
             ctx, "files.folder.deleted", {"folder_id": folder.id, "course_id": course_id}
         )
+
+
+async def download_entries(
+    ctx: Ctx, course_id: str, item_ids: Sequence[str], folder_ids: Sequence[str]
+) -> list[tuple[str, FilesItem]]:
+    """The files to put in one download, each with its path in it: a chosen file at the top, a
+    chosen folder's files under its name (and their subfolders'). Links have no bytes and are
+    left out; names that repeat get a number."""
+    await academics.get_course_row(ctx, course_id)
+    folders = await _course_folders(ctx, course_id)
+    by_id = {f.id: f for f in folders}
+    picked: list[tuple[str, FilesItem]] = [
+        ("", row) for row in await course_items(ctx, course_id, item_ids)
+    ]
+    for folder_id in dict.fromkeys(folder_ids):
+        top = by_id.get(folder_id)
+        if top is None:
+            raise not_found("folder", folder_id)
+        tree = {top.id} | _descendants(top.id, folders)
+
+        def path(fid: str, top: FilesFolder = top) -> str:
+            parts: list[str] = []
+            step: FilesFolder | None = by_id[fid]
+            while step is not None:
+                parts.append(step.name)
+                step = by_id.get(step.parent_id or "") if step.id != top.id else None
+            return "/".join(reversed(parts)) + "/"
+
+        rows = await ctx.db.scalars(
+            select(FilesItem).where(FilesItem.user_id == ctx.user_id, FilesItem.folder_id.in_(tree))
+        )
+        picked += [(path(r.folder_id or top.id), r) for r in rows]
+    out: list[tuple[str, FilesItem]] = []
+    taken: set[str] = set()
+    seen: set[str] = set()
+    for folder, row in picked:
+        if row.id in seen or not content.has_content(row):
+            continue
+        seen.add(row.id)
+        name = download_name(row.display_name, row.mime_type)
+        stem, dot, ext = name.rpartition(".") if "." in name else (name, "", "")
+        candidate, n = folder + name, 1
+        while candidate.lower() in taken:
+            n += 1
+            candidate = f"{folder}{stem} ({n}){dot}{ext}"
+        taken.add(candidate.lower())
+        out.append((candidate, row))
+    return out
+
+
+def download_name(name: str, mime: str | None) -> str:
+    """The shown name, with the extension of its type when it has none (an LMS page is named by
+    its title), so the downloaded file opens."""
+    if "." in name or not mime or mime == "application/octet-stream":
+        return name
+    return name + (mimetypes.guess_extension(mime) or "")
 
 
 # --- removal --------------------------------------------------------------------------------

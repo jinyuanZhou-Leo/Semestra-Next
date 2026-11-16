@@ -1,4 +1,4 @@
-import { FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
+import { CalendarDays, FileClock, FileSearch, FolderOpen, Star } from 'lucide-react'
 import {
   defineModule,
   type InvalidationTarget,
@@ -50,6 +50,7 @@ const INVALIDATIONS = {
   ],
   'files.document.ready': [courseList, ofItem(['filesItemGet', ...PAGES]), 'filesDocumentSearch'],
   'files.document.failed': [courseList, ofItem(['filesItemGet']), 'filesDocumentSearch'],
+  'files.weeks.changed': [courseList],
   'files.folder.created': [courseList],
   'files.folder.updated': [courseList],
   'files.folder.deleted': [
@@ -116,7 +117,21 @@ export default defineModule({
       component: preloadable(() => import('./cards/RecentCard')),
       multiple: false,
     },
+    {
+      id: 'files.thisWeek',
+      scopes: ['course'],
+      title: m.files_card_this_week,
+      description: m.files_card_this_week_description,
+      icon: CalendarDays,
+      sizes: ['m', 'l'],
+      defaultSize: 'm',
+      component: preloadable(() => import('./cards/ThisWeekCard')),
+      multiple: false,
+    },
   ],
+  defaultBoard: {
+    course: [{ card: 'files.thisWeek', size: 'm' }],
+  },
   settingsSections: [
     {
       id: 'files',

@@ -14,6 +14,8 @@ import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './fo
 import CourseFilesPage from './pages/CourseFilesPage'
 import { pageTarget } from './page-target'
 import { findDuplicates, planUpload } from './upload'
+import ThisWeekCard from './cards/ThisWeekCard'
+import { course as academicCourse, term as academicTerm } from '@/modules/academics/test-data'
 
 // pdf.js does not run in jsdom; the viewer's page is enough to check where it opens.
 vi.mock('react-pdf', () => ({
@@ -70,6 +72,8 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
     sha256: 'aa',
     stored: true,
     follows_source: false,
+    week: null,
+    week_source: 'rule',
     url: null,
     pinned: false,
     source_kind: 'upload',
@@ -115,6 +119,13 @@ beforeEach(() => {
   prefs = []
   searches = []
   server.use(
+    http.get(`${API}/courses/c1`, () =>
+      HttpResponse.json(academicCourse({ id: 'c1', term_ids: ['t1'] })),
+    ),
+    http.get(`${API}/programs/p1/terms`, () =>
+      HttpResponse.json({ items: [academicTerm({ id: 't1', name: 'Fall' })] }),
+    ),
+    http.get(`${API}/terms/t1/calendar-info`, () => HttpResponse.json(CALENDAR)),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, async ({ request, params }) => {
       prefs.push({ key: String(params.key), body: await request.json() })
@@ -192,6 +203,21 @@ beforeEach(() => {
 })
 
 const mount = () => renderWithRouter(<CourseFilesPage scope={scope} />)
+
+/** Four weeks of a term, the third this week. */
+const CALENDAR = {
+  term_id: 't1',
+  timezone: 'America/Toronto',
+  week_start: 1,
+  weeks: [
+    ['2026-09-07', '2026-09-13'],
+    ['2026-09-14', '2026-09-20'],
+    ['2026-09-21', '2026-09-27'],
+    ['2026-09-28', '2026-10-04'],
+  ].map(([start_date, end_date], i) => ({ start_date, end_date, number: i + 1, break_info: null })),
+  today: '2026-09-23',
+  today_week: 2,
+}
 
 test('files dropped anywhere on the page are uploaded to the course', async () => {
   mount()
@@ -518,4 +544,104 @@ test('selected files move together to a folder picked in the tree', async () => 
   )
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
+})
+
+// --- weeks ------------------------------------------------------------------------------------
+
+function weekItems() {
+  items = [
+    item(),
+    item({ id: 'w3', display_name: 'Lecture 5.pdf', folder_id: 'f1', week: '2026-09-21' }),
+    item({ id: 'w3b', display_name: 'Lab 2.pdf', folder_id: null, week: '2026-09-21' }),
+    item({ id: 'w4', display_name: 'Lecture 7.pdf', folder_id: 'f1', week: '2026-09-28' }),
+  ]
+  const folders: FolderOut[] = [
+    {
+      id: 'f1',
+      course_id: 'c1',
+      parent_id: null,
+      name: 'Lectures',
+      item_count: 2,
+      created_at: '2026-01-10T12:00:00Z',
+      updated_at: '2026-01-10T12:00:00Z',
+    },
+  ]
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({ folders, items, next_cursor: null }),
+    ),
+  )
+}
+
+test('one week lists its files from every folder, with where they are', async () => {
+  weekItems()
+  mount()
+  expect(await screen.findByRole('button', { name: 'Lectures' })).toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('combobox', { name: 'Week' }))
+  await userEvent.click(await screen.findByRole('option', { name: /Week 3 \(this week\)/ }))
+
+  const table = screen.getByRole('table')
+  expect(within(table).getByRole('columnheader', { name: 'Location' })).toBeInTheDocument()
+  const rows = within(table).getAllByRole('row').slice(1)
+  expect(rows.map((r) => within(r).getAllByRole('cell')[1]?.textContent)).toEqual([
+    'Lab 2.pdf',
+    'Lecture 5.pdf',
+  ])
+  expect(within(rows[1]!).getByText('Lectures')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Lectures' })).not.toBeInTheDocument()
+
+  // The whole term's: the files no week claims.
+  await userEvent.click(screen.getByRole('combobox', { name: 'Week' }))
+  await userEvent.click(await screen.findByRole('option', { name: 'Whole term' }))
+  expect(await screen.findByRole('button', { name: 'syllabus.pdf' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Lab 2.pdf' })).not.toBeInTheDocument()
+})
+
+test('files are put in a week together, and downloaded together', async () => {
+  weekItems()
+  const sent: unknown[] = []
+  server.use(
+    http.post(`${API}/courses/c1/files\\:set-week`, async ({ request }) => {
+      sent.push(await request.json())
+      return HttpResponse.json({ updated: 2 })
+    }),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Select syllabus.pdf' }))
+  await userEvent.click(
+    screen
+      .getByRole('button', { name: 'Lectures' })
+      .closest('tr')!
+      .querySelector('[role=checkbox]')!,
+  )
+  // A folder is downloaded whole, in one archive; a week is set on files only.
+  const download = screen.getByRole('link', { name: 'Download' })
+  expect(download.getAttribute('href')).toBe(
+    `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
+  )
+  expect(screen.queryByRole('button', { name: 'Change week…' })).not.toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select syllabus.pdf' }))
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select Lab 2.pdf' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Change week…' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Change the week of 2 items' })
+  await userEvent.click(within(dialog).getByRole('combobox', { name: 'Week' }))
+  await userEvent.click(await screen.findByRole('option', { name: /Week 4/ }))
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+  await waitFor(() => expect(sent).toEqual([{ item_ids: ['i1', 'w3b'], week: '2026-09-28' }]))
+})
+
+test("the overview card lists this week's materials and links to the rest", async () => {
+  weekItems()
+  renderWithRouter(<ThisWeekCard scope={scope} instanceId="x" size="m" settings={{}} />)
+  expect(await screen.findByRole('button', { name: /Lecture 5\.pdf/ })).toHaveTextContent(
+    'Lectures',
+  )
+  expect(screen.getByRole('button', { name: /Lab 2\.pdf/ })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Lecture 7/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'View all of Week 3 in Files (2)' })).toHaveAttribute(
+    'href',
+    '/p/p1/c/c1/files?week=2026-09-21',
+  )
 })

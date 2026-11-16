@@ -1,11 +1,13 @@
 """Course file capabilities (M07 §5, §7)."""
 
+from typing import Any
+
 from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import agent_hints
 from semestra.core.labels import owned_row
-from semestra.modules.files import documents, search, service
+from semestra.modules.files import documents, search, service, weeks
 from semestra.modules.files.models import FilesFolder, FilesItem
 from semestra.modules.files.schemas import (
     Deleted,
@@ -33,6 +35,8 @@ from semestra.modules.files.schemas import (
     PinnedInput,
     SearchInput,
     SearchResult,
+    WeekSet,
+    WeekSetInput,
 )
 
 TAGS = ("files",)
@@ -40,7 +44,8 @@ TAGS = ("files",)
 # What agents get back (M00 §3.6): no hashes, storage names, import refs or timestamps.
 _FILE_FIELDS = (
     "id", "course_id", "folder_id", "kind", "display_name", "mime_type", "size_bytes", "url",
-    "pinned", "doc_status", "doc_error_code", "page_count", "ocr_skipped_pages",
+    "pinned", "week", "week_source", "doc_status", "doc_error_code", "page_count",
+    "ocr_skipped_pages",
 )  # fmt: skip
 
 
@@ -63,7 +68,9 @@ agent_hints(
     description="""Use to see what a course has: its files and saved links in one folder (or every
 folder with recursive=true), with their processing status (doc_status "none" means the file is
 stored but not indexed because automatic indexing is off; the user can index it from the file
-list). Do not use to look for what the files say; use files.document.search for that.""",
+list). Each item has the teaching week it is for (`week`, the week's first day; null: the whole
+term); pass `week` to list one week's materials across all folders. Do not use to look for what
+the files say; use files.document.search for that.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/files"),
     tags=TAGS,
@@ -71,6 +78,7 @@ list). Do not use to look for what the files say; use files.document.search for 
         "display_name",
         "kind",
         "folder_id",
+        "week",
         "doc_status",
         "page_count",
         "pinned",
@@ -117,6 +125,29 @@ change.""",
 )
 async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
     return await service.update_item(ctx, inp)
+
+
+async def _preview_set_week(ctx: Ctx, inp: WeekSetInput) -> dict[str, Any]:
+    rows = await service.course_items(ctx, inp.course_id, inp.item_ids)
+    return await weeks.preview_set_week(ctx, rows, inp.week)
+
+
+@capability(
+    name="files.item.set_week",
+    summary="Put files and links in a teaching week, or in the whole term.",
+    description="""Use when the user says which week of the term files are for (they are
+listed under that week), or that they are for the whole term (week null). Find week dates with
+academics.term.get_weeks. Weeks are first worked out from file names and where the LMS put them;
+a week set here stays.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/files:set-week"),
+    preview=_preview_set_week,
+    tags=TAGS,
+)
+async def set_week(ctx: Ctx, inp: WeekSetInput) -> WeekSet:
+    rows = await service.course_items(ctx, inp.course_id, inp.item_ids)
+    await weeks.set_week(ctx, rows, inp.week)
+    return WeekSet(updated=len(rows))
 
 
 @capability(

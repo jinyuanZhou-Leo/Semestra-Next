@@ -616,7 +616,10 @@ async def test_cleanup_on_course_and_term_changes(api: Api, app: FastAPI):
     # and clients hear about it after the clean-up commits.
     with collect_events(app, user_id) as pushed:
         await api.call("PUT", f"/courses/{course_id}/terms", json={"term_ids": [term_id]})
-    assert [m["type"] for m in pushed][-3:] == [
+    # (`academics.course.terms_changed` itself may arrive before or after: other subscribers of
+    # it run concurrently with the clean-up's own dispatch.)
+    cleanup = [m["type"] for m in pushed if not m["type"].startswith("academics.")]
+    assert cleanup[-3:] == [
         "schedule.section.deleted",
         "schedule.event.updated",
         "calendar.changed",

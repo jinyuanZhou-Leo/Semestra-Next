@@ -15,6 +15,7 @@ import { type Target, filesInside, folderTree, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
 import { MoveDialog } from './MoveDialog'
 import { NameDialog } from './NameDialog'
+import { WeekDialog } from './WeekPicker'
 
 /** The dialog the file page has open, if any. */
 export type ItemAction =
@@ -23,6 +24,7 @@ export type ItemAction =
   | { kind: 'delete'; targets: Target[] }
   | { kind: 'new-folder'; parentId: string | null }
   | { kind: 'new-link'; folderId: string | null }
+  | { kind: 'week'; items: ItemOut[] }
 
 /** Whether the dialog is open, and the page's hook to forget the action once it has closed. */
 type Shown = { open: boolean; onOpenChangeComplete: (open: boolean) => void }
@@ -95,7 +97,7 @@ function DeleteDialog({
   )
 }
 
-/** Rename, move, delete, new folder and new link for the file page. */
+/** Rename, move, change week, delete, new folder and new link for the file page. */
 export function ItemDialogs({
   courseId,
   folders,
@@ -129,6 +131,16 @@ export function ItemDialogs({
         courseId={courseId}
         targets={action.targets}
         folders={folders}
+        onClose={close}
+        onDone={onDone}
+        {...shown}
+      />
+    )
+  if (action.kind === 'week')
+    return (
+      <WeekDialog
+        courseId={courseId}
+        items={action.items}
         onClose={close}
         onDone={onDone}
         {...shown}

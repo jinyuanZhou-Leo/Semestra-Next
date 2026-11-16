@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
@@ -7,6 +7,7 @@ Id = Annotated[str, Field(min_length=1, max_length=64)]
 ItemKind = Literal["file", "link"]
 DocStatus = Literal["none", "pending", "processing", "ready", "failed", "unsupported"]
 SourceKind = Literal["upload", "lms", "agent"]
+WeekSource = Literal["rule", "user"]
 SortKey = Literal["name", "size", "updated", "created", "type"]
 SearchMode = Literal["hybrid", "keyword", "semantic"]
 
@@ -45,6 +46,12 @@ class ItemOut(BaseModel):
     # removed with it. False for the user's own files and the copies they keep (`kept_offline`).
     follows_source: bool
     pinned: bool
+    week: date | None = Field(
+        description="First day of the teaching week it is for; null: the whole term"
+    )
+    week_source: WeekSource = Field(
+        description="Who set the week: worked out from its name and place, or by the user"
+    )
     source_kind: SourceKind | None
     source_ref: str | None
     doc_status: DocStatus
@@ -74,6 +81,8 @@ ItemField = Literal[
     "stored",
     "follows_source",
     "pinned",
+    "week",
+    "week_source",
     "source_kind",
     "source_ref",
     "doc_status",
@@ -98,6 +107,11 @@ class FilesItemListInput(BaseModel):
         default=None,
         description="Keep items whose name contains this text (case-insensitive). To search "
         "what the files say, use files.document.search instead.",
+    )
+    week: date | None = Field(
+        default=None,
+        description="Only items of the teaching week that contains this day, in every folder "
+        "(week dates from academics.term.get_weeks)",
     )
     sort: SortKey = Field(default="name", description="Sort key")
     descending: bool = Field(default=False, description="Reverse the sort order")
@@ -191,6 +205,19 @@ class EntriesDeleteInput(BaseModel):
         max_length=1000,
         description="Folders to delete with everything inside them",
     )
+
+
+class WeekSetInput(BaseModel):
+    course_id: Id = Field(description="Course id")
+    item_ids: list[Id] = Field(min_length=1, max_length=1000, description="Files and links")
+    week: date | None = Field(
+        description="A day of the teaching week they are for (week dates from "
+        "academics.term.get_weeks); null: the whole term"
+    )
+
+
+class WeekSet(BaseModel):
+    updated: int = Field(description="Files and links given the week")
 
 
 class EntriesMoved(BaseModel):

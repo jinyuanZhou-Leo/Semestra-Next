@@ -5881,6 +5881,18 @@ export type ItemOut = {
      */
     pinned: boolean;
     /**
+     * Week
+     *
+     * First day of the teaching week it is for; null: the whole term
+     */
+    week: string | null;
+    /**
+     * Week Source
+     *
+     * Who set the week: worked out from its name and place, or by the user
+     */
+    week_source: 'rule' | 'user';
+    /**
      * Source Kind
      */
     source_kind: 'upload' | 'lms' | 'agent' | null;
@@ -12721,6 +12733,36 @@ export type WebAuthnOptions = {
 };
 
 /**
+ * WeekSet
+ */
+export type WeekSet = {
+    /**
+     * Updated
+     *
+     * Files and links given the week
+     */
+    updated: number;
+};
+
+/**
+ * WeekSetInputBody
+ */
+export type WeekSetInputBody = {
+    /**
+     * Item Ids
+     *
+     * Files and links
+     */
+    item_ids: Array<string>;
+    /**
+     * Week
+     *
+     * A day of the teaching week they are for (week dates from academics.term.get_weeks); null: the whole term
+     */
+    week: string | null;
+};
+
+/**
  * WizardCourse
  */
 export type WizardCourse = {
@@ -13500,6 +13542,12 @@ export type FilesItemListData = {
          */
         search?: string | null;
         /**
+         * Week
+         *
+         * Only items of the teaching week that contains this day, in every folder (week dates from academics.term.get_weeks)
+         */
+        week?: string | null;
+        /**
          * Sort
          *
          * Sort key
@@ -13516,7 +13564,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'week' | 'week_source' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *
@@ -13625,6 +13673,51 @@ export type FilesContentResponses = {
 };
 
 export type FilesContentResponse = FilesContentResponses[keyof FilesContentResponses];
+
+export type FilesDownloadManyData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Item Ids
+         *
+         * Files to put in it
+         */
+        item_ids?: Array<string>;
+        /**
+         * Folder Ids
+         *
+         * Folders to put in it, whole
+         */
+        folder_ids?: Array<string>;
+    };
+    url: '/courses/{course_id}/files:download';
+};
+
+export type FilesDownloadManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDownloadManyError = FilesDownloadManyErrors[keyof FilesDownloadManyErrors];
+
+export type FilesDownloadManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+};
+
+export type FilesDownloadManyResponse = FilesDownloadManyResponses[keyof FilesDownloadManyResponses];
 
 export type FilesPageImageData = {
     body?: never;
@@ -17112,6 +17205,38 @@ export type FilesItemSearchResponses = {
 };
 
 export type FilesItemSearchResponse = FilesItemSearchResponses[keyof FilesItemSearchResponses];
+
+export type FilesItemSetWeekData = {
+    body: WeekSetInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:set-week';
+};
+
+export type FilesItemSetWeekErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemSetWeekError = FilesItemSetWeekErrors[keyof FilesItemSetWeekErrors];
+
+export type FilesItemSetWeekResponses = {
+    /**
+     * Successful Response
+     */
+    200: WeekSet;
+};
+
+export type FilesItemSetWeekResponse = FilesItemSetWeekResponses[keyof FilesItemSetWeekResponses];
 
 export type FilesLinkCreateData = {
     body: LinkCreateInputBody;

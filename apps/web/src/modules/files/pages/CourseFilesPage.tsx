@@ -1,5 +1,16 @@
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
-import { FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import {
+  CalendarDays,
+  Download,
+  FolderOpen,
+  FolderPlus,
+  Link2,
+  Plus,
+  Search,
+  SearchX,
+  Upload,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -15,7 +26,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
-import { Button } from '@/ui/button'
+import { Button, buttonVariants } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +55,9 @@ import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
-import { useCourseFiles } from '../queries'
+import { downloadUrl, useCourseFiles } from '../queries'
+import { WeekFilterSelect } from '../components/WeekPicker'
+import { type WeekFilter, inWeek, useCourseWeeks, weekName } from '../weeks'
 
 /** The `files` page of a course (M07 §6.1). */
 export default function CourseFilesPage({ scope }: PageProps) {
@@ -87,8 +100,12 @@ export function CourseFiles({
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 
+  const weeks = useCourseWeeks(courseId)
+  const [weekFilter, setWeekFilter] = useWeekFilter()
+  // One week's files (or the whole term's) come from every folder, in one list.
+  const byWeek = weeks && weeks.terms.length > 0 && weekFilter !== 'all' ? weeks : null
   // The folder may have been deleted (here or in another tab).
-  const folder = list.folders.find((f) => f.id === folderId) ?? null
+  const folder = byWeek ? null : (list.folders.find((f) => f.id === folderId) ?? null)
   const currentId = folder?.id ?? null
   const own = useUploads()
   const uploads = shared ?? own
@@ -109,8 +126,19 @@ export function CourseFiles({
     const parentId = step.parent_id
     step = list.folders.find((p) => p.id === parentId) ?? null
   }
-  const childFolders = list.folders.filter((f) => f.parent_id === currentId)
-  const childItems = list.items.filter((i) => i.folder_id === currentId)
+  const childFolders = byWeek ? [] : list.folders.filter((f) => f.parent_id === currentId)
+  const childItems = byWeek
+    ? list.items.filter((i) => inWeek(i, weekFilter, byWeek))
+    : list.items.filter((i) => i.folder_id === currentId)
+  const folderNames = new Map(list.folders.map((f) => [f.id, f.name]))
+  const place = (item: ItemOut) =>
+    item.folder_id ? (folderNames.get(item.folder_id) ?? '') : m.files_all_files()
+  const filteredWeek = byWeek && weekFilter !== 'term' ? byWeek.find(weekFilter) : null
+  const weekText = filteredWeek ? weekName(filteredWeek) : m.files_week_term()
+  const filterWeek = (next: WeekFilter) => {
+    setWeekFilter(next)
+    setSelectedKeys(new Set())
+  }
   // Selection belongs to the folder shown: opening another one starts over.
   const setFolderId = (id: string | null) => {
     openFolder(id)
@@ -138,6 +166,9 @@ export function CourseFiles({
     active: selected.length > 0,
   }
   const selecting = selected.length > 0 && !searching
+  const selectedItems = selected.flatMap((t) => (t.type === 'item' ? [t.item] : []))
+  const selectsFolders = selected.some((t) => t.type === 'folder')
+  const download = downloadUrl(courseId, selected)
 
   const needle = search.trim().toLowerCase()
   const nameMatches = needle
@@ -167,6 +198,16 @@ export function CourseFiles({
             onClear={clearSelection}
             actions={
               <>
+                {download ? (
+                  <a
+                    href={download}
+                    download
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    <Download aria-hidden />
+                    {m.files_download()}
+                  </a>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
@@ -174,6 +215,16 @@ export function CourseFiles({
                 >
                   {m.files_move_to()}
                 </Button>
+                {selectsFolders ? null : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => action.show({ kind: 'week', items: selectedItems })}
+                  >
+                    <CalendarDays aria-hidden />
+                    {m.files_week_change()}
+                  </Button>
+                )}
                 <Button
                   variant="destructive"
                   size="sm"
@@ -197,6 +248,9 @@ export function CourseFiles({
               </InputGroupAddon>
             </InputGroup>
           </SelectionToolbar>
+          {weeks && weeks.terms.length > 0 && !searching ? (
+            <WeekFilterSelect weeks={weeks} value={weekFilter} onChange={filterWeek} />
+          ) : null}
           <div className="ml-auto flex items-center gap-2">
             {view === 'grid' ? <SortMenu /> : null}
             <ViewToggle />
@@ -244,6 +298,10 @@ export function CourseFiles({
           {searching ? (
             <p className="truncate text-sm text-muted-foreground">
               {m.files_search_results_for({ query: search.trim() })}
+            </p>
+          ) : byWeek ? (
+            <p className="truncate text-sm text-muted-foreground">
+              {m.files_week_crumb({ files: name ?? m.files_all_files(), week: weekText })}
             </p>
           ) : (
             <Breadcrumb>
@@ -313,6 +371,20 @@ export function CourseFiles({
               <Button onClick={pickFiles}>{m.files_upload()}</Button>
             </EmptyContent>
           </Empty>
+        ) : byWeek && childItems.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX aria-hidden />
+              </EmptyMedia>
+              <EmptyTitle>{m.files_search_no_match()}</EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" onClick={() => filterWeek('all')}>
+                {m.common_clear_filters()}
+              </Button>
+            </EmptyContent>
+          </Empty>
         ) : childFolders.length === 0 && childItems.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -337,6 +409,7 @@ export function CourseFiles({
               act: action.show,
               programId,
               selection,
+              place: byWeek ? place : undefined,
               drop: {
                 over: dropFolderId,
                 setOver: setDropFolderId,
@@ -407,4 +480,21 @@ function DropCrumb({
       {name}
     </BreadcrumbLink>
   )
+}
+
+/** The week filter, in the address (`?week=`) so the overview's "this week" card can link to it. */
+function useWeekFilter(): [WeekFilter, (next: WeekFilter) => void] {
+  const search = useSearch({ strict: false }) as { week?: unknown }
+  const navigate = useNavigate()
+  const value = typeof search.week === 'string' && search.week ? search.week : 'all'
+  const set = (next: WeekFilter) =>
+    void navigate({
+      to: '.',
+      search: (prev: Record<string, string | undefined>) => {
+        const { week: _week, ...rest } = prev
+        return next === 'all' ? rest : { ...rest, week: next }
+      },
+      replace: true,
+    })
+  return [value, set]
 }

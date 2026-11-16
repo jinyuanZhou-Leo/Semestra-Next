@@ -410,3 +410,49 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     # The user's own copy, without its bytes in the backup: its source's again, not lost.
     midterm_row = rows["Midterm 2025.pdf"]
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
+
+
+async def test_materials_get_the_week_of_their_module(api: Api, fake: FakeProvider):
+    """M07 reads where an item sits (`week_clues`): the week its module names, the day its
+    module opens, and the week of the module's other items; renamed modules move them."""
+    fake.module_list = [
+        Module(external_id="m2", name="Week 2: Sorting", items=[
+            ModuleItem(external_id="i1", title="sorting.pdf", kind="file", position=1,
+                       target=InternalRef(kind="file", ref="301")),
+        ]),
+        Module(external_id="m3", name="Recursion", items=[
+            ModuleItem(external_id="i2", title="Week 4 slides", kind="file", position=1,
+                       target=InternalRef(kind="file", ref="302")),
+            ModuleItem(external_id="i3", title="handout.pdf", kind="file", position=2,
+                       target=InternalRef(kind="file", ref="303")),
+        ]),
+        Module(external_id="m4", name="Trees", unlock_at=datetime(2026, 2, 3, 5, tzinfo=UTC),
+               items=[ModuleItem(external_id="i4", title="trees.pdf", kind="file", position=1,
+                                 target=InternalRef(kind="file", ref="304"))]),
+    ]  # fmt: skip
+    fake.course_file_list = [
+        _file("301", "sorting.pdf"), _file("302", "Week 4 slides.pdf"),
+        _file("303", "handout.pdf"), _file("304", "trees.pdf"), _file("305", "outline.pdf"),
+    ]  # fmt: skip
+    fake.page_list = []
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    term_id = (await api.call("GET", f"/courses/{course}"))["term_ids"][0]
+    weeks = (await api.call("GET", f"/terms/{term_id}/calendar-info"))["weeks"]
+    start = {w["number"]: w["start_date"] for w in weeks if w["number"]}
+    week_of = {w["start_date"]: w["number"] for w in weeks}
+    # Feb 3, midnight in Toronto.
+    feb3 = next(w["number"] for w in weeks if w["start_date"] <= "2026-02-03" <= w["end_date"])
+    _, items = await _files(api, course)
+    assert {name: week_of.get(i["week"]) for name, i in items.items()} == {
+        "sorting.pdf": 2,
+        "Week 4 slides.pdf": 4,
+        "handout.pdf": 4,  # its module's
+        "trees.pdf": feb3,  # the day its module opens
+        "outline.pdf": None,
+    }
+
+    fake.module_list[0].name = "Week 3: Sorting"
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert items["sorting.pdf"]["week"] == start[3]

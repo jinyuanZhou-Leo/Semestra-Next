@@ -1,11 +1,13 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
-import mimetypes
 import re
+import tempfile
+import zipfile
 from collections.abc import AsyncIterator
 from typing import Annotated
 from urllib.parse import quote
 
+import anyio
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
@@ -13,6 +15,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
@@ -23,6 +26,8 @@ from semestra.modules.files.upload import MAX_FILES_PER_REQUEST
 router = APIRouter(tags=["files"])
 CurrentCtx = Annotated[Ctx, Depends(get_ctx)]
 _RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+# A download of several files stays in memory up to this size, then goes to a temporary file.
+ZIP_IN_MEMORY = 16 * 1024 * 1024
 
 
 async def _read(file: UploadFile) -> AsyncIterator[bytes]:
@@ -69,14 +74,6 @@ async def upload(
         raise
     await run_after_commit(ctx)
     return result
-
-
-def _download_name(name: str, mime: str) -> str:
-    """The shown name, with the extension of its type when it has none (an LMS page is named by
-    its title), so the downloaded file opens."""
-    if "." in name or mime == "application/octet-stream":
-        return name
-    return name + (mimetypes.guess_extension(mime) or "")
 
 
 def _content_disposition(disposition: str, name: str) -> str:
@@ -127,7 +124,9 @@ async def content(
     shown = "inline" if disposition == "inline" and mime in INLINE_SAFE else "attachment"
     span = _byte_range(request.headers.get("range"), item.size_bytes)
     headers = {
-        "Content-Disposition": _content_disposition(shown, _download_name(item.display_name, mime)),
+        "Content-Disposition": _content_disposition(
+            shown, service.download_name(item.display_name, mime)
+        ),
         "Accept-Ranges": "bytes",
         "ETag": f'"{item.sha256}"',
         "Cache-Control": "private, no-cache",
@@ -161,6 +160,64 @@ async def content(
     return StreamingResponse(
         stream, status_code=206 if span else 200, media_type=mime, headers=headers
     )
+
+
+MAX_DOWNLOAD_ENTRIES = 500
+
+
+@router.get(
+    "/courses/{course_id}/files:download",
+    operation_id="filesDownloadMany",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/zip": {}}}, "default": {"model": ErrorResponse}},
+    summary="Download several files and folders of a course as one zip archive.",
+)
+async def download_many(
+    course_id: Annotated[str, Path(description="Course id")],
+    ctx: CurrentCtx,
+    item_ids: Annotated[
+        list[str], Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Files to put in it")
+    ] = [],  # noqa: B006 (FastAPI copies query defaults)
+    folder_ids: Annotated[
+        list[str],
+        Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Folders to put in it, whole"),
+    ] = [],  # noqa: B006
+) -> Response:
+    """Links are left out. Files read from their source are read now, one after another."""
+    course = await academics.get_course_row(ctx, course_id)
+    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
+    if not entries:
+        raise not_found()
+    archive = tempfile.SpooledTemporaryFile(max_size=ZIP_IN_MEMORY)  # noqa: SIM115
+    try:
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
+            for path, row in entries:
+                stream = await files_content.open_content(ctx, row)
+                await ctx.db.commit()  # what a source wrote on the way (renewed credentials)
+                with zf.open(path, "w", force_zip64=True) as member:
+                    async for chunk in stream:
+                        await anyio.to_thread.run_sync(member.write, chunk)
+        size = archive.tell()
+        archive.seek(0)
+    except BaseException:
+        archive.close()
+        raise
+
+    async def body() -> AsyncIterator[bytes]:
+        try:
+            while chunk := await anyio.to_thread.run_sync(archive.read, CHUNK_SIZE):
+                yield chunk
+        finally:
+            archive.close()
+
+    name = f"{course.code or course.title}.zip"
+    headers = {
+        "Content-Disposition": _content_disposition("attachment", name),
+        "Content-Length": str(size),
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
+    return StreamingResponse(body(), media_type="application/zip", headers=headers)
 
 
 @router.get(

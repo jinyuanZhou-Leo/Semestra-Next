@@ -761,6 +761,8 @@ function courseFile(id: string, name: string, created: string) {
     url: null,
     stored: true,
     follows_source: false,
+    week: null,
+    week_source: 'rule',
     pinned: false,
     source_kind: 'upload',
     source_ref: null,

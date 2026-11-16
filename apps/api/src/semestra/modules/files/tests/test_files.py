@@ -1047,3 +1047,38 @@ async def test_reindex_starts_over_when_the_model_changes_midway(fx: Fx, fake_ai
         counts = [await store.count(db, s) for s in spaces]
     assert counts[0] > 0
     assert (await fx.search("midterm", mode="semantic"))["mode_used"] == "semantic"
+
+
+async def test_downloading_several_as_one_zip(fx: Fx):
+    import io
+    import zipfile
+
+    folder = await fx.call("POST", f"/courses/{fx.course_id}/folders", json={"name": "Labs"})
+    sub = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/folders",
+        json={"name": "Lab 1", "parent_id": folder["id"]},
+    )
+    a = await fx.upload("notes.txt", b"top")
+    await fx.upload("notes.txt", b"inside", folder_id=folder["id"])
+    await fx.upload("data.csv", b"1,2", folder_id=sub["id"])
+    link = await fx.call(
+        "POST", f"/courses/{fx.course_id}/file-links", json={"url": "https://example.com"}
+    )
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download",
+        params={"item_ids": [a["id"], link["id"]], "folder_ids": [folder["id"]]},
+    )
+    assert r.status_code == 200, r.text
+    assert 'filename="APS105.zip"' in r.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert {n: zf.read(n) for n in zf.namelist()} == {
+            "notes.txt": b"top",
+            "Labs/notes.txt": b"inside",
+            "Labs/Lab 1/data.csv": b"1,2",
+        }
+    # Only links: nothing to download.
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}
+    )
+    assert r.status_code == 404
