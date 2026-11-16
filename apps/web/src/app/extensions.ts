@@ -142,6 +142,11 @@ export type CardContribution = {
    */
   keepTitleWhenSmall?: boolean
   /**
+   * The content fills the card edge to edge at every size, with no title row (like S): for cards
+   * that are a surface of their own, such as a sticky note. The title still shows while editing.
+   */
+  bleed?: boolean
+  /**
    * Buttons in the card's header next to its title (e.g. a counter's reset). Like the settings
    * button, the host shows them on hover or focus (always on touch screens), not the card.
    */

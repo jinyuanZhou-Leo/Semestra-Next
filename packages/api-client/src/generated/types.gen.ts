@@ -7402,13 +7402,13 @@ export type NoteUpdateInputBody = {
     /**
      * Content
      *
-     * Markdown text: the lines to add, or the whole new note with mode replace
+     * Markdown text: the lines to add, or the whole new note with mode replace. A single line break is a line break; checklists (- [ ] item) and GFM tables work; HTML is shown as plain text
      */
     content: string;
     /**
      * Mode
      *
-     * append adds the text on a new line after the note; replace overwrites it
+     * append adds the text after the note as a new block; replace overwrites it
      */
     mode?: 'append' | 'replace';
 };

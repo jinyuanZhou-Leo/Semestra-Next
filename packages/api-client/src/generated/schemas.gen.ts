@@ -13041,7 +13041,7 @@ export const NoteUpdateInputBodySchema = {
             type: 'string',
             maxLength: 10000,
             title: 'Content',
-            description: 'Markdown text: the lines to add, or the whole new note with mode replace'
+            description: 'Markdown text: the lines to add, or the whole new note with mode replace. A single line break is a line break; checklists (- [ ] item) and GFM tables work; HTML is shown as plain text'
         },
         mode: {
             type: 'string',
@@ -13050,7 +13050,7 @@ export const NoteUpdateInputBodySchema = {
                 'replace'
             ],
             title: 'Mode',
-            description: 'append adds the text on a new line after the note; replace overwrites it',
+            description: 'append adds the text after the note as a new block; replace overwrites it',
             default: 'append'
         }
     },

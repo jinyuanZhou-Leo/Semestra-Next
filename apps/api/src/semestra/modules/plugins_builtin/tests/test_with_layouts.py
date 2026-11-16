@@ -65,10 +65,10 @@ async def test_sticky_note_is_read_and_written_through_the_card_settings(
     assert r.status_code == 200, r.text
     listed = await client.get("/sticky/notes", params={"scope_type": "program", "scope_id": pid})
     assert listed.json()["items"] == [
-        {"instance_id": note, "content": "old\nnew", "color": "subject-3"}
+        {"instance_id": note, "content": "old\n\nnew", "color": "subject-3"}
     ]
     settings = await client.get(f"/layouts/cards/{note}/settings")
-    assert settings.json()["settings"] == {"content": "old\nnew", "color": "subject-3"}
+    assert settings.json()["settings"] == {"content": "old\n\nnew", "color": "subject-3"}
 
 
 async def test_uninstalling_hides_the_tools_and_keeps_the_data(

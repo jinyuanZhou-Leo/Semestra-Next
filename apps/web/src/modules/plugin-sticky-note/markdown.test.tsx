@@ -1,55 +1,88 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { expect, test, vi } from 'vitest'
-import { Markdown, parseBlocks, toggleTask } from './markdown'
+import { Editor } from '@tiptap/core'
+import { afterEach, expect, test } from 'vitest'
+import { noteExtensions } from './extensions'
 
-const label = (text: string) => `done: ${text}`
-
-test('inline syntax renders bold, italic and safe links only', () => {
-  render(
-    <Markdown
-      taskLabel={label}
-      content={'**bold** and *italic* and [site](https://example.com) [bad](javascript:alert(1))'}
-    />,
-  )
-  expect(screen.getByText('bold').tagName).toBe('STRONG')
-  expect(screen.getByText('italic').tagName).toBe('EM')
-  expect(screen.getByRole('link', { name: 'site' })).toHaveAttribute('href', 'https://example.com')
-  // An unsafe link stays plain text.
-  expect(screen.queryByRole('link', { name: 'bad' })).toBeNull()
-  expect(screen.getByText(/\[bad\]\(javascript:alert\(1\)\)/)).toBeInTheDocument()
+// Each editor watches its DOM on timers; destroy them before the test environment goes away.
+const editors: Editor[] = []
+afterEach(() => {
+  for (const e of editors.splice(0)) e.destroy()
 })
 
-test('markup in a note is text, never elements', () => {
-  const { container } = render(
-    <Markdown taskLabel={label} content={'<img src=x onerror=alert(1)>'} />,
-  )
-  expect(container.querySelector('img')).toBeNull()
-  expect(container).toHaveTextContent('<img src=x onerror=alert(1)>')
+function editor(content: string) {
+  const e = new Editor({
+    extensions: noteExtensions({ placeholder: '', onTooLong: () => {} }),
+    content,
+    contentType: 'markdown',
+  })
+  editors.push(e)
+  return e
+}
+
+const roundTrip = (content: string) => editor(content).getMarkdown()
+
+test('a note is plain Markdown: HTML-looking text, < and & are kept as typed', () => {
+  for (const text of [
+    'a <b>tag</b> and <img src=x onerror=alert(1)>',
+    'compare <vector> & a<c',
+    'price $5 & tax_rate',
+  ])
+    expect(roundTrip(text)).toBe(text)
+  // An entity typed as text stays text.
+  const e = editor('')
+  e.commands.insertContent('write &amp; for &')
+  expect(editor(e.getMarkdown()).getText()).toBe('write &amp; for &')
+  expect(editor('<b>bold?</b>').getJSON().content?.[0]?.content).toEqual([
+    { type: 'text', text: '<b>bold?</b>' },
+  ])
 })
 
-test('lines become bullets, tasks, paragraphs and gaps', () => {
+test('a single line break stays a line break', () => {
+  expect(roundTrip('line one\nline two')).toBe('line one\nline two')
+})
+
+test('a table cell holds text only, so what is shown is what is stored', () => {
+  const e = editor('| a | b |\n| --- | --- |\n| 1 | 2 |')
+  // Into the header cell "a".
+  e.commands.setTextSelection(4)
+  expect(e.isActive('table')).toBe(true)
+  expect(e.can().toggleTaskList()).toBe(false)
+  e.commands.setHardBreak()
+  e.commands.insertContent('x')
+  const stored = e.getMarkdown()
+  expect(stored).toContain('<br>x')
+  expect(roundTrip(stored)).toBe(stored)
+})
+
+test('text that would start a list, heading, quote or rule at the start of a line stays text', () => {
+  for (const line of [
+    '- not a list',
+    '+ not a list',
+    '1. not ol',
+    '2) not ol',
+    '# not heading',
+    '> not quote',
+    '---',
+    '| a | b |',
+  ])
+    for (const text of [line, `first\n${line}`]) {
+      const e = editor('')
+      e.commands.insertContent(text.replace('\n', '<br>'))
+      const stored = e.getMarkdown()
+      expect(editor(stored).getText({ blockSeparator: '\n' })).toBe(
+        e.getText({ blockSeparator: '\n' }),
+      )
+      expect(
+        editor(stored)
+          .getJSON()
+          .content?.map((n) => n.type),
+      ).toEqual(['paragraph'])
+    }
+  // A setext underline after a line break.
+  const e = editor('')
+  e.commands.insertContent('title<br>===')
   expect(
-    parseBlocks('hello\n- one\n* two\n- [ ] todo\n- [x] done\n\nend').map((b) => b.kind),
-  ).toEqual(['paragraph', 'bullet', 'bullet', 'task', 'task', 'gap', 'paragraph'])
-})
-
-test('toggling a task flips only that line', () => {
-  const content = '- [ ] a\n- [x] b\ntext'
-  expect(toggleTask(content, 0)).toBe('- [x] a\n- [x] b\ntext')
-  expect(toggleTask(content, 1)).toBe('- [ ] a\n- [ ] b\ntext')
-  expect(toggleTask(content, 2)).toBe(content)
-  expect(toggleTask(content, 9)).toBe(content)
-})
-
-test('clicking a checkbox reports the new content', async () => {
-  const onToggle = vi.fn<(content: string) => void>()
-  render(<Markdown taskLabel={label} content={'- [ ] milk'} onToggleTask={onToggle} />)
-  await userEvent.click(screen.getByRole('checkbox', { name: 'done: milk' }))
-  expect(onToggle).toHaveBeenCalledWith('- [x] milk')
-})
-
-test('underscores inside words are left alone', () => {
-  render(<Markdown taskLabel={label} content={'see my_file_name.txt'} />)
-  expect(screen.getByText('see my_file_name.txt')).toBeInTheDocument()
+    editor(e.getMarkdown())
+      .getJSON()
+      .content?.map((n) => n.type),
+  ).toEqual(['paragraph'])
 })

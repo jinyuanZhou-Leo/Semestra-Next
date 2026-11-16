@@ -51,6 +51,7 @@ export default defineModule({
     multiple: true,
     headerActions: ...,        // 卡片头部操作（计数器的"重置"），由宿主在悬停时显示
     keepTitleWhenSmall: true,  // 可选：s 尺寸也保留标题行（默认隐藏）
+    bleed: true,               // 可选：内容铺满卡片，任何尺寸都没有标题行
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // 侧边栏状态条（番茄钟用它显示进行中的计时）
@@ -68,6 +69,7 @@ export default defineModule({
 - Props：`{ scope, instanceId, size, settings }`。`settings` 是宿主用设置的 `schema` 解析后的结果，所以每个字段给默认值，旧卡片才不会因为新增字段而解析失败。
 - **每个声明的尺寸都要有设计**。s 只放最少的信息和一个主操作；不要用缩放凑合。测试里遍历所有尺寸渲染。
 - s 尺寸下宿主会隐藏标题行，把整张卡片留给内容（编辑 Board 时标题会回来），所以内容的第一行要能说明这是什么：计数器的名称、时钟的城市、"专注"。只有内容做不到时才设 `keepTitleWhenSmall`。
+- 本身就是一块表面的卡片（便签）设 `bleed`：宿主去掉内边距和所有尺寸的标题行，背景由卡片自己画。
 - `headerActions` 和设置按钮一起放在右上角，指针移到卡片上或焦点在卡片内时出现（触屏上一直显示），插件不要自己控制显隐。
 - 可能放不下的列表用 `overflow-y-auto scroll-fade`：还有内容的那一侧会渐隐，用户能看出可以滚动。
 - 修改设置用 `useCardSettings(instanceId, settings, delayMs)`：本地立即生效，延迟后保存，失败回滚并给出 `status`。计数器 300ms，便签 800ms。
