@@ -3364,5 +3364,9 @@
   "tasks_reminders_password": "密码",
   "tasks_reminders_manual_hint": "在设备的账户设置里添加 CalDAV 账户，填入以上信息。",
   "tasks_reminders_done": "完成",
+  "tasks_reminders_push_title": "关闭 Semestra 的待办提醒？",
+  "tasks_reminders_push_description": "提醒事项会在待办到期时提醒你，两边都开着会提醒两次。之后可以在设置 → 通知里更改。",
+  "tasks_reminders_push_keep": "保留",
+  "tasks_reminders_push_off": "关闭提醒",
   "error_caldav_unavailable": "这台服务器没有开启 Apple 提醒事项同步。"
 }

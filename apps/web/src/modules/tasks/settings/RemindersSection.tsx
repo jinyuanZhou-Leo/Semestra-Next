@@ -5,6 +5,9 @@ import {
   caldavConnectionDeleteMutation,
   caldavConnectionListOptions,
   caldavConnectionListQueryKey,
+  settingsValueGetOptions,
+  settingsValueGetQueryKey,
+  settingsValueUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CellContext, createColumnHelper } from '@tanstack/react-table'
@@ -22,17 +25,28 @@ import {
   Unplug,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { createContext, use } from 'react'
+import { createContext, use, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings/rows'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { useUiPref } from '@/app/ui-pref'
 import { useCopy } from '@/hooks/use-copy'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { toastError } from '@/lib/errors'
 import { formatDate, formatTimeAgo } from '@/lib/format'
 import { m } from '@/paraglide/messages'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/ui/alert-dialog'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
 import {
@@ -114,6 +128,11 @@ const columns = column.columns([
 ])
 const COLUMN_CLASS: Record<string, string> = { device: 'w-full max-w-0', actions: 'w-10' }
 
+const NOTIFICATIONS = {
+  path: { namespace: 'notifications' },
+  query: { scope_type: 'account' },
+} as const
+
 /**
  * Apple Reminders (M05 §11): devices that show and edit this Program's to-do lists over CalDAV.
  * Shown only when the server offers it (self-hosting with `SEMESTRA_CALDAV`).
@@ -144,6 +163,7 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
     },
     onError: (err) => (disconnecting.close(), toastError(err)),
   })
+  const push = usePushQuestion()
   if (state.data && !state.data.available) return null
   const connect = () => create.mutate({ path: { program_id: programId } })
   const addButton = (
@@ -184,6 +204,10 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
       </AsyncBoundary>
       <SetUpDialog
         {...setUp.props}
+        onOpenChangeComplete={(open) => {
+          setUp.props.onOpenChangeComplete(open)
+          if (!open) push.offer()
+        }}
         device={setUp.target}
         server={state.data?.server_url ?? ''}
         username={state.data?.username ?? ''}
@@ -199,8 +223,54 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
           remove.mutate({ path: { connection_id: disconnecting.target.id } })
         }
       />
+      <AlertDialog open={push.open} onOpenChange={push.setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{m.tasks_reminders_push_title()}</AlertDialogTitle>
+            <AlertDialogDescription>{m.tasks_reminders_push_description()}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{m.tasks_reminders_push_keep()}</AlertDialogCancel>
+            <AlertDialogAction onClick={push.turnOff}>
+              {m.tasks_reminders_push_off()}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
+}
+
+/**
+ * After a device is set up, asks once whether to stop Semestra's own to-do reminders: Reminders
+ * alerts at the due time too, so with both on each to-do would be announced twice.
+ */
+function usePushQuestion() {
+  const queryClient = useQueryClient()
+  const [asked, setAsked] = useUiPref('tasks.reminders-push-asked', false)
+  const [open, setOpen] = useState(false)
+  const settings = useQuery(settingsValueGetOptions(NOTIFICATIONS))
+  const update = useMutation({
+    ...settingsValueUpdateMutation(),
+    onSuccess: (result) =>
+      queryClient.setQueryData(settingsValueGetQueryKey(NOTIFICATIONS), result),
+    onError: toastError,
+  })
+  const taskReminder = settings.data?.values.task_reminder
+  return {
+    open,
+    setOpen,
+    offer: () => {
+      if (asked || taskReminder === undefined || taskReminder === 'off') return
+      setAsked(true)
+      setOpen(true)
+    },
+    turnOff: () =>
+      update.mutate({
+        path: NOTIFICATIONS.path,
+        body: { ...NOTIFICATIONS.query, values: { task_reminder: 'off' } },
+      }),
+  }
 }
 
 /** How to add the account on a device: scan, download, or type it in. */

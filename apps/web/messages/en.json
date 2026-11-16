@@ -3364,5 +3364,9 @@
   "tasks_reminders_password": "Password",
   "tasks_reminders_manual_hint": "Add a CalDAV account in your device's account settings and enter these details.",
   "tasks_reminders_done": "Done",
+  "tasks_reminders_push_title": "Turn off Semestra's task reminders?",
+  "tasks_reminders_push_description": "Reminders alerts you when tasks are due, so with both on you'd be reminded twice. You can change this later in Settings → Notifications.",
+  "tasks_reminders_push_keep": "Keep",
+  "tasks_reminders_push_off": "Turn off",
   "error_caldav_unavailable": "This server doesn't offer Apple Reminders sync."
 }
