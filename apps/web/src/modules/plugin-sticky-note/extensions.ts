@@ -4,6 +4,7 @@ import { Placeholder } from '@tiptap/extensions'
 import { Markdown } from '@tiptap/markdown'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
+import { MarkdownInput } from './markdown-input'
 import { TaskItemView } from './TaskItemView'
 
 /**
@@ -24,5 +25,6 @@ export function noteExtensions(placeholder: string) {
     TableKit.configure({ table: { resizable: false } }),
     Placeholder.configure({ placeholder }),
     Markdown.configure({ markedOptions: { gfm: true, breaks: true } }),
+    MarkdownInput,
   ]
 }

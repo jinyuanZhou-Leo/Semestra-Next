@@ -61,6 +61,7 @@ export default defineModule({
     multiple: true,
     headerActions: ...,        // card header actions (the counter's "reset"); the host shows them on hover
     keepTitleWhenSmall: true,  // optional: keep the title row at size s (hidden by default)
+    bleed: true,               // optional: content fills the card edge to edge, no title row at any size
   }],
   settingsSections: [{ id, level: 'account', pluginId, title, order, namespace: 'plugin.hello-note' }],
   statusItems: [{ id, order, useStatus }],   // sidebar status bar (Pomodoro shows the running timer here)
@@ -100,6 +101,8 @@ export default defineModule({
 - At size s the host hides the title row to give the content the whole card (it comes back while
   editing the board), so the content's first line must say what the card is: the counter's
   name, the clock's city, "Focus". Set `keepTitleWhenSmall` only when the content cannot.
+- A card that is a surface of its own (the sticky note) sets `bleed`: the host drops the padding
+  and the title row at every size, and the card paints its own background.
 - `headerActions` and the settings button sit together at the top right and appear when the
   pointer is over the card or focus is inside it (always on touch screens); do not hide or
   show them yourself.

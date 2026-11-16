@@ -88,3 +88,24 @@ test('the small size has no toolbar', async () => {
   await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))
   expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull()
 })
+
+test('a Markdown table typed into the note becomes a table', async () => {
+  note('', 'l')
+  await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))
+  await userEvent.keyboard('| Chapter | Status |{Enter}| --- | --- |{Enter}1')
+  expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual([
+    'Chapter',
+    'Status',
+  ])
+  expect(screen.getAllByRole('cell')[0]).toHaveTextContent('1')
+  await waitForSave()
+  expect(savedContent()).toContain('| Chapter | Status |')
+})
+
+test('pasted Markdown is formatted', async () => {
+  note('', 'l')
+  await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))
+  await userEvent.paste('| A | B |\n| --- | --- |\n| 1 | 2 |')
+  expect(screen.getByRole('table')).toBeInTheDocument()
+  expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument()
+})
