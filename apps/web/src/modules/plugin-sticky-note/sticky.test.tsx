@@ -131,6 +131,31 @@ test('a change made elsewhere shows while the note is being edited', async () =>
   await vi.waitFor(() => expect(savedContent()).toMatch(/from Sem/), { timeout: 3000 })
 })
 
+test('undo does not take back a change made elsewhere', async () => {
+  const { rerender, queryClient } = note('old')
+  const editor = await screen.findByRole('textbox', { name: 'Edit note' })
+  await userEvent.click(editor)
+  await userEvent.keyboard('!')
+  await vi.waitFor(() => expect(savedContent()).toMatch(/!/), { timeout: 3000 })
+  const typed = savedContent()
+  saved.length = 0
+  rerender(
+    <QueryClientProvider client={queryClient}>
+      <StickyNoteCard
+        scope={scope}
+        instanceId="n1"
+        size="m"
+        settings={stickySettingsSchema.parse({ content: `${typed}\n\nfrom Sem` })}
+      />
+    </QueryClientProvider>,
+  )
+  expect(await screen.findByText('from Sem')).toBeInTheDocument()
+  await userEvent.keyboard('{Control>}z{/Control}')
+  expect(screen.getByText('from Sem')).toBeInTheDocument()
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+  expect(saved).toEqual([])
+})
+
 test('with nothing selected, a link is added as its address', async () => {
   note('', 'l')
   await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))

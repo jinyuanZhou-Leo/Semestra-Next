@@ -44,3 +44,37 @@ test('a table cell holds text only, so what is shown is what is stored', () => {
   expect(stored).toContain('<br>x')
   expect(roundTrip(stored)).toBe(stored)
 })
+
+test('text that would start a list, heading, quote or rule at the start of a line stays text', () => {
+  for (const line of [
+    '- not a list',
+    '+ not a list',
+    '1. not ol',
+    '2) not ol',
+    '# not heading',
+    '> not quote',
+    '---',
+    '| a | b |',
+  ])
+    for (const text of [line, `first\n${line}`]) {
+      const e = editor('')
+      e.commands.insertContent(text.replace('\n', '<br>'))
+      const stored = e.getMarkdown()
+      expect(editor(stored).getText({ blockSeparator: '\n' })).toBe(
+        e.getText({ blockSeparator: '\n' }),
+      )
+      expect(
+        editor(stored)
+          .getJSON()
+          .content?.map((n) => n.type),
+      ).toEqual(['paragraph'])
+    }
+  // A setext underline after a line break.
+  const e = editor('')
+  e.commands.insertContent('title<br>===')
+  expect(
+    editor(e.getMarkdown())
+      .getJSON()
+      .content?.map((n) => n.type),
+  ).toEqual(['paragraph'])
+})

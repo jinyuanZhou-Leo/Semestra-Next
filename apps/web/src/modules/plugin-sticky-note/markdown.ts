@@ -32,6 +32,20 @@ function escapeText(text: string): string {
   )
 }
 
+/**
+ * Text that begins a line of a paragraph could read as a block (`- `, `1. `, `# `, `> `, `---`,
+ * a setext `===` underline, a table row), so its first marker is escaped.
+ */
+function escapeLineStart(text: string): string {
+  return text.replace(/^(\s*)([-+=>#|])/, '$1\\$2').replace(/^(\s*\d+)([.)])/, '$1\\$2')
+}
+
+function startsLine(node: JSONContent, parent?: JSONContent): boolean {
+  if (parent?.type !== 'paragraph') return false
+  const index = parent.content?.indexOf(node) ?? -1
+  return index === 0 || parent.content?.[index - 1]?.type === 'hardBreak'
+}
+
 const isCode = (node: JSONContent, parent?: JSONContent) =>
   parent?.type === 'codeBlock' ||
   (node.marks ?? []).some((mark) => (typeof mark === 'string' ? mark : mark.type) === 'code')
@@ -46,7 +60,11 @@ class NoteMarkdownManager extends MarkdownManager {
     super(options)
     Object.defineProperty(this, 'encodeTextForMarkdown', {
       value: (text: string, node: JSONContent, parent?: JSONContent) =>
-        isCode(node, parent) ? text : escapeText(text),
+        isCode(node, parent)
+          ? text
+          : startsLine(node, parent)
+            ? escapeLineStart(escapeText(text))
+            : escapeText(text),
     })
   }
 }

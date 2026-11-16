@@ -36,16 +36,23 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
 
   // The agent (or another tab) changed the note: show it, keeping the cursor where it was if
   // the note is being edited. Not while local edits are unsaved: saving them replaces the note
-  // anyway, and the server echoing an earlier save would undo the newest keystrokes.
+  // anyway, and the server echoing an earlier save would undo the newest keystrokes. The change
+  // is not the user's, so it stays out of their undo history (undo would revert it and save).
   useEffect(() => {
     if (!editor || settings.content === shown.current || hasUnsaved()) return
     shown.current = settings.content
     const { from, to } = editor.state.selection
-    editor.commands.setContent(settings.content, { contentType: 'markdown', emitUpdate: false })
-    if (editor.isFocused) {
-      const end = editor.state.doc.content.size
-      editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
-    }
+    const keepCursor = editor.isFocused
+    editor
+      .chain()
+      .setMeta('addToHistory', false)
+      .setContent(settings.content, { contentType: 'markdown', emitUpdate: false })
+      .command(({ tr, commands }) => {
+        if (!keepCursor) return true
+        const end = tr.doc.content.size
+        return commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
+      })
+      .run()
   }, [editor, settings.content, hasUnsaved])
 
   return (
