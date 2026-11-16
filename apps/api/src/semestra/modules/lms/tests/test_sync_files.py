@@ -312,7 +312,14 @@ async def test_an_offline_copy_the_user_asks_for(api: Api, fake: FakeProvider, s
         j for j in (await api.call("GET", "/jobs"))["items"] if j["kind"] == "files.keep_offline"
     ]
     assert [(j["status"], j["error_code"]) for j in jobs] == [("failed", "lms.unreachable")]
-    assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is False
+    # Still the platform's: it can be asked for again.
+    after = await api.call("GET", f"/files/{lecture['id']}")
+    assert (after["stored"], after["follows_source"]) == (False, True)
+    fake.fail_downloads = False
+    await api.call("POST", f"/files/{lecture['id']}:keep-offline")
+    await api.run_jobs()
+    after = await api.call("GET", f"/files/{lecture['id']}")
+    assert (after["stored"], after["follows_source"]) == (True, False)
 
 
 async def test_stored_here_still_follows_the_platform(

@@ -799,8 +799,8 @@ async def keep_offline(ctx: Ctx, row: FilesItem) -> None:
         )
     from semestra.modules.files.jobs import KeepPayload
 
-    row.kept_offline = True
-    await ctx.db.flush()
+    # Marked the user's only once the bytes are here (`store_from_source`): until then, and
+    # after a failure, it is still the source's, and can be asked for again.
     await enqueue(
         ctx,
         "files.keep_offline",
@@ -837,14 +837,18 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
     """Stores one file read from its source (the keep-offline jobs). The source is opened in a
     short transaction, the bytes are written to storage holding no database lock, and the item
     takes them in another short transaction. Each run stages under a key of its own, so two runs
-    for one item never touch each other's bytes. False (`quiet` only): the quota is full and
-    nothing changed; otherwise that and every other failure raise."""
+    for one item never touch each other's bytes. Not `quiet` (the user asked), the item becomes
+    the user's own copy (`kept_offline`) only in the transaction that has its bytes stored, so a
+    failure leaves it the source's. False (`quiet` only): the quota is full and nothing
+    changed; otherwise that and every other failure raise."""
     opened: list[AsyncIterator[bytes]] = []
 
     async def open_(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
         if row is not None and content.remote(row):
             opened.append(await content.open_content(sys_ctx, row))
+        elif row is not None and not quiet and row.storage_key and content.follows_source(row):
+            row.kept_offline = True  # stored for its source meanwhile: now the user's
 
     await run_as_system(ctx.state, ctx.user_id, open_)
     if not opened:
@@ -863,12 +867,18 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
             return False
         raise
 
+    taken: list[bool] = []
+
     async def take(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
-        if row is None or row.storage_key:
-            raise not_found()  # gone or stored meanwhile: these bytes are not needed
-        row.storage_key = staged.stored.key
-        row.size_bytes = staged.stored.size
+        if row is None:
+            return
+        if not quiet:
+            row.kept_offline = True  # the user's copy, now that its bytes are here
+        if not row.storage_key:  # else stored meanwhile: these bytes are not needed
+            row.storage_key = staged.stored.key
+            row.size_bytes = staged.stored.size
+            taken.append(True)
         row.updated_at = sys_ctx.now
         await charge(sys_ctx)
         await events.publish(
@@ -879,11 +889,11 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
         await run_as_system(ctx.state, ctx.user_id, take)
     except AppError as exc:
         await get_storage(ctx).delete(staged.stored.key)
-        if exc.code == "common.not_found":
-            return True
         if quiet and exc.code == "common.quota_exceeded":
             return False
         raise
+    if not taken:
+        await get_storage(ctx).delete(staged.stored.key)
     return True
 
 
