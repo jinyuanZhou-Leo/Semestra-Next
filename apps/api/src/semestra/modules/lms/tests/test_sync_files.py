@@ -6,8 +6,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
+from sqlalchemy import select
 
 from semestra.core.config import Settings
+from semestra.modules.files.models import FilesItem
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -373,3 +376,32 @@ async def test_stored_here_still_follows_the_platform(
     await api.run_jobs()
     assert (await _files(api, course))[1]["Lecture 11.pdf"]["stored"] is False
     assert await storing_jobs() == before
+
+
+async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_offline": True})
+    await api.sync(program_id)
+    await api.run_jobs()
+    midterm = (await _files(api, course))[1]["Midterm 2025.pdf"]
+    await api.call("POST", f"/files/{midterm['id']}:keep-offline")  # the user's own now
+
+    started = await api.call("POST", "/me/exports", json={"include_files": False})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    uploaded = await api.client.post(
+        "/me/imports", files={"file": ("backup.zip", archive, "application/zip")}
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+
+    async with app.state.session_factory() as db:
+        rows = {r.display_name: r for r in (await db.scalars(select(FilesItem))).all()}
+    # Stored for the sync: still the platform's, read (and stored) again once it answers.
+    lecture = rows["Lecture 1.pdf"]
+    assert (lecture.storage_key, lecture.kept_offline) == (None, False)
+    assert lecture.doc_error_code == "files.source_unread"
+    # The user's own copy, without its bytes in the backup: gone, as any file of theirs.
+    assert "Midterm 2025.pdf" not in rows
