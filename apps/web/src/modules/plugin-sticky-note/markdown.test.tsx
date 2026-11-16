@@ -1,13 +1,21 @@
 import { Editor } from '@tiptap/core'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test } from 'vitest'
 import { noteExtensions } from './extensions'
 
+// Each editor watches its DOM on timers; destroy them before the test environment goes away.
+const editors: Editor[] = []
+afterEach(() => {
+  for (const e of editors.splice(0)) e.destroy()
+})
+
 function editor(content: string) {
-  return new Editor({
+  const e = new Editor({
     extensions: noteExtensions({ placeholder: '', onTooLong: () => {} }),
     content,
     contentType: 'markdown',
   })
+  editors.push(e)
+  return e
 }
 
 const roundTrip = (content: string) => editor(content).getMarkdown()
