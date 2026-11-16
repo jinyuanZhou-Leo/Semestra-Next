@@ -104,11 +104,27 @@ async def test_materials_come_into_type_folders(api: Api, fake: FakeProvider):
     assert (r.status_code, r.content) == (200, b"hello")
     page = await api.client.get(f"/files/{items['Course syllabus']['id']}/content")
     assert b"<h1>Course syllabus</h1>" in page.content
+    assert 'filename="Course syllabus.html"' in page.headers["content-disposition"]
     assert b"midterm 30%" in page.content
     assert (await api.call("GET", "/files-usage"))["files_bytes"] == 0
     assert items["data.zip"]["doc_status"] == "unsupported"  # never read for its text
 
     # Nothing changed: nothing new.
+    await api.sync(program_id)
+    assert len((await _files(api, course))[1]) == len(items)
+
+    # Kept offline, in place: the same item, now stored and counted (from the files or from
+    # the platform's file, as the Canvas tab saves it).
+    assert lecture["stored"] is False
+    await api.call("POST", f"/files/{lecture['id']}:keep-offline")
+    saved = await api.call("POST", f"/courses/{course}/lms/files/202:save", json={})
+    assert saved["file_item_id"] == items["W1.pdf"]["id"]
+    await api.run_jobs()
+    kept = await api.call("GET", f"/files/{lecture['id']}")
+    assert (kept["stored"], kept["folder_id"]) == (True, lecture["folder_id"])
+    assert (await api.call("GET", "/files-usage"))["files_bytes"] == 2 * len(b"hello")
+    r = await api.client.get(f"/files/{lecture['id']}/content")
+    assert (r.status_code, r.content) == (200, b"hello")
     await api.sync(program_id)
     assert len((await _files(api, course))[1]) == len(items)
 
@@ -180,8 +196,86 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
     assert names.count("Lecture 1.pdf") == 1  # the saved copy is that file
     assert "W1.pdf" in names
 
+    # Turned off again: what came in stays (no longer following the platform).
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_sync": False})
+    fake.course_file_list[1] = fake.course_file_list[1].model_copy(update={"name": "W1 v2.pdf"})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert set((await _files(api, course))[1]) == set(names)
+
     # Unlinked: what was only read from the platform goes, the saved copy and folders stay.
     await api.call("DELETE", f"/courses/{course}/lms-link")
     folders, items = await _files(api, course)
     assert list(items) == ["Lecture 1.pdf"]
     assert "Tutorials and labs" in {f["name"] for f in folders.values()}
+
+
+async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):
+    _materials(fake)
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    lecture = items["Lecture 1.pdf"]
+    assert lecture["doc_status"] == "ready"
+
+    files = fake.course_file_list
+    # Renamed on the platform (its `updated_at` moves, its bytes don't): renamed, not read again.
+    files[0] = files[0].model_copy(update={"name": "Lecture 1 - Intro.pdf", "updated_at": FEB})
+    # Gone from the platform: the midterm; and a file only a page links to (the files area
+    # hidden in this course's later life).
+    del files[2]
+    fake.page_texts["syllabus"] = (
+        "Course syllabus", SYLLABUS + '<a href="https://fake/courses/101/files/208">Rubric</a>'
+    )  # fmt: skip
+    assert fake.page_list is not None
+    fake.page_list[0] = fake.page_list[0].model_copy(update={"updated_at": FEB})
+    files.append(_file("208", "Rubric.pdf"))
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    assert items["Lecture 1 - Intro.pdf"]["id"] == lecture["id"]
+    assert items["Lecture 1 - Intro.pdf"]["doc_status"] == "ready"
+    assert "Midterm 2025.pdf" not in items
+    assert "Rubric.pdf" in items
+
+    # Back on the platform: back in the files.
+    files.append(_file("203", "Midterm 2025.pdf", "Exams"))
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert "Midterm 2025.pdf" in (await _files(api, course))[1]
+
+    # An area that could not be read: nothing is taken for gone.
+    fake.files_hidden = True
+    clock.advance(minutes=1)
+    status = await api.sync(program_id)
+    assert status["errors"] == []
+    assert "data.zip" in (await _files(api, course))[1]
+
+
+async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: Clock):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_offline": True})
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    stored = {name for name, item in items.items() if item.get("stored")}
+    assert {"Lecture 1.pdf", "Course syllabus"} <= stored
+    assert (await api.call("GET", "/files-usage"))["files_bytes"] > 0
+
+    # A file the platform failed to give is read again by a later sync.
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_offline": False})
+    fake.course_file_list.append(_file("210", "Lecture 10.pdf", mime_type="application/pdf"))
+    fake.fail_downloads = True
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    new = (await _files(api, course))[1]["Lecture 10.pdf"]
+    assert (new["doc_status"], new["doc_error_code"]) == ("failed", "lms.unreachable")
+    fake.fail_downloads = False
+    clock.advance(hours=2)
+    await api.sync(program_id)
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 10.pdf"]["doc_status"] == "ready"

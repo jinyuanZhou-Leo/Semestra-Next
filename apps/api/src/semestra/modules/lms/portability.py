@@ -78,6 +78,7 @@ class LinkRow(BaseModel):
     web_url: str | None = None
     sync_enabled: bool = True
     files_sync: bool = True
+    files_offline: bool = False
 
 
 class RefRow(BaseModel):
@@ -214,6 +215,7 @@ async def import_(
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
             files_sync=li.files_sync,
+            files_offline=li.files_offline,
             created_at=ctx.now,
             updated_at=ctx.now,
         )

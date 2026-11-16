@@ -1,5 +1,6 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -70,6 +71,14 @@ async def upload(
     return result
 
 
+def _download_name(name: str, mime: str) -> str:
+    """The shown name, with the extension of its type when it has none (an LMS page is named by
+    its title), so the downloaded file opens."""
+    if "." in name or mime == "application/octet-stream":
+        return name
+    return name + (mimetypes.guess_extension(mime) or "")
+
+
 def _content_disposition(disposition: str, name: str) -> str:
     ascii_name = re.sub(r'[^\x20-\x7e]|["\\]', "_", name) or "file"
     return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
@@ -118,7 +127,7 @@ async def content(
     shown = "inline" if disposition == "inline" and mime in INLINE_SAFE else "attachment"
     span = _byte_range(request.headers.get("range"), item.size_bytes)
     headers = {
-        "Content-Disposition": _content_disposition(shown, item.display_name),
+        "Content-Disposition": _content_disposition(shown, _download_name(item.display_name, mime)),
         "Accept-Ranges": "bytes",
         "ETag": f'"{item.sha256}"',
         "Cache-Control": "private, no-cache",

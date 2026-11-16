@@ -46,11 +46,20 @@ export function fileIcon(item: Pick<ItemOut, 'kind' | 'mime_type'>): LucideIcon 
 }
 
 /** "pdf", "docx", "link"… for the type column and grid tiles. */
-export function typeLabel(item: Pick<ItemOut, 'kind' | 'display_name' | 'original_name'>) {
+export function typeLabel(
+  item: Pick<ItemOut, 'kind' | 'display_name' | 'original_name' | 'mime_type'>,
+) {
   if (item.kind === 'link') return 'link'
   const name = item.original_name ?? item.display_name
   const dot = name.lastIndexOf('.')
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+  if (dot > 0) return name.slice(dot + 1).toLowerCase()
+  // A web page named by its title (an LMS page).
+  return item.mime_type === 'text/html' ? 'html' : ''
+}
+
+/** Kinds the browser shows by itself; anything else the content route only offers as a download. */
+export function opensInBrowser(kind: PreviewKind): boolean {
+  return kind === 'pdf' || kind === 'image' || kind === 'text' || kind === 'markdown'
 }
 
 /** The kind of a file as people name it ("Word document"), from its type or extension. */
@@ -70,5 +79,6 @@ export function fileKindName(file: { name: string; mime_type?: string | null }):
   if (/zip|compressed|x-tar|gzip/.test(mime) || ['zip', 'gz', 'tar', '7z', 'rar'].includes(ext))
     return m.files_kind_archive()
   if (mime === 'text/plain' || ext === 'txt') return m.files_kind_text()
+  if (mime === 'text/html' || ext === 'html' || ext === 'htm') return m.files_kind_web()
   return ext ? m.files_kind_other({ ext: ext.toUpperCase() }) : null
 }

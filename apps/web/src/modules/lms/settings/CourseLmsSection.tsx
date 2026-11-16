@@ -16,6 +16,7 @@ import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { RowMenu, SettingRow, SettingsGroup, useSettingsDialog } from '@/app/settings'
+import { ChoiceControl } from '@/app/settings/choice'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -159,6 +160,7 @@ function LinkedCourse({
   const queryClient = useQueryClient()
   const syncId = useId()
   const filesId = useId()
+  const storeId = useId()
   const now = useNow()
   const openConnections = useOpenConnections()
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
@@ -281,6 +283,32 @@ function LinkedCourse({
             disabled={update.isPending || !link.sync_enabled}
             onCheckedChange={(on) =>
               update.mutate({ path: { course_id: courseId }, body: { files_sync: on } })
+            }
+          />
+        </SettingRow>
+        <SettingRow label={m.lms_course_files_store()} labelId={storeId}>
+          <ChoiceControl
+            labelId={storeId}
+            value={link.files_offline ? 'stored' : 'read'}
+            disabled={update.isPending || !link.sync_enabled || !link.files_sync}
+            selectClassName="w-44"
+            options={[
+              {
+                value: 'read',
+                label: m.lms_course_files_store_read(),
+                hint: m.lms_course_files_store_read_hint({ provider }),
+              },
+              {
+                value: 'stored',
+                label: m.lms_course_files_store_stored(),
+                hint: m.lms_course_files_store_stored_hint({ provider }),
+              },
+            ]}
+            onChange={(next) =>
+              update.mutate({
+                path: { course_id: courseId },
+                body: { files_offline: next === 'stored' },
+              })
             }
           />
         </SettingRow>

@@ -84,10 +84,10 @@ class FilesAdapter(TableAdapter):
             key = service.storage_key(ctx.user_id, row.id)
             size = opts.files.claim(key) if opts.files is not None else None
             if size is None and content.remote(row):
-                # Kept by its source (an LMS file): read from there again.
-                if row.doc_status not in ("unsupported", "failed"):
-                    row.doc_status = "pending"
-                    await service.enqueue_processing(ctx, row)
+                # Kept by its source (an LMS file), whose credentials are not in a backup: read
+                # again by the source's sync once they are back (`service.SOURCE_UNREAD`).
+                if row.doc_status != "unsupported":
+                    row.doc_status, row.doc_error_code = "failed", service.SOURCE_UNREAD
                 continue
             if size is None:
                 await ctx.db.delete(row)

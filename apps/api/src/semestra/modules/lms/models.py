@@ -71,6 +71,8 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # The sync brings the course's files, pages and links into its files (`sync_files.py`).
     files_sync: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    # The materials are stored here (taking quota) rather than read from the platform when opened.
+    files_offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # When the course was last synced (`sync.py`): every stage ran, failed or not. The
     # scheduler compares it with the account's interval.
     synced_at: Mapped[datetime | None] = mapped_column(default=None)

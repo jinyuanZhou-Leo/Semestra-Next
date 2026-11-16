@@ -39,6 +39,8 @@ class ItemOut(BaseModel):
     size_bytes: int
     sha256: str | None
     url: str | None
+    # Its bytes are kept here; False: read from its source when opened (`content.py`).
+    stored: bool
     pinned: bool
     source_kind: SourceKind | None
     source_ref: str | None
@@ -66,6 +68,7 @@ ItemField = Literal[
     "size_bytes",
     "sha256",
     "url",
+    "stored",
     "pinned",
     "source_kind",
     "source_ref",

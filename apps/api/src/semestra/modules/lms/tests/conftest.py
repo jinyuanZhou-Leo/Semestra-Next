@@ -108,6 +108,7 @@ class FakeProvider:
         # The pages list (`pages`); None: just "Intro".
         self.page_list: list[PageSummary] | None = None
         self.files_hidden = False
+        self.fail_downloads = False
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -277,6 +278,8 @@ class FakeProvider:
     ) -> AsyncIterator[bytes]:
         if not file.download_url:  # as Canvas: nothing to fetch without it
             raise lms_error("lms.forbidden")
+        if self.fail_downloads:
+            raise lms_error("lms.unreachable")
         yield b"he"
         yield b"llo"
 

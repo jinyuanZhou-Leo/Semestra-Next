@@ -216,6 +216,7 @@ class CourseLink(BaseModel):
     web_url: str | None
     sync_enabled: bool
     files_sync: bool = Field(description="The sync brings the course's files, pages and links in")
+    files_offline: bool = Field(description="They are stored here, not read when opened")
     synced_at: datetime | None = Field(description="Last background sync of the course")
     sync_errors: dict[str, str] = Field(
         description="Error code of each sync stage whose last run failed (course, assignments, "
@@ -258,6 +259,9 @@ class LinkUpdateInput(BaseModel):
     )
     files_sync: bool | None = Field(
         default=None, description="Bring the course's files, pages and links into its files"
+    )
+    files_offline: bool | None = Field(
+        default=None, description="Store them here (taking quota) instead of reading when opened"
     )
 
 

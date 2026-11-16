@@ -760,6 +760,7 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         web_url=row.web_url,
         sync_enabled=row.sync_enabled,
         files_sync=row.files_sync,
+        files_offline=row.files_offline,
         synced_at=row.synced_at,
         sync_errors=row.sync_errors,
         created_at=row.created_at,
@@ -972,7 +973,11 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 
 
 async def update_link(
-    ctx: Ctx, course_id: str, sync_enabled: bool | None, files_sync: bool | None
+    ctx: Ctx,
+    course_id: str,
+    sync_enabled: bool | None,
+    files_sync: bool | None,
+    files_offline: bool | None = None,
 ) -> CourseLinkState:
     link, _ = await require_link(ctx, course_id)
     if sync_enabled is not None and link.sync_enabled != sync_enabled:
@@ -986,6 +991,12 @@ async def update_link(
         if files_sync:
             # The materials come in with the next sync, not hours later.
             link.synced_at = None
+        await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
+    if files_offline is not None and link.files_offline != files_offline:
+        link.files_offline = files_offline
+        link.updated_at = ctx.now
+        if files_offline:
+            link.synced_at = None  # stored with the next sync
         await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
     return await link_state(ctx, course_id)
 

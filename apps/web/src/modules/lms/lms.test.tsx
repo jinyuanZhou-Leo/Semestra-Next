@@ -67,6 +67,7 @@ function link(overrides: Partial<CourseLink> = {}): CourseLink {
     web_url: 'https://q.utoronto.ca/courses/101',
     sync_enabled: true,
     files_sync: true,
+    files_offline: false,
     synced_at: '2026-09-02T10:00:00Z',
     sync_errors: {},
     created_at: '2026-09-01T10:00:00Z',

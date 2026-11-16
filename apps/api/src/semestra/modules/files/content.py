@@ -58,9 +58,9 @@ async def open_content(
 
 
 async def read_all(state: State, user_id: str, row: FilesItem, limit: int) -> bytes:
-    """All of a file's bytes, at most `limit` (more is `files.too_large`). An unstored file is
-    read in a transaction of its own: its source may write (renewed credentials) and the
-    caller's may not be one that is allowed to."""
+    """All of a file's bytes, at most `limit` (more is `files.too_large`). An unstored file's
+    source is opened in a transaction of its own (it may write, say renewed credentials), which
+    commits before the bytes are read: a slow download holds no database lock."""
     data = bytearray()
 
     async def read(stream: AsyncIterator[bytes]) -> None:
@@ -76,8 +76,11 @@ async def read_all(state: State, user_id: str, row: FilesItem, limit: int) -> by
         await read(state.storage.open(row.storage_key))
         return bytes(data)
 
-    async def remote_read(ctx: Ctx) -> None:
-        await read(await open_content(ctx, row))
+    opened: list[AsyncIterator[bytes]] = []
 
-    await run_as_system(state, user_id, remote_read)
+    async def remote_open(ctx: Ctx) -> None:
+        opened.append(await open_content(ctx, row))
+
+    await run_as_system(state, user_id, remote_open)
+    await read(opened[0])
     return bytes(data)

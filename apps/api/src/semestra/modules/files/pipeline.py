@@ -161,7 +161,8 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     code = (
         "files.cancelled" if job.status == "cancelled" else job.error_code or "files.parse_failed"
     )
-    item.doc_status = "unsupported" if code == "files.unsupported_type" else "failed"
+    quiet = code == "files.unsupported_type" or (code == "files.too_large" and content.remote(item))
+    item.doc_status = "unsupported" if quiet else "failed"
     item.doc_error_code = code
     item.updated_at = ctx.now
     data = {"item_id": item.id, "course_id": item.course_id}

@@ -2,7 +2,7 @@
 
 import hashlib
 import re
-from collections.abc import AsyncIterable, Iterable, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -10,7 +10,7 @@ from urllib.parse import urlsplit, urlunsplit
 import anyio
 from sqlalchemy import delete, func, select
 
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
@@ -187,7 +187,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
             await ctx.db.execute(
                 select(CoreJob.dedupe_key, CoreJob.id).where(
                     CoreJob.user_id == ctx.user_id,
-                    CoreJob.kind == "files.process",
+                    CoreJob.kind.in_(PROCESS_KINDS),
                     CoreJob.status.in_(("pending", "running")),
                     CoreJob.dedupe_key.in_(list(keys)),
                 )
@@ -210,6 +210,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 size_bytes=r.size_bytes,
                 sha256=r.sha256,
                 url=r.url,
+                stored=bool(r.storage_key),
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
@@ -621,12 +622,18 @@ async def store_file(
     return row
 
 
-async def enqueue_processing(ctx: Ctx, row: FilesItem) -> None:
+PROCESS_KINDS = ("files.process", "files.process_synced")
+# A file read from its source that has not been read yet (restored from a backup).
+SOURCE_UNREAD = "files.source_unread"
+
+
+async def enqueue_processing(ctx: Ctx, row: FilesItem, *, synced: bool = False) -> None:
+    """Queues reading the file's text; `synced`: kept in step with its source by another
+    module, not something the user is waiting on (`files.process_synced`)."""
     from semestra.modules.files.jobs import ProcessPayload
 
-    await enqueue(
-        ctx, "files.process", ProcessPayload(item_id=row.id), dedupe_key=f"{row.id}:{row.sha256}"
-    )
+    kind = PROCESS_KINDS[1] if synced else PROCESS_KINDS[0]
+    await enqueue(ctx, kind, ProcessPayload(item_id=row.id), dedupe_key=f"{row.id}:{row.sha256}")
 
 
 async def save_bytes_as_file(
@@ -678,7 +685,8 @@ def _remote_status(ctx: Ctx, name: str, mime: str | None, size: int) -> tuple[st
     if not _readable(name, mime):
         return "unsupported", "files.unsupported_type"
     if size > ctx.settings.files_max_upload_bytes:
-        return "failed", "files.too_large"
+        # Not the user's file to make smaller: it opens, its text is just not read.
+        return "unsupported", "files.too_large"
     return "pending", None
 
 
@@ -723,7 +731,7 @@ async def add_remote_file(
     ctx.db.add(row)
     await ctx.db.flush()
     if row.doc_status == "pending":
-        await enqueue_processing(ctx, row)
+        await enqueue_processing(ctx, row, synced=True)
     await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return row
 
@@ -751,7 +759,89 @@ async def update_remote_file(
     row.updated_at = ctx.now
     await ctx.db.flush()
     if status == "pending":
-        await enqueue_processing(ctx, row)
+        await enqueue_processing(ctx, row, synced=True)
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
+async def keep_offline(ctx: Ctx, items: Sequence[FilesItem], *, dedupe: str | None = None) -> None:
+    """Queues storing files read from their source (`content.py`) here, in place: the same
+    items, then taking quota, so they still open once the source is gone (a course closed on the
+    LMS). Stored files are left out."""
+    ids = [r.id for r in items if content.remote(r)]
+    if ids:
+        from semestra.modules.files.jobs import KeepPayload
+
+        await enqueue(ctx, "files.keep_offline", KeepPayload(item_ids=ids), dedupe_key=dedupe)
+
+
+async def store_from_source(ctx: Ctx, item_id: str) -> bool:
+    """Stores one file read from its source (the `files.keep_offline` job). The source is opened
+    in a short transaction, the bytes are written to storage holding no database lock, and the
+    item takes them in another short transaction. False: the quota is full (nothing changed)."""
+    opened: list[AsyncIterator[bytes]] = []
+
+    async def open_(sys_ctx: Ctx) -> None:
+        row = await sys_ctx.db.get(FilesItem, item_id)
+        if row is not None and content.remote(row):
+            opened.append(await content.open_content(sys_ctx, row))
+
+    await run_as_system(ctx.state, ctx.user_id, open_)
+    if not opened:
+        return True
+    cap = ctx.settings.files_max_upload_bytes
+    try:
+        staged = await stage(
+            ctx,
+            storage_key(ctx.user_id or "", item_id),
+            opened[0],
+            cap=cap,
+            too_large=AppError("files.too_large", 413, max=cap),
+        )
+    except AppError as exc:
+        if exc.code == "common.quota_exceeded":
+            return False
+        raise
+
+    async def take(sys_ctx: Ctx) -> None:
+        row = await sys_ctx.db.get(FilesItem, item_id)
+        if row is None or row.storage_key:
+            raise not_found()  # gone or stored meanwhile: the bytes are not needed
+        row.storage_key = staged.stored.key
+        row.size_bytes = staged.stored.size
+        row.updated_at = sys_ctx.now
+        await charge(sys_ctx)
+        await events.publish(
+            sys_ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
+
+    try:
+        await run_as_system(ctx.state, ctx.user_id, take)
+    except AppError as exc:
+        await get_storage(ctx).delete(staged.stored.key)
+        if exc.code == "common.quota_exceeded":
+            return False
+        if exc.code != "common.not_found":
+            raise
+    return True
+
+
+async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
+    """Reads a file from its source again after the source failed (or was never read); the
+    source's sync decides when (M09 retries once its platform answers again)."""
+    row.doc_status, row.doc_error_code, row.updated_at = "pending", None, ctx.now
+    if not await auto_index(ctx, row.course_id):
+        row.doc_status = "none"
+    await ctx.db.flush()
+    if row.doc_status == "pending":
+        await enqueue_processing(ctx, row, synced=True)
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
+async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
+    """The source renamed its file (the bytes are the same)."""
+    row.display_name = row.original_name = _safe_name(name)
+    row.updated_at = ctx.now
+    await ctx.db.flush()
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 

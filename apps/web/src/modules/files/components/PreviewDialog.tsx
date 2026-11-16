@@ -27,11 +27,12 @@ import { Spinner } from '@/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { searchTerms } from '../highlight'
-import { fileKindName, previewKind } from '../kinds'
+import { fileKindName, opensInBrowser, previewKind } from '../kinds'
 import { type PageTarget, pageTarget } from '../page-target'
 import { contentUrl, useFileItem } from '../queries'
 import { DocumentText } from './DocumentText'
 import { FileIcon } from './FileIcon'
+import { ItemActionButton, useItemActions } from './ItemActions'
 import { LazyPdfViewer } from './LazyPdfViewer'
 import { Markdown } from './Markdown'
 import { PreviewOutline, PreviewSearchHits } from './PreviewPanels'
@@ -67,7 +68,9 @@ function TextPreview({ item, markdown }: { item: ItemOut; markdown: boolean }) {
   )
 }
 
-function NoPreview({ item }: { item: ItemOut }) {
+function NoPreview({ item, programId }: { item: ItemOut; programId?: string }) {
+  // The original lives elsewhere (an LMS page): opening it there comes first.
+  const [first] = useItemActions(item)
   return (
     <Empty className="bg-background">
       <EmptyHeader>
@@ -81,8 +84,12 @@ function NoPreview({ item }: { item: ItemOut }) {
         <EmptyTitle>{m.files_preview_unavailable()}</EmptyTitle>
         <EmptyDescription>{m.files_preview_unavailable_description()}</EmptyDescription>
       </EmptyHeader>
-      <EmptyContent>
+      <EmptyContent className="flex-row justify-center">
+        {first && programId ? (
+          <ItemActionButton action={first} item={item} programId={programId} variant="default" />
+        ) : null}
         <Button
+          variant={first && programId ? 'outline' : 'default'}
           nativeButton={false}
           // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
           render={(props) => <a {...props} href={contentUrl(item.id, 'attachment')} download />}
@@ -96,9 +103,13 @@ function NoPreview({ item }: { item: ItemOut }) {
 
 type View = 'original' | 'text'
 
+// Hooks run before the file loads; no module's action accepts this.
+const PLACEHOLDER = { kind: 'link', url: null, source_kind: null } as unknown as ItemOut
+
 /** The file itself: what it is decides how it is shown (`previewKind`). */
 function PreviewBody({
   item,
+  programId,
   view,
   target,
   terms,
@@ -106,6 +117,7 @@ function PreviewBody({
   onPageChange,
 }: {
   item: ItemOut
+  programId?: string
   view: View
   target: PageTarget
   terms: readonly string[]
@@ -152,7 +164,7 @@ function PreviewBody({
   if (kind === 'text' || kind === 'markdown') {
     return <TextPreview item={item} markdown={kind === 'markdown'} />
   }
-  return <NoPreview item={item} />
+  return <NoPreview item={item} programId={programId} />
 }
 
 /** Search box of the preview: ⌘F focuses it, Esc clears it before closing the preview. */
@@ -246,6 +258,7 @@ export function PreviewDialog({
   const query = useDebounced(search, 300).trim()
 
   const kind = data ? previewKind(data) : 'none'
+  const actions = useItemActions(data ?? PLACEHOLDER)
   const readable = data?.doc_status === 'ready' && (kind === 'pdf' || kind === 'document')
   const outline = useQuery({
     ...filesDocumentOutlineOptions({ path: { item_id: data?.id ?? '' } }),
@@ -285,25 +298,37 @@ export function PreviewDialog({
       actions={
         data && data.kind === 'file' ? (
           <>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    nativeButton={false}
-                    aria-label={m.files_open_new_tab()}
-                    render={
-                      // oxlint-disable-next-line jsx-a11y/control-has-associated-label, jsx-a11y/anchor-has-content -- labelled by aria-label
-                      <a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />
-                    }
+            {programId
+              ? actions.map((action) => (
+                  <ItemActionButton
+                    key={action.id}
+                    action={action}
+                    item={data}
+                    programId={programId}
                   />
-                }
-              >
-                <SquareArrowOutUpRight aria-hidden />
-              </TooltipTrigger>
-              <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
-            </Tooltip>
+                ))
+              : null}
+            {opensInBrowser(kind) ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      nativeButton={false}
+                      aria-label={m.files_open_new_tab()}
+                      render={
+                        // oxlint-disable-next-line jsx-a11y/control-has-associated-label, jsx-a11y/anchor-has-content -- labelled by aria-label
+                        <a href={contentUrl(data.id)} target="_blank" rel="noopener noreferrer" />
+                      }
+                    />
+                  }
+                >
+                  <SquareArrowOutUpRight aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent>{m.files_open_new_tab()}</TooltipContent>
+              </Tooltip>
+            ) : null}
             <Button
               size="sm"
               nativeButton={false}
@@ -366,6 +391,7 @@ export function PreviewDialog({
             <PreviewBody
               key={`${loaded.id}:${view}`}
               item={loaded}
+              programId={programId}
               view={view}
               target={nav}
               terms={terms}

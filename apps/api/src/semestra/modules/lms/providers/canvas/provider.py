@@ -857,6 +857,7 @@ class CanvasProvider:
             mime_type=_text(r.get("content-type")),
             size_bytes=_int(r.get("size")) if r.get("size") is not None else None,
             updated_at=r.get("updated_at"),
+            content_at=r.get("modified_at"),
             locked=bool(r.get("locked_for_user")),
             download_url=_text(r.get("url")),
         )

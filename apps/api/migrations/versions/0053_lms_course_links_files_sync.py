@@ -1,4 +1,4 @@
-"""lms: course links files_sync
+"""lms: course links files_sync, files_offline
 
 Revision ID: 0053
 Revises: 0052
@@ -24,9 +24,13 @@ def upgrade() -> None:
         batch_op.add_column(
             sa.Column("files_sync", sa.Boolean(), server_default="1", nullable=False)
         )
+        batch_op.add_column(
+            sa.Column("files_offline", sa.Boolean(), server_default="0", nullable=False)
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     with op.batch_alter_table("lms_course_links", schema=None) as batch_op:
+        batch_op.drop_column("files_offline")
         batch_op.drop_column("files_sync")

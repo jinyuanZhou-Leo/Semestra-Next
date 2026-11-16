@@ -99,7 +99,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "files_sync", "synced_at", "sync_errors",
+    "external_term", "sync_enabled", "files_sync", "files_offline", "synced_at", "sync_errors",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 
@@ -336,8 +336,9 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     name="lms.course.link.update",
     summary="Turn LMS sync of a linked course, or of its materials, on or off.",
     description="""`sync_enabled` off: no calendar overlay and no update checks; reading still
-works. `files_sync` off: no new files, pages or links come into the course's files (those there
-stay).
+works. `files_sync` off: the course's files, pages and links no longer come in or follow the
+LMS (those there stay). `files_offline` on: they are stored here (taking storage quota) rather
+than read from the LMS when opened.
 To remove the link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
@@ -345,7 +346,9 @@ To remove the link altogether use lms.course.link.delete.""",
     tags=TAGS,
 )
 async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
-    return await service.update_link(ctx, inp.course_id, inp.sync_enabled, inp.files_sync)
+    return await service.update_link(
+        ctx, inp.course_id, inp.sync_enabled, inp.files_sync, inp.files_offline
+    )
 
 
 @capability(
@@ -639,7 +642,7 @@ async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
     description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
 is then processed like an upload and can be searched (files.document.search), cited and
 extracted. A file the sync already brought into the course's files (its course materials) is
-returned as it is, not saved again.""",
+stored in place as an offline copy, not added again.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/files/{file_id}:save"),
     preview=previews.preview_file_save,

@@ -1,33 +1,41 @@
 """The `files` stage of the course sync (M09 §4.2): the course's files, pages and links on the
 platform become items of the course's files (M07), in type folders (`materials.py`).
 
-Nothing is copied: an item names its platform file or page (`source_ref`) and M07 reads the
-bytes from the platform when they are needed (`open_source`, registered as its content source),
-so the materials take none of the user's storage. Their text is read and indexed like any file's,
-for search and Sem.
+By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
+reads the bytes from the platform when they are needed (`open_source`, registered as its content
+source), so the materials take none of the user's storage. With the course's `files_offline` on
+they are stored here instead (M07's `files.keep_offline`), so they open after the platform course
+closes. Their text is read and indexed like any file's (M07's `auto_index`), for search and Sem.
 
 Each platform item has a ref (`external_kind` `file`, `page` or `link`) with what was last
-applied (`snapshot`: its type, name and version). The user's changes always win: a moved item
-stays where they put it, a renamed one keeps their name (a new version still replaces the
-contents), a deleted one is not brought back (`dismissed_at`). Type folders are made on first
-need and remembered (`type_folder` refs); one the user deleted is replaced by the folder where
-they put that type's items since, else the type's new items go to the top level.
+applied (`snapshot`: its type, platform title, content version, name). The user's changes always
+win: a moved item stays where they put it, a renamed one keeps their name, a deleted one is not
+brought back (`dismissed_at`). Type folders are made on first need and remembered (`type_folder`
+refs); one the user deleted is replaced by the folder where they put that type's items since,
+else the type's new items go to the top level.
+
+An item gone from the platform (deleted, locked again) goes from the files too, unless the user
+stored a copy; its ref is cleared, so it comes back if the platform shows it again. That is only
+judged on a run that read every area whole.
 
 Pages that are only a list of links (a module's table of contents) are not kept; what they list
-is filed by their title instead.
+is filed by their title. Files and pages that pages link to come in too (courses that hide their
+files area link their files from pages).
 """
 
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from html import escape
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
+from semestra.modules.files import content
 from semestra.modules.files import service as files
 from semestra.modules.files.content import register_content_source
 from semestra.modules.files.models import FilesItem
@@ -48,6 +56,7 @@ from semestra.modules.lms.sync import StageResult, hold, register_sync_stage
 
 MaterialKind = Literal["file", "page", "link"]
 KINDS: tuple[MaterialKind, ...] = ("file", "page", "link")
+Key = tuple[str, str]
 TYPE_FOLDER = "type_folder"
 # `target_kind` of the refs: an item, a folder of the course's files.
 ITEM = "file_item"
@@ -56,6 +65,11 @@ FOLDER = "file_folder"
 PER_RUN = 100
 # Errors that mean an area of the course is hidden from the user: the stage goes on without it.
 SKIPPED = AREA_REFUSALS | {"lms.area_hidden", "lms.feature_unsupported"}
+# Items no list gives a version for (a file only a module or page shows, a page when the pages
+# area is hidden) are read one by one: this often, not every run.
+CHECK_EVERY = timedelta(days=1)
+# A file the platform failed to give is read again after this.
+RETRY_AFTER = timedelta(hours=1)
 
 
 def source_ref(kind: MaterialKind, external_id: str) -> str:
@@ -67,6 +81,7 @@ class Material:
     kind: MaterialKind
     external_id: str
     title: str
+    # Changes when the bytes do (not on a rename).
     version: str
     size: int = 0
     mime: str | None = None
@@ -80,6 +95,8 @@ class Material:
     # A page that only lists other things: remembered (so it is read again only when it
     # changes), never an item.
     is_list: bool = False
+    # More to remember (what a page links to, when an item was last read on its own).
+    notes: dict[str, Any] = field(default_factory=lambda: {})
 
     def kind_of(self) -> MaterialType:
         return classify(
@@ -96,41 +113,78 @@ class Material:
 
 
 def file_version(meta: FileMeta) -> str:
-    return f"{meta.updated_at.isoformat() if meta.updated_at else ''}|{meta.size_bytes or 0}"
-
-
-async def _optional[T](read: Awaitable[T]) -> T | None:
-    """A read of one area of the course; None when the user can't open that area."""
-    try:
-        return await read
-    except AppError as exc:
-        if exc.code in SKIPPED:
-            return None
-        raise
+    changed = meta.content_at or meta.updated_at
+    return f"{changed.isoformat() if changed else ''}|{meta.size_bytes or 0}"
 
 
 @dataclass
 class _Found:
-    materials: dict[tuple[MaterialKind, str], Material] = field(default_factory=lambda: {})
-    # Pages to look at: slug → (title, version known from the list, or None).
+    known: dict[Key, LmsImportedRef]
+    now: datetime
+    materials: dict[Key, Material] = field(default_factory=lambda: {})
+    # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
     # Where a page or file was seen in a module: (subheader, module).
-    placed: dict[tuple[str, str], tuple[str | None, str]] = field(default_factory=lambda: {})
-    file_ids: list[str] = field(default_factory=lambda: [])
+    placed: dict[Key, tuple[str | None, str]] = field(default_factory=lambda: {})
+    # The titles of the list pages that list it.
+    listed_by: dict[Key, list[str]] = field(default_factory=lambda: {})
+    # Files no list showed, to read one by one.
+    file_ids: dict[str, None] = field(default_factory=lambda: {})
+    # Items there and unchanged, not read again this run.
+    kept: set[Key] = field(default_factory=lambda: set[Key]())
+    # Every area was read whole: what is not found is gone from the platform.
+    complete: bool = True
 
     def add(self, m: Material) -> None:
         self.materials.setdefault((m.kind, m.external_id), m)
 
+    def checked_lately(self, key: Key) -> bool:
+        """Read on its own within `CHECK_EVERY` (an item in the files, or a list page): taken
+        to be as it was."""
+        ref = self.known.get(key)
+        if ref is None or (ref.target_id is None and not ref.snapshot.get("list")):
+            return False
+        checked = ref.snapshot.get("checked")
+        return isinstance(checked, str) and self.now - datetime.fromisoformat(checked) < CHECK_EVERY
 
-async def _modules(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
-    listed = await _optional(reads.modules(ctx, link.course_id, refresh=True))
+    def linked(self, kind: str, target: str, list_title: str | None) -> None:
+        """A page links to a file or page of the course: it comes in, filed by the list page's
+        title when it is one."""
+        key = (kind, target)
+        if list_title is not None:
+            titles = self.listed_by.setdefault(key, [])
+            if list_title not in titles:
+                titles.append(list_title)
+        if kind == "file":
+            self.file_ids.setdefault(target, None)
+        elif target not in self.pages:
+            self.pages[target] = (target, None, None)
+
+
+async def _optional[T](found: _Found, read: Awaitable[T]) -> T | None:
+    """A read of one area of the course; None when the user can't open that area (then what is
+    missing from this run can't be told gone)."""
+    try:
+        got = await read
+    except AppError as exc:
+        if exc.code in SKIPPED:
+            found.complete = False
+            return None
+        raise
+    if getattr(got, "truncated", False):
+        found.complete = False
+    return got
+
+
+async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
+    listed = await _optional(found, reads.modules(ctx, link.course_id, refresh=True))
     if listed is None:
         return
     for module in listed.items:
         items = module.items
         if items is None:
             got = await _optional(
-                reads.module_items(ctx, link.course_id, module.external_id, refresh=True)
+                found, reads.module_items(ctx, link.course_id, module.external_id, refresh=True)
             )
             items = got.items if got is not None else []
         subheader: str | None = None
@@ -147,7 +201,7 @@ def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _F
     target = item.target.ref if item.target is not None else None
     if item.kind == "file" and target:
         found.placed.setdefault(("file", target), (subheader, module))
-        found.file_ids.append(target)
+        found.file_ids.setdefault(target, None)
     elif item.kind == "page" and target:
         found.placed.setdefault(("page", target), (subheader, module))
         found.pages.setdefault(target, (item.title, None, item.web_url))
@@ -159,7 +213,7 @@ def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _F
                     "link",
                     item.external_id,
                     item.title or url,
-                    version=f"{url}|{item.title}",
+                    version=url,
                     url=url,
                     web_url=item.web_url,
                     subheader=subheader,
@@ -171,18 +225,23 @@ def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _F
 async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
     metas: dict[str, FileMeta] = {}
     if "folders" in b.provider.features:
-        listed = await _optional(reads.course_files(ctx, link.course_id, refresh=True))
+        listed = await _optional(found, reads.course_files(ctx, link.course_id, refresh=True))
         metas = {f.external_id: f for f in listed.items} if listed is not None else {}
-    # Files only a module shows (the files area hidden): their details one by one.
-    for file_id in dict.fromkeys(found.file_ids):
-        if file_id not in metas and "files" in b.provider.features:
-            meta = await _optional(reads.file(ctx, link.course_id, file_id, refresh=True))
-            if meta is not None:
-                metas[file_id] = meta
+    checked: set[str] = set()
+    # Files only a module or a page shows (the files area hidden): one by one, now and then.
+    for file_id in found.file_ids:
+        if file_id in metas or "files" not in b.provider.features:
+            continue
+        if found.checked_lately(("file", file_id)):
+            found.kept.add(("file", file_id))
+            continue
+        meta = await _optional(found, reads.file(ctx, link.course_id, file_id, refresh=True))
+        if meta is not None:
+            metas[file_id] = meta
+            checked.add(file_id)
     for meta in metas.values():
         if meta.locked:
             continue  # comes in once it opens
-        subheader, module = found.placed.get(("file", meta.external_id), (None, None))
         found.add(
             Material(
                 "file",
@@ -192,65 +251,80 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
                 size=meta.size_bytes or 0,
                 mime=meta.mime_type,
                 web_url=meta.web_url,
-                subheader=subheader,
-                module=module,
                 folder_path=meta.folder_path,
+                notes={"checked": found.now.isoformat()} if meta.external_id in checked else {},
             )
         )
 
 
-async def _pages(
-    ctx: Ctx,
-    link: LmsCourseLink,
-    b: Bound,
-    found: _Found,
-    known: dict[tuple[str, str], LmsImportedRef],
-) -> None:
-    listed = await _optional(reads.pages(ctx, link.course_id, refresh=True))
+async def _pages(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None:
+    listed = await _optional(found, reads.pages(ctx, link.course_id, refresh=True))
     for page in listed.items if listed is not None else []:
         version = page.updated_at.isoformat() if page.updated_at else None
         found.pages[page.ref] = (page.title, version, page.web_url)
-    for slug, (title, version, web_url) in found.pages.items():
-        ref = known.get(("page", slug))
-        snap = ref.snapshot if ref is not None else {}
-        if version is not None and snap.get("version") == version:
-            # Unchanged since it was last read: what it was then still holds.
-            if not snap.get("list"):
-                _add_page(found, slug, title, version, web_url, int(snap.get("size") or 0))
-            continue
-        detail = await _optional(reads.page(ctx, link.course_id, slug, refresh=True))
-        if detail is None or detail.locked:
-            continue
-        version = detail.updated_at.isoformat() if detail.updated_at else (version or "")
-        shape = page_shape(detail.html)
-        if shape.is_list:
-            # Not kept; files and pages it lists are filed by its title.
-            for url in shape.links:
-                target = b.rewrite(url, link.external_course_id)
-                if target is not None and target.kind in ("file", "page"):
-                    found.placed.setdefault((target.kind, target.ref), (None, title))
-            found.add(Material("page", slug, detail.title or title, version, is_list=True))
-            continue
-        size = len((detail.html or "").encode())
-        _add_page(found, slug, detail.title or title, version, detail.web_url or web_url, size)
+    done: set[str] = set()
+    # Pages bring in what they link to, other pages among it: until no new page is found.
+    while todo := [slug for slug in found.pages if slug not in done]:
+        for slug in todo:
+            done.add(slug)
+            await _page(ctx, link, b, found, slug)
 
 
-def _add_page(
-    found: _Found, slug: str, title: str, version: str, web_url: str | None, size: int
-) -> None:
+async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: str) -> None:
+    title, version, web_url = found.pages[slug]
+    key = ("page", slug)
+    ref = found.known.get(key)
+    snap = ref.snapshot if ref is not None else {}
+    unchanged = version is not None and snap.get("version") == version
+    if unchanged or (version is None and found.checked_lately(key)):
+        # As it was when last read: what it links to still holds.
+        for kind, target in snap.get("links") or []:
+            found.linked(kind, target, title if snap.get("list") else None)
+        if snap.get("list"):
+            found.add(Material("page", slug, title, version or "", is_list=True, notes=snap))
+        elif ref is not None and ref.target_id is not None:
+            found.kept.add(key)
+        return
+    detail = await _optional(found, reads.page(ctx, link.course_id, slug, refresh=True))
+    if detail is None or detail.locked:
+        return
+    title = detail.title or title
+    version = detail.updated_at.isoformat() if detail.updated_at else (version or "")
+    shape = page_shape(detail.html)
+    links: list[list[str]] = []
+    for url in shape.links:
+        target = b.rewrite(url, link.external_course_id)
+        if target is not None and target.kind in ("file", "page") and target.ref != slug:
+            links.append([target.kind, target.ref])
+            found.linked(target.kind, target.ref, title if shape.is_list else None)
+    notes: dict[str, Any] = {"links": links, "checked": found.now.isoformat()}
+    if shape.is_list:
+        found.add(Material("page", slug, title, version, is_list=True, notes=notes))
+        return
+    size = len((detail.html or "").encode())
     found.add(
-        Material("page", slug, title, version=version, size=size, mime="text/html", web_url=web_url)
+        Material(
+            "page",
+            slug,
+            title,
+            version,
+            size=size,
+            mime="text/html",
+            web_url=detail.web_url or web_url,
+            notes=notes,
+        )
     )
 
 
 def _place(found: _Found) -> None:
-    """Pages and files get the module (or list page) they were seen in."""
-    for (kind, external_id), material in found.materials.items():
-        if kind == "link" or material.module is not None:
+    """Pages and files get the module they were seen in and the list pages that list them."""
+    for key, material in found.materials.items():
+        if material.kind == "link":
             continue
-        subheader, module = found.placed.get((kind, external_id), (None, None))
+        subheader, module = found.placed.get(key, (None, None))
         material.subheader = material.subheader or subheader
-        material.module = module
+        material.module = material.module or module
+        material.listed_by = found.listed_by.get(key, [])
 
 
 # --- writing --------------------------------------------------------------------------------
@@ -345,29 +419,26 @@ async def _create(ctx: Ctx, link: LmsCourseLink, m: Material, folder_id: str | N
     )
 
 
-async def _update(ctx: Ctx, m: Material, ref: LmsImportedRef, row: FilesItem) -> None:
-    """The platform's item changed: the item follows, except where the user changed it."""
-    renamed = row.display_name != ref.snapshot.get("name")
+async def _follow(ctx: Ctx, m: Material, ref: LmsImportedRef, row: FilesItem) -> None:
+    """The item follows the platform's, except where the user changed it: a new name unless
+    they renamed it, new contents unless they stored a copy (read again only when the bytes
+    changed, not on a rename)."""
+    snap = ref.snapshot
+    title = None if row.display_name != snap.get("name") else m.title
+    retitled = title is not None and title != snap.get("title", snap.get("name"))
     if m.kind == "link":
-        await files.update_link(
-            ctx, row, url=m.url or row.url or "", name=None if renamed else m.title
-        )
-    elif row.storage_key:
-        return  # a copy the user saved: theirs to keep as it is
-    else:
+        if snap.get("version") != m.version or retitled:
+            await files.update_link(ctx, row, url=m.url or row.url or "", name=title)
+    elif snap.get("version") != m.version and not row.storage_key:
         await files.update_remote_file(
-            ctx,
-            row,
-            name=None if renamed else m.title,
-            mime=m.mime,
-            size=m.size,
-            version=m.version,
-            url=m.web_url,
+            ctx, row, name=title, mime=m.mime, size=m.size, version=m.version, url=m.web_url
         )
+    elif retitled and title is not None:
+        await files.rename_synced(ctx, row, title)
 
 
 def _snapshot(m: Material, kind: MaterialType | None, row: FilesItem | None) -> dict[str, object]:
-    snap: dict[str, object] = {"version": m.version, "size": m.size}
+    snap: dict[str, object] = {**m.notes, "version": m.version, "size": m.size, "title": m.title}
     if kind is not None:
         snap["type"] = kind
     if row is not None:
@@ -377,37 +448,37 @@ def _snapshot(m: Material, kind: MaterialType | None, row: FilesItem | None) -> 
     return snap
 
 
+def _retry_due(row: FilesItem, now: datetime) -> bool:
+    """A file the platform did not give (it was down, the credentials were missing) is read
+    again: at once when it never was, else after `RETRY_AFTER`."""
+    if row.doc_status != "failed" or not content.remote(row):
+        return False
+    code = row.doc_error_code or ""
+    if code == files.SOURCE_UNREAD:
+        return True
+    return code.startswith("lms.") and now - row.updated_at >= RETRY_AFTER
+
+
 async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
-    refs = list(
-        await ctx.db.scalars(
-            select(LmsImportedRef).where(
-                LmsImportedRef.link_id == link.id,
-                LmsImportedRef.external_kind.in_((*KINDS, TYPE_FOLDER)),
-            )
+    def read_refs() -> Any:
+        return select(LmsImportedRef).where(
+            LmsImportedRef.link_id == link.id,
+            LmsImportedRef.external_kind.in_((*KINDS, TYPE_FOLDER)),
         )
-    )
-    known = {(r.external_kind, r.external_id): r for r in refs if r.external_kind in KINDS}
-    found = _Found()
+
+    refs = list(await ctx.db.scalars(read_refs()))
+    found = _Found({(r.external_kind, r.external_id): r for r in refs}, ctx.now)
     features = b.provider.features
     if "modules" in features:
-        await _modules(ctx, link, b, found)
+        await _modules(ctx, link, found)
     if "pages" in features:
-        await _pages(ctx, link, b, found, known)
+        await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
     _place(found)
 
     await hold(ctx, link)
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
-    refs = list(
-        await ctx.db.scalars(
-            select(LmsImportedRef)
-            .where(
-                LmsImportedRef.link_id == link.id,
-                LmsImportedRef.external_kind.in_((*KINDS, TYPE_FOLDER)),
-            )
-            .execution_options(populate_existing=True)
-        )
-    )
+    refs = list(await ctx.db.scalars(read_refs().execution_options(populate_existing=True)))
     known = {(r.external_kind, r.external_id): r for r in refs if r.external_kind in KINDS}
     rows = {
         r.id: r
@@ -430,9 +501,11 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     )
 
     result = StageResult()
-    added = 0
+    added: list[FilesItem] = []
+    gone: list[FilesItem] = []
     for key, m in found.materials.items():
         ref = known.get(key)
+        row = rows.get(ref.target_id) if ref is not None and ref.target_id else None
         if m.is_list:
             if ref is None:
                 ref = LmsImportedRef(
@@ -440,21 +513,23 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                     external_id=m.external_id, snapshot={},
                 )  # fmt: skip
                 ctx.db.add(ref)
+            elif row is not None and not row.storage_key:
+                gone.append(row)  # a page that has become a list of links
+                ref.target_id = None
             ref.snapshot = _snapshot(m, None, None)
             continue
         if ref is not None and ref.dismissed_at is not None:
             continue
-        if ref is not None and ref.target_id is not None:
-            if ref.snapshot.get("version") != m.version:
-                await _update(ctx, m, ref, rows[ref.target_id])
-            ref.snapshot = {**ref.snapshot, **_snapshot(m, None, rows[ref.target_id])}
+        if ref is not None and row is not None:
+            await _follow(ctx, m, ref, row)
+            ref.snapshot = {**ref.snapshot, **_snapshot(m, None, row)}
             continue
-        if added >= PER_RUN:
+        if len(added) >= PER_RUN:
             result.cap_reached = True
             continue
         kind = m.kind_of()
         row = await _create(ctx, link, m, await folders.of(kind, imported))
-        added += 1
+        added.append(row)
         if ref is None:
             ref = LmsImportedRef(
                 user_id=ctx.user_id,
@@ -467,6 +542,25 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         ref.target_kind, ref.target_id, ref.imported_at = ITEM, row.id, ctx.now
         ref.snapshot = _snapshot(m, kind, row)
         imported.append((kind, row))
+
+    if found.complete:
+        # Gone from the platform: gone here too, unless the user stored a copy. The ref forgets
+        # it, so it comes back if the platform shows it again.
+        for key, ref in known.items():
+            row = rows.get(ref.target_id) if ref.target_id else None
+            if row is None or key in found.materials or key in found.kept or row.storage_key:
+                continue
+            gone.append(row)
+            ref.target_id, ref.snapshot = None, {}
+    await files.purge_items(ctx, gone)
+
+    left = {r.id for r in gone}
+    remote = [r for r in (*rows.values(), *added) if r.id not in left and content.remote(r)]
+    for row in remote:
+        if _retry_due(row, ctx.now):
+            await files.retry_synced(ctx, row)
+    if link.files_offline:
+        await files.keep_offline(ctx, remote, dedupe=f"lms.files:{link.id}")
     await ctx.db.flush()
     return result
 

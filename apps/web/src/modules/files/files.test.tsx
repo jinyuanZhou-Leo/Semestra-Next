@@ -68,6 +68,7 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
     mime_type: 'application/pdf',
     size_bytes: 2048,
     sha256: 'aa',
+    stored: true,
     url: null,
     pinned: false,
     source_kind: 'upload',
