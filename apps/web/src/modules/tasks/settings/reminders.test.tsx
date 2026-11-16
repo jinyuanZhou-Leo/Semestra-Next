@@ -85,14 +85,14 @@ test('connecting a device shows how to set it up, with its password', async () =
   mount(true)
   await userEvent.click(await screen.findByRole('button', { name: 'Connect a device' }))
   const dialog = await screen.findByRole('dialog', { name: 'Connect Apple Reminders' })
-  expect(await within(dialog).findByTitle('QR code to set up a device')).toBeInTheDocument()
+  expect(await within(dialog).findByTitle('Setup QR code')).toBeInTheDocument()
   expect(within(dialog).getByText('Download profile').closest('a')).toHaveAttribute(
     'href',
     'https://semestra.example/caldav-setup/code.mobileconfig',
   )
   await userEvent.click(within(dialog).getByRole('button', { name: 'Set up manually' }))
   expect(within(dialog).getByRole('textbox', { name: 'Password' })).toHaveValue('secret-password')
-  expect(await screen.findByText('Waiting to connect')).toBeInTheDocument()
+  expect(await screen.findByText('Not connected yet')).toBeInTheDocument()
 })
 
 test('the section is left out when the server does not offer it', async () => {
@@ -108,7 +108,7 @@ test("after setting up a device, offers once to turn off Semestra's own to-do re
   const dialog = await screen.findByRole('dialog', { name: 'Connect Apple Reminders' })
   await userEvent.click(within(dialog).getByRole('button', { name: 'Done' }))
   const question = await screen.findByRole('alertdialog', {
-    name: "Turn off Semestra's task reminders?",
+    name: 'Turn off Semestra task notifications?',
   })
   await userEvent.click(within(question).getByRole('button', { name: 'Turn off' }))
   await expect.poll(() => pushChanges).toEqual([{ task_reminder: 'off' }])
