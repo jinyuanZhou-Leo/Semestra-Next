@@ -370,6 +370,9 @@ class FileMeta(Dto):
     size_bytes: int | None = None
     updated_at: datetime | None = None
     locked: bool = False
+    folder_path: str | None = Field(
+        default=None, description="Its folder below the course's root folder (course_files)"
+    )
     # Provider-internal download location; never sent to clients.
     download_url: str | None = Field(default=None, exclude=True)
 

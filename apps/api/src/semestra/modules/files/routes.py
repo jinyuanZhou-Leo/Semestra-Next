@@ -12,6 +12,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.modules.files import content as files_content
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
@@ -110,7 +111,7 @@ async def content(
     ] = "attachment",
 ) -> Response:
     item = await service.get_item(ctx, item_id)
-    if item.kind != "file" or not item.storage_key:
+    if not files_content.has_content(item):
         raise not_found()
     mime = item.mime_type or "application/octet-stream"
     # Anything a browser could run (HTML, SVG, ...) is only ever offered as a download.
@@ -132,6 +133,14 @@ async def content(
         headers["Content-Security-Policy"] = "default-src 'none'"
     else:
         headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    if not item.storage_key:
+        # Read from its source (`content.py`): whole, its length known only as it arrives.
+        headers.pop("Accept-Ranges")
+        if _matches(request, headers["ETag"]):
+            return _not_modified(headers)
+        stream = await files_content.open_content(ctx, item)
+        await ctx.db.commit()  # what the source wrote on the way (renewed credentials)
+        return StreamingResponse(stream, media_type=mime, headers=headers)
     if not span and _matches(request, headers["ETag"]):
         return _not_modified(headers)
     start, end = span if span else (0, max(item.size_bytes - 1, 0))

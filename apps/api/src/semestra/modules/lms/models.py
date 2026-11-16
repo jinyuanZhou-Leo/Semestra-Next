@@ -69,6 +69,8 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     external_term: Mapped[str | None] = mapped_column(String, default=None)
     web_url: Mapped[str | None] = mapped_column(String, default=None)
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The sync brings the course's files, pages and links into its files (`sync_files.py`).
+    files_sync: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
     # When the course was last synced (`sync.py`): every stage ran, failed or not. The
     # scheduler compares it with the account's interval.
     synced_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -85,8 +87,8 @@ class LmsImportedRef(Base, OwnedMixin):
     (`target_*`), whose fields follow the platform through the sync (an assignment worth points
     is an assessment with its to-do, else a to-do, which may later move into the gradebook).
     Not imported (`target_*` null): a new item waiting for the user, or one the user ignored
-    (`dismissed_at`). `external_kind` is free text: `assignment` here, files and folders for
-    the file sync."""
+    (`dismissed_at`). `external_kind` is free text: `assignment` for the assignments, `file`,
+    `page`, `link` and `type_folder` for the course's materials (`sync_files.py`)."""
 
     __tablename__ = "lms_imported_refs"
     __table_args__ = (

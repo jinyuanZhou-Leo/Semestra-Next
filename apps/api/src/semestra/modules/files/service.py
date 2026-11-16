@@ -1,5 +1,6 @@
 """Course files: folders, uploads, links, listing and removal (M07 §2, §4, §5)."""
 
+import hashlib
 import re
 from collections.abc import AsyncIterable, Iterable, Sequence
 from dataclasses import dataclass
@@ -25,7 +26,7 @@ from semestra.core.storage import (
 )
 from semestra.core.storage import usage as core_usage
 from semestra.modules.academics import service as academics
-from semestra.modules.files import indexing
+from semestra.modules.files import content, indexing
 from semestra.modules.files.models import (
     FilesDocument,
     FilesFolder,
@@ -650,6 +651,146 @@ async def save_bytes_as_file(
     return await item_out(ctx, row)
 
 
+# Extensions whose files the pipeline may read, for files known only by name until processed.
+_PARSEABLE_EXTENSIONS = frozenset({
+    "pdf", "docx", "pptx", "xlsx", "csv", "tsv", "txt", "md", "markdown", "html", "htm", "png",
+    "jpg", "jpeg", "webp", "heic",
+})  # fmt: skip
+
+
+def _readable(name: str, mime: str | None) -> bool:
+    """Whether processing an unstored file is worth reading it from its source: by its name and
+    the source's type (a video or an archive is never read)."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext in _PARSEABLE_EXTENSIONS:
+        return True
+    return bool(mime) and (
+        mime in ("application/pdf", DOCX, PPTX, XLSX, "text/html", "text/plain", "text/csv")
+        or mime.startswith("text/")
+    )
+
+
+def _version_hash(version: str) -> str:
+    return hashlib.sha256(version.encode()).hexdigest()
+
+
+def _remote_status(ctx: Ctx, name: str, mime: str | None, size: int) -> tuple[str, str | None]:
+    if not _readable(name, mime):
+        return "unsupported", "files.unsupported_type"
+    if size > ctx.settings.files_max_upload_bytes:
+        return "failed", "files.too_large"
+    return "pending", None
+
+
+async def add_remote_file(
+    ctx: Ctx,
+    course_id: str,
+    folder_id: str | None,
+    *,
+    name: str,
+    mime: str | None,
+    size: int,
+    source_ref: str,
+    version: str,
+    url: str | None,
+    source_kind: SourceKind = "lms",
+) -> FilesItem:
+    """An item for a file kept by another module (`content.py`): stored nowhere, so it takes
+    no quota. `version` names the source's version of the bytes (it changes when they do) and
+    `url` where the source shows the file. Processed like an upload."""
+    status, error = _remote_status(ctx, name, mime, size)
+    clean = _safe_name(name)
+    row = FilesItem(
+        user_id=ctx.user_id,
+        course_id=course_id,
+        folder_id=folder_id,
+        kind="file",
+        display_name=clean,
+        original_name=clean,
+        mime_type=mime,
+        size_bytes=size,
+        sha256=_version_hash(version),
+        url=url,
+        source_kind=source_kind,
+        source_ref=source_ref,
+        doc_status=status,
+        doc_error_code=error,
+        created_at=ctx.now,
+        updated_at=ctx.now,
+    )
+    if row.doc_status == "pending" and not await auto_index(ctx, course_id):
+        row.doc_status = "none"
+    ctx.db.add(row)
+    await ctx.db.flush()
+    if row.doc_status == "pending":
+        await enqueue_processing(ctx, row)
+    await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
+    return row
+
+
+async def update_remote_file(
+    ctx: Ctx,
+    row: FilesItem,
+    *,
+    name: str | None,
+    mime: str | None,
+    size: int,
+    version: str,
+    url: str | None,
+) -> None:
+    """The source's file changed: its new metadata, and its text read again. `name` replaces
+    the shown name (None: the user renamed it, keep theirs); its place is never changed."""
+    if name is not None:
+        row.display_name = row.original_name = _safe_name(name)
+    row.mime_type, row.size_bytes, row.url = mime, size, url
+    row.sha256 = _version_hash(version)
+    status, error = _remote_status(ctx, row.original_name or row.display_name, mime, size)
+    if status == "pending" and not await auto_index(ctx, row.course_id):
+        status = "none"
+    row.doc_status, row.doc_error_code = status, error
+    row.updated_at = ctx.now
+    await ctx.db.flush()
+    if status == "pending":
+        await enqueue_processing(ctx, row)
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
+async def find_folder(ctx: Ctx, course_id: str, folder_id: str) -> FilesFolder | None:
+    return await ctx.db.scalar(
+        select(FilesFolder).where(
+            FilesFolder.id == folder_id,
+            FilesFolder.user_id == ctx.user_id,
+            FilesFolder.course_id == course_id,
+        )
+    )
+
+
+async def find_items(ctx: Ctx, item_ids: Sequence[str]) -> list[FilesItem]:
+    """The ctx user's items with these ids (gone ones left out)."""
+    if not item_ids:
+        return []
+    return list(
+        (
+            await ctx.db.scalars(
+                select(FilesItem).where(
+                    FilesItem.user_id == ctx.user_id, FilesItem.id.in_(list(item_ids))
+                )
+            )
+        ).all()
+    )
+
+
+async def root_folder_named(ctx: Ctx, course_id: str, name: str) -> FilesFolder | None:
+    return await ctx.db.scalar(
+        select(FilesFolder).where(
+            FilesFolder.user_id == ctx.user_id,
+            FilesFolder.course_id == course_id,
+            FilesFolder.parent_id.is_(None),
+            func.lower(FilesFolder.name) == name.lower(),
+        )
+    )
+
+
 def normalize_url(url: str) -> str:
     candidate = url.strip()
     if re.search(r"[\s\\]", candidate):  # browsers rewrite these, so what is shown != opened
@@ -663,7 +804,14 @@ def normalize_url(url: str) -> str:
 
 
 async def create_link(
-    ctx: Ctx, course_id: str, url: str, display_name: str | None, folder_id: str | None
+    ctx: Ctx,
+    course_id: str,
+    url: str,
+    display_name: str | None,
+    folder_id: str | None,
+    *,
+    source_kind: SourceKind | None = None,
+    source_ref: str | None = None,
 ) -> ItemOut:
     await academics.get_course_row(ctx, course_id)
     await _folder_for(ctx, course_id, folder_id)
@@ -676,6 +824,8 @@ async def create_link(
         kind="link",
         display_name=_clean_name(display_name) if display_name else host,
         url=clean,
+        source_kind=source_kind,
+        source_ref=source_ref,
         doc_status="none",
         created_at=ctx.now,
         updated_at=ctx.now,
@@ -684,6 +834,16 @@ async def create_link(
     await ctx.db.flush()
     await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
     return await item_out(ctx, row)
+
+
+async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -> None:
+    """Another module's link moved (and, unless None, was renamed); its place stays."""
+    row.url = normalize_url(url)
+    if name is not None:
+        row.display_name = _clean_name(name)
+    row.updated_at = ctx.now
+    await ctx.db.flush()
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
 async def update_item(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
@@ -710,8 +870,18 @@ async def delete_item(ctx: Ctx, item_id: str) -> None:
 
 async def reprocess(ctx: Ctx, item_id: str) -> ItemOut:
     row = await get_item(ctx, item_id)
-    if row.kind != "file" or not row.storage_key:
+    if not content.has_content(row):
         raise AppError("files.unsupported_type", 422)
+    if not row.storage_key:
+        # Read from its source when the job runs, which also tells what it is.
+        row.doc_status, row.doc_error_code = "pending", None
+        await enqueue_processing(ctx, row)
+        row.updated_at = ctx.now
+        await ctx.db.flush()
+        await events.publish(
+            ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
+        return await item_out(ctx, row)
     data = b"".join([chunk async for chunk in get_storage(ctx).open(row.storage_key)])
     detected = await anyio.to_thread.run_sync(detect, data, row.original_name)
     row.mime_type = detected.mime
@@ -888,7 +1058,9 @@ async def purge_course(ctx: Ctx, course_id: str) -> None:
 async def files_usage_bytes(ctx: Ctx) -> int:
     total = await ctx.db.scalar(
         select(func.coalesce(func.sum(FilesItem.size_bytes), 0)).where(
-            FilesItem.user_id == ctx.user_id, FilesItem.kind == "file"
+            FilesItem.user_id == ctx.user_id,
+            FilesItem.kind == "file",
+            FilesItem.storage_key.is_not(None),
         )
     )
     return int(total or 0)
@@ -938,7 +1110,11 @@ async def usage_breakdown(ctx: Ctx) -> FilesUsageBreakdown:
                 func.count(),
                 func.coalesce(func.sum(FilesItem.size_bytes), 0),
             )
-            .where(FilesItem.user_id == ctx.user_id, FilesItem.kind == "file")
+            .where(
+                FilesItem.user_id == ctx.user_id,
+                FilesItem.kind == "file",
+                FilesItem.storage_key.is_not(None),
+            )
             .group_by(FilesItem.course_id, FilesItem.mime_type)
         )
     ).all()

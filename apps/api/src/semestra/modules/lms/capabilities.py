@@ -99,7 +99,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "synced_at", "sync_errors",
+    "external_term", "sync_enabled", "files_sync", "synced_at", "sync_errors",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 
@@ -334,16 +334,18 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 
 @capability(
     name="lms.course.link.update",
-    summary="Turn LMS sync of a linked course on or off.",
-    description="""Off: no calendar overlay and no update checks; reading still works. To remove the
-link altogether use lms.course.link.delete.""",
+    summary="Turn LMS sync of a linked course, or of its materials, on or off.",
+    description="""`sync_enabled` off: no calendar overlay and no update checks; reading still
+works. `files_sync` off: no new files, pages or links come into the course's files (those there
+stay).
+To remove the link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
-    return await service.update_link(ctx, inp.course_id, inp.sync_enabled)
+    return await service.update_link(ctx, inp.course_id, inp.sync_enabled, inp.files_sync)
 
 
 @capability(

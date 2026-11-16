@@ -759,6 +759,7 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         external_term=row.external_term,
         web_url=row.web_url,
         sync_enabled=row.sync_enabled,
+        files_sync=row.files_sync,
         synced_at=row.synced_at,
         sync_errors=row.sync_errors,
         created_at=row.created_at,
@@ -970,12 +971,21 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     return await link_state(ctx, inp.course_id)
 
 
-async def update_link(ctx: Ctx, course_id: str, sync_enabled: bool) -> CourseLinkState:
+async def update_link(
+    ctx: Ctx, course_id: str, sync_enabled: bool | None, files_sync: bool | None
+) -> CourseLinkState:
     link, _ = await require_link(ctx, course_id)
-    if link.sync_enabled != sync_enabled:
+    if sync_enabled is not None and link.sync_enabled != sync_enabled:
         link.sync_enabled = sync_enabled
         link.updated_at = ctx.now
         await events.publish(ctx, "calendar.changed", {"program_id": link.program_id})
+        await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
+    if files_sync is not None and link.files_sync != files_sync:
+        link.files_sync = files_sync
+        link.updated_at = ctx.now
+        if files_sync:
+            # The materials come in with the next sync, not hours later.
+            link.synced_at = None
         await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
     return await link_state(ctx, course_id)
 
@@ -998,6 +1008,8 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
 
 async def _remove_link(ctx: Ctx, link: LmsCourseLink) -> None:
     data = {"course_id": link.course_id, "program_id": link.program_id, "link_id": link.id}
+    # While the refs are still there: what was only read from the platform course goes too.
+    await events.publish_in_transaction(ctx, "lms.course.unlinking", data)
     await ctx.db.execute(delete(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     await ctx.db.delete(link)
     await ctx.db.flush()

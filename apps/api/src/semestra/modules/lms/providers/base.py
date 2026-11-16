@@ -160,6 +160,13 @@ class LmsProvider(Protocol):
         another course is `lms.not_found`."""
         ...
 
+    async def course_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[FileMeta]:
+        """Every file of the course the user can see, each with its `folder_path` (feature
+        `folders`); `lms.forbidden` or `lms.not_found` when the files area is hidden."""
+        ...
+
     async def search_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
     ) -> list[FileMeta]: ...

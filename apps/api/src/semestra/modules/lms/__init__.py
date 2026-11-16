@@ -25,6 +25,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
     subscribers,
     sync,
     sync_assignments,
+    sync_files,
     sync_stages,
 )
 from semestra.modules.lms.cache import purge_expired, runtime

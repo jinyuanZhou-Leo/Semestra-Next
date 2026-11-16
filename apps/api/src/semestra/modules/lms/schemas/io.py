@@ -215,6 +215,7 @@ class CourseLink(BaseModel):
     external_term: str | None
     web_url: str | None
     sync_enabled: bool
+    files_sync: bool = Field(description="The sync brings the course's files, pages and links in")
     synced_at: datetime | None = Field(description="Last background sync of the course")
     sync_errors: dict[str, str] = Field(
         description="Error code of each sync stage whose last run failed (course, assignments, "
@@ -252,7 +253,12 @@ class LinkSetInput(BaseModel):
 
 class LinkUpdateInput(BaseModel):
     course_id: Id = Field(description="Course id")
-    sync_enabled: bool = Field(description="Show in the calendar, check updates")
+    sync_enabled: bool | None = Field(
+        default=None, description="Show in the calendar, check updates"
+    )
+    files_sync: bool | None = Field(
+        default=None, description="Bring the course's files, pages and links into its files"
+    )
 
 
 # --- reads ----------------------------------------------------------------------------------
