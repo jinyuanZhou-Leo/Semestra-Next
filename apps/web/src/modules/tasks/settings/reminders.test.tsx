@@ -10,63 +10,67 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-const device = {
+const waiting = {
   id: 'c1',
   program_id: 'p1',
   client: null,
   last_seen_at: null,
   created_at: '2026-11-16T12:00:00Z',
-  password: 'secret-password',
+}
+const iphone = { ...waiting, id: 'c2', client: 'ios', last_seen_at: '2026-11-16T12:05:00Z' }
+
+function created(id: string, password: string) {
+  return {
+    ...waiting,
+    id,
+    password,
+    setup: {
+      url: `https://semestra.example/caldav-setup/${password}.mobileconfig`,
+      expires_at: '2099-01-01T00:00:00Z',
+    },
+  }
 }
 
-function mount(available: boolean, items: (typeof device)[] = []) {
-  const state = { items: [...items] }
-  const notifications = { task_reminder: '60' as string }
-  const pushChanges: unknown[] = []
+function mount({
+  available = true,
+  items = [] as Record<string, unknown>[],
+  taskNotifications = true,
+} = {}) {
+  const state = { items: [...items], listed: 0, settings: [] as unknown[] }
+  const settings = () =>
+    HttpResponse.json({
+      namespace: 'notifications',
+      scope_type: 'account',
+      scope_id: null,
+      values: { task_reminder: 'off' },
+      sources: {},
+    })
   server.use(
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.put(`${API}/me/ui-state/:key`, () => HttpResponse.json({ ok: true })),
-    http.get(`${API}/me/settings/notifications`, () =>
-      HttpResponse.json({
-        namespace: 'notifications',
-        scope_type: 'account',
-        scope_id: null,
-        values: notifications,
-        sources: {},
-      }),
-    ),
     http.patch(`${API}/me/settings/notifications`, async ({ request }) => {
-      const body = (await request.json()) as { values: Record<string, string> }
-      pushChanges.push(body.values)
-      Object.assign(notifications, body.values)
-      return HttpResponse.json({
-        namespace: 'notifications',
-        scope_type: 'account',
-        scope_id: null,
-        values: notifications,
-        sources: {},
-      })
+      state.settings.push(((await request.json()) as { values: unknown }).values)
+      return settings()
     }),
-    http.get(`${API}/programs/p1/caldav-connections`, () =>
-      HttpResponse.json({
+    http.get(`${API}/programs/p1/caldav-connections`, () => {
+      state.listed += 1
+      return HttpResponse.json({
         available,
         server_url: 'https://semestra.example/caldav/',
         username: 'student@example.com',
         items: state.items,
-      }),
-    ),
-    http.post(`${API}/programs/p1/caldav-connections`, () => {
-      state.items.push(device)
-      return HttpResponse.json(device)
+        task_notifications: taskNotifications,
+      })
     }),
-    http.post(`${API}/caldav-connections/c1/setup-link`, () =>
-      HttpResponse.json({
-        url: 'https://semestra.example/caldav-setup/code.mobileconfig',
-        expires_at: '2026-11-16T12:15:00Z',
-      }),
+    http.post(`${API}/programs/p1/caldav-connections`, () => {
+      state.items.push(waiting)
+      return HttpResponse.json(created('c1', 'first-password'))
+    }),
+    http.post(`${API}/caldav-connections/c2\\:reset`, () =>
+      HttpResponse.json(created('c2', 'new-password')),
     ),
   )
-  const view = renderWithRouter(
+  renderWithRouter(
     <SectionFrame
       section={{
         id: 'tasks-reminders',
@@ -78,38 +82,49 @@ function mount(available: boolean, items: (typeof device)[] = []) {
       scope={{ kind: 'program', programId: 'p1' }}
     />,
   )
-  return { ...view, pushChanges }
+  return state
 }
 
 test('connecting a device shows how to set it up, with its password', async () => {
-  mount(true)
+  mount()
   await userEvent.click(await screen.findByRole('button', { name: 'Connect a device' }))
   const dialog = await screen.findByRole('dialog', { name: 'Connect Apple Reminders' })
-  expect(await within(dialog).findByTitle('Setup QR code')).toBeInTheDocument()
+  expect(within(dialog).getByTitle('Setup QR code')).toBeInTheDocument()
   expect(within(dialog).getByText('Download profile').closest('a')).toHaveAttribute(
     'href',
-    'https://semestra.example/caldav-setup/code.mobileconfig',
+    'https://semestra.example/caldav-setup/first-password.mobileconfig',
   )
   await userEvent.click(within(dialog).getByRole('button', { name: 'Set up manually' }))
-  expect(within(dialog).getByRole('textbox', { name: 'Password' })).toHaveValue('secret-password')
-  expect(await screen.findByText('Not connected yet')).toBeInTheDocument()
-})
-
-test('the section is left out when the server does not offer it', async () => {
-  const { container } = mount(false)
-  // The section hides itself when its content is empty (`has-[>div:empty]:hidden`).
-  const content = () => container.querySelector('section > div.space-y-6')
-  await expect.poll(() => content()?.childElementCount).toBe(0)
-})
-
-test("after setting up a device, offers once to turn off Semestra's own to-do reminders", async () => {
-  const { pushChanges } = mount(true)
-  await userEvent.click(await screen.findByRole('button', { name: 'Connect a device' }))
-  const dialog = await screen.findByRole('dialog', { name: 'Connect Apple Reminders' })
+  expect(within(dialog).getByRole('textbox', { name: 'Password' })).toHaveValue('first-password')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Done' }))
+  expect(await screen.findByText('Not connected yet')).toBeInTheDocument()
+  // Nothing has synced yet, so there is nothing to ask about notifications.
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('setting a device up again gives it a new password', async () => {
+  mount({ items: [iphone], taskNotifications: false })
+  await userEvent.click(await screen.findByRole('button', { name: 'Actions for iPhone or iPad' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Set up again' }))
+  const confirm = await screen.findByRole('alertdialog', { name: 'Set up this device again?' })
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Set up again' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Connect Apple Reminders' })
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Set up manually' }))
+  expect(within(dialog).getByRole('textbox', { name: 'Password' })).toHaveValue('new-password')
+})
+
+test('once a device syncs, offers to turn off Semestra task notifications', async () => {
+  const state = mount({ items: [iphone] })
   const question = await screen.findByRole('alertdialog', {
     name: 'Turn off Semestra task notifications?',
   })
   await userEvent.click(within(question).getByRole('button', { name: 'Turn off' }))
-  await expect.poll(() => pushChanges).toEqual([{ task_reminder: 'off' }])
+  await expect.poll(() => state.settings).toEqual([{ task_reminder: 'off' }])
+})
+
+test('the section is left out when the server does not offer it', async () => {
+  const state = mount({ available: false })
+  await expect.poll(() => state.listed).toBe(1)
+  expect(screen.queryByRole('button', { name: 'Connect a device' })).not.toBeInTheDocument()
+  expect(screen.queryByText('No connected devices')).not.toBeInTheDocument()
 })

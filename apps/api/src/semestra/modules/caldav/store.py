@@ -303,6 +303,43 @@ class Store:
         row.uid, row.name, row.ical = uid, name, kept
         await self.ctx.db.flush()
 
+    async def move(
+        self,
+        source: Collection,
+        name: str,
+        target: Collection,
+        new_name: str,
+        *,
+        if_match: str | None,
+        overwrite: bool,
+    ) -> bool:
+        """A device moving a task to another list (MOVE, RFC 4918 §9.9): only its list changes,
+        so its course, links and the device's text stay. False when there is no such task."""
+        item = await self.item(source, name)
+        if item is None:
+            return False
+        if if_match and if_match != "*" and item.etag not in _tags(if_match):
+            raise PreconditionFailed
+        there = await self.item(target, new_name)
+        if there is not None and there.task.id != item.task.id:
+            # Replacing another task by moving onto it is not something lists do.
+            raise PreconditionFailed if not overwrite else Forbidden
+        if item.task.list_id != target.list_id:
+            await tasks.update_task(
+                self.ctx,
+                TaskUpdateInput.model_validate(
+                    {"task_id": item.task.id, "list_id": target.list_id}
+                ),
+            )
+        mapping = await self.ctx.db.get(CaldavItem, item.task.id)
+        if mapping is not None:
+            mapping.name = new_name
+        elif new_name != name:
+            uid = item.task.id
+            await self._remember(item.task.id, uid, new_name, "")
+        await self.ctx.db.flush()
+        return True
+
     async def delete(self, collection: Collection, name: str, *, if_match: str | None) -> bool:
         """False when there is no such task here."""
         item = await self.item(collection, name)

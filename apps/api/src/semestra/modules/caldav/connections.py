@@ -4,21 +4,27 @@ import hashlib
 import plistlib
 import secrets
 import uuid
-from contextlib import suppress
 from datetime import timedelta
 from urllib.parse import urlsplit
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
-from semestra.core.security import decrypt, encrypt, seal_for, unseal_within
+from semestra.core.jobs import periodic
+from semestra.core.security import seal_for, unseal_within
 from semestra.modules.academics import service as academics
 from semestra.modules.caldav.models import CaldavConnection
-from semestra.modules.caldav.schemas import CaldavConnectionOut, CaldavConnections, CaldavSetupLink
+from semestra.modules.caldav.schemas import (
+    CaldavConnectionOut,
+    CaldavConnections,
+    CaldavNewConnection,
+    CaldavSetupLink,
+)
+from semestra.modules.notifications import service as notifications
 
 ROOT = "/caldav/"
 PRINCIPAL = f"{ROOT}principal/"
@@ -27,6 +33,9 @@ SETUP_SECONDS = 15 * 60
 # A request is recorded at most this often: a device polls every few minutes, and each write
 # waits for SQLite's one writer.
 SEEN_EVERY = timedelta(minutes=10)
+# A connection no device has signed in with is removed after this long: long enough to type the
+# details in by hand, short enough that "Connect a device" pressed and abandoned leaves nothing.
+UNUSED_KEPT = timedelta(days=1)
 
 
 def _hash(token: str) -> str:
@@ -42,17 +51,13 @@ def server_url(ctx: Ctx) -> str:
     return f"{ctx.settings.public_api_origin.rstrip('/')}{ROOT}"
 
 
-def _out(ctx: Ctx, row: CaldavConnection) -> CaldavConnectionOut:
-    password = None
-    with suppress(InvalidToken):
-        password = decrypt(ctx.settings, row.token_encrypted)
+def _out(row: CaldavConnection) -> CaldavConnectionOut:
     return CaldavConnectionOut(
         id=row.id,
         program_id=row.program_id,
         client=row.client,  # pyright: ignore[reportArgumentType]
         last_seen_at=row.last_seen_at,
         created_at=row.created_at,
-        password=password,
     )
 
 
@@ -64,15 +69,17 @@ async def list_connections(ctx: Ctx, program_id: str) -> CaldavConnections:
         .order_by(CaldavConnection.created_at, CaldavConnection.id)
     )
     assert ctx.user is not None
+    reminders = (await notifications.settings_of(ctx)).task_reminder != "off"
     return CaldavConnections(
         available=ctx.settings.caldav,
         server_url=server_url(ctx),
         username=ctx.user.email,
-        items=[_out(ctx, r) for r in rows] if ctx.settings.caldav else [],
+        items=[_out(r) for r in rows] if ctx.settings.caldav else [],
+        task_notifications=reminders and await notifications.has_devices(ctx),
     )
 
 
-async def create_connection(ctx: Ctx, program_id: str) -> CaldavConnectionOut:
+async def create_connection(ctx: Ctx, program_id: str) -> CaldavNewConnection:
     _require_available(ctx)
     await academics.get_program_row(ctx, program_id)
     token = secrets.token_urlsafe(24)
@@ -81,13 +88,29 @@ async def create_connection(ctx: Ctx, program_id: str) -> CaldavConnectionOut:
         user_id=ctx.user_id,
         program_id=program_id,
         token_hash=_hash(token),
-        token_encrypted=encrypt(ctx.settings, token),
         created_at=ctx.now,
     )
     ctx.db.add(row)
     await ctx.db.flush()
     await _announce(ctx, row)
-    return _out(ctx, row)
+    return CaldavNewConnection(
+        **_out(row).model_dump(), password=token, setup=_setup_link(ctx, row, token)
+    )
+
+
+async def reset_connection(ctx: Ctx, connection_id: str) -> CaldavNewConnection:
+    """A new password for a device being set up again; the old one stops working at once."""
+    _require_available(ctx)
+    row = await _own(ctx, connection_id)
+    token = secrets.token_urlsafe(24)
+    row.token_hash = _hash(token)
+    row.client, row.last_seen_at = None, None
+    row.created_at = ctx.now
+    await ctx.db.flush()
+    await _announce(ctx, row)
+    return CaldavNewConnection(
+        **_out(row).model_dump(), password=token, setup=_setup_link(ctx, row, token)
+    )
 
 
 async def _own(ctx: Ctx, connection_id: str) -> CaldavConnection:
@@ -111,11 +134,10 @@ async def _announce(ctx: Ctx, row: CaldavConnection) -> None:
     )
 
 
-async def setup_link(ctx: Ctx, connection_id: str) -> CaldavSetupLink:
-    """A link that is good for 15 minutes; it carries the connection id, encrypted."""
-    _require_available(ctx)
-    row = await _own(ctx, connection_id)
-    code = seal_for(ctx.settings, row.id, ctx.now)
+def _setup_link(ctx: Ctx, row: CaldavConnection, password: str) -> CaldavSetupLink:
+    """Good for 15 minutes; it carries the connection id and password, encrypted (the server
+    keeps no copy of the password to put in the profile)."""
+    code = seal_for(ctx.settings, f"{row.id}\n{password}", ctx.now)
     origin = ctx.settings.public_api_origin.rstrip("/")
     return CaldavSetupLink(
         url=f"{origin}/caldav-setup/{code}.mobileconfig",
@@ -123,25 +145,34 @@ async def setup_link(ctx: Ctx, connection_id: str) -> CaldavSetupLink:
     )
 
 
-async def connection_by_setup_code(ctx: Ctx, code: str) -> CaldavConnection:
+async def setup_link(ctx: Ctx, connection_id: str, password: str) -> CaldavSetupLink:
+    """A fresh link while the setup is still open (the page holds the password it was given)."""
+    _require_available(ctx)
+    row = await _own(ctx, connection_id)
+    if not secrets.compare_digest(row.token_hash, _hash(password)):
+        raise not_found("connection", connection_id)
+    return _setup_link(ctx, row, password)
+
+
+async def connection_by_setup_code(ctx: Ctx, code: str) -> tuple[CaldavConnection, str]:
     _require_available(ctx)
     try:
-        connection_id = unseal_within(ctx.settings, code, SETUP_SECONDS, ctx.now)
+        sealed = unseal_within(ctx.settings, code, SETUP_SECONDS, ctx.now)
     except InvalidToken:
         raise not_found() from None
+    connection_id, _, password = sealed.partition("\n")
     row = await ctx.db.get(CaldavConnection, connection_id)
-    if row is None:
+    if row is None or not secrets.compare_digest(row.token_hash, _hash(password)):
         raise not_found()
-    return row
+    return row, password
 
 
-def profile(ctx: Ctx, row: CaldavConnection, email: str, program_name: str) -> bytes:
+def profile(ctx: Ctx, row: CaldavConnection, password: str, email: str, program_name: str) -> bytes:
     """An Apple configuration profile with one CalDAV account (Settings opens it to install).
     Unsigned, so the device shows it as unverified; the identifiers are fixed per connection,
     so installing it again replaces the account instead of adding a second one."""
     origin = urlsplit(ctx.settings.public_api_origin)
     ssl = origin.scheme == "https"
-    password = decrypt(ctx.settings, row.token_encrypted)
     account = uuid.uuid5(uuid.NAMESPACE_URL, f"semestra-caldav:{row.id}")
     payload = {
         "PayloadType": "com.apple.caldav.account",
@@ -204,3 +235,14 @@ def _client(user_agent: str) -> str:
 
 async def announce_seen(ctx: Ctx, row: CaldavConnection) -> None:
     await _announce(ctx, row)
+
+
+@periodic("caldav.cleanup", every=timedelta(hours=1))
+async def cleanup(ctx: Ctx) -> None:
+    """Removes connections no device ever signed in with (`UNUSED_KEPT`)."""
+    await ctx.db.execute(
+        delete(CaldavConnection).where(
+            CaldavConnection.last_seen_at.is_(None),
+            CaldavConnection.created_at < ctx.now - UNUSED_KEPT,
+        )
+    )

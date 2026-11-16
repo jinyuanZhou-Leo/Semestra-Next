@@ -8,8 +8,7 @@ from semestra.core.db import Base, OwnedMixin, UTCDateTime, new_id
 
 class CaldavConnection(Base, OwnedMixin):
     """A device that syncs a Program's to-do lists over CalDAV (Apple Reminders, ...). It signs in
-    with its own password: looked up by hash, also kept encrypted so it can be shown again (like a
-    calendar subscription link, it reaches nothing but the to-dos and is revoked by deleting)."""
+    with its own password, shown once when the connection is made and stored only as a hash."""
 
     __tablename__ = "caldav_connections"
 
@@ -18,7 +17,6 @@ class CaldavConnection(Base, OwnedMixin):
         String, ForeignKey("academics_programs.id", ondelete="CASCADE"), index=True
     )
     token_hash: Mapped[str] = mapped_column(String, unique=True)
-    token_encrypted: Mapped[str] = mapped_column(String)
     # What the device said it is on its first request ("ios" | "macos" | "other").
     client: Mapped[str | None] = mapped_column(String, default=None)
     last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)

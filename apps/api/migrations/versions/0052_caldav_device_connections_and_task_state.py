@@ -28,7 +28,6 @@ def upgrade() -> None:
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("program_id", sa.String(), nullable=False),
         sa.Column("token_hash", sa.String(), nullable=False),
-        sa.Column("token_encrypted", sa.String(), nullable=False),
         sa.Column("client", sa.String(), nullable=True),
         sa.Column("last_seen_at", semestra.core.db.UTCDateTime(timezone=True), nullable=True),
         sa.Column("created_at", semestra.core.db.UTCDateTime(timezone=True), nullable=False),

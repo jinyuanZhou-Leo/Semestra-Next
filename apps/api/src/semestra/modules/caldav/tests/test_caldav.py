@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from icalendar import Calendar
 
+from semestra.core.jobs import run_periodic
 from semestra.modules.caldav.store import course_for_title
 from semestra.testing import TEST_ORIGIN, Clock, MakeUser, UserHandle
 
@@ -245,6 +246,8 @@ async def test_tasks_reach_the_device(
     assert str(report["DESCRIPTION"]) == "Section 2"
     [alarm] = report.walk("VALARM")
     assert alarm.decoded("TRIGGER") == report.decoded("DUE")
+    # An absolute trigger has to say so (the default type is a duration, RFC 5545 §3.8.6.3).
+    assert b"TRIGGER;VALUE=DATE-TIME:20260120T220000Z" in alarm.to_ical()
 
     # Finished more than 30 days ago: no longer sent; the list's ctag changes.
     clock.advance(days=31)
@@ -313,8 +316,17 @@ async def test_edits_from_the_device(
     assert (after["course_id"], after["flagged"], after["priority"]) == (s["course"], True, "high")
     assert after["due_date"] is None
 
-    # A stale ETag is refused; deleting removes the task.
+    # MOVE between lists changes only the list.
     href = f"{lists['Errands']['href']}AAA-1.ics"
+    back = f"{TEST_ORIGIN}{inbox}AAA-1.ics"
+    assert (await device.request("MOVE", href, Destination=back)).status_code == 201
+    after = (await tasks(client, pid))["APS105 PS1"]
+    assert (after["list_id"], after["course_id"]) == (None, s["course"])
+    assert set(await device.todos(lists["Errands"]["href"])) == set()
+    r = await device.request("MOVE", f"{inbox}AAA-1.ics", Destination=f"{TEST_ORIGIN}{href}")
+    assert r.status_code == 201
+
+    # A stale ETag is refused; deleting removes the task.
     r = await device.request("PUT", href, moved, **{"If-Match": '"stale"'})
     assert r.status_code == 412
     etag = (await device.request("GET", href)).headers["etag"]
@@ -397,17 +409,44 @@ async def test_setup_profile(
 ):
     s = await setup(client)
     created = await call(client, "POST", f"/programs/{s['program']}/caldav-connections")
-    link = await call(client, "POST", f"/caldav-connections/{created['id']}/setup-link")
-    path = link["url"].removeprefix(TEST_ORIGIN)
     anonymous = AsyncClient(transport=ASGITransport(app), base_url=TEST_ORIGIN)
+    path = created["setup"]["url"].removeprefix(TEST_ORIGIN)
     r = await anonymous.get(path)
     assert r.status_code == 200
-    profile = plistlib.loads(r.content)
-    [account] = profile["PayloadContent"]
+    [account] = plistlib.loads(r.content)["PayloadContent"]
     assert account["CalDAVPassword"] == created["password"]
     assert account["CalDAVPrincipalURL"] == f"{TEST_ORIGIN}/caldav/principal/"
     clock.advance(minutes=16)
     assert (await anonymous.get(path)).status_code == 404
+
+    # The password is shown only when the connection is made; a new link needs it.
+    state = await call(client, "GET", f"/programs/{s['program']}/caldav-connections")
+    assert "password" not in state["items"][0]
+    url = f"/caldav-connections/{created['id']}/setup-link"
+    await call(client, "POST", url, json={"password": "wrong"}, status=404)
+    link = await call(client, "POST", url, json={"password": created["password"]})
+    assert (await anonymous.get(link["url"].removeprefix(TEST_ORIGIN))).status_code == 200
+
+    # Setting the device up again gives it a new password; the old one stops working.
+    device = Device(app, created["password"])
+    await device.lists()
+    reset = await call(client, "POST", f"/caldav-connections/{created['id']}:reset")
+    assert reset["password"] != created["password"]
+    assert (await device.request("PROPFIND", "/caldav/")).status_code == 401
+    assert (await Device(app, reset["password"]).request("PROPFIND", "/caldav/")).status_code == 207
+
+
+async def test_unused_connections_go_after_a_day(
+    app: FastAPI, client: AsyncClient, user: UserHandle, clock: Clock, caldav_on: None
+):
+    s = await setup(client)
+    used = await connect(app, client, s["program"])
+    await call(client, "POST", f"/programs/{s['program']}/caldav-connections")
+    await used.lists()
+    clock.advance(hours=25)
+    await run_periodic(app.state, "caldav.cleanup")
+    state = await call(client, "GET", f"/programs/{s['program']}/caldav-connections")
+    assert [item["client"] for item in state["items"]] == ["ios"]
 
 
 def test_course_codes_in_titles():

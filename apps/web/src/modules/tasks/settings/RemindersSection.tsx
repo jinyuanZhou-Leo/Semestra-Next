@@ -1,11 +1,11 @@
-import type { CaldavConnectionOut } from '@semestra/api-client'
+import type { CaldavConnectionOut, CaldavNewConnection } from '@semestra/api-client'
 import { caldavConnectionSetupLink } from '@semestra/api-client'
 import {
   caldavConnectionCreateMutation,
   caldavConnectionDeleteMutation,
   caldavConnectionListOptions,
   caldavConnectionListQueryKey,
-  settingsValueGetOptions,
+  caldavConnectionResetMutation,
   settingsValueGetQueryKey,
   settingsValueUpdateMutation,
 } from '@semestra/api-client/react-query'
@@ -20,12 +20,12 @@ import {
   type LucideIcon,
   MonitorSmartphone,
   Plus,
-  QrCode,
+  RotateCcw,
   Smartphone,
   Unplug,
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { createContext, use, useState } from 'react'
+import { createContext, use } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
 import { RowMenu, SectionAction, SettingsTable, settingsTableFeatures } from '@/app/settings'
 import { SettingRow, SettingsGroup, SettingsNote } from '@/app/settings/rows'
@@ -63,6 +63,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '
 import { Skeleton } from '@/ui/skeleton'
 
 type Device = CaldavConnectionOut
+type NewDevice = CaldavNewConnection
 
 const DEVICE: Record<
   NonNullable<Device['client']> | 'waiting',
@@ -74,8 +75,11 @@ const DEVICE: Record<
   waiting: { icon: Hourglass, name: m.tasks_reminders_device_waiting },
 }
 
-type RowActions = { setUp: (device: Device) => void; disconnect: (device: Device) => void }
-const RowActionsContext = createContext<RowActions>({ setUp: () => {}, disconnect: () => {} })
+type RowActions = { setUpAgain: (device: Device) => void; disconnect: (device: Device) => void }
+const RowActionsContext = createContext<RowActions>({
+  setUpAgain: () => {},
+  disconnect: () => {},
+})
 
 type CellProps = CellContext<typeof settingsTableFeatures, Device>
 
@@ -104,9 +108,9 @@ function ActionsCell({ row }: CellProps) {
   const name = DEVICE[device.client ?? 'waiting'].name()
   return (
     <RowMenu label={m.tasks_reminders_actions({ name })}>
-      <DropdownMenuItem onClick={() => actions.setUp(device)}>
-        <QrCode aria-hidden />
-        {m.tasks_reminders_set_up()}
+      <DropdownMenuItem onClick={() => actions.setUpAgain(device)}>
+        <RotateCcw aria-hidden />
+        {m.tasks_reminders_set_up_again()}
       </DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem variant="destructive" onClick={() => actions.disconnect(device)}>
@@ -135,25 +139,34 @@ const NOTIFICATIONS = {
 
 /**
  * Apple Reminders (M05 §11): devices that show and edit this Program's to-do lists over CalDAV.
- * Shown only when the server offers it (self-hosting with `SEMESTRA_CALDAV`).
+ * Shown only when the server offers it (self-hosting with `SEMESTRA_CALDAV`). A device's
+ * password is shown once, when it is connected or set up again; the server keeps only a hash.
  */
 export default function RemindersSection({ scope }: SettingsSectionProps) {
   const programId = scope?.programId ?? ''
   const queryClient = useQueryClient()
   const state = useQuery(caldavConnectionListOptions({ path: { program_id: programId } }))
-  const setUp = useDialogTarget<Device>()
+  const setUp = useDialogTarget<NewDevice>()
+  const resetting = useDialogTarget<Device>()
   const disconnecting = useDialogTarget<Device>()
   const refresh = () =>
     queryClient.invalidateQueries({
       queryKey: caldavConnectionListQueryKey({ path: { program_id: programId } }),
     })
+  const showNew = (device: NewDevice) => {
+    resetting.close()
+    setUp.show(device)
+    void refresh()
+  }
   const create = useMutation({
     ...caldavConnectionCreateMutation(),
-    onSuccess: (device) => {
-      setUp.show(device)
-      void refresh()
-    },
+    onSuccess: showNew,
     onError: toastError,
+  })
+  const reset = useMutation({
+    ...caldavConnectionResetMutation(),
+    onSuccess: showNew,
+    onError: (err) => (resetting.close(), toastError(err)),
   })
   const remove = useMutation({
     ...caldavConnectionDeleteMutation(),
@@ -163,9 +176,18 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
     },
     onError: (err) => (disconnecting.close(), toastError(err)),
   })
-  const push = usePushQuestion()
+  const push = usePushQuestion(
+    // Once a device has really synced, and not over the setup dialog.
+    Boolean(state.data?.task_notifications) &&
+      Boolean(state.data?.items.some((d) => d.client !== null)) &&
+      setUp.target === null,
+  )
   if (state.data && !state.data.available) return null
   const connect = () => create.mutate({ path: { program_id: programId } })
+  const resetNow = (device: Device) => reset.mutate({ path: { connection_id: device.id } })
+  // A device that never synced has nothing to lose; one in use stops syncing until set up again.
+  const setUpAgain = (device: Device) =>
+    device.client === null ? resetNow(device) : resetting.show(device)
   const addButton = (
     <Button size="sm" disabled={create.isPending} onClick={connect}>
       <Plus aria-hidden />
@@ -191,7 +213,7 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
         }
       >
         {(s) => (
-          <RowActionsContext value={{ setUp: setUp.show, disconnect: disconnecting.show }}>
+          <RowActionsContext value={{ setUpAgain, disconnect: disconnecting.show }}>
             <SettingsTable
               label={m.tasks_reminders_title()}
               data={s.items}
@@ -204,13 +226,17 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
       </AsyncBoundary>
       <SetUpDialog
         {...setUp.props}
-        onOpenChangeComplete={(open) => {
-          setUp.props.onOpenChangeComplete(open)
-          if (!open) push.offer()
-        }}
         device={setUp.target}
         server={state.data?.server_url ?? ''}
         username={state.data?.username ?? ''}
+      />
+      <ConfirmDialog
+        {...resetting.props}
+        title={m.tasks_reminders_set_up_again_title()}
+        description={m.tasks_reminders_set_up_again_desc()}
+        confirmLabel={m.tasks_reminders_set_up_again()}
+        pending={reset.isPending}
+        onConfirm={() => resetting.target && resetNow(resetting.target)}
       />
       <ConfirmDialog
         {...disconnecting.props}
@@ -223,7 +249,7 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
           remove.mutate({ path: { connection_id: disconnecting.target.id } })
         }
       />
-      <AlertDialog open={push.open} onOpenChange={push.setOpen}>
+      <AlertDialog open={push.open} onOpenChange={(open) => !open && push.keep()}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{m.tasks_reminders_push_title()}</AlertDialogTitle>
@@ -242,34 +268,31 @@ export default function RemindersSection({ scope }: SettingsSectionProps) {
 }
 
 /**
- * After a device is set up, asks once whether to stop Semestra's own to-do reminders: Reminders
- * alerts at the due time too, so with both on each to-do would be announced twice.
+ * Asks once whether to stop Semestra's own task notifications: Reminders alerts at the due time
+ * too, so with both on each task would be announced twice. `relevant` says a device has synced
+ * and the user gets those notifications. The setting is the account's, for every Program.
  */
-function usePushQuestion() {
+function usePushQuestion(relevant: boolean) {
   const queryClient = useQueryClient()
-  const [asked, setAsked] = useUiPref('tasks.reminders-push-asked', false)
-  const [open, setOpen] = useState(false)
-  const settings = useQuery(settingsValueGetOptions(NOTIFICATIONS))
+  const [asked, setAsked, loaded] = useUiPref('tasks.reminders-push-asked', false)
   const update = useMutation({
     ...settingsValueUpdateMutation(),
-    onSuccess: (result) =>
-      queryClient.setQueryData(settingsValueGetQueryKey(NOTIFICATIONS), result),
+    onSuccess: (result) => {
+      queryClient.setQueryData(settingsValueGetQueryKey(NOTIFICATIONS), result)
+      void queryClient.invalidateQueries({ queryKey: [{ _id: 'caldavConnectionList' }] })
+    },
     onError: toastError,
   })
-  const taskReminder = settings.data?.values.task_reminder
   return {
-    open,
-    setOpen,
-    offer: () => {
-      if (asked || taskReminder === undefined || taskReminder === 'off') return
+    open: relevant && loaded && !asked,
+    keep: () => setAsked(true),
+    turnOff: () => {
       setAsked(true)
-      setOpen(true)
-    },
-    turnOff: () =>
       update.mutate({
         path: NOTIFICATIONS.path,
         body: { ...NOTIFICATIONS.query, values: { task_reminder: 'off' } },
-      }),
+      })
+    },
   }
 }
 
@@ -283,23 +306,33 @@ function SetUpDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   onOpenChangeComplete: (open: boolean) => void
-  device: Device | null
+  device: NewDevice | null
   server: string
   username: string
 }) {
-  // The link is good for 15 minutes; a new one is made each time the dialog opens.
+  // The link is good for 15 minutes; a new one is fetched a minute before it runs out, so the
+  // code on screen always works. It needs the password, which only this dialog has.
   const link = useQuery({
     queryKey: ['caldav-setup-link', device?.id],
     queryFn: async () =>
       (
         await caldavConnectionSetupLink({
           path: { connection_id: device?.id ?? '' },
+          body: { password: device?.password ?? '' },
           throwOnError: true,
         })
       ).data,
+    initialData: device?.setup,
     enabled: props.open && device !== null,
-    staleTime: 10 * 60_000,
+    staleTime: Infinity,
     gcTime: 0,
+    refetchInterval: (query) => {
+      const expires = query.state.data ? new Date(query.state.data.expires_at).getTime() : 0
+      // Timers longer than about 24 days fire at once, so stay within the link's life.
+      return query.state.data
+        ? Math.min(Math.max(expires - Date.now() - 60_000, 5_000), 15 * 60_000)
+        : false
+    },
   })
   return (
     <Dialog {...props}>

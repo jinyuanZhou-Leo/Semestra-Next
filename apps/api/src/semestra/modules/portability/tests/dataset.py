@@ -388,7 +388,6 @@ async def populate(
                 **u,
                 program_id=program.id,
                 token_hash=f"caldav-token-hash-{program.id}",
-                token_encrypted="sealed",
                 created_at=NOW,
             ),
             CaldavItem(**u, task_id=task_id, uid=f"uid-{task_id}", name=f"{task_id}.ics", ical=""),

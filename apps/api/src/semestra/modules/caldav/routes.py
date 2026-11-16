@@ -14,9 +14,10 @@ import base64
 import binascii
 import xml.etree.ElementTree as ET
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
 from typing import Annotated
+from urllib.parse import unquote, urlsplit
 
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 
@@ -24,7 +25,6 @@ from semestra.core.context import Ctx, get_anonymous_ctx, run_after_commit
 from semestra.core.errors import AppError, not_found
 from semestra.modules.academics import service as academics
 from semestra.modules.auth import service as auth
-from semestra.modules.auth.ratelimit import hit
 from semestra.modules.caldav import connections, dav, vtodo
 from semestra.modules.caldav.connections import HOME, PRINCIPAL, ROOT
 from semestra.modules.caldav.dav import CALDAV, CS, DAV, ICAL, Resource, tag
@@ -42,12 +42,23 @@ router = APIRouter(tags=["caldav"])
 
 # A sync is a handful of requests and devices sync every 15 minutes or on opening the app; this
 # leaves plenty for many devices' worth of edits while stopping a runaway client.
+# Counted in this process, not in the database: a read-only sync must not wait for SQLite's one
+# writer (`connections.SEEN_EVERY`). A restart forgets the counts, which is fine for this.
 REQUESTS_PER_HOUR = 1200
-_HOUR = timedelta(hours=1)
+_requests = TTLCache[str, list[int], float](maxsize=10_000, ttl=3600)
+
+
+def _over_limit(connection_id: str) -> bool:
+    # The entry is made once and then only mutated, so it expires an hour after the first request.
+    count = _requests.setdefault(connection_id, [0])
+    count[0] += 1
+    return count[0] > REQUESTS_PER_HOUR
+
+
 # Making, changing or moving collections is answered 403 (lists are managed in the app).
-METHODS = ["OPTIONS", "PROPFIND", "REPORT", "GET", "HEAD", "PUT", "DELETE"]
-METHODS += ["PROPPATCH", "MKCALENDAR", "MKCOL", "MOVE", "COPY"]
-ALLOW = "OPTIONS, PROPFIND, REPORT, GET, HEAD, PUT, DELETE"
+METHODS = ["OPTIONS", "PROPFIND", "REPORT", "GET", "HEAD", "PUT", "DELETE", "MOVE"]
+METHODS += ["PROPPATCH", "MKCALENDAR", "MKCOL", "COPY"]
+ALLOW = "OPTIONS, PROPFIND, REPORT, GET, HEAD, PUT, DELETE, MOVE"
 XML = "application/xml; charset=utf-8"
 ICS = "text/calendar; charset=utf-8; component=VTODO"
 CHALLENGE = {"WWW-Authenticate": 'Basic realm="Semestra", charset="UTF-8"'}
@@ -72,13 +83,13 @@ async def well_known(ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> Respons
 @router.get("/caldav-setup/{code}.mobileconfig", include_in_schema=False)
 async def setup_profile(code: str, ctx: Annotated[Ctx, Depends(get_anonymous_ctx)]) -> Response:
     """Public: the code is short-lived and encrypted (`connections.setup_link`)."""
-    row = await connections.connection_by_setup_code(ctx, code)
+    row, password = await connections.connection_by_setup_code(ctx, code)
     user = await auth.user_by_id(ctx.db, row.user_id)
     if user is None:
         raise not_found()
     ctx.user = user
     program = await academics.get_program_row(ctx, row.program_id)
-    body = connections.profile(ctx, row, user.email, program.name)
+    body = connections.profile(ctx, row, password, user.email, program.name)
     return Response(
         body,
         media_type="application/x-apple-aspen-config",
@@ -96,15 +107,8 @@ async def caldav(
     connection = await _sign_in(ctx, request)
     if connection is None:
         return Response(status_code=401, headers=CHALLENGE)
-    await hit(
-        ctx.db,
-        ctx.settings,
-        ctx.now,
-        "caldav",
-        connection.id,
-        limit=REQUESTS_PER_HOUR,
-        window=_HOUR,
-    )
+    if _over_limit(connection.id):
+        return Response(status_code=429, headers={"Retry-After": "600"})
     program = await academics.get_program_row(ctx, connection.program_id)
     handler = _Handler(ctx, Store(ctx, program), request, f"{ROOT}{path}")
     try:
@@ -166,6 +170,7 @@ class _Handler:
             "HEAD": self.get,
             "PUT": self.put,
             "DELETE": self.delete,
+            "MOVE": self.move,
         }
         handler = handlers.get(method)
         if handler is None:
@@ -288,6 +293,28 @@ class _Handler:
         if not deleted:
             raise not_found()
         return Response(status_code=204)
+
+    async def move(self) -> Response:
+        """Moves a task to another list; collections themselves do not move."""
+        source, name = await self._target() if self.path.startswith(HOME) else (None, None)
+        destination = unquote(urlsplit(self.request.headers.get("destination", "")).path)
+        if source is None or name is None or not destination.startswith(HOME):
+            return Response(status_code=403)
+        key, _, new_name = destination.removeprefix(HOME).partition("/")
+        target = await self.store.collection(key)
+        if target is None or not new_name.endswith(".ics") or "/" in new_name:
+            return Response(status_code=403 if target else 409)
+        moved = await self.store.move(
+            source,
+            name,
+            target,
+            new_name,
+            if_match=self.request.headers.get("if-match"),
+            overwrite=self.request.headers.get("overwrite", "T").upper() != "F",
+        )
+        if not moved:
+            raise not_found()
+        return Response(status_code=201)
 
     # --- properties -----------------------------------------------------------------------
 

@@ -1730,10 +1730,6 @@ export type CaldavConnectionOut = {
      * Created At
      */
     created_at: string;
-    /**
-     * Password
-     */
-    password: string | null;
 };
 
 /**
@@ -1759,6 +1755,43 @@ export type CaldavConnections = {
      * Items
      */
     items: Array<CaldavConnectionOut>;
+    /**
+     * Task Notifications
+     */
+    task_notifications: boolean;
+};
+
+/**
+ * CaldavNewConnection
+ *
+ * The password is shown this once; only its hash is kept.
+ */
+export type CaldavNewConnection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Client
+     */
+    client: 'ios' | 'macos' | 'other' | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Password
+     */
+    password: string;
+    setup: CaldavSetupLink;
 };
 
 /**
@@ -1775,6 +1808,18 @@ export type CaldavSetupLink = {
      * Expires At
      */
     expires_at: string;
+};
+
+/**
+ * CaldavSetupLinkInBody
+ */
+export type CaldavSetupLinkInBody = {
+    /**
+     * Password
+     *
+     * From the create response
+     */
+    password: string;
 };
 
 /**
@@ -16158,7 +16203,7 @@ export type CaldavConnectionCreateResponses = {
     /**
      * Successful Response
      */
-    200: CaldavConnectionOut;
+    200: CaldavNewConnection;
 };
 
 export type CaldavConnectionCreateResponse = CaldavConnectionCreateResponses[keyof CaldavConnectionCreateResponses];
@@ -16195,8 +16240,40 @@ export type CaldavConnectionDeleteResponses = {
 
 export type CaldavConnectionDeleteResponse = CaldavConnectionDeleteResponses[keyof CaldavConnectionDeleteResponses];
 
-export type CaldavConnectionSetupLinkData = {
+export type CaldavConnectionResetData = {
     body?: never;
+    path: {
+        /**
+         * Connection Id
+         *
+         * CaldavConnectionOut id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/caldav-connections/{connection_id}:reset';
+};
+
+export type CaldavConnectionResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionResetError = CaldavConnectionResetErrors[keyof CaldavConnectionResetErrors];
+
+export type CaldavConnectionResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavNewConnection;
+};
+
+export type CaldavConnectionResetResponse = CaldavConnectionResetResponses[keyof CaldavConnectionResetResponses];
+
+export type CaldavConnectionSetupLinkData = {
+    body: CaldavSetupLinkInBody;
     path: {
         /**
          * Connection Id

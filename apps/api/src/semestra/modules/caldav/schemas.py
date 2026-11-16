@@ -22,8 +22,6 @@ class CaldavConnectionOut(BaseModel):
     client: Client | None
     last_seen_at: datetime | None
     created_at: datetime
-    # The device's password; None when the encryption key changed (delete and add it again).
-    password: str | None
 
 
 class CaldavConnections(BaseModel):
@@ -34,6 +32,9 @@ class CaldavConnections(BaseModel):
     server_url: str
     username: str
     items: list[CaldavConnectionOut]
+    # The user gets Semestra's own task notifications (task reminders are on and a browser has
+    # notifications turned on), so a device's own alerts would repeat them.
+    task_notifications: bool
 
 
 class CaldavSetupLink(BaseModel):
@@ -41,6 +42,18 @@ class CaldavSetupLink(BaseModel):
 
     url: str
     expires_at: datetime
+
+
+class CaldavNewConnection(CaldavConnectionOut):
+    """The password is shown this once; only its hash is kept."""
+
+    password: str
+    setup: CaldavSetupLink
+
+
+class CaldavSetupLinkIn(BaseModel):
+    connection_id: Id = Field(description="CaldavConnectionOut id")
+    password: str = Field(min_length=1, max_length=200, description="From the create response")
 
 
 class CaldavConnectionDeleted(BaseModel):

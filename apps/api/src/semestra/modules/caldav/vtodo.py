@@ -185,7 +185,7 @@ def render(task: TaskState, uid: str, kept: str | None, zone: ZoneInfo) -> bytes
             alarm = Alarm()
             alarm.add("ACTION", "DISPLAY")
             alarm.add("DESCRIPTION", task.title)
-            alarm.add("TRIGGER", due)
+            alarm.add("TRIGGER", due, parameters={"VALUE": "DATE-TIME"})
             todo.subcomponents.insert(0, alarm)
         else:
             todo.add("DUE", task.due_date)

@@ -6,11 +6,12 @@ from semestra.core.context import Ctx
 from semestra.modules.caldav import connections
 from semestra.modules.caldav.schemas import (
     CaldavConnectionDeleted,
-    CaldavConnectionOut,
     CaldavConnectionRef,
     CaldavConnections,
+    CaldavNewConnection,
     CaldavProgramRef,
     CaldavSetupLink,
+    CaldavSetupLinkIn,
 )
 
 TAGS = ("caldav",)
@@ -32,13 +33,14 @@ async def connection_list(ctx: Ctx, inp: CaldavProgramRef) -> CaldavConnections:
 @capability(
     name="caldav.connection.create",
     summary="Add a device that syncs a Program's to-do lists over CalDAV.",
-    description="Returns its password; it syncs once the device signs in with it.",
+    description="""Returns its password (shown only this once) and a setup link; it syncs once
+the device signs in. Connections no device has used within a day are removed.""",
     effect="write",
     http=Http("POST", "/programs/{program_id}/caldav-connections"),
     expose=("http",),
     tags=TAGS,
 )
-async def connection_create(ctx: Ctx, inp: CaldavProgramRef) -> CaldavConnectionOut:
+async def connection_create(ctx: Ctx, inp: CaldavProgramRef) -> CaldavNewConnection:
     return await connections.create_connection(ctx, inp.program_id)
 
 
@@ -57,13 +59,27 @@ async def connection_delete(ctx: Ctx, inp: CaldavConnectionRef) -> CaldavConnect
 
 
 @capability(
+    name="caldav.connection.reset",
+    summary="Give a device a new CalDAV password, to set it up again.",
+    description="The old password stops working; returns the new one (shown only this once).",
+    effect="write",
+    http=Http("POST", "/caldav-connections/{connection_id}:reset"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def connection_reset(ctx: Ctx, inp: CaldavConnectionRef) -> CaldavNewConnection:
+    return await connections.reset_connection(ctx, inp.connection_id)
+
+
+@capability(
     name="caldav.connection.setup_link",
     summary="Make a short-lived link that sets up an Apple device.",
-    description="Opened on an iPhone, iPad or Mac, it installs a profile with the account.",
+    description="""Opened on an iPhone, iPad or Mac, it installs a profile with the account.
+Needs the password from the create response, which the server does not keep.""",
     effect="read",
     http=Http("POST", "/caldav-connections/{connection_id}/setup-link"),
     expose=("http",),
     tags=TAGS,
 )
-async def connection_setup_link(ctx: Ctx, inp: CaldavConnectionRef) -> CaldavSetupLink:
-    return await connections.setup_link(ctx, inp.connection_id)
+async def connection_setup_link(ctx: Ctx, inp: CaldavSetupLinkIn) -> CaldavSetupLink:
+    return await connections.setup_link(ctx, inp.connection_id, inp.password)
