@@ -17,7 +17,8 @@ const TABLE = /^\s*\|.*\|\s*\n\s*\|(\s*:?-+:?\s*\|)+\s*$/m
 /**
  * Markdown typed or pasted into a note becomes formatted text (M14 §4), the way Notion and
  * Typora do it: Enter on a delimiter row (`| --- | --- |`) under a header row turns the two lines
- * into a table, and pasted Markdown (plain text, or any text holding a table) is parsed.
+ * into a table, and pasted Markdown (plain text, or any text holding a table) is parsed; text
+ * pasted into a table cell stays plain text.
  * Lists, checklists and inline marks already convert as you type (StarterKit's input rules).
  */
 export const MarkdownInput = Extension.create({
@@ -68,6 +69,16 @@ export const MarkdownInput = Extension.create({
           handlePaste: (_view, event) => {
             const text = event.clipboardData?.getData('text/plain')
             const html = event.clipboardData?.getData('text/html')
+            // A table cell holds one paragraph: lines become line breaks, formatting is dropped.
+            if (text && editor.isActive('table')) {
+              const lines = text.replace(/\r\n?/g, '\n').split('\n')
+              return editor.commands.insertContent(
+                lines.flatMap((line, i) => [
+                  ...(i > 0 ? [{ type: 'hardBreak' }] : []),
+                  ...(line ? [{ type: 'text', text: line }] : []),
+                ]),
+              )
+            }
             // Rich text keeps its formatting; a table copied from a code editor is Markdown.
             if (!text || (html && !TABLE.test(text))) return false
             return editor.commands.insertContent(text, { contentType: 'markdown' })

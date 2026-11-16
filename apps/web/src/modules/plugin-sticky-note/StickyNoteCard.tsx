@@ -2,21 +2,26 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import { useEffect, useRef } from 'react'
 import type { CardProps } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { toast } from 'sonner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { colorTint } from '../plugin-kit/colors'
 import { useCardSettings } from '../plugin-kit/useCardSettings'
 import { noteExtensions } from './extensions'
-import { NOTE_MAX_CHARS, type StickySettings } from './schema'
+import type { StickySettings } from './schema'
 import { Toolbar } from './Toolbar'
 import './note.css'
 
 /** Sticky note (M14 §4): always editable in place, like a paper note; saved 800 ms after typing. */
 export default function StickyNoteCard({ instanceId, size, settings }: CardProps<StickySettings>) {
-  const { value, update, status } = useCardSettings(instanceId, settings, 800)
+  const { value, update, hasUnsaved, status } = useCardSettings(instanceId, settings, 800)
   // The Markdown the editor last showed or wrote; anything else came from elsewhere.
   const shown = useRef(value.content)
   const editor = useEditor({
-    extensions: noteExtensions(m.sticky_placeholder()),
+    extensions: noteExtensions({
+      placeholder: m.sticky_placeholder(),
+      // One toast however many keys are refused.
+      onTooLong: () => toast.error(m.sticky_too_long(), { id: 'sticky-too-long' }),
+    }),
     content: value.content,
     contentType: 'markdown',
     editorProps: {
@@ -24,21 +29,24 @@ export default function StickyNoteCard({ instanceId, size, settings }: CardProps
     },
     onUpdate: ({ editor: e }) => {
       const content = e.getMarkdown()
-      if (content.length > NOTE_MAX_CHARS) {
-        e.commands.undo()
-        return
-      }
       shown.current = content
       update({ content })
     },
   })
 
-  // The agent (or another tab) changed the note: show it, unless the user is typing.
+  // The agent (or another tab) changed the note: show it, keeping the cursor where it was if
+  // the note is being edited. Not while local edits are unsaved: saving them replaces the note
+  // anyway, and the server echoing an earlier save would undo the newest keystrokes.
   useEffect(() => {
-    if (!editor || value.content === shown.current || editor.isFocused) return
-    shown.current = value.content
-    editor.commands.setContent(value.content, { contentType: 'markdown', emitUpdate: false })
-  }, [editor, value.content])
+    if (!editor || settings.content === shown.current || hasUnsaved()) return
+    shown.current = settings.content
+    const { from, to } = editor.state.selection
+    editor.commands.setContent(settings.content, { contentType: 'markdown', emitUpdate: false })
+    if (editor.isFocused) {
+      const end = editor.state.doc.content.size
+      editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) })
+    }
+  }, [editor, settings.content, hasUnsaved])
 
   return (
     <div

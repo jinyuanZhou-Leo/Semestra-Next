@@ -20,7 +20,11 @@ class NoteListInput(BaseModel):
 class NoteUpdateInput(BaseModel):
     instance_id: InstanceId = Field(description="Sticky note card instance id")
     content: Annotated[str, Field(max_length=MAX_CONTENT)] = Field(
-        description="Markdown text: the lines to add, or the whole new note with mode replace"
+        description=(
+            "Markdown text: the lines to add, or the whole new note with mode replace. A single"
+            " line break is a line break; checklists (- [ ] item) and GFM tables work; HTML is"
+            " shown as plain text"
+        )
     )
     mode: Literal["append", "replace"] = Field(
         default="append",

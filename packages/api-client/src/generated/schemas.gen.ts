@@ -13041,7 +13041,7 @@ export const NoteUpdateInputBodySchema = {
             type: 'string',
             maxLength: 10000,
             title: 'Content',
-            description: 'Markdown text: the lines to add, or the whole new note with mode replace'
+            description: 'Markdown text: the lines to add, or the whole new note with mode replace. A single line break is a line break; checklists (- [ ] item) and GFM tables work; HTML is shown as plain text'
         },
         mode: {
             type: 'string',

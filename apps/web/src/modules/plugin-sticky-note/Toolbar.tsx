@@ -21,11 +21,13 @@ function Mark({
   icon: Icon,
   label,
   pressed,
+  disabled = false,
   onToggle,
 }: {
   icon: LucideIcon
   label: string
   pressed: boolean
+  disabled?: boolean
   onToggle: () => void
 }) {
   return (
@@ -36,6 +38,7 @@ function Mark({
             size="sm"
             aria-label={label}
             pressed={pressed}
+            disabled={disabled}
             onMouseDown={keepFocus}
             onPressedChange={onToggle}
             className="h-7 min-w-7 px-1.5"
@@ -58,6 +61,9 @@ export function Toolbar({ editor }: { editor: Editor }) {
       italic: e.isActive('italic'),
       bullet: e.isActive('bulletList'),
       task: e.isActive('taskList'),
+      // Not in a table cell, which holds one paragraph (see extensions.ts).
+      canList: e.can().toggleBulletList(),
+      canTask: e.can().toggleTaskList(),
       link: e.isActive('link'),
       table: e.isActive('table'),
     }),
@@ -81,12 +87,14 @@ export function Toolbar({ editor }: { editor: Editor }) {
         icon={List}
         label={m.sticky_format_list()}
         pressed={state.bullet}
+        disabled={!state.canList}
         onToggle={() => chain().toggleBulletList().run()}
       />
       <Mark
         icon={ListChecks}
         label={m.sticky_format_task()}
         pressed={state.task}
+        disabled={!state.canTask}
         onToggle={() => chain().toggleTaskList().run()}
       />
       <LinkButton editor={editor} active={state.link} />

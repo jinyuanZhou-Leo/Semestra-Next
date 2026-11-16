@@ -11,12 +11,17 @@ export function useCardSettings<T extends object>(
   instanceId: string,
   incoming: T,
   delayMs = 300,
-): { value: T; update: (patch: Partial<T>) => void; status: SaveStatus } {
+): {
+  value: T
+  update: (patch: Partial<T>) => void
+  hasUnsaved: () => boolean
+  status: SaveStatus
+} {
   const { save: saveToHost } = useHostCardSettings<T>(instanceId)
   const save = useCallback(
     (patch: Partial<T>) => saveToHost({ ...incoming, ...patch }),
     [saveToHost, incoming],
   )
-  const { value, update, status } = useOptimisticSettings(incoming, save, delayMs)
-  return { value, update, status }
+  const { value, update, hasUnsaved, status } = useOptimisticSettings(incoming, save, delayMs)
+  return { value, update, hasUnsaved, status }
 }

@@ -8,13 +8,20 @@ export type SaveStatus = 'idle' | 'saving' | 'error'
  * over it until they are saved. `save` must put the saved values into the query cache before it
  * resolves. A failed save drops the changes it carried and reports `status: 'error'`; edits made
  * while it was in flight are kept and sent on their own.
- * Pending changes are sent when the card unmounts or the page is hidden.
+ * Pending changes are sent when the card unmounts or the page is hidden. `hasUnsaved` says, at
+ * the time it is called (not as of the last render), whether local changes are not saved yet.
  */
 export function useOptimisticSettings<T extends object>(
   incoming: T,
   save: (patch: Partial<T>) => Promise<unknown>,
   delayMs: number,
-): { value: T; update: (patch: Partial<T>) => void; flush: () => void; status: SaveStatus } {
+): {
+  value: T
+  update: (patch: Partial<T>) => void
+  flush: () => void
+  hasUnsaved: () => boolean
+  status: SaveStatus
+} {
   const [pending, setPending] = useState<Partial<T> | null>(null)
   const [status, setStatus] = useState<SaveStatus>('idle')
   const pendingRef = useRef<Partial<T> | null>(null)
@@ -82,5 +89,10 @@ export function useOptimisticSettings<T extends object>(
     }
   }, [send])
 
-  return { value: { ...incoming, ...pending }, update, flush: send, status }
+  const hasUnsaved = useCallback(
+    () => pendingRef.current !== null || outstanding.current.length > 0,
+    [],
+  )
+
+  return { value: { ...incoming, ...pending }, update, flush: send, hasUnsaved, status }
 }
