@@ -1,4 +1,3 @@
-import type { Occurrence } from '@semestra/api-client'
 import { lmsProgramBindingGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { School } from 'lucide-react'
@@ -15,7 +14,7 @@ function useProvider(programId: string) {
 }
 
 /** The platform's logo on a calendar event read from it (`calendarSources` `Mark`, M04). */
-export function CalendarMark({ programId }: { programId: string }) {
+export function PlatformMark({ programId }: { programId: string }) {
   const { name, ui } = useProvider(programId)
   const Logo = ui?.logo ?? School
   return (
@@ -26,7 +25,10 @@ export function CalendarMark({ programId }: { programId: string }) {
   )
 }
 
-/** "Open in Canvas" in a platform event's details (`calendarSources` `OpenLabel`). */
-export function CalendarOpenLabel({ programId }: { programId: string; occurrence: Occurrence }) {
+/**
+ * "Open in Canvas": in a platform event's details (`calendarSources` `open.Label`) and the menu
+ * of a course file read from the platform (`files.itemActions`).
+ */
+export function OpenInPlatform({ programId }: { programId: string }) {
   return m.lms_open_in({ provider: useProvider(programId).name })
 }

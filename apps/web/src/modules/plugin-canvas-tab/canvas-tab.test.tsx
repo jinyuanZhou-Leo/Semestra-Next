@@ -71,6 +71,7 @@ const LINK: CourseLink = {
   external_term: '2026 Fall',
   web_url: 'https://q.utoronto.ca/courses/101',
   sync_enabled: false,
+  files_sync: true,
   synced_at: null,
   sync_errors: {},
   created_at: '2026-09-01T10:00:00Z',

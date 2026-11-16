@@ -5473,6 +5473,11 @@ export const CourseLinkSchema = {
             type: 'boolean',
             title: 'Sync Enabled'
         },
+        files_sync: {
+            type: 'boolean',
+            title: 'Files Sync',
+            description: 'The sync brings the course\'s files, pages and links in'
+        },
         synced_at: {
             anyOf: [
                 {
@@ -5513,6 +5518,7 @@ export const CourseLinkSchema = {
         'external_term',
         'web_url',
         'sync_enabled',
+        'files_sync',
         'synced_at',
         'sync_errors',
         'created_at'
@@ -8078,6 +8084,18 @@ export const FileMetaSchema = {
             type: 'boolean',
             title: 'Locked',
             default: false
+        },
+        folder_path: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Path',
+            description: 'Its folder below the course\'s root folder (course_files)'
         }
     },
     type: 'object',
@@ -10665,15 +10683,31 @@ export const LinkSetInputBodySchema = {
 export const LinkUpdateInputBodySchema = {
     properties: {
         sync_enabled: {
-            type: 'boolean',
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Sync Enabled',
             description: 'Show in the calendar, check updates'
+        },
+        files_sync: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Files Sync',
+            description: 'Bring the course\'s files, pages and links into its files'
         }
     },
     type: 'object',
-    required: [
-        'sync_enabled'
-    ],
     title: 'LinkUpdateInputBody'
 } as const;
 

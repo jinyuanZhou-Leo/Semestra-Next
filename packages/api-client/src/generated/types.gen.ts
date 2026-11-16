@@ -3158,6 +3158,12 @@ export type CourseLink = {
      */
     sync_enabled: boolean;
     /**
+     * Files Sync
+     *
+     * The sync brings the course's files, pages and links in
+     */
+    files_sync: boolean;
+    /**
      * Synced At
      *
      * Last background sync of the course
@@ -4617,6 +4623,12 @@ export type FileMeta = {
      * Locked
      */
     locked?: boolean;
+    /**
+     * Folder Path
+     *
+     * Its folder below the course's root folder (course_files)
+     */
+    folder_path?: string | null;
 };
 
 /**
@@ -6088,7 +6100,13 @@ export type LinkUpdateInputBody = {
      *
      * Show in the calendar, check updates
      */
-    sync_enabled: boolean;
+    sync_enabled?: boolean | null;
+    /**
+     * Files Sync
+     *
+     * Bring the course's files, pages and links into its files
+     */
+    files_sync?: boolean | null;
 };
 
 /**

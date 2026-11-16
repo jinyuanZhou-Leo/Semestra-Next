@@ -12161,8 +12161,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Turn LMS sync of a linked course on or off.",
-        "description": "Off: no calendar overlay and no update checks; reading still works. To remove the\nlink altogether use lms.course.link.delete.",
+        "summary": "Turn LMS sync of a linked course, or of its materials, on or off.",
+        "description": "`sync_enabled` off: no calendar overlay and no update checks; reading still\nworks. `files_sync` off: no new files, pages or links come into the course's files (those there\nstay).\nTo remove the link altogether use lms.course.link.delete.",
         "operationId": "lmsCourseLinkUpdate",
         "security": [
           {
@@ -12714,7 +12714,7 @@
           "lms"
         ],
         "summary": "Save a file of a linked course on the LMS into the course's files.",
-        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted.",
+        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted. A file the sync already brought into the course's files (its course materials) is\nreturned as it is, not saved again.",
         "operationId": "lmsFileSaveToCourse",
         "security": [
           {
@@ -24157,6 +24157,11 @@
             "type": "boolean",
             "title": "Sync Enabled"
           },
+          "files_sync": {
+            "type": "boolean",
+            "title": "Files Sync",
+            "description": "The sync brings the course's files, pages and links in"
+          },
           "synced_at": {
             "anyOf": [
               {
@@ -24197,6 +24202,7 @@
           "external_term",
           "web_url",
           "sync_enabled",
+          "files_sync",
           "synced_at",
           "sync_errors",
           "created_at"
@@ -26705,6 +26711,18 @@
             "type": "boolean",
             "title": "Locked",
             "default": false
+          },
+          "folder_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Path",
+            "description": "Its folder below the course's root folder (course_files)"
           }
         },
         "type": "object",
@@ -29243,15 +29261,31 @@
       "LinkUpdateInputBody": {
         "properties": {
           "sync_enabled": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Sync Enabled",
             "description": "Show in the calendar, check updates"
+          },
+          "files_sync": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files Sync",
+            "description": "Bring the course's files, pages and links into its files"
           }
         },
         "type": "object",
-        "required": [
-          "sync_enabled"
-        ],
         "title": "LinkUpdateInputBody"
       },
       "LmsActivityItem": {

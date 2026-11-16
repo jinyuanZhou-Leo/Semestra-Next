@@ -2488,6 +2488,8 @@
   "lms_course_pick_placeholder": "Choose a course",
   "lms_course_sync": "Sync this course",
   "lms_course_sync_description": "Keep imported assignments in step with {provider}, offer new ones and show its events in the calendar.",
+  "lms_course_files_sync": "Bring in course materials",
+  "lms_course_files_sync_description": "Slides, pages and recordings from {provider} appear in this course's files, sorted by type. They are read when opened and use no storage.",
   "lms_sync_line_synced": "{provider} · synced {ago}",
   "lms_sync_just_now": "just now",
   "lms_sync_command_title": "Sync LMS",

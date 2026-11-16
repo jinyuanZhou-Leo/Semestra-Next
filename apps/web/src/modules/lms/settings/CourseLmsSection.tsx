@@ -158,6 +158,7 @@ function LinkedCourse({
 }) {
   const queryClient = useQueryClient()
   const syncId = useId()
+  const filesId = useId()
   const now = useNow()
   const openConnections = useOpenConnections()
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
@@ -266,6 +267,20 @@ function LinkedCourse({
             disabled={update.isPending}
             onCheckedChange={(on) =>
               update.mutate({ path: { course_id: courseId }, body: { sync_enabled: on } })
+            }
+          />
+        </SettingRow>
+        <SettingRow
+          label={m.lms_course_files_sync()}
+          description={m.lms_course_files_sync_description({ provider })}
+          htmlFor={filesId}
+        >
+          <Switch
+            id={filesId}
+            checked={link.sync_enabled && link.files_sync}
+            disabled={update.isPending || !link.sync_enabled}
+            onCheckedChange={(on) =>
+              update.mutate({ path: { course_id: courseId }, body: { files_sync: on } })
             }
           />
         </SettingRow>

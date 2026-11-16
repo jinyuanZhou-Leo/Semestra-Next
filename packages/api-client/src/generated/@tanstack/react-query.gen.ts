@@ -4338,10 +4338,12 @@ export const lmsCourseLinkGetOptions = (options: Options<LmsCourseLinkGetData>) 
 });
 
 /**
- * Turn LMS sync of a linked course on or off.
+ * Turn LMS sync of a linked course, or of its materials, on or off.
  *
- * Off: no calendar overlay and no update checks; reading still works. To remove the
- * link altogether use lms.course.link.delete.
+ * `sync_enabled` off: no calendar overlay and no update checks; reading still
+ * works. `files_sync` off: no new files, pages or links come into the course's files (those there
+ * stay).
+ * To remove the link altogether use lms.course.link.delete.
  */
 export const lmsCourseLinkUpdateMutation = (options?: Partial<Options<LmsCourseLinkUpdateData>>): UseMutationOptions<LmsCourseLinkUpdateResponse, LmsCourseLinkUpdateError, Options<LmsCourseLinkUpdateData>> => {
     const mutationOptions: UseMutationOptions<LmsCourseLinkUpdateResponse, LmsCourseLinkUpdateError, Options<LmsCourseLinkUpdateData>> = {
@@ -4570,7 +4572,8 @@ export const lmsFilePreviewOptions = (options: Options<LmsFilePreviewData>) => q
  *
  * Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
  * is then processed like an upload and can be searched (files.document.search), cited and
- * extracted.
+ * extracted. A file the sync already brought into the course's files (its course materials) is
+ * returned as it is, not saved again.
  */
 export const lmsFileSaveToCourseMutation = (options?: Partial<Options<LmsFileSaveToCourseData>>): UseMutationOptions<LmsFileSaveToCourseResponse, LmsFileSaveToCourseError, Options<LmsFileSaveToCourseData>> => {
     const mutationOptions: UseMutationOptions<LmsFileSaveToCourseResponse, LmsFileSaveToCourseError, Options<LmsFileSaveToCourseData>> = {

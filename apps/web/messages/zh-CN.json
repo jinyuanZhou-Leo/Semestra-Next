@@ -2488,6 +2488,8 @@
   "lms_course_pick_placeholder": "选择课程",
   "lms_course_sync": "同步这门课",
   "lms_course_sync_description": "已导入的作业跟随 {provider} 更新，提醒新作业，并在日历中显示它的事件。",
+  "lms_course_files_sync": "同步课程资料",
+  "lms_course_files_sync_description": "{provider} 上的讲义、页面和录播按类型出现在这门课的文件中，打开时才读取，不占用存储空间。",
   "lms_sync_line_synced": "{provider} · {ago}同步",
   "lms_sync_just_now": "刚刚",
   "lms_sync_command_title": "同步 LMS",

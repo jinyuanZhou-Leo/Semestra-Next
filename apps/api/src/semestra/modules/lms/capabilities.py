@@ -638,7 +638,8 @@ async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
     summary="Save a file of a linked course on the LMS into the course's files.",
     description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
 is then processed like an upload and can be searched (files.document.search), cited and
-extracted.""",
+extracted. A file the sync already brought into the course's files (its course materials) is
+returned as it is, not saved again.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/files/{file_id}:save"),
     preview=previews.preview_file_save,

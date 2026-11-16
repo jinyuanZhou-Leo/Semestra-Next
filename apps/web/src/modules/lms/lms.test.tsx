@@ -66,6 +66,7 @@ function link(overrides: Partial<CourseLink> = {}): CourseLink {
     external_term: '2026 Fall',
     web_url: 'https://q.utoronto.ca/courses/101',
     sync_enabled: true,
+    files_sync: true,
     synced_at: '2026-09-02T10:00:00Z',
     sync_errors: {},
     created_at: '2026-09-01T10:00:00Z',
@@ -362,6 +363,8 @@ test('course settings: guidance without a binding, then the calendar switch and 
   )
   await userEvent.click(screen.getByRole('switch', { name: 'Sync this course' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ sync_enabled: false }))
+  await userEvent.click(screen.getByRole('switch', { name: 'Bring in course materials' }))
+  await waitFor(() => expect(patched).toHaveBeenCalledWith({ files_sync: false }))
   await userEvent.click(screen.getByRole('button', { name: /^Actions for/ }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Unlink…' }))
   const confirm = await screen.findByRole('alertdialog')

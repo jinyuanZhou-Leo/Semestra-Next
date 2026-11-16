@@ -4722,10 +4722,12 @@ export const lmsCourseLinkGet = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * Turn LMS sync of a linked course on or off.
+ * Turn LMS sync of a linked course, or of its materials, on or off.
  *
- * Off: no calendar overlay and no update checks; reading still works. To remove the
- * link altogether use lms.course.link.delete.
+ * `sync_enabled` off: no calendar overlay and no update checks; reading still
+ * works. `files_sync` off: no new files, pages or links come into the course's files (those there
+ * stay).
+ * To remove the link altogether use lms.course.link.delete.
  */
 export const lmsCourseLinkUpdate = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkUpdateData, ThrowOnError>): RequestResult<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError> => (options.client ?? client).patch<LmsCourseLinkUpdateResponses, LmsCourseLinkUpdateErrors, ThrowOnError>({
     security: [{
@@ -4944,7 +4946,8 @@ export const lmsFilePreview = <ThrowOnError extends boolean = false>(options: Op
  *
  * Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
  * is then processed like an upload and can be searched (files.document.search), cited and
- * extracted.
+ * extracted. A file the sync already brought into the course's files (its course materials) is
+ * returned as it is, not saved again.
  */
 export const lmsFileSaveToCourse = <ThrowOnError extends boolean = false>(options: Options<LmsFileSaveToCourseData, ThrowOnError>): RequestResult<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError> => (options.client ?? client).post<LmsFileSaveToCourseResponses, LmsFileSaveToCourseErrors, ThrowOnError>({
     security: [

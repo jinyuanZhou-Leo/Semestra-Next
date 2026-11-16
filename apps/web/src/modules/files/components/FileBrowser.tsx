@@ -232,7 +232,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       </Tooltip>
       <DropdownMenuContent
         align="end"
-        className={programId && actions.length > 0 ? 'w-72' : undefined}
+        className={programId && actions.some((a) => a.description) ? 'w-72' : undefined}
       >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
           <Pencil aria-hidden />
@@ -262,7 +262,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
               >
                 <action.icon aria-hidden />
                 <span className="min-w-0">
-                  <span className="block">{action.title()}</span>
+                  <span className="block">
+                    <action.Label programId={programId} item={item} />
+                  </span>
                   {action.description ? (
                     <span className="block text-xs text-muted-foreground">
                       {action.description()}
