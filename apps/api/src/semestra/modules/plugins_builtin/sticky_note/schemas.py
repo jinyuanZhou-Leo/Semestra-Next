@@ -24,7 +24,7 @@ class NoteUpdateInput(BaseModel):
     )
     mode: Literal["append", "replace"] = Field(
         default="append",
-        description="append adds the text on a new line after the note; replace overwrites it",
+        description="append adds the text after the note as a new block; replace overwrites it",
     )
 
 

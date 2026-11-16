@@ -85,7 +85,8 @@ export function CardFrame({
   const props = { contribution, stored: card.settings, scope, instanceId: card.id, size: card.size }
   // A small (1×1) card names itself in its content, so its title row would only take space;
   // cards whose content cannot say what they are keep it (`keepTitleWhenSmall`).
-  const titled = card.size !== 's' || contribution.keepTitleWhenSmall === true
+  const titled =
+    !contribution.bleed && (card.size !== 's' || contribution.keepTitleWhenSmall === true)
   const showTitle = titled || editing
 
   // The header's buttons, the card's own and its settings, show on hover or focus where there is
@@ -197,8 +198,9 @@ export function CardFrame({
         )}
         <div
           className={cn(
-            'flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-3',
-            !titled && 'pt-3',
+            'flex min-h-0 flex-1 flex-col overflow-hidden',
+            !contribution.bleed && 'px-4 pb-3',
+            !titled && !contribution.bleed && 'pt-3',
             // Empty states inside a card stay below the card's title in weight (M00 §4.5 tier 2).
             '[&_[data-slot=empty-icon]]:mb-0 [&_[data-slot=empty-title]]:text-sm',
           )}

@@ -31,7 +31,7 @@ async def test_list_and_update_a_note(
     # By default the lines are added after the note, so nothing has to be copied back.
     r = await client.put(f"/sticky/notes/{a}", json={"content": "- midterm: ch. 1-4"})
     assert r.status_code == 200, r.text
-    assert r.json()["content"] == "old\n- midterm: ch. 1-4"
+    assert r.json()["content"] == "old\n\n- midterm: ch. 1-4"
     assert cards.items[a].settings["color"] == "subject-3"
 
     r = await client.put(f"/sticky/notes/{a}", json={"content": "new", "mode": "replace"})

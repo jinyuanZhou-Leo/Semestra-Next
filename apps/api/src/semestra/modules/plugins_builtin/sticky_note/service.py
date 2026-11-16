@@ -38,7 +38,9 @@ async def note_record(ctx: Ctx, instance_id: str) -> Note | None:
 async def _new_content(ctx: Ctx, instance_id: str, content: str, mode: str) -> str:
     current = _note(await instances.get_card_instance(ctx, instance_id, card_ids=CARD_IDS))
     if mode == "append" and current.content:
-        content = f"{current.content.rstrip(chr(10))}\n{content}"
+        # A blank line keeps the new text its own block: Markdown would join a line written
+        # right under a list item to that item.
+        content = f"{current.content.rstrip(chr(10))}\n\n{content}"
     if len(content) > MAX_CONTENT:
         raise AppError("common.validation", 422, errors=[{"loc": ["content"], "code": "too_long"}])
     return content

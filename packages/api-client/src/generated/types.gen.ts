@@ -7408,7 +7408,7 @@ export type NoteUpdateInputBody = {
     /**
      * Mode
      *
-     * append adds the text on a new line after the note; replace overwrites it
+     * append adds the text after the note as a new block; replace overwrites it
      */
     mode?: 'append' | 'replace';
 };

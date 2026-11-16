@@ -20,6 +20,7 @@ export default defineModule({
       component: preloadable(() => import('./StickyNoteCard')),
       settings: () => import('./schema'),
       multiple: true,
+      bleed: true,
     },
   ],
 })

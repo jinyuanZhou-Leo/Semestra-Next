@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest'
@@ -41,52 +41,50 @@ function note(content = '', size: 's' | 'm' | 'l' | 'xl' = 'm') {
   )
 }
 
-test('an empty note invites writing, and a click opens the editor', async () => {
-  note()
-  expect(screen.getByText('Write a note…')).toBeInTheDocument()
-  await userEvent.click(screen.getByText('Write a note…'))
-  const area = screen.getByRole('textbox', { name: 'Edit note' })
-  expect(area).toHaveFocus()
-  await userEvent.type(area, 'midterm covers ch. 1-4')
-  expect(area).toHaveValue('midterm covers ch. 1-4')
-})
+const savedContent = () => (saved.at(-1) as { content: string }).content
 
-test('a note is shown as formatted text, with checkboxes you can tick', async () => {
-  note('**Exam** on Friday\n- [ ] review notes')
-  expect(screen.getByText('Exam').tagName).toBe('STRONG')
-  const box = screen.getByRole('checkbox', { name: 'Done: review notes' })
-  expect(box).not.toBeChecked()
-  await userEvent.click(box)
-  // Ticking is a change of the note, not the start of editing.
-  expect(screen.queryByRole('textbox')).toBeNull()
-  expect(screen.getByRole('checkbox', { name: 'Done: review notes' })).toBeChecked()
-})
-
-test('the toolbar formats the selected text and keeps editing', async () => {
-  note('plain', 'l')
-  await userEvent.click(screen.getByText('plain'))
-  const area = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit note' })
-  area.setSelectionRange(0, 5)
-  await userEvent.click(screen.getByRole('button', { name: 'Bold' }))
-  expect(area).toHaveValue('**plain**')
-  expect(screen.getByRole('textbox')).toBeInTheDocument()
-})
-
-test('the small size hides the toolbar', async () => {
-  note('x', 's')
-  await userEvent.click(screen.getByText('x'))
-  expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull()
-})
-
-test('the editor leaves a way in for keyboard users', () => {
-  note('x')
-  expect(screen.getByRole('button', { name: 'Edit note' })).toBeInTheDocument()
-})
-
-test('an edit is saved to the card settings, merged into the settings the host gave', async () => {
-  note('old')
-  await userEvent.click(screen.getByText('old'))
-  await userEvent.type(screen.getByRole('textbox', { name: 'Edit note' }), ' new')
+async function waitForSave() {
   await vi.waitFor(() => expect(saved.length).toBeGreaterThan(0), { timeout: 3000 })
-  expect(saved.at(-1)).toMatchObject({ content: 'old new', color: expect.any(String) })
+}
+
+test('a note shows its Markdown formatted, tables included', async () => {
+  note('**Exam** on Friday\n\n| Chapter | Status |\n| --- | --- |\n| 1 | done |')
+  expect(await screen.findByText('Exam')).toHaveProperty('tagName', 'STRONG')
+  const table = screen.getByRole('table')
+  expect(within(table).getByText('Chapter').closest('th')).not.toBeNull()
+  expect(within(table).getByText('done').closest('td')).not.toBeNull()
+})
+
+test('ticking a checklist item saves the note', async () => {
+  note('- [ ] review notes')
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Done: review notes' }))
+  await waitForSave()
+  expect(savedContent()).toBe('- [x] review notes')
+})
+
+test('an edit is saved as Markdown, merged into the settings the host gave', async () => {
+  note('old')
+  const editor = await screen.findByRole('textbox', { name: 'Edit note' })
+  await userEvent.click(editor)
+  await userEvent.keyboard('{Control>}a{/Control}{Control>}b{/Control}')
+  await waitForSave()
+  expect(saved.at(-1)).toMatchObject({ content: '**old**', color: expect.any(String) })
+})
+
+test('the toolbar inserts a table, and offers row and column actions inside it', async () => {
+  note('', 'l')
+  await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Insert table' }))
+  expect(screen.getByRole('table')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Table' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Add column right' }))
+  expect(screen.getAllByRole('columnheader')).toHaveLength(4)
+  await waitForSave()
+  expect(savedContent()).toMatch(/^\|.*\|.*\|.*\|.*\|$/m)
+})
+
+test('the small size has no toolbar', async () => {
+  note('x', 's')
+  await userEvent.click(await screen.findByRole('textbox', { name: 'Edit note' }))
+  expect(screen.queryByRole('button', { name: 'Bold' })).toBeNull()
 })
