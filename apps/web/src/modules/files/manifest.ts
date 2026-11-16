@@ -130,7 +130,7 @@ export default defineModule({
     },
   ],
   defaultBoard: {
-    course: [{ card: 'files.thisWeek', size: 'm' }],
+    course: [{ card: 'files.thisWeek', size: 'l' }],
   },
   settingsSections: [
     {

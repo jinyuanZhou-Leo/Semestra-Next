@@ -99,7 +99,11 @@ export function WeekFilterSelect({
         <CalendarDays aria-hidden />
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        className="w-auto min-w-(--anchor-width)"
+      >
         <WeekItems weeks={weeks} all />
       </SelectContent>
     </Select>

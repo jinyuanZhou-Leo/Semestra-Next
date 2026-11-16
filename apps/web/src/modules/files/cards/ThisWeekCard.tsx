@@ -16,7 +16,8 @@ import { compareNames } from '../folders'
 import { useCourseFiles } from '../queries'
 import { inWeek, useCourseWeeks, weekName } from '../weeks'
 
-const LIMIT = { m: 5, l: 10 } as const
+// What fits above the link: one board row for m, two for l.
+const LIMIT = { m: 3, l: 9 } as const
 
 /** This week's materials of the course, each with its folder (M07 §6.3). */
 export default function ThisWeekCard({ scope, size }: CardProps) {

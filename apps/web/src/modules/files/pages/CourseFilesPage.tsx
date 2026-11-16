@@ -17,6 +17,7 @@ import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useDialogTarget } from '@/lib/dialog-target'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -101,7 +102,12 @@ export function CourseFiles({
   const link = useExternalLink()
 
   const weeks = useCourseWeeks(courseId)
-  const [weekFilter, setWeekFilter] = useWeekFilter()
+  const [rawWeekFilter, setWeekFilter] = useWeekFilter()
+  // Any day in the address stands for its week (a link may name a day other than its first).
+  const weekFilter =
+    rawWeekFilter === 'all' || rawWeekFilter === 'term'
+      ? rawWeekFilter
+      : (weeks?.find(rawWeekFilter)?.start ?? rawWeekFilter)
   // One week's files (or the whole term's) come from every folder, in one list.
   const byWeek = weeks && weeks.terms.length > 0 && weekFilter !== 'all' ? weeks : null
   // The folder may have been deleted (here or in another tab).
@@ -202,7 +208,7 @@ export function CourseFiles({
                   <a
                     href={download}
                     download
-                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
                   >
                     <Download aria-hidden />
                     {m.files_download()}
@@ -247,10 +253,10 @@ export function CourseFiles({
                 <Search aria-hidden />
               </InputGroupAddon>
             </InputGroup>
+            {weeks && weeks.terms.length > 0 && !searching ? (
+              <WeekFilterSelect weeks={weeks} value={weekFilter} onChange={filterWeek} />
+            ) : null}
           </SelectionToolbar>
-          {weeks && weeks.terms.length > 0 && !searching ? (
-            <WeekFilterSelect weeks={weeks} value={weekFilter} onChange={filterWeek} />
-          ) : null}
           <div className="ml-auto flex items-center gap-2">
             {view === 'grid' ? <SortMenu /> : null}
             <ViewToggle />
