@@ -54,6 +54,12 @@ With `false`, requests to user-chosen hosts are refused when the host resolves t
 loopback or link-local address: AI base URLs with `common.egress_blocked`, Canvas addresses with
 `lms.blocked_address`. Every redirect target Canvas sends goes through the same check.
 
+## Tasks
+
+| Variable          | Default            | Meaning                                                              |
+| ----------------- | ------------------ | -------------------------------------------------------------------- |
+| `SEMESTRA_CALDAV` | `true` _compose_   | [Apple Reminders](./features.mdx#apple-reminders) sync. Outside the compose file the default is `false` |
+
 ## Canvas
 
 | Variable                      | Default | Meaning                                                                         |

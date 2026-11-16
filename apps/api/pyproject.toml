@@ -11,6 +11,7 @@ dependencies = [
     "cachetools>=7.2.4",
     "charset-normalizer>=3.5.2",
     "cryptography>=50.0.2",
+    "defusedxml>=0.7.1",
     "fastapi>=0.143.3",
     "genai-prices>=0.1.13",
     "http-ece>=1.2.1",

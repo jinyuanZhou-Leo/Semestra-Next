@@ -1697,6 +1697,132 @@ export type BulkDecideResult = {
 };
 
 /**
+ * CaldavConnectionDeleted
+ */
+export type CaldavConnectionDeleted = {
+    /**
+     * Ok
+     */
+    ok?: boolean;
+};
+
+/**
+ * CaldavConnectionOut
+ */
+export type CaldavConnectionOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Client
+     */
+    client: 'ios' | 'macos' | 'other' | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * CaldavConnections
+ *
+ * `available` is false when this server does not offer CalDAV (it is turned on with
+ * `SEMESTRA_CALDAV`); the rest is what a device needs to be set up by hand.
+ */
+export type CaldavConnections = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Server Url
+     */
+    server_url: string;
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Items
+     */
+    items: Array<CaldavConnectionOut>;
+    /**
+     * Task Notifications
+     */
+    task_notifications: boolean;
+};
+
+/**
+ * CaldavNewConnection
+ *
+ * The password is shown this once; only its hash is kept.
+ */
+export type CaldavNewConnection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Client
+     */
+    client: 'ios' | 'macos' | 'other' | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Password
+     */
+    password: string;
+    setup: CaldavSetupLink;
+};
+
+/**
+ * CaldavSetupLink
+ *
+ * Opens on the device and installs a profile with the account (Apple devices).
+ */
+export type CaldavSetupLink = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+};
+
+/**
+ * CaldavSetupLinkInBody
+ */
+export type CaldavSetupLinkInBody = {
+    /**
+     * Password
+     *
+     * From the create response
+     */
+    password: string;
+};
+
+/**
  * CalendarBreak
  */
 export type CalendarBreak = {
@@ -16017,6 +16143,166 @@ export type AiUsageSummarizeResponses = {
 };
 
 export type AiUsageSummarizeResponse = AiUsageSummarizeResponses[keyof AiUsageSummarizeResponses];
+
+export type CaldavConnectionListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/caldav-connections';
+};
+
+export type CaldavConnectionListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionListError = CaldavConnectionListErrors[keyof CaldavConnectionListErrors];
+
+export type CaldavConnectionListResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavConnections;
+};
+
+export type CaldavConnectionListResponse = CaldavConnectionListResponses[keyof CaldavConnectionListResponses];
+
+export type CaldavConnectionCreateData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/caldav-connections';
+};
+
+export type CaldavConnectionCreateErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionCreateError = CaldavConnectionCreateErrors[keyof CaldavConnectionCreateErrors];
+
+export type CaldavConnectionCreateResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavNewConnection;
+};
+
+export type CaldavConnectionCreateResponse = CaldavConnectionCreateResponses[keyof CaldavConnectionCreateResponses];
+
+export type CaldavConnectionDeleteData = {
+    body?: never;
+    path: {
+        /**
+         * Connection Id
+         *
+         * CaldavConnectionOut id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/caldav-connections/{connection_id}';
+};
+
+export type CaldavConnectionDeleteErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionDeleteError = CaldavConnectionDeleteErrors[keyof CaldavConnectionDeleteErrors];
+
+export type CaldavConnectionDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavConnectionDeleted;
+};
+
+export type CaldavConnectionDeleteResponse = CaldavConnectionDeleteResponses[keyof CaldavConnectionDeleteResponses];
+
+export type CaldavConnectionResetData = {
+    body?: never;
+    path: {
+        /**
+         * Connection Id
+         *
+         * CaldavConnectionOut id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/caldav-connections/{connection_id}:reset';
+};
+
+export type CaldavConnectionResetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionResetError = CaldavConnectionResetErrors[keyof CaldavConnectionResetErrors];
+
+export type CaldavConnectionResetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavNewConnection;
+};
+
+export type CaldavConnectionResetResponse = CaldavConnectionResetResponses[keyof CaldavConnectionResetResponses];
+
+export type CaldavConnectionSetupLinkData = {
+    body: CaldavSetupLinkInBody;
+    path: {
+        /**
+         * Connection Id
+         *
+         * CaldavConnectionOut id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/caldav-connections/{connection_id}/setup-link';
+};
+
+export type CaldavConnectionSetupLinkErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type CaldavConnectionSetupLinkError = CaldavConnectionSetupLinkErrors[keyof CaldavConnectionSetupLinkErrors];
+
+export type CaldavConnectionSetupLinkResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaldavSetupLink;
+};
+
+export type CaldavConnectionSetupLinkResponse = CaldavConnectionSetupLinkResponses[keyof CaldavConnectionSetupLinkResponses];
 
 export type CalendarOccurrenceListData = {
     body?: never;

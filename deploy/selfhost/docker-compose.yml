@@ -34,6 +34,8 @@ services:
       SEMESTRA_EMAIL_BACKEND: ${SEMESTRA_EMAIL_BACKEND:-console}
       SEMESTRA_USER_STORAGE_QUOTA_BYTES: ${SEMESTRA_USER_STORAGE_QUOTA_BYTES:-0}
       SEMESTRA_ALLOW_PRIVATE_EGRESS: ${SEMESTRA_ALLOW_PRIVATE_EGRESS:-true}
+      # Apple Reminders (and other CalDAV apps) can sync to-do lists.
+      SEMESTRA_CALDAV: ${SEMESTRA_CALDAV:-true}
       # 1 with the bundled Caddy (or your own proxy) in front; then also SEMESTRA_BIND=127.0.0.1,
       # or clients could reach port 8000 directly and claim any address.
       SEMESTRA_TRUSTED_PROXY_HOPS: ${SEMESTRA_TRUSTED_PROXY_HOPS:-0}

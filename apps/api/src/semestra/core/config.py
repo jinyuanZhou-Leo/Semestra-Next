@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # finishes. No address-space limit:
     # ONNX Runtime reserves far more virtual memory than it uses.
     local_ocr_page_timeout_seconds: float = 60
+    # CalDAV for to-do lists (self-hosting): Apple Reminders and other to-do apps add the server
+    # as a CalDAV account and sync a Program's lists both ways (`modules/caldav`). The
+    # self-hosting compose file turns it on.
+    caldav: bool = False
     # Local embedding (self-hosting, `semestra-api[embedding]`): text embedding models on ONNX
     # Runtime in a long-lived child process. Users can pick one of the presets (or, with
     # `local_embedding_custom`, any Hugging Face model that has an ONNX export) when the extra is

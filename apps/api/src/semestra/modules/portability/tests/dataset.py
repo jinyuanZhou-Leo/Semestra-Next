@@ -25,6 +25,7 @@ from semestra.modules.agent.models import (
 )
 from semestra.modules.ai.models import AiModelAssignment, AiProvider, AiUsageEvent
 from semestra.modules.auth.models import AuthPersonalAccessToken
+from semestra.modules.caldav.models import CaldavConnection, CaldavItem
 from semestra.modules.files.models import (
     FilesChunk,
     FilesDocument,
@@ -80,6 +81,7 @@ async def populate(
     """Returns the ids of the main rows. `singletons=False` leaves out the rows a user has only
     one of (preferences, tab bars, ...), to add a second Program to the same user."""
     u = {"user_id": user_id}
+    task_id = new_id()
     program = AcademicsProgram(**u, name=name, timezone="America/Toronto", subject_colors={})
     db.add(program)
     await db.flush()
@@ -355,6 +357,7 @@ async def populate(
             ),
             TasksItem(
                 **u,
+                id=task_id,
                 program_id=program.id,
                 term_id=term.id,
                 course_id=course.id,
@@ -378,6 +381,17 @@ async def populate(
     await db.flush()
     db.add(
         LmsSyncChange(**u, ref_id=lms_ref.id, field="title", old="Midterm", new="Midterm 1", at=NOW)
+    )
+    db.add_all(
+        [
+            CaldavConnection(
+                **u,
+                program_id=program.id,
+                token_hash=f"caldav-token-hash-{program.id}",
+                created_at=NOW,
+            ),
+            CaldavItem(**u, task_id=task_id, uid=f"uid-{task_id}", name=f"{task_id}.ics", ical=""),
+        ]
     )
     if singletons:
         db.add_all(

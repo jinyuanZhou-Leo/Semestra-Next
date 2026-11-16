@@ -79,6 +79,7 @@ export const errorMessages = {
   error_auth_too_many_attempts: m.error_auth_too_many_attempts,
   error_auth_weak_password: m.error_auth_weak_password,
   error_auth_wrong_password: m.error_auth_wrong_password,
+  error_caldav_unavailable: m.error_caldav_unavailable,
   error_common_conflict: m.error_common_conflict,
   error_common_egress_blocked: m.error_common_egress_blocked,
   error_common_forbidden: m.error_common_forbidden,
