@@ -369,7 +369,13 @@ class FileMeta(Dto):
     mime_type: str | None = None
     size_bytes: int | None = None
     updated_at: datetime | None = None
+    # When its bytes last changed (Canvas `modified_at`); `updated_at` also moves on a rename or
+    # a change of who can see it. None: not known apart.
+    content_at: datetime | None = None
     locked: bool = False
+    folder_path: str | None = Field(
+        default=None, description="Its folder below the course's root folder (course_files)"
+    )
     # Provider-internal download location; never sent to clients.
     download_url: str | None = Field(default=None, exclude=True)
 

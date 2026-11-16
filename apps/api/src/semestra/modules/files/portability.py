@@ -2,7 +2,8 @@
 
 Parsed documents, pages, chunks and the search index are derived: they are not exported, and an
 imported file is processed again. The file contents travel in the archive only when the export
-includes files; a file item without its contents is not imported (a link always is).
+includes files; a file item without its contents is not imported (a link always is), unless
+another module keeps its contents (`content.py`, an LMS file): it is read from there again.
 """
 
 from typing import Any
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.storage import get_storage
-from semestra.modules.files import service
+from semestra.modules.files import content, service
 from semestra.modules.files.models import (
     FilesChunk,
     FilesDocument,
@@ -82,6 +83,15 @@ class FilesAdapter(TableAdapter):
                 continue
             key = service.storage_key(ctx.user_id, row.id)
             size = opts.files.claim(key) if opts.files is not None else None
+            if size is None and row.kept_offline:
+                row.kept_offline = False  # without its bytes, a kept copy is its source's again
+            if size is None and content.follows_source(row):
+                # Kept in step by its source (an LMS file; stored for it or not), whose
+                # credentials are not in a backup: read again, and stored again if the source
+                # stores it, by the source's sync once they are back (`service.SOURCE_UNREAD`).
+                if row.doc_status != "unsupported":
+                    row.doc_status, row.doc_error_code = "failed", service.SOURCE_UNREAD
+                continue
             if size is None:
                 await ctx.db.delete(row)
                 report.imported["items"] -= 1

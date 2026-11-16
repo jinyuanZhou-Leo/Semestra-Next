@@ -3158,6 +3158,18 @@ export type CourseLink = {
      */
     sync_enabled: boolean;
     /**
+     * Files Sync
+     *
+     * The sync brings the course's files, pages and links in
+     */
+    files_sync: boolean;
+    /**
+     * Files Offline
+     *
+     * They are stored here, not read when opened
+     */
+    files_offline: boolean;
+    /**
      * Synced At
      *
      * Last background sync of the course
@@ -4614,9 +4626,19 @@ export type FileMeta = {
      */
     updated_at?: string | null;
     /**
+     * Content At
+     */
+    content_at?: string | null;
+    /**
      * Locked
      */
     locked?: boolean;
+    /**
+     * Folder Path
+     *
+     * Its folder below the course's root folder (course_files)
+     */
+    folder_path?: string | null;
 };
 
 /**
@@ -5847,6 +5869,14 @@ export type ItemOut = {
      */
     url: string | null;
     /**
+     * Stored
+     */
+    stored: boolean;
+    /**
+     * Follows Source
+     */
+    follows_source: boolean;
+    /**
      * Pinned
      */
     pinned: boolean;
@@ -5995,6 +6025,10 @@ export type JobOut = {
      */
     finished_at: string | null;
     waiting?: JobWaiting | null;
+    /**
+     * Label Kind
+     */
+    label_kind?: string | null;
 };
 
 /**
@@ -6088,7 +6122,19 @@ export type LinkUpdateInputBody = {
      *
      * Show in the calendar, check updates
      */
-    sync_enabled: boolean;
+    sync_enabled?: boolean | null;
+    /**
+     * Files Sync
+     *
+     * Bring the course's files, pages and links into its files
+     */
+    files_sync?: boolean | null;
+    /**
+     * Files Offline
+     *
+     * Store them here (taking quota) instead of reading when opened
+     */
+    files_offline?: boolean | null;
 };
 
 /**
@@ -9181,6 +9227,10 @@ export type SavedFile = {
      * Name
      */
     name: string;
+    /**
+     * Stored
+     */
+    stored?: boolean;
 };
 
 /**
@@ -13466,7 +13516,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *
@@ -16921,6 +16971,38 @@ export type FilesItemUpdateResponses = {
 };
 
 export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
+
+export type FilesItemKeepOfflineData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:keep-offline';
+};
+
+export type FilesItemKeepOfflineErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemKeepOfflineError = FilesItemKeepOfflineErrors[keyof FilesItemKeepOfflineErrors];
+
+export type FilesItemKeepOfflineResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemKeepOfflineResponse = FilesItemKeepOfflineResponses[keyof FilesItemKeepOfflineResponses];
 
 export type FilesItemListPinnedData = {
     body?: never;

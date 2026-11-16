@@ -857,6 +857,7 @@ class CanvasProvider:
             mime_type=_text(r.get("content-type")),
             size_bytes=_int(r.get("size")) if r.get("size") is not None else None,
             updated_at=r.get("updated_at"),
+            content_at=r.get("modified_at"),
             locked=bool(r.get("locked_for_user")),
             download_url=_text(r.get("url")),
         )
@@ -912,6 +913,28 @@ class CanvasProvider:
                 self._file_meta(cfg, course_id, f) for f in files if not f.get("hidden_for_user")
             ],
         )
+
+    async def course_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[FileMeta]:
+        course = quote(course_id)
+        folders = await self._list(io, cfg, creds, f"/courses/{course}/folders")
+        paths = {
+            str(f.get("id")): self._folder(cfg, course_id, f).path
+            for f in folders
+            if not f.get("hidden_for_user")
+        }
+        files = await self._list(io, cfg, creds, f"/courses/{course}/files", [("sort", "name")])
+        out: list[FileMeta] = []
+        for r in files:
+            folder = str(r.get("folder_id") or "")
+            # A file in a folder hidden from students is hidden too.
+            if r.get("hidden_for_user") or (folder and folder not in paths):
+                continue
+            meta = self._file_meta(cfg, course_id, r)
+            meta.folder_path = paths.get(folder) or None
+            out.append(meta)
+        return out
 
     async def search_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str

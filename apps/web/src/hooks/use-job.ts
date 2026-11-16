@@ -45,7 +45,7 @@ export function jobWaitingText(job: Waits, now: number) {
  * a unit names it in `job_step_<kind>_<step>_count` (e.g. `{current}/{total} MB`).
  */
 export function jobStageLabel(
-  job: Pick<JobOut, 'kind' | 'step' | 'step_current' | 'step_total' | 'attempts'>,
+  job: Pick<JobOut, 'kind' | 'label_kind' | 'step' | 'step_current' | 'step_total' | 'attempts'>,
   withCount = true,
 ) {
   const key = stepKey(job)
@@ -60,12 +60,13 @@ export function jobStageLabel(
   return job.attempts > 1 ? m.job_retry_prefix({ label }) : label
 }
 
-function stepKey(job: Pick<JobOut, 'kind' | 'step'>) {
-  return job.step ? `job_step_${job.kind.replaceAll('.', '_')}_${job.step}` : null
+function stepKey(job: Pick<JobOut, 'kind' | 'step' | 'label_kind'>) {
+  const kind = job.label_kind ?? job.kind
+  return job.step ? `job_step_${kind.replaceAll('.', '_')}_${job.step}` : null
 }
 
 /** The count with the step's unit, when the step names one. */
-function countText(job: Pick<JobOut, 'kind' | 'step'>, count: JobCount) {
+function countText(job: Pick<JobOut, 'kind' | 'step' | 'label_kind'>, count: JobCount) {
   const key = stepKey(job)
   return (key && jobStepMessages[`${key}_count`]?.(count)) || null
 }

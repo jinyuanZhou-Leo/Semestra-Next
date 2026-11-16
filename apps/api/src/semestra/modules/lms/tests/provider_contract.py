@@ -94,6 +94,9 @@ async def check_provider(
         assert root.trail
         assert root.trail[-1].external_id == root.folder.external_id
         reads.append(("folders", [*root.folders, *root.files]))
+        files = await provider.course_files(io, cfg, creds, course_id)
+        assert all(f.folder_path is None or not f.folder_path.startswith("/") for f in files)
+        reads.append(("folders", files))
     for feature, items in reads:
         assert isinstance(items, list), feature
         for item in items:  # pyright: ignore[reportUnknownVariableType]

@@ -22,10 +22,11 @@ import {
   TERM_WIZARD_IMPORT_SOURCES,
 } from '@/modules/academics/types'
 import { ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
+import { FILE_ITEM_ACTIONS, type FileItemAction } from '@/modules/files/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
 import { bindAction, unbindAction } from './binding/actions'
-import { CalendarMark, CalendarOpenLabel } from './components/CalendarMark'
+import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
@@ -233,9 +234,9 @@ export default defineModule({
       label: m.lms_calendar_source,
       icon: School,
       defaultVisible: true,
-      Mark: CalendarMark,
+      Mark: PlatformMark,
       open: {
-        Label: CalendarOpenLabel,
+        Label: OpenInPlatform,
         icon: ExternalLink,
         // Platform data: only web links are opened (the API drops the rest too).
         available: (occurrence) => /^https?:\/\//i.test(occurrence.meta?.url ?? ''),
@@ -253,6 +254,22 @@ export default defineModule({
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
+    // What the sync brought in from the platform, opened there (pages and files, not links:
+    // a link's address is already where it leads).
+    [FILE_ITEM_ACTIONS]: [
+      {
+        id: 'lms.open',
+        Label: OpenInPlatform,
+        icon: ExternalLink,
+        accepts: (item) =>
+          item.source_kind === 'lms' &&
+          item.kind === 'file' &&
+          /^https?:\/\//i.test(item.url ?? ''),
+        run: ({ item }) => {
+          window.open(item.url ?? '', '_blank', 'noopener,noreferrer')
+        },
+      },
+    ] satisfies FileItemAction[],
     [TASK_DETAIL_SECTIONS]: [
       { id: 'lms.assignment', Component: TaskSubmission },
     ] satisfies TaskDetailSection[],

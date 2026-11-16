@@ -1,5 +1,6 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from typing import Annotated
@@ -12,6 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.modules.files import content as files_content
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
@@ -69,6 +71,14 @@ async def upload(
     return result
 
 
+def _download_name(name: str, mime: str) -> str:
+    """The shown name, with the extension of its type when it has none (an LMS page is named by
+    its title), so the downloaded file opens."""
+    if "." in name or mime == "application/octet-stream":
+        return name
+    return name + (mimetypes.guess_extension(mime) or "")
+
+
 def _content_disposition(disposition: str, name: str) -> str:
     ascii_name = re.sub(r'[^\x20-\x7e]|["\\]', "_", name) or "file"
     return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
@@ -110,14 +120,14 @@ async def content(
     ] = "attachment",
 ) -> Response:
     item = await service.get_item(ctx, item_id)
-    if item.kind != "file" or not item.storage_key:
+    if not files_content.has_content(item):
         raise not_found()
     mime = item.mime_type or "application/octet-stream"
     # Anything a browser could run (HTML, SVG, ...) is only ever offered as a download.
     shown = "inline" if disposition == "inline" and mime in INLINE_SAFE else "attachment"
     span = _byte_range(request.headers.get("range"), item.size_bytes)
     headers = {
-        "Content-Disposition": _content_disposition(shown, item.display_name),
+        "Content-Disposition": _content_disposition(shown, _download_name(item.display_name, mime)),
         "Accept-Ranges": "bytes",
         "ETag": f'"{item.sha256}"',
         "Cache-Control": "private, no-cache",
@@ -132,6 +142,14 @@ async def content(
         headers["Content-Security-Policy"] = "default-src 'none'"
     else:
         headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    if not item.storage_key:
+        # Read from its source (`content.py`): whole, its length known only as it arrives.
+        headers.pop("Accept-Ranges")
+        if _matches(request, headers["ETag"]):
+            return _not_modified(headers)
+        stream = await files_content.open_content(ctx, item)
+        await ctx.db.commit()  # what the source wrote on the way (renewed credentials)
+        return StreamingResponse(stream, media_type=mime, headers=headers)
     if not span and _matches(request, headers["ETag"]):
         return _not_modified(headers)
     start, end = span if span else (0, max(item.size_bytes - 1, 0))

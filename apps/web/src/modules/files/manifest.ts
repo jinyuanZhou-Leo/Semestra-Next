@@ -139,6 +139,7 @@ export default defineModule({
   ],
   jobKinds: [
     { kind: 'files.process', title: m.files_job_process },
+    { kind: 'files.keep_offline', title: m.files_job_keep_offline },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
   ],
   uiPrefPrefixes: ['files.'],

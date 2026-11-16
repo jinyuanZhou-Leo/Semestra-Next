@@ -151,10 +151,14 @@ class JobOut(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     waiting: JobWaiting | None = None
+    # Its stages are named like this kind's (`job_handler(labels=…)`); None: its own.
+    label_kind: str | None = None
 
     @classmethod
     def of(cls, job: CoreJob) -> JobOut:
         out = cls.model_validate(job, from_attributes=True)
+        handler = _handlers.get(job.kind)
+        out.label_kind = handler.labels if handler else None
         if job.status == "running":
             out.waiting = _waiting_now(job.id)
         return out
@@ -297,6 +301,8 @@ class JobHandler:
     on_failure: OnFailure | None = None
     # False: left out of `core.job.list` (the status bar's list); its module shows it its own way.
     listed: bool = True
+    # Another kind whose stage names it shares (the same work queued in another lane).
+    labels: str | None = None
 
 
 OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
@@ -311,6 +317,7 @@ def job_handler(
     lane: Lane = "default",
     on_failure: OnFailure | None = None,
     listed: bool = True,
+    labels: str | None = None,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -330,7 +337,7 @@ def job_handler(
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
         _handlers[kind] = JobHandler(
-            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure, listed
+            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure, listed, labels
         )
         return fn
 

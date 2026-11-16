@@ -103,6 +103,14 @@ class FakeProvider:
         # Page ref → (title, body); `page` serves "Intro" for any other ref.
         self.page_texts: dict[str, tuple[str, str]] = {}
         self.module_list: list[Module] | None = None
+        # The course's files (`course_files`); `file` serves these too.
+        self.course_file_list: list[FileMeta] = []
+        # The pages list (`pages`); None: just "Intro".
+        self.page_list: list[PageSummary] | None = None
+        self.files_hidden = False
+        self.fail_downloads = False
+        # Files deleted from the course: reading one is refused as not found.
+        self.deleted_files: set[str] = set()
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -221,6 +229,8 @@ class FakeProvider:
         self.calls.append(("pages", course_id))
         if self.pages_hidden:
             raise lms_error("lms.not_found")
+        if self.page_list is not None:
+            return [p.model_copy() for p in self.page_list]
         return [PageSummary(external_id="p1", ref="intro", title="Intro")]
 
     async def page(
@@ -229,7 +239,11 @@ class FakeProvider:
         self.calls.append(("page", page_ref))
         if page_ref in self.page_texts:
             title, body = self.page_texts[page_ref]
-            return PageDetail(external_id=f"p-{page_ref}", ref=page_ref, title=title, html=body)
+            listed = next((p for p in self.page_list or [] if p.ref == page_ref), None)
+            return PageDetail(
+                external_id=f"p-{page_ref}", ref=page_ref, title=title, html=body,
+                updated_at=listed.updated_at if listed else None,
+            )  # fmt: skip
         return PageDetail(external_id="p1", ref=page_ref, title="Intro",
                           web_url=f"https://fake/courses/{course_id}/pages/{page_ref}",
                           html="<h1 style='color:#123;position:fixed'>Intro</h1>"
@@ -248,6 +262,13 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
         self.calls.append(("file", file_id))
+        if file_id in self.deleted_files:
+            raise lms_error("lms.not_found")
+        for meta in self.course_file_list:
+            if meta.external_id == file_id:
+                return meta.model_copy(
+                    update={"download_url": f"https://lms.example/files/{file_id}/download"}
+                )
         return FileMeta(
             external_id=file_id,
             name="notes.txt",
@@ -261,6 +282,8 @@ class FakeProvider:
     ) -> AsyncIterator[bytes]:
         if not file.download_url:  # as Canvas: nothing to fetch without it
             raise lms_error("lms.forbidden")
+        if self.fail_downloads:
+            raise lms_error("lms.unreachable")
         yield b"he"
         yield b"llo"
 
@@ -305,6 +328,14 @@ class FakeProvider:
             external_id="d1", title="Study group", html="<p>Who is in?</p>", reply_count=1,
             entries=[DiscussionEntry(author="Bo", html="<p>Me</p>")],
         )  # fmt: skip
+
+    async def course_files(
+        self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str
+    ) -> list[FileMeta]:
+        self.calls.append(("course_files", course_id))
+        if self.files_hidden:
+            raise lms_error("lms.forbidden")
+        return [f.model_copy() for f in self.course_file_list]
 
     async def search_files(
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, term: str
@@ -504,6 +535,16 @@ def canvas_api(router: respx.MockRouter) -> None:
     router.get(f"{api}/folders/50/files").mock(
         return_value=ok([{"id": 77, "display_name": "slides.pdf"}])
     )
+    router.get(f"{api}/courses/101/folders").mock(
+        return_value=ok([root, {"id": 51, "name": "Lectures", "full_name": "course files/Lectures",
+                                "parent_folder_id": 50}])
+    )  # fmt: skip
+    router.get(f"{api}/courses/101/files").mock(
+        return_value=ok([
+            {"id": 77, "display_name": "slides.pdf", "folder_id": 51, "size": 4},
+            {"id": 78, "display_name": "hidden.pdf", "folder_id": 99},
+        ])
+    )  # fmt: skip
     router.get(f"{api}/courses/101/discussion_topics").mock(
         return_value=ok([{"id": 60, "title": "Study group", "message": "<p>Who?</p>",
                           "discussion_subentry_count": 1, "author": {"display_name": "Bo"}}])

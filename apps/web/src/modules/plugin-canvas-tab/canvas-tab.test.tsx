@@ -71,6 +71,8 @@ const LINK: CourseLink = {
   external_term: '2026 Fall',
   web_url: 'https://q.utoronto.ca/courses/101',
   sync_enabled: false,
+  files_sync: true,
+  files_offline: false,
   synced_at: null,
   sync_errors: {},
   created_at: '2026-09-01T10:00:00Z',
@@ -558,7 +560,7 @@ test('a module file can be saved to the course files', async () => {
     ),
     http.post(`${API}/courses/c1/lms/files/f1\\:save`, ({ request }) => {
       saves(request.url)
-      return HttpResponse.json({ file_item_id: 'fi1', name: 'Slides.pdf' })
+      return HttpResponse.json({ file_item_id: 'fi1', name: 'Slides.pdf', stored: true })
     }),
   )
   renderPage('/?tab=modules&ref=m1')

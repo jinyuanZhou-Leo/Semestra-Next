@@ -5473,6 +5473,16 @@ export const CourseLinkSchema = {
             type: 'boolean',
             title: 'Sync Enabled'
         },
+        files_sync: {
+            type: 'boolean',
+            title: 'Files Sync',
+            description: 'The sync brings the course\'s files, pages and links in'
+        },
+        files_offline: {
+            type: 'boolean',
+            title: 'Files Offline',
+            description: 'They are stored here, not read when opened'
+        },
         synced_at: {
             anyOf: [
                 {
@@ -5513,6 +5523,8 @@ export const CourseLinkSchema = {
         'external_term',
         'web_url',
         'sync_enabled',
+        'files_sync',
+        'files_offline',
         'synced_at',
         'sync_errors',
         'created_at'
@@ -8074,10 +8086,34 @@ export const FileMetaSchema = {
             ],
             title: 'Updated At'
         },
+        content_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Content At'
+        },
         locked: {
             type: 'boolean',
             title: 'Locked',
             default: false
+        },
+        folder_path: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Path',
+            description: 'Its folder below the course\'s root folder (course_files)'
         }
     },
     type: 'object',
@@ -10187,6 +10223,14 @@ export const ItemOutSchema = {
             ],
             title: 'Url'
         },
+        stored: {
+            type: 'boolean',
+            title: 'Stored'
+        },
+        follows_source: {
+            type: 'boolean',
+            title: 'Follows Source'
+        },
         pinned: {
             type: 'boolean',
             title: 'Pinned'
@@ -10290,6 +10334,8 @@ export const ItemOutSchema = {
         'size_bytes',
         'sha256',
         'url',
+        'stored',
+        'follows_source',
         'pinned',
         'source_kind',
         'source_ref',
@@ -10505,6 +10551,17 @@ export const JobOutSchema = {
                     type: 'null'
                 }
             ]
+        },
+        label_kind: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Label Kind'
         }
     },
     type: 'object',
@@ -10665,15 +10722,43 @@ export const LinkSetInputBodySchema = {
 export const LinkUpdateInputBodySchema = {
     properties: {
         sync_enabled: {
-            type: 'boolean',
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Sync Enabled',
             description: 'Show in the calendar, check updates'
+        },
+        files_sync: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Files Sync',
+            description: 'Bring the course\'s files, pages and links into its files'
+        },
+        files_offline: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Files Offline',
+            description: 'Store them here (taking quota) instead of reading when opened'
         }
     },
     type: 'object',
-    required: [
-        'sync_enabled'
-    ],
     title: 'LinkUpdateInputBody'
 } as const;
 
@@ -16252,6 +16337,11 @@ export const SavedFileSchema = {
         name: {
             type: 'string',
             title: 'Name'
+        },
+        stored: {
+            type: 'boolean',
+            title: 'Stored',
+            default: true
         }
     },
     type: 'object',

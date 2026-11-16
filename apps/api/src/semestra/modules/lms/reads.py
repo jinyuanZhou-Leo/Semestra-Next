@@ -793,6 +793,28 @@ async def folder(ctx: Ctx, course_id: str, folder_id: str | None, refresh: bool)
     return FolderListing.model_validate({**data, "truncated": truncated})
 
 
+async def course_files(
+    ctx: Ctx, course_id: str, refresh: bool, *, linked: tuple[LmsCourseLink, Bound] | None = None
+) -> FileList:
+    """Every file of the course the user can see, with its folder (the file sync)."""
+
+    async def fetch(b: Bound, i: Any, ext: str) -> Any:
+        return await b.provider.course_files(i, b.cfg, b.creds, ext)
+
+    data, truncated, *_ = await _read(
+        ctx,
+        course_id,
+        "folders",
+        "course_files",
+        {},
+        fetch,
+        refresh=refresh,
+        linked=linked,
+        area="files",
+    )
+    return FileList.model_validate({"items": data, "truncated": truncated})
+
+
 async def search_files(ctx: Ctx, course_id: str, term: str, refresh: bool) -> FileList:
     async def fetch(b: Bound, i: Any, ext: str) -> Any:
         return await b.provider.search_files(i, b.cfg, b.creds, ext, term)

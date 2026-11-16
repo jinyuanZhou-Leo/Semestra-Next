@@ -6,9 +6,10 @@ from pydantic import BaseModel
 from sqlalchemy import exists, func, or_, select
 
 from semestra.core.context import Ctx, run_as_system
+from semestra.core.errors import AppError
 from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
-from semestra.modules.files import pipeline
+from semestra.modules.files import pipeline, service
 from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
 
 # Weights follow M07 §3.1; stages that do not apply are skipped and their weight is shared out.
@@ -32,6 +33,16 @@ class ProcessResult(BaseModel):
     page_count: int
 
 
+class KeepPayload(BaseModel):
+    item_ids: list[str]
+
+
+class KeepResult(BaseModel):
+    kept: int
+    # Left as they were: the quota is full, or one could not be stored (too large, unreadable).
+    left: int
+
+
 class ReindexPayload(BaseModel):
     # The periodic retry: documents that failed too often are left alone.
     retry: bool = False
@@ -48,6 +59,52 @@ async def _process_failed(ctx: Ctx, payload: ProcessPayload, job: CoreJob) -> No
 @job_handler("files.process", stages=PROCESS_STAGES, max_attempts=1, on_failure=_process_failed)
 async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
+
+
+# The same work for files another module keeps in step with its source (M09's course materials):
+# behind what the user is waiting on, and only shown on the file itself, not in the status bar.
+@job_handler(
+    "files.process_synced",
+    stages=PROCESS_STAGES,
+    max_attempts=1,
+    on_failure=_process_failed,
+    lane="background",
+    listed=False,
+    labels="files.process",
+)
+async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
+    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
+
+
+@job_handler("files.keep_offline", stages=[("storing", 1)], max_attempts=1)
+async def keep_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
+    """An offline copy the user asked for; a failure shows in the status bar."""
+    for item_id in payload.item_ids:
+        await ctx.stage("storing")
+        await service.store_from_source(ctx, item_id, quiet=False)
+    return KeepResult(kept=len(payload.item_ids), left=0)
+
+
+@job_handler(
+    "files.keep_offline_synced",
+    stages=[("storing", 1)],
+    lane="background",
+    listed=False,
+    labels="files.keep_offline",
+)
+async def keep_synced_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
+    """Files read from their source, stored here one by one until the quota is full; one that
+    can't be stored (too large, unreadable now) is left read from its source."""
+    kept = 0
+    for index, item_id in enumerate(payload.item_ids):
+        await ctx.stage("storing", current=index, total=len(payload.item_ids))
+        try:
+            if not await service.store_from_source(ctx, item_id, quiet=True):
+                break
+        except AppError:
+            continue
+        kept += 1
+    return KeepResult(kept=kept, left=len(payload.item_ids) - kept)
 
 
 @job_handler("files.reindex_vectors", stages=[("embedding", 1)], max_attempts=2, lane="bulk")

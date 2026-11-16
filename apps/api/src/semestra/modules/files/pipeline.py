@@ -22,7 +22,7 @@ from semestra.core.events import Event, events
 from semestra.core.jobs import CoreJob, JobCancelled, JobCtx, enqueue
 from semestra.core.storage import Storage
 from semestra.modules import ai
-from semestra.modules.files import chunking, indexing, service
+from semestra.modules.files import chunking, content, indexing, service
 from semestra.modules.files.embeddings import BATCH_SIZE, embed_texts, embedding_text
 from semestra.modules.files.models import (
     FilesChunk,
@@ -75,7 +75,9 @@ class _Work:
     item_id: str
     user_id: str
     course_id: str
-    storage_key: str
+    # Where the bytes are: stored here, or read from the item's source (`content.py`).
+    storage_key: str | None
+    source_ref: str | None
     original_name: str | None
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
@@ -92,12 +94,7 @@ async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
     store = get_vector_store()
     async with ctx.state.session_factory() as db:
         item = await db.get(FilesItem, item_id)
-        if (
-            item is None
-            or item.user_id != ctx.user_id
-            or item.kind != "file"
-            or not item.storage_key
-        ):
+        if item is None or item.user_id != ctx.user_id or not content.has_content(item):
             return None
         stale = list(
             (
@@ -112,7 +109,14 @@ async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
         keys = await indexing.delete_documents(db, store, stale)
         item.doc_status, item.doc_error_code = "processing", None
         item.updated_at = ctx.state.now()
-        work = _Work(item.id, ctx.user_id, item.course_id, item.storage_key, item.original_name)
+        work = _Work(
+            item.id,
+            ctx.user_id,
+            item.course_id,
+            item.storage_key,
+            item.source_ref,
+            item.original_name,
+        )
         await db.commit()
     await _remove_objects(ctx.state.storage, keys)
     await _announce(ctx, ("files.item.updated", {"item_id": item_id, "course_id": work.course_id}))
@@ -157,7 +161,8 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     code = (
         "files.cancelled" if job.status == "cancelled" else job.error_code or "files.parse_failed"
     )
-    item.doc_status = "unsupported" if code == "files.unsupported_type" else "failed"
+    quiet = code == "files.unsupported_type" or (code == "files.too_large" and content.remote(item))
+    item.doc_status = "unsupported" if quiet else "failed"
     item.doc_error_code = code
     item.updated_at = ctx.now
     data = {"item_id": item.id, "course_id": item.course_id}
@@ -196,7 +201,17 @@ async def run(ctx: JobCtx, item_id: str) -> int:
 async def _run(ctx: JobCtx, work: _Work) -> int:
     storage: Storage = ctx.state.storage
     await ctx.stage("detecting")
-    data = b"".join([chunk async for chunk in storage.open(work.storage_key)])
+    source = FilesItem(
+        id=work.item_id,
+        user_id=work.user_id,
+        course_id=work.course_id,
+        kind="file",
+        storage_key=work.storage_key,
+        source_ref=work.source_ref,
+    )
+    data = await content.read_all(
+        ctx.state, work.user_id, source, ctx.settings.files_max_upload_bytes
+    )
     detected = detect(data, work.original_name)
     if detected.kind not in service.PARSEABLE:
         raise ParseError("files.unsupported_type")
@@ -663,7 +678,7 @@ async def _embed_stale(
         if not chunks:
             continue
         refs = [(c[0], list(c[1]), c[2]) for c in chunks]
-        work = _Work(item_id, ctx.user_id, course_id, "", None)
+        work = _Work(item_id, ctx.user_id, course_id, None, None, None)
         try:
             for start in range(0, len(refs), BATCH_SIZE):
                 batch = refs[start : start + BATCH_SIZE]

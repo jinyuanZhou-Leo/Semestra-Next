@@ -1,6 +1,7 @@
 import type { FolderOut, ItemOut } from '@semestra/api-client'
 import {
   filesItemUpdateMutation,
+  filesItemKeepOfflineMutation,
   filesItemReprocessMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,6 +23,7 @@ import {
   FileSearch,
   Folder,
   FolderInput,
+  HardDriveDownload,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -31,7 +33,6 @@ import {
   Trash2,
 } from 'lucide-react'
 import { createContext, use, useRef, useState } from 'react'
-import { useExtensions } from '@/app/registry'
 import { useUiPref } from '@/app/ui-pref'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
@@ -57,13 +58,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { DROP_TARGET, type DropTargets, dropTargetProps } from '../hooks'
 import { previewKind, typeLabel } from '../kinds'
 import { contentUrl, invalidateFiles, pageImageUrl } from '../queries'
-import { FILE_ITEM_ACTIONS, type FileItemAction } from '../types'
 import { type Target, compareNames } from '../folders'
 import { useDragSource, useDropFolder } from './FileDrag'
 import type { ItemAction } from './ItemDialogs'
 import { StatusCell } from './StatusCell'
 import { VirtualBody } from './VirtualBody'
 import { FileIcon } from './FileIcon'
+import { useItemActions } from './ItemActions'
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() })
 const column = createColumnHelper<typeof features, ItemOut>()
@@ -206,7 +207,7 @@ function PinCell({ row }: CellProps) {
 
 export function ItemMenu({ item }: { item: ItemOut }) {
   const { act, programId } = useHandlers()
-  const actions = useExtensions<FileItemAction>(FILE_ITEM_ACTIONS).filter((a) => a.accepts(item))
+  const actions = useItemActions(item)
   const canReprocess =
     item.kind === 'file' && (item.doc_status === 'ready' || item.doc_status === 'failed')
   const canIndex = item.kind === 'file' && item.doc_status === 'none'
@@ -232,7 +233,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       </Tooltip>
       <DropdownMenuContent
         align="end"
-        className={programId && actions.length > 0 ? 'w-72' : undefined}
+        className={programId && actions.some((a) => a.description) ? 'w-72' : undefined}
       >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
           <Pencil aria-hidden />
@@ -251,6 +252,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
+        {item.follows_source ? <KeepOfflineItem item={item} /> : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>
@@ -262,7 +264,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
               >
                 <action.icon aria-hidden />
                 <span className="min-w-0">
-                  <span className="block">{action.title()}</span>
+                  <span className="block">
+                    <action.Label programId={programId} item={item} />
+                  </span>
                   {action.description ? (
                     <span className="block text-xs text-muted-foreground">
                       {action.description()}
@@ -283,6 +287,22 @@ export function ItemMenu({ item }: { item: ItemOut }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** A file read from its source when opened (an LMS file), stored here so it opens offline too. */
+function KeepOfflineItem({ item }: { item: ItemOut }) {
+  const queryClient = useQueryClient()
+  const keep = useMutation({
+    ...filesItemKeepOfflineMutation(),
+    onError: toastError,
+    onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
+  })
+  return (
+    <DropdownMenuItem onClick={() => keep.mutate({ path: { item_id: item.id } })}>
+      <HardDriveDownload aria-hidden />
+      {m.files_keep_offline()}
+    </DropdownMenuItem>
   )
 }
 

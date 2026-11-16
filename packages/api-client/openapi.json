@@ -857,6 +857,8 @@
                       "size_bytes",
                       "sha256",
                       "url",
+                      "stored",
+                      "follows_source",
                       "pinned",
                       "source_kind",
                       "source_ref",
@@ -7207,6 +7209,59 @@
         }
       }
     },
+    "/files/{item_id}:keep-offline": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Keep an offline copy of a file read from its source.",
+        "description": "Stores a file that is read from the LMS when opened (stored: false) here, in the\nbackground, so it still opens after the course closes there. It then takes storage quota; one\ntoo large or beyond the quota left is refused.",
+        "operationId": "filesItemKeepOffline",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "File or link id, from files.item.list",
+              "title": "Item Id"
+            },
+            "description": "File or link id, from files.item.list"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/pinned-files": {
       "get": {
         "tags": [
@@ -12161,8 +12216,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Turn LMS sync of a linked course on or off.",
-        "description": "Off: no calendar overlay and no update checks; reading still works. To remove the\nlink altogether use lms.course.link.delete.",
+        "summary": "Turn LMS sync of a linked course, or of its materials, on or off.",
+        "description": "`sync_enabled` off: no calendar overlay and no update checks; reading still\nworks. `files_sync` off: the course's files, pages and links no longer come in or follow the\nLMS (those there stay). `files_offline` on: they are stored here (taking storage quota) rather\nthan read from the LMS when opened.\nTo remove the link altogether use lms.course.link.delete.",
         "operationId": "lmsCourseLinkUpdate",
         "security": [
           {
@@ -12714,7 +12769,7 @@
           "lms"
         ],
         "summary": "Save a file of a linked course on the LMS into the course's files.",
-        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted.",
+        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted. A file the sync already brought into the course's files (its course materials) is\nstored in place as an offline copy, not added again.",
         "operationId": "lmsFileSaveToCourse",
         "security": [
           {
@@ -24157,6 +24212,16 @@
             "type": "boolean",
             "title": "Sync Enabled"
           },
+          "files_sync": {
+            "type": "boolean",
+            "title": "Files Sync",
+            "description": "The sync brings the course's files, pages and links in"
+          },
+          "files_offline": {
+            "type": "boolean",
+            "title": "Files Offline",
+            "description": "They are stored here, not read when opened"
+          },
           "synced_at": {
             "anyOf": [
               {
@@ -24197,6 +24262,8 @@
           "external_term",
           "web_url",
           "sync_enabled",
+          "files_sync",
+          "files_offline",
           "synced_at",
           "sync_errors",
           "created_at"
@@ -26701,10 +26768,34 @@
             ],
             "title": "Updated At"
           },
+          "content_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content At"
+          },
           "locked": {
             "type": "boolean",
             "title": "Locked",
             "default": false
+          },
+          "folder_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Path",
+            "description": "Its folder below the course's root folder (course_files)"
           }
         },
         "type": "object",
@@ -28773,6 +28864,14 @@
             ],
             "title": "Url"
           },
+          "stored": {
+            "type": "boolean",
+            "title": "Stored"
+          },
+          "follows_source": {
+            "type": "boolean",
+            "title": "Follows Source"
+          },
           "pinned": {
             "type": "boolean",
             "title": "Pinned"
@@ -28876,6 +28975,8 @@
           "size_bytes",
           "sha256",
           "url",
+          "stored",
+          "follows_source",
           "pinned",
           "source_kind",
           "source_ref",
@@ -29089,6 +29190,17 @@
                 "type": "null"
               }
             ]
+          },
+          "label_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Kind"
           }
         },
         "type": "object",
@@ -29243,15 +29355,43 @@
       "LinkUpdateInputBody": {
         "properties": {
           "sync_enabled": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Sync Enabled",
             "description": "Show in the calendar, check updates"
+          },
+          "files_sync": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files Sync",
+            "description": "Bring the course's files, pages and links into its files"
+          },
+          "files_offline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files Offline",
+            "description": "Store them here (taking quota) instead of reading when opened"
           }
         },
         "type": "object",
-        "required": [
-          "sync_enabled"
-        ],
         "title": "LinkUpdateInputBody"
       },
       "LmsActivityItem": {
@@ -34735,6 +34875,11 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "stored": {
+            "type": "boolean",
+            "title": "Stored",
+            "default": true
           }
         },
         "type": "object",

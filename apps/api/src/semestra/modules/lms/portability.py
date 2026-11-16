@@ -2,7 +2,8 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links
-and imported refs follow the id map of Programs, courses, assessments and tasks. The cache is
+and imported refs follow the id map of Programs, courses, assessments, tasks and course files
+(the materials the sync brought in, and their type folders). The cache is
 not exported, nor is what the background sync keeps for itself (its change log, its
 conflicts, the new items it offers): the first sync after an import finds them again; only the
 new items the user ignored are kept. Registered at the bottom with M13's `register_portability`.
@@ -76,6 +77,8 @@ class LinkRow(BaseModel):
     external_term: str | None = None
     web_url: str | None = None
     sync_enabled: bool = True
+    files_sync: bool = True
+    files_offline: bool = False
 
 
 class RefRow(BaseModel):
@@ -211,6 +214,8 @@ async def import_(
             external_term=li.external_term,
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
+            files_sync=li.files_sync,
+            files_offline=li.files_offline,
             created_at=ctx.now,
             updated_at=ctx.now,
         )
@@ -269,7 +274,7 @@ register_portability(
     module="lms",
     schema_version=SCHEMA_VERSION,
     upgrades={1: _v1_to_v2},
-    depends_on=("academics", "grading", "tasks", "schedule"),
+    depends_on=("academics", "grading", "tasks", "schedule", "files"),
     export=export,
     import_=import_,
     preview=preview,

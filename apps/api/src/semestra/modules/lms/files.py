@@ -1,33 +1,43 @@
 """Saving LMS files into the course's files (M09 §5 → M07 `save_bytes_as_file`), and reading
-their text with M07's parser for previews.
+their text with M07's parser for previews."""
 
-M07 may not be installed yet (it is merged separately); then both are unavailable."""
-
-import importlib
 from datetime import timedelta
-from types import ModuleType
 
 import anyio.to_thread
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
+from semestra.modules.files import service as files
+from semestra.modules.files.parse import ParseError, detect, parse
+from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.lms import cache, reads, service
 from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.models import LmsImportedRef
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
-
-
-def _files_service() -> ModuleType | None:
-    try:
-        return importlib.import_module("semestra.modules.files.service")
-    except ImportError:
-        return None
+from semestra.modules.lms.sync_files import ITEM, file_version, source_ref
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
-    files = _files_service()
-    if files is None or not hasattr(files, "save_bytes_as_file"):
-        raise lms_error("lms.feature_unsupported", feature="save_to_course")
-    link, b = linked = await service.require_link(ctx, inp.course_id)
+    """A copy of the file in the course's files, stored here. Once per file: a file the course's
+    files have already is that item, and one the sync brought in (read from the platform when
+    opened) is stored in place by a job (`stored` false until it has run)."""
+    link, _ = linked = await service.require_link(ctx, inp.course_id)
+    ref = await ctx.db.scalar(
+        select(LmsImportedRef).where(
+            LmsImportedRef.link_id == link.id,
+            LmsImportedRef.external_kind == "file",
+            LmsImportedRef.external_id == inp.file_id,
+        )
+    )
+    found = await files.find_items(ctx, [ref.target_id]) if ref and ref.target_id else []
+    if found:
+        await files.keep_offline(ctx, found[0])
+        return SavedFile(
+            file_item_id=found[0].id,
+            name=found[0].display_name,
+            stored=bool(found[0].storage_key),
+        )
     meta, stream = await reads.open_file(ctx, inp.course_id, inp.file_id, linked=linked)
     item = await files.save_bytes_as_file(
         ctx,
@@ -35,9 +45,19 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         meta.name,
         stream,
         source_kind="lms",
-        source_ref=f"lms:{b.row.provider}:{link.connection_id}:file:{inp.file_id}",
+        source_ref=source_ref("file", inp.file_id),
         folder_id=inp.folder_id,
+        kept_offline=True,
     )
+    if ref is None:
+        ref = LmsImportedRef(
+            user_id=ctx.user_id, link_id=link.id, external_kind="file", external_id=inp.file_id
+        )
+        ctx.db.add(ref)
+    # The sync leaves a saved copy as it is (and does not bring the file in again).
+    ref.target_kind, ref.target_id, ref.imported_at, ref.dismissed_at = ITEM, item.id, ctx.now, None
+    ref.snapshot = {"version": file_version(meta), "name": item.display_name}
+    await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))
 
 
@@ -55,12 +75,6 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
     """The text of an LMS file, page by page, as M07's parser reads it: Word, PowerPoint and
     Excel files are previewed this way (the app has no Office renderer), and the assistant can
     read a file without saving it into the course first. Cached per file version."""
-    try:
-        from semestra.modules.files.parse import ParseError, detect, parse
-        from semestra.modules.files.parse.isolated import Parsed, parse_isolated
-    except ImportError:
-        raise lms_error("lms.feature_unsupported", feature="preview") from None
-
     link, b = linked = await service.require_link(ctx, course_id)
     meta = await reads.file(ctx, course_id, file_id, refresh, linked=linked)
     params = {
