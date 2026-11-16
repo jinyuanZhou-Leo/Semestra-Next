@@ -290,14 +290,15 @@ async def test_edits_from_the_device(
         None,
     )
 
-    # What Semestra cannot store comes back unchanged; Semestra's own fields follow the task.
+    # What Semestra cannot store comes back unchanged, except a repeat rule (tasks do not repeat);
+    # Semestra's own fields follow the task.
     await call(
         client, "PATCH", f"/tasks/{created['id']}", json={"title": "APS105 PS1", "flagged": True}
     )
     href, todo = (await device.todos(inbox))["APS105 PS1"]
     assert href == f"{inbox}AAA-1.ics"
     assert str(todo["UID"]) == "AAA-1"
-    assert str(todo["RRULE"].to_ical().decode()) == "FREQ=WEEKLY"
+    assert "RRULE" not in todo
     assert str(todo["X-APPLE-SORT-ORDER"]) == "12"
     triggers = sorted(str(a["TRIGGER"].to_ical().decode()) for a in todo.walk("VALARM"))
     assert triggers == ["-PT1H", "20260122T140000Z"]

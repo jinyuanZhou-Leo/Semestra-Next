@@ -1,9 +1,10 @@
 """Tasks as iCalendar VTODOs and back (RFC 5545). Pure: no database access.
 
 A client's own text is kept (`CaldavItem.ical`) and sent back with only the properties Semestra
-owns rewritten, so what Semestra cannot store (repeat rules, extra alerts, X-APPLE-*) survives a
-round trip. Semestra owns the title, notes, due date and time, priority and completion, plus the
-one alert at the due time; everything else is left as the client wrote it.
+owns rewritten, so what Semestra cannot store (extra alerts, X-APPLE-*) survives a round trip.
+Semestra owns the title, notes, due date and time, priority and completion, plus the one alert at
+the due time; everything else is left as the client wrote it. Tasks do not repeat: a repeat rule
+is dropped, so completing the task ends it on every device.
 """
 
 from dataclasses import dataclass
@@ -27,6 +28,9 @@ OWNED = (
     "DTSTAMP",
     "LAST-MODIFIED",
 )
+# Repeat rules. Semestra has no repeating tasks; keeping a rule would let the device advance the
+# due date on completion while Semestra sees an open task forever.
+REPEAT = ("RRULE", "RDATE", "EXDATE")
 TITLE_MAX = 300
 NOTES_MAX = 20_000
 
@@ -136,7 +140,7 @@ def parse(body: bytes, zone: ZoneInfo) -> tuple[TodoFields, str]:
     todo.subcomponents = [
         c for c in todo.subcomponents if not (isinstance(c, Alarm) and _is_due_alarm(c, due))
     ]
-    for name in OWNED:
+    for name in (*OWNED, *REPEAT):
         todo.pop(name, None)
     return fields, calendar.to_ical().decode()
 
