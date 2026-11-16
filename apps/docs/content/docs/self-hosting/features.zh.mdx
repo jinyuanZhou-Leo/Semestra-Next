@@ -43,3 +43,13 @@ docker compose exec ollama ollama pull nomic-embed-text
 compose 文件设置了 `SEMESTRA_ALLOW_PRIVATE_EGRESS=true`，用户可以添加内网地址（`192.168.x.x`、`10.x.x.x`）上的 Ollama 或
 Canvas。公网服务器上有你不信任的用户时，请设为 `false`：服务器将拒绝访问内网和回环地址。
 链路本地和云主机元数据地址（`169.254.169.254` 等）无论怎样设置都会被拒绝。
+
+## Apple 提醒事项
+
+compose 文件默认开启，用户可以把待办[同步到 Apple 提醒事项](/docs/tasks#在-apple-提醒事项里查看待办)或其他支持 CalDAV 的 App。不需要时：
+
+```bash title=".env"
+SEMESTRA_CALDAV=false
+```
+
+设备会用 `SEMESTRA_PUBLIC_URL` 连接服务器，所以它必须是手机能访问到的地址，而不是 `localhost`。建议使用 `https://`：用纯 http 时，设备会先提示无法用 SSL 连接，确认后才能继续。

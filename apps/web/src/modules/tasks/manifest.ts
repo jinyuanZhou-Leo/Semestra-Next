@@ -1,4 +1,5 @@
-import { ListChecks, ListTodo, Sun } from 'lucide-react'
+import { caldavConnectionListOptions } from '@semestra/api-client/react-query'
+import { ListChecks, ListTodo, Smartphone, Sun } from 'lucide-react'
 import { defineModule, preloadable } from '@/app/extensions'
 import { coursePath, termPath } from '@/modules/academics/paths'
 import { ASSESSMENT_COLUMNS, type AssessmentColumn } from '@/modules/grading/types'
@@ -95,6 +96,20 @@ export default defineModule({
       order: 50,
       namespace: 'tasks',
     },
+    {
+      id: 'tasks-reminders',
+      level: 'program',
+      group: 'tasks',
+      title: m.tasks_reminders_title,
+      description: m.tasks_reminders_description,
+      icon: Smartphone,
+      order: 60,
+      component: preloadable(() => import('./settings/RemindersSection')),
+      prefetch: (scope, queryClient) =>
+        queryClient.ensureQueryData(
+          caldavConnectionListOptions({ path: { program_id: scope?.programId ?? '' } }),
+        ),
+    },
   ],
   calendarSources: [
     {
@@ -144,6 +159,7 @@ export default defineModule({
     ['academics.course.deleted', ['tasksItemQuery', 'tasksItemCount']],
     ['academics.term.deleted', [...TASK_QUERIES]],
     ['settings.values.updated', ['tasksItemQuery', 'tasksItemCount']],
+    ['caldav.connection.changed', ['caldavConnectionList']],
   ]),
   // Every task change this tab makes refreshes the task queries itself (`invalidateTasks`).
   realtimeSkipOwn: TASK_EVENTS,
