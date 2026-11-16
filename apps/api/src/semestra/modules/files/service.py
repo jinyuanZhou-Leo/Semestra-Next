@@ -917,6 +917,14 @@ async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
+async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
+    """The source no longer keeps these copies the user kept (an LMS course unlinked): they are
+    plain files of the user's from now on (`source_ref` cleared), with nothing to read again."""
+    for row in rows:
+        row.source_ref, row.kept_offline, row.updated_at = None, False, ctx.now
+    await ctx.db.flush()
+
+
 async def find_folder(ctx: Ctx, course_id: str, folder_id: str) -> FilesFolder | None:
     return await ctx.db.scalar(
         select(FilesFolder).where(

@@ -213,6 +213,10 @@ async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider,
     folders, items = await _files(api, course)
     assert list(items) == ["Lecture 1.pdf"]
     assert "Tutorials and labs" in {f["name"] for f in folders.values()}
+    # The copy is now a plain file of the user's: nothing left to read it from (a backup
+    # without files leaves it out, as any file of theirs).
+    kept = items["Lecture 1.pdf"]
+    assert (kept["stored"], kept["follows_source"], kept["source_ref"]) == (True, False, None)
 
 
 async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock):

@@ -653,5 +653,6 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
             )
         )
     )
-    rows = [r for r in await files.find_items(ctx, [i for i in ids if i]) if not r.kept_offline]
-    await files.purge_items(ctx, rows)
+    rows = await files.find_items(ctx, [i for i in ids if i])
+    await files.purge_items(ctx, [r for r in rows if not r.kept_offline])
+    await files.detach_from_source(ctx, [r for r in rows if r.kept_offline])

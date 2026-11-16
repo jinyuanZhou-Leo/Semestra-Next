@@ -145,7 +145,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **保存方式**：课程开关 `lms_course_links.files_offline`（默认关，课程设置“资料保存方式”：打开时读取 / 保存到本地）。打开时每轮同步把还没存的远程文件交给 M07 的 `keep_synced_offline`（任务 `files.keep_offline_synced`，`background` 通道、不进列表，去重键 `lms.files:<link_id>`）存成占配额的副本：入队前按平台给的大小筛掉超过上传上限和剩余配额的，所以配额满时不再下载；任务里单个文件失败就跳过。这些副本仍属于同步，照常跟随更新和删除。关掉这个选项时已存的副本保留，下次平台内容更新时变回打开时读取。
 - **关闭同步**：关闭 `files_sync` 只停止这个阶段，已有资料保留，不再更新。
 - **另存副本**：`lms.file.save_to_course` 先查 `lms_imported_refs`，同步已带进来的就对那一项调用 M07 的 `keep_offline`（标记 `kept_offline`，没存的原地存成副本，不再建一份），返回它与 `stored`；否则存一份占配额的副本（`kept_offline=True`）并记下引用，同步之后不会再建一份。
-- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项（用户保留的副本与文件夹保留）。
+- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项；用户保留的副本与文件夹保留，副本经 M07 `detach_from_source` 清掉 `source_ref`，成为用户的普通文件。
 - **出站**：远程文件的预览与下载经后端代理读取平台（与 `reads.open_file` 相同），不改成浏览器直连；本功能以自部署为主（owner 2026-11-16）。
 - **前端**：课程设置 LMS 分区的“同步课程资料”开关与“资料保存方式”下拉（`ChoiceControl`）；`files.itemActions` 贡献“在 {provider} 中打开”（`source_kind="lms"` 的文件与页面，打开 `url`），文件菜单里显示，预览对话框标题栏与“无法预览”时也作为按钮显示。
 
