@@ -1985,6 +1985,7 @@
   "files_card_recent": "Recent files",
   "files_card_recent_description": "The latest files added to this course.",
   "files_job_process": "Processing a file",
+  "files_job_keep_offline": "Keeping an offline copy",
   "files_job_reindex": "Rebuilding the search index",
   "job_step_files_process_detecting": "Checking the file",
   "job_step_files_process_parsing": "Reading pages",

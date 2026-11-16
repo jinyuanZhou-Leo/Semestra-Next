@@ -247,7 +247,8 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
     name="files.item.keep_offline",
     summary="Keep an offline copy of a file read from its source.",
     description="""Stores a file that is read from the LMS when opened (stored: false) here, in the
-background, so it still opens after the course closes there. It then takes storage quota.""",
+background, so it still opens after the course closes there. It then takes storage quota; one
+too large or beyond the quota left is refused.""",
     effect="write",
     http=Http("POST", "/files/{item_id}:keep-offline"),
     expose=("http",),
@@ -255,7 +256,7 @@ background, so it still opens after the course closes there. It then takes stora
 )
 async def keep_offline(ctx: Ctx, inp: ItemRef) -> ItemOut:
     row = await service.get_item(ctx, inp.item_id)
-    await service.keep_offline(ctx, [row])
+    await service.keep_offline(ctx, row)
     return await service.item_out(ctx, row)
 
 

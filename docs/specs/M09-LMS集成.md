@@ -138,14 +138,14 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按课程开关 `lms_course_links.files_sync`（默认开，课程设置“同步课程资料”；`sync_enabled=false` 时整个同步不跑）。打开开关时把 `synced_at` 清空，下一轮就同步。
 - **不占存储**：文件与页面建成 M07 的“远程文件”（`storage_key` 为空，`source_kind="lms"`，`source_ref="lms:<file|page|link>:<外部 id>"`，`sha256` 为平台版本的哈希），内容经 M07 的内容源（`register_content_source("lms:", open_source)`）在打开、预览、建索引时从平台读：文件走 `reads.open_file`，页面现读正文渲染成带 `<h1>` 标题的 HTML 文档。链接建成 M07 的链接项。锁定（未开放）的文件和隐藏的文件、文件夹跳过，开放后下一次同步再加入。
 - **类型与文件夹**（纯规则 `materials.py`）：类型按顺序取 ① 自身（视频 mime 或视频站链接 → 录播；标题匹配规则）② 单元里上方的小标题 ③ 单元名 ④ 平台上的文件夹（从深到浅）⑤ 列出它的页面标题，都不中时为“课程资料”。类型是课程文件根目录下的文件夹（讲义、辅导与实验、习题与答案、往年考试、录播、阅读、课程资料，名称取建文件夹时账户的语言，同名的已有文件夹直接用）；课程大纲（只看自身标题）放在根目录。只有链接、自身文字不到 160 字的页面是“列表页”，不保存，只用来给它列出的文件和页面定类型。本步不用 AI，也不按周归类。
-- **记录与用户优先**：每个带进来的东西在 `lms_imported_refs` 记一行（kind `file`/`page`/`link`，target `file_item`，快照 `{version, size, type, name, title, is_list, notes}`）；每种类型的文件夹也记一行（kind `type_folder`，target `file_folder`）。用户移动、改名、删除都不会被同步改回：平台改了名而用户没改的才跟着改名（只改名，不重新处理）；删掉的记为 dismissed，不再加回；类型文件夹被删时，新资料放进用户已把同类资料移入的最多的那个文件夹，否则放在根目录。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的远程文件更新大小与版本并重新处理，已存副本的不动。每次最多新建 100 项，其余留到下一次。
+- **记录与用户优先**：每个带进来的东西在 `lms_imported_refs` 记一行（kind `file`/`page`/`link`，target `file_item`，快照 `{version, size, type, name, title, is_list, notes}`）；每种类型的文件夹也记一行（kind `type_folder`，target `file_folder`）。用户移动、改名、删除都不会被同步改回：平台改了名而用户没改的才跟着改名（只改名，不重新处理）；删掉的记为 dismissed，不再加回；类型文件夹被删时，新资料放进用户已把同类资料移入的最多的那个文件夹，否则放在根目录。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小与版本并重新处理（为“保存到本地”存下的副本先放掉字节，再由本轮重新存），用户保留的副本（M07 `files_items.kept_offline`）不动。每次最多新建 100 项，其余留到下一次。
 - **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用快照里记下的链接（`notes.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`notes.checked`）。
-- **平台上删除**：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的部分，`_Found.complete`）时，没再见到的远程文件与链接删掉，引用的 target 置空；存过副本的保留。原来是资料、现在成了列表页的也删掉。
+- **平台上删除**：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的文件与链接删掉，引用的 target 置空；用户保留的副本（`kept_offline`）不删。原来是资料、现在成了列表页的也删掉。
 - **重试**：读取失败的远程文件（`files.source_unread`，或 `lms.*` 错误超过 1 小时，`RETRY_AFTER`）在下一轮同步时重新处理。
-- **保存方式**：课程开关 `lms_course_links.files_offline`（默认关，课程设置“资料保存方式”：打开时读取 / 保存到本地）。打开时每轮同步把还没存的远程文件交给 M07 的 `files.keep_offline` 任务（去重键 `lms.files:<link_id>`）存成占配额的副本，配额不够时剩下的保持远程。
+- **保存方式**：课程开关 `lms_course_links.files_offline`（默认关，课程设置“资料保存方式”：打开时读取 / 保存到本地）。打开时每轮同步把还没存的远程文件交给 M07 的 `keep_synced_offline`（任务 `files.keep_offline_synced`，`background` 通道、不进列表，去重键 `lms.files:<link_id>`）存成占配额的副本：入队前按平台给的大小筛掉超过上传上限和剩余配额的，所以配额满时不再下载；任务里单个文件失败就跳过。这些副本仍属于同步，照常跟随更新和删除。关掉这个选项时已存的副本保留，下次平台内容更新时变回打开时读取。
 - **关闭同步**：关闭 `files_sync` 只停止这个阶段，已有资料保留，不再更新。
-- **另存副本**：`lms.file.save_to_course` 先查 `lms_imported_refs`，同步已带进来的就对那一项排 `files.keep_offline`（原地存成副本，不再建一份）并返回它；否则存一份占配额的副本并记下引用，同步之后不会再建一份。
-- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课只从平台读取的项（另存的副本与文件夹保留）。
+- **另存副本**：`lms.file.save_to_course` 先查 `lms_imported_refs`，同步已带进来的就对那一项调用 M07 的 `keep_offline`（标记 `kept_offline`，没存的原地存成副本，不再建一份），返回它与 `stored`；否则存一份占配额的副本（`kept_offline=True`）并记下引用，同步之后不会再建一份。
+- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项（用户保留的副本与文件夹保留）。
 - **出站**：远程文件的预览与下载经后端代理读取平台（与 `reads.open_file` 相同），不改成浏览器直连；本功能以自部署为主（owner 2026-11-16）。
 - **前端**：课程设置 LMS 分区的“同步课程资料”开关与“资料保存方式”下拉（`ChoiceControl`）；`files.itemActions` 贡献“在 {provider} 中打开”（`source_kind="lms"` 的文件与页面，打开 `url`），文件菜单里显示，预览对话框标题栏与“无法预览”时也作为按钮显示。
 

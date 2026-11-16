@@ -21,7 +21,7 @@ from semestra.modules.lms.sync_files import ITEM, file_version, source_ref
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
     """A copy of the file in the course's files, stored here. Once per file: a file the course's
     files have already is that item, and one the sync brought in (read from the platform when
-    opened) is stored in place, in the background."""
+    opened) is stored in place by a job (`stored` false until it has run)."""
     link, _ = linked = await service.require_link(ctx, inp.course_id)
     ref = await ctx.db.scalar(
         select(LmsImportedRef).where(
@@ -32,8 +32,12 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
     )
     found = await files.find_items(ctx, [ref.target_id]) if ref and ref.target_id else []
     if found:
-        await files.keep_offline(ctx, found)
-        return SavedFile(file_item_id=found[0].id, name=found[0].display_name)
+        await files.keep_offline(ctx, found[0])
+        return SavedFile(
+            file_item_id=found[0].id,
+            name=found[0].display_name,
+            stored=bool(found[0].storage_key),
+        )
     meta, stream = await reads.open_file(ctx, inp.course_id, inp.file_id, linked=linked)
     item = await files.save_bytes_as_file(
         ctx,
@@ -43,6 +47,7 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         source_kind="lms",
         source_ref=source_ref("file", inp.file_id),
         folder_id=inp.folder_id,
+        kept_offline=True,
     )
     if ref is None:
         ref = LmsImportedRef(

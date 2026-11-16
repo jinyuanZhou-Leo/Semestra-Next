@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from semestra.core.config import Settings
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -115,13 +116,14 @@ async def test_materials_come_into_type_folders(api: Api, fake: FakeProvider):
 
     # Kept offline, in place: the same item, now stored and counted (from the files or from
     # the platform's file, as the Canvas tab saves it).
-    assert lecture["stored"] is False
+    assert (lecture["stored"], lecture["follows_source"]) == (False, True)
     await api.call("POST", f"/files/{lecture['id']}:keep-offline")
     saved = await api.call("POST", f"/courses/{course}/lms/files/202:save", json={})
-    assert saved["file_item_id"] == items["W1.pdf"]["id"]
+    assert (saved["file_item_id"], saved["stored"]) == (items["W1.pdf"]["id"], False)
     await api.run_jobs()
     kept = await api.call("GET", f"/files/{lecture['id']}")
-    assert (kept["stored"], kept["folder_id"]) == (True, lecture["folder_id"])
+    assert (kept["stored"], kept["follows_source"]) == (True, False)
+    assert kept["folder_id"] == lecture["folder_id"]
     assert (await api.call("GET", "/files-usage"))["files_bytes"] == 2 * len(b"hello")
     r = await api.client.get(f"/files/{lecture['id']}/content")
     assert (r.status_code, r.content) == (200, b"hello")
@@ -226,12 +228,16 @@ async def test_following_the_platform(api: Api, fake: FakeProvider, clock: Clock
     # Gone from the platform: the midterm; and a file only a page links to (the files area
     # hidden in this course's later life).
     del files[2]
+    # The page also still links to a file deleted long ago: that says nothing of the rest.
     fake.page_texts["syllabus"] = (
-        "Course syllabus", SYLLABUS + '<a href="https://fake/courses/101/files/208">Rubric</a>'
-    )  # fmt: skip
+        "Course syllabus",
+        SYLLABUS + '<a href="https://fake/courses/101/files/208">Rubric</a>'
+        '<a href="https://fake/courses/101/files/207">Old rubric</a>',
+    )
     assert fake.page_list is not None
     fake.page_list[0] = fake.page_list[0].model_copy(update={"updated_at": FEB})
     files.append(_file("208", "Rubric.pdf"))
+    fake.deleted_files.add("207")
     clock.advance(minutes=1)
     await api.sync(program_id)
     _, items = await _files(api, course)
@@ -279,3 +285,84 @@ async def test_stored_here_and_read_again(api: Api, fake: FakeProvider, clock: C
     await api.sync(program_id)
     await api.run_jobs()
     assert (await _files(api, course))[1]["Lecture 10.pdf"]["doc_status"] == "ready"
+
+
+async def test_an_offline_copy_the_user_asks_for(api: Api, fake: FakeProvider, settings: Settings):
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]  # 1000 bytes on the platform
+
+    # What can be told at once is refused at once.
+    settings.files_max_upload_bytes = 999
+    r = await api.client.post(f"/files/{lecture['id']}:keep-offline")
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "files.too_large")
+    settings.files_max_upload_bytes = 10_000_000
+    settings.user_storage_quota_bytes = 999
+    r = await api.client.post(f"/files/{lecture['id']}:keep-offline")
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "common.quota_exceeded")
+    settings.user_storage_quota_bytes = 0
+
+    # A failure while storing fails the job the user sees; asking twice queues one job.
+    fake.fail_downloads = True
+    await api.call("POST", f"/files/{lecture['id']}:keep-offline")
+    await api.call("POST", f"/files/{lecture['id']}:keep-offline")
+    await api.run_jobs()
+    jobs = [
+        j for j in (await api.call("GET", "/jobs"))["items"] if j["kind"] == "files.keep_offline"
+    ]
+    assert [(j["status"], j["error_code"]) for j in jobs] == [("failed", "lms.unreachable")]
+    assert (await api.call("GET", f"/files/{lecture['id']}"))["stored"] is False
+
+
+async def test_stored_here_still_follows_the_platform(
+    api: Api, fake: FakeProvider, settings: Settings, clock: Clock
+):
+    _materials(fake)
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
+    fake.course_file_list.append(
+        _file("206", "Huge recording.pdf").model_copy(update={"size_bytes": 10**8})
+    )
+    program_id, course = await _course(api)
+    await api.call("PATCH", f"/courses/{course}/lms-link", json={"files_offline": True})
+    settings.files_max_upload_bytes = 10**7
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    # Too large to store: left read from the platform, the rest stored all the same.
+    assert items["Huge recording.pdf"]["stored"] is False
+    lecture, midterm = items["Lecture 1.pdf"], items["Midterm 2025.pdf"]
+    assert (lecture["stored"], lecture["follows_source"]) == (True, True)
+    # The user keeps the midterm as their own copy.
+    await api.call("POST", f"/files/{midterm['id']}:keep-offline")
+
+    # New bytes on the platform: the stored copy follows; gone from the platform: removed,
+    # except the copy the user keeps.
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"content_at": FEB, "size_bytes": 2000})
+    files[:] = [f for f in files if f.external_id not in ("203", "204")]
+    fake.page_texts["sets"] = ("Problem sets", "<ul><li>None this term</li></ul>")
+    assert fake.page_list is not None
+    fake.page_list[1] = fake.page_list[1].model_copy(update={"updated_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    _, items = await _files(api, course)
+    assert (items["Lecture 1.pdf"]["stored"], items["Lecture 1.pdf"]["size_bytes"]) == (True, 5)
+    assert items["Lecture 1.pdf"]["sha256"] != lecture["sha256"]
+    assert "Set 1.pdf" not in items
+    assert items["Midterm 2025.pdf"]["follows_source"] is False
+
+    # A full quota: nothing more is downloaded to be stored.
+    async def storing_jobs() -> int:
+        got = await api.call("GET", "/jobs", params={"kind": "files.keep_offline_synced"})
+        return len(got["items"])
+
+    settings.user_storage_quota_bytes = 1
+    files.append(_file("211", "Lecture 11.pdf"))
+    before = await storing_jobs()
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    assert (await _files(api, course))[1]["Lecture 11.pdf"]["stored"] is False
+    assert await storing_jobs() == before

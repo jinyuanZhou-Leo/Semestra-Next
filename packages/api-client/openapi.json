@@ -858,6 +858,7 @@
                       "sha256",
                       "url",
                       "stored",
+                      "follows_source",
                       "pinned",
                       "source_kind",
                       "source_ref",
@@ -7214,7 +7215,7 @@
           "files"
         ],
         "summary": "Keep an offline copy of a file read from its source.",
-        "description": "Stores a file that is read from the LMS when opened (stored: false) here, in the\nbackground, so it still opens after the course closes there. It then takes storage quota.",
+        "description": "Stores a file that is read from the LMS when opened (stored: false) here, in the\nbackground, so it still opens after the course closes there. It then takes storage quota; one\ntoo large or beyond the quota left is refused.",
         "operationId": "filesItemKeepOffline",
         "security": [
           {
@@ -28867,6 +28868,10 @@
             "type": "boolean",
             "title": "Stored"
           },
+          "follows_source": {
+            "type": "boolean",
+            "title": "Follows Source"
+          },
           "pinned": {
             "type": "boolean",
             "title": "Pinned"
@@ -28971,6 +28976,7 @@
           "sha256",
           "url",
           "stored",
+          "follows_source",
           "pinned",
           "source_kind",
           "source_ref",
@@ -34869,6 +34875,11 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "stored": {
+            "type": "boolean",
+            "title": "Stored",
+            "default": true
           }
         },
         "type": "object",

@@ -560,7 +560,7 @@ test('a module file can be saved to the course files', async () => {
     ),
     http.post(`${API}/courses/c1/lms/files/f1\\:save`, ({ request }) => {
       saves(request.url)
-      return HttpResponse.json({ file_item_id: 'fi1', name: 'Slides.pdf' })
+      return HttpResponse.json({ file_item_id: 'fi1', name: 'Slides.pdf', stored: true })
     }),
   )
   renderPage('/?tab=modules&ref=m1')

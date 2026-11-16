@@ -109,6 +109,8 @@ class FakeProvider:
         self.page_list: list[PageSummary] | None = None
         self.files_hidden = False
         self.fail_downloads = False
+        # Files deleted from the course: reading one is refused as not found.
+        self.deleted_files: set[str] = set()
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -260,6 +262,8 @@ class FakeProvider:
         self, io: Io, cfg: BaseModel, creds: BaseModel, course_id: str, file_id: str
     ) -> FileMeta:
         self.calls.append(("file", file_id))
+        if file_id in self.deleted_files:
+            raise lms_error("lms.not_found")
         for meta in self.course_file_list:
             if meta.external_id == file_id:
                 return meta.model_copy(

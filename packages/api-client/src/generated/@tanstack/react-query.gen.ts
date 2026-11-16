@@ -2757,7 +2757,8 @@ export const filesItemUpdateMutation = (options?: Partial<Options<FilesItemUpdat
  * Keep an offline copy of a file read from its source.
  *
  * Stores a file that is read from the LMS when opened (stored: false) here, in the
- * background, so it still opens after the course closes there. It then takes storage quota.
+ * background, so it still opens after the course closes there. It then takes storage quota; one
+ * too large or beyond the quota left is refused.
  */
 export const filesItemKeepOfflineMutation = (options?: Partial<Options<FilesItemKeepOfflineData>>): UseMutationOptions<FilesItemKeepOfflineResponse, FilesItemKeepOfflineError, Options<FilesItemKeepOfflineData>> => {
     const mutationOptions: UseMutationOptions<FilesItemKeepOfflineResponse, FilesItemKeepOfflineError, Options<FilesItemKeepOfflineData>> = {

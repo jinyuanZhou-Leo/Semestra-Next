@@ -123,7 +123,8 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   )
 }
 
-/** "Save to course files": the file is copied into the course's files (M07) and processed there. */
+/** "Save to course files": the file is copied into the course's files (M07) and processed there,
+ * or, when the course's files read it from the platform, stored there in place. */
 function useSaveToCourse(fileId: string, name: string) {
   const { courseId } = useCanvasPage()
   const [saving, setSaving] = useState(false)
@@ -135,7 +136,11 @@ function useSaveToCourse(fileId: string, name: string) {
       throwOnError: true,
     })
       .then(
-        ({ data }) => toast.success(m.canvas_tab_file_saved({ name: data.name || name })),
+        ({ data }) => {
+          // Not stored yet: a copy of a file already in the course's files is being stored in
+          // place, and the status bar shows that job (and its failure).
+          if (data.stored) toast.success(m.canvas_tab_file_saved({ name: data.name || name }))
+        },
         (error: unknown) => {
           if (errorCode(error) === 'lms.feature_unsupported') {
             toast.error(m.canvas_tab_file_save_unavailable())

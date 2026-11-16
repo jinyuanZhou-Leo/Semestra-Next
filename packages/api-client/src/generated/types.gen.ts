@@ -5873,6 +5873,10 @@ export type ItemOut = {
      */
     stored: boolean;
     /**
+     * Follows Source
+     */
+    follows_source: boolean;
+    /**
      * Pinned
      */
     pinned: boolean;
@@ -9223,6 +9227,10 @@ export type SavedFile = {
      * Name
      */
     name: string;
+    /**
+     * Stored
+     */
+    stored?: boolean;
 };
 
 /**
@@ -13508,7 +13516,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
         /**
          * Cursor
          *

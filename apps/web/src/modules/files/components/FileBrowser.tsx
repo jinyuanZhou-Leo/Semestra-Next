@@ -252,7 +252,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {item.kind === 'file' && !item.stored ? <KeepOfflineItem item={item} /> : null}
+        {item.follows_source ? <KeepOfflineItem item={item} /> : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>

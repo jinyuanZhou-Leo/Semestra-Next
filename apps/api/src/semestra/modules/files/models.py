@@ -69,6 +69,9 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     source_kind: Mapped[str | None] = mapped_column(String, default=None)  # upload|lms|agent
     source_ref: Mapped[str | None] = mapped_column(String, default=None)
+    # The user asked to keep this copy of a file kept by its source (`content.py`): the source
+    # no longer updates or removes it.
+    kept_offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # none | pending | processing | ready | failed | unsupported
     doc_status: Mapped[str] = mapped_column(String, default="none")
     doc_error_code: Mapped[str | None] = mapped_column(String, default=None)

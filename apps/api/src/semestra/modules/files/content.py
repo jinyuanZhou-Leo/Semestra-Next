@@ -40,6 +40,12 @@ def remote(row: FilesItem) -> bool:
     return row.kind == "file" and not row.storage_key and _source(row) is not None
 
 
+def follows_source(row: FilesItem) -> bool:
+    """A file its source keeps in step (updates, removes), stored here or not: not one the
+    user keeps as their own copy."""
+    return row.kind == "file" and not row.kept_offline and _source(row) is not None
+
+
 def has_content(row: FilesItem) -> bool:
     return row.kind == "file" and (bool(row.storage_key) or remote(row))
 

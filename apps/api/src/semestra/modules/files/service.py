@@ -21,6 +21,7 @@ from semestra.core.storage import (
     delete_after_commit,
     discard_on_error,
     get_storage,
+    remaining_quota,
     stage,
     storage_usage_provider,
 )
@@ -211,6 +212,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 sha256=r.sha256,
                 url=r.url,
                 stored=bool(r.storage_key),
+                follows_source=content.follows_source(r),
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
@@ -644,8 +646,11 @@ async def save_bytes_as_file(
     source_kind: SourceKind,
     source_ref: str | None = None,
     folder_id: str | None = None,
+    *,
+    kept_offline: bool = False,
 ) -> ItemOut:
-    """For other modules (M09 saves Canvas files, M12 files the agent generates)."""
+    """For other modules (M09 saves Canvas files, M12 files the agent generates).
+    `kept_offline`: the user's own copy of a file `source_ref` names (see `FilesItem`)."""
     row = await store_file(
         ctx,
         course_id=course_id,
@@ -655,6 +660,9 @@ async def save_bytes_as_file(
         source_kind=source_kind,
         source_ref=source_ref,
     )
+    if kept_offline:
+        row.kept_offline = True
+        await ctx.db.flush()
     return await item_out(ctx, row)
 
 
@@ -747,7 +755,13 @@ async def update_remote_file(
     url: str | None,
 ) -> None:
     """The source's file changed: its new metadata, and its text read again. `name` replaces
-    the shown name (None: the user renamed it, keep theirs); its place is never changed."""
+    the shown name (None: the user renamed it, keep theirs); its place is never changed. A copy
+    stored for the source (not one the user keeps) is let go: the item is read from the source
+    again, until the source stores the new bytes."""
+    assert not row.kept_offline
+    if row.storage_key:
+        delete_after_commit(ctx, [row.storage_key])
+        row.storage_key = None
     if name is not None:
         row.display_name = row.original_name = _safe_name(name)
     row.mime_type, row.size_bytes, row.url = mime, size, url
@@ -763,21 +777,68 @@ async def update_remote_file(
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
-async def keep_offline(ctx: Ctx, items: Sequence[FilesItem], *, dedupe: str | None = None) -> None:
-    """Queues storing files read from their source (`content.py`) here, in place: the same
-    items, then taking quota, so they still open once the source is gone (a course closed on the
-    LMS). Stored files are left out."""
-    ids = [r.id for r in items if content.remote(r)]
+async def keep_offline(ctx: Ctx, row: FilesItem) -> None:
+    """The user asks for an offline copy of a file read from its source (`content.py`): it is
+    stored here in place, in a listed job, so it still opens once the source is gone (a course
+    closed on the LMS), and the source no longer updates or removes it (`kept_offline`). What
+    can be told now (too large, no quota left) is refused here."""
+    if not content.follows_source(row):
+        return
+    if row.storage_key:  # stored for its source already: now the user's
+        row.kept_offline = True
+        await ctx.db.flush()
+        return
+    cap = ctx.settings.files_max_upload_bytes
+    if row.size_bytes > cap:
+        raise AppError("files.too_large", 413, max=cap)
+    left = await remaining_quota(ctx)
+    if left is not None and row.size_bytes > left:
+        current = await core_usage(ctx)
+        raise AppError(
+            "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
+        )
+    from semestra.modules.files.jobs import KeepPayload
+
+    row.kept_offline = True
+    await ctx.db.flush()
+    await enqueue(
+        ctx,
+        "files.keep_offline",
+        KeepPayload(item_ids=[row.id]),
+        dedupe_key=f"files.keep_offline:{row.id}",
+    )
+
+
+async def keep_synced_offline(ctx: Ctx, items: Sequence[FilesItem], *, dedupe: str) -> None:
+    """Stores files read from their source here for the source, quietly in the background, as
+    far as the quota goes (M09's per-course "store here"); the rest stay read from the source.
+    The source still updates and removes them. Only what fits (by the source's sizes) is queued,
+    so a full quota downloads nothing."""
+    cap = ctx.settings.files_max_upload_bytes
+    left = await remaining_quota(ctx)
+    ids: list[str] = []
+    for row in items:
+        if not content.remote(row) or row.size_bytes > cap:
+            continue
+        if left is not None:
+            if row.size_bytes > left:
+                continue
+            left -= row.size_bytes
+        ids.append(row.id)
     if ids:
         from semestra.modules.files.jobs import KeepPayload
 
-        await enqueue(ctx, "files.keep_offline", KeepPayload(item_ids=ids), dedupe_key=dedupe)
+        await enqueue(
+            ctx, "files.keep_offline_synced", KeepPayload(item_ids=ids), dedupe_key=dedupe
+        )
 
 
-async def store_from_source(ctx: Ctx, item_id: str) -> bool:
-    """Stores one file read from its source (the `files.keep_offline` job). The source is opened
-    in a short transaction, the bytes are written to storage holding no database lock, and the
-    item takes them in another short transaction. False: the quota is full (nothing changed)."""
+async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
+    """Stores one file read from its source (the keep-offline jobs). The source is opened in a
+    short transaction, the bytes are written to storage holding no database lock, and the item
+    takes them in another short transaction. Each run stages under a key of its own, so two runs
+    for one item never touch each other's bytes. False (`quiet` only): the quota is full and
+    nothing changed; otherwise that and every other failure raise."""
     opened: list[AsyncIterator[bytes]] = []
 
     async def open_(sys_ctx: Ctx) -> None:
@@ -792,20 +853,20 @@ async def store_from_source(ctx: Ctx, item_id: str) -> bool:
     try:
         staged = await stage(
             ctx,
-            storage_key(ctx.user_id or "", item_id),
+            f"{storage_key(ctx.user_id or '', item_id)}-{new_id()}",
             opened[0],
             cap=cap,
             too_large=AppError("files.too_large", 413, max=cap),
         )
     except AppError as exc:
-        if exc.code == "common.quota_exceeded":
+        if quiet and exc.code == "common.quota_exceeded":
             return False
         raise
 
     async def take(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
         if row is None or row.storage_key:
-            raise not_found()  # gone or stored meanwhile: the bytes are not needed
+            raise not_found()  # gone or stored meanwhile: these bytes are not needed
         row.storage_key = staged.stored.key
         row.size_bytes = staged.stored.size
         row.updated_at = sys_ctx.now
@@ -818,10 +879,11 @@ async def store_from_source(ctx: Ctx, item_id: str) -> bool:
         await run_as_system(ctx.state, ctx.user_id, take)
     except AppError as exc:
         await get_storage(ctx).delete(staged.stored.key)
-        if exc.code == "common.quota_exceeded":
+        if exc.code == "common.not_found":
+            return True
+        if quiet and exc.code == "common.quota_exceeded":
             return False
-        if exc.code != "common.not_found":
-            raise
+        raise
     return True
 
 

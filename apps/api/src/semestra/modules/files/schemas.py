@@ -41,6 +41,9 @@ class ItemOut(BaseModel):
     url: str | None
     # Its bytes are kept here; False: read from its source when opened (`content.py`).
     stored: bool
+    # Kept in step with its source (`content.py`): read from it or stored for it, updated and
+    # removed with it. False for the user's own files and the copies they keep (`kept_offline`).
+    follows_source: bool
     pinned: bool
     source_kind: SourceKind | None
     source_ref: str | None
@@ -69,6 +72,7 @@ ItemField = Literal[
     "sha256",
     "url",
     "stored",
+    "follows_source",
     "pinned",
     "source_kind",
     "source_ref",

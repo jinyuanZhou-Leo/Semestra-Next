@@ -4,8 +4,9 @@ platform become items of the course's files (M07), in type folders (`materials.p
 By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
 reads the bytes from the platform when they are needed (`open_source`, registered as its content
 source), so the materials take none of the user's storage. With the course's `files_offline` on
-they are stored here instead (M07's `files.keep_offline`), so they open after the platform course
-closes. Their text is read and indexed like any file's (M07's `auto_index`), for search and Sem.
+they are stored here too (M07's `files.keep_offline_synced`), so they open after the platform
+course closes; they still follow the platform. Only a copy the user keeps (`kept_offline`) is
+left alone. Their text is read and indexed like any file's (M07's `auto_index`), for search and Sem.
 
 Each platform item has a ref (`external_kind` `file`, `page` or `link`) with what was last
 applied (`snapshot`: its type, platform title, content version, name). The user's changes always
@@ -49,7 +50,7 @@ from semestra.modules.lms.materials import (
     page_shape,
 )
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
-from semestra.modules.lms.reads import AREA_REFUSALS
+from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
 from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import StageResult, hold, register_sync_stage
@@ -176,6 +177,21 @@ async def _optional[T](found: _Found, read: Awaitable[T]) -> T | None:
     return got
 
 
+async def _one[T](found: _Found, read: Awaitable[T]) -> T | None:
+    """A read of one file or page; None when it is gone or not for this user (a link to a
+    deleted file), which says nothing about the rest of the course. Its area refused (hidden,
+    not offered) still leaves this run incomplete."""
+    try:
+        return await read
+    except AppError as exc:
+        if exc.code in ITEM_ERRORS:
+            return None
+        if exc.code in SKIPPED:
+            found.complete = False
+            return None
+        raise
+
+
 async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
     listed = await _optional(found, reads.modules(ctx, link.course_id, refresh=True))
     if listed is None:
@@ -235,7 +251,7 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
         if found.checked_lately(("file", file_id)):
             found.kept.add(("file", file_id))
             continue
-        meta = await _optional(found, reads.file(ctx, link.course_id, file_id, refresh=True))
+        meta = await _one(found, reads.file(ctx, link.course_id, file_id, refresh=True))
         if meta is not None:
             metas[file_id] = meta
             checked.add(file_id)
@@ -285,7 +301,7 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
         elif ref is not None and ref.target_id is not None:
             found.kept.add(key)
         return
-    detail = await _optional(found, reads.page(ctx, link.course_id, slug, refresh=True))
+    detail = await _one(found, reads.page(ctx, link.course_id, slug, refresh=True))
     if detail is None or detail.locked:
         return
     title = detail.title or title
@@ -421,15 +437,15 @@ async def _create(ctx: Ctx, link: LmsCourseLink, m: Material, folder_id: str | N
 
 async def _follow(ctx: Ctx, m: Material, ref: LmsImportedRef, row: FilesItem) -> None:
     """The item follows the platform's, except where the user changed it: a new name unless
-    they renamed it, new contents unless they stored a copy (read again only when the bytes
-    changed, not on a rename)."""
+    they renamed it, new contents unless they keep their own copy (read again only when the
+    bytes changed, not on a rename). A copy stored for "store here" follows like the rest."""
     snap = ref.snapshot
     title = None if row.display_name != snap.get("name") else m.title
     retitled = title is not None and title != snap.get("title", snap.get("name"))
     if m.kind == "link":
         if snap.get("version") != m.version or retitled:
             await files.update_link(ctx, row, url=m.url or row.url or "", name=title)
-    elif snap.get("version") != m.version and not row.storage_key:
+    elif snap.get("version") != m.version and not row.kept_offline:
         await files.update_remote_file(
             ctx, row, name=title, mime=m.mime, size=m.size, version=m.version, url=m.web_url
         )
@@ -513,7 +529,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                     external_id=m.external_id, snapshot={},
                 )  # fmt: skip
                 ctx.db.add(ref)
-            elif row is not None and not row.storage_key:
+            elif row is not None and not row.kept_offline:
                 gone.append(row)  # a page that has become a list of links
                 ref.target_id = None
             ref.snapshot = _snapshot(m, None, None)
@@ -544,11 +560,11 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         imported.append((kind, row))
 
     if found.complete:
-        # Gone from the platform: gone here too, unless the user stored a copy. The ref forgets
+        # Gone from the platform: gone here too, unless the user keeps a copy. The ref forgets
         # it, so it comes back if the platform shows it again.
         for key, ref in known.items():
             row = rows.get(ref.target_id) if ref.target_id else None
-            if row is None or key in found.materials or key in found.kept or row.storage_key:
+            if row is None or key in found.materials or key in found.kept or row.kept_offline:
                 continue
             gone.append(row)
             ref.target_id, ref.snapshot = None, {}
@@ -560,7 +576,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if _retry_due(row, ctx.now):
             await files.retry_synced(ctx, row)
     if link.files_offline:
-        await files.keep_offline(ctx, remote, dedupe=f"lms.files:{link.id}")
+        await files.keep_synced_offline(ctx, remote, dedupe=f"lms.files:{link.id}")
     await ctx.db.flush()
     return result
 
@@ -623,7 +639,8 @@ register_content_source("lms:", open_source)
 @events.subscribe("lms.course.unlinking", in_transaction=True)
 async def on_unlinking(ctx: Ctx, event: Event) -> None:
     """The course is no longer linked to this platform course: the items that were only read
-    from it go (a copy the user saved stays). Its type folders stay: they are the user's."""
+    from it or stored for it go (a copy the user keeps stays). Its type folders stay: they are
+    the user's."""
     link_id = event.data.get("link_id")
     if not isinstance(link_id, str):
         return
@@ -636,5 +653,5 @@ async def on_unlinking(ctx: Ctx, event: Event) -> None:
             )
         )
     )
-    rows = [r for r in await files.find_items(ctx, [i for i in ids if i]) if not r.storage_key]
+    rows = [r for r in await files.find_items(ctx, [i for i in ids if i]) if not r.kept_offline]
     await files.purge_items(ctx, rows)

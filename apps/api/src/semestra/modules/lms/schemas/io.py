@@ -504,6 +504,8 @@ class FileSaveInput(BaseModel):
 class SavedFile(BaseModel):
     file_item_id: str
     name: str
+    # False: the sync had brought the file in, and a job is storing it in place now.
+    stored: bool = True
 
 
 # --- imports --------------------------------------------------------------------------------

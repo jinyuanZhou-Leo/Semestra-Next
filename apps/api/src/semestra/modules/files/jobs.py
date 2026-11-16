@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import exists, func, or_, select
 
 from semestra.core.context import Ctx, run_as_system
+from semestra.core.errors import AppError
 from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
 from semestra.modules.files import pipeline, service
@@ -38,7 +39,7 @@ class KeepPayload(BaseModel):
 
 class KeepResult(BaseModel):
     kept: int
-    # Left as they were: the quota is full.
+    # Left as they were: the quota is full, or one could not be stored (too large, unreadable).
     left: int
 
 
@@ -75,16 +76,35 @@ async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
 
 
-@job_handler("files.keep_offline", stages=[("storing", 1)], listed=False)
+@job_handler("files.keep_offline", stages=[("storing", 1)], max_attempts=1)
 async def keep_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
-    """Files read from their source, stored here one by one until the quota is full."""
+    """An offline copy the user asked for; a failure shows in the status bar."""
+    for item_id in payload.item_ids:
+        await ctx.stage("storing")
+        await service.store_from_source(ctx, item_id, quiet=False)
+    return KeepResult(kept=len(payload.item_ids), left=0)
+
+
+@job_handler(
+    "files.keep_offline_synced",
+    stages=[("storing", 1)],
+    lane="background",
+    listed=False,
+    labels="files.keep_offline",
+)
+async def keep_synced_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
+    """Files read from their source, stored here one by one until the quota is full; one that
+    can't be stored (too large, unreadable now) is left read from its source."""
     kept = 0
     for index, item_id in enumerate(payload.item_ids):
         await ctx.stage("storing", current=index, total=len(payload.item_ids))
-        if not await service.store_from_source(ctx, item_id):
-            return KeepResult(kept=kept, left=len(payload.item_ids) - index)
+        try:
+            if not await service.store_from_source(ctx, item_id, quiet=True):
+                break
+        except AppError:
+            continue
         kept += 1
-    return KeepResult(kept=kept, left=0)
+    return KeepResult(kept=kept, left=len(payload.item_ids) - kept)
 
 
 @job_handler("files.reindex_vectors", stages=[("embedding", 1)], max_attempts=2, lane="bulk")

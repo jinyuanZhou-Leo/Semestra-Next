@@ -10227,6 +10227,10 @@ export const ItemOutSchema = {
             type: 'boolean',
             title: 'Stored'
         },
+        follows_source: {
+            type: 'boolean',
+            title: 'Follows Source'
+        },
         pinned: {
             type: 'boolean',
             title: 'Pinned'
@@ -10331,6 +10335,7 @@ export const ItemOutSchema = {
         'sha256',
         'url',
         'stored',
+        'follows_source',
         'pinned',
         'source_kind',
         'source_ref',
@@ -16332,6 +16337,11 @@ export const SavedFileSchema = {
         name: {
             type: 'string',
             title: 'Name'
+        },
+        stored: {
+            type: 'boolean',
+            title: 'Stored',
+            default: true
         }
     },
     type: 'object',
