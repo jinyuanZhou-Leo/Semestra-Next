@@ -403,5 +403,6 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     lecture = rows["Lecture 1.pdf"]
     assert (lecture.storage_key, lecture.kept_offline) == (None, False)
     assert lecture.doc_error_code == "files.source_unread"
-    # The user's own copy, without its bytes in the backup: gone, as any file of theirs.
-    assert "Midterm 2025.pdf" not in rows
+    # The user's own copy, without its bytes in the backup: its source's again, not lost.
+    midterm_row = rows["Midterm 2025.pdf"]
+    assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")

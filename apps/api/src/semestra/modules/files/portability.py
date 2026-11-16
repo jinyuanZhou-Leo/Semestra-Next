@@ -83,11 +83,12 @@ class FilesAdapter(TableAdapter):
                 continue
             key = service.storage_key(ctx.user_id, row.id)
             size = opts.files.claim(key) if opts.files is not None else None
+            if size is None and row.kept_offline:
+                row.kept_offline = False  # without its bytes, a kept copy is its source's again
             if size is None and content.follows_source(row):
                 # Kept in step by its source (an LMS file; stored for it or not), whose
                 # credentials are not in a backup: read again, and stored again if the source
                 # stores it, by the source's sync once they are back (`service.SOURCE_UNREAD`).
-                # A copy the user keeps (`kept_offline`) is their file: without its bytes, gone.
                 if row.doc_status != "unsupported":
                     row.doc_status, row.doc_error_code = "failed", service.SOURCE_UNREAD
                 continue
