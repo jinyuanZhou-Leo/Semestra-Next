@@ -3096,6 +3096,139 @@ export const BulkDecideResultSchema = {
     title: 'BulkDecideResult'
 } as const;
 
+export const CaldavConnectionDeletedSchema = {
+    properties: {
+        ok: {
+            type: 'boolean',
+            title: 'Ok',
+            default: true
+        }
+    },
+    type: 'object',
+    title: 'CaldavConnectionDeleted'
+} as const;
+
+export const CaldavConnectionOutSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        program_id: {
+            type: 'string',
+            title: 'Program Id'
+        },
+        client: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'ios',
+                        'macos',
+                        'other'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Client'
+        },
+        last_seen_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Last Seen At'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        password: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Password'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'program_id',
+        'client',
+        'last_seen_at',
+        'created_at',
+        'password'
+    ],
+    title: 'CaldavConnectionOut'
+} as const;
+
+export const CaldavConnectionsSchema = {
+    properties: {
+        available: {
+            type: 'boolean',
+            title: 'Available'
+        },
+        server_url: {
+            type: 'string',
+            title: 'Server Url'
+        },
+        username: {
+            type: 'string',
+            title: 'Username'
+        },
+        items: {
+            items: {
+                $ref: '#/components/schemas/CaldavConnectionOut'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    type: 'object',
+    required: [
+        'available',
+        'server_url',
+        'username',
+        'items'
+    ],
+    title: 'CaldavConnections',
+    description: '`available` is false when this server does not offer CalDAV (it is turned on with\n`SEMESTRA_CALDAV`); the rest is what a device needs to be set up by hand.'
+} as const;
+
+export const CaldavSetupLinkSchema = {
+    properties: {
+        url: {
+            type: 'string',
+            title: 'Url'
+        },
+        expires_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Expires At'
+        }
+    },
+    type: 'object',
+    required: [
+        'url',
+        'expires_at'
+    ],
+    title: 'CaldavSetupLink',
+    description: 'Opens on the device and installs a profile with the account (Apple devices).'
+} as const;
+
 export const CalendarBreakSchema = {
     properties: {
         term_id: {

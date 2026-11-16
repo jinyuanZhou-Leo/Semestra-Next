@@ -8,6 +8,7 @@ def register_all(app: FastAPI) -> None:
         agent,
         ai,
         auth,
+        caldav,
         files,
         grading,
         imports,
@@ -34,6 +35,7 @@ def register_all(app: FastAPI) -> None:
     plugins_builtin.register(app)
     imports.register(app)
     tasks.register(app)
+    caldav.register(app)
     lms.register(app)
     agent.register(app)
     notifications.register(app)

@@ -7,6 +7,7 @@ Outside prod an empty `SEMESTRA_ENCRYPTION_KEY` falls back to a key derived from
 
 import base64
 import hashlib
+from datetime import datetime
 from functools import lru_cache
 
 from cryptography.fernet import Fernet
@@ -33,6 +34,20 @@ def encrypt(settings: Settings, plaintext: str) -> str:
 def decrypt(settings: Settings, token: str) -> str:
     """Raises `cryptography.fernet.InvalidToken` if the key changed or the value was altered."""
     return _fernet(_key(settings)).decrypt(token.encode()).decode()
+
+
+def seal_for(settings: Settings, plaintext: str, now: datetime) -> str:
+    """Like `encrypt`, stamped with `now`: `unseal_within` refuses it once it is too old (a
+    short-lived link). Encrypted, so the value inside cannot be read from the link either."""
+    return (
+        _fernet(_key(settings)).encrypt_at_time(plaintext.encode(), int(now.timestamp())).decode()
+    )
+
+
+def unseal_within(settings: Settings, token: str, seconds: int, now: datetime) -> str:
+    """Raises `cryptography.fernet.InvalidToken` if altered, from another key, or too old."""
+    data = _fernet(_key(settings)).decrypt_at_time(token.encode(), seconds, int(now.timestamp()))
+    return data.decode()
 
 
 def mask(secret: str) -> str:

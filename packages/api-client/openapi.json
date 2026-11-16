@@ -5711,6 +5711,216 @@
         }
       }
     },
+    "/programs/{program_id}/caldav-connections": {
+      "post": {
+        "tags": [
+          "caldav"
+        ],
+        "summary": "Add a device that syncs a Program's to-do lists over CalDAV.",
+        "description": "Returns its password; it syncs once the device signs in with it.",
+        "operationId": "caldavConnectionCreate",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaldavConnectionOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "caldav"
+        ],
+        "summary": "List the devices that sync a Program's to-do lists over CalDAV.",
+        "description": "Also says whether this server offers CalDAV and how to set a device up by hand.",
+        "operationId": "caldavConnectionList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Program id",
+              "title": "Program Id"
+            },
+            "description": "Program id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaldavConnections"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/caldav-connections/{connection_id}": {
+      "delete": {
+        "tags": [
+          "caldav"
+        ],
+        "summary": "Stop a device syncing to-do lists over CalDAV.",
+        "description": "Its password stops working; what the device has stays on it.",
+        "operationId": "caldavConnectionDelete",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "CaldavConnectionOut id",
+              "title": "Connection Id"
+            },
+            "description": "CaldavConnectionOut id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaldavConnectionDeleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/caldav-connections/{connection_id}/setup-link": {
+      "post": {
+        "tags": [
+          "caldav"
+        ],
+        "summary": "Make a short-lived link that sets up an Apple device.",
+        "description": "Opened on an iPhone, iPad or Mac, it installs a profile with the account.",
+        "operationId": "caldavConnectionSetupLink",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "CaldavConnectionOut id",
+              "title": "Connection Id"
+            },
+            "description": "CaldavConnectionOut id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaldavSetupLink"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/programs/{program_id}/calendar": {
       "get": {
         "tags": [
@@ -21515,6 +21725,135 @@
           "session"
         ],
         "title": "BulkDecideResult"
+      },
+      "CaldavConnectionDeleted": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "CaldavConnectionDeleted"
+      },
+      "CaldavConnectionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "client": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ios",
+                  "macos",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "program_id",
+          "client",
+          "last_seen_at",
+          "created_at",
+          "password"
+        ],
+        "title": "CaldavConnectionOut"
+      },
+      "CaldavConnections": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "server_url": {
+            "type": "string",
+            "title": "Server Url"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaldavConnectionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available",
+          "server_url",
+          "username",
+          "items"
+        ],
+        "title": "CaldavConnections",
+        "description": "`available` is false when this server does not offer CalDAV (it is turned on with\n`SEMESTRA_CALDAV`); the rest is what a device needs to be set up by hand."
+      },
+      "CaldavSetupLink": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "title": "CaldavSetupLink",
+        "description": "Opens on the device and installs a profile with the account (Apple devices)."
       },
       "CalendarBreak": {
         "properties": {

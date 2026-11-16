@@ -32,6 +32,9 @@ PUBLIC_ROUTES = {
     "POST /auth/logout": "succeeds whether or not a session is left",
     "GET /account/avatars/{user_id}/{version}": "unguessable, cacheable URL",
     "GET /feeds/{token}.ics": "calendar subscription link; the token is the credential",
+    "GET /.well-known/caldav": "CalDAV discovery: a redirect to /caldav/, which asks to sign in",
+    "PROPFIND /.well-known/caldav": "CalDAV discovery: a redirect to /caldav/, which asks to sign in",
+    "GET /caldav-setup/{code}.mobileconfig": "device setup link; the short-lived code is the credential",
     "POST /notifications/devices/renew": "the service worker renews a push subscription",
     # OAuth for MCP clients (M12 §5.3): how an app finds the server and signs the user in.
     "GET /.well-known/oauth-authorization-server": "OAuth server metadata",
