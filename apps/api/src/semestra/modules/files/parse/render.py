@@ -21,6 +21,12 @@ MODEL_IMAGE_MAX_SIDE = 1600
 PNG_MAX_BYTES = 800_000
 JPEG_QUALITY = 85
 LOCAL_OCR_IMAGE_MAX_SIDE = 2400
+# An image more than this many times as tall as wide (a long screenshot, not a phone's usual one
+# at about 2.2) is split into parts for a model, top to bottom, each at most
+# `MODEL_IMAGE_MAX_SIDE` tall: scaled whole, its text would be too small to read. At most
+# `MAX_PARTS` parts; past that they are taller and scaled.
+TALL_RATIO = 3
+MAX_PARTS = 20
 THUMB_WIDTH = 480
 THUMB_MAX_HEIGHT = 960
 MAX_IMAGE_PIXELS = 60_000_000
@@ -61,6 +67,22 @@ def _fit(image: Image.Image, width: int, height: int) -> Image.Image:
     return image.resize((max(1, round(image.width * factor)), max(1, round(image.height * factor))))
 
 
+def _opaque(image: Image.Image) -> Image.Image:
+    """RGB with transparent parts on white: converting alone keeps the color of transparent
+    pixels, usually black, so black text on a transparent background became all black."""
+    if image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info:
+        rgba = image.convert("RGBA")
+        return Image.alpha_composite(Image.new("RGBA", rgba.size, "white"), rgba).convert("RGB")
+    return image.convert("RGB")
+
+
+def _parts(image: Image.Image) -> int:
+    if image.height <= TALL_RATIO * image.width:
+        return 1
+    width = min(image.width, MODEL_IMAGE_MAX_SIDE)
+    return min(MAX_PARTS, math.ceil(image.height * width / image.width / MODEL_IMAGE_MAX_SIDE))
+
+
 def _matrix(zoom: float) -> pymupdf.Matrix:
     import pymupdf
 
@@ -68,9 +90,12 @@ def _matrix(zoom: float) -> pymupdf.Matrix:
 
 
 class PageRenderer:
-    """Renders pages of one file; open once, call from one thread at a time, then `close()`."""
+    """Renders pages of one file; open once, call from one thread at a time, then `close()`.
 
-    def __init__(self, data: bytes, *, pdf: bool) -> None:
+    An image is one page, or with `split_tall` (for a model to look at) a long one is several:
+    its parts, top to bottom (`TALL_RATIO`)."""
+
+    def __init__(self, data: bytes, *, pdf: bool, split_tall: bool = False) -> None:
         # Imported here, like in `readers._pdf`: pages render in child processes only.
         import pymupdf
 
@@ -78,15 +103,18 @@ class PageRenderer:
             pymupdf.open(stream=data, filetype="pdf") if pdf else None
         )
         self._image: Image.Image | None = None
+        self._parts = 1
         if not pdf:
             image = Image.open(io.BytesIO(data))
             if image.width * image.height > MAX_IMAGE_PIXELS:
                 raise ValueError("image too large")
-            self._image = ImageOps.exif_transpose(image).convert("RGB")
+            self._image = _opaque(ImageOps.exif_transpose(image))
+            if split_tall:
+                self._parts = _parts(self._image)
 
     @property
     def page_count(self) -> int:
-        return self._pdf.page_count if self._pdf is not None else 1
+        return self._pdf.page_count if self._pdf is not None else self._parts
 
     def close(self) -> None:
         if self._pdf is not None:
@@ -94,7 +122,7 @@ class PageRenderer:
 
     def model_image(self, index: int) -> PageImage:
         """The page as a model sees it: at most 150 DPI, `OCR_MAX_PIXELS` and
-        `MODEL_IMAGE_MAX_SIDE` a side; or the whole image, upright, scaled to that side."""
+        `MODEL_IMAGE_MAX_SIDE` a side; or the image (or its part), upright, scaled to that side."""
         return _for_model(self._page(index, MODEL_IMAGE_MAX_SIDE))
 
     def local_ocr_png(self, index: int) -> bytes:
@@ -112,8 +140,12 @@ class PageRenderer:
             pixmap = page.get_pixmap(matrix=_matrix(dpi / 72))
             return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         assert self._image is not None
+        image = self._image
+        if self._parts > 1:
+            top, bottom = (image.height * i // self._parts for i in (index, index + 1))
+            image = image.crop((0, top, image.width, bottom))
         side = max_side or LOCAL_OCR_IMAGE_MAX_SIDE
-        return _fit(self._image, side, side)
+        return _fit(image, side, side)
 
     def thumbnail(self, index: int) -> bytes:
         """A PNG at most `THUMB_WIDTH` wide and `THUMB_MAX_HEIGHT` tall."""

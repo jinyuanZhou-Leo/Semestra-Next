@@ -6,9 +6,10 @@ themselves. The model decides when it needs to look; the tool exists only while 
 see images, and every look is a step the user sees, so nothing switches to images unnoticed.
 
 A PDF is rendered page by page (every model that sees images takes images, not every one takes
-PDFs), an image file is given as itself (upright, at most 2400 px a side), both in M07's child
-process. Office files have no renderer here. The images stay in the conversation like any tool
-result and are sent again with every request, so one look is at most `MAX_PAGES` pages.
+PDFs), an image upright, a long one in parts as its pages, all in M07's child process with the
+same limits as every image sent to a model (`PageRenderer.model_image`). Office files have no
+renderer here. Images last only for the turn they were looked at in (`history.dump`), and are
+sent with every request of it, so one look is at most `MAX_PAGES` pages.
 """
 
 import json
@@ -38,9 +39,9 @@ DESCRIPTION = f"""Look at pages of a file as images: the pages as they are drawn
 Use it when the text is not enough: a scanned page without text, a figure, chart or diagram, a
 slide's layout, handwriting, a formula, or a table whose text came out jumbled. Read the text
 first (it is cheaper); look only at the pages you need. At most {MAX_PAGES} pages per call. Works
-for PDFs and images, not Word, PowerPoint or Excel files. Give one source: attachment_id (a file
-attached to the conversation), item_id (a course file) or course_id with ref (an LMS file,
-`file:<id>`, as lms tools return it)."""
+for PDFs and images (a long image comes in parts, as pages), not Word, PowerPoint or Excel
+files. Give one source: attachment_id (a file attached to the conversation), item_id (a course
+file) or course_id with ref (an LMS file, `file:<id>`, as lms tools return it)."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -135,14 +136,12 @@ async def _render(ctx: Ctx, inp: ViewInput, name: str, data: bytes) -> list[User
     kind = detect(data, name).kind
     if kind not in ("pdf", "image"):
         raise AppError("agent.view_unsupported", 422)
-    pdf = kind == "pdf"
-    if not pdf and inp.page_from > 1:
-        raise AppError("agent.page_out_of_range", 422, page_count=1)
     try:
         rendering = await render_isolated(
             data,
-            pdf=pdf,
-            pages=list(range(inp.page_from - 1, inp.last)) if pdf else 1,
+            pdf=kind == "pdf",
+            pages=list(range(inp.page_from - 1, inp.last)),
+            split_tall=True,
             time_limit=ctx.settings.files_parse_timeout_seconds,
             memory_limit=ctx.settings.files_parse_memory_bytes,
         )

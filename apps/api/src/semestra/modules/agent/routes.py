@@ -356,7 +356,8 @@ async def upload_attachment(
         too_large=_too_large(),
         keep=True,
     )
-    async with discard_on_error(ctx, [staged.key]):
+    stored = [staged.key]  # with the page images, once stored
+    async with discard_on_error(ctx, stored):
         # The type comes from the content, not the browser's claim (Windows often sends
         # application/octet-stream for .ics and .md).
         name = file.filename or "file"
@@ -380,7 +381,7 @@ async def upload_attachment(
             created_at=ctx.now,
         )
         ctx.db.add(row)
-        attachments.store_reading(ctx, row, reading)
+        await attachments.store_reading(ctx, row, reading, stored)
         await charge(ctx)
         await ctx.db.commit()
     return service.attachment_out(row)

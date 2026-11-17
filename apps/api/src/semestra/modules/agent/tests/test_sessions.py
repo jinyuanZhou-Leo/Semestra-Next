@@ -14,6 +14,7 @@ from semestra.core.capability import registry
 from semestra.core.config import Settings
 from semestra.modules.agent import skills
 from semestra.modules.agent.tests.conftest import Agent, FakeModel, say
+from semestra.modules.files.tests.conftest import make_png
 from semestra.testing import MakeUser
 
 MESSAGES = Path(__file__).resolve().parents[6] / "web" / "messages"
@@ -58,7 +59,7 @@ async def test_sessions_are_private(
 
 async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: FakeModel):
     session = await agent.session()
-    png = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+    png = make_png()
     image = await agent.call(
         "POST",
         "/agent/attachments",
@@ -96,7 +97,6 @@ async def test_attachments_reach_the_model(app: FastAPI, agent: Agent, model: Fa
     # PDFs and documents go as text read on upload (this one cannot be read); see
     # test_attachments.py for how each kind is given.
     assert [b.media_type for b in binary] == ["image/png"]
-    assert binary[0].data == png
     wrapped = next(p for p in parts if isinstance(p, str) and "notes.txt" in p)
     assert '<untrusted_document label="notes.txt">' in wrapped
     usage = await agent.call("GET", "/storage/usage")

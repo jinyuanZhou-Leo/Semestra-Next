@@ -4,7 +4,7 @@ Every attachment starts with a manifest line, `<attachment id name type pages ch
 - a small document: its whole text, page by page;
 - a large one: the first pages and its outline, and how to read on (`agent.attachment.read`);
 - scanned pages (no text layer): page images when the model can see images, else a note;
-- an image: the image itself when the model can see images, else a note;
+- an image: the image (a long one in parts) when the model can see images, else a note;
 - a calendar: what each course in it holds, in short; `agent.attachment.read` gives all of it, as
   Semestra's calendar reader (the importer's) understands it;
 - a file the parser could not read: why, and what to do instead;
@@ -28,7 +28,6 @@ from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import anyio.to_thread
-import structlog
 from pydantic_ai.messages import BinaryContent, UserContent
 from sqlalchemy import select
 
@@ -38,15 +37,10 @@ from semestra.modules.academics import service as academics
 from semestra.modules.agent import attachments, service, tools
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentSession
 from semestra.modules.ai import wrap_untrusted
-from semestra.modules.files.parse import ParseError
-from semestra.modules.files.parse.isolated import render_isolated
-from semestra.modules.files.parse.render import PageImage
 
 if TYPE_CHECKING:
     from semestra.modules.imports.dates import TermDates
     from semestra.modules.imports.ics import IcsCourse, IcsEvent, IcsResult
-
-log = structlog.get_logger()
 
 # About 6k tokens: documents up to this size are given whole.
 FULL_TEXT_CHARS = 24_000
@@ -54,11 +48,7 @@ FULL_TEXT_CHARS = 24_000
 MESSAGE_TEXT_CHARS = 64_000
 PREVIEW_PAGES = 2
 OUTLINE_MAX = 60
-# Scanned pages sent as images, per attachment; images are costly and slow to send.
-SCANNED_IMAGES_MAX = 5
 _CACHE_MAX = 32
-# Rendered page images by (attachment id, page): every request of a turn sends them again.
-_images: OrderedDict[tuple[str, int], PageImage | None] = OrderedDict()
 # Rendered calendars by (attachment id, time zone); None when the file could not be read. The
 # text is kept, not the parsed events: it is all the assistant reads, and much smaller.
 _calendars: OrderedDict[tuple[str, str, tuple[date, date]], Calendar | None] = OrderedDict()
@@ -115,8 +105,9 @@ async def render(
     if att.doc_kind == "image" or (att.doc_kind is None and att.kind == "image"):
         if not vision:
             return [f"{manifest(att)}\n{NO_VISION}"], 0
-        data = await service.read_attachment(ctx, att)
-        return [manifest(att), BinaryContent(data=data, media_type=att.mime)], 0
+        if att.parse_error:
+            return [f"{manifest(att)}\n{_unreadable(att.parse_error)}"], 0
+        return [manifest(att), *await _image_parts(ctx, att)], 0
     if att.doc_kind == "ics":
         return [f"{manifest(att)}\n{await _calendar_summary(ctx, att)}"], 0
     return await _document(ctx, att, vision=vision, budget=budget)
@@ -204,58 +195,44 @@ async def _scanned(
             f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "
             f"without text. {NO_VISION if not vision else ''}".strip()
         ]
-    pages = scanned[:SCANNED_IMAGES_MAX]
-    images = await _page_images(ctx, att, pages)
     out: list[UserContent] = []
-    for page_no in pages:
-        if (image := images[page_no]) is not None:
-            out += [
-                f"Page {page_no} of {_attr(att.name)} (scanned):",
-                BinaryContent(data=image.data, media_type=image.media_type),
-            ]
-    failed = [p for p in pages if images[p] is None]
-    if failed:
+    rest: list[int] = []
+    for row in shown:
+        if not row.needs_ocr:
+            continue
+        if (image := await attachments.page_image(ctx, row)) is None:
+            rest.append(row.page_no)  # past the first few, or could not be rendered on upload
+            continue
+        out += [
+            f"Page {row.page_no} of {_attr(att.name)} (scanned):",
+            BinaryContent(data=image.data, media_type=image.media_type),
+        ]
+    if rest:
         out.append(
-            f"Pages {', '.join(map(str, failed))} of {_attr(att.name)} are scanned images that "
-            "could not be shown."
-        )
-    if len(scanned) > len(pages):
-        out.append(
-            f"Pages {', '.join(map(str, scanned[len(pages) :]))} are scanned too and not "
+            f"Pages {', '.join(map(str, rest))} of {_attr(att.name)} are scanned too and not "
             f"shown.{look}"
         )
     return out
 
 
-async def _page_images(
-    ctx: Ctx, att: AgentAttachment, pages: list[int]
-) -> dict[int, PageImage | None]:
-    """The pages' images, rendered in a child process (like the files pipeline: a hostile PDF
-    must not take the server down) and kept, so later requests show the same; None for a page
-    that cannot be rendered. Cached pages are taken before any await: another turn trimming the
-    cache meanwhile cannot drop them."""
-    out = {p: _images[(att.id, p)] for p in pages if (att.id, p) in _images}
-    for p in out:
-        _images.move_to_end((att.id, p))
-    missing = [p for p in pages if p not in out]
-    if missing:
-        data = await service.read_attachment(ctx, att)
-        try:
-            rendering = await render_isolated(
-                data,
-                pdf=True,
-                pages=[p - 1 for p in missing],
-                time_limit=ctx.settings.files_parse_timeout_seconds,
-                memory_limit=ctx.settings.files_parse_memory_bytes,
-            )
-            images = rendering.images
-        except ParseError as exc:
-            log.info("agent.attachment.render_failed", attachment_id=att.id, code=exc.code)
-            images = {}
-        for page_no in missing:
-            out[page_no] = _images[(att.id, page_no)] = images.get(page_no - 1)
-    while len(_images) > _CACHE_MAX:
-        _images.popitem(last=False)
+async def _image_parts(ctx: Ctx, att: AgentAttachment) -> list[UserContent]:
+    """The image as rendered on upload: upright, within what every provider takes; a long one
+    (a screenshot of a chat or page) in parts, the first few shown."""
+    rows = await attachments.pages(ctx, att.id, 1, attachments.SHOWN_IMAGES)
+    total = att.page_count or 0
+    out: list[UserContent] = []
+    for row in rows:
+        if (image := await attachments.page_image(ctx, row)) is None:
+            continue
+        if total > 1:
+            out.append(f"Part {row.page_no} of {total} of {_attr(att.name)}, from the top:")
+        out.append(BinaryContent(data=image.data, media_type=image.media_type))
+    if total > len(rows):
+        out.append(
+            f"{_attr(att.name)} is a long image in {total} parts; the first {len(rows)} are "
+            f"shown. Look at the others with {tools.VIEW_PAGES} (attachment_id {att.id}, "
+            "page_from) if the question needs them."
+        )
     return out
 
 
