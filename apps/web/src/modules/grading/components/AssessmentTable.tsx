@@ -65,6 +65,10 @@ import { CategoryBadge } from './CategoryBadge'
 import { GradeTableCard } from './GradeTableCard'
 
 /** Columns of figures: their headings line up with the figures on the right. */
+// The title takes what the other columns leave and is cut short, so the table fits beside the
+// summary column instead of scrolling sideways (contributed columns make it wider).
+const TITLE_COLUMN = 'w-full max-w-0'
+
 const NUMERIC = new Set(['weight'])
 
 const toSorting = (pref: SortPref): SortingState =>
@@ -200,7 +204,9 @@ export function AssessmentTable({
     .filter((a) => matchesFilter(a, filter, search))
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
-  const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
+  const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS).filter(
+    (ext) => ext.shownFor?.(assessments) ?? true,
+  )
   const columns = [
     ...(whatIf.plan ? [] : [selectColumn]),
     ...assessmentColumns,
@@ -253,7 +259,10 @@ export function AssessmentTable({
                       <TableHead
                         key={h.id}
                         scope="col"
-                        className="h-10 text-xs text-muted-foreground"
+                        className={cn(
+                          'h-10 text-xs text-muted-foreground',
+                          h.column.id === 'title' && TITLE_COLUMN,
+                        )}
                         aria-sort={
                           sorted === 'asc'
                             ? 'ascending'
@@ -424,7 +433,10 @@ const AssessmentCells = memo(function AssessmentCells({
       )}
     >
       {cells.map((cell) => (
-        <TableCell key={cell.id} className="py-1.5">
+        <TableCell
+          key={cell.id}
+          className={cn('py-1.5', cell.column.id === 'title' && TITLE_COLUMN)}
+        >
           <FlexRender cell={cell} />
         </TableCell>
       ))}

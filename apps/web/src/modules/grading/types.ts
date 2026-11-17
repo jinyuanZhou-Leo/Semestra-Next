@@ -57,6 +57,11 @@ export type AssessmentColumn = {
   /** What `Cell` reads for a course, so the grades page starts it along with the gradebook. */
   // oxlint-disable-next-line no-explicit-any
   query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
+  /**
+   * Whether the gradebook has the column for these assessments (the course's); without it, always.
+   * M09's feedback column is there only when some of them follow an LMS assignment.
+   */
+  shownFor?: (assessments: readonly Assessment[]) => boolean
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'

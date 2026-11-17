@@ -216,7 +216,9 @@ export const assessmentColumns = column.columns([
     header: () => m.grading_assessment_title(),
     sortFn: by((a) => a.title),
     cell: ({ row }) => (
-      <span className="block max-w-64 truncate font-medium">{row.original.title}</span>
+      <span className="block truncate font-medium" title={row.original.title}>
+        {row.original.title}
+      </span>
     ),
   }),
   column.accessor((a) => a.category_id ?? '', {
