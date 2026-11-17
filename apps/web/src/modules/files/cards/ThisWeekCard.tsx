@@ -28,10 +28,13 @@ export default function ThisWeekCard({ scope, size }: CardProps) {
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 
-  if (list.isError || courseWeeks.error) {
+  // A failed refresh keeps what is shown; only data that never came shows the error.
+  const listFailed = !list.data && list.isError
+  const weeksFailed = !weeks && courseWeeks.error
+  if (listFailed || weeksFailed) {
     const retry = () => {
-      if (list.isError) void list.refetch()
-      if (courseWeeks.error) courseWeeks.refetch()
+      if (listFailed) void list.refetch()
+      if (weeksFailed) courseWeeks.refetch()
     }
     return (
       <Empty className="border-0 p-0">
