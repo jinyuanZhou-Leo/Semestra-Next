@@ -432,7 +432,8 @@ export const filesDownloadManyQueryKey = (options: Options<FilesDownloadManyData
  * Download several files and folders of a course as one zip archive.
  *
  * Links are left out. The archive is written while it is sent: each file is opened (read
- * from its source, if it is kept there) when its turn comes.
+ * from its source, if it is kept there) when its turn comes, and one that cannot be read then
+ * (gone from its source, the source unreachable) is left out.
  */
 export const filesDownloadManyOptions = (options: Options<FilesDownloadManyData>) => queryOptions<FilesDownloadManyResponse, FilesDownloadManyError, FilesDownloadManyResponse, ReturnType<typeof filesDownloadManyQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

@@ -1,6 +1,7 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
 import re
+import stat
 import zlib
 from collections.abc import AsyncIterable, AsyncIterator
 from datetime import datetime
@@ -162,9 +163,12 @@ async def content(
 
 # What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id.
 MAX_DOWNLOAD_ENTRIES = 300
-# The most one archive holds; it is made while it is sent, so nothing waits on disk.
-MAX_DOWNLOAD_BYTES = 2 * 1024**3
 _DEFLATE_FAST = lambda: zlib.compressobj(level=1, wbits=-zlib.MAX_WBITS)  # noqa: E731
+
+
+async def _nothing() -> AsyncIterator[bytes]:
+    return
+    yield
 
 
 @router.get(
@@ -186,20 +190,28 @@ async def download_many(
     ] = [],  # noqa: B006
 ) -> Response:
     """Links are left out. The archive is written while it is sent: each file is opened (read
-    from its source, if it is kept there) when its turn comes."""
+    from its source, if it is kept there) when its turn comes, and one that cannot be read then
+    (gone from its source, the source unreachable) is left out."""
     course = await academics.get_course_row(ctx, course_id)
     entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
     if not entries:
         raise not_found()
-    if sum(row.size_bytes or 0 for _, row in entries) > MAX_DOWNLOAD_BYTES:
-        raise AppError("files.download_too_large", 413, max=MAX_DOWNLOAD_BYTES)
-    state, user_id = ctx.state, ctx.user_id
-    members = [(path, row.id, row.updated_at) for path, row in entries]
+    state, user_id, now = ctx.state, ctx.user_id, ctx.now.replace(tzinfo=None)
+    members = [
+        (path, row.id, row.updated_at.replace(tzinfo=None)) if row else (path, None, now)
+        for path, row in entries
+    ]
 
     async def files() -> AsyncIterator[tuple[str, datetime, int, Method, AsyncIterable[bytes]]]:
         for path, item_id, modified in members:
-            stream = await files_content.open_detached(state, user_id, item_id)
-            yield path, modified.replace(tzinfo=None), 0o644, ZIP_64, stream
+            if item_id is None:
+                yield path, modified, stat.S_IFDIR | 0o755, ZIP_64, _nothing()
+                continue
+            try:
+                stream = await files_content.open_detached(state, user_id, item_id)
+            except AppError:
+                continue
+            yield path, modified, 0o644, ZIP_64, stream
 
     name = f"{course.code or course.title}.zip"
     headers = {

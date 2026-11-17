@@ -1996,7 +1996,6 @@
   "job_step_files_process_indexing": "Indexing",
   "job_step_files_process_embedding": "Preparing search by meaning",
   "job_step_files_reindex_vectors_embedding": "Preparing search by meaning",
-  "error_files_download_too_large": "These files are too large to download together. Choose fewer.",
   "error_files_too_large": "That file is larger than the upload limit.",
   "error_files_source_unread": "Not read from where it's kept yet. It's read again once that's reachable.",
   "error_files_unsupported_type": "This kind of file can't be previewed or searched.",

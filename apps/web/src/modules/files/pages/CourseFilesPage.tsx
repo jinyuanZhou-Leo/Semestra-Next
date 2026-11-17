@@ -7,7 +7,6 @@ import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useDialogTarget } from '@/lib/dialog-target'
-import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -17,7 +16,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
-import { Button, buttonVariants } from '@/ui/button'
+import { Button } from '@/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,14 +180,16 @@ export function CourseFiles({
                     {m.files_download()}
                   </Button>
                 ) : download ? (
-                  <a
-                    href={download}
-                    download
-                    className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
+                    render={(props) => <a {...props} href={download} download />}
                   >
                     <Download aria-hidden />
                     {m.files_download()}
-                  </a>
+                  </Button>
                 ) : null}
                 <Button
                   variant="outline"

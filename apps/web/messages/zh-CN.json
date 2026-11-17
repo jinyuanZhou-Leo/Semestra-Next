@@ -1996,7 +1996,6 @@
   "job_step_files_process_indexing": "建立索引",
   "job_step_files_process_embedding": "准备语义搜索",
   "job_step_files_reindex_vectors_embedding": "准备语义搜索",
-  "error_files_download_too_large": "这些文件太大，无法一起下载，请少选几项。",
   "error_files_too_large": "文件超过了上传大小上限。",
   "error_files_source_unread": "还没有从来源读取，来源可以访问后会重新读取。",
   "error_files_unsupported_type": "这种文件不能预览或搜索。",

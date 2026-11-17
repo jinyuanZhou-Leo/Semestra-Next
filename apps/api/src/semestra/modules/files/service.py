@@ -1181,16 +1181,18 @@ async def delete_entries(
 
 async def download_entries(
     ctx: Ctx, course_id: str, item_ids: Sequence[str], folder_ids: Sequence[str]
-) -> list[tuple[str, FilesItem]]:
-    """The files to put in one download, each with its path in it: a chosen file at the top and
-    a chosen folder's files under its name (and their subfolders'). Links have no bytes and are
-    left out; names that repeat get a number."""
+) -> list[tuple[str, FilesItem | None]]:
+    """What to put in one download, each with its path in it: a chosen file at the top and a
+    chosen folder under its name, with its subfolders and files (a folder is an entry of its own,
+    None, so an empty one is kept too). Links have no bytes and are left out; names that repeat
+    get a number."""
     await academics.get_course_row(ctx, course_id)
     folders = await _course_folders(ctx, course_id)
     by_id = {f.id: f for f in folders}
     picked: list[tuple[str, FilesItem]] = [
         ("", row) for row in await _course_items(ctx, course_id, item_ids)
     ]
+    out: list[tuple[str, FilesItem | None]] = []
     for folder_id in dict.fromkeys(folder_ids):
         top = by_id.get(folder_id)
         if top is None:
@@ -1208,8 +1210,8 @@ async def download_entries(
         rows = await ctx.db.scalars(
             select(FilesItem).where(FilesItem.user_id == ctx.user_id, FilesItem.folder_id.in_(tree))
         )
+        out += sorted((path(fid), None) for fid in tree)
         picked += [(path(r.folder_id or top.id), r) for r in rows]
-    out: list[tuple[str, FilesItem]] = []
     taken: set[str] = set()
     seen: set[str] = set()
     for folder, row in picked:

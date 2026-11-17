@@ -530,16 +530,16 @@ test('chosen files and folders download together as one archive, links left out'
   mount()
   await user.click(await screen.findByRole('checkbox', { name: 'Select Piazza' }))
   // Only a link: nothing to download.
-  expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('checkbox', { name: 'Select syllabus.pdf' }))
-  expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
     'href',
     `${API}/files/i1/content?disposition=attachment`,
   )
   await user.click(
     screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
   )
-  expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
     'href',
     `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
   )

@@ -1010,7 +1010,7 @@
           "files"
         ],
         "summary": "Download several files and folders of a course as one zip archive.",
-        "description": "Links are left out. The archive is written while it is sent: each file is opened (read\nfrom its source, if it is kept there) when its turn comes.",
+        "description": "Links are left out. The archive is written while it is sent: each file is opened (read\nfrom its source, if it is kept there) when its turn comes, and one that cannot be read then\n(gone from its source, the source unreachable) is left out.",
         "operationId": "filesDownloadMany",
         "security": [
           {
