@@ -116,6 +116,9 @@ beforeEach(() => {
   searches = []
   server.use(
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json({ job: null, plan: null }),
+    ),
     http.put(`${API}/me/ui-state/:key`, async ({ request, params }) => {
       prefs.push({ key: String(params.key), body: await request.json() })
       return HttpResponse.json({ ok: true })
@@ -545,62 +548,80 @@ test('chosen files and folders download together as one archive, links left out'
   )
 })
 
-test('organizing shows where files would go and moves only the kept ones', async () => {
+const job = (status: string, step: string | null) => ({
+  id: 'j1',
+  kind: 'files.organize',
+  status,
+  progress: status === 'succeeded' ? 100 : 40,
+  step,
+  step_current: step ? 12 : null,
+  step_total: step ? 26 : null,
+  result: null,
+  error_code: null,
+  error_params: null,
+  attempts: 1,
+  max_attempts: 1,
+  cancel_requested: false,
+  created_at: '2026-01-10T12:00:00Z',
+  started_at: '2026-01-10T12:00:00Z',
+  finished_at: null,
+})
+
+test('organizing starts reading when nothing waits for review', async () => {
+  let started = 0
+  server.use(
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json(
+        started ? { job: job('running', 'reading'), plan: null } : { job: null, plan: null },
+      ),
+    ),
+    http.post(`${API}/courses/c1/files\\:organize`, () => {
+      started += 1
+      return HttpResponse.json(job('running', 'reading'))
+    }),
+    http.get(`${API}/jobs/j1`, () => HttpResponse.json(job('running', 'reading'))),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Organize' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Organize files' })
+  expect(await within(dialog).findByText(/Reading files/)).toBeInTheDocument()
+  expect(started).toBe(1)
+  // It can go on while the user does something else.
+  await user.click(within(dialog).getByRole('button', { name: 'Continue in background' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('a plan waiting for review moves only the files kept', async () => {
   items = [
     item({ id: 'a', display_name: 'Lecture 3.pdf' }),
     item({ id: 'b', display_name: 'scan_0031.pdf' }),
   ]
   const applied: unknown[] = []
   server.use(
-    http.post(`${API}/courses/c1/files\\:organize`, () =>
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
       HttpResponse.json({
-        id: 'j1',
-        kind: 'files.organize',
-        status: 'succeeded',
-        progress: 100,
-        step: null,
-        step_current: null,
-        step_total: null,
-        result: null,
-        error_code: null,
-        error_params: null,
-        attempts: 1,
-        max_attempts: 1,
-        cancel_requested: false,
-        created_at: '2026-01-10T12:00:00Z',
-        started_at: '2026-01-10T12:00:00Z',
-        finished_at: '2026-01-10T12:00:01Z',
-      }),
-    ),
-    http.get(`${API}/jobs/j1`, () =>
-      HttpResponse.json({
-        id: 'j1',
-        kind: 'files.organize',
-        status: 'succeeded',
-        progress: 100,
-        step: null,
-        step_current: null,
-        step_total: null,
-        result: { course_id: 'c1', program_id: 'p1' },
-        error_code: null,
-        error_params: null,
-        attempts: 1,
-        max_attempts: 1,
-        cancel_requested: false,
-        created_at: '2026-01-10T12:00:00Z',
-        started_at: '2026-01-10T12:00:00Z',
-        finished_at: '2026-01-10T12:00:01Z',
-      }),
-    ),
-    http.get(`${API}/courses/c1/files\\:organize/j1`, () =>
-      HttpResponse.json({
-        course_id: 'c1',
-        program_id: 'p1',
-        moves: [
-          { item_id: 'a', type: 'lectures', folder_id: null, folder_name: 'Lectures' },
-          { item_id: 'b', type: 'exams', folder_id: null, folder_name: 'Past exams' },
-        ],
-        left: 3,
+        job: null,
+        plan: {
+          moves: [
+            {
+              item_id: 'a',
+              type: 'lectures',
+              folder_id: null,
+              folder_name: 'Lectures',
+              from_folder_id: null,
+            },
+            {
+              item_id: 'b',
+              type: 'exams',
+              folder_id: null,
+              folder_name: 'Past exams',
+              from_folder_id: null,
+            },
+          ],
+          left: 3,
+        },
       }),
     ),
     http.post(`${API}/courses/c1/files\\:organize-apply`, async ({ request }) => {
@@ -610,6 +631,7 @@ test('organizing shows where files would go and moves only the kept ones', async
   )
   const user = userEvent.setup()
   mount()
+  // The plan waits: the button opens it instead of starting again.
   await user.click(await screen.findByRole('button', { name: 'Organize' }))
 
   const dialog = await screen.findByRole('dialog', { name: 'Organize files' })
@@ -618,8 +640,6 @@ test('organizing shows where files would go and moves only the kept ones', async
   await user.click(within(dialog).getByRole('checkbox', { name: 'Lecture 3.pdf' }))
   await user.click(within(dialog).getByRole('button', { name: 'Move files (1)' }))
 
-  await waitFor(() => expect(applied).toEqual([{ moves: [{ item_id: 'b', type: 'exams' }] }]))
+  await waitFor(() => expect(applied).toEqual([{ item_ids: ['b'] }]))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  // The plan is done with: the course no longer has an organizing job to come back to.
-  await waitFor(() => expect(prefs.at(-1)).toEqual({ key: 'files.organize', body: { value: {} } }))
 })

@@ -42,11 +42,18 @@ import {
 } from '@/ui/empty'
 import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { useExternalLink } from '../components/ExternalLink'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
 import { FileBrowser, type Selection, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
-import { OrganizeDialog, useOrganize, useOrganizeOpen } from '../components/OrganizeDialog'
+import {
+  OrganizeDialog,
+  organizeWaits,
+  useOrganizeOpen,
+  useOrganizeStart,
+  useOrganizeState,
+} from '../components/OrganizeDialog'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { type Uploads, useUploads } from '../components/Uploads'
@@ -97,7 +104,8 @@ export function CourseFiles({
   const action = useDialogTarget<ItemAction>()
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
-  const organize = useOrganize(courseId)
+  const organizeState = useOrganizeState(courseId)
+  const organize = useOrganizeStart(courseId)
   const organizing = useOrganizeOpen()
 
   // The folder may have been deleted (here or in another tab).
@@ -236,17 +244,25 @@ export function CourseFiles({
           <div className="ml-auto flex items-center gap-2">
             {view === 'grid' ? <SortMenu /> : null}
             <ViewToggle />
-            <Button
-              variant="outline"
-              disabled={organize.starting}
-              onClick={() => {
-                if (!organize.jobId) organize.start()
-                organizing.setOpen(true)
-              }}
-            >
-              <FolderInput aria-hidden />
-              {m.files_organize()}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    disabled={organize.starting}
+                    onClick={() => {
+                      // What is under way (or waits for review) opens; otherwise it starts.
+                      if (!organizeWaits(organizeState.data)) organize.start()
+                      organizing.setOpen(true)
+                    }}
+                  />
+                }
+              >
+                <FolderInput aria-hidden />
+                {m.files_organize()}
+              </TooltipTrigger>
+              <TooltipContent>{m.files_organize_tooltip()}</TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" />}>
                 <Plus aria-hidden />
@@ -425,7 +441,6 @@ export function CourseFiles({
         <OrganizeDialog
           courseId={courseId}
           list={list}
-          organize={organize}
           open={organizing.open}
           onOpenChange={organizing.setOpen}
         />

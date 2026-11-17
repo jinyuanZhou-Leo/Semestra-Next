@@ -987,7 +987,7 @@
   "ai_purpose_embedding": "Search",
   "ai_purpose_embedding_hint": "Finding passages in your files.",
   "ai_purpose_title": "Light tasks",
-  "ai_purpose_title_hint": "Conversation titles, suggested questions and tidying Sem's memory.",
+  "ai_purpose_title_hint": "Conversation titles, suggested questions, tidying Sem's memory and sorting course files.",
   "ai_providers_empty": "No provider connected yet.",
   "ai_providers_empty_description": "Add an API key from Anthropic, OpenAI, Gemini or another provider to use AI features.",
   "ai_provider_add": "Add provider",
@@ -3398,7 +3398,7 @@
   "error_caldav_unavailable": "Apple Reminders sync isn't enabled on this server.",
   "files_organize": "Organize",
   "files_organize_title": "Organize files",
-  "files_organize_description": "Files at the top level and in Course materials go into folders by type. Other folders stay as they are.",
+  "files_organize_description": "Files at the top level or not yet sorted go into folders by type; other folders stay as they are. You can close this window and come back here or to the sidebar status line to review once it's read.",
   "files_organize_review_description": "Check the files to move. Unchecked ones stay where they are.",
   "files_organize_background": "Continue in background",
   "files_organize_retry": "Try again",
@@ -3407,7 +3407,12 @@
   "files_organize_left": "{count} other files stay where they are.",
   "files_organize_apply": "Move files ({count})",
   "files_organize_nothing": "Nothing to organize",
-  "files_organize_close": "Close",
   "files_job_organize": "Organizing files",
-  "job_step_files_organize_sorting": "Sorting files"
+  "job_step_files_organize_sorting": "Sorting files",
+  "files_organize_tooltip": "Put unsorted files into folders by type",
+  "files_organize_discard": "Discard",
+  "files_organize_none": "No organizing in progress",
+  "files_organize_line": "Organize files · {count} to review",
+  "files_organize_line_courses": "Organize files · {count} courses to review",
+  "job_step_files_organize_reading": "Reading files"
 }
