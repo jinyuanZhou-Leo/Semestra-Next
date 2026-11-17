@@ -346,7 +346,7 @@ async def test_page_images_render_in_a_child_process():
     from semestra.modules.files.parse.isolated import render_isolated
 
     data = make_pdf(["one", "two", "three"], scanned={1})
-    limits = {"time_limit": 60, "memory_limit": 2**31}
+    limits: dict[str, Any] = {"time_limit": 60, "memory_limit": 2**31}
     chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
     first = await render_isolated(data, pdf=True, pages=5, **limits)
     assert list(chosen.images) == [1]

@@ -129,6 +129,10 @@ class AgentAttachmentPage(Base, OwnedMixin):
     markdown: Mapped[str] = mapped_column(String, default="")
     # A scanned page without a text layer: its markdown is empty.
     needs_ocr: Mapped[bool] = mapped_column(default=False)
+    # The page as a model sees it (`PageRenderer.model_image`), rendered once on upload for the
+    # first scanned pages and the first parts of an image (`attachments.SHOWN_IMAGES`).
+    image_key: Mapped[str | None] = mapped_column(String, default=None)
+    image_type: Mapped[str | None] = mapped_column(String, default=None)
 
 
 class AgentPreferences(Base):

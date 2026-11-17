@@ -137,12 +137,17 @@ def _child(
 
 
 def _render_child(
-    conn: Connection, data: bytes, pdf: bool, pages: Sequence[int] | int, memory_limit: int
+    conn: Connection,
+    data: bytes,
+    pdf: bool,
+    pages: Sequence[int] | int,
+    split_tall: bool,
+    memory_limit: int,
 ) -> None:
     """Page images for a vision model: the given pages that exist, or the first `pages`."""
     _limit_memory(memory_limit)
     try:
-        renderer = PageRenderer(data, pdf=pdf)
+        renderer = PageRenderer(data, pdf=pdf, split_tall=split_tall)
         count = renderer.page_count
         conn.send(PageCount(count))
         indexes = range(min(count, pages)) if isinstance(pages, int) else pages
@@ -269,11 +274,14 @@ async def render_isolated(
     pages: Sequence[int] | int,
     time_limit: float,
     memory_limit: int,
+    split_tall: bool = False,
 ) -> Rendering:
-    """Images of the pages (`model_image`), rendered in a child process like `parse_isolated`."""
+    """Images of the pages (`model_image`), rendered in a child process like `parse_isolated`.
+    With `split_tall`, a long image's pages are its parts (`PageRenderer`)."""
     wanted = pages if isinstance(pages, int) else list(pages)
     out = Rendering(0, {})
-    async with aclosing(_run(_render_child, (data, pdf, wanted, memory_limit), time_limit)) as m:
+    args = (data, pdf, wanted, split_tall, memory_limit)
+    async with aclosing(_run(_render_child, args, time_limit)) as m:
         async for message in m:
             if isinstance(message, PageCount):
                 out = Rendering(message.count, out.images)

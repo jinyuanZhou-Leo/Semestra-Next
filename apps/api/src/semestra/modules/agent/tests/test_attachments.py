@@ -13,7 +13,8 @@ from semestra.core.capability import registry
 from semestra.core.context import Ctx, system_ctx
 from semestra.core.errors import AppError
 from semestra.core.jobs import run_periodic
-from semestra.modules.agent import attachment_context, service
+from semestra.core.storage import get_storage
+from semestra.modules.agent import attachment_context, attachments, service
 from semestra.modules.agent.models import AgentAttachment, AgentSession
 from semestra.modules.agent.tests.conftest import Agent as ConversationAgent
 from semestra.modules.agent.tests.conftest import FakeModel, call, say
@@ -273,7 +274,7 @@ async def test_uploads_are_typed_by_their_content(chat: Chat):
     cal = await chat.attach(session_id, "cal.ics", THANKSGIVING, "application/octet-stream")
     assert cal["mime"] == "text/calendar"
     # A GIF is a picture, not an unreadable document.
-    gif = await chat.attach(session_id, "wave.gif", b"GIF89a" + b"\x00" * 20, "image/gif")
+    gif = await chat.attach(session_id, "wave.gif", _gif(), "image/gif")
     assert (gif["kind"], gif["mime"]) == ("image", "image/gif")
     read = await chat.tool("agent.attachment.read", {"attachment_id": gif["id"]})
     assert (read["type"], read["error_code"]) == ("image", None)
@@ -374,6 +375,51 @@ async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
     assert attachment_context.NO_VISION in text_of(await given(chat, shot["id"], vision=False))
 
 
+async def test_transparent_parts_show_on_white(chat: Chat):
+    # Black text on a transparent background (an exported diagram, a formula): not all black.
+    import io
+
+    from PIL import Image, ImageDraw
+
+    session_id = await session_of(chat, await chat.program())
+    clear = Image.new("RGBA", (400, 200), (0, 0, 0, 0))
+    ImageDraw.Draw(clear).text((20, 80), "E = mc^2", fill=(0, 0, 0, 255))
+    raw = io.BytesIO()
+    clear.save(raw, "PNG")
+    att = await chat.attach(session_id, "formula.png", raw.getvalue(), "image/png")
+    [image] = [c for c in await given(chat, att["id"]) if isinstance(c, BinaryContent)]
+    seen = Image.open(io.BytesIO(image.data)).convert("L")
+    assert seen.getpixel((0, 0)) == 255  # the background
+    assert any(seen.histogram()[:128])  # the text
+
+
+async def test_a_long_screenshot_comes_in_parts(chat: Chat):
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from semestra.modules.files.parse.render import MODEL_IMAGE_MAX_SIDE
+
+    session_id = await session_of(chat, await chat.program())
+    long = Image.new("RGB", (1170, 9000), "white")
+    for y in range(0, 9000, 300):
+        ImageDraw.Draw(long).text((40, y), f"message at {y}", fill="black")
+    raw = io.BytesIO()
+    long.save(raw, "PNG")
+    att = await chat.attach(session_id, "chat.png", raw.getvalue(), "image/png")
+    content = await given(chat, att["id"])
+    parts = [c for c in content if isinstance(c, BinaryContent)]
+    # 9000 px tall at full width: 6 parts, each as wide as the image; the first 5 are shown.
+    assert len(parts) == 5
+    assert Image.open(io.BytesIO(parts[0].data)).size == (1170, 1500)
+    assert max(Image.open(io.BytesIO(parts[0].data)).size) <= MODEL_IMAGE_MAX_SIDE
+    assert "Part 1 of 6 of chat.png, from the top:" in content
+    assert "view_pages" in text_of(content)
+    assert 'pages="6"' in text_of(content)
+    read = await chat.tool("agent.attachment.read", {"attachment_id": att["id"]})
+    assert (read["page_count"], read["pages"]) == (6, [])
+
+
 async def test_a_phone_photo_reaches_the_model_upright_and_small(chat: Chat):
     # A photo at camera size, turned by EXIF: Anthropic refuses images over 5 MB or 8000 px.
     import io
@@ -422,19 +468,36 @@ async def test_a_scanned_page_that_cannot_be_rendered_is_noted(
 ):
     session_id = await session_of(chat, await chat.program())
     data = make_pdf(["typed page with enough words to count as digital text", "scan"], scanned={1})
-    pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
     calls: list[list[int]] = []
 
     async def too_complex(data: bytes, *, pages: list[int], **kwargs: Any) -> Rendering:
         calls.append(pages)  # in a child process with limits, like the files pipeline
         raise ParseError("files.too_complex")
 
-    monkeypatch.setattr(attachment_context, "render_isolated", too_complex)
+    monkeypatch.setattr(attachments, "render_isolated", too_complex)
+    pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
     first = await given(chat, pdf["id"])
     assert not [c for c in first if isinstance(c, BinaryContent)]
-    assert "Pages 2 of scan.pdf are scanned images that could not be shown." in text_of(first)
-    assert await given(chat, pdf["id"]) == first  # the same on every request
-    assert calls == [[1]]
+    assert "Pages 2 of scan.pdf are scanned too and not shown." in text_of(first)
+    assert calls == [[1]]  # rendered once, on upload; sending only reads what was stored
+
+
+async def test_an_image_is_rendered_once_on_upload_and_goes_with_it(chat: Chat):
+    session_id = await session_of(chat, await chat.program())
+    shot = await chat.attach(session_id, "shot.png", make_png(), "image/png")
+    async with system_ctx(chat.app.state, chat.user_id) as ctx:
+        [page] = await attachments.pages(ctx, shot["id"], 1, None)
+        assert page.image_key is not None
+        assert await get_storage(ctx).exists(page.image_key)
+
+    await chat.call("DELETE", f"/agent/attachments/{shot['id']}")
+    async with system_ctx(chat.app.state, chat.user_id) as ctx:
+        assert not await get_storage(ctx).exists(page.image_key)
+
+    broken = await chat.attach(
+        session_id, "broken.png", b"\x89PNG\r\n\x1a\n" + b"0" * 20, "image/png"
+    )
+    assert "could not be read" in text_of(await given(chat, broken["id"]))
 
 
 async def test_pages_read_later_and_outlines_are_marked_untrusted(
@@ -481,3 +544,13 @@ def test_a_course_with_many_events_goes_on_over_more_pages():
     assert pages[1].startswith("## ECE201H1 (Circuits), continued")
     assert f"Lab {EVENTS_PER_PAGE + 4}" in pages[1]
     assert f"Lab {EVENTS_PER_PAGE + 4}" not in pages[0]
+
+
+def _gif() -> bytes:
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("P", (40, 20)).save(out, "GIF")
+    return out.getvalue()

@@ -16,6 +16,7 @@ from semestra.core.storage import delete_after_commit, get_storage, storage_usag
 from semestra.modules.agent import history, skills
 from semestra.modules.agent.models import (
     AgentAttachment,
+    AgentAttachmentPage,
     AgentMessage,
     AgentPreferences,
     AgentProposal,
@@ -234,7 +235,7 @@ async def delete_session(ctx: Ctx, session_id: str) -> None:
     atts = (
         await ctx.db.scalars(select(AgentAttachment).where(AgentAttachment.session_id == row.id))
     ).all()
-    keys = [a.storage_key for a in atts]
+    keys = await stored_keys(ctx, atts)
     await ctx.db.execute(delete(AgentProposal).where(AgentProposal.session_id == row.id))
     await ctx.db.execute(delete(AgentAttachment).where(AgentAttachment.session_id == row.id))
     await ctx.db.execute(delete(AgentMessage).where(AgentMessage.session_id == row.id))
@@ -480,9 +481,10 @@ async def _drop_unreferenced_attachments(
     if not ids:
         return
     rows = [a for a in await attachments(ctx, session.id) if a.id in ids]
+    keys = await stored_keys(ctx, rows)
     for a in rows:
         await ctx.db.delete(a)
-    delete_after_commit(ctx, [a.storage_key for a in rows])
+    delete_after_commit(ctx, keys)
 
 
 # --- proposals -----------------------------------------------------------------------------
@@ -605,8 +607,21 @@ async def delete_attachment(ctx: Ctx, attachment_id: str) -> None:
         raise not_found("attachment", attachment_id)
     if row.sent_at is not None:
         raise AppError("agent.attachment_in_use", 409)
+    keys = await stored_keys(ctx, [row])
     await ctx.db.delete(row)
-    delete_after_commit(ctx, [row.storage_key])
+    delete_after_commit(ctx, keys)
+
+
+async def stored_keys(ctx: Ctx, rows: Sequence[AgentAttachment]) -> list[str]:
+    """What the attachments keep in storage: each upload and its page images (attachments
+    module). Read before deleting the rows: their pages go with them."""
+    images = await ctx.db.scalars(
+        select(AgentAttachmentPage.image_key).where(
+            AgentAttachmentPage.attachment_id.in_([a.id for a in rows]),
+            AgentAttachmentPage.image_key.is_not(None),
+        )
+    )
+    return [*(a.storage_key for a in rows), *(key for key in images if key)]
 
 
 async def read_attachment(ctx: Ctx, row: AgentAttachment) -> bytes:

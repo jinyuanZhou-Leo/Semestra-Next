@@ -1,6 +1,9 @@
 """Chat attachments as documents (M12 实现说明): read once on upload with M07's parser into
-per-page markdown (`agent_attachment_pages`), then referred to by id. The model reads further
-pages with `agent.attachment.read`; imports take the original file by id (`open_original`).
+per-page markdown (`agent_attachment_pages`), then referred to by id. The images a model is shown
+with the message (the first scanned pages, an image or the first parts of a long one) are
+rendered then too, and stored next to the upload: sending reads only what is stored. The model
+reads further pages with `agent.attachment.read`; imports take the original file by id
+(`open_original`).
 
 Pages are not chunked or indexed; saving the attachment to a course's files does that (M07).
 """
@@ -12,6 +15,7 @@ from datetime import timedelta
 from typing import Self
 
 import anyio.to_thread
+import structlog
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 
@@ -19,16 +23,19 @@ from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.jobs import periodic
-from semestra.core.storage import charge, delete_after_commit
-from semestra.modules.agent import service
+from semestra.core.storage import charge, delete_after_commit, get_storage, user_key
+from semestra.modules.agent import service, tools
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import service as files
 from semestra.modules.files.chunking import heading
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
 from semestra.modules.files.parse.detect import Detected
-from semestra.modules.files.parse.isolated import Parsed, parse_isolated
+from semestra.modules.files.parse.isolated import Parsed, Rendering, parse_isolated, render_isolated
 from semestra.modules.files.parse.readers import MAX_PAGES
+from semestra.modules.files.parse.render import PageImage
 from semestra.modules.files.schemas import ItemOut
+
+log = structlog.get_logger()
 
 # Formats whose readers run third-party C code or inflate archives: parsed in a child process
 # with time and memory limits (M07 `parse/isolated.py`). Text formats are read in-process.
@@ -36,6 +43,9 @@ ISOLATED_KINDS = ("pdf", "docx", "pptx", "xlsx")
 # What the composer takes besides images (M07's readers; ICS goes to the importer).
 DOCUMENT_KINDS = ("pdf", "docx", "pptx", "xlsx", "csv", "html", "text", "markdown", "ics")
 PARSE_TIME_LIMIT = 60.0
+# Images shown with a message, per attachment (images are costly and slow to send); the model
+# looks at the rest with `view_pages`.
+SHOWN_IMAGES = 5
 READ_MAX_PAGES = 10
 READ_MAX_CHARS = 40_000
 # Pages are cut to M07's logical page size on upload; a PDF or slide page can still be long, so
@@ -51,6 +61,10 @@ SCANNED_NOTE = (
     "first scanned pages are shown as pictures with the message, to models that see images). "
     "Ask the user for the text of the part they need, or a screenshot of it."
 )
+IMAGE_NOTE = (
+    "An image: no text to read. Models that see images get it with the message; a long one comes "
+    f"in parts (page_count), and {tools.VIEW_PAGES} shows the parts not shown."
+)
 # Uploads no message refers to (removed from the composer, the page closed before sending) are
 # deleted after this long, with their file, so they stop counting against the storage quota.
 UNSENT_RETENTION = timedelta(hours=24)
@@ -64,6 +78,8 @@ class Reading:
     mime: str
     pages: list[ParsedPage] = field(default_factory=lambda: [])
     error: str | None = None
+    # The images shown with the message, by page number.
+    images: dict[int, PageImage] = field(default_factory=lambda: {})
 
 
 async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
@@ -71,7 +87,7 @@ async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
     `error` set, so the model can be told why. Calendars keep no pages: the importer reads
     them (M08), and their raw text is no use to the model."""
     if detected.mime.startswith("image/"):
-        return Reading("image", detected.mime)  # GIF is kind "other" to M07, but a picture here
+        return await _read_image(ctx, data, detected.mime)  # GIF is "other" to M07
     if detected.kind == "ics":
         return Reading("ics", detected.mime)
     try:
@@ -84,7 +100,37 @@ async def read_upload(ctx: Ctx, data: bytes, detected: Detected) -> Reading:
     except ParseError as exc:
         code = "files.unsupported_type" if detected.kind == "other" else exc.code
         return Reading(detected.kind, detected.mime, error=code)
-    return Reading(detected.kind, detected.mime, document.pages)
+    reading = Reading(detected.kind, detected.mime, document.pages)
+    scanned = [i for i, p in enumerate(document.pages) if p.needs_ocr][:SHOWN_IMAGES]
+    if scanned and detected.kind == "pdf":
+        try:
+            rendering = await _render(ctx, data, pdf=True, pages=scanned)
+            reading.images = {i + 1: image for i, image in rendering.images.items()}
+        except ParseError as exc:  # the pages stay readable as text; they are just not shown
+            log.info("agent.attachment.render_failed", code=exc.code)
+    return reading
+
+
+async def _read_image(ctx: Ctx, data: bytes, mime: str) -> Reading:
+    """An image is one page with no text, or a long one several (its parts, top to bottom)."""
+    try:
+        rendering = await _render(ctx, data, pdf=False, pages=SHOWN_IMAGES)
+    except ParseError as exc:
+        return Reading("image", mime, error=exc.code)
+    images = {i + 1: image for i, image in rendering.images.items()}
+    parts = [ParsedPage("") for _ in range(rendering.page_count)]
+    return Reading("image", mime, parts, images=images)
+
+
+async def _render(ctx: Ctx, data: bytes, *, pdf: bool, pages: list[int] | int) -> Rendering:
+    return await render_isolated(
+        data,
+        pdf=pdf,
+        pages=pages,
+        split_tall=True,
+        time_limit=min(ctx.settings.files_parse_timeout_seconds, PARSE_TIME_LIMIT),
+        memory_limit=ctx.settings.files_parse_memory_bytes,
+    )
 
 
 async def _parse_isolated(ctx: Ctx, data: bytes, detected: Detected) -> ParsedDocument:
@@ -104,21 +150,45 @@ async def _parse_isolated(ctx: Ctx, data: bytes, detected: Detected) -> ParsedDo
     raise ParseError("files.parse_failed")
 
 
-def store_reading(ctx: Ctx, row: AgentAttachment, reading: Reading) -> None:
-    """Fills in the attachment's reading and adds its pages (the caller flushes/commits)."""
+async def store_reading(
+    ctx: Ctx, row: AgentAttachment, reading: Reading, stored: list[str]
+) -> None:
+    """Fills in the attachment's reading and adds its pages (the caller flushes/commits). Page
+    images go to storage; their keys are added to `stored`, for the caller to remove if the
+    upload fails."""
     row.doc_kind = reading.kind
     row.parse_error = reading.error
-    row.page_count = None if reading.kind in ("image", "ics") else len(reading.pages)
-    for index, page in enumerate(reading.pages):
+    row.page_count = None if reading.kind == "ics" else len(reading.pages)
+    for page_no, page in enumerate(reading.pages, start=1):
+        image = reading.images.get(page_no)
+        key = None
+        if image is not None:
+            key = f"{user_key(row.user_id, 'agent')}/{row.id}/{page_no}"
+            stored.append(key)
+            await get_storage(ctx).put(key, _once(image.data), image.media_type)
         ctx.db.add(
             AgentAttachmentPage(
                 attachment_id=row.id,
                 user_id=row.user_id,
-                page_no=index + 1,
+                page_no=page_no,
                 markdown=page.markdown,
                 needs_ocr=page.needs_ocr,
+                image_key=key,
+                image_type=image.media_type if image is not None else None,
             )
         )
+
+
+async def _once(data: bytes) -> AsyncIterator[bytes]:
+    yield data
+
+
+async def page_image(ctx: Ctx, page: AgentAttachmentPage) -> PageImage | None:
+    """The page's stored image, if it has one."""
+    if not page.image_key or not page.image_type:
+        return None
+    chunks = [chunk async for chunk in get_storage(ctx).open(page.image_key)]
+    return PageImage(b"".join(chunks), page.image_type)
 
 
 async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachment | None:
@@ -241,9 +311,10 @@ async def cleanup_unsent(ctx: Ctx) -> None:
             )
         )
     ).all()
+    keys = await service.stored_keys(ctx, rows)
     for row in rows:
         await ctx.db.delete(row)
-    delete_after_commit(ctx, [row.storage_key for row in rows])
+    delete_after_commit(ctx, keys)
 
 
 # --- capability -----------------------------------------------------------------------------
@@ -309,6 +380,17 @@ its id to imports.session.create instead of copying its text.""",
 async def read(ctx: Ctx, inp: AttachmentReadInput) -> AttachmentRead:
     row = await get_owned(ctx, inp.attachment_id)
     error = row.parse_error
+    if row.doc_kind == "image":
+        return AttachmentRead(
+            attachment_id=row.id,
+            name=row.name,
+            type=row.doc_kind,
+            page_count=row.page_count or 0,
+            pages=[],
+            next_page=None,
+            error_code=error,
+            note=IMAGE_NOTE,
+        )
     if row.doc_kind == "ics":
         from semestra.modules.agent import attachment_context
 

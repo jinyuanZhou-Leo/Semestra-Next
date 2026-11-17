@@ -4,6 +4,6 @@
 
 <!-- area: sem -->
 <!-- en -->
-Large photos attached in Sem no longer make the reply fail.
+Sem reads long screenshots and images with transparent backgrounds more clearly, and large photos no longer make a reply fail.
 <!-- zh -->
-在 Sem 里附上较大的照片不会再导致回复失败。
+Sem 能更清楚地看懂长截图和透明背景的图片，附上较大的照片也不会再导致回复失败。

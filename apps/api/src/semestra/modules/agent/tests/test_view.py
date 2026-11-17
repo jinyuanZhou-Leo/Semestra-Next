@@ -64,6 +64,21 @@ async def test_a_course_file_image_is_shown_as_itself(agent: Agent, model: FakeM
     assert 'Page 1 of "board.png" (1 in all)' in _text(part)
 
 
+async def test_a_long_image_is_looked_at_in_parts(agent: Agent, model: FakeModel):
+    import io
+
+    from PIL import Image
+
+    session = (await agent.session())["id"]
+    raw = io.BytesIO()
+    Image.new("RGB", (1000, 7000), "white").save(raw, "PNG")
+    long = await _attach(agent, session, "thread.png", raw.getvalue())
+
+    part = await _look(agent, model, session, attachment_id=long, page_from=5)
+    assert len(_images(part)) == 1
+    assert 'Page 5 of "thread.png" (5 in all)' in _text(part)
+
+
 async def test_what_cannot_be_viewed_says_why(agent: Agent, model: FakeModel):
     session = (await agent.session())["id"]
     doc = await _attach(agent, session, "essay.docx", make_docx([("Normal", "An essay")]))
