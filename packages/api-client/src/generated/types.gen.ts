@@ -7732,6 +7732,68 @@ export type OneOffEventList = {
 };
 
 /**
+ * OrganizeApplied
+ */
+export type OrganizeApplied = {
+    /**
+     * Moved
+     */
+    moved: number;
+};
+
+/**
+ * OrganizeApplyInputBody
+ */
+export type OrganizeApplyInputBody = {
+    /**
+     * Moves
+     *
+     * The moves the user kept.
+     */
+    moves: Array<OrganizeMove>;
+};
+
+/**
+ * OrganizeMove
+ */
+export type OrganizeMove = {
+    /**
+     * Item Id
+     *
+     * A file of the course.
+     */
+    item_id: string;
+    /**
+     * Type
+     *
+     * The type whose folder it goes in.
+     */
+    type: 'lectures' | 'tutorials' | 'problems' | 'exams' | 'recordings' | 'readings' | 'general';
+};
+
+/**
+ * OrganizePlan
+ */
+export type OrganizePlan = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Moves
+     */
+    moves: Array<PlannedMove>;
+    /**
+     * Left
+     */
+    left: number;
+};
+
+/**
  * OutlineEntry
  */
 export type OutlineEntry = {
@@ -8061,6 +8123,28 @@ export type PinnedFiles = {
      * Items
      */
     items: Array<ItemOut>;
+};
+
+/**
+ * PlannedMove
+ */
+export type PlannedMove = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Type
+     */
+    type: 'lectures' | 'tutorials' | 'problems' | 'exams' | 'recordings' | 'readings' | 'general';
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Folder Name
+     */
+    folder_name: string;
 };
 
 /**
@@ -17189,6 +17273,108 @@ export type FilesLinkCreateResponses = {
 };
 
 export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
+
+export type FilesOrganizationApplyData = {
+    body: OrganizeApplyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to move.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize-apply';
+};
+
+export type FilesOrganizationApplyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationApplyError = FilesOrganizationApplyErrors[keyof FilesOrganizationApplyErrors];
+
+export type FilesOrganizationApplyResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizeApplied;
+};
+
+export type FilesOrganizationApplyResponse = FilesOrganizationApplyResponses[keyof FilesOrganizationApplyResponses];
+
+export type FilesOrganizationGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course the job organizes.
+         */
+        course_id: string;
+        /**
+         * Job Id
+         *
+         * The job `files.organization.start` returned.
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize/{job_id}';
+};
+
+export type FilesOrganizationGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationGetError = FilesOrganizationGetErrors[keyof FilesOrganizationGetErrors];
+
+export type FilesOrganizationGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizePlan;
+};
+
+export type FilesOrganizationGetResponse = FilesOrganizationGetResponses[keyof FilesOrganizationGetResponses];
+
+export type FilesOrganizationStartData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to organize.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize';
+};
+
+export type FilesOrganizationStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationStartError = FilesOrganizationStartErrors[keyof FilesOrganizationStartErrors];
+
+export type FilesOrganizationStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type FilesOrganizationStartResponse = FilesOrganizationStartResponses[keyof FilesOrganizationStartResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;

@@ -13663,6 +13663,101 @@ export const OneOffEventListSchema = {
     title: 'OneOffEventList'
 } as const;
 
+export const OrganizeAppliedSchema = {
+    properties: {
+        moved: {
+            type: 'integer',
+            title: 'Moved'
+        }
+    },
+    type: 'object',
+    required: [
+        'moved'
+    ],
+    title: 'OrganizeApplied'
+} as const;
+
+export const OrganizeApplyInputBodySchema = {
+    properties: {
+        moves: {
+            items: {
+                $ref: '#/components/schemas/OrganizeMove'
+            },
+            type: 'array',
+            maxItems: 1000,
+            title: 'Moves',
+            description: 'The moves the user kept.'
+        }
+    },
+    type: 'object',
+    required: [
+        'moves'
+    ],
+    title: 'OrganizeApplyInputBody'
+} as const;
+
+export const OrganizeMoveSchema = {
+    properties: {
+        item_id: {
+            type: 'string',
+            title: 'Item Id',
+            description: 'A file of the course.'
+        },
+        type: {
+            type: 'string',
+            enum: [
+                'lectures',
+                'tutorials',
+                'problems',
+                'exams',
+                'recordings',
+                'readings',
+                'general'
+            ],
+            title: 'Type',
+            description: 'The type whose folder it goes in.'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_id',
+        'type'
+    ],
+    title: 'OrganizeMove'
+} as const;
+
+export const OrganizePlanSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        program_id: {
+            type: 'string',
+            title: 'Program Id'
+        },
+        moves: {
+            items: {
+                $ref: '#/components/schemas/PlannedMove'
+            },
+            type: 'array',
+            title: 'Moves'
+        },
+        left: {
+            type: 'integer',
+            title: 'Left'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'program_id',
+        'moves',
+        'left'
+    ],
+    title: 'OrganizePlan'
+} as const;
+
 export const OutlineEntrySchema = {
     properties: {
         level: {
@@ -14172,6 +14267,51 @@ export const PinnedFilesSchema = {
         'items'
     ],
     title: 'PinnedFiles'
+} as const;
+
+export const PlannedMoveSchema = {
+    properties: {
+        item_id: {
+            type: 'string',
+            title: 'Item Id'
+        },
+        type: {
+            type: 'string',
+            enum: [
+                'lectures',
+                'tutorials',
+                'problems',
+                'exams',
+                'recordings',
+                'readings',
+                'general'
+            ],
+            title: 'Type'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        folder_name: {
+            type: 'string',
+            title: 'Folder Name'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_id',
+        'type',
+        'folder_id',
+        'folder_name'
+    ],
+    title: 'PlannedMove'
 } as const;
 
 export const PluginCatalogSchema = {

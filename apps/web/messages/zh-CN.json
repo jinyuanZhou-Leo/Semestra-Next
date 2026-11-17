@@ -3395,5 +3395,19 @@
   "tasks_reminders_push_description": "“提醒事项”会在待办到期时发出提醒，两者同时开启会收到重复提醒。此设置适用于所有 Program，可随时在设置 → 通知中更改。",
   "tasks_reminders_push_keep": "保持开启",
   "tasks_reminders_push_off": "关闭通知",
-  "error_caldav_unavailable": "此服务器未开启 Apple 提醒事项同步。"
+  "error_caldav_unavailable": "此服务器未开启 Apple 提醒事项同步。",
+  "files_organize": "整理",
+  "files_organize_title": "整理文件",
+  "files_organize_description": "顶层和“课程资料”里的文件会按类型放进文件夹，其他文件夹不变。",
+  "files_organize_review_description": "核对要移动的文件，取消勾选的留在原处。",
+  "files_organize_background": "在后台继续",
+  "files_organize_retry": "重试",
+  "files_organize_new_folder": "新文件夹",
+  "files_organize_top_level": "顶层",
+  "files_organize_left": "另有 {count} 个文件留在原处。",
+  "files_organize_apply": "移动 {count} 个文件",
+  "files_organize_nothing": "没有需要整理的文件",
+  "files_organize_close": "关闭",
+  "files_job_organize": "整理文件",
+  "job_step_files_organize_sorting": "正在归类"
 }

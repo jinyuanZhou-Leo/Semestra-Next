@@ -544,3 +544,82 @@ test('chosen files and folders download together as one archive, links left out'
     `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
   )
 })
+
+test('organizing shows where files would go and moves only the kept ones', async () => {
+  items = [
+    item({ id: 'a', display_name: 'Lecture 3.pdf' }),
+    item({ id: 'b', display_name: 'scan_0031.pdf' }),
+  ]
+  const applied: unknown[] = []
+  server.use(
+    http.post(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'files.organize',
+        status: 'succeeded',
+        progress: 100,
+        step: null,
+        step_current: null,
+        step_total: null,
+        result: null,
+        error_code: null,
+        error_params: null,
+        attempts: 1,
+        max_attempts: 1,
+        cancel_requested: false,
+        created_at: '2026-01-10T12:00:00Z',
+        started_at: '2026-01-10T12:00:00Z',
+        finished_at: '2026-01-10T12:00:01Z',
+      }),
+    ),
+    http.get(`${API}/jobs/j1`, () =>
+      HttpResponse.json({
+        id: 'j1',
+        kind: 'files.organize',
+        status: 'succeeded',
+        progress: 100,
+        step: null,
+        step_current: null,
+        step_total: null,
+        result: { course_id: 'c1', program_id: 'p1' },
+        error_code: null,
+        error_params: null,
+        attempts: 1,
+        max_attempts: 1,
+        cancel_requested: false,
+        created_at: '2026-01-10T12:00:00Z',
+        started_at: '2026-01-10T12:00:00Z',
+        finished_at: '2026-01-10T12:00:01Z',
+      }),
+    ),
+    http.get(`${API}/courses/c1/files\\:organize/j1`, () =>
+      HttpResponse.json({
+        course_id: 'c1',
+        program_id: 'p1',
+        moves: [
+          { item_id: 'a', type: 'lectures', folder_id: null, folder_name: 'Lectures' },
+          { item_id: 'b', type: 'exams', folder_id: null, folder_name: 'Past exams' },
+        ],
+        left: 3,
+      }),
+    ),
+    http.post(`${API}/courses/c1/files\\:organize-apply`, async ({ request }) => {
+      applied.push(await request.json())
+      return HttpResponse.json({ moved: 1 })
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Organize' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Organize files' })
+  expect(await within(dialog).findByRole('region', { name: 'Past exams' })).toBeInTheDocument()
+  expect(within(dialog).getByText('3 other files stay where they are.')).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('checkbox', { name: 'Lecture 3.pdf' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Move files (1)' }))
+
+  await waitFor(() => expect(applied).toEqual([{ moves: [{ item_id: 'b', type: 'exams' }] }]))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  // The plan is done with: the course no longer has an organizing job to come back to.
+  await waitFor(() => expect(prefs.at(-1)).toEqual({ key: 'files.organize', body: { value: {} } }))
+})

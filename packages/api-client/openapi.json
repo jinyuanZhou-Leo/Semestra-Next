@@ -7592,6 +7592,186 @@
         }
       }
     },
+    "/courses/{course_id}/files:organize-apply": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Move a course's files into their type folders.",
+        "description": "Applies the moves of a plan the user kept: each file goes in its type's\nfolder, which is made when the course has none. Files gone since the plan are skipped.",
+        "operationId": "filesOrganizationApply",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose files to move.",
+              "title": "Course Id"
+            },
+            "description": "The course whose files to move."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizeApplyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizeApplied"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/files:organize/{job_id}": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "The plan an organizing job worked out.",
+        "description": "Where each file would go, once the job of `files.organization.start` has\nfinished.",
+        "operationId": "filesOrganizationGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course the job organizes.",
+              "title": "Course Id"
+            },
+            "description": "The course the job organizes."
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The job `files.organization.start` returned.",
+              "title": "Job Id"
+            },
+            "description": "The job `files.organization.start` returned."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizePlan"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/files:organize": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Work out how to sort a course's unsorted files into type folders.",
+        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in. Nothing is moved: the user reviews\nthe plan (`files.organization.get`) and applies it (`files.organization.apply`).",
+        "operationId": "filesOrganizationStart",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose files to organize.",
+              "title": "Course Id"
+            },
+            "description": "The course whose files to organize."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/files-usage/breakdown": {
       "get": {
         "tags": [
@@ -32327,6 +32507,97 @@
         ],
         "title": "OneOffEventList"
       },
+      "OrganizeApplied": {
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "title": "Moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "title": "OrganizeApplied"
+      },
+      "OrganizeApplyInputBody": {
+        "properties": {
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizeMove"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "title": "Moves",
+            "description": "The moves the user kept."
+          }
+        },
+        "type": "object",
+        "required": [
+          "moves"
+        ],
+        "title": "OrganizeApplyInputBody"
+      },
+      "OrganizeMove": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id",
+            "description": "A file of the course."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "lectures",
+              "tutorials",
+              "problems",
+              "exams",
+              "recordings",
+              "readings",
+              "general"
+            ],
+            "title": "Type",
+            "description": "The type whose folder it goes in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "type"
+        ],
+        "title": "OrganizeMove"
+      },
+      "OrganizePlan": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "program_id": {
+            "type": "string",
+            "title": "Program Id"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedMove"
+            },
+            "type": "array",
+            "title": "Moves"
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "program_id",
+          "moves",
+          "left"
+        ],
+        "title": "OrganizePlan"
+      },
       "OutlineEntry": {
         "properties": {
           "level": {
@@ -32822,6 +33093,50 @@
           "items"
         ],
         "title": "PinnedFiles"
+      },
+      "PlannedMove": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "lectures",
+              "tutorials",
+              "problems",
+              "exams",
+              "recordings",
+              "readings",
+              "general"
+            ],
+            "title": "Type"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "folder_name": {
+            "type": "string",
+            "title": "Folder Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "type",
+          "folder_id",
+          "folder_name"
+        ],
+        "title": "PlannedMove"
       },
       "PluginCatalog": {
         "properties": {

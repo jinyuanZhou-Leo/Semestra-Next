@@ -7,6 +7,7 @@ import {
   type QueryMatch,
 } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { organizeLink } from './organize-link'
 import { prefetchFilesPage } from './queries'
 
 const PAGES = ['filesDocumentRead', 'filesDocumentOutline'] as const
@@ -141,6 +142,7 @@ export default defineModule({
     { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.keep_offline', title: m.files_job_keep_offline },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
+    { kind: 'files.organize', title: m.files_job_organize, to: (job) => organizeLink(job.result) },
   ],
   uiPrefPrefixes: ['files.'],
   realtimeInvalidations: INVALIDATIONS,

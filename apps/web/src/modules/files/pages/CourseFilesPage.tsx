@@ -1,6 +1,15 @@
 import { toast } from 'sonner'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
-import { Download, FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
+import {
+  Download,
+  FolderInput,
+  FolderOpen,
+  FolderPlus,
+  Link2,
+  Plus,
+  Search,
+  Upload,
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -37,6 +46,7 @@ import { useExternalLink } from '../components/ExternalLink'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
 import { FileBrowser, type Selection, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
+import { OrganizeDialog, useOrganize, useOrganizeOpen } from '../components/OrganizeDialog'
 import { PreviewDialog, type PreviewTarget } from '../components/PreviewDialog'
 import { SearchResults, useContentSearch } from '../components/SearchResults'
 import { type Uploads, useUploads } from '../components/Uploads'
@@ -87,6 +97,8 @@ export function CourseFiles({
   const action = useDialogTarget<ItemAction>()
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
+  const organize = useOrganize(courseId)
+  const organizing = useOrganizeOpen()
 
   // The folder may have been deleted (here or in another tab).
   const folder = list.folders.find((f) => f.id === folderId) ?? null
@@ -224,6 +236,17 @@ export function CourseFiles({
           <div className="ml-auto flex items-center gap-2">
             {view === 'grid' ? <SortMenu /> : null}
             <ViewToggle />
+            <Button
+              variant="outline"
+              disabled={organize.starting}
+              onClick={() => {
+                if (!organize.jobId) organize.start()
+                organizing.setOpen(true)
+              }}
+            >
+              <FolderInput aria-hidden />
+              {m.files_organize()}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" />}>
                 <Plus aria-hidden />
@@ -399,6 +422,13 @@ export function CourseFiles({
           onDone={clearSelection}
         />
         <PreviewDialog target={preview.target} {...preview.props} />
+        <OrganizeDialog
+          courseId={courseId}
+          list={list}
+          organize={organize}
+          open={organizing.open}
+          onOpenChange={organizing.setOpen}
+        />
       </div>
     </FileDragArea>
   )
