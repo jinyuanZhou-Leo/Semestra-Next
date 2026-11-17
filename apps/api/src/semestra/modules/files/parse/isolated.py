@@ -27,7 +27,7 @@ import anyio.to_thread
 
 from semestra.modules.files.parse.detect import Detected
 from semestra.modules.files.parse.readers import ParsedDocument, ParseError, parse
-from semestra.modules.files.parse.render import PageRenderer
+from semestra.modules.files.parse.render import PageImage, PageRenderer
 
 _POLL_SECONDS = 0.25
 MAX_CHILDREN = 3
@@ -54,7 +54,7 @@ class Thumbnail:
 @dataclass(frozen=True)
 class Rendered:
     index: int
-    png: bytes
+    image: PageImage
 
 
 @dataclass(frozen=True)
@@ -64,11 +64,11 @@ class PageCount:
 
 @dataclass(frozen=True)
 class Rendering:
-    """What `render_isolated` gives: how many pages the document has, and the PNG of each
+    """What `render_isolated` gives: how many pages the document has, and the image of each
     rendered page by its index (pages past the end are left out)."""
 
     page_count: int
-    images: dict[int, bytes]
+    images: dict[int, PageImage]
 
 
 @dataclass(frozen=True)
@@ -148,7 +148,7 @@ def _render_child(
         indexes = range(min(count, pages)) if isinstance(pages, int) else pages
         for index in indexes:
             if 0 <= index < count:
-                conn.send(Rendered(index, renderer.ocr_image(index)))
+                conn.send(Rendered(index, renderer.model_image(index)))
         renderer.close()
         conn.send(None)
     except MemoryError:
@@ -174,7 +174,7 @@ def _ocr_child(conn: Connection, model: str, data: bytes, pdf: bool) -> None:
         while (pages := conn.recv()) is not None:
             for index, page in enumerate(pages):
                 try:
-                    png = renderer.ocr_image(page)
+                    png = renderer.model_image(page).data
                 except Exception:
                     traceback.print_exc()
                     continue
@@ -270,7 +270,7 @@ async def render_isolated(
     time_limit: float,
     memory_limit: int,
 ) -> Rendering:
-    """PNGs of the pages (`ocr_image`), rendered in a child process like `parse_isolated`."""
+    """Images of the pages (`model_image`), rendered in a child process like `parse_isolated`."""
     wanted = pages if isinstance(pages, int) else list(pages)
     out = Rendering(0, {})
     async with aclosing(_run(_render_child, (data, pdf, wanted, memory_limit), time_limit)) as m:
@@ -278,7 +278,7 @@ async def render_isolated(
             if isinstance(message, PageCount):
                 out = Rendering(message.count, out.images)
             elif isinstance(message, Rendered):
-                out.images[message.index] = message.png
+                out.images[message.index] = message.image
     return out
 
 

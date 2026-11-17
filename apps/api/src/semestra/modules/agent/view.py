@@ -163,7 +163,9 @@ async def _render(ctx: Ctx, inp: ViewInput, name: str, data: bytes) -> list[User
     for index in pages:
         out += [
             f"Page {index + 1}:",
-            BinaryContent(rendering.images[index], media_type="image/png"),
+            BinaryContent(
+                rendering.images[index].data, media_type=rendering.images[index].media_type
+            ),
         ]
     return out
 

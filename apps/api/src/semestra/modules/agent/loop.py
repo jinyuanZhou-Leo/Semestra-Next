@@ -502,7 +502,7 @@ async def _messages(
                 vision=model.vision,
             )
         else:
-            msg = history.load(row, vision=model.vision)
+            msg = history.load(row)
         if isinstance(msg, ModelResponse):
             msg.metadata = {**(msg.metadata or {}), "row_id": row.id}
         elif msg is not None:

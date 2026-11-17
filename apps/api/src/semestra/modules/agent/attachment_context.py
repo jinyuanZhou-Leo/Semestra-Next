@@ -40,6 +40,7 @@ from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, 
 from semestra.modules.ai import wrap_untrusted
 from semestra.modules.files.parse import ParseError
 from semestra.modules.files.parse.isolated import render_isolated
+from semestra.modules.files.parse.render import PageImage
 
 if TYPE_CHECKING:
     from semestra.modules.imports.dates import TermDates
@@ -57,7 +58,7 @@ OUTLINE_MAX = 60
 SCANNED_IMAGES_MAX = 5
 _CACHE_MAX = 32
 # Rendered page images by (attachment id, page): every request of a turn sends them again.
-_images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
+_images: OrderedDict[tuple[str, int], PageImage | None] = OrderedDict()
 # Rendered calendars by (attachment id, time zone); None when the file could not be read. The
 # text is kept, not the parsed events: it is all the assistant reads, and much smaller.
 _calendars: OrderedDict[tuple[str, str, tuple[date, date]], Calendar | None] = OrderedDict()
@@ -207,12 +208,12 @@ async def _scanned(
     images = await _page_images(ctx, att, pages)
     out: list[UserContent] = []
     for page_no in pages:
-        if images[page_no]:
+        if (image := images[page_no]) is not None:
             out += [
                 f"Page {page_no} of {_attr(att.name)} (scanned):",
-                BinaryContent(data=images[page_no], media_type="image/png"),
+                BinaryContent(data=image.data, media_type=image.media_type),
             ]
-    failed = [p for p in pages if not images[p]]
+    failed = [p for p in pages if images[p] is None]
     if failed:
         out.append(
             f"Pages {', '.join(map(str, failed))} of {_attr(att.name)} are scanned images that "
@@ -226,9 +227,11 @@ async def _scanned(
     return out
 
 
-async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> dict[int, bytes]:
+async def _page_images(
+    ctx: Ctx, att: AgentAttachment, pages: list[int]
+) -> dict[int, PageImage | None]:
     """The pages' images, rendered in a child process (like the files pipeline: a hostile PDF
-    must not take the server down) and kept, so later requests show the same; empty for a page
+    must not take the server down) and kept, so later requests show the same; None for a page
     that cannot be rendered. Cached pages are taken before any await: another turn trimming the
     cache meanwhile cannot drop them."""
     out = {p: _images[(att.id, p)] for p in pages if (att.id, p) in _images}
@@ -250,7 +253,7 @@ async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> dict
             log.info("agent.attachment.render_failed", attachment_id=att.id, code=exc.code)
             images = {}
         for page_no in missing:
-            out[page_no] = _images[(att.id, page_no)] = images.get(page_no - 1, b"")
+            out[page_no] = _images[(att.id, page_no)] = images.get(page_no - 1)
     while len(_images) > _CACHE_MAX:
         _images.popitem(last=False)
     return out

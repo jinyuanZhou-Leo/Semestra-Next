@@ -153,7 +153,7 @@ async def read_upload(
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return texts, [ai.Image(png, "image/png", page=index + 1) for index, png in pngs.items()]
+    return texts, [ai.Image(i.data, i.media_type, page=n + 1) for n, i in pngs.items()]
 
 
 async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Image]:
@@ -166,7 +166,7 @@ async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Imag
         rendering = await isolated.render_isolated(data, pdf=False, pages=1, **_limits(settings))
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(png, "image/png") for png in rendering.images.values()]
+    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
 
 
 async def render_pages(settings: Settings, data: bytes, mime: str, filename: str) -> list[ai.Image]:
@@ -182,7 +182,7 @@ async def render_pages(settings: Settings, data: bytes, mime: str, filename: str
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(png, "image/png") for png in rendering.images.values()]
+    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
 
 
 def _unreadable(exc: Exception, filename: str) -> AppError:

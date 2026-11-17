@@ -215,6 +215,7 @@ def test_page_images_are_bounded_whatever_the_page_shape():
     from PIL import Image
 
     from semestra.modules.files.parse.render import (
+        MODEL_IMAGE_MAX_SIDE,
         OCR_MAX_PIXELS,
         THUMB_MAX_HEIGHT,
         THUMB_WIDTH,
@@ -229,8 +230,9 @@ def test_page_images_are_bounded_whatever_the_page_shape():
         thumb = Image.open(io.BytesIO(renderer.thumbnail(index)))
         assert thumb.width <= THUMB_WIDTH
         assert thumb.height <= THUMB_MAX_HEIGHT
-        ocr = Image.open(io.BytesIO(renderer.ocr_image(index)))
+        ocr = Image.open(io.BytesIO(renderer.model_image(index).data))
         assert ocr.width * ocr.height <= OCR_MAX_PIXELS * 1.01
+        assert max(ocr.size) <= MODEL_IMAGE_MAX_SIDE
     renderer.close()
 
     tall = Image.new("RGB", (100, 50_000), "white")
@@ -308,6 +310,38 @@ async def test_parsing_in_a_child_process_yields_the_document_and_previews():
     assert [m.index for m in messages[1:] if isinstance(m, Thumbnail)] == [0, 1]
 
 
+def test_a_page_full_of_photos_goes_to_models_as_a_small_jpeg():
+    # A 16:9 slide (as PowerPoint exports it) covered by a photo: as PNG it was 3 MB.
+    import random
+
+    import pymupdf
+    from PIL import Image
+
+    from semestra.modules.files.parse.render import (
+        MODEL_IMAGE_MAX_SIDE,
+        PNG_MAX_BYTES,
+        PageRenderer,
+    )
+
+    rng = random.Random(1)  # noqa: S311 - test noise, not secrets
+    photo = Image.frombytes("RGB", (1920, 1080), rng.randbytes(1920 * 1080 * 3))
+    raw = io.BytesIO()
+    photo.save(raw, "JPEG", quality=90)
+    doc = pymupdf.open()
+    doc.new_page(width=960, height=540).insert_image(
+        pymupdf.Rect(0, 0, 960, 540), stream=raw.getvalue()
+    )
+    text = pymupdf.open()
+    text.new_page().insert_text((72, 72), "Lecture notes")
+
+    slide = PageRenderer(doc.tobytes(), pdf=True).model_image(0)
+    assert slide.media_type == "image/jpeg"
+    assert len(slide.data) < 2 * PNG_MAX_BYTES
+    assert max(Image.open(io.BytesIO(slide.data)).size) <= MODEL_IMAGE_MAX_SIDE
+    page = PageRenderer(text.tobytes(), pdf=True).model_image(0)
+    assert page.media_type == "image/png"  # text stays sharp
+
+
 async def test_page_images_render_in_a_child_process():
     from semestra.modules.files.parse.isolated import render_isolated
 
@@ -316,7 +350,7 @@ async def test_page_images_render_in_a_child_process():
     chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
     first = await render_isolated(data, pdf=True, pages=5, **limits)
     assert list(chosen.images) == [1]
-    assert chosen.images[1].startswith(b"\x89PNG")
+    assert chosen.images[1].data.startswith(b"\x89PNG")
     assert chosen.page_count == 3
     assert list(first.images) == [0, 1, 2]  # at most the pages there are
     beyond = await render_isolated(data, pdf=True, pages=[2, 3, 4], **limits)

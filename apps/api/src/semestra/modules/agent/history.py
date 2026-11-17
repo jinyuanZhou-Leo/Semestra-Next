@@ -50,31 +50,33 @@ SUMMARY_HEADER = "[Summary of the earlier conversation]"
 # --- stored messages ------------------------------------------------------------------------
 
 
+LOOKED = "[A page image: shown only in the turn it was viewed. View the page again if you need it.]"
+
+
 def dump(message: ModelMessage) -> list[dict[str, Any]]:
     """A message for `model_parts`. The instructions are left out: they are sent fresh with
-    every request, so keeping a copy per row would only grow the table."""
+    every request, so keeping a copy per row would only grow the table. Page images a tool
+    returned (`view_pages`) are kept only for the rest of their turn: stored, each is a note,
+    so later turns neither resend them (each is ~1,500 tokens) nor depend on the model still
+    seeing images."""
     if isinstance(message, ModelRequest):
-        message = replace(message, instructions=None)
+        parts = [_without_images(p) for p in message.parts]
+        message = replace(message, instructions=None, parts=parts)
     return ModelMessagesTypeAdapter.dump_python([message], mode="json")
 
 
-NO_IMAGE = "[A page image the current model cannot see; it was shown to an earlier model.]"
+def _without_images(part: ModelRequestPart) -> ModelRequestPart:
+    if not isinstance(part, ToolReturnPart) or not part.files:
+        return part
+    items = part.content if isinstance(part.content, list) else [part.content]
+    notes: Any = [LOOKED if is_multi_modal_content(i) else i for i in items]
+    return replace(part, content=notes)
 
 
-def load(row: AgentMessage, *, vision: bool = True) -> ModelMessage | None:
-    """The stored message. Images in tool results (`view_pages`) are kept only for a model that
-    sees images: after a switch to one that does not, each becomes a note."""
+def load(row: AgentMessage) -> ModelMessage | None:
     if not row.model_parts:
         return None
-    message = ModelMessagesTypeAdapter.validate_python(row.model_parts)[0]
-    if vision or not isinstance(message, ModelRequest):
-        return message
-    for part in message.parts:
-        if isinstance(part, ToolReturnPart) and part.files:
-            items = part.content if isinstance(part.content, list) else [part.content]
-            notes: Any = [NO_IMAGE if is_multi_modal_content(i) else i for i in items]
-            part.content = notes
-    return message
+    return ModelMessagesTypeAdapter.validate_python(row.model_parts)[0]
 
 
 # --- user messages --------------------------------------------------------------------------

@@ -78,18 +78,28 @@ async def test_what_cannot_be_viewed_says_why(agent: Agent, model: FakeModel):
     assert '"common.validation"' in both.model_response_str()
 
 
-async def test_only_a_model_that_sees_images_gets_them(agent: Agent, model: FakeModel):
+async def test_page_images_last_for_their_turn_only(agent: Agent, model: FakeModel):
     session = (await agent.session())["id"]
     pdf = await _attach(agent, session, "scan.pdf", make_pdf(["one"]))
     await _look(agent, model, session, attachment_id=pdf)
+
+    # The next turn gets a note in place of the image: no resending, nothing large stored.
+    model.then(say("Ok."))
+    await agent.send(session, "and now?")
+    earlier = next(p for p in model.results(-1) if p.tool_name == tools.VIEW_PAGES)
+    assert not _images(earlier)
+    assert history.LOOKED in _items(earlier)
+    assert 'Page 1 of "scan.pdf"' in _text(earlier)
+
+
+async def test_only_a_model_that_sees_images_gets_the_tool(agent: Agent, model: FakeModel):
+    session = (await agent.session())["id"]
+    model.then(say("Hi."))
+    await agent.send(session, "hello")
     assert tools.VIEW_PAGES in model.tools_of(-1)
 
-    # After a switch to a model without vision: no tool, and the earlier look is a note.
     model.vision = False
     model.may_lose_tools = {tools.VIEW_PAGES}
     model.then(say("Ok."))
     await agent.send(session, "and now?")
     assert tools.VIEW_PAGES not in model.tools_of(-1)
-    earlier = next(p for p in model.results(-1) if p.tool_name == tools.VIEW_PAGES)
-    assert not _images(earlier)
-    assert history.NO_IMAGE in _items(earlier)
