@@ -4,8 +4,8 @@
 2. Tool definitions (core tools and `search_tools`/`load_capability`/`read_tool_result` in a fixed
    order; tools found later are only appended, see `tools.toolset` and `loop._tool_order`).
 3. `work_context`: the user's name, where the assistant works (Program or term), today's date
-   and current term, the reply language. Stable for a whole day unless the user renames themselves
-   or switches the scope.
+   and current term (with its dates and breaks), the reply language. Stable for a whole day unless
+   the user renames themselves, edits the term or switches the scope.
 4. The history. Each user message carries a `[Sent …]` note made from its own stored time, so
    earlier messages never change (nothing is persisted; see `history.user_request`).
 
@@ -24,7 +24,7 @@ from semestra.core.context import Ctx, ScopeRef
 from semestra.core.errors import AppError
 from semestra.modules.academics import rules
 from semestra.modules.academics import service as academics
-from semestra.modules.academics.models import AcademicsProgram
+from semestra.modules.academics.models import AcademicsProgram, AcademicsTerm
 from semestra.modules.ai import UNTRUSTED_NOTICE
 
 STATIC_PROMPT = Template(
@@ -54,14 +54,21 @@ async def _program(ctx: Ctx, scope: ScopeRef | None) -> AcademicsProgram | None:
     return await academics.only_program_row(ctx)
 
 
-async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRef | None) -> str:
+async def _scope_line(
+    ctx: Ctx,
+    program: AcademicsProgram | None,
+    scope: ScopeRef | None,
+    current: AcademicsTerm | None,
+) -> str:
     if program is None:
         return "no particular Program (ask or list programs when it matters)."
     parts = [f"Program {_quoted(program.name)} (program_id {program.id})"]
     if scope is not None and scope.term_id:
         try:
             term = await academics.get_term_row(ctx, scope.term_id)
-            parts.append(f"term {_quoted(term.name)} (term_id {term.id})")
+            # The current term's dates and breaks are on its own line below.
+            about = "the current term" if current and term.id == current.id else _dates(term)
+            parts.append(f"term {_quoted(term.name)} (term_id {term.id}, {about})")
         except AppError:
             pass
     if scope is None:
@@ -69,14 +76,19 @@ async def _scope_line(ctx: Ctx, program: AcademicsProgram | None, scope: ScopeRe
     return ", ".join(parts) + "."
 
 
-async def _term_line(ctx: Ctx, program: AcademicsProgram | None) -> str:
+async def _current_term(ctx: Ctx, program: AcademicsProgram | None) -> AcademicsTerm | None:
+    if program is None:
+        return None
+    today = academics.program_today(ctx, program)
+    return rules.current_term(await academics.program_terms(ctx, program.id), today)
+
+
+async def _term_line(ctx: Ctx, program: AcademicsProgram | None, term: AcademicsTerm | None) -> str:
     if program is None:
         return "Current term: unknown."
-    today = academics.program_today(ctx, program)
-    term = rules.current_term(await academics.program_terms(ctx, program.id), today)
     if term is None:
         return "The Program has no terms yet."
-    week = await academics.term_week_of(ctx, term, today)
+    week = await academics.term_week_of(ctx, term, academics.program_today(ctx, program))
     if isinstance(week, rules.BreakSpan):
         when = f"during {week.name}"
     elif week is None:
@@ -84,9 +96,21 @@ async def _term_line(ctx: Ctx, program: AcademicsProgram | None) -> str:
     else:
         when = f"teaching week {week}"
     return (
-        f"Current term: {_quoted(term.name)} (term_id {term.id}, {term.start_date} to "
-        f"{term.end_date}), today is {when}."
+        f"Current term: {_quoted(term.name)} (term_id {term.id}, {_dates(term)}), today is {when}."
     )
+
+
+def _dates(term: AcademicsTerm) -> str:
+    """The term's dates and its breaks (holidays, reading weeks): a few dates that change what
+    any plan or date in the term means, so they are given rather than left to be looked up."""
+    spans = sorted(term.breaks, key=lambda b: b["start_date"])
+    days = [
+        f"{_quoted(b['name'])} {b['start_date']}"
+        + (f" to {b['end_date']}" if b["end_date"] != b["start_date"] else "")
+        for b in spans
+    ]
+    breaks = f"breaks: {', '.join(days)}" if days else "no breaks"
+    return f"{term.start_date} to {term.end_date}; {breaks}"
 
 
 async def work_context(ctx: Ctx, scope: ScopeRef | None) -> WorkContext:
@@ -96,13 +120,14 @@ async def work_context(ctx: Ctx, scope: ScopeRef | None) -> WorkContext:
     tz = ZoneInfo(program.timezone) if program is not None else ZoneInfo("UTC")
     today = ctx.now.astimezone(tz)
     name = ctx.user.display_name.strip() if ctx.user is not None else ""
+    current = await _current_term(ctx, program)
     text = "\n".join(
         [
             "# Context (read when this step started)",
             *([f"- The user's name: {_quoted(name)}."] if name else []),
-            f"- You work in: {await _scope_line(ctx, program, scope)}",
+            f"- You work in: {await _scope_line(ctx, program, scope, current)}",
             f"- Today: {today.strftime('%A %Y-%m-%d')} ({tz}).",
-            f"- {await _term_line(ctx, program)}",
+            f"- {await _term_line(ctx, program, current)}",
             f"- Answer in the user's interface language: {_LANGUAGES.get(ctx.locale, 'English')}.",
         ]
     )

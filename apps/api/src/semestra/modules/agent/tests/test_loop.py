@@ -129,14 +129,45 @@ async def test_system_prompt_has_the_scope_and_today(agent: Agent, model: FakeMo
     assert work.index("# Context") < work.index("record-grades")
 
 
+async def test_the_context_gives_the_terms_dates_and_breaks(agent: Agent, model: FakeModel):
+    program = await agent.program()
+    winter = {
+        "name": "Winter 2026",
+        "start_date": "2026-01-05",  # the test clock is 2026-01-15
+        "end_date": "2026-04-10",
+        "breaks": [
+            {"name": "Good Friday", "start_date": "2026-04-03", "end_date": "2026-04-03"},
+            {"name": "Reading week", "start_date": "2026-02-16", "end_date": "2026-02-20"},
+        ],
+    }
+    fall = {"name": "Fall 2026", "start_date": "2026-09-08", "end_date": "2026-12-20"}
+    url = f"/programs/{program['id']}/terms"
+    current = (await agent.call("POST", url, json=winter))["term"]
+    later = (await agent.call("POST", url, json=fall))["term"]
+
+    for term, about in (
+        (later, "2026-09-08 to 2026-12-20; no breaks"),
+        (current, "the current term"),
+    ):
+        model.then(say("Hi"))
+        session = await agent.session({"program_id": program["id"], "term_id": term["id"]})
+        await agent.send(session["id"], "hello")
+        work = _work(model, -1)
+        assert f'term "{term["name"]}" (term_id {term["id"]}, {about})' in work
+        assert (
+            f'Current term: "Winter 2026" (term_id {current["id"]}, 2026-01-05 to 2026-04-10; '
+            'breaks: "Reading week" 2026-02-16 to 2026-02-20, "Good Friday" 2026-04-03)'
+        ) in work
+
+
 async def _rename(agent: Agent, name: str) -> None:
     async with agent.app.state.session_factory() as db:
         await db.execute(update(AuthUser).values(display_name=name))
         await db.commit()
 
 
-def _work(model: FakeModel) -> str:
-    text = model.instructions_of(0)[len(STATIC_PROMPT) :]
+def _work(model: FakeModel, index: int = 0) -> str:
+    text = model.instructions_of(index)[len(STATIC_PROMPT) :]
     text = text[: text.index("The following capabilities")]
     return text.split("\n\n# Memory")[0].strip()
 
