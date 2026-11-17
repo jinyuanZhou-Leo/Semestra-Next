@@ -344,29 +344,9 @@
           "default_size": "m",
           "multiple": false,
           "settings_schema": null
-        },
-        {
-          "id": "files.thisWeek",
-          "scopes": [
-            "course"
-          ],
-          "sizes": [
-            "m",
-            "l"
-          ],
-          "default_size": "m",
-          "multiple": false,
-          "settings_schema": null
         }
       ],
-      "default_board": {
-        "course": [
-          {
-            "card": "files.thisWeek",
-            "size": "l"
-          }
-        ]
-      }
+      "default_board": {}
     },
     {
       "id": "imports",

@@ -21,29 +21,25 @@ judged on a run that read every area whole.
 
 Pages that are only a list of links (a module's table of contents) are not kept; what they list
 is filed by their title. Files and pages that pages link to come in too (courses that hide their
-files area link their files from pages). Where an item sits (its module's name and opening day,
-in the snapshot) is what M07's week rules read besides its name (`week_clues`).
+files area link their files from pages).
 """
 
 from collections import Counter
-from collections.abc import AsyncIterator, Awaitable, Sequence
+from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from html import escape
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.modules.academics import service as academics
-from semestra.modules.files import content, weeks
+from semestra.modules.files import content
 from semestra.modules.files import service as files
 from semestra.modules.files.content import register_content_source
 from semestra.modules.files.models import FilesItem
-from semestra.modules.files.week_rules import WeekClues
 from semestra.modules.lms import reads
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import (
@@ -77,19 +73,6 @@ CHECK_EVERY = timedelta(days=1)
 RETRY_AFTER = timedelta(hours=1)
 
 
-@dataclass(frozen=True)
-class Placement:
-    """The module an item sits in: what the week rules read (M07 `weeks.py`)."""
-
-    external_id: str
-    name: str
-    unlock_at: datetime | None = None
-
-    def snapshot(self) -> dict[str, str | None]:
-        opens = self.unlock_at.isoformat() if self.unlock_at else None
-        return {"id": self.external_id, "name": self.name, "unlock_at": opens}
-
-
 def source_ref(kind: MaterialKind, external_id: str) -> str:
     return f"lms:{kind}:{external_id}"
 
@@ -107,7 +90,7 @@ class Material:
     # A link's address.
     url: str | None = None
     subheader: str | None = None
-    module: Placement | None = None
+    module: str | None = None
     folder_path: str | None = None
     listed_by: list[str] = field(default_factory=lambda: [])
     # A page that only lists other things: remembered (so it is read again only when it
@@ -123,7 +106,7 @@ class Material:
                 mime=self.mime,
                 url=self.url,
                 subheader=self.subheader,
-                module=self.module.name if self.module is not None else None,
+                module=self.module,
                 folder_path=self.folder_path,
                 listed_by=self.listed_by,
             )
@@ -143,7 +126,7 @@ class _Found:
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
     # Where a page or file was seen in a module: (subheader, module).
-    placed: dict[Key, tuple[str | None, Placement]] = field(default_factory=lambda: {})
+    placed: dict[Key, tuple[str | None, str]] = field(default_factory=lambda: {})
     # The titles of the list pages that list it.
     listed_by: dict[Key, list[str]] = field(default_factory=lambda: {})
     # Files no list showed, to read one by one.
@@ -221,15 +204,14 @@ async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
             )
             items = got.items if got is not None else []
         subheader: str | None = None
-        place = Placement(module.external_id, module.name, module.unlock_at)
         for item in sorted(items, key=lambda i: i.position):
             if item.kind == "subheader":
                 subheader = item.title
                 continue
-            _module_item(item, subheader, place, found)
+            _module_item(item, subheader, module.name, found)
 
 
-def _module_item(item: ModuleItem, subheader: str | None, module: Placement, found: _Found) -> None:
+def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _Found) -> None:
     if item.locked:
         return
     target = item.target.ref if item.target is not None else None
@@ -472,13 +454,7 @@ async def _follow(ctx: Ctx, m: Material, ref: LmsImportedRef, row: FilesItem) ->
 
 
 def _snapshot(m: Material, kind: MaterialType | None, row: FilesItem | None) -> dict[str, object]:
-    snap: dict[str, object] = {
-        **m.notes,
-        "version": m.version,
-        "size": m.size,
-        "title": m.title,
-        "module": m.module.snapshot() if m.module is not None else None,
-    }
+    snap: dict[str, object] = {**m.notes, "version": m.version, "size": m.size, "title": m.title}
     if kind is not None:
         snap["type"] = kind
     if row is not None:
@@ -658,49 +634,6 @@ async def open_source(ctx: Ctx, item: FilesItem) -> AsyncIterator[bytes]:
 
 
 register_content_source("lms:", open_source)
-
-
-# --- where items sit (M07's week clues) -------------------------------------------------------
-
-
-async def week_clues(ctx: Ctx, items: Sequence[FilesItem]) -> dict[str, WeekClues]:
-    """An item's module on the platform: its name, the day it opens (in the Program's time
-    zone) and the module's other items, for the week rules."""
-    by_id = {i.id: i for i in items}
-    refs = await ctx.db.scalars(
-        select(LmsImportedRef).where(
-            LmsImportedRef.user_id == ctx.user_id,
-            LmsImportedRef.target_kind == ITEM,
-            LmsImportedRef.target_id.in_(list(by_id)),
-        )
-    )
-    zones: dict[str, ZoneInfo] = {}
-    out: dict[str, WeekClues] = {}
-    for ref in refs:
-        item = by_id.get(ref.target_id or "")
-        module = ref.snapshot.get("module")
-        if item is None or not isinstance(module, dict):
-            continue
-        opens_on = None
-        if isinstance(unlock := module.get("unlock_at"), str):
-            if item.course_id not in zones:
-                zones[item.course_id] = await _zone(ctx, item.course_id)
-            opens_on = datetime.fromisoformat(unlock).astimezone(zones[item.course_id]).date()
-        out[item.id] = WeekClues(
-            title=item.display_name,
-            module=module.get("name"),
-            opens_on=opens_on,
-            group=module.get("id"),
-        )
-    return out
-
-
-async def _zone(ctx: Ctx, course_id: str) -> ZoneInfo:
-    course = await academics.get_course_row(ctx, course_id)
-    return ZoneInfo((await academics.get_program_row(ctx, course.program_id)).timezone)
-
-
-weeks.register_week_clues("lms:", week_clues)
 
 
 @events.subscribe("lms.course.unlinking", in_transaction=True)

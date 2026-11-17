@@ -297,14 +297,6 @@
       "plugin_id": null
     },
     {
-      "name": "files__item__set_week",
-      "capability": "files.item.set_week",
-      "module": "files",
-      "effect": "write",
-      "summary": "Put files and links in a teaching week, or in the whole term.",
-      "plugin_id": null
-    },
-    {
       "name": "files__item__update",
       "capability": "files.item.update",
       "module": "files",

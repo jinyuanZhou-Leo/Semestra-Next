@@ -50,7 +50,6 @@ export const capabilityMessages = {
   capability_files_item_delete_title: m.capability_files_item_delete_title,
   capability_files_item_get_title: m.capability_files_item_get_title,
   capability_files_item_list_title: m.capability_files_item_list_title,
-  capability_files_item_set_week_title: m.capability_files_item_set_week_title,
   capability_files_item_update_title: m.capability_files_item_update_title,
   capability_files_link_create_title: m.capability_files_link_create_title,
   capability_grading_assessment_create_many_title: m.capability_grading_assessment_create_many_title,

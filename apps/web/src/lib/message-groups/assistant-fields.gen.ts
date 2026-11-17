@@ -122,7 +122,6 @@ export const assistantFieldMessages = {
   assistant_field_uncategorized: m.assistant_field_uncategorized,
   assistant_field_url: m.assistant_field_url,
   assistant_field_website_url: m.assistant_field_website_url,
-  assistant_field_week: m.assistant_field_week,
   assistant_field_weekday: m.assistant_field_weekday,
   assistant_field_weight: m.assistant_field_weight,
 } as unknown as Readonly<Record<string, MessageFn | undefined>>

@@ -3,8 +3,8 @@
 import re
 import zlib
 from collections.abc import AsyncIterable, AsyncIterator
-from datetime import date, datetime
-from typing import Annotated, Literal
+from datetime import datetime
+from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
@@ -17,7 +17,7 @@ from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
-from semestra.modules.files import service, weeks
+from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
 from semestra.modules.files.schemas import UploadResult
@@ -45,13 +45,6 @@ async def upload(
     files: Annotated[list[UploadFile], File(description="The files to upload")],
     ctx: CurrentCtx,
     folder_id: Annotated[str | None, Form(description="Folder to put them in")] = None,
-    week: Annotated[
-        date | Literal["term"] | None,
-        Form(
-            description="A day of the teaching week to put them in, or `term` for the whole "
-            "term; left out: worked out from their names"
-        ),
-    ] = None,
 ) -> UploadResult:
     """All or nothing: if one file is refused (too large, over quota) none is kept."""
     if not files or len(files) > MAX_FILES_PER_REQUEST:
@@ -70,8 +63,6 @@ async def upload(
                 )
             )
         rows = await service.add_staged_files(ctx, course_id, folder, staged)
-        if week is not None:
-            await weeks.set_week(ctx, rows, None if week == "term" else week)
         result = UploadResult(items=await service.item_outs(ctx, rows))
         await ctx.db.commit()
     except BaseException:
@@ -169,8 +160,7 @@ async def content(
     )
 
 
-# What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id. A
-# whole week is asked for by `week` instead.
+# What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id.
 MAX_DOWNLOAD_ENTRIES = 300
 # The most one archive holds; it is made while it is sent, so nothing waits on disk.
 MAX_DOWNLOAD_BYTES = 2 * 1024**3
@@ -194,18 +184,11 @@ async def download_many(
         list[str],
         Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Folders to put in it, whole"),
     ] = [],  # noqa: B006
-    week: Annotated[
-        date | Literal["term"] | None,
-        Query(
-            description="Every file of the teaching week holding this day, or `term`: every "
-            "file not tied to a week"
-        ),
-    ] = None,
 ) -> Response:
     """Links are left out. The archive is written while it is sent: each file is opened (read
     from its source, if it is kept there) when its turn comes."""
     course = await academics.get_course_row(ctx, course_id)
-    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids, week)
+    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
     if not entries:
         raise not_found()
     if sum(row.size_bytes or 0 for _, row in entries) > MAX_DOWNLOAD_BYTES:

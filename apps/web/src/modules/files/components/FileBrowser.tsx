@@ -19,7 +19,6 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  CalendarDays,
   Download,
   FileSearch,
   Folder,
@@ -81,8 +80,6 @@ export type BrowserHandlers = {
   /** Files dragged onto a folder go into it. */
   drop?: DropTargets
   selection: Selection
-  /** Files from every folder are listed together (one week's): each shows the folder it is in. */
-  place?: (item: ItemOut) => string
 }
 
 /** The entries picked with their checkboxes, for moving or deleting together. */
@@ -155,11 +152,6 @@ function SelectAllHeader() {
       onCheckedChange={selection.toggleAll}
     />
   )
-}
-
-function PlaceCell({ row }: CellProps) {
-  const { place } = useHandlers()
-  return <span className="block truncate text-muted-foreground">{place?.(row.original)}</span>
 }
 
 function SizeCell({ row }: CellProps) {
@@ -250,10 +242,6 @@ export function ItemMenu({ item }: { item: ItemOut }) {
         <DropdownMenuItem onClick={() => act({ kind: 'move', targets: [{ type: 'item', item }] })}>
           <FolderInput aria-hidden />
           {m.files_move_to()}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => act({ kind: 'week', items: [item] })}>
-          <CalendarDays aria-hidden />
-          {m.files_week_change()}
         </DropdownMenuItem>
         {item.kind === 'file' ? (
           <DropdownMenuItem
@@ -386,21 +374,19 @@ function FolderMenu({ folder }: { folder: FolderOut }) {
   )
 }
 
-const selectColumn = column.display({
-  id: 'select',
-  header: SelectAllHeader,
-  cell: SelectCell,
-  enableSorting: false,
-})
-
-const nameColumn = column.accessor((i) => i.display_name, {
-  id: 'name',
-  header: () => m.files_name(),
-  sortFn: (a, b) => compareNames(a.original.display_name, b.original.display_name),
-  cell: NameCell,
-})
-
-const restColumns = column.columns([
+const columns = column.columns([
+  column.display({
+    id: 'select',
+    header: SelectAllHeader,
+    cell: SelectCell,
+    enableSorting: false,
+  }),
+  column.accessor((i) => i.display_name, {
+    id: 'name',
+    header: () => m.files_name(),
+    sortFn: (a, b) => compareNames(a.original.display_name, b.original.display_name),
+    cell: NameCell,
+  }),
   column.accessor((i) => i.size_bytes, {
     id: 'size',
     header: () => m.files_size(),
@@ -433,34 +419,20 @@ const restColumns = column.columns([
   }),
 ])
 
-const columns = column.columns([selectColumn, nameColumn, ...restColumns])
-
-/** With files from several folders: where each one is, after its name. */
-const placedColumns = column.columns([
-  selectColumn,
-  nameColumn,
-  column.display({
-    id: 'place',
-    header: () => m.files_place(),
-    cell: PlaceCell,
-    enableSorting: false,
-  }),
-  ...restColumns,
-])
-
 // The table is `table-fixed`, so these are the column widths; the name takes the rest. An icon
 // column fits its 32 px button between 8 px paddings, or the button pokes out of the table.
 const ICON_COLUMN = 'w-12 px-2'
 const SELECT_COLUMN = 'w-10 pr-0 pl-4'
 const WIDTHS: Record<string, string> = {
   select: SELECT_COLUMN,
-  place: 'w-40',
   size: 'w-24',
   updated: 'w-44',
   status: 'w-52',
   pin: ICON_COLUMN,
   actions: ICON_COLUMN,
 }
+
+const columnCount = columns.length
 
 const DEFAULT_SORT: SortingState = [{ id: 'name', desc: false }]
 
@@ -731,7 +703,7 @@ function FolderRow({ folder }: { folder: FolderOut }) {
       <TableCell className={cn('py-2', SELECT_COLUMN)}>
         <SelectBox target={target} />
       </TableCell>
-      <TableCell className="py-2" colSpan={columns.length - 2}>
+      <TableCell className="py-2" colSpan={columnCount - 2}>
         <button
           type="button"
           onClick={() => openFolder(folder.id)}
@@ -770,7 +742,7 @@ export function FileBrowser({
   const wrapper = useRef<HTMLDivElement>(null)
   const table = useTable({
     features,
-    columns: handlers.place ? placedColumns : columns,
+    columns,
     data: items as ItemOut[],
     getRowId: (item) => item.id,
     state: { sorting },

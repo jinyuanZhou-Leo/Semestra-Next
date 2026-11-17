@@ -22,40 +22,34 @@ type Props<T> = {
   children: (data: T) => ReactNode
 }
 
-/** What `AsyncBoundary` shows while its data loads, for data that is not one query. */
-export function Loading() {
-  return (
-    <output className="flex items-center justify-center gap-2 py-12 text-sm">
-      <Spinner aria-hidden className="motion-reduce:animate-none" />
-      <span className="text-muted-foreground">{m.common_loading()}</span>
-    </output>
-  )
-}
-
-/** What `AsyncBoundary` shows when its data could not be loaded, with a retry. */
-export function LoadFailed({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <CircleAlert aria-hidden />
-        </EmptyMedia>
-        <EmptyTitle>{m.common_load_failed()}</EmptyTitle>
-        <EmptyDescription>{errorMessage(error)}</EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button variant="outline" onClick={onRetry}>
-          {m.common_retry()}
-        </Button>
-      </EmptyContent>
-    </Empty>
-  )
-}
-
 /** Loading, error (with retry) and empty states for a query, so every list has all three. */
 export function AsyncBoundary<T>({ query, isEmpty, empty, children }: Props<T>) {
-  if (query.isPending) return <Loading />
-  if (query.isError) return <LoadFailed error={query.error} onRetry={() => void query.refetch()} />
+  if (query.isPending) {
+    return (
+      <output className="flex items-center justify-center gap-2 py-12 text-sm">
+        <Spinner aria-hidden className="motion-reduce:animate-none" />
+        <span className="text-muted-foreground">{m.common_loading()}</span>
+      </output>
+    )
+  }
+  if (query.isError) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CircleAlert aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.common_load_failed()}</EmptyTitle>
+          <EmptyDescription>{errorMessage(query.error)}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" onClick={() => void query.refetch()}>
+            {m.common_retry()}
+          </Button>
+        </EmptyContent>
+      </Empty>
+    )
+  }
   if (isEmpty?.(query.data)) {
     return (
       empty ?? (

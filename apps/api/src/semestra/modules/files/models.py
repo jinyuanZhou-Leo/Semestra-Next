@@ -1,10 +1,9 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
-    Date,
     ForeignKey,
     Index,
     Integer,
@@ -73,11 +72,6 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     # The user asked to keep this copy of a file kept by its source (`content.py`): the source
     # no longer updates or removes it.
     kept_offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    # The teaching week the user put it in (`week_source` = `user`): the first day of that week,
-    # or null for the whole term. Without one, the rules work its week out when it is read
-    # (`weeks.py`).
-    week: Mapped[date | None] = mapped_column(Date, default=None)
-    week_source: Mapped[str | None] = mapped_column(String, default=None)
     # none | pending | processing | ready | failed | unsupported
     doc_status: Mapped[str] = mapped_column(String, default="none")
     doc_error_code: Mapped[str | None] = mapped_column(String, default=None)

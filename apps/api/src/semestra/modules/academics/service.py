@@ -233,13 +233,6 @@ async def program_terms(ctx: Ctx, program_id: str) -> list[AcademicsTerm]:
     )
 
 
-async def course_terms(ctx: Ctx, course_id: str) -> list[AcademicsTerm]:
-    """The terms a course runs in, in chronological order."""
-    course = await get_course_row(ctx, course_id)
-    linked = (await _links(ctx, [course_id])).get(course_id, set())
-    return [t for t in await program_terms(ctx, course.program_id) if t.id in linked]
-
-
 async def course_ids_active_since(ctx: Ctx, since: date) -> set[str]:
     """The user's courses with a term that ends on or after `since` (running, upcoming or just
     over): what background checks of outside platforms look at."""
