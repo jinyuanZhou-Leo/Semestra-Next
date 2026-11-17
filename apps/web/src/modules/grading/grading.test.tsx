@@ -530,9 +530,16 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
   )
 })
 
-test('a gradebook with nothing from the LMS has no feedback column', async () => {
+test('a course no longer linked to the LMS has no feedback column', async () => {
+  // Imported assessments keep their origin after the course is unlinked; there is no platform
+  // to read (the assignment list is never asked for: an unhandled request fails the test).
+  book = gradebook({
+    assessments: [
+      assessment({ id: 'a1', title: 'Lab 1', weight: 40, source_kind: 'lms', source_ref: '91' }),
+    ],
+  })
   mount()
-  await screen.findByRole('textbox', { name: 'Score: Quiz 1' })
+  await screen.findByRole('textbox', { name: 'Score: Lab 1' })
   expect(screen.queryByRole('columnheader', { name: 'Feedback' })).toBeNull()
 })
 

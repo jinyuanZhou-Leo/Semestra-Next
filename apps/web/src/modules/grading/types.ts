@@ -50,18 +50,23 @@ export const ASSESSMENT_IMPORT_SOURCES = 'grading.assessmentImportSources'
  * A column of the gradebook from another module (M05's to-do column), before the row menu. Its
  * cell loads what it shows itself: rows that read the same query share one request.
  */
-export type AssessmentColumn = {
+// oxlint-disable-next-line no-explicit-any
+export type AssessmentColumn<TData = any> = {
   id: string
   header: Message
   Cell: ComponentType<{ assessment: Assessment; programId: string }>
-  /** What `Cell` reads for a course, so the grades page starts it along with the gradebook. */
-  // oxlint-disable-next-line no-explicit-any
-  query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, any, any>
   /**
-   * Whether the gradebook has the column for these assessments (the course's); without it, always.
-   * M09's feedback column is there only when some of them follow an LMS assignment.
+   * What decides whether the course has the column (and what `Cell` reads, when that is the same
+   * data). The grades page starts it with the gradebook; the gradebook reads it once for `shownFor`.
    */
-  shownFor?: (assessments: readonly Assessment[]) => boolean
+  // oxlint-disable-next-line no-explicit-any
+  query?: (ctx: AssessmentImportContext) => UseQueryOptions<any, any, TData, any>
+  /**
+   * Whether the gradebook has the column for these assessments (the course's), given `query`'s
+   * data (undefined while it loads); without it, always. M09's feedback column is there only when
+   * the course is linked to the LMS and some assessments follow an assignment there.
+   */
+  shownFor?: (assessments: readonly Assessment[], data: TData | undefined) => boolean
 }
 
 export const ASSESSMENT_COLUMNS = 'grading.assessmentColumns'

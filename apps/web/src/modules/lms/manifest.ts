@@ -10,9 +10,13 @@ import {
 } from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
-import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
+import type {
+  CourseLinkState,
+  LmsProgramBindingGetResponse,
+  LmsProviderListResponse,
+} from '@semestra/api-client'
 import {
-  lmsAssignmentListOptions,
+  lmsCourseLinkGetOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
 } from '@semestra/api-client/react-query'
@@ -259,16 +263,18 @@ export default defineModule({
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
-    // Only in a gradebook where some assessments follow an LMS assignment.
+    // Only in the gradebook of a linked course where some assessments follow an LMS assignment
+    // (an unlinked course's imported ones keep their origin but have no platform to read).
     [ASSESSMENT_COLUMNS]: [
       {
         id: 'lms.feedback',
         header: m.lms_feedback_column,
         Cell: AssessmentFeedbackCell,
-        query: ({ courseId }) => lmsAssignmentListOptions({ path: { course_id: courseId } }),
-        shownFor: (assessments) => assessments.some((a) => a.source_kind === 'lms'),
+        query: ({ courseId }) => lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
+        shownFor: (assessments, state) =>
+          Boolean(state?.link) && assessments.some((a) => a.source_kind === 'lms'),
       },
-    ] satisfies AssessmentColumn[],
+    ] satisfies AssessmentColumn<CourseLinkState>[],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     // What the sync brought in from the platform, opened there (pages and files, not links:

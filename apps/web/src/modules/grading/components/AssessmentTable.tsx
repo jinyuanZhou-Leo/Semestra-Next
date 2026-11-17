@@ -4,7 +4,7 @@ import {
   gradingAssessmentUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { type Cell, FlexRender, type SortingState, useTable } from '@tanstack/react-table'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
@@ -204,8 +204,15 @@ export function AssessmentTable({
     .filter((a) => matchesFilter(a, filter, search))
     .toSorted((a, b) => a.position - b.position)
     .map((a) => ({ ...a, categoryRank: a.category_id ? (rank.get(a.category_id) ?? null) : null }))
-  const contributed = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS).filter(
-    (ext) => ext.shownFor?.(assessments) ?? true,
+  const columnExtensions = useExtensions<AssessmentColumn>(ASSESSMENT_COLUMNS)
+  // What decides each contributed column's presence, read once for the table.
+  const decided = columnExtensions.flatMap((ext) =>
+    ext.query ? [{ id: ext.id, options: ext.query({ programId, courseId }) }] : [],
+  )
+  const decidedData = useQueries({ queries: decided.map((d) => d.options) })
+  const dataOf = new Map(decided.map((d, i) => [d.id, decidedData[i]?.data]))
+  const contributed = columnExtensions.filter(
+    (ext) => ext.shownFor?.(assessments, dataOf.get(ext.id)) ?? true,
   )
   const columns = [
     ...(whatIf.plan ? [] : [selectColumn]),
