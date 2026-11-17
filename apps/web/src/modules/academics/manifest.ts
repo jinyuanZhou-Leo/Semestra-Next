@@ -13,7 +13,7 @@ import TermsActions from './cards/TermsActions'
 import { m } from '@/paraglide/messages'
 import { addCourseCommand, academicsNavigation, newTermCommand } from './commands'
 import { AddCourseHost } from './components/AddCourseHost'
-import { prefetchTermCourses, settingsPrefetch } from './queries'
+import { prefetchCourseInfo, prefetchTermCourses, settingsPrefetch } from './queries'
 
 /** Every query this module shows; any academics change refetches them (they are small). */
 const ACADEMICS_QUERIES = [
@@ -107,6 +107,7 @@ export default defineModule({
       sizes: ['m', 'l'],
       defaultSize: 'l',
       component: preloadable(() => import('./cards/CourseInfoCard')),
+      prefetch: prefetchCourseInfo,
       multiple: false,
     },
   ],

@@ -1,11 +1,12 @@
 import { ExternalLink } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { formatCredits } from '@/lib/format'
 import { m } from '@/paraglide/messages'
-import { useCourse, useTerms } from '../queries'
+import { courseInfoRowsReadyOptions, useCourse, useTerms } from '../queries'
 import { COURSE_INFO_ROWS, type CourseInfoRow } from '../types'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -38,7 +39,11 @@ export default function CourseInfoCard({ scope, size }: CardProps) {
   const extraRows = useExtensions<CourseInfoRow>(COURSE_INFO_ROWS).toSorted(
     (a, b) => a.order - b.order,
   )
-  if (!course) return <CardSkeleton />
+  const queryClient = useQueryClient()
+  const rowsReady = useQuery(
+    courseInfoRowsReadyOptions(extraRows, { programId: scope.programId, courseId }, queryClient),
+  ).data
+  if (!course || !rowsReady) return <CardSkeleton />
   const termNames = course.term_ids
     .map((id) => terms.find((t) => t.id === id)?.name)
     .filter(Boolean)

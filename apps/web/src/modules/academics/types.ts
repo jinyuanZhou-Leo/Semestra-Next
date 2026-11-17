@@ -1,5 +1,5 @@
 import type { Course } from '@semestra/api-client'
-import type { UseQueryOptions } from '@tanstack/react-query'
+import type { QueryClient, UseQueryOptions } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import type { Message } from '@/app/extensions'
@@ -104,6 +104,15 @@ export type CourseInfoRow = {
   id: string
   order: number
   component: ComponentType<CourseInfoRowProps>
+  /**
+   * Loads what `component` reads into the query cache (`ensureQueryData`, one step after another
+   * when one read depends on the other). The card starts it along with the board and shows its
+   * rows once every row's data is in, so a row arriving late does not push the description down.
+   */
+  prefetch?: (
+    course: { programId: string; courseId: string },
+    queryClient: QueryClient,
+  ) => Promise<unknown>
 }
 
 /**

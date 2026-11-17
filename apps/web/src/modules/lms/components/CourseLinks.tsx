@@ -1,25 +1,17 @@
-import type { CourseOverview, NavTab } from '@semestra/api-client'
-import { lmsCourseLinkGetOptions, lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import type { CourseInfoRowProps } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
-
-/** The course's tools on other sites (Piazza, Gradescope…): the external entries of its LMS menu. */
-const externalTools = (overview: CourseOverview): NavTab[] =>
-  overview.navigation.filter((tab) => tab.kind === 'external' && !tab.hidden && tab.web_url)
+import { courseLinkOptions, courseOverviewOptions, externalTools } from '../course-info'
 
 /**
  * On the course info card of a linked course: the tools the course uses on other sites, each
- * opened in a new tab. Read from the course's LMS menu, leaving out what the instructor hid; no
- * row when there are none.
+ * opened in a new tab. Read from the course's LMS menu; no row when there are none.
  */
 export function CourseLinks({ courseId, Row }: CourseInfoRowProps) {
-  const linked = Boolean(
-    useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link,
-  )
+  const linked = Boolean(useQuery(courseLinkOptions(courseId)).data?.link)
   const tools = useQuery({
-    ...lmsCourseOverviewOptions({ path: { course_id: courseId } }),
+    ...courseOverviewOptions(courseId),
     enabled: linked,
     select: externalTools,
   }).data
