@@ -24,7 +24,6 @@ is filed by their title. Files and pages that pages link to come in too (courses
 files area link their files from pages).
 """
 
-from collections import Counter
 from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -388,30 +387,22 @@ class _Folders:
         self.ctx, self.course_id, self.known = ctx, course_id, known
         self.resolved: dict[MaterialType, str | None] = {}
 
-    async def of(
-        self, kind: MaterialType, imported: list[tuple[MaterialType, FilesItem]]
-    ) -> str | None:
+    async def of(self, kind: MaterialType) -> str | None:
         if kind == "info":
             return None
         if kind not in self.resolved:
-            self.resolved[kind] = await self._resolve(kind, imported)
+            self.resolved[kind] = await self._resolve(kind)
         return self.resolved[kind]
 
-    async def _resolve(
-        self, kind: MaterialType, imported: list[tuple[MaterialType, FilesItem]]
-    ) -> str | None:
+    async def _resolve(self, kind: MaterialType) -> str | None:
         ctx, course_id = self.ctx, self.course_id
         row = self.known.get(kind)
         if row is None:
             return await sorting.make_folder(ctx, course_id, kind, self.known)
         if row.folder_id and await files.find_folder(ctx, course_id, row.folder_id) is not None:
             return row.folder_id
-        # The user deleted the folder: where did they put this type's items since? Nowhere
-        # (still): the type's new items go to the top level.
-        places = Counter(i.folder_id for t, i in imported if t == kind and i.folder_id)
-        for folder_id, _ in places.most_common():
-            if await files.find_folder(ctx, course_id, folder_id) is not None:
-                return sorting.remember(ctx, course_id, kind, folder_id, self.known)
+        # The user deleted the folder: the type's new items go to the top level (owner
+        # 2026-11-17: nothing guessed from where they put others).
         return None
 
 
@@ -507,16 +498,10 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         r.id: r
         for r in await files.find_items(ctx, [r.target_id for r in known.values() if r.target_id])
     }
-    imported: list[tuple[MaterialType, FilesItem]] = []
     for ref in known.values():
-        if ref.target_id is None:
-            continue
-        row = rows.get(ref.target_id)
-        if row is None:
+        if ref.target_id is not None and ref.target_id not in rows:
             # The user deleted it: not brought back.
             ref.target_id, ref.dismissed_at = None, ctx.now
-        elif (kind := ref.snapshot.get("type")) is not None:
-            imported.append((kind, row))
     folders = _Folders(ctx, link.course_id, await sorting.type_folders(ctx, link.course_id))
 
     result = StageResult()
@@ -547,7 +532,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             result.cap_reached = True
             continue
         kind = plan.kind_of(key, m)
-        row = await _create(ctx, link, m, await folders.of(kind, imported))
+        row = await _create(ctx, link, m, await folders.of(kind))
         added.append(row)
         if ref is None:
             ref = LmsImportedRef(
@@ -560,7 +545,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             ctx.db.add(ref)
         ref.target_kind, ref.target_id, ref.imported_at = ITEM, row.id, ctx.now
         ref.snapshot = {**_snapshot(m, kind, row), **plan.note(key)}
-        imported.append((kind, row))
 
     if found.complete:
         # Gone from the platform: gone here too, unless the user keeps a copy. The ref forgets

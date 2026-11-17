@@ -62,9 +62,12 @@ export function useOrganizeStart(courseId: string) {
   }
 }
 
-/** Whether there is anything to come back to: a reading, a failure to see, or a plan. */
+/**
+ * Whether the toolbar button opens what is there instead of starting: a reading, a failure not
+ * yet seen, or a plan with files still to move. A plan with nothing left reads again.
+ */
 export function organizeWaits(state: OrganizeState | undefined) {
-  return Boolean(state?.plan || state?.job)
+  return Boolean(state?.job || (state?.plan && state.plan.moves.length > 0))
 }
 
 function withoutOrganize(prev: Record<string, string | undefined>) {
@@ -123,18 +126,35 @@ export function OrganizeDialog({
   // Followed live: a failure ends the job without changing the plan.
   const { job, status } = useJob(state.data?.job?.id ?? null, state.data?.job ?? undefined)
   const failed = status === 'failed' || status === 'cancelled'
-  const close = () => onOpenChange(false)
+  const discard = useMutation({ ...filesOrganizationDiscardMutation(), onError: toastError })
+  // A failure is done with once seen: closing it leaves nothing on the status line.
+  const changeOpen = (next: boolean) => {
+    if (!next && failed && !starting) discard.mutate({ path: { course_id: courseId } })
+    onOpenChange(next)
+  }
+  const close = () => changeOpen(false)
 
   let body: ReactNode
   if (plan) {
     body = (
-      <Review courseId={courseId} list={list} moves={plan.moves} left={plan.left} onDone={close} />
+      <Review
+        courseId={courseId}
+        list={list}
+        moves={plan.moves}
+        left={plan.left}
+        starting={starting}
+        onAgain={start}
+        onDone={close}
+      />
     )
   } else if (job && state.data?.job) {
     // Kept at 100% once read, until the plan arrives: one change of height, not two.
     body = (
       <>
         <JobProgress jobId={job.id} job={job} />
+        {failed ? null : (
+          <p className="text-sm text-muted-foreground">{m.files_organize_background_hint()}</p>
+        )}
         <DialogFooter>
           {failed ? (
             <Failed code={job.error_code} starting={starting} onRetry={start} onClose={close} />
@@ -175,7 +195,7 @@ export function OrganizeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{m.files_organize_title()}</DialogTitle>
@@ -228,12 +248,16 @@ function Review({
   list,
   moves,
   left,
+  starting,
+  onAgain,
   onDone,
 }: {
   courseId: string
   list: FilesItemList
   moves: readonly PlannedMove[]
   left: number
+  starting: boolean
+  onAgain: () => void
   onDone: () => void
 }) {
   const queryClient = useQueryClient()
@@ -360,6 +384,15 @@ function Review({
         <p className="text-sm text-muted-foreground">{m.files_organize_left({ count: left })}</p>
       ) : null}
       <DialogFooter>
+        {/* The plan is as it was when read: files added since are not in it. */}
+        <Button
+          variant="ghost"
+          className="sm:mr-auto"
+          disabled={busy || starting}
+          onClick={onAgain}
+        >
+          {m.files_organize_again()}
+        </Button>
         {discardButton}
         <Button
           disabled={kept.length === 0 || busy}

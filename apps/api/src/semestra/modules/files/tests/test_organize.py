@@ -57,7 +57,7 @@ async def test_organizing_the_unsorted_files(fx: Fx, monkeypatch: pytest.MonkeyP
         assert "Final examination, December 2024" in shown
         assert "Lecture 3.txt" not in shown
         pending = await fx.call("GET", f"/programs/{fx.program_id}/file-organizations")
-        assert pending == {"items": [{"course_id": fx.course_id, "count": 3}]}
+        assert pending == {"items": [{"course_id": fx.course_id, "job": None, "count": 3}]}
 
         # The user files the notes themselves before reviewing: they are no longer in the plan.
         await fx.call("PATCH", f"/files/{notes['id']}", json={"folder_id": mine["id"]})

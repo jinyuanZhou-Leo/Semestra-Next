@@ -3069,10 +3069,10 @@ export const filesOrganizationStart = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
- * The courses of a Program whose organizing waits for review.
+ * The organizing under way in a Program's courses.
  *
- * Each course with a read plan not yet applied or discarded, and how many files
- * it would still move.
+ * Each course whose organizing is reading, failed (not yet seen), or waits for
+ * review, with how many files its plan would still move.
  */
 export const filesOrganizationList = <ThrowOnError extends boolean = false>(options: Options<FilesOrganizationListData, ThrowOnError>): RequestResult<FilesOrganizationListResponses, FilesOrganizationListErrors, ThrowOnError> => (options.client ?? client).get<FilesOrganizationListResponses, FilesOrganizationListErrors, ThrowOnError>({
     security: [{

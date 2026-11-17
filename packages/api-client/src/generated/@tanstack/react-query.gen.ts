@@ -2965,10 +2965,10 @@ export const filesOrganizationStartMutation = (options?: Partial<Options<FilesOr
 export const filesOrganizationListQueryKey = (options: Options<FilesOrganizationListData>) => createQueryKey('filesOrganizationList', options);
 
 /**
- * The courses of a Program whose organizing waits for review.
+ * The organizing under way in a Program's courses.
  *
- * Each course with a read plan not yet applied or discarded, and how many files
- * it would still move.
+ * Each course whose organizing is reading, failed (not yet seen), or waits for
+ * review, with how many files its plan would still move.
  */
 export const filesOrganizationListOptions = (options: Options<FilesOrganizationListData>) => queryOptions<FilesOrganizationListResponse, FilesOrganizationListError, FilesOrganizationListResponse, ReturnType<typeof filesOrganizationListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

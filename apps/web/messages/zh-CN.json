@@ -3398,7 +3398,7 @@
   "error_caldav_unavailable": "此服务器未开启 Apple 提醒事项同步。",
   "files_organize": "整理",
   "files_organize_title": "整理文件",
-  "files_organize_description": "最外层和未归类的文件会按类型放进文件夹，其他文件夹不变。可以关掉这个窗口，读完后从这里或侧边栏状态行回来核对。",
+  "files_organize_description": "根目录和未归类的文件会按类型放进文件夹，其他文件夹不变。",
   "files_organize_review_description": "核对要移动的文件，取消勾选的留在原处。",
   "files_organize_background": "在后台继续",
   "files_organize_retry": "重试",
@@ -3412,7 +3412,11 @@
   "files_organize_tooltip": "把未归类的文件按类型放进文件夹",
   "files_organize_discard": "放弃整理",
   "files_organize_none": "没有进行中的整理",
-  "files_organize_line": "整理文件 · 待核对 {count} 个",
-  "files_organize_line_courses": "整理文件 · {count} 门课程待核对",
-  "job_step_files_organize_reading": "正在读取文件"
+  "files_organize_line_courses": "整理文件 · {count} 门课程",
+  "job_step_files_organize_reading": "正在读取文件",
+  "files_organize_background_hint": "可以关掉这个窗口，读完后从这里或侧边栏状态行回来核对。",
+  "files_organize_again": "重新整理",
+  "files_organize_state_reading": "正在读取",
+  "files_organize_state_failed": "读取失败",
+  "files_organize_state_ready": "待核对 {count} 个"
 }

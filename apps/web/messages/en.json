@@ -3398,7 +3398,7 @@
   "error_caldav_unavailable": "Apple Reminders sync isn't enabled on this server.",
   "files_organize": "Organize",
   "files_organize_title": "Organize files",
-  "files_organize_description": "Files at the top level or not yet sorted go into folders by type; other folders stay as they are. You can close this window and come back here or to the sidebar status line to review once it's read.",
+  "files_organize_description": "Files at the top level or not yet sorted go into folders by type; other folders stay as they are.",
   "files_organize_review_description": "Check the files to move. Unchecked ones stay where they are.",
   "files_organize_background": "Continue in background",
   "files_organize_retry": "Try again",
@@ -3412,7 +3412,11 @@
   "files_organize_tooltip": "Put unsorted files into folders by type",
   "files_organize_discard": "Discard",
   "files_organize_none": "No organizing in progress",
-  "files_organize_line": "Organize files · {count} to review",
-  "files_organize_line_courses": "Organize files · {count} courses to review",
-  "job_step_files_organize_reading": "Reading files"
+  "files_organize_line_courses": "Organize files · {count} courses",
+  "job_step_files_organize_reading": "Reading files",
+  "files_organize_background_hint": "You can close this window and come back here or to the sidebar status line to review once it's read.",
+  "files_organize_again": "Organize again",
+  "files_organize_state_reading": "Reading",
+  "files_organize_state_failed": "Couldn't read",
+  "files_organize_state_ready": "{count} to review"
 }

@@ -14250,14 +14250,32 @@ export const PendingOrganizeSchema = {
             type: 'string',
             title: 'Course Id'
         },
+        job: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/JobOut'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
         count: {
-            type: 'integer',
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
             title: 'Count'
         }
     },
     type: 'object',
     required: [
         'course_id',
+        'job',
         'count'
     ],
     title: 'PendingOrganize'

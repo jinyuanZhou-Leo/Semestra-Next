@@ -165,7 +165,8 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     assert _where(folders, items["Lecture 2.pdf"]) == "Slides"  # the renamed folder
 
     # The user files their lectures in a folder of their own and deletes "Slides": new ones go
-    # where they put the others.
+    # to the top level (nothing guessed from where they put the others), and it is not made
+    # again.
     mine = await api.call("POST", f"/courses/{course}/folders", json={"name": "Mine"})
     await api.call(
         "POST",
@@ -179,7 +180,9 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     clock.advance(minutes=1)
     await api.sync(program_id)
     folders, items = await _files(api, course)
-    assert _where(folders, items["Lecture 3.pdf"]) == "Mine"
+    assert _where(folders, items["Lecture 3.pdf"]) is None
+    assert "Slides" not in {f["name"] for f in folders.values()}
+    assert "Lectures" not in {f["name"] for f in folders.values()}
 
 
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):

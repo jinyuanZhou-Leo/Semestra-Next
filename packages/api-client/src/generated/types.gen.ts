@@ -8108,10 +8108,11 @@ export type PendingOrganize = {
      * Course Id
      */
     course_id: string;
+    job: JobOut | null;
     /**
      * Count
      */
-    count: number;
+    count: number | null;
 };
 
 /**

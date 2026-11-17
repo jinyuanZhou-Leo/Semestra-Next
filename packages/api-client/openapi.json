@@ -7815,8 +7815,8 @@
         "tags": [
           "files"
         ],
-        "summary": "The courses of a Program whose organizing waits for review.",
-        "description": "Each course with a read plan not yet applied or discarded, and how many files\nit would still move.",
+        "summary": "The organizing under way in a Program's courses.",
+        "description": "Each course whose organizing is reading, failed (not yet seen), or waits for\nreview, with how many files its plan would still move.",
         "operationId": "filesOrganizationList",
         "security": [
           {
@@ -33167,14 +33167,32 @@
             "type": "string",
             "title": "Course Id"
           },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "count": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Count"
           }
         },
         "type": "object",
         "required": [
           "course_id",
+          "job",
           "count"
         ],
         "title": "PendingOrganize"

@@ -567,12 +567,15 @@ const job = (status: string, step: string | null) => ({
   finished_at: null,
 })
 
-test('organizing starts reading when nothing waits for review', async () => {
+test('organizing reads again when the last plan has nothing left to move', async () => {
   let started = 0
   server.use(
     http.get(`${API}/courses/c1/files\\:organize`, () =>
       HttpResponse.json(
-        started ? { job: job('running', 'reading'), plan: null } : { job: null, plan: null },
+        started
+          ? { job: job('running', 'reading'), plan: null }
+          : // The files of the last plan were all moved since.
+            { job: null, plan: { moves: [], left: 4 } },
       ),
     ),
     http.post(`${API}/courses/c1/files\\:organize`, () => {

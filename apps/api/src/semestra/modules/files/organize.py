@@ -18,6 +18,7 @@ from semestra.core.context import Ctx
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue, job_handler
 from semestra.modules.academics import service as academics
+from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files import service, sorting
 from semestra.modules.files.models import (
     FilesDocumentPage,
@@ -84,8 +85,10 @@ class OrganizeApplied(BaseModel):
 
 class PendingOrganize(BaseModel):
     course_id: str
-    # Files the plan would still move.
-    count: int
+    # While reading, or when it failed (None once read).
+    job: JobOut | None
+    # Files the plan would still move (None until read).
+    count: int | None
 
 
 class PendingOrganizeList(BaseModel):
@@ -124,11 +127,30 @@ async def _excerpt(ctx: Ctx, row: FilesItem) -> str | None:
     return " ".join((text or "").split())[:EXCERPT_CHARS] or None
 
 
-async def _updated(ctx: Ctx, course_id: str, program_id: str) -> None:
-    await events.publish(ctx, UPDATED, {"course_id": course_id, "program_id": program_id})
+async def _updated(
+    ctx: Ctx, course_id: str, program_id: str, *, user_id: str | None = None
+) -> None:
+    data = {"course_id": course_id, "program_id": program_id}
+    await events.publish(ctx, UPDATED, data, user_id=user_id)
 
 
-@job_handler(KIND, stages=[("reading", 1), ("sorting", 3)], max_attempts=1)
+async def _failed(ctx: Ctx, payload: OrganizeInput, job: CoreJob) -> None:
+    """A failed reading shows on the organizing's status line until the user has seen it."""
+    # Its own read: the handler's objects went with its rolled-back transaction.
+    program_id = await ctx.db.scalar(
+        select(AcademicsCourse.program_id).where(
+            AcademicsCourse.id == payload.course_id, AcademicsCourse.user_id == job.user_id
+        )
+    )
+    if program_id is not None:
+        await _updated(ctx, payload.course_id, program_id, user_id=job.user_id)
+
+
+# Not in the status bar's job list: the organizing has a line of its own (reading, then waiting
+# for review), so one line follows it from start to review.
+@job_handler(
+    KIND, stages=[("reading", 1), ("sorting", 3)], max_attempts=1, listed=False, on_failure=_failed
+)
 async def plan(ctx: JobCtx, payload: OrganizeInput) -> OrganizeDone:
     course = await academics.get_course_row(ctx, payload.course_id)
     known = await sorting.type_folders(ctx, course.id)
@@ -262,9 +284,9 @@ async def organization_get(ctx: Ctx, inp: OrganizeInput) -> OrganizeState:
 
 @capability(
     name="files.organization.list",
-    summary="The courses of a Program whose organizing waits for review.",
-    description="""Each course with a read plan not yet applied or discarded, and how many files
-it would still move.""",
+    summary="The organizing under way in a Program's courses.",
+    description="""Each course whose organizing is reading, failed (not yet seen), or waits for
+review, with how many files its plan would still move.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/file-organizations"),
     expose=("http",),
@@ -274,9 +296,7 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
     await academics.get_program_row(ctx, inp.program_id)
     saved = list(
         await ctx.db.scalars(
-            select(FilesOrganizePlan).where(
-                FilesOrganizePlan.user_id == ctx.user_id, FilesOrganizePlan.moves.is_not(None)
-            )
+            select(FilesOrganizePlan).where(FilesOrganizePlan.user_id == ctx.user_id)
         )
     )
     courses = {
@@ -284,11 +304,24 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
         for c in await academics.courses_by_id(ctx, [s.course_id for s in saved])
         if c.program_id == inp.program_id
     }
-    items = [
-        PendingOrganize(course_id=s.course_id, count=len(await _live_moves(ctx, s.course_id, s)))
-        for s in saved
-        if s.course_id in courses
-    ]
+    reading = [s for s in saved if s.course_id in courses and s.moves is None]
+    jobs = {
+        j.id: j
+        for j in await ctx.db.scalars(
+            select(CoreJob).where(
+                CoreJob.user_id == ctx.user_id, CoreJob.id.in_([s.job_id for s in reading])
+            )
+        )
+    }
+    items: list[PendingOrganize] = []
+    for s in saved:
+        if s.course_id not in courses:
+            continue
+        if s.moves is not None:
+            count = len(await _live_moves(ctx, s.course_id, s))
+            items.append(PendingOrganize(course_id=s.course_id, job=None, count=count))
+        elif (job := jobs.get(s.job_id)) is not None:
+            items.append(PendingOrganize(course_id=s.course_id, job=JobOut.of(job), count=None))
     return PendingOrganizeList(items=items)
 
 
