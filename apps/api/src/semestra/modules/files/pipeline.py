@@ -40,6 +40,7 @@ from semestra.modules.files.parse.isolated import (
     render_isolated,
 )
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
+from semestra.modules.files.parse.render import PageImage
 from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
 log = structlog.get_logger()
@@ -371,7 +372,7 @@ async def _ocr(
     read_pages = 0
     stopped = False
 
-    async def read(index: int, png: bytes) -> None:
+    async def read(index: int, image: PageImage) -> None:
         nonlocal read_pages, stopped
         async with limiter:
             if stopped or resolved is None:
@@ -382,7 +383,7 @@ async def _ocr(
                     resolved,
                     [
                         ai.Message.system(OCR_PROMPT),
-                        ai.Message.user(ai.Image(png, "image/png")),
+                        ai.Message.user(ai.Image(image.data, image.media_type)),
                     ],
                     source_module="files",
                     source_ref=work.item_id,
@@ -432,7 +433,7 @@ async def _ocr(
                 await read_locally(session, batch, start)
                 continue
             try:
-                pngs = await render_isolated(
+                rendering = await render_isolated(
                     data,
                     pdf=kind == "pdf",
                     pages=batch,
@@ -443,8 +444,8 @@ async def _ocr(
                 log.warning("files_ocr_render_failed", code=exc.code)
                 continue
             async with anyio.create_task_group() as group:
-                for index, png in zip(batch, pngs, strict=False):
-                    group.start_soon(read, index, png)
+                for index, image in rendering.images.items():
+                    group.start_soon(read, index, image)
     await ctx.stage("ocr", current=len(needed), total=len(needed))
     model = (
         ai.local_ocr.model_tag(local) if local is not None else resolved.model if resolved else ""

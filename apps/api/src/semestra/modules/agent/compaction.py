@@ -156,7 +156,7 @@ def _clearable(part: object) -> bool:
     (Pydantic AI reads them)."""
     if not isinstance(part, ToolReturnPart) or part.content == CLEARED:
         return False
-    if part.tool_name == tools.READ_RESULT:
+    if part.tool_name in tools.LOOP_READS:
         return True
     try:
         return registry.get(tools.capability_name(part.tool_name)).effect == "read"

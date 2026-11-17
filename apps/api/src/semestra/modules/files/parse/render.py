@@ -1,7 +1,9 @@
-"""Page images: for OCR (150 DPI) and the small previews the UI shows (M07 §3.1, §4)."""
+"""Page images: what models see (OCR, timetables, the assistant) and the small previews the UI
+shows (M07 §3.1, §4)."""
 
 import io
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from PIL import Image, ImageOps
@@ -11,15 +13,38 @@ OCR_DPI = 150
 # A page image never has more pixels than this, whatever the page's shape: a tiny PDF can
 # declare a 40 x 14400 pt page.
 OCR_MAX_PIXELS = 6_000_000
+# A page image for a model is at most this long a side: providers scale larger ones down before
+# looking (Anthropic to about 1568 px), so more pixels would only cost bytes and tokens.
+MODEL_IMAGE_MAX_SIDE = 1600
+# A PNG larger than this (a page with photos) is sent as JPEG instead: well under every
+# provider's limit per image (Anthropic: 5 MB), and the pages of a request stay small.
+PNG_MAX_BYTES = 800_000
+JPEG_QUALITY = 85
+LOCAL_OCR_IMAGE_MAX_SIDE = 2400
 THUMB_WIDTH = 480
 THUMB_MAX_HEIGHT = 960
-OCR_IMAGE_MAX_SIDE = 2400
 MAX_IMAGE_PIXELS = 60_000_000
 
 register_heif_opener()
 
 if TYPE_CHECKING:
     import pymupdf
+
+
+@dataclass(frozen=True)
+class PageImage:
+    data: bytes
+    media_type: str
+
+
+def _for_model(image: Image.Image) -> PageImage:
+    """PNG keeps text sharp; a page whose PNG is large (photos) goes as JPEG."""
+    png = _png(image)
+    if len(png) <= PNG_MAX_BYTES:
+        return PageImage(png, "image/png")
+    out = io.BytesIO()
+    image.convert("RGB").save(out, "JPEG", quality=JPEG_QUALITY, optimize=True)
+    return PageImage(out.getvalue(), "image/jpeg")
 
 
 def _png(image: Image.Image) -> bytes:
@@ -67,17 +92,28 @@ class PageRenderer:
         if self._pdf is not None:
             self._pdf.close()
 
-    def ocr_image(self, index: int) -> bytes:
-        """PNG for the vision model: the page at 150 DPI, or the whole image."""
+    def model_image(self, index: int) -> PageImage:
+        """The page as a model sees it: at most 150 DPI, `OCR_MAX_PIXELS` and
+        `MODEL_IMAGE_MAX_SIDE` a side; or the whole image, upright, scaled to that side."""
+        return _for_model(self._page(index, MODEL_IMAGE_MAX_SIDE))
+
+    def local_ocr_png(self, index: int) -> bytes:
+        """The page for the local OCR engine, which runs here, not at a provider: no side limit
+        for PDF pages (150 DPI, `OCR_MAX_PIXELS`), so a large page keeps its small print."""
+        return _png(self._page(index, None))
+
+    def _page(self, index: int, max_side: int | None) -> Image.Image:
         if self._pdf is not None:
-            rect = self._pdf[index].rect
-            area = max(rect.width, 1) * max(rect.height, 1)
-            dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / area))
-            zoom = dpi / 72
-            matrix = _matrix(zoom)
-            return self._pdf[index].get_pixmap(matrix=matrix).tobytes("png")
+            page = self._pdf[index]
+            width, height = max(page.rect.width, 1), max(page.rect.height, 1)
+            dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / (width * height)))
+            if max_side is not None:
+                dpi = min(dpi, 72 * max_side / max(width, height))
+            pixmap = page.get_pixmap(matrix=_matrix(dpi / 72))
+            return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         assert self._image is not None
-        return _png(_fit(self._image, OCR_IMAGE_MAX_SIDE, OCR_IMAGE_MAX_SIDE))
+        side = max_side or LOCAL_OCR_IMAGE_MAX_SIDE
+        return _fit(self._image, side, side)
 
     def thumbnail(self, index: int) -> bytes:
         """A PNG at most `THUMB_WIDTH` wide and `THUMB_MAX_HEIGHT` tall."""

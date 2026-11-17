@@ -62,7 +62,17 @@ from semestra.core.context import Ctx, run_after_commit
 from semestra.core.db import new_id
 from semestra.core.errors import AppError, validation_error
 from semestra.core.events import events
-from semestra.modules.agent import chats, current, history, memory, outcome, service, skills, tools
+from semestra.modules.agent import (
+    chats,
+    current,
+    history,
+    memory,
+    outcome,
+    service,
+    skills,
+    tools,
+    view,
+)
 from semestra.modules.agent.compaction import compact, compact_in_turn, compact_now
 from semestra.modules.agent.context import STATIC_PROMPT, sent_note, work_context
 from semestra.modules.agent.decisions import close_calls, edited
@@ -150,8 +160,9 @@ class _Stopped(Exception):
     """Stop pressed before the model request was sent (during compaction)."""
 
 
-async def _unless_stopped(turn: Turn, work: Awaitable[Outcome]) -> Outcome:
-    """A read gives up when the user presses Stop; it changed nothing, so nothing is lost."""
+async def _unless_stopped[T](turn: Turn, work: Awaitable[T]) -> T | None:
+    """A read gives up when the user presses Stop (None); it changed nothing, so nothing is
+    lost."""
     task = asyncio.ensure_future(work)
     stop = asyncio.ensure_future(turn.cancel.wait())
     try:
@@ -162,7 +173,7 @@ async def _unless_stopped(turn: Turn, work: Awaitable[Outcome]) -> Outcome:
         return task.result()
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
-    return outcome.error(STOPPED, ran=False)
+    return None
 
 
 def _tool(cap: Capability) -> tools.ToolFunction:
@@ -190,7 +201,8 @@ def _tool(cap: Capability) -> tools.ToolFunction:
                 if cap.effect == "read":
                     async with turn.sem:
                         work = outcome.invoke(turn.state, turn.user_id, turn.scope, cap.name, args)
-                        result = await _unless_stopped(turn, work)
+                        done = await _unless_stopped(turn, work)
+                        result = done or outcome.error(STOPPED, ran=False)
                 else:
                     result = await outcome.invoke(
                         turn.state,
@@ -239,6 +251,17 @@ async def _ask(ctx: RunContext[Turn], **_args: Any) -> ToolReturn:
     turn, call_id = ctx.deps, ctx.tool_call_id or ""
     result = turn.decided.get(call_id) or outcome.error("agent.interrupted")
     return _tool_return(None, call_id, result, turn)
+
+
+async def _view(ctx: RunContext[Turn], **args: Any) -> ToolReturn:
+    """`view_pages`: a read like any other, so Stop and the parallel-read limit apply."""
+    turn = ctx.deps
+    async with turn.sem:
+        work = view.view_pages(turn.state, turn.user_id, turn.scope, args)
+        done = await _unless_stopped(turn, work)
+    if done is None:
+        return _tool_return(None, ctx.tool_call_id or "", outcome.error(STOPPED, ran=False), turn)
+    return done
 
 
 COMPACTED = {
@@ -425,7 +448,8 @@ def _agent(
     capabilities: list[AbstractCapability[Turn]] = [_Hooks(), Caching()]
     toolsets = []
     if turn.model.supports_tools:
-        toolsets.append(tools.toolset(available, _tool, _read_result, _ask, _compact))
+        viewer = _view if turn.model.vision else None
+        toolsets.append(tools.toolset(available, _tool, _read_result, _ask, _compact, viewer))
         capabilities = [
             ToolSearch(
                 strategy=tools.search,

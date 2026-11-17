@@ -35,11 +35,12 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.agent import attachments, service
+from semestra.modules.agent import attachments, service, tools
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage, AgentSession
 from semestra.modules.ai import wrap_untrusted
 from semestra.modules.files.parse import ParseError
 from semestra.modules.files.parse.isolated import render_isolated
+from semestra.modules.files.parse.render import PageImage
 
 if TYPE_CHECKING:
     from semestra.modules.imports.dates import TermDates
@@ -57,7 +58,7 @@ OUTLINE_MAX = 60
 SCANNED_IMAGES_MAX = 5
 _CACHE_MAX = 32
 # Rendered page images by (attachment id, page): every request of a turn sends them again.
-_images: OrderedDict[tuple[str, int], bytes] = OrderedDict()
+_images: OrderedDict[tuple[str, int], PageImage | None] = OrderedDict()
 # Rendered calendars by (attachment id, time zone); None when the file could not be read. The
 # text is kept, not the parsed events: it is all the assistant reads, and much smaller.
 _calendars: OrderedDict[tuple[str, str, tuple[date, date]], Calendar | None] = OrderedDict()
@@ -188,11 +189,15 @@ async def _scanned(
     scanned = [r.page_no for r in shown if r.needs_ocr]
     if not scanned:
         return []
+    look = (
+        f" Look at them with {tools.VIEW_PAGES} (attachment_id {att.id}) if the question needs "
+        "them."
+    )
     if not att.storage_key:
         # A course file: the files pipeline already tried OCR on these pages.
         return [
             f"Pages {', '.join(map(str, scanned))} of {_attr(att.name)} are scanned images "
-            "whose text could not be recognized."
+            f"whose text could not be recognized.{look if vision else ''}"
         ]
     if not vision or att.doc_kind != "pdf":
         return [
@@ -203,12 +208,12 @@ async def _scanned(
     images = await _page_images(ctx, att, pages)
     out: list[UserContent] = []
     for page_no in pages:
-        if images[page_no]:
+        if (image := images[page_no]) is not None:
             out += [
                 f"Page {page_no} of {_attr(att.name)} (scanned):",
-                BinaryContent(data=images[page_no], media_type="image/png"),
+                BinaryContent(data=image.data, media_type=image.media_type),
             ]
-    failed = [p for p in pages if not images[p]]
+    failed = [p for p in pages if images[p] is None]
     if failed:
         out.append(
             f"Pages {', '.join(map(str, failed))} of {_attr(att.name)} are scanned images that "
@@ -216,14 +221,17 @@ async def _scanned(
         )
     if len(scanned) > len(pages):
         out.append(
-            f"Pages {', '.join(map(str, scanned[len(pages) :]))} are scanned too and not shown."
+            f"Pages {', '.join(map(str, scanned[len(pages) :]))} are scanned too and not "
+            f"shown.{look}"
         )
     return out
 
 
-async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> dict[int, bytes]:
+async def _page_images(
+    ctx: Ctx, att: AgentAttachment, pages: list[int]
+) -> dict[int, PageImage | None]:
     """The pages' images, rendered in a child process (like the files pipeline: a hostile PDF
-    must not take the server down) and kept, so later requests show the same; empty for a page
+    must not take the server down) and kept, so later requests show the same; None for a page
     that cannot be rendered. Cached pages are taken before any await: another turn trimming the
     cache meanwhile cannot drop them."""
     out = {p: _images[(att.id, p)] for p in pages if (att.id, p) in _images}
@@ -233,18 +241,19 @@ async def _page_images(ctx: Ctx, att: AgentAttachment, pages: list[int]) -> dict
     if missing:
         data = await service.read_attachment(ctx, att)
         try:
-            pngs = await render_isolated(
+            rendering = await render_isolated(
                 data,
                 pdf=True,
                 pages=[p - 1 for p in missing],
                 time_limit=ctx.settings.files_parse_timeout_seconds,
                 memory_limit=ctx.settings.files_parse_memory_bytes,
             )
+            images = rendering.images
         except ParseError as exc:
             log.info("agent.attachment.render_failed", attachment_id=att.id, code=exc.code)
-            pngs = []
-        for i, page_no in enumerate(missing):
-            out[page_no] = _images[(att.id, page_no)] = pngs[i] if i < len(pngs) else b""
+            images = {}
+        for page_no in missing:
+            out[page_no] = _images[(att.id, page_no)] = images.get(page_no - 1)
     while len(_images) > _CACHE_MAX:
         _images.popitem(last=False)
     return out

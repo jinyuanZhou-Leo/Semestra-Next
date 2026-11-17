@@ -19,6 +19,7 @@ from semestra.modules.agent.tests.conftest import Agent as ConversationAgent
 from semestra.modules.agent.tests.conftest import FakeModel, call, say
 from semestra.modules.files.parse import ParseError
 from semestra.modules.files.parse.detect import DOCX
+from semestra.modules.files.parse.isolated import Rendering
 from semestra.modules.files.parse.readers import LOGICAL_PAGE_CHARS
 from semestra.modules.files.tests.conftest import make_docx, make_pdf, make_png
 from semestra.modules.imports.tests.test_imports_rules import ics, vevent
@@ -397,7 +398,7 @@ async def test_a_scanned_page_that_cannot_be_rendered_is_noted(
     pdf = await chat.attach(session_id, "scan.pdf", data, "application/pdf")
     calls: list[list[int]] = []
 
-    async def too_complex(data: bytes, *, pages: list[int], **kwargs: Any) -> list[bytes]:
+    async def too_complex(data: bytes, *, pages: list[int], **kwargs: Any) -> Rendering:
         calls.append(pages)  # in a child process with limits, like the files pipeline
         raise ParseError("files.too_complex")
 

@@ -143,17 +143,17 @@ async def read_upload(
         ]
         scans = [i for i, p in enumerate(parsed.pages) if p.needs_ocr][:SCAN_PAGES]
         pngs = (
-            await isolated.render_isolated(
-                data, pdf=detected.mime == "application/pdf", pages=scans, **limits
-            )
+            (
+                await isolated.render_isolated(
+                    data, pdf=detected.mime == "application/pdf", pages=scans, **limits
+                )
+            ).images
             if scans
-            else []
+            else {}
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return texts, [
-        ai.Image(png, "image/png", page=index + 1) for index, png in zip(scans, pngs, strict=True)
-    ]
+    return texts, [ai.Image(i.data, i.media_type, page=n + 1) for n, i in pngs.items()]
 
 
 async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Image]:
@@ -163,10 +163,10 @@ async def _image(settings: Settings, data: bytes, filename: str) -> list[ai.Imag
     if parse is None or isolated is None:
         raise AppError("import.file_unsupported", 422, filename=filename)
     try:
-        pngs = await isolated.render_isolated(data, pdf=False, pages=1, **_limits(settings))
+        rendering = await isolated.render_isolated(data, pdf=False, pages=1, **_limits(settings))
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(png, "image/png") for png in pngs]
+    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
 
 
 async def render_pages(settings: Settings, data: bytes, mime: str, filename: str) -> list[ai.Image]:
@@ -177,12 +177,12 @@ async def render_pages(settings: Settings, data: bytes, mime: str, filename: str
     if parse is None or isolated is None or mime != "application/pdf":
         raise AppError("import.file_unsupported", 422, filename=filename)
     try:
-        pngs = await isolated.render_isolated(
+        rendering = await isolated.render_isolated(
             data, pdf=True, pages=TIMETABLE_PAGES, **_limits(settings)
         )
     except parse.ParseError as exc:
         raise _unreadable(exc, filename) from exc
-    return [ai.Image(png, "image/png") for png in pngs]
+    return [ai.Image(i.data, i.media_type) for i in rendering.images.values()]
 
 
 def _unreadable(exc: Exception, filename: str) -> AppError:
