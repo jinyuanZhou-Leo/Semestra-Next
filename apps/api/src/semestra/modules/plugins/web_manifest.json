@@ -433,7 +433,15 @@
     {
       "id": "lms",
       "kind": "core",
-      "pages": [],
+      "pages": [
+        {
+          "id": "announcements",
+          "scopes": [
+            "course",
+            "term"
+          ]
+        }
+      ],
       "cards": [
         {
           "id": "lms.announcements",

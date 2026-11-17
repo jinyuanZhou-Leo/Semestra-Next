@@ -65,6 +65,25 @@ async def test_connection_secrets_never_leave(api: Api, app: FastAPI):
     assert {"canvas", "fake"} <= {p["kind"] for p in providers["items"]}
 
 
+async def test_link_list_of_a_term(api: Api):
+    program_id, winter, _ = await setup_program(api)
+    fall = (
+        await api.call(
+            "POST",
+            f"/programs/{program_id}/terms",
+            json={"name": "Fall 2026", "start_date": "2026-09-08", "end_date": "2026-12-18"},
+        )
+    )["term"]["id"]
+    now = await api.course(program_id, winter)
+    later = await api.course(program_id, fall, code="MAT186H1", title="Calculus")
+    await api.link(now, "101")
+    await api.link(later, "102")
+    links = await api.call("GET", f"/programs/{program_id}/lms-links", params={"term_id": fall})
+    assert [li["course_id"] for li in links["items"]] == [later]
+    # What the platform supports comes with each link (pages show only what it can do).
+    assert "announcements" in links["items"][0]["features"]
+
+
 async def test_validate_and_recheck(api: Api, fake: FakeProvider):
     check = await api.call(
         "POST", "/lms/connections:validate",

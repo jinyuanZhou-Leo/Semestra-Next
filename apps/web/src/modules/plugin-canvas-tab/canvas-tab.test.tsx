@@ -66,6 +66,7 @@ const LINK: CourseLink = {
   connection_id: 'k1',
   provider: 'canvas',
   external_course_id: '101',
+  features: ['announcements', 'assignments'],
   external_code: 'APS105H1',
   external_name: 'Computer Fundamentals',
   external_term: '2026 Fall',

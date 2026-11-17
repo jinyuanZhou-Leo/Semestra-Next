@@ -763,8 +763,17 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         files_offline=row.files_offline,
         synced_at=row.synced_at,
         sync_errors=row.sync_errors,
+        features=provider_features(provider),
         created_at=row.created_at,
     )
+
+
+def provider_features(kind: str) -> list[LmsFeature]:
+    """What a provider supports; nothing when it is no longer installed."""
+    try:
+        return sorted(get_provider(kind).features)
+    except AppError:
+        return []
 
 
 async def program_links(ctx: Ctx, program_id: str) -> list[LmsCourseLink]:
@@ -777,15 +786,26 @@ async def program_links(ctx: Ctx, program_id: str) -> list[LmsCourseLink]:
     )
 
 
-async def link_list(ctx: Ctx, program_id: str) -> CourseLinkList:
+async def term_links(ctx: Ctx, term_id: str) -> list[LmsCourseLink]:
+    """The links of a term's courses."""
+    term = await academics.get_term_row(ctx, term_id)
+    links = await program_links(ctx, term.program_id)
+    in_term = set(await academics.term_course_ids(ctx, term_id))
+    return [li for li in links if li.course_id in in_term]
+
+
+async def link_list(ctx: Ctx, program_id: str, term_id: str | None = None) -> CourseLinkList:
     await academics.get_program_row(ctx, program_id)
-    rows = (
-        await ctx.db.execute(
-            select(LmsCourseLink, LmsConnection.provider)
-            .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
-            .where(LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.program_id == program_id)
-        )
-    ).all()
+    query = (
+        select(LmsCourseLink, LmsConnection.provider)
+        .join(LmsConnection, LmsConnection.id == LmsCourseLink.connection_id)
+        .where(LmsCourseLink.user_id == ctx.user_id, LmsCourseLink.program_id == program_id)
+    )
+    if term_id is not None:
+        await academics.get_term_row(ctx, term_id)
+        ids = await academics.term_course_ids(ctx, term_id)
+        query = query.where(LmsCourseLink.course_id.in_(ids))
+    rows = (await ctx.db.execute(query)).all()
     return CourseLinkList(items=[link_out(link, provider) for link, provider in rows])
 
 

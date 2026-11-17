@@ -12632,7 +12632,7 @@
           "lms"
         ],
         "summary": "Every LMS course link in a Program.",
-        "description": "Which of the Program's courses are linked, and to which LMS course, in one call.\nFor one course use lms.course.link.get, which also says which connection the Program uses.",
+        "description": "Which of the Program's courses are linked, and to which LMS course, in one call\n(with term_id, only that term's courses). For one course use lms.course.link.get, which also\nsays which connection the Program uses.",
         "operationId": "lmsCourseLinkList",
         "security": [
           {
@@ -12653,6 +12653,26 @@
               "title": "Program Id"
             },
             "description": "Program id"
+          },
+          {
+            "name": "term_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the courses of this term",
+              "title": "Term Id"
+            },
+            "description": "Only the courses of this term"
           }
         ],
         "responses": {
@@ -24595,6 +24615,31 @@
             "title": "Sync Errors",
             "description": "Error code of each sync stage whose last run failed (course, assignments, announcements, ...)"
           },
+          "features": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "courses",
+                "navigation",
+                "announcements",
+                "assignments",
+                "grades",
+                "modules",
+                "pages",
+                "quizzes",
+                "syllabus",
+                "files",
+                "calendar",
+                "submissions",
+                "folders",
+                "discussions",
+                "mark_read"
+              ]
+            },
+            "type": "array",
+            "title": "Features",
+            "description": "What its platform supports"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -24618,6 +24663,7 @@
           "files_offline",
           "synced_at",
           "sync_errors",
+          "features",
           "created_at"
         ],
         "title": "CourseLink"
