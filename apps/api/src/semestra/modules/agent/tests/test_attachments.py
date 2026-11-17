@@ -419,6 +419,12 @@ async def test_a_long_screenshot_comes_in_parts(chat: Chat):
     read = await chat.tool("agent.attachment.read", {"attachment_id": att["id"]})
     assert (read["page_count"], read["pages"]) == (6, [])
 
+    # A phone's usual screenshot stays whole.
+    raw = io.BytesIO()
+    Image.new("RGB", (1179, 2556), "white").save(raw, "PNG")
+    phone = await chat.attach(session_id, "screen.png", raw.getvalue(), "image/png")
+    assert len([c for c in await given(chat, phone["id"]) if isinstance(c, BinaryContent)]) == 1
+
 
 async def test_a_phone_photo_reaches_the_model_upright_and_small(chat: Chat):
     # A photo at camera size, turned by EXIF: Anthropic refuses images over 5 MB or 8000 px.

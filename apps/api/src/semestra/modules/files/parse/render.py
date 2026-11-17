@@ -21,10 +21,11 @@ MODEL_IMAGE_MAX_SIDE = 1600
 PNG_MAX_BYTES = 800_000
 JPEG_QUALITY = 85
 LOCAL_OCR_IMAGE_MAX_SIDE = 2400
-# An image more than this many times as tall as wide (a long screenshot) is split into parts
-# for a model, top to bottom, each at most `MODEL_IMAGE_MAX_SIDE` tall: scaled whole, its text
-# would be too small to read. At most `MAX_PARTS` parts; past that they are taller and scaled.
-TALL_RATIO = 2
+# An image more than this many times as tall as wide (a long screenshot, not a phone's usual one
+# at about 2.2) is split into parts for a model, top to bottom, each at most
+# `MODEL_IMAGE_MAX_SIDE` tall: scaled whole, its text would be too small to read. At most
+# `MAX_PARTS` parts; past that they are taller and scaled.
+TALL_RATIO = 3
 MAX_PARTS = 20
 THUMB_WIDTH = 480
 THUMB_MAX_HEIGHT = 960
