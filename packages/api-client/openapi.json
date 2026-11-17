@@ -7592,6 +7592,277 @@
         }
       }
     },
+    "/courses/{course_id}/files:organize-apply": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Move a course's files into their type folders, as its plan says.",
+        "description": "Applies the course's plan to the files the user kept: each goes in its type's\nfolder, made when the course has none. Files moved or deleted since the plan stay as they are.\nThe plan is done with afterwards.",
+        "operationId": "filesOrganizationApply",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose plan to apply.",
+              "title": "Course Id"
+            },
+            "description": "The course whose plan to apply."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizeApplyInputBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizeApplied"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/courses/{course_id}/files:organize": {
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Discard a course's organizing plan without moving anything.",
+        "description": "The plan is done with; the files stay where they are.",
+        "operationId": "filesOrganizationDiscard",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose files to organize.",
+              "title": "Course Id"
+            },
+            "description": "The course whose files to organize."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/semestra__modules__files__schemas__Deleted"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Where a course's organizing stands.",
+        "description": "The course's organizing: its job while it reads (or when it failed), and the\nplan once read, with the files the user has moved or deleted since left out.",
+        "operationId": "filesOrganizationGet",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose files to organize.",
+              "title": "Course Id"
+            },
+            "description": "The course whose files to organize."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizeState"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Work out how to sort a course's unsorted files into type folders.",
+        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the user reviews the plan\n(`files.organization.get`) and applies it (`files.organization.apply`).",
+        "operationId": "filesOrganizationStart",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The course whose files to organize.",
+              "title": "Course Id"
+            },
+            "description": "The course whose files to organize."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/programs/{program_id}/file-organizations": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "The organizing under way in a Program's courses.",
+        "description": "Each course whose organizing is reading, failed (not yet seen), or waits for\nreview, with how many files its plan would still move.",
+        "operationId": "filesOrganizationList",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The Program whose courses to look at.",
+              "title": "Program Id"
+            },
+            "description": "The Program whose courses to look at."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOrganizeList"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/files-usage/breakdown": {
       "get": {
         "tags": [
@@ -32327,6 +32598,89 @@
         ],
         "title": "OneOffEventList"
       },
+      "OrganizeApplied": {
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "title": "Moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "title": "OrganizeApplied"
+      },
+      "OrganizeApplyInputBody": {
+        "properties": {
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "title": "Item Ids",
+            "description": "The files of the plan the user kept; the rest stay."
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_ids"
+        ],
+        "title": "OrganizeApplyInputBody"
+      },
+      "OrganizePlan": {
+        "properties": {
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedMove"
+            },
+            "type": "array",
+            "title": "Moves"
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moves",
+          "left"
+        ],
+        "title": "OrganizePlan"
+      },
+      "OrganizeState": {
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrganizePlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "job",
+          "plan"
+        ],
+        "title": "OrganizeState",
+        "description": "The course's organizing: its job (while reading, or when it failed; None once the job\nrecord is gone), and its plan once read. Both None: nothing waits."
+      },
       "OutlineEntry": {
         "properties": {
           "level": {
@@ -32807,6 +33161,58 @@
         ],
         "title": "PendingItem"
       },
+      "PendingOrganize": {
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "title": "Course Id"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "course_id",
+          "job",
+          "count"
+        ],
+        "title": "PendingOrganize"
+      },
+      "PendingOrganizeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PendingOrganize"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PendingOrganizeList"
+      },
       "PinnedFiles": {
         "properties": {
           "items": {
@@ -32822,6 +33228,62 @@
           "items"
         ],
         "title": "PinnedFiles"
+      },
+      "PlannedMove": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "lectures",
+              "tutorials",
+              "problems",
+              "exams",
+              "recordings",
+              "readings",
+              "general"
+            ],
+            "title": "Type"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "folder_name": {
+            "type": "string",
+            "title": "Folder Name"
+          },
+          "from_folder_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Folder Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id",
+          "type",
+          "folder_id",
+          "folder_name",
+          "from_folder_id"
+        ],
+        "title": "PlannedMove"
       },
       "PluginCatalog": {
         "properties": {

@@ -1,5 +1,5 @@
 """The `files` stage of the course sync (M09 §4.2): the course's files, pages and links on the
-platform become items of the course's files (M07), in type folders (`materials.py`).
+platform become items of the course's files (M07), in type folders (`files.sorting`).
 
 By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
 reads the bytes from the platform when they are needed (`open_source`, registered as its content
@@ -11,9 +11,9 @@ left alone. Their text is read and indexed like any file's (M07's `auto_index`),
 Each platform item has a ref (`external_kind` `file`, `page` or `link`) with what was last
 applied (`snapshot`: its type, platform title, content version, name). The user's changes always
 win: a moved item stays where they put it, a renamed one keeps their name, a deleted one is not
-brought back (`dismissed_at`). Type folders are made on first need and remembered (`type_folder`
-refs); one the user deleted is replaced by the folder where they put that type's items since,
-else the type's new items go to the top level.
+brought back (`dismissed_at`). Type folders are made on first need and remembered (M07's
+`files_type_folders`); one the user deleted is replaced by the folder where they put that type's
+items since, else the type's new items go to the top level.
 
 An item gone from the platform (deleted, locked again) goes from the files too, unless the user
 stored a copy; its ref is cleared, so it comes back if the platform shows it again. That is only
@@ -24,7 +24,6 @@ is filed by their title. Files and pages that pages link to come in too (courses
 files area link their files from pages).
 """
 
-from collections import Counter
 from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -36,19 +35,14 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.core.events import Event, events
-from semestra.modules.files import content
+from semestra.modules.files import content, sorting
 from semestra.modules.files import service as files
 from semestra.modules.files.content import register_content_source
-from semestra.modules.files.models import FilesItem
+from semestra.modules.files.models import FilesItem, FilesTypeFolder
+from semestra.modules.files.sorting import Clues, MaterialType, classify
 from semestra.modules.lms import reads
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.materials import (
-    Clues,
-    MaterialType,
-    classify,
-    folder_name,
-    page_shape,
-)
+from semestra.modules.lms.materials import page_shape
 from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
 from semestra.modules.lms.reads import AREA_REFUSALS, ITEM_ERRORS
 from semestra.modules.lms.schemas.dto import FileMeta, ModuleItem
@@ -58,10 +52,8 @@ from semestra.modules.lms.sync import StageResult, hold, register_sync_stage
 MaterialKind = Literal["file", "page", "link"]
 KINDS: tuple[MaterialKind, ...] = ("file", "page", "link")
 Key = tuple[str, str]
-TYPE_FOLDER = "type_folder"
-# `target_kind` of the refs: an item, a folder of the course's files.
+# `target_kind` of the refs: an item of the course's files.
 ITEM = "file_item"
-FOLDER = "file_folder"
 # New items one run adds; the next run goes on.
 PER_RUN = 100
 # Errors that mean an area of the course is hidden from the user: the stage goes on without it.
@@ -99,17 +91,15 @@ class Material:
     # More to remember (what a page links to, when an item was last read on its own).
     notes: dict[str, Any] = field(default_factory=lambda: {})
 
-    def kind_of(self) -> MaterialType:
-        return classify(
-            Clues(
-                title=self.title,
-                mime=self.mime,
-                url=self.url,
-                subheader=self.subheader,
-                module=self.module,
-                folder_path=self.folder_path,
-                listed_by=self.listed_by,
-            )
+    def clues(self) -> Clues:
+        return Clues(
+            title=self.title,
+            mime=self.mime,
+            url=self.url,
+            subheader=self.subheader,
+            module=self.module,
+            folder_path=self.folder_path,
+            listed_by=tuple(self.listed_by),
         )
 
 
@@ -343,70 +333,77 @@ def _place(found: _Found) -> None:
         material.listed_by = found.listed_by.get(key, [])
 
 
+# --- what the rules leave in "general" -------------------------------------------------------
+
+
+@dataclass
+class _Sorting:
+    """The model's types for the new items of this run that the rules put in "general": one
+    request per course and run. Without a model, or when it fails, they stay in "general" (the
+    user can sort them with M07's organizing, where they review it first)."""
+
+    answers: dict[Key, MaterialType]
+
+    def kind_of(self, key: Key, m: Material) -> MaterialType:
+        return self.answers.get(key) or classify(m.clues())
+
+    def note(self, key: Key) -> dict[str, object]:
+        """What a new item's snapshot records of how it was sorted."""
+        return {"by": "ai"} if key in self.answers else {}
+
+
+async def _sort(ctx: Ctx, found: _Found) -> _Sorting:
+    asked: dict[Key, Clues] = {}
+    new = 0
+    for key, m in found.materials.items():
+        ref = found.known.get(key)
+        if m.is_list or (ref is not None and (ref.dismissed_at or ref.target_id)):
+            continue
+        new += 1
+        if new > PER_RUN:
+            break
+        if classify(clues := m.clues()) == "general":
+            asked[key] = clues
+    keys = {f"{kind}:{external_id}": (kind, external_id) for kind, external_id in asked}
+    try:
+        answers = await sorting.classify_leftovers(
+            ctx, {name: asked[key] for name, key in keys.items()}
+        )
+    except AppError as exc:
+        if not exc.code.startswith("ai."):
+            raise
+        answers = None
+    return _Sorting({keys[name]: kind for name, kind in (answers or {}).items()})
+
+
 # --- writing --------------------------------------------------------------------------------
 
 
 class _Folders:
-    """The course's type folders: remembered, found again, or made."""
+    """The course's type folders (M07's `files_type_folders`): remembered, found again, or
+    made."""
 
-    def __init__(self, ctx: Ctx, link: LmsCourseLink, refs: dict[str, LmsImportedRef]) -> None:
-        self.ctx, self.link, self.refs = ctx, link, refs
+    def __init__(self, ctx: Ctx, course_id: str, known: dict[MaterialType, FilesTypeFolder]):
+        self.ctx, self.course_id, self.known = ctx, course_id, known
         self.resolved: dict[MaterialType, str | None] = {}
 
-    async def of(
-        self, kind: MaterialType, imported: list[tuple[MaterialType, FilesItem]]
-    ) -> str | None:
+    async def of(self, kind: MaterialType) -> str | None:
         if kind == "info":
             return None
-        if kind in self.resolved:
-            return self.resolved[kind]
-        folder_id = await self._resolve(kind, imported)
-        self.resolved[kind] = folder_id
-        return folder_id
+        if kind not in self.resolved:
+            self.resolved[kind] = await self._resolve(kind)
+        return self.resolved[kind]
 
-    async def _resolve(
-        self, kind: MaterialType, imported: list[tuple[MaterialType, FilesItem]]
-    ) -> str | None:
-        ctx, link = self.ctx, self.link
-        ref = self.refs.get(kind)
-        if (
-            ref is not None
-            and ref.target_id is not None
-            and await files.find_folder(ctx, link.course_id, ref.target_id) is not None
-        ):
-            return ref.target_id
-        if ref is not None:
-            # The folder is gone: where did the user put this type's items since?
-            places = Counter(i.folder_id for t, i in imported if t == kind and i.folder_id)
-            for folder_id, _ in places.most_common():
-                if await files.find_folder(ctx, link.course_id, folder_id) is not None:
-                    return self._remember(ref, folder_id)
-            if ref.target_id is not None or ref.dismissed_at is None:
-                ref.target_id, ref.dismissed_at = None, ctx.now
-            return None
-        name = folder_name(kind, ctx.locale)
-        folder = await files.root_folder_named(ctx, link.course_id, name)
-        folder_id = (
-            folder.id
-            if folder is not None
-            else (await files.create_folder(ctx, link.course_id, name, None)).id
-        )
-        ref = LmsImportedRef(
-            user_id=ctx.user_id,
-            link_id=link.id,
-            external_kind=TYPE_FOLDER,
-            external_id=kind,
-            target_kind=FOLDER,
-            imported_at=ctx.now,
-            snapshot={},
-        )
-        ctx.db.add(ref)
-        self.refs[kind] = ref
-        return self._remember(ref, folder_id)
-
-    def _remember(self, ref: LmsImportedRef, folder_id: str) -> str:
-        ref.target_id, ref.dismissed_at = folder_id, None
-        return folder_id
+    async def _resolve(self, kind: MaterialType) -> str | None:
+        ctx, course_id = self.ctx, self.course_id
+        row = self.known.get(kind)
+        if row is None:
+            return await sorting.make_folder(ctx, course_id, kind, self.known)
+        if row.folder_id and await files.find_folder(ctx, course_id, row.folder_id) is not None:
+            return row.folder_id
+        # The user deleted the folder: the type's new items go to the top level (owner
+        # 2026-11-17: nothing guessed from where they put others).
+        return None
 
 
 async def _create(ctx: Ctx, link: LmsCourseLink, m: Material, folder_id: str | None) -> FilesItem:
@@ -479,7 +476,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     def read_refs() -> Any:
         return select(LmsImportedRef).where(
             LmsImportedRef.link_id == link.id,
-            LmsImportedRef.external_kind.in_((*KINDS, TYPE_FOLDER)),
+            LmsImportedRef.external_kind.in_(KINDS),
         )
 
     refs = list(await ctx.db.scalars(read_refs()))
@@ -491,6 +488,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
     _place(found)
+    plan = await _sort(ctx, found)
 
     await hold(ctx, link)
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
@@ -500,21 +498,11 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         r.id: r
         for r in await files.find_items(ctx, [r.target_id for r in known.values() if r.target_id])
     }
-    imported: list[tuple[MaterialType, FilesItem]] = []
     for ref in known.values():
-        if ref.target_id is None:
-            continue
-        row = rows.get(ref.target_id)
-        if row is None:
+        if ref.target_id is not None and ref.target_id not in rows:
             # The user deleted it: not brought back.
             ref.target_id, ref.dismissed_at = None, ctx.now
-        elif (kind := ref.snapshot.get("type")) is not None:
-            imported.append((kind, row))
-    folders = _Folders(
-        ctx,
-        link,
-        {r.external_id: r for r in refs if r.external_kind == TYPE_FOLDER},
-    )
+    folders = _Folders(ctx, link.course_id, await sorting.type_folders(ctx, link.course_id))
 
     result = StageResult()
     added: list[FilesItem] = []
@@ -543,8 +531,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if len(added) >= PER_RUN:
             result.cap_reached = True
             continue
-        kind = m.kind_of()
-        row = await _create(ctx, link, m, await folders.of(kind, imported))
+        kind = plan.kind_of(key, m)
+        row = await _create(ctx, link, m, await folders.of(kind))
         added.append(row)
         if ref is None:
             ref = LmsImportedRef(
@@ -556,8 +544,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             )
             ctx.db.add(ref)
         ref.target_kind, ref.target_id, ref.imported_at = ITEM, row.id, ctx.now
-        ref.snapshot = _snapshot(m, kind, row)
-        imported.append((kind, row))
+        ref.snapshot = {**_snapshot(m, kind, row), **plan.note(key)}
 
     if found.complete:
         # Gone from the platform: gone here too, unless the user keeps a copy. The ref forgets
@@ -569,8 +556,8 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             gone.append(row)
             ref.target_id, ref.snapshot = None, {}
     await files.purge_items(ctx, gone)
-
     left = {r.id for r in gone}
+
     remote = [r for r in (*rows.values(), *added) if r.id not in left and content.remote(r)]
     for row in remote:
         if _retry_due(row, ctx.now):

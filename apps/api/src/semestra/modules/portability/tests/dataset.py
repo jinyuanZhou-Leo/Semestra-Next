@@ -33,6 +33,8 @@ from semestra.modules.files.models import (
     FilesFolder,
     FilesIndexState,
     FilesItem,
+    FilesOrganizePlan,
+    FilesTypeFolder,
 )
 from semestra.modules.grading.models import (
     GradingAssessment,
@@ -156,6 +158,8 @@ async def populate(
         [category, meeting, card, provider, task_list, folder, import_session, connection, chat]
     )
     await db.flush()
+    db.add(FilesTypeFolder(**u, course_id=course.id, type="lectures", folder_id=folder.id))
+    db.add(FilesOrganizePlan(**u, course_id=course.id, job_id=new_id(), moves=[], left=1))
     # A link: a stored file needs storage, see `test_course_files_travel_with_their_contents`.
     link = FilesItem(
         **u,

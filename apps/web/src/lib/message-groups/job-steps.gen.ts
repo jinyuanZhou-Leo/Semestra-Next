@@ -9,6 +9,8 @@ export const jobStepMessages = {
   job_step_ai_local_embedding_download_downloading_count: m.job_step_ai_local_embedding_download_downloading_count,
   job_step_ai_local_ocr_download_downloading: m.job_step_ai_local_ocr_download_downloading,
   job_step_ai_local_ocr_download_downloading_count: m.job_step_ai_local_ocr_download_downloading_count,
+  job_step_files_organize_reading: m.job_step_files_organize_reading,
+  job_step_files_organize_sorting: m.job_step_files_organize_sorting,
   job_step_files_process_chunking: m.job_step_files_process_chunking,
   job_step_files_process_detecting: m.job_step_files_process_detecting,
   job_step_files_process_embedding: m.job_step_files_process_embedding,

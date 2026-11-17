@@ -116,6 +116,9 @@ beforeEach(() => {
   searches = []
   server.use(
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json({ job: null, plan: null }),
+    ),
     http.put(`${API}/me/ui-state/:key`, async ({ request, params }) => {
       prefs.push({ key: String(params.key), body: await request.json() })
       return HttpResponse.json({ ok: true })
@@ -543,4 +546,103 @@ test('chosen files and folders download together as one archive, links left out'
     'href',
     `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
   )
+})
+
+const job = (status: string, step: string | null) => ({
+  id: 'j1',
+  kind: 'files.organize',
+  status,
+  progress: status === 'succeeded' ? 100 : 40,
+  step,
+  step_current: step ? 12 : null,
+  step_total: step ? 26 : null,
+  result: null,
+  error_code: null,
+  error_params: null,
+  attempts: 1,
+  max_attempts: 1,
+  cancel_requested: false,
+  created_at: '2026-01-10T12:00:00Z',
+  started_at: '2026-01-10T12:00:00Z',
+  finished_at: null,
+})
+
+test('organizing reads again when the last plan has nothing left to move', async () => {
+  let started = 0
+  server.use(
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json(
+        started
+          ? { job: job('running', 'reading'), plan: null }
+          : // The files of the last plan were all moved since.
+            { job: null, plan: { moves: [], left: 4 } },
+      ),
+    ),
+    http.post(`${API}/courses/c1/files\\:organize`, () => {
+      started += 1
+      return HttpResponse.json(job('running', 'reading'))
+    }),
+    http.get(`${API}/jobs/j1`, () => HttpResponse.json(job('running', 'reading'))),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('button', { name: 'Organize' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Organize files' })
+  expect(await within(dialog).findByText(/Reading files/)).toBeInTheDocument()
+  expect(started).toBe(1)
+  // It can go on while the user does something else.
+  await user.click(within(dialog).getByRole('button', { name: 'Continue in background' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('a plan waiting for review moves only the files kept', async () => {
+  items = [
+    item({ id: 'a', display_name: 'Lecture 3.pdf' }),
+    item({ id: 'b', display_name: 'scan_0031.pdf' }),
+  ]
+  const applied: unknown[] = []
+  server.use(
+    http.get(`${API}/courses/c1/files\\:organize`, () =>
+      HttpResponse.json({
+        job: null,
+        plan: {
+          moves: [
+            {
+              item_id: 'a',
+              type: 'lectures',
+              folder_id: null,
+              folder_name: 'Lectures',
+              from_folder_id: null,
+            },
+            {
+              item_id: 'b',
+              type: 'exams',
+              folder_id: null,
+              folder_name: 'Past exams',
+              from_folder_id: null,
+            },
+          ],
+          left: 3,
+        },
+      }),
+    ),
+    http.post(`${API}/courses/c1/files\\:organize-apply`, async ({ request }) => {
+      applied.push(await request.json())
+      return HttpResponse.json({ moved: 1 })
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  // The plan waits: the button opens it instead of starting again.
+  await user.click(await screen.findByRole('button', { name: 'Organize' }))
+
+  const dialog = await screen.findByRole('dialog', { name: 'Organize files' })
+  expect(await within(dialog).findByRole('region', { name: 'Past exams' })).toBeInTheDocument()
+  expect(within(dialog).getByText('3 other files stay where they are.')).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('checkbox', { name: 'Lecture 3.pdf' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Move files (1)' }))
+
+  await waitFor(() => expect(applied).toEqual([{ item_ids: ['b'] }]))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })

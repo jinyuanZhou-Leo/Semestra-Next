@@ -7732,6 +7732,53 @@ export type OneOffEventList = {
 };
 
 /**
+ * OrganizeApplied
+ */
+export type OrganizeApplied = {
+    /**
+     * Moved
+     */
+    moved: number;
+};
+
+/**
+ * OrganizeApplyInputBody
+ */
+export type OrganizeApplyInputBody = {
+    /**
+     * Item Ids
+     *
+     * The files of the plan the user kept; the rest stay.
+     */
+    item_ids: Array<string>;
+};
+
+/**
+ * OrganizePlan
+ */
+export type OrganizePlan = {
+    /**
+     * Moves
+     */
+    moves: Array<PlannedMove>;
+    /**
+     * Left
+     */
+    left: number;
+};
+
+/**
+ * OrganizeState
+ *
+ * The course's organizing: its job (while reading, or when it failed; None once the job
+ * record is gone), and its plan once read. Both None: nothing waits.
+ */
+export type OrganizeState = {
+    job: JobOut | null;
+    plan: OrganizePlan | null;
+};
+
+/**
  * OutlineEntry
  */
 export type OutlineEntry = {
@@ -8054,6 +8101,31 @@ export type PendingItem = {
 };
 
 /**
+ * PendingOrganize
+ */
+export type PendingOrganize = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    job: JobOut | null;
+    /**
+     * Count
+     */
+    count: number | null;
+};
+
+/**
+ * PendingOrganizeList
+ */
+export type PendingOrganizeList = {
+    /**
+     * Items
+     */
+    items: Array<PendingOrganize>;
+};
+
+/**
  * PinnedFiles
  */
 export type PinnedFiles = {
@@ -8061,6 +8133,32 @@ export type PinnedFiles = {
      * Items
      */
     items: Array<ItemOut>;
+};
+
+/**
+ * PlannedMove
+ */
+export type PlannedMove = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Type
+     */
+    type: 'lectures' | 'tutorials' | 'problems' | 'exams' | 'recordings' | 'readings' | 'general';
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Folder Name
+     */
+    folder_name: string;
+    /**
+     * From Folder Id
+     */
+    from_folder_id: string | null;
 };
 
 /**
@@ -17189,6 +17287,166 @@ export type FilesLinkCreateResponses = {
 };
 
 export type FilesLinkCreateResponse = FilesLinkCreateResponses[keyof FilesLinkCreateResponses];
+
+export type FilesOrganizationApplyData = {
+    body: OrganizeApplyInputBody;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose plan to apply.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize-apply';
+};
+
+export type FilesOrganizationApplyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationApplyError = FilesOrganizationApplyErrors[keyof FilesOrganizationApplyErrors];
+
+export type FilesOrganizationApplyResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizeApplied;
+};
+
+export type FilesOrganizationApplyResponse = FilesOrganizationApplyResponses[keyof FilesOrganizationApplyResponses];
+
+export type FilesOrganizationDiscardData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to organize.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize';
+};
+
+export type FilesOrganizationDiscardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationDiscardError = FilesOrganizationDiscardErrors[keyof FilesOrganizationDiscardErrors];
+
+export type FilesOrganizationDiscardResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesOrganizationDiscardResponse = FilesOrganizationDiscardResponses[keyof FilesOrganizationDiscardResponses];
+
+export type FilesOrganizationGetData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to organize.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize';
+};
+
+export type FilesOrganizationGetErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationGetError = FilesOrganizationGetErrors[keyof FilesOrganizationGetErrors];
+
+export type FilesOrganizationGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrganizeState;
+};
+
+export type FilesOrganizationGetResponse = FilesOrganizationGetResponses[keyof FilesOrganizationGetResponses];
+
+export type FilesOrganizationStartData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to organize.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize';
+};
+
+export type FilesOrganizationStartErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationStartError = FilesOrganizationStartErrors[keyof FilesOrganizationStartErrors];
+
+export type FilesOrganizationStartResponses = {
+    /**
+     * Successful Response
+     */
+    200: JobOut;
+};
+
+export type FilesOrganizationStartResponse = FilesOrganizationStartResponses[keyof FilesOrganizationStartResponses];
+
+export type FilesOrganizationListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * The Program whose courses to look at.
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/file-organizations';
+};
+
+export type FilesOrganizationListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationListError = FilesOrganizationListErrors[keyof FilesOrganizationListErrors];
+
+export type FilesOrganizationListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PendingOrganizeList;
+};
+
+export type FilesOrganizationListResponse = FilesOrganizationListResponses[keyof FilesOrganizationListResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;

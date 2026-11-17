@@ -7,6 +7,8 @@ import {
   type QueryMatch,
 } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
+import { useOrganizeLine } from './organize-line'
+import { organizeLink } from './organizing'
 import { prefetchFilesPage } from './queries'
 
 const PAGES = ['filesDocumentRead', 'filesDocumentOutline'] as const
@@ -33,13 +35,18 @@ const ofItem =
  * still being processed; a document's pages only change when it is switched or goes away.
  * Deleting a folder or a course takes files whose ids the event does not list.
  */
+// A plan leaves out the files moved or deleted since, and names the folders they would go in.
+const ORGANIZE = ['filesOrganizationGet', 'filesOrganizationList']
+
 const INVALIDATIONS = {
+  'files.organization.updated': ORGANIZE,
   'files.item.created': [courseList, 'filesItemSearch', 'filesUsageGet', 'filesDocumentSearch'],
   'files.item.updated': [
     courseList,
     'filesItemSearch',
     ofItem(['filesItemGet']),
     'filesDocumentSearch',
+    ...ORGANIZE,
   ],
   'files.item.deleted': [
     courseList,
@@ -47,13 +54,15 @@ const INVALIDATIONS = {
     ofItem(['filesItemGet', ...PAGES]),
     'filesUsageGet',
     'filesDocumentSearch',
+    ...ORGANIZE,
   ],
   'files.document.ready': [courseList, ofItem(['filesItemGet', ...PAGES]), 'filesDocumentSearch'],
   'files.document.failed': [courseList, ofItem(['filesItemGet']), 'filesDocumentSearch'],
   'files.folder.created': [courseList],
-  'files.folder.updated': [courseList],
+  'files.folder.updated': [courseList, ...ORGANIZE],
   'files.folder.deleted': [
     courseList,
+    ...ORGANIZE,
     'filesItemSearch',
     'filesItemGet',
     'filesUsageGet',
@@ -141,7 +150,9 @@ export default defineModule({
     { kind: 'files.process', title: m.files_job_process },
     { kind: 'files.keep_offline', title: m.files_job_keep_offline },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
+    { kind: 'files.organize', title: m.files_job_organize, to: (job) => organizeLink(job.result) },
   ],
+  statusItems: [{ id: 'files.organize', order: 35, useStatus: useOrganizeLine }],
   uiPrefPrefixes: ['files.'],
   realtimeInvalidations: INVALIDATIONS,
 })

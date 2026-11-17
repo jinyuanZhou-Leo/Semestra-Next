@@ -2,19 +2,25 @@
 
 import hashlib
 import io
+import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pymupdf
 import pytest
+import respx
 from fastapi import FastAPI
 from httpx import AsyncClient
 from PIL import Image, ImageDraw
 
 from semestra.modules import ai
+from semestra.modules.ai.adapters import base
+from semestra.modules.ai.tests.conftest import ANTHROPIC, ANTHROPIC_KEY, models_ok
+from semestra.modules.ai.tests.test_calls import anthropic_reply
 from semestra.testing import MakeUser, UserHandle
 
 LoginAs = Callable[[AsyncClient, UserHandle], Awaitable[str]]
@@ -241,3 +247,35 @@ def fake_ai(monkeypatch: pytest.MonkeyPatch) -> FakeAi:
     monkeypatch.setattr(ai, "embed", embed)
     monkeypatch.setattr(ai, "embedding_model", embedding_model)
     return fake
+
+
+# --- the model that sorts files into type folders (`sorting.py`) ---------------------------
+
+
+async def sorting_model(
+    client: AsyncClient, mock: respx.MockRouter, monkeypatch: pytest.MonkeyPatch
+) -> respx.Route:
+    """A Claude provider set up for the signed-in user; its answers fail until `model_sorts`."""
+    monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 0)
+    monkeypatch.setattr("pydantic_ai.models.anthropic._MAX_NON_STREAMING_TOKENS", 10**9)
+    models_ok(mock)
+    r = await client.post(
+        "/ai/providers",
+        json={"kind": "anthropic", "display_name": "Claude", "api_key": ANTHROPIC_KEY},
+    )
+    assert r.status_code == 200, r.text
+    return mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=httpx.Response(500))
+
+
+def model_sorts(route: respx.Route, types: dict[str, str]) -> None:
+    """The model answers with the type `types` gives each title it is shown (else "general")."""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        text = json.dumps(json.loads(request.content)["messages"])
+        listing = json.loads(json.loads(text)[0]["content"][0]["text"].split("\n", 1)[1]
+                             .rsplit("\n", 1)[0])  # fmt: skip
+        items = [{"id": i["id"], "type": types.get(i["title"], "general")} for i in listing]
+        return anthropic_reply(json.dumps({"items": items}))
+
+    route.reset()
+    route.mock(side_effect=answer)

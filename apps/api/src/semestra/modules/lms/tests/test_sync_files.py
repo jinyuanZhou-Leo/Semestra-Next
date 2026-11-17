@@ -6,11 +6,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+import respx
 from fastapi import FastAPI
 from sqlalchemy import select
 
 from semestra.core.config import Settings
 from semestra.modules.files.models import FilesItem
+from semestra.modules.files.tests.conftest import model_sorts, sorting_model
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -163,7 +165,8 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     assert _where(folders, items["Lecture 2.pdf"]) == "Slides"  # the renamed folder
 
     # The user files their lectures in a folder of their own and deletes "Slides": new ones go
-    # where they put the others.
+    # to the top level (nothing guessed from where they put the others), and it is not made
+    # again.
     mine = await api.call("POST", f"/courses/{course}/folders", json={"name": "Mine"})
     await api.call(
         "POST",
@@ -177,7 +180,9 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     clock.advance(minutes=1)
     await api.sync(program_id)
     folders, items = await _files(api, course)
-    assert _where(folders, items["Lecture 3.pdf"]) == "Mine"
+    assert _where(folders, items["Lecture 3.pdf"]) is None
+    assert "Slides" not in {f["name"] for f in folders.values()}
+    assert "Lectures" not in {f["name"] for f in folders.values()}
 
 
 async def test_turning_materials_off_and_unlinking(api: Api, fake: FakeProvider, clock: Clock):
@@ -410,3 +415,65 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     # The user's own copy, without its bytes in the backup: its source's again, not lost.
     midterm_row = rows["Midterm 2025.pdf"]
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
+
+
+# --- what the rules leave in "general" ------------------------------------------------------
+
+
+async def test_the_model_sorts_what_the_rules_cannot(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    fake.course_file_list = [
+        _file("201", "Lecture 1.pdf"),
+        _file("202", "ECE241_W3.pdf"),
+        _file("203", "data.zip"),
+    ]
+    program_id, course = await _course(api)
+    # No model yet: the leftovers stay in "Course materials", left to the user's organizing.
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert _where(folders, items["ECE241_W3.pdf"]) == "Course materials"
+    assert _where(folders, items["data.zip"]) == "Course materials"
+
+    with respx.mock(assert_all_called=False) as mock:
+        # The provider fails: a new leftover stays in "Course materials" too.
+        route = await sorting_model(api.client, mock, monkeypatch)
+        fake.course_file_list.append(_file("206", "misc_2.pdf"))
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        assert route.called
+        folders, items = await _files(api, course)
+        assert _where(folders, items["misc_2.pdf"]) == "Course materials"
+
+        # It answers: a new leftover goes straight to its folder; one the rules place, and those
+        # placed before, are not asked about.
+        model_sorts(
+            route,
+            {"ECE241_W3.pdf": "lectures", "misc_2.pdf": "lectures", "Crib sheet.pdf": "exams"},
+        )
+        fake.course_file_list.append(_file("204", "Crib sheet.pdf"))
+        fake.course_file_list.append(_file("205", "Lecture 2.pdf"))
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        folders, items = await _files(api, course)
+        assert {name: _where(folders, item) for name, item in items.items()} == {
+            "Lecture 1.pdf": "Lectures",
+            "Lecture 2.pdf": "Lectures",
+            "ECE241_W3.pdf": "Course materials",
+            "data.zip": "Course materials",
+            "misc_2.pdf": "Course materials",
+            "Crib sheet.pdf": "Past exams",
+        }
+        assert route.call_count == 1
+        shown = route.calls[0].request.content.decode()
+        assert "Crib sheet.pdf" in shown
+        assert "Lecture 2.pdf" not in shown
+        assert "ECE241_W3.pdf" not in shown
+
+        # Sorted once: never asked again, and the user's moves stay.
+        await api.call("PATCH", f"/files/{items['Crib sheet.pdf']['id']}", json={"folder_id": None})
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        folders, items = await _files(api, course)
+        assert route.call_count == 1
+        assert _where(folders, items["Crib sheet.pdf"]) is None

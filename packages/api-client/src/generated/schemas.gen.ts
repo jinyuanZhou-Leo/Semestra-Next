@@ -13663,6 +13663,93 @@ export const OneOffEventListSchema = {
     title: 'OneOffEventList'
 } as const;
 
+export const OrganizeAppliedSchema = {
+    properties: {
+        moved: {
+            type: 'integer',
+            title: 'Moved'
+        }
+    },
+    type: 'object',
+    required: [
+        'moved'
+    ],
+    title: 'OrganizeApplied'
+} as const;
+
+export const OrganizeApplyInputBodySchema = {
+    properties: {
+        item_ids: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            maxItems: 5000,
+            title: 'Item Ids',
+            description: 'The files of the plan the user kept; the rest stay.'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_ids'
+    ],
+    title: 'OrganizeApplyInputBody'
+} as const;
+
+export const OrganizePlanSchema = {
+    properties: {
+        moves: {
+            items: {
+                $ref: '#/components/schemas/PlannedMove'
+            },
+            type: 'array',
+            title: 'Moves'
+        },
+        left: {
+            type: 'integer',
+            title: 'Left'
+        }
+    },
+    type: 'object',
+    required: [
+        'moves',
+        'left'
+    ],
+    title: 'OrganizePlan'
+} as const;
+
+export const OrganizeStateSchema = {
+    properties: {
+        job: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/JobOut'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        plan: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/OrganizePlan'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        }
+    },
+    type: 'object',
+    required: [
+        'job',
+        'plan'
+    ],
+    title: 'OrganizeState',
+    description: 'The course\'s organizing: its job (while reading, or when it failed; None once the job\nrecord is gone), and its plan once read. Both None: nothing waits.'
+} as const;
+
 export const OutlineEntrySchema = {
     properties: {
         level: {
@@ -14157,6 +14244,60 @@ export const PendingItemSchema = {
     title: 'PendingItem'
 } as const;
 
+export const PendingOrganizeSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        job: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/JobOut'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        count: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Count'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'job',
+        'count'
+    ],
+    title: 'PendingOrganize'
+} as const;
+
+export const PendingOrganizeListSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/PendingOrganize'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'PendingOrganizeList'
+} as const;
+
 export const PinnedFilesSchema = {
     properties: {
         items: {
@@ -14172,6 +14313,63 @@ export const PinnedFilesSchema = {
         'items'
     ],
     title: 'PinnedFiles'
+} as const;
+
+export const PlannedMoveSchema = {
+    properties: {
+        item_id: {
+            type: 'string',
+            title: 'Item Id'
+        },
+        type: {
+            type: 'string',
+            enum: [
+                'lectures',
+                'tutorials',
+                'problems',
+                'exams',
+                'recordings',
+                'readings',
+                'general'
+            ],
+            title: 'Type'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        folder_name: {
+            type: 'string',
+            title: 'Folder Name'
+        },
+        from_folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'From Folder Id'
+        }
+    },
+    type: 'object',
+    required: [
+        'item_id',
+        'type',
+        'folder_id',
+        'folder_name',
+        'from_folder_id'
+    ],
+    title: 'PlannedMove'
 } as const;
 
 export const PluginCatalogSchema = {

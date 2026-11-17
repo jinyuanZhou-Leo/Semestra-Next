@@ -90,7 +90,7 @@ class LmsImportedRef(Base, OwnedMixin):
     is an assessment with its to-do, else a to-do, which may later move into the gradebook).
     Not imported (`target_*` null): a new item waiting for the user, or one the user ignored
     (`dismissed_at`). `external_kind` is free text: `assignment` for the assignments, `file`,
-    `page`, `link` and `type_folder` for the course's materials (`sync_files.py`)."""
+    `page` and `link` for the course's materials (`sync_files.py`)."""
 
     __tablename__ = "lms_imported_refs"
     __table_args__ = (
