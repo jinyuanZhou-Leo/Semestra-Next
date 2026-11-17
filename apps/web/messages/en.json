@@ -2565,6 +2565,7 @@
   "lms_course_unlink_title": "Unlink this course?",
   "lms_course_unlink_desc": "Its LMS calendar and update notices stop. Imported assessments and tasks stay.",
   "lms_course_info_label": "LMS",
+  "lms_course_links_label": "Course links",
   "lms_open_in": "Open in {provider}",
   "lms_task_graded": "Graded",
   "lms_task_submitted": "Submitted {time}",

@@ -28,6 +28,7 @@ import { m } from '@/paraglide/messages'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
+import { CourseLinks } from './components/CourseLinks'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
@@ -253,7 +254,10 @@ export default defineModule({
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
-    [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
+    [COURSE_INFO_ROWS]: [
+      { id: 'lms.link', order: 100, component: CourseInfoLms },
+      { id: 'lms.links', order: 110, component: CourseLinks },
+    ],
     // What the sync brought in from the platform, opened there (pages and files, not links:
     // a link's address is already where it leads).
     [FILE_ITEM_ACTIONS]: [
