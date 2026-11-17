@@ -13679,63 +13679,25 @@ export const OrganizeAppliedSchema = {
 
 export const OrganizeApplyInputBodySchema = {
     properties: {
-        moves: {
+        item_ids: {
             items: {
-                $ref: '#/components/schemas/OrganizeMove'
+                type: 'string'
             },
             type: 'array',
-            maxItems: 1000,
-            title: 'Moves',
-            description: 'The moves the user kept.'
+            maxItems: 5000,
+            title: 'Item Ids',
+            description: 'The files of the plan the user kept; the rest stay.'
         }
     },
     type: 'object',
     required: [
-        'moves'
+        'item_ids'
     ],
     title: 'OrganizeApplyInputBody'
 } as const;
 
-export const OrganizeMoveSchema = {
-    properties: {
-        item_id: {
-            type: 'string',
-            title: 'Item Id',
-            description: 'A file of the course.'
-        },
-        type: {
-            type: 'string',
-            enum: [
-                'lectures',
-                'tutorials',
-                'problems',
-                'exams',
-                'recordings',
-                'readings',
-                'general'
-            ],
-            title: 'Type',
-            description: 'The type whose folder it goes in.'
-        }
-    },
-    type: 'object',
-    required: [
-        'item_id',
-        'type'
-    ],
-    title: 'OrganizeMove'
-} as const;
-
 export const OrganizePlanSchema = {
     properties: {
-        course_id: {
-            type: 'string',
-            title: 'Course Id'
-        },
-        program_id: {
-            type: 'string',
-            title: 'Program Id'
-        },
         moves: {
             items: {
                 $ref: '#/components/schemas/PlannedMove'
@@ -13750,12 +13712,42 @@ export const OrganizePlanSchema = {
     },
     type: 'object',
     required: [
-        'course_id',
-        'program_id',
         'moves',
         'left'
     ],
     title: 'OrganizePlan'
+} as const;
+
+export const OrganizeStateSchema = {
+    properties: {
+        job: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/JobOut'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        plan: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/OrganizePlan'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        }
+    },
+    type: 'object',
+    required: [
+        'job',
+        'plan'
+    ],
+    title: 'OrganizeState',
+    description: 'The course\'s organizing: its job (while reading, or when it failed; None once the job\nrecord is gone), and its plan once read. Both None: nothing waits.'
 } as const;
 
 export const OutlineEntrySchema = {
@@ -14252,6 +14244,42 @@ export const PendingItemSchema = {
     title: 'PendingItem'
 } as const;
 
+export const PendingOrganizeSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        count: {
+            type: 'integer',
+            title: 'Count'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'count'
+    ],
+    title: 'PendingOrganize'
+} as const;
+
+export const PendingOrganizeListSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/PendingOrganize'
+            },
+            type: 'array',
+            title: 'Items'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'PendingOrganizeList'
+} as const;
+
 export const PinnedFilesSchema = {
     properties: {
         items: {
@@ -14302,6 +14330,17 @@ export const PlannedMoveSchema = {
         folder_name: {
             type: 'string',
             title: 'Folder Name'
+        },
+        from_folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'From Folder Id'
         }
     },
     type: 'object',
@@ -14309,7 +14348,8 @@ export const PlannedMoveSchema = {
         'item_id',
         'type',
         'folder_id',
-        'folder_name'
+        'folder_name',
+        'from_folder_id'
     ],
     title: 'PlannedMove'
 } as const;

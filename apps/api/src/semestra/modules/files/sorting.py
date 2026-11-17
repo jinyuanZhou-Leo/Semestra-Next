@@ -14,7 +14,7 @@ Used by the "Organize" of the course files (`organize.py`) and by M09's sync of 
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, cast
 from urllib.parse import urlsplit
@@ -23,7 +23,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from semestra.core.context import Ctx
-from semestra.core.errors import AppError
 from semestra.modules import ai
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesFolder, FilesTypeFolder
@@ -229,14 +228,34 @@ def _evidence(clues: Clues) -> dict[str, object]:
     return known
 
 
+# Items per request: a long list with the start of each file's text stays well inside a small
+# model's context and output.
+BATCH = 100
+
+
 async def classify_leftovers(
-    ctx: Ctx, items: Mapping[str, Clues]
+    ctx: Ctx,
+    items: Mapping[str, Clues],
+    *,
+    on_batch: Callable[[int, int], Awaitable[None]] | None = None,
 ) -> dict[str, MaterialType] | None:
-    """The type of each item, by its key. None when no model can answer now (none set up, the
-    provider failed, a rate limit): the items stay in "general" and are asked about again on a
-    later run. An item the answer leaves out is "general"."""
+    """The type of each item, by its key; None when no model is set up. An item the answer leaves
+    out is "general". The provider's errors (`ai.*`) are raised: the caller decides whether that
+    fails the work or leaves the items where they are. `on_batch(done, total)` follows the
+    requests, `BATCH` items each."""
     if not items or not await ai.available(ctx, "title"):
         return None
+    keys = list(items)
+    found: dict[str, MaterialType] = dict.fromkeys(keys, "general")
+    batches = [keys[n : n + BATCH] for n in range(0, len(keys), BATCH)]
+    for done, batch in enumerate(batches):
+        if on_batch is not None:
+            await on_batch(done, len(batches))
+        found |= await _ask(ctx, {key: items[key] for key in batch})
+    return found
+
+
+async def _ask(ctx: Ctx, items: Mapping[str, Clues]) -> dict[str, MaterialType]:
     keys = list(items)
     listing = json.dumps(
         [{"id": str(n), **_evidence(items[key])} for n, key in enumerate(keys)],
@@ -247,13 +266,8 @@ async def classify_leftovers(
         ai.Message.system(SYSTEM),
         ai.Message.user(ai.wrap_untrusted(listing, "course materials")),
     ]
-    try:
-        answer = await ai.structured(ctx, "title", messages, Placements, source_module="files")
-    except AppError as exc:
-        if exc.code.startswith("ai."):
-            return None
-        raise
-    found: dict[str, MaterialType] = dict.fromkeys(keys, "general")
+    answer = await ai.structured(ctx, "title", messages, Placements, source_module="files")
+    found: dict[str, MaterialType] = {}
     for placement in answer.items:
         if placement.id.isdigit() and int(placement.id) < len(keys):
             found[keys[int(placement.id)]] = placement.type

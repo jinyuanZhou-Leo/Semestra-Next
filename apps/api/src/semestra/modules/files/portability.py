@@ -21,6 +21,7 @@ from semestra.modules.files.models import (
     FilesFolder,
     FilesIndexState,
     FilesItem,
+    FilesOrganizePlan,
     FilesTypeFolder,
 )
 from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Table
@@ -132,6 +133,7 @@ ADAPTER = FilesAdapter(
             "type_folders",
             refs={"course_id": "required", "folder_id": "optional"},
         ),
+        Table(FilesOrganizePlan, "organize_plans", exported=False),
         Table(FilesDocument, "documents", exported=False),
         Table(FilesDocumentPage, "document_pages", exported=False),
         Table(FilesChunk, "chunks", exported=False),

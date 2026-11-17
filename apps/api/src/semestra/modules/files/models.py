@@ -98,6 +98,23 @@ class FilesTypeFolder(Base, OwnedMixin):
     )
 
 
+class FilesOrganizePlan(Base, OwnedMixin, TimestampMixin):
+    """A course's organizing (`organize.py`) until the user applies or discards it: made when it
+    starts, its `moves` filled in by the job (None while reading, or when the job failed)."""
+
+    __tablename__ = "files_organize_plans"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    course_id: Mapped[str] = mapped_column(
+        String, ForeignKey("academics_courses.id", ondelete="CASCADE"), unique=True
+    )
+    job_id: Mapped[str] = mapped_column(String)
+    # [{item_id, type, from_folder_id}]: where each file would go, and where it was.
+    moves: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, default=None)
+    # Files looked at and left where they are.
+    left: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class FilesDocument(Base, OwnedMixin):
     """The product of one parse. Reprocessing builds a new one and then switches to it."""
 

@@ -7746,43 +7746,17 @@ export type OrganizeApplied = {
  */
 export type OrganizeApplyInputBody = {
     /**
-     * Moves
+     * Item Ids
      *
-     * The moves the user kept.
+     * The files of the plan the user kept; the rest stay.
      */
-    moves: Array<OrganizeMove>;
-};
-
-/**
- * OrganizeMove
- */
-export type OrganizeMove = {
-    /**
-     * Item Id
-     *
-     * A file of the course.
-     */
-    item_id: string;
-    /**
-     * Type
-     *
-     * The type whose folder it goes in.
-     */
-    type: 'lectures' | 'tutorials' | 'problems' | 'exams' | 'recordings' | 'readings' | 'general';
+    item_ids: Array<string>;
 };
 
 /**
  * OrganizePlan
  */
 export type OrganizePlan = {
-    /**
-     * Course Id
-     */
-    course_id: string;
-    /**
-     * Program Id
-     */
-    program_id: string;
     /**
      * Moves
      */
@@ -7791,6 +7765,17 @@ export type OrganizePlan = {
      * Left
      */
     left: number;
+};
+
+/**
+ * OrganizeState
+ *
+ * The course's organizing: its job (while reading, or when it failed; None once the job
+ * record is gone), and its plan once read. Both None: nothing waits.
+ */
+export type OrganizeState = {
+    job: JobOut | null;
+    plan: OrganizePlan | null;
 };
 
 /**
@@ -8116,6 +8101,30 @@ export type PendingItem = {
 };
 
 /**
+ * PendingOrganize
+ */
+export type PendingOrganize = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
+ * PendingOrganizeList
+ */
+export type PendingOrganizeList = {
+    /**
+     * Items
+     */
+    items: Array<PendingOrganize>;
+};
+
+/**
  * PinnedFiles
  */
 export type PinnedFiles = {
@@ -8145,6 +8154,10 @@ export type PlannedMove = {
      * Folder Name
      */
     folder_name: string;
+    /**
+     * From Folder Id
+     */
+    from_folder_id: string | null;
 };
 
 /**
@@ -17280,7 +17293,7 @@ export type FilesOrganizationApplyData = {
         /**
          * Course Id
          *
-         * The course whose files to move.
+         * The course whose plan to apply.
          */
         course_id: string;
     };
@@ -17306,24 +17319,50 @@ export type FilesOrganizationApplyResponses = {
 
 export type FilesOrganizationApplyResponse = FilesOrganizationApplyResponses[keyof FilesOrganizationApplyResponses];
 
+export type FilesOrganizationDiscardData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * The course whose files to organize.
+         */
+        course_id: string;
+    };
+    query?: never;
+    url: '/courses/{course_id}/files:organize';
+};
+
+export type FilesOrganizationDiscardErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationDiscardError = FilesOrganizationDiscardErrors[keyof FilesOrganizationDiscardErrors];
+
+export type FilesOrganizationDiscardResponses = {
+    /**
+     * Successful Response
+     */
+    200: SemestraModulesFilesSchemasDeleted;
+};
+
+export type FilesOrganizationDiscardResponse = FilesOrganizationDiscardResponses[keyof FilesOrganizationDiscardResponses];
+
 export type FilesOrganizationGetData = {
     body?: never;
     path: {
         /**
          * Course Id
          *
-         * The course the job organizes.
+         * The course whose files to organize.
          */
         course_id: string;
-        /**
-         * Job Id
-         *
-         * The job `files.organization.start` returned.
-         */
-        job_id: string;
     };
     query?: never;
-    url: '/courses/{course_id}/files:organize/{job_id}';
+    url: '/courses/{course_id}/files:organize';
 };
 
 export type FilesOrganizationGetErrors = {
@@ -17339,7 +17378,7 @@ export type FilesOrganizationGetResponses = {
     /**
      * Successful Response
      */
-    200: OrganizePlan;
+    200: OrganizeState;
 };
 
 export type FilesOrganizationGetResponse = FilesOrganizationGetResponses[keyof FilesOrganizationGetResponses];
@@ -17375,6 +17414,38 @@ export type FilesOrganizationStartResponses = {
 };
 
 export type FilesOrganizationStartResponse = FilesOrganizationStartResponses[keyof FilesOrganizationStartResponses];
+
+export type FilesOrganizationListData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * The Program whose courses to look at.
+         */
+        program_id: string;
+    };
+    query?: never;
+    url: '/programs/{program_id}/file-organizations';
+};
+
+export type FilesOrganizationListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesOrganizationListError = FilesOrganizationListErrors[keyof FilesOrganizationListErrors];
+
+export type FilesOrganizationListResponses = {
+    /**
+     * Successful Response
+     */
+    200: PendingOrganizeList;
+};
+
+export type FilesOrganizationListResponse = FilesOrganizationListResponses[keyof FilesOrganizationListResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;

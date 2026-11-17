@@ -1,4 +1,4 @@
-"""files: type folders (moved from lms_imported_refs)
+"""files: type folders (moved from lms_imported_refs) and organize plans
 
 Revision ID: 0054
 Revises: 0053
@@ -10,6 +10,8 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+
+import semestra.core.db
 
 # revision identifiers, used by Alembic.
 revision: str = "0054"
@@ -52,10 +54,32 @@ def upgrade() -> None:
         """
     )
     op.execute("DELETE FROM lms_imported_refs WHERE external_kind = 'type_folder'")
+    op.create_table(
+        "files_organize_plans",
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("course_id", sa.String(), nullable=False),
+        sa.Column("job_id", sa.String(), nullable=False),
+        sa.Column("moves", sa.JSON(), nullable=True),
+        sa.Column("left", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.String(), nullable=False),
+        sa.Column("created_at", semestra.core.db.UTCDateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", semestra.core.db.UTCDateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["course_id"], ["academics_courses.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id"], ["auth_users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("course_id"),
+    )
+    with op.batch_alter_table("files_organize_plans", schema=None) as batch_op:
+        batch_op.create_index(
+            batch_op.f("ix_files_organize_plans_user_id"), ["user_id"], unique=False
+        )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    with op.batch_alter_table("files_organize_plans", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_files_organize_plans_user_id"))
+    op.drop_table("files_organize_plans")
     with op.batch_alter_table("files_type_folders", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_files_type_folders_user_id"))
         batch_op.drop_index(batch_op.f("ix_files_type_folders_folder_id"))

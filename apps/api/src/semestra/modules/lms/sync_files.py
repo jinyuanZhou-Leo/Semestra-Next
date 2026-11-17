@@ -26,7 +26,7 @@ files area link their files from pages).
 
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from html import escape
 from typing import Any, Literal
@@ -336,32 +336,21 @@ def _place(found: _Found) -> None:
 
 # --- what the rules leave in "general" -------------------------------------------------------
 
-# In a ref's snapshot: placed in "general" while no model could be asked (where it was put, and
-# its clues). Asked about again on later runs, and moved if the user has not moved it meanwhile.
-SORT_LATER = "sort_later"
-
 
 @dataclass
 class _Sorting:
-    """The model's types for the items the rules put in "general": the new ones of this run,
-    and those placed while no model could answer. One request per course and run."""
+    """The model's types for the new items of this run that the rules put in "general": one
+    request per course and run. Without a model, or when it fails, they stay in "general" (the
+    user can sort them with M07's organizing, where they review it first)."""
 
-    asked: dict[Key, Clues]
-    # None: no model answered (none set up, it failed); they stay in "general" for now.
-    answers: dict[Key, MaterialType] | None
+    answers: dict[Key, MaterialType]
 
     def kind_of(self, key: Key, m: Material) -> MaterialType:
-        if self.answers is not None and key in self.asked:
-            return self.answers[key]
-        return classify(m.clues())
+        return self.answers.get(key) or classify(m.clues())
 
-    def note(self, key: Key, row: FilesItem) -> dict[str, object]:
+    def note(self, key: Key) -> dict[str, object]:
         """What a new item's snapshot records of how it was sorted."""
-        if key not in self.asked:
-            return {}
-        if self.answers is None:
-            return {SORT_LATER: {"folder": row.folder_id, "clues": asdict(self.asked[key])}}
-        return {"by": "ai"}
+        return {"by": "ai"} if key in self.answers else {}
 
 
 async def _sort(ctx: Ctx, found: _Found) -> _Sorting:
@@ -376,27 +365,16 @@ async def _sort(ctx: Ctx, found: _Found) -> _Sorting:
             break
         if classify(clues := m.clues()) == "general":
             asked[key] = clues
-    waiting = {
-        key: ref
-        for key, ref in found.known.items()
-        if ref.target_id and isinstance(ref.snapshot.get(SORT_LATER), dict)
-    }
-    rows = {
-        r.id: r for r in await files.find_items(ctx, [r.target_id or "" for r in waiting.values()])
-    }
-    for key, ref in waiting.items():
-        row = rows.get(ref.target_id or "")
-        later = ref.snapshot[SORT_LATER]
-        if row is not None and row.folder_id == later["folder"] and len(asked) < PER_RUN:
-            asked.setdefault(key, Clues(**later["clues"]))
     keys = {f"{kind}:{external_id}": (kind, external_id) for kind, external_id in asked}
-    answers = await sorting.classify_leftovers(
-        ctx, {name: asked[key] for name, key in keys.items()}
-    )
-    return _Sorting(
-        asked,
-        None if answers is None else {keys[name]: kind for name, kind in answers.items()},
-    )
+    try:
+        answers = await sorting.classify_leftovers(
+            ctx, {name: asked[key] for name, key in keys.items()}
+        )
+    except AppError as exc:
+        if not exc.code.startswith("ai."):
+            raise
+        answers = None
+    return _Sorting({keys[name]: kind for name, kind in (answers or {}).items()})
 
 
 # --- writing --------------------------------------------------------------------------------
@@ -581,7 +559,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             )
             ctx.db.add(ref)
         ref.target_kind, ref.target_id, ref.imported_at = ITEM, row.id, ctx.now
-        ref.snapshot = {**_snapshot(m, kind, row), **plan.note(key, row)}
+        ref.snapshot = {**_snapshot(m, kind, row), **plan.note(key)}
         imported.append((kind, row))
 
     if found.complete:
@@ -595,25 +573,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             ref.target_id, ref.snapshot = None, {}
     await files.purge_items(ctx, gone)
     left = {r.id for r in gone}
-
-    # Placed in "general" while no model could answer: moved now that one has, unless the user
-    # moved it meanwhile (then it is theirs and no longer waits).
-    for key, ref in known.items():
-        later = ref.snapshot.get(SORT_LATER)
-        if not isinstance(later, dict):
-            continue
-        row = rows.get(ref.target_id) if ref.target_id else None
-        moved = row is None or row.id in left or row.folder_id != later.get("folder")
-        if not moved and (plan.answers is None or key not in plan.answers):
-            continue
-        snap = {k: v for k, v in ref.snapshot.items() if k != SORT_LATER}
-        if row is not None and not moved and plan.answers is not None:
-            kind = plan.answers[key]
-            if kind != "general":
-                to = await folders.of(kind, imported)
-                await files.move_entries(ctx, link.course_id, [row.id], [], to)
-            snap |= {"type": kind, "by": "ai"}
-        ref.snapshot = snap
 
     remote = [r for r in (*rows.values(), *added) if r.id not in left and content.remote(r)]
     for row in remote:

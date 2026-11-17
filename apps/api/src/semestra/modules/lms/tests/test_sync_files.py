@@ -426,28 +426,27 @@ async def test_the_model_sorts_what_the_rules_cannot(
         _file("203", "data.zip"),
     ]
     program_id, course = await _course(api)
-    # No model yet: the leftovers wait in "Course materials".
+    # No model yet: the leftovers stay in "Course materials", left to the user's organizing.
     await api.sync(program_id)
     folders, items = await _files(api, course)
     assert _where(folders, items["ECE241_W3.pdf"]) == "Course materials"
     assert _where(folders, items["data.zip"]) == "Course materials"
-    # The user files one of them themselves.
-    await api.call("PATCH", f"/files/{items['data.zip']['id']}", json={"folder_id": None})
 
     with respx.mock(assert_all_called=False) as mock:
-        # The provider fails: they keep waiting.
+        # The provider fails: a new leftover stays in "Course materials" too.
         route = await sorting_model(api.client, mock, monkeypatch)
+        fake.course_file_list.append(_file("206", "misc_2.pdf"))
         clock.advance(minutes=1)
         await api.sync(program_id)
         assert route.called
         folders, items = await _files(api, course)
-        assert _where(folders, items["ECE241_W3.pdf"]) == "Course materials"
+        assert _where(folders, items["misc_2.pdf"]) == "Course materials"
 
-        # It answers: what waited moves (not what the user moved), a new leftover goes straight
-        # to its folder, and one the rules place is not asked about.
+        # It answers: a new leftover goes straight to its folder; one the rules place, and those
+        # placed before, are not asked about.
         model_sorts(
             route,
-            {"ECE241_W3.pdf": "lectures", "data.zip": "readings", "Crib sheet.pdf": "exams"},
+            {"ECE241_W3.pdf": "lectures", "misc_2.pdf": "lectures", "Crib sheet.pdf": "exams"},
         )
         fake.course_file_list.append(_file("204", "Crib sheet.pdf"))
         fake.course_file_list.append(_file("205", "Lecture 2.pdf"))
@@ -457,16 +456,16 @@ async def test_the_model_sorts_what_the_rules_cannot(
         assert {name: _where(folders, item) for name, item in items.items()} == {
             "Lecture 1.pdf": "Lectures",
             "Lecture 2.pdf": "Lectures",
-            "ECE241_W3.pdf": "Lectures",
-            "data.zip": None,
+            "ECE241_W3.pdf": "Course materials",
+            "data.zip": "Course materials",
+            "misc_2.pdf": "Course materials",
             "Crib sheet.pdf": "Past exams",
         }
         assert route.call_count == 1
         shown = route.calls[0].request.content.decode()
-        assert "ECE241_W3.pdf" in shown
         assert "Crib sheet.pdf" in shown
         assert "Lecture 2.pdf" not in shown
-        assert "data.zip" not in shown
+        assert "ECE241_W3.pdf" not in shown
 
         # Sorted once: never asked again, and the user's moves stay.
         await api.call("PATCH", f"/files/{items['Crib sheet.pdf']['id']}", json={"folder_id": None})
