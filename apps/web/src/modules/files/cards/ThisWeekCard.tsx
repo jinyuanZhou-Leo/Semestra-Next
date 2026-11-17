@@ -23,7 +23,7 @@ const LIMIT = { m: 3, l: 9 } as const
 export default function ThisWeekCard({ scope, size }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const list = useCourseFiles(courseId)
-  const weeks = useCourseWeeks(courseId)
+  const weeks = useCourseWeeks(courseId).data
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 

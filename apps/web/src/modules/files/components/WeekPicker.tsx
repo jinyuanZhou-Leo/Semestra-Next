@@ -128,7 +128,7 @@ export function WeekDialog({
 }) {
   const id = useId()
   const queryClient = useQueryClient()
-  const weeks = useCourseWeeks(courseId)
+  const weeks = useCourseWeeks(courseId).data
   // Preset when they share a week.
   const shared = new Set(items.map((i) => i.week ?? TERM))
   const [value, setValue] = useState<string | null>(

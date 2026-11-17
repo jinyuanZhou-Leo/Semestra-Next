@@ -614,6 +614,22 @@ test('one week lists its files from every folder, with where they are', async ()
   expect(screen.queryByRole('button', { name: 'Lab 2.pdf' })).not.toBeInTheDocument()
 })
 
+test('weeks that fail to load can be loaded again', async () => {
+  let fail = true
+  server.use(
+    http.get(`${API}/terms/t1/calendar-info`, () =>
+      fail
+        ? HttpResponse.json({ error: { code: 'common.internal', params: {} } }, { status: 500 })
+        : HttpResponse.json(CALENDAR),
+    ),
+  )
+  mount()
+  const retry = await screen.findByRole('button', { name: 'Retry' }, { timeout: 5000 })
+  fail = false
+  await userEvent.click(retry)
+  expect(await screen.findByRole('button', { name: 'syllabus.pdf' })).toBeInTheDocument()
+})
+
 test('files are put in a week together, and downloaded together', async () => {
   weekItems()
   const sent: unknown[] = []

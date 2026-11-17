@@ -51,6 +51,10 @@ const INVALIDATIONS = {
   'files.document.ready': [courseList, ofItem(['filesItemGet', ...PAGES]), 'filesDocumentSearch'],
   'files.document.failed': [courseList, ofItem(['filesItemGet']), 'filesDocumentSearch'],
   'files.weeks.changed': [courseList],
+  // Weeks the rules work out follow the term, the timetable and where the LMS puts a file.
+  'calendar.changed': [courseList],
+  'academics.course.terms_changed': [courseList],
+  'lms.course.synced': [courseList],
   'files.folder.created': [courseList],
   'files.folder.updated': [courseList],
   'files.folder.deleted': [

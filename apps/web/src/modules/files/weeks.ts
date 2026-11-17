@@ -91,22 +91,46 @@ export async function prefetchCourseWeeks(
   }
 }
 
-/** The course's weeks (undefined while they load; no terms: none). */
-export function useCourseWeeks(courseId: string): CourseWeeks | undefined {
-  const course = useCourse(courseId, { enabled: Boolean(courseId) }).data
-  const terms = useTerms(course?.program_id ?? '').data
+export type CourseWeeksResult = {
+  /** Undefined while they load or when one of their requests failed (no terms: none). */
+  data: CourseWeeks | undefined
+  error: unknown
+  refetch: () => void
+}
+
+/** The course's weeks, from the course, its Program's terms and each of its terms' weeks. */
+export function useCourseWeeks(courseId: string): CourseWeeksResult {
+  const courseQuery = useCourse(courseId, { enabled: Boolean(courseId) })
+  const course = courseQuery.data
+  const termsQuery = useTerms(course?.program_id ?? '')
+  const terms = termsQuery.data
   const termIds = course?.term_ids ?? []
   const infos = useQueries({
     queries: termIds.map((termId) => academicsTermGetWeeksOptions({ path: { term_id: termId } })),
   })
-  if (!course || !terms || infos.some((q) => !q.data)) return undefined
-  const order = new Map(terms.items.map((t, i) => [t.id, i]))
+  const failed = [courseQuery, termsQuery, ...infos].filter((q) => q.isError)
+  const result = {
+    error: failed[0]?.error ?? null,
+    refetch: () => {
+      for (const q of failed) void q.refetch()
+    },
+  }
+  if (!course || !terms || infos.some((q) => !q.data)) return { data: undefined, ...result }
+  return { data: build(course.term_ids, terms.items, infos), ...result }
+}
+
+function build(
+  termIds: readonly string[],
+  terms: readonly { id: string; name: string }[],
+  infos: readonly { data?: CalendarInfo }[],
+): CourseWeeks {
+  const order = new Map(terms.map((t, i) => [t.id, i]))
   return courseWeeks(
     termIds
       .toSorted((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
       .map((termId) => {
         const info = infos[termIds.indexOf(termId)]?.data as CalendarInfo
-        const name = terms.items.find((t) => t.id === termId)?.name ?? ''
+        const name = terms.find((t) => t.id === termId)?.name ?? ''
         return { termId, name, weeks: options(info) }
       }),
   )

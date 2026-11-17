@@ -15,7 +15,7 @@ import {
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
-import { AsyncBoundary, Loading } from '@/components/AsyncBoundary'
+import { AsyncBoundary, LoadFailed, Loading } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { cn } from '@/lib/utils'
@@ -90,7 +90,9 @@ type CourseFilesProps = {
  */
 export function CourseFiles(props: CourseFilesProps) {
   const weeks = useCourseWeeks(props.courseId)
-  return weeks ? <CourseFilesView {...props} weeks={weeks} /> : <Loading />
+  if (weeks.data) return <CourseFilesView {...props} weeks={weeks.data} />
+  if (weeks.error) return <LoadFailed error={weeks.error} onRetry={weeks.refetch} />
+  return <Loading />
 }
 
 function CourseFilesView({
