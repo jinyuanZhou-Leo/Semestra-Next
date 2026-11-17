@@ -103,11 +103,10 @@ async def _term_line(ctx: Ctx, program: AcademicsProgram | None, term: Academics
 def _dates(term: AcademicsTerm) -> str:
     """The term's dates and its breaks (holidays, reading weeks): a few dates that change what
     any plan or date in the term means, so they are given rather than left to be looked up."""
-    spans = sorted(term.breaks, key=lambda b: b["start_date"])
     days = [
-        f"{_quoted(b['name'])} {b['start_date']}"
-        + (f" to {b['end_date']}" if b["end_date"] != b["start_date"] else "")
-        for b in spans
+        f"{_quoted(b.name)} {b.start_date}"
+        + (f" to {b.end_date}" if b.end_date != b.start_date else "")
+        for b in academics.term_breaks(term)
     ]
     breaks = f"breaks: {', '.join(days)}" if days else "no breaks"
     return f"{term.start_date} to {term.end_date}; {breaks}"

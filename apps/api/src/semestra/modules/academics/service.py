@@ -737,7 +737,8 @@ async def _week_start(ctx: Ctx) -> rules.WeekStart:
     return 1 if (prefs.locale or ctx.locale).startswith("zh") else 7
 
 
-def _spans(term: AcademicsTerm) -> list[rules.BreakSpan]:
+def term_breaks(term: AcademicsTerm) -> list[rules.BreakSpan]:
+    """The term's breaks, in date order (as stored)."""
     return [
         rules.BreakSpan(
             b["id"],
@@ -751,7 +752,11 @@ def _spans(term: AcademicsTerm) -> list[rules.BreakSpan]:
 
 async def weeks_of(ctx: Ctx, term: AcademicsTerm) -> list[rules.Week]:
     return rules.term_weeks(
-        term.start_date, term.end_date, _spans(term), term.count_break_weeks, await week_start(ctx)
+        term.start_date,
+        term.end_date,
+        term_breaks(term),
+        term.count_break_weeks,
+        await week_start(ctx),
     )
 
 
@@ -777,7 +782,7 @@ async def calendar_info(ctx: Ctx, term_id: str) -> CalendarInfo:
     program = await get_program_row(ctx, term.program_id)
     start = await week_start(ctx)
     weeks = rules.term_weeks(
-        term.start_date, term.end_date, _spans(term), term.count_break_weeks, start
+        term.start_date, term.end_date, term_breaks(term), term.count_break_weeks, start
     )
     today = program_today(ctx, program)
     today_week = next(
