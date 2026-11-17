@@ -4,7 +4,7 @@ Every attachment starts with a manifest line, `<attachment id name type pages ch
 - a small document: its whole text, page by page;
 - a large one: the first pages and its outline, and how to read on (`agent.attachment.read`);
 - scanned pages (no text layer): page images when the model can see images, else a note;
-- an image: the image itself when the model can see images, else a note;
+- an image: the image (upright, scaled like page images) when the model can see images, else a note;
 - a calendar: what each course in it holds, in short; `agent.attachment.read` gives all of it, as
   Semestra's calendar reader (the importer's) understands it;
 - a file the parser could not read: why, and what to do instead;
@@ -115,8 +115,10 @@ async def render(
     if att.doc_kind == "image" or (att.doc_kind is None and att.kind == "image"):
         if not vision:
             return [f"{manifest(att)}\n{NO_VISION}"], 0
-        data = await service.read_attachment(ctx, att)
-        return [manifest(att), BinaryContent(data=data, media_type=att.mime)], 0
+        # Upright and within the size every provider takes, like page images.
+        if (image := (await _page_images(ctx, att, [1]))[1]) is None:
+            return [f"{manifest(att)}\nThe image could not be shown: it may be damaged."], 0
+        return [manifest(att), BinaryContent(data=image.data, media_type=image.media_type)], 0
     if att.doc_kind == "ics":
         return [f"{manifest(att)}\n{await _calendar_summary(ctx, att)}"], 0
     return await _document(ctx, att, vision=vision, budget=budget)
@@ -230,10 +232,10 @@ async def _scanned(
 async def _page_images(
     ctx: Ctx, att: AgentAttachment, pages: list[int]
 ) -> dict[int, PageImage | None]:
-    """The pages' images, rendered in a child process (like the files pipeline: a hostile PDF
-    must not take the server down) and kept, so later requests show the same; None for a page
-    that cannot be rendered. Cached pages are taken before any await: another turn trimming the
-    cache meanwhile cannot drop them."""
+    """The pages' images (an image file is its one page), rendered in a child process (like
+    the files pipeline: a hostile file must not take the server down) and kept, so later
+    requests show the same; None for a page that cannot be rendered. Cached pages are taken
+    before any await: another turn trimming the cache meanwhile cannot drop them."""
     out = {p: _images[(att.id, p)] for p in pages if (att.id, p) in _images}
     for p in out:
         _images.move_to_end((att.id, p))
@@ -243,7 +245,7 @@ async def _page_images(
         try:
             rendering = await render_isolated(
                 data,
-                pdf=True,
+                pdf=att.doc_kind == "pdf",
                 pages=[p - 1 for p in missing],
                 time_limit=ctx.settings.files_parse_timeout_seconds,
                 memory_limit=ctx.settings.files_parse_memory_bytes,

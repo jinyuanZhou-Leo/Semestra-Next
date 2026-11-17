@@ -368,11 +368,38 @@ async def test_calendars_unreadable_files_and_images_get_a_note(chat: Chat):
     assert "could not be read" in text
     assert "paste" in text
 
-    png = make_png()
-    shot = await chat.attach(session_id, "shot.png", png, "image/png")
+    shot = await chat.attach(session_id, "shot.png", make_png(), "image/png")
     seen = await given(chat, shot["id"])
-    assert [c.data for c in seen if isinstance(c, BinaryContent)] == [png]
+    assert [c.media_type for c in seen if isinstance(c, BinaryContent)] == ["image/png"]
     assert attachment_context.NO_VISION in text_of(await given(chat, shot["id"], vision=False))
+
+
+async def test_a_phone_photo_reaches_the_model_upright_and_small(chat: Chat):
+    # A photo at camera size, turned by EXIF: Anthropic refuses images over 5 MB or 8000 px.
+    import io
+
+    from PIL import Image
+
+    from semestra.modules.files.parse.render import MODEL_IMAGE_MAX_SIDE
+
+    session_id = await session_of(chat, await chat.program())
+    photo = Image.linear_gradient("L").resize((4032, 3024)).convert("RGB")
+    raw = io.BytesIO()
+    photo.save(raw, "JPEG", exif=_rotated_exif())
+    att = await chat.attach(session_id, "IMG_0001.jpg", raw.getvalue(), "image/jpeg")
+    [image] = [c for c in await given(chat, att["id"]) if isinstance(c, BinaryContent)]
+    assert image.media_type in ("image/png", "image/jpeg")
+    # Turned by its EXIF orientation (portrait), at most MODEL_IMAGE_MAX_SIDE a side.
+    width, height = Image.open(io.BytesIO(image.data)).size
+    assert width < height == MODEL_IMAGE_MAX_SIDE
+
+
+def _rotated_exif() -> bytes:
+    from PIL import Image
+
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90° clockwise to show
+    return exif.tobytes()
 
 
 async def test_scanned_pages_are_given_as_images_to_models_that_see(chat: Chat):
