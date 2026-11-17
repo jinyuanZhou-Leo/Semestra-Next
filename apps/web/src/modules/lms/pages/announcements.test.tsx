@@ -157,14 +157,17 @@ test('nothing opens by itself; opening an unread one marks it read on the platfo
   expect(router.state.location.search).toEqual({ post: 'c1:1' })
   await waitFor(() => expect(marked).toEqual(['c1:1']))
   await waitFor(() => expect(within(row).queryByText('Unread')).not.toBeInTheDocument())
+  // Opening was a step: Back returns to the list.
+  router.history.back()
+  expect(await screen.findByText('No announcement selected')).toBeInTheDocument()
 })
 
-test('without permission to change the platform, opening leaves it unread', async () => {
+test('without permission to change the platform, nothing is marked and nothing shows unread', async () => {
   const marked = mockApi({ allowWrites: false })
   renderPage(COURSE, '/?post=c1:1')
   expect(await screen.findByRole('heading', { name: 'Midterm room change' })).toBeInTheDocument()
   const row = screen.getByRole('button', { name: /Midterm room change/ })
-  expect(within(row).getByText('Unread')).toBeInTheDocument()
+  expect(within(row).queryByText('Unread')).not.toBeInTheDocument()
   expect(marked).toEqual([])
 })
 
@@ -194,16 +197,37 @@ test('the page is there only where the platform has announcements', () => {
 
 test('the command palette finds announcements by their text and opens them on the page', async () => {
   mockApi({ allowWrites: false })
-  const hits = await announcementSearch.search('ba1160', COURSE)
+  const requests: string[] = []
+  server.events.on('request:start', ({ request }) => {
+    requests.push(new URL(request.url).pathname)
+  })
+  server.use(
+    http.get(`${API}/programs/p1/lms-links`, ({ request }) =>
+      HttpResponse.json({
+        items: new URL(request.url).searchParams.get('term_id')
+          ? [link('c1', ['announcements']), link('c2', ['announcements'])]
+          : [link('c1', ['announcements'])],
+      }),
+    ),
+  )
+  const queryClient = newQueryClient()
+  const search = (query: string, scope: Scope) =>
+    announcementSearch.search(query, scope, queryClient)
+  const hits = await search('ba1160', COURSE)
   expect(hits).toEqual([
     expect.objectContaining({
       title: 'Midterm room change',
       to: '/p/p1/c/c1/announcements?post=c1%3A1',
     }),
   ])
-  const termHits = await announcementSearch.search('problem set', TERM)
+  // Typing on reads the same list again from the cache.
+  await search('midterm', COURSE)
+  expect(requests.filter((path) => path.endsWith('/lms/announcements'))).toHaveLength(1)
+  // An unlinked course has no page, and nothing is asked of the platform for it.
+  expect(await search('welcome', { ...COURSE, courseId: 'c3' })).toEqual([])
+  expect(requests).not.toContain('/courses/c3/lms/announcements')
+  const termHits = await search('problem set', TERM)
   expect(termHits.map((h) => h.to)).toEqual(['/p/p1/t/t2/announcements?post=c2%3A7'])
-  expect(await announcementSearch.search('welcome', { kind: 'program', programId: 'p1' })).toEqual(
-    [],
-  )
+  expect(await search('welcome', { kind: 'program', programId: 'p1' })).toEqual([])
+  server.events.removeAllListeners()
 })

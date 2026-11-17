@@ -2652,7 +2652,6 @@
   "canvas_tab_forbidden_hint": "这个账户在 Canvas 里看不到它，可能还没有开放。可以去 Canvas 里看看。",
   "canvas_tab_hidden_title": "课程的这一部分没有开放",
   "canvas_tab_hidden_hint": "老师在 Canvas 里隐藏了它，里面的内容可能仍然在单元里。",
-  "canvas_tab_unread": "未读",
   "canvas_tab_column_name": "名称",
   "canvas_tab_column_due": "截止",
   "canvas_tab_column_points": "分值",

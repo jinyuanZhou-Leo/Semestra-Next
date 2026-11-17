@@ -303,7 +303,7 @@ test('the home of a feed course lists announcements; HTML is cleaned and Canvas 
 
   await userEvent.click(
     await screen.findByRole('button', {
-      name: /^Unread Midterm room change/,
+      name: /Midterm room change/,
     }),
   )
   expect(router.state.location.search).toMatchObject({ tab: 'announcements', ref: 'a1' })
@@ -769,7 +769,7 @@ test('Refresh drops the course cache once; later reads use the cache again', asy
     }),
   )
   renderPage('/?tab=announcements')
-  await screen.findByRole('button', { name: /^Unread Midterm room change/ })
+  await screen.findByRole('button', { name: /Midterm room change/ })
   const nav = screen.getByRole('navigation', { name: 'Course menu' })
   await userEvent.click(within(nav).getByRole('button', { name: 'Refresh' }))
   await waitFor(() => expect(reads).toHaveLength(2))
@@ -790,12 +790,12 @@ test('a refresh that fails keeps what the view showed under the notice', async (
     }),
   )
   renderPage('/?tab=announcements')
-  await screen.findByRole('button', { name: /^Unread Midterm room change/ })
+  await screen.findByRole('button', { name: /Midterm room change/ })
   fail = true
   const nav = screen.getByRole('navigation', { name: 'Course menu' })
   await userEvent.click(within(nav).getByRole('button', { name: 'Refresh' }))
   expect(await screen.findByRole('button', { name: 'Retry' })).toBeVisible()
-  expect(screen.getByRole('button', { name: /^Unread Midterm room change/ })).toBeVisible()
+  expect(screen.getByRole('button', { name: /Midterm room change/ })).toBeVisible()
 })
 
 test('the files tab browses folders and searches by name', async () => {

@@ -2652,7 +2652,6 @@
   "canvas_tab_forbidden_hint": "This account can't see it in Canvas, or it isn't open yet. You can check in Canvas.",
   "canvas_tab_hidden_title": "This part of the course isn't open",
   "canvas_tab_hidden_hint": "The instructor hid it in Canvas. What it holds may still be in the modules.",
-  "canvas_tab_unread": "Unread",
   "canvas_tab_column_name": "Name",
   "canvas_tab_column_due": "Due",
   "canvas_tab_column_points": "Points",

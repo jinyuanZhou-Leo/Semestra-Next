@@ -1,21 +1,12 @@
-import type {
-  Announcement,
-  AnnouncementList,
-  Course,
-  TermAnnouncementList,
-} from '@semestra/api-client'
-import { lmsAnnouncementMarkRead } from '@semestra/api-client'
+import type { Announcement, Course } from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
-  lmsAnnouncementListQueryKey,
   lmsCourseLinkGetOptions,
   lmsTermAnnouncementListOptions,
-  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, CircleAlert, ExternalLink, Megaphone, SearchX } from 'lucide-react'
-import { useEffect } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { SafeHtml } from '@/components/SafeHtml'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -47,6 +38,7 @@ import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { plainText, postKey } from '../announcements'
 import { useProviderName } from '../providers'
+import { useMarkRead, useWritesAllowed } from '../read-state'
 
 /** An announcement with the course it was posted in. */
 type Post = { item: Announcement; course: Course }
@@ -63,18 +55,23 @@ const keyOf = (p: Post) => postKey(p.course.id, p.item.external_id)
 export default function AnnouncementsPage({ scope }: PageProps) {
   const search = useSearch({ strict: false }) as { post?: string; course?: string }
   const navigate = useNavigate()
+  const router = useRouter()
   const term = scope.kind === 'term'
   const posts = usePosts(scope)
   const filter = term ? (search.course ?? ALL) : ALL
   const shown = posts.rows.filter((p) => filter === ALL || p.course.id === filter)
   const open = posts.rows.find((p) => keyOf(p) === search.post)
-  const go = (next: { post?: string; course?: string }) =>
+  // Opening an announcement is a step Back returns from; the course filter is not.
+  const go = (next: { post?: string; course?: string }, replace = false) =>
     void navigate({
       to: '.',
       search: (prev: Record<string, unknown>) => ({ ...prev, ...next }),
-      replace: true,
+      replace,
     })
-  useMarkRead(open)
+  const canGoBack = useCanGoBack()
+  const back = () => (canGoBack ? router.history.back() : go({ post: undefined }, true))
+  const unreadShown = useWritesAllowed()
+  useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
 
   if (posts.failed && posts.rows.length === 0) {
     return (
@@ -104,7 +101,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
           <CourseFilter
             courses={posts.courses}
             value={filter}
-            onChange={(course) => go({ course: course === ALL ? undefined : course })}
+            onChange={(course) => go({ course: course === ALL ? undefined : course }, true)}
           />
         ) : null}
         {shown.length === 0 ? (
@@ -116,7 +113,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
               <EmptyTitle>{m.lms_announcements_no_match()}</EmptyTitle>
             </EmptyHeader>
             <EmptyContent>
-              <Button variant="outline" size="sm" onClick={() => go({ course: undefined })}>
+              <Button variant="outline" size="sm" onClick={() => go({ course: undefined }, true)}>
                 {m.common_clear_filters()}
               </Button>
             </EmptyContent>
@@ -128,6 +125,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
                 key={keyOf(p)}
                 post={p}
                 withCourse={term}
+                unread={unreadShown && Boolean(p.item.unread)}
                 selected={p === open}
                 onOpen={() => go({ post: keyOf(p) })}
               />
@@ -136,7 +134,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
         )}
       </div>
       {open ? (
-        <Reading post={open} withCourse={term} onBack={() => go({ post: undefined })} />
+        <Reading post={open} withCourse={term} onBack={back} />
       ) : (
         <Empty className="hidden rounded-2xl border border-solid border-border @page-lg/main:flex">
           <EmptyHeader>
@@ -206,11 +204,13 @@ function CourseName({ course, className }: { course: Course; className?: string 
 function PostRow({
   post: { item: a, course },
   withCourse,
+  unread,
   selected,
   onOpen,
 }: {
   post: Post
   withCourse: boolean
+  unread: boolean
   selected: boolean
   onOpen: () => void
 }) {
@@ -232,7 +232,7 @@ function PostRow({
       }
     >
       <span className="flex h-5 w-2 shrink-0 items-center self-start">
-        {a.unread ? (
+        {unread ? (
           <span className="size-2 rounded-full bg-primary">
             <span className="sr-only">{m.lms_announcements_unread()}</span>
           </span>
@@ -240,7 +240,7 @@ function PostRow({
       </span>
       <ItemContent className="min-w-0 gap-0.5">
         <div className="flex items-baseline gap-2">
-          <ItemTitle className={cn('line-clamp-1 flex-1', a.unread && 'font-semibold')}>
+          <ItemTitle className={cn('line-clamp-1 flex-1', unread && 'font-semibold')}>
             {a.title}
           </ItemTitle>
           {a.posted_at ? (
@@ -375,56 +375,4 @@ function usePosts(scope: PageProps['scope']) {
     loading: termList.isPending || !courses,
     failed: termList.isError,
   }
-}
-
-/** The account setting `lms.allow_writes`: may Semestra change things on the platform (M09). */
-function useWritesAllowed(): boolean {
-  const values = useQuery({
-    ...settingsValueGetOptions({ path: { namespace: 'lms' } }),
-    staleTime: 60_000,
-  }).data?.values as { allow_writes?: boolean } | undefined
-  return values?.allow_writes ?? false
-}
-
-/**
- * Opening an unread announcement marks it read on the platform too, when the user allowed
- * changes there; the course's and the term's lists drop the dot without refetching.
- */
-function useMarkRead(post: Post | undefined) {
-  const queryClient = useQueryClient()
-  const allowed = useWritesAllowed()
-  const courseId = post?.course.id
-  const id = post?.item.external_id
-  const unread = post?.item.unread ?? false
-  useEffect(() => {
-    if (!courseId || !id || !unread || !allowed) return
-    const read = <T extends { items: Announcement[] }>(list: T | undefined) =>
-      list && {
-        ...list,
-        items: list.items.map((a) => (a.external_id === id ? { ...a, unread: false } : a)),
-      }
-    lmsAnnouncementMarkRead({
-      path: { course_id: courseId, announcement_id: id },
-      throwOnError: true,
-    }).then(
-      () => {
-        queryClient.setQueriesData<AnnouncementList>(
-          { queryKey: lmsAnnouncementListQueryKey({ path: { course_id: courseId } }) },
-          read,
-        )
-        queryClient.setQueriesData<TermAnnouncementList>(
-          { queryKey: [{ _id: 'lmsTermAnnouncementList' }] },
-          (list) =>
-            list && {
-              ...list,
-              items: list.items.map((a) =>
-                a.course_id === courseId && a.external_id === id ? { ...a, unread: false } : a,
-              ),
-            },
-        )
-      },
-      // Best effort: the announcement is open either way, and stays unread on the platform.
-      () => {},
-    )
-  }, [courseId, id, unread, allowed, queryClient])
 }

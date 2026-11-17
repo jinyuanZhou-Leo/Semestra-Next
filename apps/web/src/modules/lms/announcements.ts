@@ -1,6 +1,9 @@
 import type { Announcement, CourseLinkList, TermAnnouncement } from '@semestra/api-client'
-import { lmsAnnouncementList, lmsTermAnnouncementList } from '@semestra/api-client'
-import { lmsCourseLinkListOptions } from '@semestra/api-client/react-query'
+import {
+  lmsAnnouncementListOptions,
+  lmsCourseLinkListOptions,
+  lmsTermAnnouncementListOptions,
+} from '@semestra/api-client/react-query'
 import { type Scope, type SearchProviderContribution, scopePath } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { m } from '@/paraglide/messages'
@@ -56,27 +59,34 @@ const MAX_RESULTS = 8
 
 /**
  * The command palette finds announcements of the course or term being looked at, by title or
- * text, and opens them on the 公告 page. Reads go through the server's 5-minute cache.
+ * text, and opens them on the 公告 page. It reads what the page and card read, from the cache
+ * when they have loaded it, and only where the page exists (a linked course, a term with one).
  */
 export const announcementSearch: SearchProviderContribution = {
   id: 'lms.announcements',
   title: m.lms_announcements_page_title,
-  search: async (query, scope) => {
-    if (!scope || scope.kind === 'program') return []
+  search: async (query, scope, queryClient) => {
+    const links = scope ? announcementLinksQuery(scope) : null
+    if (!scope || !links) return []
     let items: readonly (Announcement | TermAnnouncement)[]
     try {
+      if (!hasAnnouncements(scope, await queryClient.ensureQueryData(links))) return []
       items =
         scope.kind === 'course'
           ? (
-              await lmsAnnouncementList({
-                path: { course_id: scope.courseId },
-                throwOnError: true,
-              })
-            ).data.items
-          : (await lmsTermAnnouncementList({ path: { term_id: scope.termId }, throwOnError: true }))
-              .data.items
+              await queryClient.ensureQueryData(
+                lmsAnnouncementListOptions({ path: { course_id: scope.courseId } }),
+              )
+            ).items
+          : scope.kind === 'term'
+            ? (
+                await queryClient.ensureQueryData(
+                  lmsTermAnnouncementListOptions({ path: { term_id: scope.termId } }),
+                )
+              ).items
+            : []
     } catch {
-      return [] // not linked, or the platform can't be reached: nothing to find
+      return [] // the platform can't be reached: nothing to find
     }
     const needle = query.toLocaleLowerCase()
     return items
