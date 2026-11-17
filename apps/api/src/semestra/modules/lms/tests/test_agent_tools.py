@@ -5,14 +5,18 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import FastAPI
+from pydantic_ai.messages import BinaryContent
 
 from semestra.core.capability import registry
 from semestra.core.context import Ctx, run_as_system
 from semestra.modules.academics import service as academics
+from semestra.modules.agent import view
+from semestra.modules.files.tests.conftest import make_pdf
 from semestra.modules.lms import previews
 from semestra.modules.lms import search as ranking
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.schemas.dto import (
+    FileMeta,
     InternalRef,
     Module,
     ModuleItem,
@@ -392,3 +396,18 @@ async def test_moving_tasks_into_the_gradebook_counts_them_on_the_card(
     await run_as_system(app.state, user_id, preview)
     [change] = cards[0]["changes"]
     assert change["after"] in (["Lab 1"], 1)  # was 0: it counted only what was never imported
+
+
+async def test_sem_can_look_at_the_pages_of_an_lms_file(app: FastAPI, api: Api, fake: FakeProvider):
+    course, _ = await _linked(api)
+    fake.course_file_list = [FileMeta(external_id="88", name="Week 3.pdf", size_bytes=None)]
+    fake.file_bytes["88"] = make_pdf(["one", "two"])
+    me = await api.call("GET", "/account/me")
+    args = {"course_id": course, "ref": "file:88", "page_from": 2}
+    shown = await view.view_pages(app.state, me["id"], None, args)
+    assert isinstance(shown.return_value, list)
+    assert shown.return_value[0].startswith('Page 2 of "Week 3.pdf" (2 in all)')
+    assert shown.return_value[1] == "Page 2:"
+    assert isinstance(shown.return_value[2], BinaryContent)
+    page = await view.view_pages(app.state, me["id"], None, {**args, "ref": "page:intro"})
+    assert '"agent.view_unsupported"' in str(page.return_value)

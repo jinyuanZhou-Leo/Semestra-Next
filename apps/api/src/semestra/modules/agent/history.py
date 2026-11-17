@@ -30,6 +30,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserContent,
     UserPromptPart,
+    is_multi_modal_content,
 )
 from pydantic_ai.toolsets._tool_search import (  # pyright: ignore[reportPrivateImportUsage]
     discovered_tool_names_in_order,
@@ -57,10 +58,23 @@ def dump(message: ModelMessage) -> list[dict[str, Any]]:
     return ModelMessagesTypeAdapter.dump_python([message], mode="json")
 
 
-def load(row: AgentMessage) -> ModelMessage | None:
+NO_IMAGE = "[A page image the current model cannot see; it was shown to an earlier model.]"
+
+
+def load(row: AgentMessage, *, vision: bool = True) -> ModelMessage | None:
+    """The stored message. Images in tool results (`view_pages`) are kept only for a model that
+    sees images: after a switch to one that does not, each becomes a note."""
     if not row.model_parts:
         return None
-    return ModelMessagesTypeAdapter.validate_python(row.model_parts)[0]
+    message = ModelMessagesTypeAdapter.validate_python(row.model_parts)[0]
+    if vision or not isinstance(message, ModelRequest):
+        return message
+    for part in message.parts:
+        if isinstance(part, ToolReturnPart) and part.files:
+            items = part.content if isinstance(part.content, list) else [part.content]
+            notes: Any = [NO_IMAGE if is_multi_modal_content(i) else i for i in items]
+            part.content = notes
+    return message
 
 
 # --- user messages --------------------------------------------------------------------------
@@ -302,6 +316,7 @@ def estimate_tokens(messages: Sequence[ModelMessage]) -> int:
                 chars += len(part.args_as_json_str()) + len(part.tool_name)
             elif isinstance(part, ToolReturnPart):
                 chars += len(part.model_response_str())
+                images += len(part.files)
             elif isinstance(part, RetryFeedbackPart):
                 chars += len(part.model_response())
             elif isinstance(part, InstructionDeltaPart):
@@ -335,7 +350,7 @@ def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> C
     search count as `tools`), files and images the user attached, the compaction summary, and
     the rest of the conversation."""
     chars = dict.fromkeys(PART_KINDS, 0)
-    images = 0
+    images, looked = 0, 0
     for msg in messages:
         for part in msg.parts:
             if isinstance(part, UserPromptPart):
@@ -362,12 +377,14 @@ def context_parts(messages: Sequence[ModelMessage], overhead: ContextParts) -> C
                 # What `search_tools`/`load_capability` return are tool definitions.
                 found = part.tool_name in (tools.SEARCH_TOOLS, tools.LOAD_CAPABILITY)
                 chars["tools" if found else "reads"] += len(part.model_response_str())
+                looked += len(part.files)  # `view_pages`
             elif isinstance(part, RetryFeedbackPart):
                 chars["reads"] += len(part.model_response())
             elif isinstance(part, InstructionDeltaPart):  # a loaded skill's workflow
                 chars["instructions"] += len(part.content or "")
     parts = {k: v // CHARS_PER_TOKEN for k, v in chars.items()}
     parts["attachments"] += images * IMAGE_TOKENS
+    parts["reads"] += looked * IMAGE_TOKENS
     for kind in ("instructions", "tools"):
         parts[kind] += overhead.get(kind, 0)
     return parts

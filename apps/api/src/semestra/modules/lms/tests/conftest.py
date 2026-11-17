@@ -111,6 +111,8 @@ class FakeProvider:
         self.fail_downloads = False
         # Files deleted from the course: reading one is refused as not found.
         self.deleted_files: set[str] = set()
+        # What a file holds, by id; any other file reads "hello".
+        self.file_bytes: dict[str, bytes] = {}
 
     def normalize_config(self, raw: dict[str, Any], settings: Settings) -> BaseModel:
         url = str(raw.get("base_url") or "").rstrip("/")
@@ -284,6 +286,9 @@ class FakeProvider:
             raise lms_error("lms.forbidden")
         if self.fail_downloads:
             raise lms_error("lms.unreachable")
+        if file.external_id in self.file_bytes:
+            yield self.file_bytes[file.external_id]
+            return
         yield b"he"
         yield b"llo"
 

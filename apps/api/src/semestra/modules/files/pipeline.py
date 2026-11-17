@@ -432,7 +432,7 @@ async def _ocr(
                 await read_locally(session, batch, start)
                 continue
             try:
-                pngs = await render_isolated(
+                rendering = await render_isolated(
                     data,
                     pdf=kind == "pdf",
                     pages=batch,
@@ -443,7 +443,7 @@ async def _ocr(
                 log.warning("files_ocr_render_failed", code=exc.code)
                 continue
             async with anyio.create_task_group() as group:
-                for index, png in zip(batch, pngs, strict=False):
+                for index, png in rendering.images.items():
                     group.start_soon(read, index, png)
     await ctx.stage("ocr", current=len(needed), total=len(needed))
     model = (

@@ -13,8 +13,10 @@ from semestra.modules.files.parse import ParseError, detect, parse
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.lms import cache, reads, service
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.models import LmsImportedRef
+from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
+from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
+from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync_files import ITEM, file_version, source_ref
 
 
@@ -86,24 +88,15 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
     if not refresh and (hit := await cache.get(ctx, key)) is not None:
         return FilePreview.model_validate(hit["data"])
 
-    limit = ctx.settings.files_max_upload_bytes
-    if meta.size_bytes is not None and meta.size_bytes > limit:
-        raise lms_error("lms.file_too_large", limit=limit)
-    _, stream = await reads.open_file(ctx, course_id, file_id, meta=meta, linked=linked)
-    data = bytearray()
-    async for chunk in stream:
-        data += chunk
-        if len(data) > limit:
-            await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
-            raise lms_error("lms.file_too_large", limit=limit)
-    detected = detect(bytes(data), meta.name)
+    data = await download(ctx, course_id, file_id, meta=meta, linked=linked)
+    detected = detect(data, meta.name)
     if detected.kind not in PREVIEW_KINDS:
         raise AppError("files.unsupported_type", 422)
     try:
         if detected.kind in ISOLATED_KINDS:
             document = None
             async for message in parse_isolated(
-                bytes(data),
+                data,
                 detected,
                 max_pages=PREVIEW_MAX_PAGES + 1,
                 thumbnail_pages=0,
@@ -115,9 +108,8 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
             if document is None:
                 raise ParseError("files.parse_failed")
         else:
-            raw = bytes(data)
             document = await anyio.to_thread.run_sync(
-                lambda: parse(raw, detected, max_pages=PREVIEW_MAX_PAGES + 1)
+                lambda: parse(data, detected, max_pages=PREVIEW_MAX_PAGES + 1)
             )
     except ParseError as exc:
         raise AppError(exc.code, 422) from None
@@ -138,3 +130,30 @@ async def preview(ctx: Ctx, course_id: str, file_id: str, refresh: bool) -> File
         ttl=PREVIEW_TTL,
     )
     return out
+
+
+async def download(
+    ctx: Ctx,
+    course_id: str,
+    file_id: str,
+    *,
+    meta: FileMeta | None = None,
+    linked: tuple[LmsCourseLink, Bound] | None = None,
+) -> bytes:
+    """The whole file, at most the upload limit (`lms.file_too_large` beyond it): for previews
+    and for the assistant to look at its pages."""
+    linked = linked or await service.require_link(ctx, course_id)
+    meta = meta or await reads.file(ctx, course_id, file_id, False, linked=linked)
+    limit = ctx.settings.files_max_upload_bytes
+    if meta.size_bytes is not None and meta.size_bytes > limit:
+        raise lms_error("lms.file_too_large", limit=limit)
+    _, stream = await reads.open_file(ctx, course_id, file_id, meta=meta, linked=linked)
+    data = bytearray()
+    try:
+        async for chunk in stream:
+            data += chunk
+            if len(data) > limit:
+                raise lms_error("lms.file_too_large", limit=limit)
+    finally:
+        await stream.aclose()  # pyright: ignore[reportAttributeAccessIssue]
+    return bytes(data)

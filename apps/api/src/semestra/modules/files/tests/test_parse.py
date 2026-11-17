@@ -315,9 +315,12 @@ async def test_page_images_render_in_a_child_process():
     limits = {"time_limit": 60, "memory_limit": 2**31}
     chosen = await render_isolated(data, pdf=True, pages=[1], **limits)
     first = await render_isolated(data, pdf=True, pages=5, **limits)
-    assert len(chosen) == 1
-    assert chosen[0].startswith(b"\x89PNG")
-    assert len(first) == 3  # at most the pages there are
+    assert list(chosen.images) == [1]
+    assert chosen.images[1].startswith(b"\x89PNG")
+    assert chosen.page_count == 3
+    assert list(first.images) == [0, 1, 2]  # at most the pages there are
+    beyond = await render_isolated(data, pdf=True, pages=[2, 3, 4], **limits)
+    assert list(beyond.images) == [2]  # pages past the end are left out
 
 
 async def test_local_ocr_child_renders_its_own_pages():

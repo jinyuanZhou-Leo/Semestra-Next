@@ -58,6 +58,20 @@ class Rendered:
 
 
 @dataclass(frozen=True)
+class PageCount:
+    count: int
+
+
+@dataclass(frozen=True)
+class Rendering:
+    """What `render_isolated` gives: how many pages the document has, and the PNG of each
+    rendered page by its index (pages past the end are left out)."""
+
+    page_count: int
+    images: dict[int, bytes]
+
+
+@dataclass(frozen=True)
 class Recognized:
     index: int
     text: str
@@ -125,13 +139,16 @@ def _child(
 def _render_child(
     conn: Connection, data: bytes, pdf: bool, pages: Sequence[int] | int, memory_limit: int
 ) -> None:
-    """Page images for a vision model: the given pages, or the first `pages` of them."""
+    """Page images for a vision model: the given pages that exist, or the first `pages`."""
     _limit_memory(memory_limit)
     try:
         renderer = PageRenderer(data, pdf=pdf)
-        indexes = range(min(renderer.page_count, pages)) if isinstance(pages, int) else pages
+        count = renderer.page_count
+        conn.send(PageCount(count))
+        indexes = range(min(count, pages)) if isinstance(pages, int) else pages
         for index in indexes:
-            conn.send(Rendered(index, renderer.ocr_image(index)))
+            if 0 <= index < count:
+                conn.send(Rendered(index, renderer.ocr_image(index)))
         renderer.close()
         conn.send(None)
     except MemoryError:
@@ -252,11 +269,17 @@ async def render_isolated(
     pages: Sequence[int] | int,
     time_limit: float,
     memory_limit: int,
-) -> list[bytes]:
+) -> Rendering:
     """PNGs of the pages (`ocr_image`), rendered in a child process like `parse_isolated`."""
     wanted = pages if isinstance(pages, int) else list(pages)
+    out = Rendering(0, {})
     async with aclosing(_run(_render_child, (data, pdf, wanted, memory_limit), time_limit)) as m:
-        return [r.png async for r in m if isinstance(r, Rendered)]
+        async for message in m:
+            if isinstance(message, PageCount):
+                out = Rendering(message.count, out.images)
+            elif isinstance(message, Rendered):
+                out.images[message.index] = message.png
+    return out
 
 
 async def parse_isolated(
