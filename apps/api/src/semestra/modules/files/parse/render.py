@@ -20,6 +20,7 @@ MODEL_IMAGE_MAX_SIDE = 1600
 # provider's limit per image (Anthropic: 5 MB), and the pages of a request stay small.
 PNG_MAX_BYTES = 800_000
 JPEG_QUALITY = 85
+LOCAL_OCR_IMAGE_MAX_SIDE = 2400
 THUMB_WIDTH = 480
 THUMB_MAX_HEIGHT = 960
 MAX_IMAGE_PIXELS = 60_000_000
@@ -94,19 +95,25 @@ class PageRenderer:
     def model_image(self, index: int) -> PageImage:
         """The page as a model sees it: at most 150 DPI, `OCR_MAX_PIXELS` and
         `MODEL_IMAGE_MAX_SIDE` a side; or the whole image, upright, scaled to that side."""
+        return _for_model(self._page(index, MODEL_IMAGE_MAX_SIDE))
+
+    def local_ocr_png(self, index: int) -> bytes:
+        """The page for the local OCR engine, which runs here, not at a provider: no side limit
+        for PDF pages (150 DPI, `OCR_MAX_PIXELS`), so a large page keeps its small print."""
+        return _png(self._page(index, None))
+
+    def _page(self, index: int, max_side: int | None) -> Image.Image:
         if self._pdf is not None:
             page = self._pdf[index]
             width, height = max(page.rect.width, 1), max(page.rect.height, 1)
-            dpi = min(
-                OCR_DPI,
-                72 * math.sqrt(OCR_MAX_PIXELS / (width * height)),
-                72 * MODEL_IMAGE_MAX_SIDE / max(width, height),
-            )
+            dpi = min(OCR_DPI, 72 * math.sqrt(OCR_MAX_PIXELS / (width * height)))
+            if max_side is not None:
+                dpi = min(dpi, 72 * max_side / max(width, height))
             pixmap = page.get_pixmap(matrix=_matrix(dpi / 72))
-            image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
-            return _for_model(image)
+            return Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         assert self._image is not None
-        return _for_model(_fit(self._image, MODEL_IMAGE_MAX_SIDE, MODEL_IMAGE_MAX_SIDE))
+        side = max_side or LOCAL_OCR_IMAGE_MAX_SIDE
+        return _fit(self._image, side, side)
 
     def thumbnail(self, index: int) -> bytes:
         """A PNG at most `THUMB_WIDTH` wide and `THUMB_MAX_HEIGHT` tall."""

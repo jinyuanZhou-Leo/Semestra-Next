@@ -174,7 +174,7 @@ def _ocr_child(conn: Connection, model: str, data: bytes, pdf: bool) -> None:
         while (pages := conn.recv()) is not None:
             for index, page in enumerate(pages):
                 try:
-                    png = renderer.model_image(page).data
+                    png = renderer.local_ocr_png(page)
                 except Exception:
                     traceback.print_exc()
                     continue
