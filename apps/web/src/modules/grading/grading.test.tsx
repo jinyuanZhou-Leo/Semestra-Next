@@ -430,6 +430,119 @@ test("an assessment's to-do is checked off from its row", async () => {
   await waitFor(() => expect(check.getAttribute('aria-checked')).toBe('true'))
 })
 
+test("an assessment from the LMS opens the teacher's comments and rubric", async () => {
+  book = gradebook({
+    assessments: [
+      assessment({
+        id: 'a1',
+        title: 'Lab 1',
+        weight: 40,
+        score_percentage: 90,
+        source_kind: 'lms',
+        source_ref: '91',
+      }),
+      assessment({ id: 'a2', title: 'Final exam', weight: 60 }),
+    ],
+  })
+  const link = {
+    id: 'l1',
+    course_id: 'c1',
+    program_id: 'p1',
+    connection_id: 'n1',
+    provider: 'canvas',
+    external_course_id: '7',
+    external_code: null,
+    external_name: 'APS105',
+    external_term: null,
+    web_url: null,
+    sync_enabled: true,
+    files_sync: false,
+    files_offline: false,
+    synced_at: null,
+    sync_errors: {},
+    created_at: '2026-01-01T00:00:00Z',
+  }
+  const criterion = {
+    id: 'c1',
+    description: 'Correctness',
+    points: 10,
+    ratings: [{ id: 'r1', description: 'Most tests pass', points: 8 }],
+  }
+  server.use(
+    http.get(`${API}/courses/c1/lms-link`, () =>
+      HttpResponse.json({ course_id: 'c1', link, program_connection_id: 'n1' }),
+    ),
+    http.get(`${API}/lms/providers`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            kind: 'canvas',
+            display_name: 'Canvas',
+            features: [],
+            config_schema: {},
+            credentials_schema: {},
+          },
+        ],
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/assignments`, () =>
+      HttpResponse.json({
+        items: [
+          {
+            external_id: '91',
+            web_url: 'https://lms.example/a/91',
+            name: 'Lab 1',
+            points: 10,
+            rubric: [criterion],
+            submission: { state: 'graded', score: 9 },
+            imported_as: { kind: 'assessment', id: 'a1' },
+          },
+        ],
+        new_ids: [],
+        totals: [],
+        truncated: false,
+      }),
+    ),
+    http.get(`${API}/courses/c1/lms/assignments/91/submission`, () =>
+      HttpResponse.json({
+        external_id: 's91',
+        assignment_id: '91',
+        state: 'graded',
+        score: 9,
+        comments: [{ author: 'TA', comment: 'Check the edge cases.' }],
+        rubric_scores: [{ criterion_id: 'c1', points: 8, rating_id: 'r1' }],
+      }),
+    ),
+  )
+  mount()
+  await userEvent.click(await screen.findByRole('button', { name: 'View feedback: Lab 1' }))
+  // Only graded assessments that follow an LMS assignment have feedback to open.
+  expect(screen.queryByRole('button', { name: 'View feedback: Final exam' })).toBeNull()
+  const dialog = await screen.findByRole('dialog', { name: 'Lab 1' })
+  expect(await within(dialog).findByText('Check the edge cases.')).toBeInTheDocument()
+  expect(within(dialog).getByRole('row', { name: /Correctness/ })).toHaveTextContent(
+    'Most tests pass',
+  )
+  expect(within(dialog).getByRole('row', { name: /Correctness/ })).toHaveTextContent('8 / 10')
+  expect(within(dialog).getByRole('button', { name: 'Open in Canvas' })).toHaveAttribute(
+    'href',
+    'https://lms.example/a/91',
+  )
+})
+
+test('a course no longer linked to the LMS has no feedback column', async () => {
+  // Imported assessments keep their origin after the course is unlinked; there is no platform
+  // to read (the assignment list is never asked for: an unhandled request fails the test).
+  book = gradebook({
+    assessments: [
+      assessment({ id: 'a1', title: 'Lab 1', weight: 40, source_kind: 'lms', source_ref: '91' }),
+    ],
+  })
+  mount()
+  await screen.findByRole('textbox', { name: 'Score: Lab 1' })
+  expect(screen.queryByRole('columnheader', { name: 'Feedback' })).toBeNull()
+})
+
 test('checked assessments are changed and deleted together, only the ones on screen', async () => {
   const updates: unknown[] = []
   const deletes: unknown[] = []

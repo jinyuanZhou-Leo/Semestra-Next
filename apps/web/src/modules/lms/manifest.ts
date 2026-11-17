@@ -10,9 +10,14 @@ import {
 } from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
-import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
+import type {
+  CourseLinkState,
+  LmsProgramBindingGetResponse,
+  LmsProviderListResponse,
+} from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
+  lmsCourseLinkGetOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
   lmsTermAnnouncementListOptions,
@@ -23,7 +28,12 @@ import {
   type OnboardingStep,
   TERM_WIZARD_IMPORT_SOURCES,
 } from '@/modules/academics/types'
-import { ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading/types'
+import {
+  ASSESSMENT_ACTIONS,
+  ASSESSMENT_COLUMNS,
+  ASSESSMENT_IMPORT_SOURCES,
+  type AssessmentColumn,
+} from '@/modules/grading/types'
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '@/modules/files/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
@@ -36,6 +46,7 @@ import {
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
+import { AssessmentFeedbackCell } from './components/AssessmentFeedback'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
@@ -286,6 +297,18 @@ export default defineModule({
     [TERM_WIZARD_IMPORT_SOURCES]: [wizardCourseSource],
     [ASSESSMENT_IMPORT_SOURCES]: [assignmentSource],
     [ASSESSMENT_ACTIONS]: [bindAction, unbindAction],
+    // Only in the gradebook of a linked course where some assessments follow an LMS assignment
+    // (an unlinked course's imported ones keep their origin but have no platform to read).
+    [ASSESSMENT_COLUMNS]: [
+      {
+        id: 'lms.feedback',
+        header: m.lms_feedback_column,
+        Cell: AssessmentFeedbackCell,
+        query: ({ courseId }) => lmsCourseLinkGetOptions({ path: { course_id: courseId } }),
+        shownFor: (assessments, state) =>
+          Boolean(state?.link) && assessments.some((a) => a.source_kind === 'lms'),
+      },
+    ] satisfies AssessmentColumn<CourseLinkState>[],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
     [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
     // What the sync brought in from the platform, opened there (pages and files, not links:
