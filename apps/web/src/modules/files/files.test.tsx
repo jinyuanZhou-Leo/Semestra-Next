@@ -678,3 +678,20 @@ test("the overview card lists this week's materials and links to the rest", asyn
     '/p/p1/c/c1/files?week=2026-09-21',
   )
 })
+
+test('the overview card can load weeks again after they fail', async () => {
+  weekItems()
+  let fail = true
+  server.use(
+    http.get(`${API}/terms/t1/calendar-info`, () =>
+      fail
+        ? HttpResponse.json({ error: { code: 'common.internal', params: {} } }, { status: 500 })
+        : HttpResponse.json(CALENDAR),
+    ),
+  )
+  renderWithRouter(<ThisWeekCard scope={scope} instanceId="x" size="m" settings={{}} />)
+  const retry = await screen.findByRole('button', { name: 'Retry' }, { timeout: 5000 })
+  fail = false
+  await userEvent.click(retry)
+  expect(await screen.findByRole('button', { name: /Lecture 5\.pdf/ })).toBeInTheDocument()
+})

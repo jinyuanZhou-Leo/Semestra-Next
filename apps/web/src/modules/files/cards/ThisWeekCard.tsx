@@ -1,13 +1,13 @@
 import type { ItemOut } from '@semestra/api-client'
 import { Link } from '@tanstack/react-router'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, CircleAlert } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { m } from '@/paraglide/messages'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/ui/button'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { Button, buttonVariants } from '@/ui/button'
+import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { useExternalLink } from '../components/ExternalLink'
 import { FileIcon } from '../components/FileIcon'
@@ -23,10 +23,32 @@ const LIMIT = { m: 3, l: 9 } as const
 export default function ThisWeekCard({ scope, size }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const list = useCourseFiles(courseId)
-  const weeks = useCourseWeeks(courseId).data
+  const courseWeeks = useCourseWeeks(courseId)
+  const weeks = courseWeeks.data
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 
+  if (list.isError || courseWeeks.error) {
+    const retry = () => {
+      if (list.isError) void list.refetch()
+      if (courseWeeks.error) courseWeeks.refetch()
+    }
+    return (
+      <Empty className="border-0 p-0">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CircleAlert aria-hidden />
+          </EmptyMedia>
+          <EmptyTitle>{m.common_load_failed()}</EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="link" size="sm" onClick={retry}>
+            {m.common_retry()}
+          </Button>
+        </EmptyContent>
+      </Empty>
+    )
+  }
   if (!list.data || !weeks) return <CardSkeleton />
   const week = weeks.current
   const folders = new Map(list.data.folders.map((f) => [f.id, f.name]))
