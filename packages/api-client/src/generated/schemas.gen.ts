@@ -5504,6 +5504,31 @@ export const CourseLinkSchema = {
             title: 'Sync Errors',
             description: 'Error code of each sync stage whose last run failed (course, assignments, announcements, ...)'
         },
+        features: {
+            items: {
+                type: 'string',
+                enum: [
+                    'courses',
+                    'navigation',
+                    'announcements',
+                    'assignments',
+                    'grades',
+                    'modules',
+                    'pages',
+                    'quizzes',
+                    'syllabus',
+                    'files',
+                    'calendar',
+                    'submissions',
+                    'folders',
+                    'discussions',
+                    'mark_read'
+                ]
+            },
+            type: 'array',
+            title: 'Features',
+            description: 'What its platform supports'
+        },
         created_at: {
             type: 'string',
             format: 'date-time',
@@ -5527,6 +5552,7 @@ export const CourseLinkSchema = {
         'files_offline',
         'synced_at',
         'sync_errors',
+        'features',
         'created_at'
     ],
     title: 'CourseLink'

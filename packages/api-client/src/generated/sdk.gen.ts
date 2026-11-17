@@ -4935,8 +4935,9 @@ export const lmsCourseLinkSet = <ThrowOnError extends boolean = false>(options: 
 /**
  * Every LMS course link in a Program.
  *
- * Which of the Program's courses are linked, and to which LMS course, in one call.
- * For one course use lms.course.link.get, which also says which connection the Program uses.
+ * Which of the Program's courses are linked, and to which LMS course, in one call
+ * (with term_id, only that term's courses). For one course use lms.course.link.get, which also
+ * says which connection the Program uses.
  */
 export const lmsCourseLinkList = <ThrowOnError extends boolean = false>(options: Options<LmsCourseLinkListData, ThrowOnError>): RequestResult<LmsCourseLinkListResponses, LmsCourseLinkListErrors, ThrowOnError> => (options.client ?? client).get<LmsCourseLinkListResponses, LmsCourseLinkListErrors, ThrowOnError>({
     security: [{

@@ -206,6 +206,7 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
   - `grading.assessmentImportSources`：成绩页中的"从 LMS 导入作业"。
   - `academics.courseInfo`：已关联课程显示 provider 徽章、外部代码，以及"在 <provider> 中打开"。
   - Card `lms.announcements`（course/term 作用域，m/l 尺寸）：最近公告；term 作用域时汇总本学期所有已关联课程。
+  - Page `announcements`「公告」（course/term 作用域，见 §7 实现说明）与命令面板搜索 `searchProviders: lms.announcements`。
 - 本模块定义的前端扩展点：`lms.providerUi`（见 2.1）。
 
 ## 7. 前端
@@ -296,7 +297,8 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 - M08 的 `openImport` 新增两种请求：`source: 'picker'`（来源自己创建 session 的第一步，例如 LMS 课程/作业选择）和 `source: 'session'`（已有 session 直接进入审核，例如作业变更）。学期向导的来源用 M08 导出的 `wizardImportSource` 包装，所以 LMS 课程也走"向导创建课程 → 提交 session"的流程，关联在提交时创建。向导路径下课程只带课程号和名称，平台上的课程全名（alias）和网址不会写入。
 - **前端不写死 Canvas**（UIUX 第三轮）：连接列表每行显示服务商图标与名称（`useProviderName`：provider UI 的 `label`，没有前端贡献时退回后端 `lms.provider.list` 的 `display_name`）；"添加连接"对话框第一步总是选服务商（服务商列表随连接列表预取，加载中是一行 Skeleton，没有可用服务商时显示 Empty；列出后端提供、且前端有 `lms.providerUi` 贡献的服务商，目前只有 Canvas 也照样走这一步），第二步是该服务商贡献的表单，可"返回"重选，标题为"添加 {provider} 连接"；编辑时服务商固定。Program 设置的连接下拉也带服务商图标。通用文案都从服务商名称取："从 {provider} 导入课程"、"{provider} 作业"、"{provider} 课程"、"{provider} 上没有课程/作业"、"在 {provider} 中打开"、变更提示条。学期向导与成绩页"导入"菜单里的名称依赖当前 Program 绑定的服务商，因此 M02 的 `TermWizardImportSource` 和 M03 的 `AssessmentImportSource` 新增可选 `Title` 组件（拿到 `programId`/`courseId` 后渲染）和 `query`（宿主随页面预取 `Title` 要读的数据，打开菜单时名称不再从 LMS 变成 Canvas），M08 的 `ImportPicker` 新增可选 `Title`；没有绑定或加载中时退回"从 LMS 导入课程"。命令面板的命令名称是静态字符串，仍是"从 LMS 导入课程"。
 - "从 LMS 导入课程"目前入口是学期向导和学期页的命令面板（命令 `lms.import-courses`），学期页和 Program 页上没有单独的按钮。
-- 公告卡片 `lms.announcements`（课程/学期，m/l）只列标题、课程和日期，点击在平台上打开；学期作用域汇总该学期所有已关联课程（暂停同步的课程也显示，同步开关只影响日历和变更检测）。
+- 公告卡片 `lms.announcements`（课程/学期，m/l）只列标题、课程和日期，点击在「公告」页打开那一条（`?post=<course id>:<公告 id>`）；学期作用域汇总该学期所有已关联课程（暂停同步的课程也显示，同步开关只影响日历和变更检测）。
+- **「公告」页**（`modules/lms/pages/AnnouncementsPage.tsx`，2026-11-17，Canvas 数据流入第 4 步）：课程与学期作用域的 Page `announcements`（LMS 核心模块，不是插件）。只在平台支持公告时出现：`lms.course.link.list` 的每条关联带 `features`（平台支持的功能），学期作用域用 `?term_id=` 只取该学期课程的关联（`service.term_links`，学期公告汇总也用它），课程页看本课程的关联、学期页看是否有任一关联支持 `announcements`。左边列表（最新在前，未读粗体 + 圆点，两行正文摘要），右边阅读区；不自动打开第一条，阅读区空时显示“未选择公告”；打开的公告写在地址里（`?post=`），可以直接链接。学期页合并所有已关联课程，每行带课程色点，顶部按课程筛选（`?course=`）。内容区窄（`@page-lg/main` 以下）时只显示列表，打开后阅读区取代列表并带返回按钮。未读标记只在账户设置 `lms.allow_writes` 开着时显示（「公告」页与 Canvas 标签页一致）：标记是平台的，只有这时在这里读过才会清掉，关着时它永远不会消失。打开未读公告时调用 `lms.announcement.mark_read`，成功后本地把课程与学期列表里那一条改成已读（`modules/lms/read-state.ts`，Canvas 标签页共用）。打开公告是一步历史记录（浏览器后退回到列表），课程筛选替换当前记录。命令面板在课程/学期作用域按标题与正文搜索当前范围的公告：`SearchProviderContribution.search` 收到 `queryClient`，经 `ensureQueryData` 读与页面相同的查询（已加载就不再请求），先看关联列表，页面不存在的范围不请求平台；结果打开「公告」页。
 - 同一个作业只导入一次，不分考核还是任务：两个导入会话并行，一个已经把作业导成另一种类型时，后提交的整体回滚，报 `lms.assignment_already_imported`（409）。
 - 保存连接（新建或改地址/令牌）与验证一样，资料接口 404 统一报 `lms.invalid_config`（`reason=not_canvas`），不会冒出 `common.not_found`。
 - 连接坏掉的错误（标记 `error`）包括 `lms.invalid_config`：已保存的地址后来开始重定向或资料接口 404，说明它不再是 Canvas API。

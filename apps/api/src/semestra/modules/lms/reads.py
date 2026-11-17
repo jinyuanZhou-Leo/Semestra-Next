@@ -203,14 +203,7 @@ async def term_announcements(ctx: Ctx, term_id: str, refresh: bool) -> TermAnnou
     """Every linked course of a term at once (the term board's card): one platform request per
     connection for the courses the cache can't answer, stored per course, so each course's own
     list and "mark read" stay in step with it."""
-    term = await academics.get_term_row(ctx, term_id)
-    links = await service.program_links(ctx, term.program_id)
-    program = await academics.get_program_row(ctx, term.program_id)
-    rows = await academics.courses_by_id(ctx, [li.course_id for li in links])
-    in_term = {
-        c.id for c in await academics.courses_out(ctx, program, rows) if term_id in c.term_ids
-    }
-    links = [li for li in links if li.course_id in in_term]
+    links = await service.term_links(ctx, term_id)
     params = _announcement_params(None)
     items: list[TermAnnouncement] = []
     truncated = False

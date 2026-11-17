@@ -206,7 +206,7 @@ function PaletteBody({ initialQuery, close }: { initialQuery: string; close: () 
   const results = useQueries({
     queries: providers.map((provider) => ({
       queryKey: ['commandPaletteSearch', provider.id, searchText, ctx.scope],
-      queryFn: () => provider.search(searchText, ctx.scope),
+      queryFn: () => provider.search(searchText, ctx.scope, ctx.queryClient),
       enabled: searching,
     })),
   })

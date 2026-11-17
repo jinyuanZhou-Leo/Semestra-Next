@@ -12,8 +12,10 @@ import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
 import type { LmsProgramBindingGetResponse, LmsProviderListResponse } from '@semestra/api-client'
 import {
+  lmsAnnouncementListOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
+  lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import {
   COURSE_INFO_ROWS,
@@ -25,6 +27,12 @@ import { ASSESSMENT_ACTIONS, ASSESSMENT_IMPORT_SOURCES } from '@/modules/grading
 import { FILE_ITEM_ACTIONS, type FileItemAction } from '@/modules/files/types'
 import { TASK_DETAIL_SECTIONS, type TaskDetailSection } from '@/modules/tasks/types'
 import { m } from '@/paraglide/messages'
+import {
+  ANNOUNCEMENTS_PAGE,
+  announcementLinksQuery,
+  announcementSearch,
+  hasAnnouncements,
+} from './announcements'
 import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
@@ -112,6 +120,32 @@ export default defineModule({
   description: m.lms_description,
   icon: School,
   overlays: [SyncOnOpen],
+  pages: [
+    {
+      id: ANNOUNCEMENTS_PAGE,
+      scopes: ['course', 'term'],
+      title: m.lms_announcements_page_title,
+      icon: Megaphone,
+      order: 40,
+      component: preloadable(() => import('./pages/AnnouncementsPage')),
+      availabilityQuery: announcementLinksQuery,
+      isAvailable: hasAnnouncements,
+      // Not on hover: a list the server has not cached yet is read from the platform.
+      prefetch: (scope, queryClient, { preload }) => {
+        if (preload) return
+        if (scope.kind === 'course') {
+          void queryClient.prefetchQuery(
+            lmsAnnouncementListOptions({ path: { course_id: scope.courseId } }),
+          )
+        } else if (scope.kind === 'term') {
+          void queryClient.prefetchQuery(
+            lmsTermAnnouncementListOptions({ path: { term_id: scope.termId } }),
+          )
+        }
+      },
+    },
+  ],
+  searchProviders: [announcementSearch],
   statusItems: [{ id: SYNC_LINE, order: 40, useStatus: useSyncLine }],
   commands: [
     {
@@ -290,6 +324,8 @@ export default defineModule({
     ...Object.fromEntries(
       LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
     ),
+    // Which courses a term has: the term's links and announcements.
+    'academics.course.terms_changed': ['lmsCourseLinkList', 'lmsTermAnnouncementList'],
     // The sync was queued, ran or was answered: its status line, panel and reminders.
     'lms.sync.updated': [
       (data) => [{ _id: 'lmsSyncStatus', path: { program_id: data.program_id } }],

@@ -163,6 +163,10 @@ class ProgramRef(BaseModel):
     program_id: Id = Field(description="Program id")
 
 
+class LinkListInput(ProgramRef):
+    term_id: Id | None = Field(default=None, description="Only the courses of this term")
+
+
 class ProgramBinding(BaseModel):
     program_id: str
     connection_id: str | None
@@ -222,6 +226,7 @@ class CourseLink(BaseModel):
         description="Error code of each sync stage whose last run failed (course, assignments, "
         "announcements, ...)"
     )
+    features: list[LmsFeature] = Field(description="What its platform supports")
     created_at: datetime
 
 
