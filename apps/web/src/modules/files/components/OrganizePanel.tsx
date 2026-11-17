@@ -3,7 +3,7 @@ import { courseColor } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from '@/ui/item'
-import { organizeLink, organizeStageText, useOrganizing } from '../organize-link'
+import { organizeLink, organizeStageText, useOrganizing } from '../organizing'
 
 /** The status line's panel when several courses are being organized: each leads to its own. */
 export default function OrganizePanel({ onClose }: { onClose: () => void }) {

@@ -7,7 +7,8 @@ import {
   type QueryMatch,
 } from '@/app/extensions'
 import { m } from '@/paraglide/messages'
-import { organizeLink, useOrganizeLine } from './organize-link'
+import { useOrganizeLine } from './organize-line'
+import { organizeLink } from './organizing'
 import { prefetchFilesPage } from './queries'
 
 const PAGES = ['filesDocumentRead', 'filesDocumentOutline'] as const
