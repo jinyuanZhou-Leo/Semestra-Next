@@ -1,6 +1,8 @@
 """The teaching week of course files (M07 §3.4): the rules, and how the weeks follow the files,
 the term and the timetable while the user's choice stays."""
 
+import io
+import zipfile
 from datetime import date, timedelta
 from typing import Any
 
@@ -37,7 +39,7 @@ def _calendar(lectures: tuple[date, ...] = ()) -> CourseCalendar:
     weeks = [TermWeek(mon + timedelta(weeks=i), mon + timedelta(weeks=i, days=6), n)
              for i, n in enumerate((1, None, 2))]  # fmt: skip
     jan = date(2027, 1, 4)
-    weeks += [TermWeek(jan + timedelta(weeks=i), jan + timedelta(weeks=i, days=6), i + 1)
+    weeks += [TermWeek(jan + timedelta(weeks=i), jan + timedelta(weeks=i, days=6), i + 1, 1)
               for i in range(2)]  # fmt: skip
     return CourseCalendar(weeks, mon, jan + timedelta(days=11), lectures)
 
@@ -49,6 +51,8 @@ def test_the_first_rule_that_answers_wins():
             "named": WeekClues("Week 2 slides", module="Week 1"),  # its own name first
             "module": WeekClues("slides.pdf", module="Week 2: FSMs", group="m2"),
             "next term": WeekClues("Week 4 notes"),  # counted on into the second term
+            # The second term counting from 1 again: the day it opens says which term.
+            "again": WeekClues("slides.pdf", module="Week 1", opens_on=date(2027, 1, 5)),
             "lecture": WeekClues("Lecture 3.pdf", group="m3"),  # the third lecture's week
             "sibling": WeekClues("handout.pdf", group="m3"),  # its module's week
             "opens": WeekClues("lab.pdf", opens_on=date(2026, 9, 16)),  # the reading week
@@ -61,6 +65,7 @@ def test_the_first_rule_that_answers_wins():
         "named": date(2026, 9, 21),
         "module": date(2026, 9, 21),
         "next term": date(2027, 1, 11),
+        "again": date(2027, 1, 4),
         "lecture": date(2026, 9, 21),
         "sibling": date(2026, 9, 21),
         "opens": date(2026, 9, 14),
@@ -96,6 +101,12 @@ async def test_files_get_their_week_and_keep_the_users(fx: Fx):
         "GET", f"/courses/{fx.course_id}/files", params={"week": weeks[2]["end_date"]}
     )
     assert {i["id"] for i in listed["items"]} == {named["id"], lab["id"]}
+    # And downloaded as one.
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"week": weeks[2]["start_date"]}
+    )
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert sorted(zf.namelist()) == ["Week 3 lab.txt", "Week 3 notes.txt"]
 
     # A new name, a new week.
     await fx.call("PATCH", f"/files/{plain['id']}", json={"display_name": "Week 5 summary.txt"})
@@ -130,6 +141,24 @@ async def test_files_get_their_week_and_keep_the_users(fx: Fx):
         404,
         json={"item_ids": [other["id"]], "week": None},
     )
+
+
+async def test_adding_files_to_the_week_on_view(fx: Fx):
+    """Added while one week (or the whole term) is shown: they go there, whatever their names."""
+    weeks = await _weeks(fx)
+    r = await fx.client.post(
+        f"/courses/{fx.course_id}/files",
+        files=[("files", ("notes.txt", b"n", "text/plain"))],
+        data={"week": weeks[4]["end_date"]},
+    )
+    uploaded = r.json()["items"][0]
+    assert (uploaded["week"], uploaded["week_source"]) == (weeks[4]["start_date"], "user")
+    link = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/file-links",
+        json={"url": "https://example.com/week-2", "display_name": "Week 2", "week": "term"},
+    )
+    assert (link["week"], link["week_source"]) == (None, "user")
 
 
 async def test_lectures_follow_the_timetable(fx: Fx):

@@ -1049,7 +1049,7 @@ async def test_reindex_starts_over_when_the_model_changes_midway(fx: Fx, fake_ai
     assert (await fx.search("midterm", mode="semantic"))["mode_used"] == "semantic"
 
 
-async def test_downloading_several_as_one_zip(fx: Fx):
+async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.MonkeyPatch):
     import io
     import zipfile
 
@@ -1082,3 +1082,9 @@ async def test_downloading_several_as_one_zip(fx: Fx):
         f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}
     )
     assert r.status_code == 404
+    # More than one archive holds.
+    monkeypatch.setattr("semestra.modules.files.routes.MAX_DOWNLOAD_BYTES", 5)
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"folder_ids": [folder["id"]]}
+    )
+    assert (r.status_code, r.json()["error"]["code"]) == (413, "files.download_too_large")

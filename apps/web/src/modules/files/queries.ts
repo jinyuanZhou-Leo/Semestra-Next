@@ -9,6 +9,7 @@ import { type QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
 import { courseListOptions, coursesOfTerm } from '@/modules/academics/queries'
 import type { Target } from './folders'
+import { prefetchCourseWeeks } from './weeks'
 
 const PAGE_SIZE = 500
 
@@ -58,6 +59,7 @@ export function prefetchFilesPage(
 ) {
   if (scope.kind === 'course') {
     void queryClient.prefetchQuery(courseFilesOptions(scope.courseId))
+    prefetchCourseWeeks(queryClient, scope.programId, scope.courseId).catch(() => undefined)
     return
   }
   if (scope.kind !== 'term') return
@@ -72,6 +74,7 @@ export function prefetchFilesPage(
     .then((list) => {
       for (const course of coursesOfTerm(list.items, termId)) {
         void queryClient.prefetchQuery(courseFilesOptions(course.id))
+        prefetchCourseWeeks(queryClient, scope.programId, course.id).catch(() => undefined)
       }
     })
     .catch(() => undefined)
@@ -115,11 +118,19 @@ export function contentUrl(itemId: string, disposition: 'inline' | 'attachment' 
   })
 }
 
+/** Files and folders one zip is asked for by id (they go in its address; `week` has no limit). */
+export const DOWNLOAD_MAX = 300
+
 /**
  * Where to download the chosen files and folders: one file as it is, anything more as a zip.
- * Null when there is nothing to download (only links).
+ * `week`: they are every file of that week (or `term`), asked for as such. Null when there is
+ * nothing to download (only links).
  */
-export function downloadUrl(courseId: string, targets: readonly Target[]): string | null {
+export function downloadUrl(
+  courseId: string,
+  targets: readonly Target[],
+  week?: string,
+): string | null {
   const items = targets.flatMap((t) =>
     t.type === 'item' && t.item.kind === 'file' ? [t.item] : [],
   )
@@ -130,7 +141,7 @@ export function downloadUrl(courseId: string, targets: readonly Target[]): strin
   return client.buildUrl({
     url: '/courses/{course_id}/files:download',
     path: { course_id: courseId },
-    query: { item_ids: items.map((i) => i.id), folder_ids: folders },
+    query: week ? { week } : { item_ids: items.map((i) => i.id), folder_ids: folders },
   })
 }
 

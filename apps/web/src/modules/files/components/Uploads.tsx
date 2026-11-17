@@ -43,6 +43,8 @@ export type UploadTarget = {
   courseId: string
   folderId: string | null
   existing: readonly ItemOut[]
+  /** The week they go in (a day of it, or `term`); left out, their names decide. */
+  week?: string
 }
 
 /**
@@ -65,7 +67,7 @@ export function useUploads(): Uploads {
   const patch = (key: string, change: Partial<Row>) =>
     setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
 
-  const send = async (files: readonly File[], { courseId, folderId }: UploadTarget) => {
+  const send = async (files: readonly File[], { courseId, folderId, week }: UploadTarget) => {
     const queued = files.map((file) => ({
       file,
       row: {
@@ -85,6 +87,7 @@ export function useUploads(): Uploads {
       const form = new FormData()
       form.append('files', file)
       if (folderId) form.append('folder_id', folderId)
+      if (week) form.append('week', week)
       await postWithProgress<UploadResult>(`/courses/${courseId}/files`, form, {
         onProgress: (loaded) => patch(row.key, { loaded }),
       })

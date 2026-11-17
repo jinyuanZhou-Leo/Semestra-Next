@@ -95,6 +95,8 @@ class TermWeek:
     end: date
     # Null for a break week that is not counted.
     number: int | None
+    # Which of the course's terms (0, then 1 for the second term of a year-long course).
+    term: int = 0
 
 
 @dataclass(frozen=True)
@@ -114,9 +116,17 @@ class CourseCalendar:
                 return week.start
         return None
 
-    def numbered(self, n: int) -> date | None:
-        """Week `n` counted over the course's teaching weeks (continuing into its next term)."""
-        teaching = [w for w in self.weeks if w.number is not None]
+    def term_of(self, day: date) -> int | None:
+        """The course's term `day` falls in (counting its breaks), if any."""
+        for week in self.weeks:
+            if week.start <= day <= week.end:
+                return week.term
+        return None
+
+    def numbered(self, n: int, term: int | None = None) -> date | None:
+        """Week `n` of a term, or, without one, counted over all the course's teaching weeks
+        (a year-long course's second term continuing from its first)."""
+        teaching = [w for w in self.weeks if w.number is not None and term in (None, w.term)]
         return teaching[n - 1].start if 1 <= n <= len(teaching) else None
 
     def lecture(self, n: int) -> date | None:
@@ -129,8 +139,10 @@ def needs_lectures(clues: Mapping[str, WeekClues]) -> bool:
 
 
 def _own(c: WeekClues, cal: CourseCalendar) -> date | None:
+    # A second term often counts from week 1 again: the day the file opens says which term.
+    term = cal.term_of(c.opens_on) if c.opens_on is not None else None
     for text in (c.title, c.module):
-        if (n := week_number(text)) is not None and (week := cal.numbered(n)) is not None:
+        if (n := week_number(text)) is not None and (week := cal.numbered(n, term)) is not None:
             return week
     for text in (c.title, c.module):
         if (n := lecture_number(text)) is not None and (week := cal.lecture(n)) is not None:

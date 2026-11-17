@@ -590,6 +590,23 @@ test('one week lists its files from every folder, with where they are', async ()
   expect(within(rows[1]!).getByText('Lectures')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Lectures' })).not.toBeInTheDocument()
 
+  // What is added goes in the week shown; there are no folders to make here.
+  const dataTransfer = { types: ['Files'], files: [new File(['x'], 'x.txt')] }
+  fireEvent.dragEnter(window, { dataTransfer })
+  expect(await screen.findByText('Drop files to upload to Week 3')).toBeInTheDocument()
+  fireEvent.dragLeave(window, { dataTransfer })
+  await userEvent.click(screen.getByRole('button', { name: 'New' }))
+  expect(await screen.findByRole('menuitem', { name: 'Add link' })).toBeInTheDocument()
+  expect(screen.queryByRole('menuitem', { name: 'New folder' })).not.toBeInTheDocument()
+  await userEvent.keyboard('{Escape}')
+
+  // All of a week is downloaded as that week, not file by file.
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+  expect(screen.getByRole('link', { name: 'Download' }).getAttribute('href')).toBe(
+    `${API}/courses/c1/files:download?week=2026-09-21`,
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+
   // The whole term's: the files no week claims.
   await userEvent.click(screen.getByRole('combobox', { name: 'Week' }))
   await userEvent.click(await screen.findByRole('option', { name: 'Whole term' }))

@@ -1,23 +1,23 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
 import re
-import tempfile
-import zipfile
-from collections.abc import AsyncIterator
-from typing import Annotated
+import zlib
+from collections.abc import AsyncIterable, AsyncIterator
+from datetime import date, datetime
+from typing import Annotated, Literal
 from urllib.parse import quote
 
-import anyio
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
+from stream_zip import ZIP_64, Method, async_stream_zip
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
-from semestra.modules.files import service
+from semestra.modules.files import service, weeks
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
 from semestra.modules.files.schemas import UploadResult
@@ -26,8 +26,6 @@ from semestra.modules.files.upload import MAX_FILES_PER_REQUEST
 router = APIRouter(tags=["files"])
 CurrentCtx = Annotated[Ctx, Depends(get_ctx)]
 _RANGE = re.compile(r"bytes=(\d*)-(\d*)")
-# A download of several files stays in memory up to this size, then goes to a temporary file.
-ZIP_IN_MEMORY = 16 * 1024 * 1024
 
 
 async def _read(file: UploadFile) -> AsyncIterator[bytes]:
@@ -47,6 +45,13 @@ async def upload(
     files: Annotated[list[UploadFile], File(description="The files to upload")],
     ctx: CurrentCtx,
     folder_id: Annotated[str | None, Form(description="Folder to put them in")] = None,
+    week: Annotated[
+        date | Literal["term"] | None,
+        Form(
+            description="A day of the teaching week to put them in, or `term` for the whole "
+            "term; left out: worked out from their names"
+        ),
+    ] = None,
 ) -> UploadResult:
     """All or nothing: if one file is refused (too large, over quota) none is kept."""
     if not files or len(files) > MAX_FILES_PER_REQUEST:
@@ -65,6 +70,8 @@ async def upload(
                 )
             )
         rows = await service.add_staged_files(ctx, course_id, folder, staged)
+        if week is not None:
+            await weeks.set_week(ctx, rows, None if week == "term" else week)
         result = UploadResult(items=await service.item_outs(ctx, rows))
         await ctx.db.commit()
     except BaseException:
@@ -162,7 +169,12 @@ async def content(
     )
 
 
-MAX_DOWNLOAD_ENTRIES = 500
+# What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id. A
+# whole week is asked for by `week` instead.
+MAX_DOWNLOAD_ENTRIES = 300
+# The most one archive holds; it is made while it is sent, so nothing waits on disk.
+MAX_DOWNLOAD_BYTES = 2 * 1024**3
+_DEFLATE_FAST = lambda: zlib.compressobj(level=1, wbits=-zlib.MAX_WBITS)  # noqa: E731
 
 
 @router.get(
@@ -182,42 +194,41 @@ async def download_many(
         list[str],
         Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Folders to put in it, whole"),
     ] = [],  # noqa: B006
+    week: Annotated[
+        date | Literal["term"] | None,
+        Query(
+            description="Every file of the teaching week holding this day, or `term`: every "
+            "file not tied to a week"
+        ),
+    ] = None,
 ) -> Response:
-    """Links are left out. Files read from their source are read now, one after another."""
+    """Links are left out. The archive is written while it is sent: each file is opened (read
+    from its source, if it is kept there) when its turn comes."""
     course = await academics.get_course_row(ctx, course_id)
-    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
+    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids, week)
     if not entries:
         raise not_found()
-    archive = tempfile.SpooledTemporaryFile(max_size=ZIP_IN_MEMORY)  # noqa: SIM115
-    try:
-        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
-            for path, row in entries:
-                stream = await files_content.open_content(ctx, row)
-                await ctx.db.commit()  # what a source wrote on the way (renewed credentials)
-                with zf.open(path, "w", force_zip64=True) as member:
-                    async for chunk in stream:
-                        await anyio.to_thread.run_sync(member.write, chunk)
-        size = archive.tell()
-        archive.seek(0)
-    except BaseException:
-        archive.close()
-        raise
+    if sum(row.size_bytes or 0 for _, row in entries) > MAX_DOWNLOAD_BYTES:
+        raise AppError("files.download_too_large", 413, max=MAX_DOWNLOAD_BYTES)
+    state, user_id = ctx.state, ctx.user_id
+    members = [(path, row.id, row.updated_at) for path, row in entries]
 
-    async def body() -> AsyncIterator[bytes]:
-        try:
-            while chunk := await anyio.to_thread.run_sync(archive.read, CHUNK_SIZE):
-                yield chunk
-        finally:
-            archive.close()
+    async def files() -> AsyncIterator[tuple[str, datetime, int, Method, AsyncIterable[bytes]]]:
+        for path, item_id, modified in members:
+            stream = await files_content.open_detached(state, user_id, item_id)
+            yield path, modified.replace(tzinfo=None), 0o644, ZIP_64, stream
 
     name = f"{course.code or course.title}.zip"
     headers = {
         "Content-Disposition": _content_disposition("attachment", name),
-        "Content-Length": str(size),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
     }
-    return StreamingResponse(body(), media_type="application/zip", headers=headers)
+    return StreamingResponse(
+        async_stream_zip(files(), get_compressobj=_DEFLATE_FAST),
+        media_type="application/zip",
+        headers=headers,
+    )
 
 
 @router.get(

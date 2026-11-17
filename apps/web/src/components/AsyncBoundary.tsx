@@ -22,16 +22,19 @@ type Props<T> = {
   children: (data: T) => ReactNode
 }
 
+/** What `AsyncBoundary` shows while its data loads, for data that is not one query. */
+export function Loading() {
+  return (
+    <output className="flex items-center justify-center gap-2 py-12 text-sm">
+      <Spinner aria-hidden className="motion-reduce:animate-none" />
+      <span className="text-muted-foreground">{m.common_loading()}</span>
+    </output>
+  )
+}
+
 /** Loading, error (with retry) and empty states for a query, so every list has all three. */
 export function AsyncBoundary<T>({ query, isEmpty, empty, children }: Props<T>) {
-  if (query.isPending) {
-    return (
-      <output className="flex items-center justify-center gap-2 py-12 text-sm">
-        <Spinner aria-hidden className="motion-reduce:animate-none" />
-        <span className="text-muted-foreground">{m.common_loading()}</span>
-      </output>
-    )
-  }
+  if (query.isPending) return <Loading />
   if (query.isError) {
     return (
       <Empty>

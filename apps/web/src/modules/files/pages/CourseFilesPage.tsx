@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
@@ -14,7 +15,7 @@ import {
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
-import { AsyncBoundary } from '@/components/AsyncBoundary'
+import { AsyncBoundary, Loading } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { cn } from '@/lib/utils'
@@ -56,9 +57,9 @@ import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
-import { downloadUrl, useCourseFiles } from '../queries'
+import { DOWNLOAD_MAX, downloadUrl, useCourseFiles } from '../queries'
 import { WeekFilterSelect } from '../components/WeekPicker'
-import { type WeekFilter, inWeek, useCourseWeeks, weekName } from '../weeks'
+import { type CourseWeeks, type WeekFilter, inWeek, useCourseWeeks, weekName } from '../weeks'
 
 /** The `files` page of a course (M07 §6.1). */
 export default function CourseFilesPage({ scope }: PageProps) {
@@ -72,18 +73,7 @@ export default function CourseFilesPage({ scope }: PageProps) {
   )
 }
 
-/**
- * A course's files with its folders, searching and uploads. On the term page it is one course
- * folder: `name` is the course's crumb and `up` the crumb before it, back to the courses.
- */
-export function CourseFiles({
-  list,
-  courseId,
-  programId,
-  name,
-  up,
-  uploads: shared,
-}: {
+type CourseFilesProps = {
   list: FilesItemList
   courseId: string
   programId: string
@@ -91,7 +81,27 @@ export function CourseFiles({
   up?: { label: string; onClick: () => void }
   /** Uploads owned by the term page, so they outlive leaving this course. */
   uploads?: Uploads
-}) {
+}
+
+/**
+ * A course's files with its folders, searching and uploads. On the term page it is one course
+ * folder: `name` is the course's crumb and `up` the crumb before it, back to the courses. Shown
+ * once the course's weeks are in too: the week filter and a `?week=` list depend on them.
+ */
+export function CourseFiles(props: CourseFilesProps) {
+  const weeks = useCourseWeeks(props.courseId)
+  return weeks ? <CourseFilesView {...props} weeks={weeks} /> : <Loading />
+}
+
+function CourseFilesView({
+  list,
+  courseId,
+  programId,
+  name,
+  up,
+  uploads: shared,
+  weeks,
+}: CourseFilesProps & { weeks: CourseWeeks }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [view] = useUiPref<'list' | 'grid'>('files.view', 'list')
   const [folderId, openFolder] = useState<string | null>(null)
@@ -101,22 +111,27 @@ export function CourseFiles({
   const preview = useDialogTarget<PreviewTarget>()
   const link = useExternalLink()
 
-  const weeks = useCourseWeeks(courseId)
   const [rawWeekFilter, setWeekFilter] = useWeekFilter()
   // Any day in the address stands for its week (a link may name a day other than its first).
   const weekFilter =
     rawWeekFilter === 'all' || rawWeekFilter === 'term'
       ? rawWeekFilter
-      : (weeks?.find(rawWeekFilter)?.start ?? rawWeekFilter)
+      : (weeks.find(rawWeekFilter)?.start ?? rawWeekFilter)
   // One week's files (or the whole term's) come from every folder, in one list.
-  const byWeek = weeks && weeks.terms.length > 0 && weekFilter !== 'all' ? weeks : null
+  const byWeek = weeks.terms.length > 0 && weekFilter !== 'all' ? weeks : null
   // The folder may have been deleted (here or in another tab).
   const folder = byWeek ? null : (list.folders.find((f) => f.id === folderId) ?? null)
   const currentId = folder?.id ?? null
   const own = useUploads()
   const uploads = shared ?? own
+  // Added while a week is shown, they go in that week (and at the top of the course's files).
   const upload = (files: readonly File[], into: string | null = currentId) =>
-    uploads.start(files, { courseId, folderId: into, existing: list.items })
+    uploads.start(files, {
+      courseId,
+      folderId: into,
+      existing: list.items,
+      week: byWeek ? weekFilter : undefined,
+    })
   const dragging = useFileDrop(upload)
   // The folder the dragged files are over, if any; otherwise they go into the open one.
   const [dropFolderId, setDropFolderId] = useState<string | null>(null)
@@ -174,7 +189,10 @@ export function CourseFiles({
   const selecting = selected.length > 0 && !searching
   const selectedItems = selected.flatMap((t) => (t.type === 'item' ? [t.item] : []))
   const selectsFolders = selected.some((t) => t.type === 'folder')
-  const download = downloadUrl(courseId, selected)
+  // A whole week is asked for as one (its address would not hold every id).
+  const wholeWeek = byWeek && selected.length === shown.length ? weekFilter : undefined
+  const download = downloadUrl(courseId, selected, wholeWeek)
+  const tooMany = !wholeWeek && selected.length > DOWNLOAD_MAX
 
   const needle = search.trim().toLowerCase()
   const nameMatches = needle
@@ -204,7 +222,16 @@ export function CourseFiles({
             onClear={clearSelection}
             actions={
               <>
-                {download ? (
+                {download && tooMany ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toast.error(m.files_download_too_many({ max: DOWNLOAD_MAX }))}
+                  >
+                    <Download aria-hidden />
+                    {m.files_download()}
+                  </Button>
+                ) : download ? (
                   <a
                     href={download}
                     download
@@ -253,7 +280,7 @@ export function CourseFiles({
                 <Search aria-hidden />
               </InputGroupAddon>
             </InputGroup>
-            {weeks && weeks.terms.length > 0 && !searching ? (
+            {weeks.terms.length > 0 && !searching ? (
               <WeekFilterSelect weeks={weeks} value={weekFilter} onChange={filterWeek} />
             ) : null}
           </SelectionToolbar>
@@ -266,14 +293,22 @@ export function CourseFiles({
                 {m.files_new()}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {byWeek ? null : (
+                  <DropdownMenuItem
+                    onClick={() => action.show({ kind: 'new-folder', parentId: currentId })}
+                  >
+                    <FolderPlus aria-hidden />
+                    {m.files_new_folder()}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
-                  onClick={() => action.show({ kind: 'new-folder', parentId: currentId })}
-                >
-                  <FolderPlus aria-hidden />
-                  {m.files_new_folder()}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => action.show({ kind: 'new-link', folderId: currentId })}
+                  onClick={() =>
+                    action.show({
+                      kind: 'new-link',
+                      folderId: currentId,
+                      week: byWeek ? weekFilter : undefined,
+                    })
+                  }
                 >
                   <Link2 aria-hidden />
                   {m.files_add_link()}
@@ -432,6 +467,7 @@ export function CourseFiles({
           <FileDropOverlay
             label={m.files_drop_here({
               folder:
+                (byWeek ? weekText : null) ??
                 list.folders.find((f) => f.id === dropFolderId)?.name ??
                 trail.at(-1)?.name ??
                 name ??

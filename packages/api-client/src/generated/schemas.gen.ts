@@ -2869,6 +2869,23 @@ export const Body_filesUploadSchema = {
             ],
             title: 'Folder Id',
             description: 'Folder to put them in'
+        },
+        week: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'string',
+                    const: 'term'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Week',
+            description: 'A day of the teaching week to put them in, or `term` for the whole term; left out: worked out from their names'
         }
     },
     type: 'object',
@@ -10705,6 +10722,23 @@ export const LinkCreateInputBodySchema = {
             ],
             title: 'Folder Id',
             description: 'Folder to put it in'
+        },
+        week: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'string',
+                    const: 'term'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Week',
+            description: 'A day of the teaching week to put it in, or `term` for the whole term; left out: worked out from its name'
         }
     },
     type: 'object',

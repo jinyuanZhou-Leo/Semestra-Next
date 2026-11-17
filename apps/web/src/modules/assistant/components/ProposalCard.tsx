@@ -152,11 +152,13 @@ export function EditForm({
 }
 
 /** What an empty value means for a field: a task without a list is in the inbox, a file
- * without a folder at the course's root, a class without a change as scheduled. */
+ * without a folder at the course's root (without a week, for the whole term), a class without
+ * a change as scheduled. */
 function emptyText(field: string, after: boolean): string {
   if (field === 'list') return m.tasks_view_inbox()
   if (field === 'folder') return m.assistant_value_root_folder()
   if (field === 'exception') return m.assistant_value_as_scheduled()
+  if (field === 'week') return m.files_week_term()
   return after ? m.assistant_value_cleared() : formatValue(null)
 }
 

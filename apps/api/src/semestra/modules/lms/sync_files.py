@@ -602,8 +602,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     if link.files_offline:
         await files.keep_synced_offline(ctx, remote, dedupe=f"lms.files:{link.id}")
     await ctx.db.flush()
-    # Modules renamed or opening on another day move their items' weeks.
-    await weeks.assign(ctx, [link.course_id])
     return result
 
 

@@ -176,7 +176,9 @@ the course files. Do not use to save a file; uploads are done by the user in the
     agent_output_fields=("id", "display_name", "url"),
 )
 async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
-    return await service.create_link(ctx, inp.course_id, inp.url, inp.display_name, inp.folder_id)
+    return await service.create_link(
+        ctx, inp.course_id, inp.url, inp.display_name, inp.folder_id, week=inp.week
+    )
 
 
 @capability(

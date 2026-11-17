@@ -1,6 +1,10 @@
 import type { CalendarInfo, ItemOut } from '@semestra/api-client'
-import { academicsTermGetWeeksOptions } from '@semestra/api-client/react-query'
-import { useQueries } from '@tanstack/react-query'
+import {
+  academicsCourseGetOptions,
+  academicsTermGetWeeksOptions,
+  academicsTermListOptions,
+} from '@semestra/api-client/react-query'
+import { type QueryClient, useQueries } from '@tanstack/react-query'
 import { formatDate } from '@/lib/format'
 import { useCourse, useTerms } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -70,6 +74,21 @@ export function inWeek(item: ItemOut, filter: WeekFilter, weeks: CourseWeeks): b
   if (filter === 'all') return true
   if (filter === 'term') return item.week === null
   return item.week !== null && weeks.find(item.week)?.start === filter
+}
+
+/** What `useCourseWeeks` reads, started with the files page (its filter and lists need it). */
+export async function prefetchCourseWeeks(
+  queryClient: QueryClient,
+  programId: string,
+  courseId: string,
+): Promise<void> {
+  void queryClient.prefetchQuery(academicsTermListOptions({ path: { program_id: programId } }))
+  const course = await queryClient.fetchQuery(
+    academicsCourseGetOptions({ path: { course_id: courseId } }),
+  )
+  for (const termId of course.term_ids) {
+    void queryClient.prefetchQuery(academicsTermGetWeeksOptions({ path: { term_id: termId } }))
+  }
 }
 
 /** The course's weeks (undefined while they load; no terms: none). */

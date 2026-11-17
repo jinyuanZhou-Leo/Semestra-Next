@@ -258,7 +258,8 @@ export const filesContent = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * Download several files and folders of a course as one zip archive.
  *
- * Links are left out. Files read from their source are read now, one after another.
+ * Links are left out. The archive is written while it is sent: each file is opened (read
+ * from its source, if it is kept there) when its turn comes.
  */
 export const filesDownloadMany = <ThrowOnError extends boolean = false>(options: Options<FilesDownloadManyData, ThrowOnError>): RequestResult<FilesDownloadManyResponses, FilesDownloadManyErrors, ThrowOnError> => (options.client ?? client).get<FilesDownloadManyResponses, FilesDownloadManyErrors, ThrowOnError>({
     security: [{

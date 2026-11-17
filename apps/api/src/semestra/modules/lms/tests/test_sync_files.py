@@ -456,3 +456,10 @@ async def test_materials_get_the_week_of_their_module(api: Api, fake: FakeProvid
     await api.sync(program_id)
     _, items = await _files(api, course)
     assert items["sorting.pdf"]["week"] == start[3]
+
+    # A copy the user keeps stays in its week once the course is unlinked (its module is gone).
+    await api.call("POST", f"/courses/{course}/lms/files/301:save", json={})
+    await api.run_jobs()
+    await api.call("DELETE", f"/courses/{course}/lms-link")
+    _, items = await _files(api, course)
+    assert (items["sorting.pdf"]["week"], items["sorting.pdf"]["week_source"]) == (start[3], "user")

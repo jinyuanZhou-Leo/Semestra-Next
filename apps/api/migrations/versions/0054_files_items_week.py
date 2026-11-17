@@ -22,9 +22,7 @@ def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table("files_items", schema=None) as batch_op:
         batch_op.add_column(sa.Column("week", sa.Date(), nullable=True))
-        batch_op.add_column(
-            sa.Column("week_source", sa.String(), server_default="rule", nullable=False)
-        )
+        batch_op.add_column(sa.Column("week_source", sa.String(), nullable=True))
 
 
 def downgrade() -> None:

@@ -1567,6 +1567,12 @@ export type BodyFilesUpload = {
      * Folder to put them in
      */
     folder_id?: string | null;
+    /**
+     * Week
+     *
+     * A day of the teaching week to put them in, or `term` for the whole term; left out: worked out from their names
+     */
+    week?: string | 'term' | null;
 };
 
 /**
@@ -6099,6 +6105,12 @@ export type LinkCreateInputBody = {
      * Folder to put it in
      */
     folder_id?: string | null;
+    /**
+     * Week
+     *
+     * A day of the teaching week to put it in, or `term` for the whole term; left out: worked out from its name
+     */
+    week?: string | 'term' | null;
 };
 
 /**
@@ -13697,6 +13709,12 @@ export type FilesDownloadManyData = {
          * Folders to put in it, whole
          */
         folder_ids?: Array<string>;
+        /**
+         * Week
+         *
+         * Every file of the teaching week holding this day, or `term`: every file not tied to a week
+         */
+        week?: string | 'term' | null;
     };
     url: '/courses/{course_id}/files:download';
 };

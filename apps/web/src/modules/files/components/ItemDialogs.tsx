@@ -23,7 +23,8 @@ export type ItemAction =
   | { kind: 'move'; targets: Target[] }
   | { kind: 'delete'; targets: Target[] }
   | { kind: 'new-folder'; parentId: string | null }
-  | { kind: 'new-link'; folderId: string | null }
+  // `week`: added while a week is shown, it goes in that week (`term`: the whole term).
+  | { kind: 'new-link'; folderId: string | null; week?: string }
   | { kind: 'week'; items: ItemOut[] }
 
 /** Whether the dialog is open, and the page's hook to forget the action once it has closed. */
@@ -223,7 +224,12 @@ export function ItemDialogs({
         createLink.mutate(
           {
             path: { course_id: courseId },
-            body: { url, display_name: name || null, folder_id: action.folderId },
+            body: {
+              url,
+              display_name: name || null,
+              folder_id: action.folderId,
+              week: action.week,
+            },
           },
           { onSuccess: close },
         )

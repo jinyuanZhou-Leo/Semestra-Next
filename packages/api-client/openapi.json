@@ -1031,7 +1031,7 @@
           "files"
         ],
         "summary": "Download several files and folders of a course as one zip archive.",
-        "description": "Links are left out. Files read from their source are read now, one after another.",
+        "description": "Links are left out. The archive is written while it is sent: each file is opened (read\nfrom its source, if it is kept there) when its turn comes.",
         "operationId": "filesDownloadMany",
         "security": [
           {
@@ -1062,7 +1062,7 @@
               "items": {
                 "type": "string"
               },
-              "maxItems": 500,
+              "maxItems": 300,
               "description": "Files to put in it",
               "default": [],
               "title": "Item Ids"
@@ -1078,12 +1078,35 @@
               "items": {
                 "type": "string"
               },
-              "maxItems": 500,
+              "maxItems": 300,
               "description": "Folders to put in it, whole",
               "default": [],
               "title": "Folder Ids"
             },
             "description": "Folders to put in it, whole"
+          },
+          {
+            "name": "week",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "const": "term",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Every file of the teaching week holding this day, or `term`: every file not tied to a week",
+              "title": "Week"
+            },
+            "description": "Every file of the teaching week holding this day, or `term`: every file not tied to a week"
           }
         ],
         "responses": {
@@ -21793,6 +21816,23 @@
             ],
             "title": "Folder Id",
             "description": "Folder to put them in"
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "const": "term"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week",
+            "description": "A day of the teaching week to put them in, or `term` for the whole term; left out: worked out from their names"
           }
         },
         "type": "object",
@@ -29508,6 +29548,23 @@
             ],
             "title": "Folder Id",
             "description": "Folder to put it in"
+          },
+          "week": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "const": "term"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Week",
+            "description": "A day of the teaching week to put it in, or `term` for the whole term; left out: worked out from its name"
           }
         },
         "type": "object",

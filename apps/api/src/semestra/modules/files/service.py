@@ -5,8 +5,8 @@ import mimetypes
 import re
 from collections.abc import AsyncIterable, AsyncIterator, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
-from typing import Any
+from datetime import date, timedelta
+from typing import Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 import anyio
@@ -30,7 +30,7 @@ from semestra.core.storage import (
 from semestra.core.storage import usage as core_usage
 from semestra.modules.academics import rules
 from semestra.modules.academics import service as academics
-from semestra.modules.files import content, indexing
+from semestra.modules.files import content, indexing, weeks
 from semestra.modules.files.models import (
     FilesDocument,
     FilesFolder,
@@ -169,6 +169,7 @@ def _subtree_height(folder_id: str, folders: Sequence[FilesFolder]) -> int:
 
 
 async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
+    week_of = await weeks.weeks_of(ctx, rows)
     doc_ids = [r.active_document_id for r in rows if r.active_document_id]
     docs = (
         {
@@ -217,8 +218,8 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 stored=bool(r.storage_key),
                 follows_source=content.follows_source(r),
                 pinned=r.pinned,
-                week=r.week,
-                week_source=r.week_source,  # pyright: ignore[reportArgumentType]
+                week=week_of[r.id],
+                week_source="user" if r.week_source == weeks.USER else "rule",
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
                 doc_status=r.doc_status,  # pyright: ignore[reportArgumentType]
@@ -284,9 +285,6 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
         stmt = stmt.where(
             func.lower(FilesItem.display_name).like(f"%{needle.replace('_', '\\_')}%", escape="\\")
         )
-    if inp.week is not None:
-        first = rules.week_start_of(inp.week, await academics.week_start(ctx))
-        stmt = stmt.where(FilesItem.week.between(first, first + timedelta(days=6)))
     name = func.lower(FilesItem.display_name)
     key = {
         "name": name,
@@ -297,7 +295,18 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     }[inp.sort]
     stmt = stmt.order_by(key.desc() if inp.descending else key, name, FilesItem.id)
     offset = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
-    rows = list((await ctx.db.scalars(stmt.offset(offset).limit(inp.limit + 1))).all())
+    if inp.week is None:
+        rows = list((await ctx.db.scalars(stmt.offset(offset).limit(inp.limit + 1))).all())
+    else:
+        # Weeks are worked out, not stored: one week's items are picked from the course's.
+        first = rules.week_start_of(inp.week, await academics.week_start(ctx))
+        everything = list((await ctx.db.scalars(stmt)).all())
+        found = await weeks.weeks_of(ctx, everything)
+        rows = [
+            r
+            for r in everything
+            if (w := found[r.id]) is not None and first <= w <= first + timedelta(days=6)
+        ][offset : offset + inp.limit + 1]
     more = len(rows) > inp.limit
     counts = await _folder_counts(ctx, inp.course_id)
     return FilesItemList(
@@ -928,6 +937,8 @@ async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
 async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     """The source no longer keeps these copies the user kept (an LMS course unlinked): they are
     plain files of the user's from now on (`source_ref` cleared), with nothing to read again."""
+    # Where the source put them goes too: they stay in the weeks they are in now.
+    await weeks.keep_current(ctx, rows)
     for row in rows:
         row.source_ref, row.kept_offline, row.updated_at = None, False, ctx.now
     await ctx.db.flush()
@@ -990,6 +1001,7 @@ async def create_link(
     *,
     source_kind: SourceKind | None = None,
     source_ref: str | None = None,
+    week: date | Literal["term"] | None = None,
 ) -> ItemOut:
     await academics.get_course_row(ctx, course_id)
     await _folder_for(ctx, course_id, folder_id)
@@ -1011,6 +1023,8 @@ async def create_link(
     ctx.db.add(row)
     await ctx.db.flush()
     await events.publish(ctx, "files.item.created", {"item_id": row.id, "course_id": course_id})
+    if week is not None:
+        await weeks.set_week(ctx, [row], None if week == "term" else week)
     return await item_out(ctx, row)
 
 
@@ -1187,17 +1201,39 @@ async def delete_entries(
 
 
 async def download_entries(
-    ctx: Ctx, course_id: str, item_ids: Sequence[str], folder_ids: Sequence[str]
+    ctx: Ctx,
+    course_id: str,
+    item_ids: Sequence[str],
+    folder_ids: Sequence[str],
+    week: date | Literal["term"] | None = None,
 ) -> list[tuple[str, FilesItem]]:
     """The files to put in one download, each with its path in it: a chosen file at the top, a
-    chosen folder's files under its name (and their subfolders'). Links have no bytes and are
-    left out; names that repeat get a number."""
+    chosen folder's files under its name (and their subfolders'), and with `week` every file of
+    that week (`term`: not tied to one) at the top. Links have no bytes and are left out; names
+    that repeat get a number."""
     await academics.get_course_row(ctx, course_id)
     folders = await _course_folders(ctx, course_id)
     by_id = {f.id: f for f in folders}
     picked: list[tuple[str, FilesItem]] = [
         ("", row) for row in await course_items(ctx, course_id, item_ids)
     ]
+    if week is not None:
+        everything = list(
+            await ctx.db.scalars(
+                select(FilesItem).where(
+                    FilesItem.user_id == ctx.user_id, FilesItem.course_id == course_id
+                )
+            )
+        )
+        found = await weeks.weeks_of(ctx, everything)
+        if week == "term":
+            picked += [("", r) for r in everything if found[r.id] is None]
+        else:
+            first = rules.week_start_of(week, await academics.week_start(ctx))
+            last = first + timedelta(days=6)
+            picked += [
+                ("", r) for r in everything if (w := found[r.id]) is not None and first <= w <= last
+            ]
     for folder_id in dict.fromkeys(folder_ids):
         top = by_id.get(folder_id)
         if top is None:

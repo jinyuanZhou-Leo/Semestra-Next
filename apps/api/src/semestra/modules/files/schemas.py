@@ -155,6 +155,11 @@ class LinkCreateInput(BaseModel):
         default=None, description="Name to show; defaults to the address' host"
     )
     folder_id: Id | None = Field(default=None, description="Folder to put it in")
+    week: date | Literal["term"] | None = Field(
+        default=None,
+        description="A day of the teaching week to put it in, or `term` for the whole term; "
+        "left out: worked out from its name",
+    )
 
 
 class FolderCreateInput(BaseModel):
