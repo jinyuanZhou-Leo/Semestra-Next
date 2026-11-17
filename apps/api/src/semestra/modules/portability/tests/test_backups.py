@@ -531,7 +531,7 @@ async def test_course_files_travel_with_their_contents(
 
     bob, done = await restore("bob@example.com", with_files)
     assert done["status"] == "imported", done
-    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 2}
+    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 2, "type_folders": 1}
     async with app.state.session_factory() as db:
         copy = await db.scalar(
             select(FilesItem).where(FilesItem.user_id == bob.id, FilesItem.kind == "file")
@@ -546,7 +546,7 @@ async def test_course_files_travel_with_their_contents(
 
     # Without the contents, the file is left out and reported; the link still comes.
     _, done = await restore("carol@example.com", without)
-    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 1}
+    assert done["report"]["imported"]["files"] == {"folders": 1, "items": 1, "type_folders": 1}
     assert done["report"]["skipped"] == {"files": {"items": 1}}
 
 

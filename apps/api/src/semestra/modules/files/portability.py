@@ -21,6 +21,7 @@ from semestra.modules.files.models import (
     FilesFolder,
     FilesIndexState,
     FilesItem,
+    FilesTypeFolder,
 )
 from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Table
 from semestra.modules.portability.registry import Writer, register_portability
@@ -125,6 +126,11 @@ ADAPTER = FilesAdapter(
             "items",
             refs={"course_id": "required", "folder_id": "optional"},
             exclude=("storage_key", "doc_error_code", "active_document_id"),
+        ),
+        Table(
+            FilesTypeFolder,
+            "type_folders",
+            refs={"course_id": "required", "folder_id": "optional"},
         ),
         Table(FilesDocument, "documents", exported=False),
         Table(FilesDocumentPage, "document_pages", exported=False),

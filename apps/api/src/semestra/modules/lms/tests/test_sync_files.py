@@ -2,21 +2,17 @@
 come into the course's files in type folders without taking storage, follow the platform, and
 leave alone what the user moved, renamed or deleted."""
 
-import json
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
 import pytest
 import respx
 from fastapi import FastAPI
 from sqlalchemy import select
 
 from semestra.core.config import Settings
-from semestra.modules.ai.adapters import base
-from semestra.modules.ai.tests.conftest import ANTHROPIC, ANTHROPIC_KEY, models_ok
-from semestra.modules.ai.tests.test_calls import anthropic_reply
 from semestra.modules.files.models import FilesItem
+from semestra.modules.files.tests.conftest import model_sorts, sorting_model
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -421,25 +417,9 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
 # --- what the rules leave in "general" ------------------------------------------------------
 
 
-def _model_sorts(route: respx.Route, types: dict[str, str]) -> None:
-    """The model answers with the type `types` gives each title it is shown (else "general")."""
-
-    def answer(request: httpx.Request) -> httpx.Response:
-        text = json.dumps(json.loads(request.content)["messages"])
-        listing = json.loads(json.loads(text)[0]["content"][0]["text"].split("\n", 1)[1]
-                             .rsplit("\n", 1)[0])  # fmt: skip
-        items = [{"id": i["id"], "type": types.get(i["title"], "general")} for i in listing]
-        return anthropic_reply(json.dumps({"items": items}))
-
-    route.reset()
-    route.mock(side_effect=answer)
-
-
 async def test_the_model_sorts_what_the_rules_cannot(
     api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
 ):
-    monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 0)
-    monkeypatch.setattr("pydantic_ai.models.anthropic._MAX_NON_STREAMING_TOKENS", 10**9)
     fake.course_file_list = [
         _file("201", "Lecture 1.pdf"),
         _file("202", "ECE241_W3.pdf"),
@@ -455,13 +435,8 @@ async def test_the_model_sorts_what_the_rules_cannot(
     await api.call("PATCH", f"/files/{items['data.zip']['id']}", json={"folder_id": None})
 
     with respx.mock(assert_all_called=False) as mock:
-        models_ok(mock)
-        await api.call(
-            "POST", "/ai/providers",
-            json={"kind": "anthropic", "display_name": "Claude", "api_key": ANTHROPIC_KEY},
-        )  # fmt: skip
         # The provider fails: they keep waiting.
-        route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=httpx.Response(500))
+        route = await sorting_model(api.client, mock, monkeypatch)
         clock.advance(minutes=1)
         await api.sync(program_id)
         assert route.called
@@ -470,7 +445,7 @@ async def test_the_model_sorts_what_the_rules_cannot(
 
         # It answers: what waited moves (not what the user moved), a new leftover goes straight
         # to its folder, and one the rules place is not asked about.
-        _model_sorts(
+        model_sorts(
             route,
             {"ECE241_W3.pdf": "lectures", "data.zip": "readings", "Crib sheet.pdf": "exams"},
         )

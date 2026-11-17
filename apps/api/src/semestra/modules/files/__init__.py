@@ -14,6 +14,7 @@ from semestra.modules.files import (  # noqa: F401  (registers on import)
     jobs,
     labels,
     models,
+    organize,
     portability,
     settings,
     subscribers,

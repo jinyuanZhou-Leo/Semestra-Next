@@ -80,6 +80,24 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     active_document_id: Mapped[str | None] = mapped_column(String, default=None)
 
 
+class FilesTypeFolder(Base, OwnedMixin):
+    """The folder of one type of course material in a course (`sorting.py`): the one made for
+    it, or the user's own that took its place. Kept when the user renames it; its `folder_id`
+    is emptied when they delete it."""
+
+    __tablename__ = "files_type_folders"
+    __table_args__ = (UniqueConstraint("course_id", "type"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    course_id: Mapped[str] = mapped_column(
+        String, ForeignKey("academics_courses.id", ondelete="CASCADE"), index=True
+    )
+    type: Mapped[str] = mapped_column(String)
+    folder_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("files_folders.id", ondelete="SET NULL"), default=None, index=True
+    )
+
+
 class FilesDocument(Base, OwnedMixin):
     """The product of one parse. Reprocessing builds a new one and then switches to it."""
 
