@@ -171,11 +171,6 @@ function UserMessage({
   const [draft, setDraft] = useState<PromptValue | null>(null)
   const editing = opened !== null
   const editor = useRef<PromptEditorHandle>(null)
-
-  // The editor opens with the caret after the text.
-  useEffect(() => {
-    if (editing) editor.current?.focus()
-  }, [editing])
   const savable = (value: PromptValue | null): value is PromptValue =>
     value !== null &&
     (value.text.trim() !== item.text.trim() ||
@@ -232,6 +227,7 @@ function UserMessage({
                 label={m.assistant_edit_label()}
                 programId={programId}
                 initialContent={opened}
+                focusOnMount
                 menuSide="bottom"
                 slash
                 className="w-full"

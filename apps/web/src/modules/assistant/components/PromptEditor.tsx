@@ -28,6 +28,7 @@ import {
   useEffect,
   useId,
   useImperativeHandle,
+  useLayoutEffect,
   useState,
 } from 'react'
 import { rank } from '@/app/commands/rank'
@@ -72,7 +73,6 @@ const openMenu = (char: '/' | '@', props: { query: string; range: Range }): Open
 })
 
 export type PromptEditorHandle = {
-  focus: () => void
   /** Replaces what is written; null empties the input. */
   setContent: (doc: JSONContent | null) => void
   /** What is written now, before `onChange` has re-rendered the caller (null before it exists). */
@@ -238,6 +238,7 @@ export function PromptEditor({
   slash = false,
   canCompact = false,
   disabled = false,
+  focusOnMount = false,
   initialContent,
   menuSide = 'top',
   className,
@@ -255,6 +256,8 @@ export function PromptEditor({
   slash?: boolean
   canCompact?: boolean
   disabled?: boolean
+  /** Takes the focus when it appears, with the caret after the text. */
+  focusOnMount?: boolean
   /** What the input starts with. */
   initialContent?: JSONContent | null
   /** Where the menu opens when there is room: above the input, or below it. */
@@ -336,6 +339,8 @@ export function PromptEditor({
       }),
     ],
     content: initialContent ?? undefined,
+    // Starts with the caret after the text.
+    autofocus: focusOnMount ? 'end' : false,
     editable: !disabled,
     editorProps: {
       transformPasted: (slice, view) =>
@@ -419,6 +424,12 @@ export function PromptEditor({
     else editor.view.dom.removeAttribute('aria-disabled')
   }, [editor, disabled])
 
+  // Tiptap focuses a new editor a frame later; the input takes the focus as it appears, so the
+  // first keystroke already lands in it.
+  useLayoutEffect(() => {
+    if (focusOnMount) editor?.view.focus()
+  }, [editor, focusOnMount])
+
   // The menu and its highlighted choice are announced from the input while it is open.
   const currentId = current?.id
   useEffect(() => {
@@ -437,7 +448,6 @@ export function PromptEditor({
   }, [editor, id, currentId])
 
   useImperativeHandle(ref, () => ({
-    focus: () => editor?.commands.focus('end'),
     setContent: (doc) => editor?.commands.setContent(doc ?? '', { emitUpdate: true }),
     read: () => (editor ? readPrompt(editor.getJSON()) : null),
     startCompact: () => {
