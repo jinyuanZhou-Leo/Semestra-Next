@@ -2,14 +2,20 @@
 come into the course's files in type folders without taking storage, follow the platform, and
 leave alone what the user moved, renamed or deleted."""
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 import pytest
+import respx
 from fastapi import FastAPI
 from sqlalchemy import select
 
 from semestra.core.config import Settings
+from semestra.modules.ai.adapters import base
+from semestra.modules.ai.tests.conftest import ANTHROPIC, ANTHROPIC_KEY, models_ok
+from semestra.modules.ai.tests.test_calls import anthropic_reply
 from semestra.modules.files.models import FilesItem
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
@@ -410,3 +416,87 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     # The user's own copy, without its bytes in the backup: its source's again, not lost.
     midterm_row = rows["Midterm 2025.pdf"]
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
+
+
+# --- what the rules leave in "general" ------------------------------------------------------
+
+
+def _model_sorts(route: respx.Route, types: dict[str, str]) -> None:
+    """The model answers with the type `types` gives each title it is shown (else "general")."""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        text = json.dumps(json.loads(request.content)["messages"])
+        listing = json.loads(json.loads(text)[0]["content"][0]["text"].split("\n", 1)[1]
+                             .rsplit("\n", 1)[0])  # fmt: skip
+        items = [{"id": i["id"], "type": types.get(i["title"], "general")} for i in listing]
+        return anthropic_reply(json.dumps({"items": items}))
+
+    route.reset()
+    route.mock(side_effect=answer)
+
+
+async def test_the_model_sorts_what_the_rules_cannot(
+    api: Api, fake: FakeProvider, clock: Clock, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(base, "RETRY_BASE_SECONDS", 0)
+    monkeypatch.setattr("pydantic_ai.models.anthropic._MAX_NON_STREAMING_TOKENS", 10**9)
+    fake.course_file_list = [
+        _file("201", "Lecture 1.pdf"),
+        _file("202", "ECE241_W3.pdf"),
+        _file("203", "data.zip"),
+    ]
+    program_id, course = await _course(api)
+    # No model yet: the leftovers wait in "Course materials".
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    assert _where(folders, items["ECE241_W3.pdf"]) == "Course materials"
+    assert _where(folders, items["data.zip"]) == "Course materials"
+    # The user files one of them themselves.
+    await api.call("PATCH", f"/files/{items['data.zip']['id']}", json={"folder_id": None})
+
+    with respx.mock(assert_all_called=False) as mock:
+        models_ok(mock)
+        await api.call(
+            "POST", "/ai/providers",
+            json={"kind": "anthropic", "display_name": "Claude", "api_key": ANTHROPIC_KEY},
+        )  # fmt: skip
+        # The provider fails: they keep waiting.
+        route = mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=httpx.Response(500))
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        assert route.called
+        folders, items = await _files(api, course)
+        assert _where(folders, items["ECE241_W3.pdf"]) == "Course materials"
+
+        # It answers: what waited moves (not what the user moved), a new leftover goes straight
+        # to its folder, and one the rules place is not asked about.
+        _model_sorts(
+            route,
+            {"ECE241_W3.pdf": "lectures", "data.zip": "readings", "Crib sheet.pdf": "exams"},
+        )
+        fake.course_file_list.append(_file("204", "Crib sheet.pdf"))
+        fake.course_file_list.append(_file("205", "Lecture 2.pdf"))
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        folders, items = await _files(api, course)
+        assert {name: _where(folders, item) for name, item in items.items()} == {
+            "Lecture 1.pdf": "Lectures",
+            "Lecture 2.pdf": "Lectures",
+            "ECE241_W3.pdf": "Lectures",
+            "data.zip": None,
+            "Crib sheet.pdf": "Past exams",
+        }
+        assert route.call_count == 1
+        shown = route.calls[0].request.content.decode()
+        assert "ECE241_W3.pdf" in shown
+        assert "Crib sheet.pdf" in shown
+        assert "Lecture 2.pdf" not in shown
+        assert "data.zip" not in shown
+
+        # Sorted once: never asked again, and the user's moves stay.
+        await api.call("PATCH", f"/files/{items['Crib sheet.pdf']['id']}", json={"folder_id": None})
+        clock.advance(minutes=1)
+        await api.sync(program_id)
+        folders, items = await _files(api, course)
+        assert route.call_count == 1
+        assert _where(folders, items["Crib sheet.pdf"]) is None

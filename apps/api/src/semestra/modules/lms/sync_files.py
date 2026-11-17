@@ -26,7 +26,7 @@ files area link their files from pages).
 
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from html import escape
 from typing import Any, Literal
@@ -40,7 +40,7 @@ from semestra.modules.files import content
 from semestra.modules.files import service as files
 from semestra.modules.files.content import register_content_source
 from semestra.modules.files.models import FilesItem
-from semestra.modules.lms import reads
+from semestra.modules.lms import materials_ai, reads
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import (
     Clues,
@@ -99,17 +99,15 @@ class Material:
     # More to remember (what a page links to, when an item was last read on its own).
     notes: dict[str, Any] = field(default_factory=lambda: {})
 
-    def kind_of(self) -> MaterialType:
-        return classify(
-            Clues(
-                title=self.title,
-                mime=self.mime,
-                url=self.url,
-                subheader=self.subheader,
-                module=self.module,
-                folder_path=self.folder_path,
-                listed_by=self.listed_by,
-            )
+    def clues(self) -> Clues:
+        return Clues(
+            title=self.title,
+            mime=self.mime,
+            url=self.url,
+            subheader=self.subheader,
+            module=self.module,
+            folder_path=self.folder_path,
+            listed_by=tuple(self.listed_by),
         )
 
 
@@ -343,6 +341,71 @@ def _place(found: _Found) -> None:
         material.listed_by = found.listed_by.get(key, [])
 
 
+# --- what the rules leave in "general" -------------------------------------------------------
+
+# In a ref's snapshot: placed in "general" while no model could be asked (where it was put, and
+# its clues). Asked about again on later runs, and moved if the user has not moved it meanwhile.
+SORT_LATER = "sort_later"
+
+
+@dataclass
+class _Sorting:
+    """The model's types for the items the rules put in "general": the new ones of this run,
+    and those placed while no model could answer. One request per course and run."""
+
+    asked: dict[Key, Clues]
+    # None: no model answered (none set up, it failed); they stay in "general" for now.
+    answers: dict[Key, MaterialType] | None
+
+    def kind_of(self, key: Key, m: Material) -> MaterialType:
+        if self.answers is not None and key in self.asked:
+            return self.answers[key]
+        return classify(m.clues())
+
+    def note(self, key: Key, row: FilesItem) -> dict[str, object]:
+        """What a new item's snapshot records of how it was sorted."""
+        if key not in self.asked:
+            return {}
+        if self.answers is None:
+            return {SORT_LATER: {"folder": row.folder_id, "clues": asdict(self.asked[key])}}
+        return {"by": "ai"}
+
+
+async def _sort(ctx: Ctx, found: _Found) -> _Sorting:
+    asked: dict[Key, Clues] = {}
+    new = 0
+    for key, m in found.materials.items():
+        ref = found.known.get(key)
+        if m.is_list or (ref is not None and (ref.dismissed_at or ref.target_id)):
+            continue
+        new += 1
+        if new > PER_RUN:
+            break
+        if classify(clues := m.clues()) == "general":
+            asked[key] = clues
+    waiting = {
+        key: ref
+        for key, ref in found.known.items()
+        if ref.target_id and isinstance(ref.snapshot.get(SORT_LATER), dict)
+    }
+    rows = {
+        r.id: r for r in await files.find_items(ctx, [r.target_id or "" for r in waiting.values()])
+    }
+    for key, ref in waiting.items():
+        row = rows.get(ref.target_id or "")
+        later = ref.snapshot[SORT_LATER]
+        if row is not None and row.folder_id == later["folder"] and len(asked) < PER_RUN:
+            asked.setdefault(key, Clues(**later["clues"]))
+    keys = {f"{kind}:{external_id}": (kind, external_id) for kind, external_id in asked}
+    answers = await materials_ai.classify_leftovers(
+        ctx, {name: asked[key] for name, key in keys.items()}
+    )
+    return _Sorting(
+        asked,
+        None if answers is None else {keys[name]: kind for name, kind in answers.items()},
+    )
+
+
 # --- writing --------------------------------------------------------------------------------
 
 
@@ -491,6 +554,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
     _place(found)
+    sorting = await _sort(ctx, found)
 
     await hold(ctx, link)
     # Read again under the write lock: the user may have answered (deleted, moved) meanwhile.
@@ -543,7 +607,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         if len(added) >= PER_RUN:
             result.cap_reached = True
             continue
-        kind = m.kind_of()
+        kind = sorting.kind_of(key, m)
         row = await _create(ctx, link, m, await folders.of(kind, imported))
         added.append(row)
         if ref is None:
@@ -556,7 +620,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             )
             ctx.db.add(ref)
         ref.target_kind, ref.target_id, ref.imported_at = ITEM, row.id, ctx.now
-        ref.snapshot = _snapshot(m, kind, row)
+        ref.snapshot = {**_snapshot(m, kind, row), **sorting.note(key, row)}
         imported.append((kind, row))
 
     if found.complete:
@@ -569,8 +633,27 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             gone.append(row)
             ref.target_id, ref.snapshot = None, {}
     await files.purge_items(ctx, gone)
-
     left = {r.id for r in gone}
+
+    # Placed in "general" while no model could answer: moved now that one has, unless the user
+    # moved it meanwhile (then it is theirs and no longer waits).
+    for key, ref in known.items():
+        later = ref.snapshot.get(SORT_LATER)
+        if not isinstance(later, dict):
+            continue
+        row = rows.get(ref.target_id) if ref.target_id else None
+        moved = row is None or row.id in left or row.folder_id != later.get("folder")
+        if not moved and (sorting.answers is None or key not in sorting.answers):
+            continue
+        snap = {k: v for k, v in ref.snapshot.items() if k != SORT_LATER}
+        if row is not None and not moved and sorting.answers is not None:
+            kind = sorting.answers[key]
+            if kind != "general":
+                to = await folders.of(kind, imported)
+                await files.move_entries(ctx, link.course_id, [row.id], [], to)
+            snap |= {"type": kind, "by": "ai"}
+        ref.snapshot = snap
+
     remote = [r for r in (*rows.values(), *added) if r.id not in left and content.remote(r)]
     for row in remote:
         if _retry_due(row, ctx.now):
