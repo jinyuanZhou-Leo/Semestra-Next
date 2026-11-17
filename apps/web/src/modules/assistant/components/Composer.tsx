@@ -1,7 +1,7 @@
 import type { AgentScope, ContextUsage } from '@semestra/api-client'
 import type { JSONContent } from '@tiptap/core'
 import { ArrowUp, FileText, Plus, Square, X } from 'lucide-react'
-import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useDeferredValue, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import {
@@ -116,11 +116,6 @@ export function Composer({
   // with a stand-in of the same size, and the editor takes its place in the next render.
   const editorReady = useDeferredValue(true, false)
 
-  // Opening the assistant means typing.
-  useEffect(() => {
-    if (focusInput && editorReady) editor.current?.focus()
-  }, [focusInput, editorReady])
-
   const compacting = value.compact && Boolean(onCompact)
   const uploading = attachments.some((a) => a.id === null && a.error === null)
   const ready = attachments.filter((a) => a.id !== null)
@@ -190,6 +185,7 @@ export function Composer({
             slash
             canCompact={Boolean(onCompact) && canCompact}
             disabled={disabled}
+            focusOnMount={focusInput}
             initialContent={initialContent}
             className="w-full"
             onChange={(next, doc) => {

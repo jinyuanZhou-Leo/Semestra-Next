@@ -27,6 +27,7 @@ import { AssistantPage } from './components/AssistantPage'
 import { Conversation } from './components/Conversation'
 import manifest from './manifest'
 import { panel } from './store'
+import { preloadMarkdown } from './components/Markdown'
 import { Remembered } from './components/Remembered'
 import { groupSessions } from './components/SessionList'
 import { ApprovalsSection } from './settings/ApprovalsSection'
@@ -35,7 +36,12 @@ import { usePageScope } from './scope'
 import { type AgentEvent, type RememberedMemory, streamAgent } from './stream'
 import { applyEvent, buildItems, lastTypedUser, restartFrom, withEditedMessage } from './transcript'
 
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
+beforeAll(async () => {
+  server.listen({ onUnhandledFrame: 'error' })
+  // The answer renderer is a large lazy chunk: imported cold inside a test, it can outlast
+  // `findBy*`'s wait while the conversation still shows its loading state.
+  await preloadMarkdown()
+})
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
