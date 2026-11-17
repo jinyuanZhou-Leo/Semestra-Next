@@ -3184,6 +3184,12 @@ export type CourseLink = {
         [key: string]: string;
     };
     /**
+     * Features
+     *
+     * What its platform supports
+     */
+    features: Array<'courses' | 'navigation' | 'announcements' | 'assignments' | 'grades' | 'modules' | 'pages' | 'quizzes' | 'syllabus' | 'files' | 'calendar' | 'submissions' | 'folders' | 'discussions' | 'mark_read'>;
+    /**
      * Created At
      */
     created_at: string;
@@ -19848,7 +19854,14 @@ export type LmsCourseLinkListData = {
          */
         program_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only the courses of this term
+         */
+        term_id?: string | null;
+    };
     url: '/programs/{program_id}/lms-links';
 };
 

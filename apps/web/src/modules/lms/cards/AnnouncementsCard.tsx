@@ -6,6 +6,7 @@ import {
   lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { CircleAlert, Megaphone } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
@@ -15,6 +16,7 @@ import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
+import { announcementPath } from '../announcements'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
@@ -22,7 +24,7 @@ type Row = { item: Announcement; course: Course }
 
 /**
  * Latest announcements from the LMS (M09 §6): the course's own, or on a term every linked
- * course's together (one read for the term). Titles open the announcement on the platform.
+ * course's together (one read for the term). Titles open the announcement on the 公告 page.
  */
 export default function AnnouncementsCard({ scope, size }: CardProps) {
   const termId = scope.kind === 'term' ? scope.termId : undefined
@@ -59,10 +61,8 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
     <ul className="space-y-1.5 text-sm">
       {rows.map(({ item, course }) => (
         <li key={`${course.id}:${item.external_id}`}>
-          <a
-            href={item.web_url ?? undefined}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={announcementPath(scope, course.id, item.external_id)}
             className="flex items-center gap-2 rounded-lg hover:bg-muted/50"
           >
             {courseId ? null : (
@@ -83,7 +83,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
                 {formatDate(item.posted_at)}
               </span>
             ) : null}
-          </a>
+          </Link>
         </li>
       ))}
     </ul>

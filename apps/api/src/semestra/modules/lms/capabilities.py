@@ -56,6 +56,7 @@ from semestra.modules.lms.schemas.io import (
     FolderInput,
     GradeList,
     ImportStarted,
+    LinkListInput,
     LinkSetInput,
     LinkUpdateInput,
     ModuleItemList,
@@ -301,15 +302,16 @@ async def link_get(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
 @capability(
     name="lms.course.link.list",
     summary="Every LMS course link in a Program.",
-    description="""Which of the Program's courses are linked, and to which LMS course, in one call.
-For one course use lms.course.link.get, which also says which connection the Program uses.""",
+    description="""Which of the Program's courses are linked, and to which LMS course, in one call
+(with term_id, only that term's courses). For one course use lms.course.link.get, which also
+says which connection the Program uses.""",
     effect="read",
     http=Http("GET", "/programs/{program_id}/lms-links"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def link_list(ctx: Ctx, inp: ProgramRef) -> CourseLinkList:
-    return await service.link_list(ctx, inp.program_id)
+async def link_list(ctx: Ctx, inp: LinkListInput) -> CourseLinkList:
+    return await service.link_list(ctx, inp.program_id, inp.term_id)
 
 
 @capability(

@@ -65,6 +65,7 @@ function link(overrides: Partial<CourseLink> = {}): CourseLink {
     connection_id: 'k1',
     provider: 'canvas',
     external_course_id: '101',
+    features: ['announcements', 'assignments', 'mark_read'],
     external_code: 'APS105H1',
     external_name: 'Computer Fundamentals',
     external_term: '2026 Fall',

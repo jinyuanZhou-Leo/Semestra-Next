@@ -410,7 +410,12 @@ export type SearchResult = { id: string; title: string; subtitle?: string; to: s
 export type SearchProviderContribution = {
   id: string
   title: Message
-  search: (query: string, scope?: Scope) => Promise<SearchResult[]>
+  /** Read through `queryClient`, so data a page has loaded is searched without asking again. */
+  search: (
+    query: string,
+    scope: Scope | undefined,
+    queryClient: QueryClient,
+  ) => Promise<SearchResult[]>
 }
 
 /** One line of the sidebar status bar: something still in progress the user should see anywhere. */

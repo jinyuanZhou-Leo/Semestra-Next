@@ -890,6 +890,17 @@ def _default_key(c: AcademicsCourse) -> tuple[int, str, str, str]:
     return (c.sort_order, rules.normalize(c.code) or "~", rules.normalize(c.title), c.id)
 
 
+async def term_course_ids(ctx: Ctx, term_id: str) -> list[str]:
+    """Ids of the term's courses, in no particular order."""
+    return list(
+        await ctx.db.scalars(
+            select(AcademicsCourseTerm.course_id).where(
+                AcademicsCourseTerm.user_id == ctx.user_id, AcademicsCourseTerm.term_id == term_id
+            )
+        )
+    )
+
+
 async def _courses_in_term(ctx: Ctx, term_id: str) -> list[AcademicsCourse]:
     """The term's courses in the default order (the same everywhere they are listed)."""
     rows = (

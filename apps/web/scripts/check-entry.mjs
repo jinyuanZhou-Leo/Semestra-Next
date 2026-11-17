@@ -50,6 +50,9 @@ const ui = new Set([
   'label',
   'select',
   'separator',
+  // One icon: the pending state of buttons in cells other modules add to tables (the gradebook's
+  // feedback column), which manifests reference directly.
+  'spinner',
   'textarea',
   'toggle',
   'toggle-group',
