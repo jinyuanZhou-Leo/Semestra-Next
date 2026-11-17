@@ -1047,3 +1047,60 @@ async def test_reindex_starts_over_when_the_model_changes_midway(fx: Fx, fake_ai
         counts = [await store.count(db, s) for s in spaces]
     assert counts[0] > 0
     assert (await fx.search("midterm", mode="semantic"))["mode_used"] == "semantic"
+
+
+async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.MonkeyPatch):
+    import io
+    import zipfile
+
+    from semestra.core.errors import not_found
+    from semestra.modules.files import content
+
+    folder = await fx.call("POST", f"/courses/{fx.course_id}/folders", json={"name": "Labs"})
+    sub = await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/folders",
+        json={"name": "Lab 1", "parent_id": folder["id"]},
+    )
+    await fx.call(
+        "POST",
+        f"/courses/{fx.course_id}/folders",
+        json={"name": "Lab 2", "parent_id": folder["id"]},
+    )
+    a = await fx.upload("notes.txt", b"top")
+    await fx.upload("notes.txt", b"inside", folder_id=folder["id"])
+    await fx.upload("data.csv", b"1,2", folder_id=sub["id"])
+    gone = await fx.upload("gone.pdf", b"x", folder_id=sub["id"])
+    link = await fx.call(
+        "POST", f"/courses/{fx.course_id}/file-links", json={"url": "https://example.com"}
+    )
+    # A file that cannot be read when its turn comes (gone from its source) is left out.
+    opened = content.open_content
+
+    async def open_content(ctx: Any, row: Any, **kw: Any) -> Any:
+        if row.id == gone["id"]:
+            raise not_found()
+        return await opened(ctx, row, **kw)
+
+    monkeypatch.setattr(content, "open_content", open_content)
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download",
+        params={"item_ids": [a["id"], link["id"]], "folder_ids": [folder["id"]]},
+    )
+    assert r.status_code == 200, r.text
+    assert 'filename="APS105.zip"' in r.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        # Folders are kept, empty ones too.
+        assert {n: zf.read(n) for n in zf.namelist()} == {
+            "notes.txt": b"top",
+            "Labs/": b"",
+            "Labs/Lab 1/": b"",
+            "Labs/Lab 2/": b"",
+            "Labs/notes.txt": b"inside",
+            "Labs/Lab 1/data.csv": b"1,2",
+        }
+    # Only links: nothing to download.
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}
+    )
+    assert r.status_code == 404

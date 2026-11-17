@@ -13626,6 +13626,51 @@ export type FilesContentResponses = {
 
 export type FilesContentResponse = FilesContentResponses[keyof FilesContentResponses];
 
+export type FilesDownloadManyData = {
+    body?: never;
+    path: {
+        /**
+         * Course Id
+         *
+         * Course id
+         */
+        course_id: string;
+    };
+    query?: {
+        /**
+         * Item Ids
+         *
+         * Files to put in it
+         */
+        item_ids?: Array<string>;
+        /**
+         * Folder Ids
+         *
+         * Folders to put in it, whole
+         */
+        folder_ids?: Array<string>;
+    };
+    url: '/courses/{course_id}/files:download';
+};
+
+export type FilesDownloadManyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesDownloadManyError = FilesDownloadManyErrors[keyof FilesDownloadManyErrors];
+
+export type FilesDownloadManyResponses = {
+    /**
+     * Successful Response
+     */
+    200: Blob | File;
+};
+
+export type FilesDownloadManyResponse = FilesDownloadManyResponses[keyof FilesDownloadManyResponses];
+
 export type FilesPageImageData = {
     body?: never;
     path: {

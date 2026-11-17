@@ -1,5 +1,6 @@
+import { toast } from 'sonner'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
-import { FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
+import { Download, FolderOpen, FolderPlus, Link2, Plus, Search, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { useUiPref } from '@/app/ui-pref'
@@ -44,7 +45,7 @@ import { type Target, targetKey } from '../folders'
 import { searchTerms } from '../highlight'
 import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
-import { useCourseFiles } from '../queries'
+import { DOWNLOAD_MAX, downloadUrl, useCourseFiles } from '../queries'
 
 /** The `files` page of a course (M07 §6.1). */
 export default function CourseFilesPage({ scope }: PageProps) {
@@ -138,6 +139,8 @@ export function CourseFiles({
     active: selected.length > 0,
   }
   const selecting = selected.length > 0 && !searching
+  const download = downloadUrl(courseId, selected)
+  const tooMany = selected.length > DOWNLOAD_MAX
 
   const needle = search.trim().toLowerCase()
   const nameMatches = needle
@@ -167,6 +170,27 @@ export function CourseFiles({
             onClear={clearSelection}
             actions={
               <>
+                {download && tooMany ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toast.error(m.files_download_too_many({ max: DOWNLOAD_MAX }))}
+                  >
+                    <Download aria-hidden />
+                    {m.files_download()}
+                  </Button>
+                ) : download ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
+                    render={(props) => <a {...props} href={download} download />}
+                  >
+                    <Download aria-hidden />
+                    {m.files_download()}
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"

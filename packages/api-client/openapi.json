@@ -1004,6 +1004,87 @@
         }
       }
     },
+    "/courses/{course_id}/files:download": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Download several files and folders of a course as one zip archive.",
+        "description": "Links are left out. The archive is written while it is sent: each file is opened (read\nfrom its source, if it is kept there) when its turn comes, and one that cannot be read then\n(gone from its source, the source unreachable) is left out.",
+        "operationId": "filesDownloadMany",
+        "security": [
+          {
+            "sessionCookie": []
+          },
+          {
+            "accessToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Course id",
+              "title": "Course Id"
+            },
+            "description": "Course id"
+          },
+          {
+            "name": "item_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 300,
+              "description": "Files to put in it",
+              "default": [],
+              "title": "Item Ids"
+            },
+            "description": "Files to put in it"
+          },
+          {
+            "name": "folder_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 300,
+              "description": "Folders to put in it, whole",
+              "default": [],
+              "title": "Folder Ids"
+            },
+            "description": "Folders to put in it, whole"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/files/{item_id}/pages/{page}.png": {
       "get": {
         "tags": [

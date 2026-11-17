@@ -10,6 +10,7 @@ A source registers once per `source_ref` prefix (`register_content_source("lms:"
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 
+from sqlalchemy import select
 from starlette.datastructures import State
 
 from semestra.core.context import Ctx, run_as_system
@@ -82,11 +83,23 @@ async def read_all(state: State, user_id: str, row: FilesItem, limit: int) -> by
         await read(state.storage.open(row.storage_key))
         return bytes(data)
 
+    await read(await open_detached(state, user_id, row.id))
+    return bytes(data)
+
+
+async def open_detached(state: State, user_id: str, item_id: str) -> AsyncIterator[bytes]:
+    """A file's bytes outside a request's transaction (a stream that outlives it): the file is
+    opened in a transaction of its own, which commits (what its source wrote on the way) before
+    the bytes are read."""
     opened: list[AsyncIterator[bytes]] = []
 
-    async def remote_open(ctx: Ctx) -> None:
+    async def open_(ctx: Ctx) -> None:
+        row = await ctx.db.scalar(
+            select(FilesItem).where(FilesItem.id == item_id, FilesItem.user_id == user_id)
+        )
+        if row is None:
+            raise not_found()
         opened.append(await open_content(ctx, row))
 
-    await run_as_system(state, user_id, remote_open)
-    await read(opened[0])
-    return bytes(data)
+    await run_as_system(state, user_id, open_)
+    return opened[0]

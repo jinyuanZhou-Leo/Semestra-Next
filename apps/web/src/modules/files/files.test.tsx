@@ -519,3 +519,28 @@ test('selected files move together to a folder picked in the tree', async () => 
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
 })
+
+test('chosen files and folders download together as one archive, links left out', async () => {
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({ folders: [makeFolder('f1', 'Labs')], items, next_cursor: null }),
+    ),
+  )
+  const user = userEvent.setup()
+  mount()
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Piazza' }))
+  // Only a link: nothing to download.
+  expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('checkbox', { name: 'Select syllabus.pdf' }))
+  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
+    'href',
+    `${API}/files/i1/content?disposition=attachment`,
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
+  )
+  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
+    'href',
+    `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
+  )
+})

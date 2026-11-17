@@ -1,18 +1,22 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
-import mimetypes
 import re
-from collections.abc import AsyncIterator
+import stat
+import zlib
+from collections.abc import AsyncIterable, AsyncIterator
+from datetime import datetime
 from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Path, Query, Request, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
+from stream_zip import ZIP_64, Method, async_stream_zip
 
 from semestra.core.context import Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
+from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesDocumentPage
@@ -71,14 +75,6 @@ async def upload(
     return result
 
 
-def _download_name(name: str, mime: str) -> str:
-    """The shown name, with the extension of its type when it has none (an LMS page is named by
-    its title), so the downloaded file opens."""
-    if "." in name or mime == "application/octet-stream":
-        return name
-    return name + (mimetypes.guess_extension(mime) or "")
-
-
 def _content_disposition(disposition: str, name: str) -> str:
     ascii_name = re.sub(r'[^\x20-\x7e]|["\\]', "_", name) or "file"
     return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
@@ -127,7 +123,9 @@ async def content(
     shown = "inline" if disposition == "inline" and mime in INLINE_SAFE else "attachment"
     span = _byte_range(request.headers.get("range"), item.size_bytes)
     headers = {
-        "Content-Disposition": _content_disposition(shown, _download_name(item.display_name, mime)),
+        "Content-Disposition": _content_disposition(
+            shown, service.download_name(item.display_name, mime)
+        ),
         "Accept-Ranges": "bytes",
         "ETag": f'"{item.sha256}"',
         "Cache-Control": "private, no-cache",
@@ -160,6 +158,71 @@ async def content(
     stream = get_storage(ctx).open(item.storage_key, start=start, length=length)
     return StreamingResponse(
         stream, status_code=206 if span else 200, media_type=mime, headers=headers
+    )
+
+
+# What fits in an address (a Cloudflare tunnel takes up to 16 KB): files and folders by id.
+MAX_DOWNLOAD_ENTRIES = 300
+_DEFLATE_FAST = lambda: zlib.compressobj(level=1, wbits=-zlib.MAX_WBITS)  # noqa: E731
+
+
+async def _nothing() -> AsyncIterator[bytes]:
+    return
+    yield
+
+
+@router.get(
+    "/courses/{course_id}/files:download",
+    operation_id="filesDownloadMany",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"application/zip": {}}}, "default": {"model": ErrorResponse}},
+    summary="Download several files and folders of a course as one zip archive.",
+)
+async def download_many(
+    course_id: Annotated[str, Path(description="Course id")],
+    ctx: CurrentCtx,
+    item_ids: Annotated[
+        list[str], Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Files to put in it")
+    ] = [],  # noqa: B006 (FastAPI copies query defaults)
+    folder_ids: Annotated[
+        list[str],
+        Query(max_length=MAX_DOWNLOAD_ENTRIES, description="Folders to put in it, whole"),
+    ] = [],  # noqa: B006
+) -> Response:
+    """Links are left out. The archive is written while it is sent: each file is opened (read
+    from its source, if it is kept there) when its turn comes, and one that cannot be read then
+    (gone from its source, the source unreachable) is left out."""
+    course = await academics.get_course_row(ctx, course_id)
+    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
+    if not entries:
+        raise not_found()
+    state, user_id, now = ctx.state, ctx.user_id, ctx.now.replace(tzinfo=None)
+    members = [
+        (path, row.id, row.updated_at.replace(tzinfo=None)) if row else (path, None, now)
+        for path, row in entries
+    ]
+
+    async def files() -> AsyncIterator[tuple[str, datetime, int, Method, AsyncIterable[bytes]]]:
+        for path, item_id, modified in members:
+            if item_id is None:
+                yield path, modified, stat.S_IFDIR | 0o755, ZIP_64, _nothing()
+                continue
+            try:
+                stream = await files_content.open_detached(state, user_id, item_id)
+            except AppError:
+                continue
+            yield path, modified, 0o644, ZIP_64, stream
+
+    name = f"{course.code or course.title}.zip"
+    headers = {
+        "Content-Disposition": _content_disposition("attachment", name),
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+    }
+    return StreamingResponse(
+        async_stream_zip(files(), get_compressobj=_DEFLATE_FAST),
+        media_type="application/zip",
+        headers=headers,
     )
 
 

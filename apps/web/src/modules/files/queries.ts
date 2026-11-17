@@ -8,6 +8,7 @@ import {
 import { type QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
 import { courseListOptions, coursesOfTerm } from '@/modules/academics/queries'
+import type { Target } from './folders'
 
 const PAGE_SIZE = 500
 
@@ -111,6 +112,28 @@ export function contentUrl(itemId: string, disposition: 'inline' | 'attachment' 
     url: '/files/{item_id}/content',
     path: { item_id: itemId },
     query: { disposition },
+  })
+}
+
+/** Files and folders one zip is asked for at most (their ids go in its address). */
+export const DOWNLOAD_MAX = 300
+
+/**
+ * Where to download the chosen files and folders: one file as it is, anything more as a zip.
+ * Null when there is nothing to download (only links).
+ */
+export function downloadUrl(courseId: string, targets: readonly Target[]): string | null {
+  const items = targets.flatMap((t) =>
+    t.type === 'item' && t.item.kind === 'file' ? [t.item] : [],
+  )
+  const folders = targets.flatMap((t) => (t.type === 'folder' ? [t.folder.id] : []))
+  const [only] = items
+  if (only && items.length === 1 && folders.length === 0) return contentUrl(only.id, 'attachment')
+  if (items.length === 0 && folders.length === 0) return null
+  return client.buildUrl({
+    url: '/courses/{course_id}/files:download',
+    path: { course_id: courseId },
+    query: { item_ids: items.map((i) => i.id), folder_ids: folders },
   })
 }
 
