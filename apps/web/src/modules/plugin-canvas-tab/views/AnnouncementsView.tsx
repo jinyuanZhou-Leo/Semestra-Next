@@ -1,65 +1,16 @@
-import { type AnnouncementList, lmsAnnouncementMarkRead } from '@semestra/api-client'
-import {
-  lmsAnnouncementListOptions,
-  lmsAnnouncementListQueryKey,
-  settingsValueGetOptions,
-} from '@semestra/api-client/react-query'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { lmsAnnouncementListOptions } from '@semestra/api-client/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Megaphone } from 'lucide-react'
-import { useEffect } from 'react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { plainText } from '@/modules/lms/announcements'
+import { useMarkRead, useWritesAllowed } from '@/modules/lms/read-state'
 import { m } from '@/paraglide/messages'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { CanvasHtml, DetailHeader, ViewHeader } from './common'
-
-/** The first words of an announcement, as plain text, for its row in the list. */
-function excerpt(html: string): string {
-  // Blocks and line breaks end with a space, or their words run together.
-  const spaced = html.replace(/<(br|\/p|\/div|\/li|\/h\d)\b[^>]*>/gi, '$& ')
-  const text = new DOMParser().parseFromString(spaced, 'text/html').body.textContent ?? ''
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-/** The account setting `lms.allow_writes`: may Semestra change things on the platform (M09). */
-function useWritesAllowed(): boolean {
-  const values = useQuery({
-    ...settingsValueGetOptions({ path: { namespace: 'lms' } }),
-    staleTime: 60_000,
-  }).data?.values as { allow_writes?: boolean } | undefined
-  return values?.allow_writes ?? false
-}
-
-/**
- * Opening an unread announcement marks it read on Canvas too, when the user allowed writes; the
- * lists here and on the course board drop the dot without refetching.
- */
-function useMarkRead(courseId: string, id: string | undefined, unread: boolean) {
-  const queryClient = useQueryClient()
-  const allowed = useWritesAllowed()
-  useEffect(() => {
-    if (!id || !unread || !allowed) return
-    lmsAnnouncementMarkRead({
-      path: { course_id: courseId, announcement_id: id },
-      throwOnError: true,
-    }).then(
-      () =>
-        queryClient.setQueriesData<AnnouncementList>(
-          { queryKey: lmsAnnouncementListQueryKey({ path: { course_id: courseId } }) },
-          (list) =>
-            list && {
-              ...list,
-              items: list.items.map((a) => (a.external_id === id ? { ...a, unread: false } : a)),
-            },
-        ),
-      // Best effort: the announcement is open either way, and stays unread on Canvas.
-      () => {},
-    )
-  }, [courseId, id, unread, allowed, queryClient])
-}
 
 /** Announcements, newest first; one opens in place with its cleaned HTML (M16 §4). */
 export function AnnouncementsView({ selected }: { selected?: string }) {
@@ -70,6 +21,7 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
   })
   const opened = selected ? list.data?.items.find((a) => a.external_id === selected) : undefined
   useMarkRead(courseId, opened?.external_id, opened?.unread ?? false)
+  const unreadShown = useWritesAllowed()
   return (
     <div className="flex flex-1 flex-col gap-4">
       {selected ? null : <ViewHeader title={title} />}
@@ -122,19 +74,21 @@ export function AnnouncementsView({ selected }: { selected?: string }) {
                   }
                 >
                   <span className="flex h-5 w-2 shrink-0 items-center self-start">
-                    {a.unread ? (
+                    {unreadShown && a.unread ? (
                       <span className="size-2 rounded-full bg-primary">
-                        <span className="sr-only">{m.canvas_tab_unread()}</span>
+                        <span className="sr-only">{m.lms_announcements_unread()}</span>
                       </span>
                     ) : null}
                   </span>
                   <ItemContent className="min-w-0">
-                    <ItemTitle className={cn('line-clamp-1', a.unread && 'font-semibold')}>
+                    <ItemTitle
+                      className={cn('line-clamp-1', unreadShown && a.unread && 'font-semibold')}
+                    >
                       {a.title}
                     </ItemTitle>
                     {a.html ? (
                       <p className="line-clamp-1 text-sm text-muted-foreground">
-                        {excerpt(a.html)}
+                        {plainText(a.html)}
                       </p>
                     ) : null}
                     <ItemDescription className="text-xs">

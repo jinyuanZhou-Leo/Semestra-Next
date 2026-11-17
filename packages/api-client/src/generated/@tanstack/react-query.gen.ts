@@ -4536,8 +4536,9 @@ export const lmsCourseLinkListQueryKey = (options: Options<LmsCourseLinkListData
 /**
  * Every LMS course link in a Program.
  *
- * Which of the Program's courses are linked, and to which LMS course, in one call.
- * For one course use lms.course.link.get, which also says which connection the Program uses.
+ * Which of the Program's courses are linked, and to which LMS course, in one call
+ * (with term_id, only that term's courses). For one course use lms.course.link.get, which also
+ * says which connection the Program uses.
  */
 export const lmsCourseLinkListOptions = (options: Options<LmsCourseLinkListData>) => queryOptions<LmsCourseLinkListResponse, LmsCourseLinkListError, LmsCourseLinkListResponse, ReturnType<typeof lmsCourseLinkListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
