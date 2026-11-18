@@ -14,11 +14,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
 from semestra.core.capability import Http, capability
-from semestra.core.context import Ctx
+from semestra.core.context import Ctx, run_as_system
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue, job_handler
 from semestra.modules.academics import service as academics
-from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files import service, sorting
 from semestra.modules.files.models import (
     FilesDocumentPage,
@@ -136,14 +135,14 @@ async def _updated(
 
 async def _failed(ctx: Ctx, payload: OrganizeInput, job: CoreJob) -> None:
     """A failed reading shows on the organizing's status line until the user has seen it."""
-    # Its own read: the handler's objects went with its rolled-back transaction.
-    program_id = await ctx.db.scalar(
-        select(AcademicsCourse.program_id).where(
-            AcademicsCourse.id == payload.course_id, AcademicsCourse.user_id == job.user_id
-        )
-    )
-    if program_id is not None:
-        await _updated(ctx, payload.course_id, program_id, user_id=job.user_id)
+    # In a ctx of its own: the handler's objects (its user too) went with its rolled-back
+    # transaction.
+
+    async def tell(own: Ctx) -> None:
+        for course in await academics.courses_by_id(own, [payload.course_id]):
+            await _updated(own, payload.course_id, course.program_id, user_id=job.user_id)
+
+    await run_as_system(ctx.state, job.user_id, tell)
 
 
 # Not in the status bar's job list: the organizing has a line of its own (reading, then waiting

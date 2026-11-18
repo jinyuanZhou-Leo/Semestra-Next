@@ -5,7 +5,6 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.events import Event, events
 from semestra.core.jobs import enqueue
-from semestra.modules.academics.models import AcademicsCourse
 from semestra.modules.files import content, service
 from semestra.modules.files.jobs import ReindexPayload
 from semestra.modules.files.models import FilesDocument, FilesItem
@@ -44,13 +43,7 @@ async def on_synced_scans_changed(ctx: Ctx, event: Event) -> None:
     courses = (
         [scope_id]
         if scope.get("type") == "course"
-        else list(
-            await ctx.db.scalars(
-                select(AcademicsCourse.id).where(
-                    AcademicsCourse.user_id == ctx.user_id, AcademicsCourse.program_id == scope_id
-                )
-            )
-        )
+        else await service.program_course_ids(ctx, scope_id)
     )
     rows = await ctx.db.scalars(
         select(FilesItem)
