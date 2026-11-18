@@ -1,7 +1,7 @@
-"""Organizing a course's files into type folders when the user asks (M07 §8): the rules where
-they tell, the model (which also reads the start of the text) for the rest; nothing moves until
-the user applies the plan, a file the user moved meanwhile stays, and the type folders the user
-renamed are kept."""
+"""Organizing a course's files when the user asks (M07 §8): the user's own files at the top level
+go into the course's folder that fits them, or a new folder for a group of them (the model reads
+the start of their text); nothing moves until the user applies the plan, and a file the user
+moved meanwhile stays. Moving LMS materials back to their place is in M09's tests."""
 
 import json
 from typing import Any
@@ -28,16 +28,23 @@ async def _where(fx: Fx) -> dict[str, str | None]:
     return {i["display_name"]: names.get(i["folder_id"]) for i in got["items"]}
 
 
-async def test_organizing_the_unsorted_files(fx: Fx, monkeypatch: pytest.MonkeyPatch):
-    await fx.upload_ready("Lecture 3.txt", b"Pointers and arrays.")
-    scan = await fx.upload_ready("scan_0031.txt", b"Final examination, December 2024. Answer all.")
-    await fx.upload_ready("IMG_2207.txt", b"A photo of the whiteboard.")
-    await fx.upload_ready("Syllabus.txt", b"Grading: labs 20%.")
-    mine = await fx.call("POST", f"/courses/{fx.course_id}/folders", json={"name": "Mine"})
-    await fx.upload_ready("Lecture 9.txt", b"Already sorted.", folder_id=mine["id"])
+async def _folder(fx: Fx, name: str, parent: str | None = None) -> dict[str, Any]:
+    return await fx.call(
+        "POST", f"/courses/{fx.course_id}/folders", json={"name": name, "parent_id": parent}
+    )
 
-    notes = await fx.upload_ready("misc.txt", b"Some jottings.")
-    monkeypatch.setattr(sorting, "BATCH", 2)
+
+async def test_organizing_the_loose_files(fx: Fx, monkeypatch: pytest.MonkeyPatch):
+    lectures = await _folder(fx, "Lectures")
+    labs = await _folder(fx, "Labs")
+    lab3 = await _folder(fx, "Lab 3", labs["id"])
+    await fx.upload_ready("Lecture 3 notes.txt", b"Pointers and arrays.")
+    scan = await fx.upload_ready("scan_0031.txt", b"Lab 3 debugging log: the resistor network.")
+    await fx.upload_ready("Piazza digest 1.txt", b"Answers from the forum.")
+    await fx.upload_ready("Piazza digest 2.txt", b"More answers from the forum.")
+    await fx.upload_ready("todo.txt", b"Buy groceries.")
+    await fx.upload_ready("Lecture 9.txt", b"Already filed.", folder_id=lectures["id"])
+    monkeypatch.setattr(sorting, "BATCH", 3)
 
     with respx.mock(assert_all_called=False) as mock:
         route = await sorting_model(fx.client, mock, monkeypatch)
@@ -48,69 +55,81 @@ async def test_organizing_the_unsorted_files(fx: Fx, monkeypatch: pytest.MonkeyP
         assert state["job"]["error_code"].startswith("ai.")
 
         model_sorts(
-            route, {"scan_0031.txt": "exams", "IMG_2207.txt": "general", "misc.txt": "lectures"}
+            route,
+            {
+                "Lecture 3 notes.txt": "Lectures",
+                "scan_0031.txt": "Labs / Lab 3",
+                "Piazza digest 1.txt": "new:Piazza",
+                "Piazza digest 2.txt": "new:Piazza",
+                # A new folder for one file is not proposed.
+                "todo.txt": "new:Errands",
+            },
         )
         state = await _organize(fx)
-        # Only what the rules can't tell goes to the model, with the start of its text, in
-        # batches.
+        # Only the loose files go to the model, with the start of their text and the course's
+        # folders, in batches.
         assert route.call_count == 2
         shown = "".join(
             json.loads(c.request.content)["messages"][0]["content"][0]["text"] for c in route.calls
         )
-        assert "Final examination, December 2024" in shown
-        assert "Lecture 3.txt" not in shown
+        assert "the resistor network" in shown
+        assert "Labs / Lab 3" in shown
+        assert "Lecture 9.txt" not in shown
         pending = await fx.call("GET", f"/programs/{fx.program_id}/file-organizations")
-        assert pending == {"items": [{"course_id": fx.course_id, "job": None, "count": 3}]}
+        assert pending == {"items": [{"course_id": fx.course_id, "job": None, "count": 4}]}
 
         # The user files the notes themselves before reviewing: they are no longer in the plan.
-        await fx.call("PATCH", f"/files/{notes['id']}", json={"folder_id": mine["id"]})
+        notes = next(m for m in state["plan"]["moves"] if m["name"] == "Lecture 3 notes.txt")
+        await fx.call("PATCH", f"/files/{notes['item_id']}", json={"folder_id": lab3["id"]})
         plan = (await fx.call("GET", f"/courses/{fx.course_id}/files:organize"))["plan"]
-        moves = {m["item_id"]: m for m in plan["moves"]}
-        assert sorted((m["type"], m["folder_id"], m["folder_name"]) for m in moves.values()) == [
-            ("exams", None, "Past exams"),
-            ("lectures", None, "Lectures"),
+        assert sorted(
+            (m["name"], m["folder_id"], m["folder_name"], m["new_folder"]) for m in plan["moves"]
+        ) == [
+            ("Piazza digest 1.txt", None, "Piazza", True),
+            ("Piazza digest 2.txt", None, "Piazza", True),
+            ("scan_0031.txt", lab3["id"], "Labs / Lab 3", False),
         ]
-        assert plan["left"] == 2  # the photo, the syllabus
-        assert notes["id"] not in moves
-        assert (await _where(fx))["Lecture 3.txt"] is None  # nothing moved yet
+        assert plan["left"] == 1  # the to-do list
+        assert (await _where(fx))["scan_0031.txt"] is None  # nothing moved yet
 
-        # The user keeps only the scan.
+        piazza = [m["item_id"] for m in plan["moves"] if m["new_folder"]]
         applied = await fx.call(
             "POST",
             f"/courses/{fx.course_id}/files:organize-apply",
-            json={"item_ids": [scan["id"], notes["id"]]},
+            json={"item_ids": [scan["id"], notes["item_id"], *piazza]},
         )
-        assert applied == {"moved": 1}
+        assert applied == {"moved": 3}
         # Done with: nothing waits any more.
         assert await fx.call("GET", f"/courses/{fx.course_id}/files:organize") == {
             "job": None,
             "plan": None,
         }
         where = await _where(fx)
-        assert (where["scan_0031.txt"], where["Lecture 3.txt"], where["misc.txt"]) == (
-            "Past exams",
-            None,
-            "Mine",
-        )
-
-        # A type folder the user renames stays that type's: the next plan uses it.
-        folders = await fx.call("GET", f"/courses/{fx.course_id}/files", params={"recursive": True})
-        exams = next(f for f in folders["folders"] if f["name"] == "Past exams")
-        await fx.call("PATCH", f"/folders/{exams['id']}", json={"name": "Old tests"})
-        await fx.upload_ready("Midterm 2023.txt", b"Midterm.")
-        plan = (await _organize(fx))["plan"]
-        assert [(m["type"], m["folder_id"], m["folder_name"]) for m in plan["moves"]] == [
-            ("lectures", None, "Lectures"),
-            ("exams", exams["id"], "Old tests"),
-        ]
+        assert where["scan_0031.txt"] == "Lab 3"
+        assert where["Lecture 3 notes.txt"] == "Lab 3"  # where the user put it
+        assert (where["Piazza digest 1.txt"], where["Piazza digest 2.txt"]) == ("Piazza", "Piazza")
+        assert where["todo.txt"] is None
 
 
-async def test_sem_shows_where_each_file_goes_before_moving_it(fx: Fx):
+async def test_sem_shows_where_each_file_goes_before_moving_it(
+    fx: Fx, monkeypatch: pytest.MonkeyPatch
+):
     """Sem applies a plan through a confirmation card that names each file's folder."""
+    await _folder(fx, "Lectures")
     await fx.upload_ready("Lecture 3.txt", b"Pointers and arrays.")
     await fx.upload_ready("Lecture 4.txt", b"Structs.")
     await fx.upload_ready("Midterm 2023.txt", b"Midterm.")
-    plan = (await _organize(fx))["plan"]
+    with respx.mock(assert_all_called=False) as mock:
+        route = await sorting_model(fx.client, mock, monkeypatch)
+        model_sorts(
+            route,
+            {
+                "Lecture 3.txt": "Lectures",
+                "Lecture 4.txt": "Lectures",
+                "Midterm 2023.txt": "new:Exams",
+            },
+        )
+        plan = (await _organize(fx))["plan"]
     args = {"course_id": fx.course_id, "item_ids": [m["item_id"] for m in plan["moves"]]}
     card: dict[str, Any] = {}
 
@@ -119,10 +138,7 @@ async def test_sem_shows_where_each_file_goes_before_moving_it(fx: Fx):
 
     await run_as_system(fx.app.state, fx.user.id, preview)
     shown = {c["label"]: (sorted(c["after"]), c["count"]) for c in card["changes"]}
-    assert shown == {
-        "Lectures": (["Lecture 3.txt", "Lecture 4.txt"], 2),
-        "Past exams": (["Midterm 2023.txt"], 1),
-    }
+    assert shown == {"Lectures": (["Lecture 3.txt", "Lecture 4.txt"], 2)}
     assert card["link"]["to"].endswith(f"/c/{fx.course_id}/files")
     assert (await _where(fx))["Lecture 3.txt"] is None  # the card moved nothing
 
@@ -135,5 +151,11 @@ async def test_sem_shows_where_each_file_goes_before_moving_it(fx: Fx):
 
     await run_as_system(fx.app.state, fx.user.id, restart)
     [pending] = card["changes"]
-    assert (pending["field"], pending["after"], pending["count"]) == ("pending_plan", None, 3)
-    assert sorted(pending["before"]) == ["Lecture 3.txt", "Lecture 4.txt", "Midterm 2023.txt"]
+    assert (pending["field"], pending["after"], pending["count"]) == ("pending_plan", None, 2)
+    assert sorted(pending["before"]) == ["Lecture 3.txt", "Lecture 4.txt"]
+
+
+async def test_without_a_model_loose_files_stay(fx: Fx):
+    await fx.upload_ready("Lecture 3.txt", b"Pointers and arrays.")
+    plan = (await _organize(fx))["plan"]
+    assert plan == {"moves": [], "left": 1}

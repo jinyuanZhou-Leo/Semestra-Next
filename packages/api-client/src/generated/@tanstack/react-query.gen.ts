@@ -2963,10 +2963,10 @@ export const filesLinkCreateMutation = (options?: Partial<Options<FilesLinkCreat
 };
 
 /**
- * Move a course's files into their type folders, as its plan says.
+ * Move a course's files into their folders, as its plan says.
  *
  * Applies the course's plan to the files the user kept (`item_ids`, from
- * files.organization.get): each goes in its type's folder, made when the course has none. Files
+ * files.organization.get): each goes in its folder, made when the course has none. Files
  * moved or deleted since the plan stay as they are. The plan is done with afterwards.
  */
 export const filesOrganizationApplyMutation = (options?: Partial<Options<FilesOrganizationApplyData>>): UseMutationOptions<FilesOrganizationApplyResponse, FilesOrganizationApplyError, Options<FilesOrganizationApplyData>> => {
@@ -3026,11 +3026,13 @@ export const filesOrganizationGetOptions = (options: Options<FilesOrganizationGe
 });
 
 /**
- * Work out how to sort a course's unsorted files into type folders.
+ * Work out where a course's loose files belong.
  *
- * Starts a job that gives each file at the top level or in "Course materials" a
- * type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
- * (replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the
+ * Starts a job that finds where files would go and keeps that as the course's
+ * plan (replacing one not yet applied): the user's own files at the top level go into the course's
+ * folder that fits them (or a new folder for a group of them), and LMS materials the user has not
+ * moved go back to their folder on the LMS when they were filed elsewhere before. Nothing is
+ * moved: the plan waits for the user's review, in the
  * course's files or with you (`files.organization.get`, then `files.organization.apply`). Call
  * files.organization.get first: when a plan already waits for review, go through that one instead
  * of starting again, unless the user asks to.

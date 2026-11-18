@@ -26,6 +26,11 @@ class FolderOut(BaseModel):
     parent_id: str | None
     name: str
     item_count: int = Field(description="Files and links directly inside the folder")
+    source_name: str | None = Field(
+        default=None,
+        description="The source whose folder it stands for (e.g. Canvas): new items of that "
+        "place keep coming in here",
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -403,12 +408,6 @@ class FilesUsageBreakdown(BaseModel):
 
 # --- organizing (`organize.py`) ----------------------------------------------------------
 
-# The type folders (`sorting.FOLDER_TYPES`).
-TypeName = Literal[
-    "lectures", "tutorials", "problems", "exams", "recordings", "readings", "general"
-]  # fmt: skip
-
-
 MAX_ORGANIZE_WAIT_SECONDS = 25
 
 
@@ -434,12 +433,16 @@ class OrganizeDone(BaseModel):
 class PlannedMove(BaseModel):
     item_id: str
     name: str
-    type: TypeName
-    # The folder it goes in; None: made when the move is applied.
+    # The folder it goes in (None: the top level, or one still to make).
     folder_id: str | None
+    # Its path, folder names joined by " / " (empty: the top level).
     folder_name: str
+    # The folder is made when the move is applied.
+    new_folder: bool = False
     # Where it is now (None: the top level).
     from_folder_id: str | None
+    # Back to its place on this source (e.g. Canvas), where it was put elsewhere before.
+    back: str | None = None
 
 
 class OrganizePlan(BaseModel):

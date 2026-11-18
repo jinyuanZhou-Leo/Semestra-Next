@@ -41,7 +41,6 @@ from semestra.modules.files.parse.isolated import (
 )
 from semestra.modules.files.parse.readers import MAX_PAGES, PARSER_VERSION, guess_language
 from semestra.modules.files.parse.render import PageImage
-from semestra.modules.files.settings import synced_scans
 from semestra.modules.files.vectors import VectorRow, VectorStore, fingerprint, get_vector_store
 
 log = structlog.get_logger()
@@ -81,8 +80,6 @@ class _Work:
     storage_key: str | None
     source_ref: str | None
     original_name: str | None
-    # Queued by the sync of its source, not by the user.
-    synced: bool = False
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
     document_written: bool = False
@@ -93,7 +90,7 @@ async def _announce(ctx: Ctx, *kinds: tuple[str, dict[str, object]]) -> None:
         await events.dispatch(ctx.state, Event(kind, data, ctx.user_id))
 
 
-async def _begin(ctx: JobCtx, item_id: str, synced: bool) -> _Work | None:
+async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
     """Marks the item as processing and clears leftovers of an interrupted earlier run."""
     store = get_vector_store()
     async with ctx.state.session_factory() as db:
@@ -120,7 +117,6 @@ async def _begin(ctx: JobCtx, item_id: str, synced: bool) -> _Work | None:
             item.storage_key,
             item.source_ref,
             item.original_name,
-            synced,
         )
         await db.commit()
     await _remove_objects(ctx.state.storage, keys)
@@ -180,11 +176,10 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     )
 
 
-async def run(ctx: JobCtx, item_id: str, *, synced: bool = False) -> int:
+async def run(ctx: JobCtx, item_id: str) -> int:
     """Processes one item; returns its page count. A failure ends the job with the reason as its
-    error code, which `mark_failed` records on the item. `synced`: queued by the sync of the
-    item's source, not by the user (see `_ocr`)."""
-    work = await _begin(ctx, item_id, synced)
+    error code, which `mark_failed` records on the item."""
+    work = await _begin(ctx, item_id)
     if work is None:
         return 0
     try:
@@ -350,21 +345,14 @@ async def _ocr(
     (no OCR engine or model, or it failed on that page: the rest of the file is still read).
     A self-hosted install with local OCR reads them on this machine; otherwise the user's model
     for the `ocr` purpose does (also when the local model it would use on Auto fails to
-    download). A file its source's sync queued is read by that model only when the course's
-    `files.synced_scans` setting says so: hundreds of them come at once, and nobody asked; the
-    user processing it again reads them."""
+    download)."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
     if not needed or kind not in ("pdf", "image"):
         await _skip_ocr(ctx)
         return None, 0
     local = await ai.local_ocr.choice(ctx)
 
-    async def provider_reads() -> bool:
-        if work.synced and not await synced_scans(ctx, work.course_id):
-            return False
-        return await ai.available(ctx, "ocr")
-
-    if local is None and not await provider_reads():
+    if local is None and not await ai.available(ctx, "ocr"):
         await _skip_ocr(ctx)
         return None, len(needed)
     if local is not None and not ai.local_ocr.downloaded(local):
@@ -374,7 +362,7 @@ async def _ocr(
         except AppError as exc:
             log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
             # On Auto, the user's AI model reads the pages instead; a model they picked does not.
-            if await ai.local_ocr.picked(ctx) or not await provider_reads():
+            if await ai.local_ocr.picked(ctx) or not await ai.available(ctx, "ocr"):
                 await _skip_ocr(ctx)
                 return None, len(needed)
             local = None

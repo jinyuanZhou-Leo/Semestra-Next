@@ -22,6 +22,7 @@ import {
   ArrowDown,
   ArrowUp,
   Cloud,
+  FolderSync,
   Download,
   FileOutput,
   FileSearch,
@@ -167,6 +168,24 @@ function SizeCell({ row }: CellProps) {
 
 function UpdatedCell({ row }: CellProps) {
   return formatDateTime(row.original.modified_at)
+}
+
+/** A folder made for its place on a source (an LMS's folder or module), named after it. */
+function FolderOrigin({ folder }: { folder: FolderOut }) {
+  if (!folder.source_name) return null
+  const label = m.files_origin_folder({ provider: folder.source_name })
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
+          <FolderSync aria-hidden className="size-3.5" />
+          <span className="sr-only">{label}</span>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+      <span className="truncate">{folder.source_name}</span>
+    </span>
+  )
 }
 
 /**
@@ -796,7 +815,7 @@ const FolderRow = memo(function FolderRow({
       <TableCell className={cn('py-2', SELECT_COLUMN)}>
         <SelectBox target={target} />
       </TableCell>
-      <TableCell className="py-2" colSpan={columnCount - 2}>
+      <TableCell className="py-2" colSpan={columnCount - 4}>
         <button
           type="button"
           onClick={() => openFolder(folder.id)}
@@ -807,6 +826,10 @@ const FolderRow = memo(function FolderRow({
           {fresh ? <NewDot /> : null}
         </button>
       </TableCell>
+      <TableCell className="py-2">
+        <FolderOrigin folder={folder} />
+      </TableCell>
+      <TableCell className={cn('py-2', ICON_COLUMN)} />
       <TableCell className={cn('py-2', ICON_COLUMN)}>
         <FolderMenu folder={folder} />
       </TableCell>

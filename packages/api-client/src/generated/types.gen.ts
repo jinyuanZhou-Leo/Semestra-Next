@@ -4797,6 +4797,12 @@ export type FileMeta = {
      * Its folder below the course's root folder (course_files)
      */
     folder_path?: string | null;
+    /**
+     * Folder Ids
+     *
+     * The ids of the folders of `folder_path`, from the top (course_files)
+     */
+    folder_ids?: Array<string>;
 };
 
 /**
@@ -5030,6 +5036,12 @@ export type FolderOut = {
      * Files and links directly inside the folder
      */
     item_count: number;
+    /**
+     * Source Name
+     *
+     * The source whose folder it stands for (e.g. Canvas): new items of that place keep coming in here
+     */
+    source_name?: string | null;
     /**
      * Created At
      */
@@ -8422,10 +8434,6 @@ export type PlannedMove = {
      */
     name: string;
     /**
-     * Type
-     */
-    type: 'lectures' | 'tutorials' | 'problems' | 'exams' | 'recordings' | 'readings' | 'general';
-    /**
      * Folder Id
      */
     folder_id: string | null;
@@ -8434,9 +8442,17 @@ export type PlannedMove = {
      */
     folder_name: string;
     /**
+     * New Folder
+     */
+    new_folder?: boolean;
+    /**
      * From Folder Id
      */
     from_folder_id: string | null;
+    /**
+     * Back
+     */
+    back?: string | null;
 };
 
 /**
@@ -11355,6 +11371,26 @@ export type SyncResolveInputBody = {
 };
 
 /**
+ * SyncRound
+ *
+ * The courses of a sync the user asked for ("Sync now"), while it runs.
+ */
+export type SyncRound = {
+    /**
+     * Done
+     *
+     * Courses synced so far
+     */
+    done: number;
+    /**
+     * Total
+     *
+     * Courses in this sync
+     */
+    total: number;
+};
+
+/**
  * SyncStatus
  */
 export type SyncStatus = {
@@ -11400,6 +11436,10 @@ export type SyncStatus = {
      * Syncing
      */
     syncing: boolean;
+    /**
+     * Progress of a sync the user asked for, while it runs
+     */
+    round?: SyncRound | null;
     /**
      * Pending
      *

@@ -529,6 +529,7 @@ async def run_import(ctx: JobCtx, archive_id: str, options: ImportOptions) -> No
                 ctx, reader, await _import_room(ctx, replacing=options.mode == "replace")
             )
             options.files = staged
+            options.archive = payloads
             id_map = IdMap()
             await ctx.db.commit()  # nothing of this job's own reads stays open while copying
             await ctx.stage("copying")

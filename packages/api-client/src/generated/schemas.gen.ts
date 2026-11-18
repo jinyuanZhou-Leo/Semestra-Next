@@ -8426,6 +8426,14 @@ export const FileMetaSchema = {
             ],
             title: 'Folder Path',
             description: 'Its folder below the course\'s root folder (course_files)'
+        },
+        folder_ids: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Folder Ids',
+            description: 'The ids of the folders of `folder_path`, from the top (course_files)'
         }
     },
     type: 'object',
@@ -8777,6 +8785,18 @@ export const FolderOutSchema = {
             type: 'integer',
             title: 'Item Count',
             description: 'Files and links directly inside the folder'
+        },
+        source_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Name',
+            description: 'The source whose folder it stands for (e.g. Canvas): new items of that place keep coming in here'
         },
         created_at: {
             type: 'string',
@@ -14807,19 +14827,6 @@ export const PlannedMoveSchema = {
             type: 'string',
             title: 'Name'
         },
-        type: {
-            type: 'string',
-            enum: [
-                'lectures',
-                'tutorials',
-                'problems',
-                'exams',
-                'recordings',
-                'readings',
-                'general'
-            ],
-            title: 'Type'
-        },
         folder_id: {
             anyOf: [
                 {
@@ -14835,6 +14842,11 @@ export const PlannedMoveSchema = {
             type: 'string',
             title: 'Folder Name'
         },
+        new_folder: {
+            type: 'boolean',
+            title: 'New Folder',
+            default: false
+        },
         from_folder_id: {
             anyOf: [
                 {
@@ -14845,13 +14857,23 @@ export const PlannedMoveSchema = {
                 }
             ],
             title: 'From Folder Id'
+        },
+        back: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Back'
         }
     },
     type: 'object',
     required: [
         'item_id',
         'name',
-        'type',
         'folder_id',
         'folder_name',
         'from_folder_id'
@@ -19929,6 +19951,28 @@ export const SyncResolveInputBodySchema = {
     title: 'SyncResolveInputBody'
 } as const;
 
+export const SyncRoundSchema = {
+    properties: {
+        done: {
+            type: 'integer',
+            title: 'Done',
+            description: 'Courses synced so far'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total',
+            description: 'Courses in this sync'
+        }
+    },
+    type: 'object',
+    required: [
+        'done',
+        'total'
+    ],
+    title: 'SyncRound',
+    description: 'The courses of a sync the user asked for ("Sync now"), while it runs.'
+} as const;
+
 export const SyncStatusSchema = {
     properties: {
         program_id: {
@@ -20003,6 +20047,17 @@ export const SyncStatusSchema = {
         syncing: {
             type: 'boolean',
             title: 'Syncing'
+        },
+        round: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/SyncRound'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Progress of a sync the user asked for, while it runs'
         },
         pending: {
             items: {

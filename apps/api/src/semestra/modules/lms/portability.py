@@ -17,7 +17,9 @@ migration 0035 did. Later changes kept version 2 (owner 2026-11-18) and are read
 file, page or link), moved into `materials` as migration 0056 did; materials without a `state`
 (before migration 0057) take it from `deleted_at`, and pages that only list others are left
 out. The course's materials settings left the link for M11 (`lms.materials`), which the
-settings' own backup carries.
+settings' own backup carries. Materials of backups made before their places were kept (`path`,
+`placed_folder_id`) get their place from the next sync; those the sync had filed by type were
+put in their course's type folder (the files backup's `type_folders`), as migration 0060 reads.
 """
 
 from collections.abc import Mapping
@@ -42,8 +44,10 @@ from semestra.modules.lms.models import (
     LmsSyncChange,
 )
 from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, SubmissionComment
+from semestra.modules.lms.settings import materials_from_programs
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
+from semestra.modules.settings.portability import register_levels_moved
 
 SCHEMA_VERSION = 2
 
@@ -73,8 +77,6 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
         "title": snap.get("title"),
         "version": snap.get("version"),
         "name": snap.get("name"),
-        "type": snap.get("type"),
-        "sorted_by_model": snap.get("by") == "ai",
         "is_list": bool(snap.get("list")),
         "links": snap.get("links") or [],
         "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
@@ -83,8 +85,9 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _current(data: dict[str, Any]) -> dict[str, Any]:
-    """An older shape of version 2 as it is now (see the module docstring)."""
+def _current(data: dict[str, Any], files: dict[str, Any] | None = None) -> dict[str, Any]:
+    """An older shape of version 2 as it is now (see the module docstring); `files`: the files
+    payload of the same backup."""
     refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
     moved = [_material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")]
     kept = [
@@ -103,7 +106,30 @@ def _current(data: dict[str, Any]) -> dict[str, Any]:
         for r in [*(data.get("materials") or []), *moved]
         if isinstance(r, dict) and not r.get("is_list")
     ]
-    return {**data, "refs": kept, "materials": materials}
+    return {**data, "refs": kept, "materials": _placed_by_type(data, materials, files)}
+
+
+def _placed_by_type(
+    data: dict[str, Any], materials: list[dict[str, Any]], files: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    """Materials of a backup made while the sync filed them by type: the type folder of their
+    course is where the sync put them (`placed_folder_id`), as migration 0060 reads it."""
+    folders = {
+        (f.get("course_id"), f.get("type")): f.get("folder_id")
+        for f in (files or {}).get("type_folders") or []
+        if isinstance(f, dict)
+    }
+    courses = {
+        k.get("id"): k.get("course_id") for k in data.get("links") or [] if isinstance(k, dict)
+    }
+    out: list[dict[str, Any]] = []
+    for r in materials:
+        kind = r.get("type")
+        r = {k: v for k, v in r.items() if k != "type"}
+        if r.get("placed_folder_id") is None and kind is not None:
+            r["placed_folder_id"] = folders.get((courses.get(r.get("link_id")), kind))
+        out.append(r)
+    return out
 
 
 class Writer(Protocol):
@@ -182,8 +208,9 @@ class MaterialRow(BaseModel):
     title: str | None = None
     version: str | None = None
     name: str | None = None
-    type: str | None = None
-    sorted_by_model: bool = False
+    path: list[list[str]] | None = None
+    # The folder the sync put its item in (M07's folder id).
+    placed_folder_id: str | None = None
     links: list[list[str]] = []
     checked_at: datetime | None = None
     imported_at: datetime | None = None
@@ -301,8 +328,9 @@ async def import_(
 ) -> ImportReport:
     """Adds the archive's connections (without credentials) and, where their Programs, courses
     and targets came along (`id_map`), the bindings, links and imported refs."""
-    del options
-    data = LmsPayload.model_validate(_current(payload))
+    archive = getattr(options, "archive", None)
+    files = archive.payload("files") if archive is not None else None
+    data = LmsPayload.model_validate(_current(payload, files))
     report = ImportReport(
         {
             "connections": 0,
@@ -434,10 +462,11 @@ async def import_(
         link_id, item_id = got
         ctx.db.add(
             LmsMaterial(
-                **r.model_dump(exclude={"link_id", "item_id"}),
+                **r.model_dump(exclude={"link_id", "item_id", "placed_folder_id"}),
                 user_id=ctx.user_id,
                 link_id=link_id,
                 item_id=item_id,
+                placed_folder_id=id_map.get(r.placed_folder_id) if r.placed_folder_id else None,
             )
         )
         report.imported["materials"] += 1
@@ -504,3 +533,63 @@ register_portability(
         LmsCache.__tablename__,
     ),
 )
+
+
+def _materials_levels(
+    rows: list[dict[str, Any]], archive: OlderArchive, account: bool
+) -> list[dict[str, Any]]:
+    """The materials settings of a backup made while they were set per Program, as they are
+    now (`materials_from_programs`, as migration 0060 moves them): what every Program had alike
+    as the account's (its courses' when the account's are not imported), the rest on courses."""
+    programs_rows = [r for r in rows if r.get("scope_type") == "program"]
+    if not programs_rows:
+        return rows
+    academics = archive.payload("academics") or {}
+    set_ = {str(r.get("scope_id")): dict(r.get("data") or {}) for r in programs_rows}
+    programs = {
+        str(p.get("id")): set_.get(str(p.get("id")), {})
+        for p in academics.get("programs") or []
+        if isinstance(p, dict)
+    }
+    courses: dict[str, list[str]] = {}
+    for c in academics.get("courses") or []:
+        if isinstance(c, dict):
+            courses.setdefault(str(c.get("program_id")), []).append(str(c.get("id")))
+    kept = [r for r in rows if r.get("scope_type") != "program"]
+    own = {
+        str(r.get("scope_id")): dict(r.get("data") or {})
+        for r in kept
+        if r.get("scope_type") == "course"
+    }
+    found, per_course = materials_from_programs(programs, courses, own)
+    if found and not account:
+        for program_courses in courses.values():
+            for course_id in program_courses:
+                missing = {k: v for k, v in found.items() if k not in own.get(course_id, {})}
+                if missing:
+                    per_course[course_id] = {**missing, **per_course.get(course_id, {})}
+        found = {}
+    template = programs_rows[0]
+    out = [
+        {**r, "data": {**per_course.pop(str(r.get("scope_id")), {}), **(r.get("data") or {})}}
+        if r.get("scope_type") == "course"
+        else r
+        for r in kept
+    ]
+    made = [("course", course_id, values) for course_id, values in per_course.items()]
+    if found:
+        made.append(("account", "", found))
+    for scope_type, scope_id, values in made:
+        out.append(
+            {
+                **{k: v for k, v in template.items() if k != "id"},
+                "id": f"{template.get('id')}:{scope_type}:{scope_id}",
+                "scope_type": scope_type,
+                "scope_id": scope_id,
+                "data": values,
+            }
+        )
+    return out
+
+
+register_levels_moved("lms.materials", _materials_levels)

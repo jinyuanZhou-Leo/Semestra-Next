@@ -7801,8 +7801,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Move a course's files into their type folders, as its plan says.",
-        "description": "Applies the course's plan to the files the user kept (`item_ids`, from\nfiles.organization.get): each goes in its type's folder, made when the course has none. Files\nmoved or deleted since the plan stay as they are. The plan is done with afterwards.",
+        "summary": "Move a course's files into their folders, as its plan says.",
+        "description": "Applies the course's plan to the files the user kept (`item_ids`, from\nfiles.organization.get): each goes in its folder, made when the course has none. Files\nmoved or deleted since the plan stay as they are. The plan is done with afterwards.",
         "operationId": "filesOrganizationApply",
         "security": [
           {
@@ -7984,8 +7984,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Work out how to sort a course's unsorted files into type folders.",
-        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the\ncourse's files or with you (`files.organization.get`, then `files.organization.apply`). Call\nfiles.organization.get first: when a plan already waits for review, go through that one instead\nof starting again, unless the user asks to.",
+        "summary": "Work out where a course's loose files belong.",
+        "description": "Starts a job that finds where files would go and keeps that as the course's\nplan (replacing one not yet applied): the user's own files at the top level go into the course's\nfolder that fits them (or a new folder for a group of them), and LMS materials the user has not\nmoved go back to their folder on the LMS when they were filed elsewhere before. Nothing is\nmoved: the plan waits for the user's review, in the\ncourse's files or with you (`files.organization.get`, then `files.organization.apply`). Call\nfiles.organization.get first: when a plan already waits for review, go through that one instead\nof starting again, unless the user asks to.",
         "operationId": "filesOrganizationStart",
         "security": [
           {
@@ -27857,6 +27857,14 @@
             ],
             "title": "Folder Path",
             "description": "Its folder below the course's root folder (course_files)"
+          },
+          "folder_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Folder Ids",
+            "description": "The ids of the folders of `folder_path`, from the top (course_files)"
           }
         },
         "type": "object",
@@ -28199,6 +28207,18 @@
             "type": "integer",
             "title": "Item Count",
             "description": "Files and links directly inside the folder"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name",
+            "description": "The source whose folder it stands for (e.g. Canvas): new items of that place keep coming in here"
           },
           "created_at": {
             "type": "string",
@@ -34114,19 +34134,6 @@
             "type": "string",
             "title": "Name"
           },
-          "type": {
-            "type": "string",
-            "enum": [
-              "lectures",
-              "tutorials",
-              "problems",
-              "exams",
-              "recordings",
-              "readings",
-              "general"
-            ],
-            "title": "Type"
-          },
           "folder_id": {
             "anyOf": [
               {
@@ -34142,6 +34149,11 @@
             "type": "string",
             "title": "Folder Name"
           },
+          "new_folder": {
+            "type": "boolean",
+            "title": "New Folder",
+            "default": false
+          },
           "from_folder_id": {
             "anyOf": [
               {
@@ -34152,13 +34164,23 @@
               }
             ],
             "title": "From Folder Id"
+          },
+          "back": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back"
           }
         },
         "type": "object",
         "required": [
           "item_id",
           "name",
-          "type",
           "folder_id",
           "folder_name",
           "from_folder_id"
@@ -39150,6 +39172,27 @@
         ],
         "title": "SyncResolveInputBody"
       },
+      "SyncRound": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "description": "Courses synced so far"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Courses in this sync"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "SyncRound",
+        "description": "The courses of a sync the user asked for (\"Sync now\"), while it runs."
+      },
       "SyncStatus": {
         "properties": {
           "program_id": {
@@ -39224,6 +39267,17 @@
           "syncing": {
             "type": "boolean",
             "title": "Syncing"
+          },
+          "round": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncRound"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress of a sync the user asked for, while it runs"
           },
           "pending": {
             "items": {

@@ -29,6 +29,7 @@ import { useSmoothedProgress } from '@/hooks/use-smoothed-progress'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Badge } from '@/ui/badge'
 import { Button } from '@/ui/button'
 import {
   Item,
@@ -179,7 +180,7 @@ type Bar = { lines: Lines; shown: readonly string[] }
 const BarContext = createContext<Bar | null>(null)
 
 /** The icon and text of a line; the text is clipped (never wrapped) while the rail narrows. */
-function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
+function LineFace({ icon: Icon, label, tone, spin, meta, badge }: StatusItem) {
   const enter =
     'animate-in duration-200 fade-in-0 slide-in-from-bottom-1 motion-reduce:animate-none'
   const iconClass = cn(
@@ -202,14 +203,32 @@ function LineFace({ icon: Icon, label, tone, spin }: StatusItem) {
       ) : (
         <Icon aria-hidden="true" className={iconClass} />
       )}
-      <span className={enter}>{label}</span>
+      <span className={cn(enter, 'truncate')}>{label}</span>
+      <span
+        // A new kind of end (a badge, a state, nothing) fades in; new text in the same kind does not.
+        key={`end:${badge ? 'badge' : meta ? 'meta' : ''}`}
+        className={cn(
+          enter,
+          'ml-auto shrink-0 text-xs tabular-nums group-data-[collapsible=icon]:hidden',
+          tone === 'error' ? 'text-destructive' : 'text-muted-foreground',
+        )}
+      >
+        {badge ? (
+          <Badge className="h-4 min-w-4 px-1 text-[0.625rem] tabular-nums">{badge}</Badge>
+        ) : (
+          meta
+        )}
+      </span>
     </Fragment>
   )
 }
 
-/** The thin progress bar under a line; hidden on the icon rail. */
+/**
+ * The thin progress bar along the bottom of a line, inside its hover area: the line grows from
+ * 32 to 40 px while it shows, so the bar keeps the same inset as the text. Hidden on the icon rail.
+ */
 function LineProgress({ label, tone, progress, waiting }: StatusItem & { waiting?: boolean }) {
-  // Kept at its last value while it closes, so the bar's height eases instead of jumping.
+  // Kept at its last value while it fades, so it does not empty before it goes.
   const [last, setLast] = useState(progress)
   if (progress != null && progress !== last) setLast(progress)
   const value = progress ?? last
@@ -218,28 +237,38 @@ function LineProgress({ label, tone, progress, waiting }: StatusItem & { waiting
     <div
       aria-hidden={progress == null}
       className={cn(
-        'grid transition-[grid-template-rows,opacity] duration-200 ease-out group-data-[collapsible=icon]:hidden motion-reduce:transition-none',
-        progress == null ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
+        'absolute inset-x-3 bottom-2 transition-opacity duration-200 ease-out group-data-[collapsible=icon]:hidden motion-reduce:transition-none',
+        progress == null ? 'opacity-0' : 'opacity-100',
       )}
     >
-      <div className="min-h-0 overflow-hidden px-3 pb-1">
-        <Progress
-          value={value}
-          aria-label={label}
-          className={cn(
-            '[&_[data-slot=progress-track]]:h-0.5',
-            waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
-            tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
-            tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
-          )}
-        />
-      </div>
+      <Progress
+        value={value}
+        aria-label={label}
+        className={cn(
+          '[&_[data-slot=progress-track]]:h-0.5',
+          waiting && '[&_[data-slot=progress-indicator]]:bg-muted-foreground/40',
+          tone === 'error' && '[&_[data-slot=progress-indicator]]:bg-destructive',
+          tone === 'success' && '[&_[data-slot=progress-indicator]]:bg-success',
+        )}
+      />
     </div>
   )
 }
 
 const signatureOf = (item: StatusItem | null) =>
-  item ? [item.label, item.tone, item.rank, item.progress, item.to, item.spin].join('\u0000') : ''
+  item
+    ? [
+        item.label,
+        item.tone,
+        item.rank,
+        item.progress,
+        item.to,
+        item.spin,
+        item.meta,
+        item.badge,
+        item.hint,
+      ].join('\u0000')
+    : ''
 
 /**
  * One place in the bar. It tells the bar what it shows (`report`), opens and closes with a 200 ms
@@ -309,17 +338,30 @@ function Slot({
   const place = report ? (bar?.shown.indexOf(id) ?? -1) : item ? MAX_LINES - 1 : -1
   const shown = place >= 0 && content !== null
 
+  const face = content ? (
+    <>
+      <LineFace {...content} />
+      <LineProgress {...content} waiting={waiting} />
+    </>
+  ) : null
+  // Taller while a bar shows; the text stays in the top 32 px (`pb-4`), centred as before.
+  const grow = cn(
+    'relative',
+    content?.progress != null && 'h-10 pb-4 group-data-[collapsible=icon]:pb-2!',
+  )
+  // A line that says more than its name (an error's reason) says it on hover, also when open.
+  const tooltip = content?.hint ? { children: content.hint, hidden: false } : content?.label
   let button: ReactNode = null
   if (content && panel) {
     button = (
       <Popover open={open} onOpenChange={onOpenChange}>
-        <PopoverTrigger render={<SidebarMenuButton tooltip={content.label} size="sm" />}>
-          <LineFace {...content} />
+        <PopoverTrigger render={<SidebarMenuButton tooltip={tooltip} size="sm" className={grow} />}>
+          {face}
         </PopoverTrigger>
         <PopoverContent
           side={state === 'collapsed' ? 'right' : 'top'}
           align="start"
-          className="w-96"
+          className="w-[26rem]"
         >
           <Suspense fallback={<Spinner className="mx-auto" />}>{panel}</Suspense>
         </PopoverContent>
@@ -327,25 +369,30 @@ function Slot({
     )
   } else if (content?.onSelect) {
     button = (
-      <SidebarMenuButton tooltip={content.label} size="sm" onClick={content.onSelect}>
-        <LineFace {...content} />
+      <SidebarMenuButton tooltip={tooltip} size="sm" className={grow} onClick={content.onSelect}>
+        {face}
       </SidebarMenuButton>
     )
   } else if (content?.to) {
     button = (
-      <SidebarMenuButton tooltip={content.label} size="sm" render={<Link to={content.to} />}>
-        <LineFace {...content} />
+      <SidebarMenuButton
+        tooltip={tooltip}
+        size="sm"
+        className={grow}
+        render={<Link to={content.to} />}
+      >
+        {face}
       </SidebarMenuButton>
     )
   } else if (content) {
     button = (
       <SidebarMenuButton
-        tooltip={content.label}
+        tooltip={tooltip}
         size="sm"
-        className="cursor-default"
+        className={cn(grow, 'cursor-default')}
         render={<div />}
       >
-        <LineFace {...content} />
+        {face}
       </SidebarMenuButton>
     )
   }
@@ -362,10 +409,7 @@ function Slot({
       )}
     >
       <div className="min-h-0 overflow-hidden">
-        <div className="pb-0.5">
-          {button}
-          {content ? <LineProgress {...content} waiting={waiting} /> : null}
-        </div>
+        <div className="pb-0.5">{button}</div>
       </div>
     </SidebarMenuItem>
   )

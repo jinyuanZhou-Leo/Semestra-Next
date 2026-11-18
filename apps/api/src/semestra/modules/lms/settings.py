@@ -1,5 +1,7 @@
 """Account settings of the module (M11 namespace `lms`)."""
 
+import json
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from typing import Any, Literal, get_args
 
@@ -88,8 +90,8 @@ MaterialStore = Literal["online", "local"]
 
 
 class MaterialSettings(BaseModel):
-    """How a course's materials come in (M11 namespace `lms.materials`, Program and course):
-    the Program's choice holds for its courses unless a course sets its own."""
+    """How a course's materials come in (M11 namespace `lms.materials`, account and course):
+    the account's choice holds for every course unless a course sets its own."""
 
     sync: bool = Field(
         default=True,
@@ -106,3 +108,34 @@ class MaterialSettings(BaseModel):
 async def materials(ctx: Ctx, course_id: str) -> MaterialSettings:
     resolved = await settings_service.get_values(ctx, "lms.materials", "course", course_id)
     return MaterialSettings.model_validate(resolved.values)
+
+
+def materials_from_programs(
+    programs: Mapping[str, Mapping[str, Any]],
+    courses: Mapping[str, Sequence[str]],
+    own: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """The materials settings that were set per Program (up to 2.0, `programs`: each of the
+    user's Programs → its values, `{}` when it set none), as account and course values: what
+    every Program had alike goes to the account; what they had apart goes to their courses
+    (`courses`: Program → its courses) that do not set it themselves (`own`). Returns the
+    account's values and each course's values to add. Migration 0060 and the reading of older
+    backups both use it."""
+    defaults = MaterialSettings().model_dump(mode="json")
+    keys = {k for values in programs.values() for k in values if k in defaults}
+    account: dict[str, Any] = {}
+    per_course: dict[str, dict[str, Any]] = {}
+    for key in sorted(keys):
+        seen = {p: values.get(key, defaults[key]) for p, values in programs.items()}
+        if len({json.dumps(v) for v in seen.values()}) == 1:
+            value = next(iter(seen.values()))
+            if value != defaults[key]:
+                account[key] = value
+            continue
+        for program_id, value in seen.items():
+            if value == defaults[key]:
+                continue
+            for course_id in courses.get(program_id, ()):
+                if key not in own.get(course_id, {}):
+                    per_course.setdefault(course_id, {})[key] = value
+    return account, per_course

@@ -1,5 +1,5 @@
 import type { SyncItem, SyncMaterialChange, SyncStatus } from '@semestra/api-client'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
@@ -111,12 +111,11 @@ test('opening a Program syncs it; new assignments wait in the panel and can be i
     undefined,
     IN_PROGRAM,
   )
-  expect(await screen.findByText('A3, Lab 9')).toBeInTheDocument()
+  expect(await screen.findByText('A3')).toBeInTheDocument()
+  expect(screen.getByText('Lab 9')).toBeInTheDocument()
   await waitFor(() => expect(requested).toHaveBeenCalledWith({}))
-  await userEvent.click(screen.getByRole('button', { name: 'Ignore' }))
-  await waitFor(() =>
-    expect(dismissed).toHaveBeenCalledWith({ item_ids: ['r1', 'r2'], dismissed: true }),
-  )
+  await userEvent.click(screen.getAllByRole('button', { name: 'Ignore' })[0]!)
+  await waitFor(() => expect(dismissed).toHaveBeenCalledWith({ item_ids: ['r1'], dismissed: true }))
 })
 
 test('a value changed on both sides is settled from the panel', async () => {
@@ -138,7 +137,7 @@ test('a value changed on both sides is settled from the panel', async () => {
     }),
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
-  expect(await screen.findByText('You changed this')).toBeInTheDocument()
+  expect(await screen.findByText(/You changed this/)).toBeInTheDocument()
   // One row, and one answer counted, per field.
   expect(screen.getByRole('heading', { name: /^To review\s*2$/ })).toBeInTheDocument()
   await userEvent.click(screen.getAllByRole('button', { name: 'Keep' })[1]!)
@@ -218,16 +217,16 @@ test('materials the platform changed open from the panel; ones the user removed 
   )
   renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   // A material still in the course's files opens there, in its folder.
-  const added = await screen.findByRole('link', { name: 'Week 3.pdf' })
+  const added = await screen.findByRole('link', { name: /^Week 3\.pdf/ })
   expect(added).toHaveAttribute('href', '/p/p1/c/c1/files?folder=f1&file=item-m1')
-  expect(screen.getByText('New material')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Rubric.pdf' })).toBeInTheDocument()
+  expect(within(added).getByText('Lecture slides')).toBeInTheDocument() // where it is now
+  expect(screen.getByRole('link', { name: /^Rubric\.pdf/ })).toBeInTheDocument()
   expect(screen.getByText('Deleted on Canvas; saved as your own file')).toBeInTheDocument()
   // One gone with the platform has nothing to open.
-  expect(screen.queryByRole('link', { name: 'Midterm.pdf' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /^Midterm\.pdf/ })).not.toBeInTheDocument()
   expect(screen.getByText('Deleted on Canvas')).toBeInTheDocument()
 
-  await userEvent.click(screen.getByRole('button', { name: 'Removed materials (1)' }))
+  await userEvent.click(screen.getByRole('button', { name: /^Removed materials\s*1$/ }))
   expect(await screen.findByText('Old notes.pdf')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Restore' }))
   await waitFor(() => expect(restored).toHaveBeenCalled())
@@ -330,9 +329,16 @@ test('new feedback opens the assessment in the gradebook', async () => {
   server.use(...handlers(status({ recent: [change] })))
   const { router } = renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
   // Nothing to put back: the row opens the feedback.
-  const row = await screen.findByRole('button', { name: /A3 feedback\s*New comments/ })
+  const row = await screen.findByRole('button', { name: /^A3 feedback.*New comments/ })
   expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   await userEvent.click(row)
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
   expect(router.state.location.search).toEqual({ feedback: 'as1' })
+})
+
+test('a sync the user asked for shows how many courses are done', async () => {
+  server.use(...handlers(status({ syncing: true, round: { done: 1, total: 3 } })))
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  expect(await screen.findByText('Syncing · 1 of 3 courses')).toBeInTheDocument()
+  expect(screen.getByRole('progressbar', { name: 'Syncing · 1 of 3 courses' })).toBeInTheDocument()
 })

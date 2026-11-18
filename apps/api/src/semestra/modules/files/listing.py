@@ -49,8 +49,9 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     rows = list((await ctx.db.scalars(stmt.offset(offset).limit(inp.limit + 1))).all())
     more = len(rows) > inp.limit
     counts = await folders.folder_counts(ctx, inp.course_id)
+    sources = await folders.source_names(ctx, inp.course_id)
     return FilesItemList(
-        folders=[folders.folder_out(f, counts) for f in all_folders],
+        folders=[folders.folder_out(f, counts, sources) for f in all_folders],
         items=await service.item_outs(ctx, rows[: inp.limit]),
         next_cursor=str(offset + inp.limit) if more else None,
     )

@@ -777,6 +777,12 @@ def provider_features(kind: str) -> list[LmsFeature]:
         return []
 
 
+async def user_links(ctx: Ctx) -> list[LmsCourseLink]:
+    return list(
+        await ctx.db.scalars(select(LmsCourseLink).where(LmsCourseLink.user_id == ctx.user_id))
+    )
+
+
 async def program_links(ctx: Ctx, program_id: str) -> list[LmsCourseLink]:
     return list(
         await ctx.db.scalars(

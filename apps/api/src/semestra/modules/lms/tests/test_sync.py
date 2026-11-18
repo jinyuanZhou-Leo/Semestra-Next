@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from sqlalchemy import func, select
 
 from semestra.core.context import system_ctx
+from semestra.core.jobs import BACKGROUND
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCache
@@ -372,6 +373,7 @@ async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Cl
             await ctx.db.commit()
         status = await api.call("GET", f"/programs/{program_id}/lms/sync")
         await api.run_jobs()
+        assert status["round"] is None  # the background's own: no progress shown
         return int(status["syncing"])
 
     assert await due() == 1  # never synced
@@ -407,6 +409,25 @@ async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Cl
         notifications, "users_with_devices", AsyncMock(side_effect=lambda _c, u: set(u))
     ):
         assert await queued_while_away()
+
+
+async def test_a_sync_the_user_asks_for_counts_its_courses(
+    api: Api, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+):
+    program_id, term_id, _ = await setup_program(api)
+    for external_id in ("101", "102"):
+        await api.link(await api.course(program_id, term_id), external_id)
+    path = f"/programs/{program_id}/lms/sync"
+    await api.call("POST", path, json={"force": True})
+    assert (await api.call("GET", path))["round"] == {"done": 0, "total": 2}
+    assert await app.state.jobs.run_one(BACKGROUND) is True
+    assert (await api.call("GET", path))["round"] == {"done": 1, "total": 2}
+    # Asked again meanwhile: the course synced again is still one of the two.
+    monkeypatch.setattr(sync, "COOLDOWN", timedelta(0))
+    await api.call("POST", path, json={"force": True})
+    assert (await api.call("GET", path))["round"]["total"] == 2
+    await api.run_jobs()
+    assert (await api.call("GET", path))["round"] is None
 
 
 async def test_the_server_sets_the_shortest_interval(api: Api, app: FastAPI, clock: Clock):

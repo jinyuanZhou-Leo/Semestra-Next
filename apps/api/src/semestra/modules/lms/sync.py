@@ -333,6 +333,42 @@ async def syncing_courses(ctx: Ctx, course_ids: Sequence[str]) -> set[str]:
     return {keys[k] for k in rows if k in keys}
 
 
+async def sync_round(ctx: Ctx, course_ids: Sequence[str]) -> tuple[int, int] | None:
+    """(done, total) courses of the sync running now when the user asked for it; None when
+    none runs or it is the background's own. The round is every course sync queued since the
+    oldest one still to finish, counted by course: one the user asked for while another round
+    ran joins it."""
+    keys = [_dedupe(c) for c in course_ids]
+    if not keys:
+        return None
+    active = list(
+        await ctx.db.execute(
+            select(CoreJob.created_at, CoreJob.payload).where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.kind == JOB,
+                CoreJob.status.in_(("pending", "running")),
+                CoreJob.dedupe_key.in_(keys),  # a finished job's key is cleared
+            )
+        )
+    )
+    if not any((r.payload or {}).get("manual") for r in active):
+        return None
+    wanted = set(course_ids)
+    since = list(
+        await ctx.db.scalars(
+            select(CoreJob.payload).where(
+                CoreJob.user_id == ctx.user_id,
+                CoreJob.kind == JOB,
+                CoreJob.created_at >= min(r.created_at for r in active),
+            )
+        )
+    )
+    # By course: one asked for again while the round runs counts once.
+    courses = {c for p in since if (c := (p or {}).get("course_id")) in wanted}
+    running = {(r.payload or {}).get("course_id") for r in active}
+    return len(courses - running), len(courses)
+
+
 @periodic("lms.sync_due", every=TICK, first_after=timedelta(minutes=1))
 async def sync_due(ctx: Ctx) -> None:
     """Queues the courses whose last sync is older than their account's interval, oldest first,

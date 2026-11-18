@@ -440,6 +440,12 @@ export type StatusItem = {
   tone?: 'default' | 'success' | 'error' | 'accent'
   /** A spinner instead of the icon. */
   spin?: boolean
+  /** Short state at the line's end ("3 hours ago", "3/6"), muted. */
+  meta?: string
+  /** A count at the line's end, in the accent color (what waits for the user). */
+  badge?: number
+  /** The tooltip, when the line says more than its label (an error's reason). */
+  hint?: string
   /**
    * Where the line ranks when more want to show than fit (M10 §5.6): errors, then what waits
    * for the user, running work, timers and resting states. By default `error` for an error

@@ -1,21 +1,30 @@
 """The `files` stage of the course sync (M09 §4.2): the course's files, pages and links on the
-platform become items of the course's files (M07), in type folders (`files.sorting`).
+platform become items of the course's files (M07), in the folders they are in on the platform.
+
+Where an item goes (`_place`): a module's items in a folder named after the module; a file of
+the files area in its folder there; what only a page links to (courses that hide their files
+area link their files from pages) in a folder named after that page, inside the folder of the
+page itself, and the page with it. The course's front page does not count: it links to
+everything. At most three levels (M07's deepest), the folders made on first need and remembered
+by their place (`files.source_folders`), so the user may rename or move them.
 
 Every item keeps following the platform: a changed file is read again, a renamed one renamed.
 By default nothing is copied: an item names its platform file or page (`source_ref`) and M07
 reads the bytes from the platform when they are needed (`open_source`, registered as its content
 source), so the materials take none of the user's storage. With the course's `store` setting at
-`local` (M11 namespace `lms.materials`, Program and course) a local copy is kept too, so they open
-after the platform course closes (`sources.apply_copies`; the user may choose otherwise for one
-file). Their text is read and indexed like any file's (M07's `auto_index`), for search and Sem.
+`local` (M11 namespace `lms.materials`, account and course) a local copy is kept too, so they
+open after the platform course closes (`sources.apply_copies`; the user may choose otherwise for
+one file). Their text is read and indexed like any file's (M07's `auto_index`), for search and
+Sem.
 
 Each platform item has a row in `lms_materials` (`LmsMaterial`, whose states are explained
-there) with its item and what was last applied (platform title, content version, name, type).
-The user's changes always win: a moved item stays where they put it, a renamed one keeps their
-name, a deleted one is not brought back until they restore it (`dismissed`), one they made their
-own is not followed (`handed_over`). Type folders are made on first need and remembered (M07's
-`files_type_folders`, `sorting.folder_for`); once the user deleted one, the type's new items go
-to the top level.
+there) with its item and what was last applied (platform title, content version, name, place).
+The user's changes always win: a moved item stays where they put it (an item is placed once,
+when it comes in; one the sync put somewhere else than its place now is offered to move back by
+the course's "Organize", `homes`), a renamed one keeps their name, a deleted one is not brought
+back until they restore it (`dismissed`), one they made their own is not followed
+(`handed_over`). A folder of a place the user deleted is not made again: its new items go to the
+folder above.
 
 An item gone from the platform (deleted, locked again), judged only on a run that read every area
 whole: with a local copy it becomes the user's own file (`handed_over`); read online, it is
@@ -25,11 +34,10 @@ files and told by notification. Not until the course has settled (`materials_set
 first run that brought everything in): linking a course is quiet.
 
 Pages that are only a list of links (a module's table of contents) are not kept; what they list
-is filed by their title. Files and pages that pages link to come in too (courses that hide their
-files area link their files from pages).
+goes in a folder named after them.
 """
 
-from collections.abc import AsyncIterator, Awaitable
+from collections.abc import AsyncIterator, Awaitable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from html import escape
@@ -40,9 +48,9 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError, not_found
 from semestra.core.events import Event, events
-from semestra.modules.files import register_content_source, sorting, sources
+from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.files.sorting import Clues, MaterialType, classify
+from semestra.modules.files.source_folders import Segment, SourceFolders
 from semestra.modules.lms import reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import page_shape
@@ -85,27 +93,18 @@ class Material:
     modified_at: datetime | None = None
     # A link's address.
     url: str | None = None
-    subheader: str | None = None
-    module: str | None = None
+    # A module it is in (id, name), or its folder in the files area (names and ids).
+    module: Segment | None = None
     folder_path: str | None = None
-    listed_by: list[str] = field(default_factory=lambda: [])
+    folder_ids: list[str] = field(default_factory=lambda: [])
+    # Its place on the platform, (id, name) pairs from the top (`_place`).
+    path: list[Segment] = field(default_factory=lambda: [])
     # A page that only lists other things: remembered (so it is read again only when it
     # changes), never an item.
     is_list: bool = False
     # What a page links to, and when the item was read on its own (None: not known this run).
     links: list[list[str]] | None = None
     checked_at: datetime | None = None
-
-    def clues(self) -> Clues:
-        return Clues(
-            title=self.title,
-            mime=self.mime,
-            url=self.url,
-            subheader=self.subheader,
-            module=self.module,
-            folder_path=self.folder_path,
-            listed_by=tuple(self.listed_by),
-        )
 
 
 def file_version(meta: FileMeta) -> str:
@@ -120,10 +119,12 @@ class _Found:
     materials: dict[Key, Material] = field(default_factory=lambda: {})
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
-    # Where a page or file was seen in a module: (subheader, module).
-    placed: dict[Key, tuple[str | None, str]] = field(default_factory=lambda: {})
-    # The titles of the list pages that list it.
-    listed_by: dict[Key, list[str]] = field(default_factory=lambda: {})
+    # The module a page or file was first seen in (id, name).
+    placed: dict[Key, Segment] = field(default_factory=lambda: {})
+    # Pages linking to files and pages, in the order they were read: (page slug, target).
+    linked_from: list[tuple[str, Key]] = field(default_factory=lambda: [])
+    # The front page: it links to everything, so it is no item's place.
+    front: set[str] = field(default_factory=lambda: set[str]())
     # Files no list showed, to read one by one.
     file_ids: dict[str, None] = field(default_factory=lambda: {})
     # Items there and unchanged, not read again this run.
@@ -142,14 +143,9 @@ class _Found:
             return False
         return mat.checked_at is not None and self.now - mat.checked_at < CHECK_EVERY
 
-    def linked(self, kind: str, target: str, list_title: str | None) -> None:
-        """A page links to a file or page of the course: it comes in, filed by the list page's
-        title when it is one."""
-        key = (kind, target)
-        if list_title is not None:
-            titles = self.listed_by.setdefault(key, [])
-            if list_title not in titles:
-                titles.append(list_title)
+    def linked(self, kind: str, target: str, page: str) -> None:
+        """A page links to a file or page of the course: it comes in."""
+        self.linked_from.append((page, (kind, target)))
         if kind == "file":
             self.file_ids.setdefault(target, None)
         elif target not in self.pages:
@@ -197,23 +193,19 @@ async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
                 found, reads.module_items(ctx, link.course_id, module.external_id, refresh=True)
             )
             items = got.items if got is not None else []
-        subheader: str | None = None
         for item in sorted(items, key=lambda i: i.position):
-            if item.kind == "subheader":
-                subheader = item.title
-                continue
-            _module_item(item, subheader, module.name, found)
+            _module_item(item, (f"module:{module.external_id}", module.name), found)
 
 
-def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _Found) -> None:
+def _module_item(item: ModuleItem, module: Segment, found: _Found) -> None:
     if item.locked:
         return
     target = item.target.ref if item.target is not None else None
     if item.kind == "file" and target:
-        found.placed.setdefault(("file", target), (subheader, module))
+        found.placed.setdefault(("file", target), module)
         found.file_ids.setdefault(target, None)
     elif item.kind == "page" and target:
-        found.placed.setdefault(("page", target), (subheader, module))
+        found.placed.setdefault(("page", target), module)
         found.pages.setdefault(target, (item.title, None, item.web_url))
     elif item.kind in ("external_url", "external_tool"):
         url = item.external_url if item.kind == "external_url" else item.web_url
@@ -226,7 +218,6 @@ def _module_item(item: ModuleItem, subheader: str | None, module: str, found: _F
                     version=url,
                     url=url,
                     web_url=item.web_url,
-                    subheader=subheader,
                     module=module,
                 )
             )
@@ -262,6 +253,7 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
                 mime=meta.mime_type,
                 web_url=meta.web_url,
                 folder_path=meta.folder_path,
+                folder_ids=meta.folder_ids,
                 modified_at=meta.content_at or meta.updated_at,
                 checked_at=found.now if meta.external_id in checked else None,
             )
@@ -273,6 +265,8 @@ async def _pages(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
     for page in listed.items if listed is not None else []:
         version = page.updated_at.isoformat() if page.updated_at else None
         found.pages[page.ref] = (page.title, version, page.web_url)
+        if page.front_page:
+            found.front.add(page.ref)
     done: set[str] = set()
     # Pages bring in what they link to, other pages among it: until no new page is found.
     while todo := [slug for slug in found.pages if slug not in done]:
@@ -291,7 +285,7 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
         # As it was when last read: what it links to still holds.
         listed = mat.state == "list"
         for kind, target in mat.links:
-            found.linked(kind, target, title if listed else None)
+            found.linked(kind, target, slug)
         if listed:
             found.add(
                 Material(
@@ -311,6 +305,9 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
     if detail is None or detail.locked:
         return
     title = detail.title or title
+    found.pages[slug] = (title, version, web_url)
+    if detail.front_page:
+        found.front.add(slug)
     version = detail.updated_at.isoformat() if detail.updated_at else (version or "")
     shape = page_shape(detail.html)
     links: list[list[str]] = []
@@ -318,7 +315,7 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
         target = b.rewrite(url, link.external_course_id)
         if target is not None and target.kind in ("file", "page") and target.ref != slug:
             links.append([target.kind, target.ref])
-            found.linked(target.kind, target.ref, title if shape.is_list else None)
+            found.linked(target.kind, target.ref, slug)
     if shape.is_list:
         found.add(
             Material("page", slug, title, version, is_list=True, links=links, checked_at=found.now)
@@ -342,56 +339,66 @@ async def _page(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found, slug: st
 
 
 def _place(found: _Found) -> None:
-    """Pages and files get the module they were seen in and the list pages that list them."""
+    """Each item's place on the platform (see the module docstring): its module, else its
+    folder in the files area, else the place of the page that first links to it plus that page's
+    title (a page with such items goes in that folder too)."""
+    parent: dict[Key, str] = {}
+
+    def ancestors(slug: str) -> set[str]:
+        seen: set[str] = set()
+        while slug not in seen:
+            seen.add(slug)
+            up = parent.get(("page", slug))
+            if up is None:
+                break
+            slug = up
+        return seen
+
+    for page, key in found.linked_from:
+        if page in found.front or key in parent or key in found.placed:
+            continue
+        if key[0] == "page" and key[1] in ancestors(page):
+            continue  # pages linking to each other
+        parent[key] = page
+    holders = {
+        page
+        for key, page in parent.items()
+        if key in found.materials and not found.materials[key].is_list
+    }
+    memo: dict[Key, list[Segment]] = {}
+
+    def own(key: Key, seen: frozenset[Key]) -> list[Segment]:
+        """Where the item's folder is (the place of its parent page's folder)."""
+        if key in memo:
+            return memo[key]
+        m = found.materials.get(key)
+        module = found.placed.get(key) or (m.module if m is not None else None)
+        if module:
+            path = [module]
+        elif m is not None and m.folder_path:
+            path = _folder_place(m.folder_path, m.folder_ids)
+        elif (page := parent.get(key)) is not None and ("page", page) not in seen:
+            title = found.pages.get(page, (page,))[0]
+            path = [*own(("page", page), seen | {key}), (f"page:{page}", title)]
+        else:
+            path = []
+        memo[key] = path
+        return path
+
     for key, material in found.materials.items():
-        if material.kind == "link":
-            continue
-        subheader, module = found.placed.get(key, (None, None))
-        material.subheader = material.subheader or subheader
-        material.module = material.module or module
-        material.listed_by = found.listed_by.get(key, [])
+        path = own(key, frozenset())
+        if key[0] == "page" and key[1] in holders and not material.is_list:
+            path = [*path, (f"page:{key[1]}", material.title)]
+        material.path = path
 
 
-# --- what the rules leave in "general" -------------------------------------------------------
-
-
-@dataclass
-class _Sorting:
-    """The model's types for the new items of this run that the rules put in "general": one
-    request per course and run. Without a model, or when it fails, they stay in "general" (the
-    user can sort them with M07's organizing, where they review it first)."""
-
-    answers: dict[Key, MaterialType]
-
-    def kind_of(self, key: Key, m: Material) -> MaterialType:
-        return self.answers.get(key) or classify(m.clues())
-
-    def by_model(self, key: Key) -> bool:
-        return key in self.answers
-
-
-async def _sort(ctx: Ctx, found: _Found) -> _Sorting:
-    asked: dict[Key, Clues] = {}
-    new = 0
-    for key, m in found.materials.items():
-        mat = found.known.get(key)
-        if m.is_list or (mat is not None and mat.state in ("synced", "dismissed", "handed_over")):
-            continue
-        new += 1
-        if new > PER_RUN:
-            break
-        if classify(clues := m.clues()) == "general":
-            asked[key] = clues
-    keys = {f"{kind}:{external_id}": (kind, external_id) for kind, external_id in asked}
-    try:
-        answers = await sorting.classify_leftovers(
-            ctx, {name: asked[key] for name, key in keys.items()}
-        )
-    except AppError as exc:
-        if not exc.code.startswith("ai."):
-            raise
-        answers = None
-    return _Sorting({keys[name]: kind for name, kind in (answers or {}).items()})
+def _folder_place(folder_path: str, ids: list[str]) -> list[Segment]:
+    """A files-area folder's levels, by the platform's folder ids (by the path's names when the
+    provider gives none)."""
+    names = folder_path.split("/")
+    if len(ids) != len(names):
+        ids = ["/".join(names[: i + 1]) for i in range(len(names))]
+    return [(f"folder:{i}", n) for i, n in zip(ids, names, strict=True) if n]
 
 
 # --- writing --------------------------------------------------------------------------------
@@ -460,8 +467,7 @@ async def _follow(ctx: Ctx, m: Material, mat: LmsMaterial, row: FilesItem) -> bo
 def forget_applied(mat: LmsMaterial) -> None:
     """Clears what was applied from the platform (its title stays: the status panel names what
     went by it)."""
-    mat.version = mat.name = mat.type = mat.checked_at = None
-    mat.sorted_by_model = False
+    mat.version = mat.name = mat.checked_at = mat.placed_folder_id = None
     mat.links = []
 
 
@@ -475,7 +481,7 @@ def _note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:
 
 def _seen(mat: LmsMaterial, m: Material) -> None:
     """What this run saw of the platform's item; what it did not read again stays."""
-    mat.title, mat.version = m.title, m.version
+    mat.title, mat.version, mat.path = m.title, m.version, [list(level) for level in m.path]
     if m.links is not None:
         mat.links = m.links
     if m.checked_at is not None:
@@ -512,7 +518,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         await _pages(ctx, link, b, found)
     await _files(ctx, link, b, found)
     _place(found)
-    plan = await _sort(ctx, found)
     cfg = await material_settings(ctx, link.course_id)
 
     await hold(ctx, link)
@@ -539,15 +544,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             del rows[row.id]
     # What came in before the course settled is not news.
     settled = link.materials_settled_at is not None
-    folders: dict[MaterialType, str | None] = {}
-    type_folders = await sorting.type_folders(ctx, link.course_id)
-
-    async def folder_of(kind: MaterialType) -> str | None:
-        if kind not in folders:
-            folders[kind] = await sorting.folder_for(
-                ctx, link.course_id, kind, type_folders, if_deleted="top_level"
-            )
-        return folders[kind]
+    places = SourceFolders(ctx, link.course_id, "lms", b.provider.display_name)
 
     result = StageResult()
     added: list[FilesItem] = []
@@ -572,14 +569,15 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                 _note(mat, "updated", now)
             _seen(mat, m)
             mat.name = row.display_name
+            await places.follow_names(m.path)
             continue
         # New, back on the platform, or a list page that has become a page.
         if len(added) >= PER_RUN:
             result.cap_reached = True
             continue
         news = settled and (mat is None or mat.state != "restored")
-        kind = plan.kind_of(key, m)
-        row = await _create(ctx, link, b, m, await folder_of(kind), unseen=news)
+        folder_id = await places.folder_at(m.path)
+        row = await _create(ctx, link, b, m, folder_id, unseen=news)
         added.append(row)
         if mat is None:
             mat = _material(ctx, link, m)
@@ -587,7 +585,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         enter(mat, "synced", now)
         forget_applied(mat)
         _seen(mat, m)
-        mat.name, mat.type, mat.sorted_by_model = row.display_name, kind, plan.by_model(key)
+        mat.name, mat.placed_folder_id = row.display_name, folder_id
         mat.change = mat.changed_at = None
         if news:
             _note(mat, "added", now)
@@ -653,6 +651,56 @@ def has_copy(row: FilesItem) -> bool:
     """A material that would become the user's own file if it left the platform or the course
     were unlinked: one with a local copy."""
     return row.kind == "file" and bool(row.storage_key)
+
+
+async def homes(ctx: Ctx, course_id: str) -> list[sources.Home]:
+    """The course's materials still where the sync put them but away from their place on the
+    platform now (filed by type before places were kept, or moved on the platform since): for
+    the course's "Organize" to offer moving back."""
+    link = await service.link_row(ctx, course_id)
+    if link is None:
+        return []
+    mats = [
+        m
+        for m in await ctx.db.scalars(
+            select(LmsMaterial).where(
+                LmsMaterial.link_id == link.id,
+                LmsMaterial.state == "synced",
+                LmsMaterial.item_id.is_not(None),
+                LmsMaterial.path.is_not(None),
+            )
+        )
+    ]
+    rows = {r.id: r for r in await sources.find_items(ctx, [m.item_id for m in mats if m.item_id])}
+    places: SourceFolders | None = None
+    found: list[sources.Home] = []
+    for mat in mats:
+        row = rows.get(mat.item_id or "")
+        if row is None or row.source_ref is None or row.folder_id != mat.placed_folder_id:
+            continue  # the user moved it, or made it their own
+        name = row.source_name or "LMS"
+        if places is None:
+            places = SourceFolders(ctx, course_id, "lms", name)
+        folder_id, complete = await places.existing(mat.path or [])
+        if complete and folder_id == row.folder_id:
+            continue
+        place = tuple((str(key), str(n)) for key, n in mat.path or [])
+        found.append(sources.Home(row.id, place, "lms", name))
+    return found
+
+
+async def moved_back(ctx: Ctx, placed: Mapping[str, str | None]) -> None:
+    """Items "Organize" moved back to their platform folder: that is where the sync put them now,
+    so a later move on the platform is offered again."""
+    for mat in await ctx.db.scalars(
+        select(LmsMaterial).where(
+            LmsMaterial.user_id == ctx.user_id, LmsMaterial.item_id.in_(list(placed))
+        )
+    ):
+        mat.placed_folder_id = placed[mat.item_id or ""]
+
+
+sources.register_homes("lms", homes, moved_back)
 
 
 # --- reading the bytes (M07's content source) -----------------------------------------------
@@ -762,23 +810,22 @@ async def restore(ctx: Ctx, material_id: str) -> str:
 
 @events.subscribe("settings.values.updated")
 async def on_settings_changed(ctx: Ctx, event: Event) -> None:
-    """The materials settings of a Program or course changed: turned on, its courses sync now
-    and quietly, as at first (what came meanwhile is not told as new); a new way of keeping
-    them applies at once (local copies let go, or stored)."""
+    """The materials settings of the account or a course changed: turned on, the courses sync
+    now and quietly, as at first (what came meanwhile is not told as new); a new way of keeping
+    them applies at once (local copies let go, or stored). A course with its own value is left
+    alone by a change to the account's (`material_settings` reads what applies)."""
     data = event.data
     scope = data.get("scope")
     changed = set(data.get("changed") or [])
-    if (
-        data.get("namespace") != "lms.materials"
-        or not isinstance(scope, dict)
-        or not isinstance(scope_id := scope.get("id"), str)
-    ):
+    if data.get("namespace") != "lms.materials" or not isinstance(scope, dict):
         return
-    if scope.get("type") == "course":
+    if scope.get("type") == "account":
+        links = await service.user_links(ctx)
+    elif scope.get("type") == "course" and isinstance(scope_id := scope.get("id"), str):
         link = await service.link_row(ctx, scope_id)
         links = [link] if link is not None else []
     else:
-        links = await service.program_links(ctx, scope_id)
+        return
     turned_on: list[LmsCourseLink] = []
     for link in links:
         if not link.sync_enabled:
