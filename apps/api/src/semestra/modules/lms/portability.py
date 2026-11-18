@@ -12,8 +12,9 @@ with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
-migration 0035 did. Version 3 keeps the materials apart from the assignments (`_v2_to_v3`, as
-migration 0056 did).
+migration 0035 did. A version 2 backup written before migration 0056 (2.0.0) keeps the materials
+among the refs (`external_kind` file, page or link); `LmsPayload` reads them into `materials` the
+way that migration moved them, so both shapes restore under the same version.
 """
 
 from collections.abc import Mapping
@@ -21,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
@@ -39,7 +40,7 @@ from semestra.modules.lms.models import (
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 2
 
 
 def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
@@ -54,23 +55,9 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     return {**payload, "refs": kept}
 
 
-def _v2_to_v3(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
-    del archive
-    refs = [r for r in payload.get("refs") or [] if isinstance(r, dict)]
-    materials = [
-        _material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")
-    ]
-    assignments = [
-        {k: v for k, v in r.items() if k != "external_kind"}
-        for r in refs
-        if r.get("external_kind") == "assignment"
-    ]
-    return {**payload, "refs": assignments, "materials": materials}
-
-
 def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
-    """A version 2 material ref (its state in `snapshot`) as a row of `lms_materials`, as
-    migration 0056 moves it."""
+    """A material ref of a 2.0.0 backup (its state in `snapshot`) as a row of `lms_materials`,
+    as migration 0056 moves it."""
     snap = ref.get("snapshot") or {}
     checked = snap.get("checked")
     return {
@@ -176,6 +163,25 @@ class LmsPayload(BaseModel):
     links: list[LinkRow] = []
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _materials_among_refs(cls, data: Any) -> Any:
+        """A 2.0.0 backup keeps the materials among the refs, told apart by `external_kind`."""
+        if not isinstance(data, dict):
+            return data
+        refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
+        if not any("external_kind" in r for r in refs):
+            return data
+        kept = [r for r in refs if r.get("external_kind", "assignment") == "assignment"]
+        moved = [
+            _material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")
+        ]
+        return {
+            **data,
+            "refs": [{k: v for k, v in r.items() if k != "external_kind"} for r in kept],
+            "materials": [*(data.get("materials") or []), *moved],
+        }
 
 
 @dataclass
@@ -400,7 +406,7 @@ async def purge(ctx: Ctx) -> None:
 register_portability(
     module="lms",
     schema_version=SCHEMA_VERSION,
-    upgrades={1: _v1_to_v2, 2: _v2_to_v3},
+    upgrades={1: _v1_to_v2},
     depends_on=("academics", "grading", "tasks", "schedule", "files"),
     export=export,
     import_=import_,
