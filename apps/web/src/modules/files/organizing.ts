@@ -7,7 +7,7 @@ import { courseFilesPath } from './location'
 /** A course's files with the organizing dialog open (`useOrganizeOpen`). */
 export function organizeLink(result: Record<string, unknown> | null | undefined) {
   if (typeof result?.program_id !== 'string' || typeof result.course_id !== 'string') return
-  return `${courseFilesPath(result.program_id, result.course_id)}?organize=1`
+  return courseFilesPath(result.program_id, result.course_id, { organize: true })
 }
 
 export type OrganizeStage = 'failed' | 'ready' | 'reading'

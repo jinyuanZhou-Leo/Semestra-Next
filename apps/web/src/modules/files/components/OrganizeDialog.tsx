@@ -7,7 +7,6 @@ import {
   filesOrganizationStartMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Folder, FolderInput } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useProviderProblem } from '@/components/AiRequired'
@@ -15,6 +14,7 @@ import { JobProgress } from '@/components/JobProgress'
 import { useElementHeight } from '@/hooks/use-element-size'
 import { useJob } from '@/hooks/use-job'
 import { toastError } from '@/lib/errors'
+import type { FilesLocation } from '../location'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Checkbox } from '@/ui/checkbox'
@@ -70,25 +70,17 @@ export function organizeWaits(state: OrganizeState | undefined) {
   return Boolean(state?.job || (state?.plan && state.plan.moves.length > 0))
 }
 
-function withoutOrganize(prev: Record<string, string | undefined>) {
-  const { organize: _organize, ...rest } = prev
-  return rest
-}
-
 /**
- * Whether the dialog is open: by the toolbar button, or by a link (`?organize=1`, the status
+ * Whether the dialog is open: by the toolbar button, or by a link (`?organize=true`, the status
  * bar's way back), which leaves the URL once the dialog closes.
  */
-export function useOrganizeOpen() {
-  const search = useSearch({ strict: false }) as { organize?: unknown }
-  const navigate = useNavigate()
+export function useOrganizeOpen(location: FilesLocation) {
   const [open, setOpen] = useState(false)
-  const linked = search.organize === '1'
   return {
-    open: open || linked,
+    open: open || location.organize,
     setOpen: (next: boolean) => {
       setOpen(next)
-      if (!next && linked) void navigate({ to: '.', search: withoutOrganize, replace: true })
+      if (!next && location.organize) location.go({ organize: false }, { replace: true })
     },
   }
 }

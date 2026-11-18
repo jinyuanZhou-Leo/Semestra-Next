@@ -107,7 +107,7 @@ export function CourseFiles({
   const link = useExternalLink()
   const organizeState = useOrganizeState(courseId)
   const organize = useOrganizeStart(courseId)
-  const organizing = useOrganizeOpen()
+  const organizing = useOrganizeOpen(location)
 
   // The folders down to the one last shown: if it goes away (here or in another tab), the page
   // goes up to the nearest one still there.
@@ -406,8 +406,8 @@ export function CourseFiles({
             </Empty>
           ) : (
             <FileBrowser
-              folders={childFolders}
-              items={childItems}
+              list={list}
+              folderId={currentId}
               view={view}
               handlers={{
                 open,

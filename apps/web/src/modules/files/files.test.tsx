@@ -726,3 +726,26 @@ test('on a term page the course opened is in the address too, and back to all co
   expect(await screen.findByRole('button', { name: /APS105H1/ })).toBeInTheDocument()
   expect(router.state.location.search).toEqual({})
 })
+
+test('closing a preview leaves no step behind: back goes where the page was before it', async () => {
+  const user = userEvent.setup()
+  const { router } = renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
+    path: '/',
+    at: '/?from=1',
+  })
+  await user.click(await screen.findByRole('button', { name: 'syllabus.pdf' }))
+  expect(await screen.findByText('PDF page 1')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(router.state.location.search).toEqual({ from: 1 }))
+  // Closing went back a step, so the step before is the page as it was, not the preview again.
+  expect(router.history.canGoBack()).toBe(false)
+
+  // Opened from a link, the preview closes in place.
+  act(() => router.history.push('/?file=i1'))
+  expect(await screen.findByText('PDF page 1')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(router.state.location.search).toEqual({}))
+  expect(router.history.length).toBe(2)
+  act(() => router.history.back())
+  await waitFor(() => expect(router.state.location.search).toEqual({ from: 1 }))
+})

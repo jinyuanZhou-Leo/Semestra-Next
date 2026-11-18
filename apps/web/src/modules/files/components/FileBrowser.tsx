@@ -1,4 +1,4 @@
-import type { FolderOut, ItemOut } from '@semestra/api-client'
+import type { FilesItemList, FolderOut, ItemOut } from '@semestra/api-client'
 import {
   filesItemUpdateMutation,
   filesItemKeepOfflineMutation,
@@ -733,22 +733,51 @@ const FolderRow = memo(function FolderRow({
 const VIRTUAL_FROM = 100
 
 /**
- * Folders, then files, as a sortable table or a grid of tiles (M07 §6.1). Folders always come
- * first, by name; the chosen sort applies to files.
+ * The folders and files in one folder of a course (`folderId` null: its top level), as a sortable
+ * table or a grid of tiles (M07 §6.1). Folders always come first, by name; the chosen sort applies
+ * to files.
+ *
+ * It picks the folder's entries from the course's whole list itself: they then stay the same
+ * arrays from one render to the next, and so do the table's rows, which lets a row skip
+ * rendering when only another row's checkbox or drop state changed. Filtered by the page, they
+ * would be new each time (the page hands them on to its selection hook, so the compiler cannot
+ * keep them).
  */
 export function FileBrowser({
-  folders,
-  items,
+  list,
+  folderId,
   view,
   handlers,
+  dropOver,
+}: {
+  list: FilesItemList
+  folderId: string | null
+  view: 'list' | 'grid'
+  handlers: BrowserHandlers
+  /** The folder files are dragged over. */
+  dropOver?: string | null
+}) {
+  const folders = list.folders
+    .filter((f) => f.parent_id === folderId)
+    .toSorted((a, b) => compareNames(a.name, b.name))
+  const items = list.items.filter((i) => i.folder_id === folderId)
+  return (
+    <BrowserContext value={handlers}>
+      <Entries folders={folders} items={items} view={view} dropOver={dropOver ?? null} />
+    </BrowserContext>
+  )
+}
+
+function Entries({
+  folders: sortedFolders,
+  items,
+  view,
   dropOver,
 }: {
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
   view: 'list' | 'grid'
-  handlers: BrowserHandlers
-  /** The folder files are dragged over. */
-  dropOver?: string | null
+  dropOver: string | null
 }) {
   // The page provides the selection: its toolbar acts on it too.
   const selection = use(RowSelectionContext)
@@ -766,7 +795,6 @@ export function FileBrowser({
     onSortingChange: (updater) =>
       setSorting(typeof updater === 'function' ? updater(sorting) : updater),
   })
-  const sortedFolders = folders.toSorted((a, b) => compareNames(a.name, b.name))
   // Pinned files stay on top whatever the sort.
   const rows = table
     .getRowModel()
@@ -774,38 +802,36 @@ export function FileBrowser({
 
   if (view === 'grid') {
     return (
-      <BrowserContext value={handlers}>
-        <div className="space-y-3">
-          {sortedFolders.length > 0 ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
-              {sortedFolders.map((folder) => (
-                <FolderTile
-                  key={folder.id}
-                  folder={folder}
-                  selected={selected({ type: 'folder', folder })}
-                  selecting={selecting}
-                  dropOver={dropOver === folder.id}
-                />
-              ))}
-            </div>
-          ) : null}
+      <div className="space-y-3">
+        {sortedFolders.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
-            {rows.map((row) => (
-              <ItemTile
-                key={row.id}
-                item={row.original}
-                selected={selected({ type: 'item', item: row.original })}
+            {sortedFolders.map((folder) => (
+              <FolderTile
+                key={folder.id}
+                folder={folder}
+                selected={selected({ type: 'folder', folder })}
                 selecting={selecting}
+                dropOver={dropOver === folder.id}
               />
             ))}
           </div>
+        ) : null}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
+          {rows.map((row) => (
+            <ItemTile
+              key={row.id}
+              item={row.original}
+              selected={selected({ type: 'item', item: row.original })}
+              selecting={selecting}
+            />
+          ))}
         </div>
-      </BrowserContext>
+      </div>
     )
   }
 
   return (
-    <BrowserContext value={handlers}>
+    <>
       {/* The table scrolls sideways inside `Table`'s own container; this only draws the frame. */}
       <div ref={wrapper} className="overflow-hidden rounded-2xl border">
         <Table className="min-w-2xl table-fixed">
@@ -888,6 +914,6 @@ export function FileBrowser({
           ) : null}
         </Table>
       </div>
-    </BrowserContext>
+    </>
   )
 }
