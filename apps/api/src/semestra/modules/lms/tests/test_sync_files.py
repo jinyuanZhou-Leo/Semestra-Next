@@ -682,10 +682,10 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
-            payload = json.loads(data) if name.startswith("data/") else None
+            payload: dict[str, Any] = json.loads(data) if name.startswith("data/") else {}
             if name == "data/lms.json":
                 for m in payload["materials"]:
-                    m.pop("path"), m.pop("placed_folder_id")
+                    del m["path"], m["placed_folder_id"]
                     m["type"] = "lecture" if m["title"] == "Lecture 1.pdf" else "other"
                 [link] = payload["links"]
                 course = link["course_id"]
@@ -695,7 +695,7 @@ def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
                 for row in payload["values"]:
                     if row["namespace"] == "lms.materials":
                         row |= {"scope_type": "program", "scope_id": program_id}
-            if payload is not None:
+            if payload:
                 data = json.dumps(payload).encode()
             z.writestr(name, data)
         files = json.loads(source.read("data/files.json"))
@@ -852,7 +852,9 @@ async def test_a_folder_renamed_on_the_platform_keeps_its_folder(
     exams = items["Midterm 2025.pdf"]["folder_id"]
     await api.call("PATCH", f"/folders/{exams}", json={"name": "Old exams"})
 
-    fake.module_list[0] = fake.module_list[0].model_copy(update={"name": "Week 1: Intro"})
+    modules = fake.module_list
+    assert modules is not None
+    modules[0] = modules[0].model_copy(update={"name": "Week 1: Intro"})
     files = fake.course_file_list
     files[0] = files[0].model_copy(update={"folder_path": "Slides", "updated_at": FEB})
     files[2] = files[2].model_copy(update={"folder_path": "Past exams", "updated_at": FEB})
