@@ -1,9 +1,13 @@
 import type { ItemOut, SearchHit } from '@semestra/api-client'
-import { filesContentOptions, filesDocumentOutlineOptions } from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
+import {
+  filesContentOptions,
+  filesDocumentOutlineOptions,
+  filesItemMarkSeenMutation,
+} from '@semestra/api-client/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Download, FileX, Search, SquareArrowOutUpRight, X } from 'lucide-react'
-import { Suspense, useRef, useState } from 'react'
+import { CloudOff, Download, FileX, RotateCw, Search, SquareArrowOutUpRight, X } from 'lucide-react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
@@ -12,6 +16,7 @@ import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import {
   Empty,
@@ -125,6 +130,40 @@ function PreviewBody({
   onPageChange: (page: number) => void
 }) {
   const kind = previewKind(item)
+  // Which attempt at reading the original failed; "Try again" starts the next.
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(-1)
+  if (
+    kind === 'pdf' &&
+    view === 'original' &&
+    failed === attempt &&
+    item.source_name &&
+    !item.stored
+  ) {
+    // Read from its source, which can't be reached: the text read from it last time instead.
+    return (
+      <>
+        <Alert className="m-4 mb-0 w-auto">
+          <CloudOff aria-hidden />
+          <AlertTitle>{m.files_preview_unreachable({ source: item.source_name })}</AlertTitle>
+          <AlertDescription>{m.files_preview_unreachable_description()}</AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={() => setAttempt(attempt + 1)}>
+              <RotateCw aria-hidden />
+              {m.common_retry()}
+            </Button>
+          </AlertAction>
+        </Alert>
+        <DocumentText
+          itemId={item.id}
+          target={target}
+          terms={terms}
+          onNavigate={onNavigate}
+          onPageChange={onPageChange}
+        />
+      </>
+    )
+  }
   if ((kind === 'pdf' && view === 'text') || kind === 'document') {
     return (
       <DocumentText
@@ -146,7 +185,9 @@ function PreviewBody({
         }
       >
         <LazyPdfViewer
+          key={attempt}
           url={contentUrl(item.id)}
+          onFail={() => setFailed(attempt)}
           target={target}
           terms={terms}
           onPageChange={onPageChange}
@@ -236,6 +277,12 @@ export function PreviewDialog({
   const { programId } = useParams({ strict: false }) as { programId?: string }
   const item = useFileItem(target?.itemId)
   const data = item.data
+  // A file new from its source is new until opened.
+  const { mutate: markSeen } = useMutation(filesItemMarkSeenMutation())
+  const unseen = props.open && data?.unseen ? data.id : null
+  useEffect(() => {
+    if (unseen) markSeen({ path: { item_id: unseen } })
+  }, [unseen, markSeen])
   const [contentsOpen, setContentsOpen] = useUiPref('files.preview_contents', true)
 
   // What the reader is doing in this file; a new target starts over.

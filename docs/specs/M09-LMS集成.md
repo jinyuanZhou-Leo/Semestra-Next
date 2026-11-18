@@ -109,8 +109,9 @@ lms_materials                        # 课程资料（文件、页面、链接�
   id, user_id, link_id, kind ('file'|'page'|'link'), external_id,
   item_id?,                          # M07 的 files_items.id（不是外键：用户删掉的项要和从没建过的区分开）
   title?, version?, name?, type?, sorted_by_model, # 上次从平台应用的标题、内容版本、项名、类型，是否由模型定类
-  is_list, links [[kind, id]], checked_at?,       # 只列链接的页面；页面链接到的资料；上次单独读取的时间
-  imported_at?, deleted_at?          # deleted_at = 用户删了这一项，不再带回
+  state ('synced'|'list'|'dismissed'|'restored'|'gone'|'handed_over'), state_at?,  # 见 §4.2「状态」
+  links [[kind, id]], checked_at?,   # 页面链接到的资料；上次单独读取的时间
+  imported_at?, change? ('added'|'updated'|'gone'|'handed_over'), changed_at?  # 最近一次平台带来的变化（面板，保留 14 天）
   UNIQUE(link_id, kind, external_id)
 
 lms_sync_changes                     # 同步写过的字段，面板里可撤销，保留 14 天
@@ -143,21 +144,24 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
 
 ### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
-- **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按课程开关 `lms_course_links.files_sync`（默认开，课程设置“同步课程资料”；`sync_enabled=false` 时整个同步不跑）。打开开关时把 `synced_at` 清空，下一轮就同步。
+- **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按 M11 命名空间 `lms.materials` 的 `sync`（Program 与课程两级，课程默认跟随 Program，默认开；2026-11-18 从 `lms_course_links.files_sync` 搬过去，迁移 0057；`sync_enabled=false` 时整个同步不跑）。打开时立即排一次同步。
 - **不占存储**：文件与页面建成 M07 的“远程文件”（`storage_key` 为空，`source_kind="lms"`，`source_ref="lms:<file|page|link>:<外部 id>"`，`sha256` 为平台版本的哈希），内容经 M07 的内容源（`register_content_source("lms:", open_source)`）在打开、预览、建索引时从平台读：文件走 `reads.open_file`，页面现读正文渲染成带 `<h1>` 标题的 HTML 文档。链接建成 M07 的链接项。锁定（未开放）的文件和隐藏的文件、文件夹跳过，开放后下一次同步再加入。
 - **类型与文件夹**（纯规则在 M07 的 `files/sorting.py`，与「整理」共用）：类型按顺序取 ① 自身（视频 mime 或视频站链接 → 录播；标题匹配规则）② 单元里上方的小标题 ③ 单元名 ④ 平台上的文件夹（从深到浅）⑤ 列出它的页面标题，都不中时为“课程资料”。类型是课程文件根目录下的文件夹（讲义、辅导与实验、习题与答案、往年考试、录播、阅读、课程资料，名称取建文件夹时账户的语言，同名的已有文件夹直接用）；课程大纲（只看自身标题）放在根目录。只有链接、自身文字不到 160 字的页面是“列表页”，不保存，只用来给它列出的文件和页面定类型。不按周归类（owner 2026-11-17）。
 - **规则之外交给模型**（2026-11-17，`files/sorting.py` 的 `classify_leftovers`）：规则落到“课程资料”的新项在第一次放入时问模型（M06 `structured`，用途 `title`，`wrap_untrusted`），每门课每轮一个请求，读平台之后、拿写锁之前发出。只发规则本来就读的线索：标题、mime、链接的主机名、小标题、单元名、平台文件夹、列出它的页面标题；答案限于 `FOLDER_TYPES`（含 general），漏答的算 general。只是选文件夹，所以直接应用、不出核对界面，也没有界面文字（owner 批准的例外）。记 `lms_materials.sorted_by_model`。没有可用的模型、请求失败或限流时留在“课程资料”，不记标记，之后的同步也不再问（owner 2026-11-17 选定：不在后台补分，留给 M07 的「整理」，由用户核对后再移动）。其余情况都不重排。
-- **记录与用户优先**：每个带进来的东西在 `lms_materials` 记一行（迁移 0056 从 `lms_imported_refs` 搬过来，原来的状态都在 `snapshot` JSON 里），项是 `item_id`，上次应用的平台标题、版本、项名与类型各是一列；每种类型的文件夹记在 M07 的 `files_type_folders`（迁移 0054 从这里搬过去），由 M07 的 `sorting.folder_for(..., if_deleted="top_level")` 决定放哪。用户移动、改名、删除都不会被同步改回：平台改了名而用户没改的才跟着改名（只改名，不重新处理）；删掉的记 `deleted_at`，不再加回；类型文件夹被删时，同类的新资料一律放在根目录，也不再重建这个文件夹（owner 2026-11-17：不从用户放别的资料的位置去推断）。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小与版本并重新处理（为“保存到本地”存下的副本先放掉字节，再由本轮重新存），用户保留的副本（M07 `files_items.kept_offline`）不动。每次最多新建 100 项，其余留到下一次。
-- **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用记下的链接（`lms_materials.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`checked_at`）。列表页也记一行（`is_list`，没有项），只为下次判断它变没变。
-- **平台上删除**：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的文件与链接删掉，那一行的 `item_id` 与上次应用的值清空（平台再出现时重新带进来）；用户保留的副本（`kept_offline`）不删。原来是资料、现在成了列表页的也删掉。
+- **记录与用户优先**：每个带进来的东西在 `lms_materials` 记一行（迁移 0056 从 `lms_imported_refs` 搬过来，原来的状态都在 `snapshot` JSON 里），项是 `item_id`，上次应用的平台标题、版本、项名与类型各是一列；每种类型的文件夹记在 M07 的 `files_type_folders`（迁移 0054 从这里搬过去），由 M07 的 `sorting.folder_for(..., if_deleted="top_level")` 决定放哪。用户移动、改名、删除都不会被同步改回（删除见下面的「状态」）：平台改了名而用户没改的才跟着改名（只改名，不重新处理）；类型文件夹被删时，同类的新资料一律放在根目录，也不再重建这个文件夹（owner 2026-11-17：不从用户放别的资料的位置去推断）。文件的版本取 `FileMeta.content_at`（Canvas 的 `modified_at`，没有时用 `updated_at`），链接的版本是 url；版本变化的文件更新大小、版本与平台修改时间并重新处理（本地副本先放掉字节，再由本轮按保存方式重新存）。每次最多新建 100 项，其余留到下一次。
+- **发现**：页面里链接到的文件和页面、只在单元里出现的文件也会带进来（逐个读取）。没变化的页面复用记下的链接（`lms_materials.links`）；单独读的文件与页面一天最多查一次（`CHECK_EVERY`，`checked_at`）。列表页也记一行（`state="list"`，没有项），只为下次判断它变没变。
+- **平台上删除**（2026-11-18 PR 3）：这一轮读全了（没有因为功能关闭、无权限或截断而跳过的区域，`_Found.complete`；单个文件或页面读到 `lms.not_found`/`lms.forbidden` 只说明那一项不在，不影响判断，`_one`）时，没再见到的：有本地副本的文件经 M07 `detach_from_source` 原地交给用户（`handed_over`，之后平台再出现也不再带回，以免出现两份）；在线读取的文件与链接删掉（`gone`，`item_id` 清空，平台再出现时重新带进来）。两种都记进面板的最近更新。原来是资料、现在成了列表页的也删掉。
 - **重试**：读取失败的远程文件（`files.source_unread`，或 `lms.*` 错误超过 1 小时，`RETRY_AFTER`）在下一轮同步时重新处理。
-- **保存方式**：课程开关 `lms_course_links.files_offline`（默认关，课程设置“资料保存方式”：打开时读取 / 保存到本地）。打开时每轮同步把还没存的远程文件交给 M07 的 `keep_synced_offline`（任务 `files.keep_offline_synced`，`background` 通道、不进列表，去重键 `lms.files:<link_id>`）存成占配额的副本：入队前按平台给的大小筛掉超过上传上限和剩余配额的，所以配额满时不再下载；任务里单个文件失败就跳过。这些副本仍属于同步，照常跟随更新和删除。关掉这个选项时已存的副本保留，下次平台内容更新时变回打开时读取。
-- **关闭同步**：关闭 `files_sync` 只停止这个阶段，已有资料保留，不再更新。
-- **另存副本**：`lms.file.save_to_course` 先查 `lms_materials`，同步已带进来的就对那一项调用 M07 的 `keep_offline`（标记 `kept_offline`，没存的原地存成副本，不再建一份），返回它与 `stored`；否则存一份占配额的副本（`kept_offline=True`）并记下引用，同步之后不会再建一份。
-- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项；用户保留的副本与文件夹保留，副本经 M07 `detach_from_source` 清掉 `source_ref`，成为用户的普通文件。
+- **保存方式**（2026-11-18 PR 3）：`lms.materials.store`（`online` 在线读取 / `local` 保留本地副本，默认 `online`，两级）。两种都跟随平台。每轮同步与设置变化时（订阅 `settings.values.updated`）调用 M07 的 `apply_copies`：每个文件按自己的 `files_items.keep_copy`（用户在 ⋯ 菜单里的选择，空 = 跟课程设置）决定要不要副本，不要的立即放掉字节，要的交给 `files.store_synced_copies`（`background` 通道、不进列表，去重键 `lms.materials:<link_id>`）；入队前按平台给的大小筛掉超过上传上限和剩余配额的，配额满时不再下载，任务里单个文件失败就跳过。迁移 0057 把原来的 `files_offline=1` 写成课程级 `store=local`，用户保留过的离线副本（`kept_offline`）变成 `keep_copy=1`，仍跟随平台。
+- **关闭同步**：`sync=false` 只停止这个阶段，已有资料保留，不再更新。
+- **另存副本**：`lms.file.save_to_course`（Canvas 标签页的「保存到课程文件」）与 ⋯ 菜单的「保留本地副本」同义：同步已带进来的就对那一项调用 M07 的 `keep_copy`；否则下载后建一份带 `source_ref` 的文件（`keep_copy=True`），记下引用，之后照常跟随平台。
+- **取消关联**：`_remove_link` 在同一事务里发 `lms.course.unlinking`，`sync_files` 订阅它删掉这门课同步带来的项；有本地副本的交给用户、在线读取的删掉，文件夹保留，副本经 M07 `detach_from_source` 清掉 `source_ref`，成为用户的普通文件。
 - **与 M07 的边界**：本模块只经 M07 的 `files/sources.py`（跟随来源的文件：建远程文件与链接、更新、重试、存副本、交给用户、删除）和 `files/sorting.py`（类型与类型文件夹）使用文件模块，不直接读写 `files_*` 表；内容源用 `semestra.modules.files.register_content_source` 注册。
+- **状态**（2026-11-18 PR 3，`lms_materials.state`）：`synced` 跟随中；`list` 只列链接的页面；`dismissed` 用户删了这一项（订阅 M07 的 `files.item.deleted` 立即记下，同时发 `lms.sync.updated`），不再带回，状态面板“已移除”里列出，`lms.sync.material.restore`（`POST /lms/sync/materials/{id}:restore`，只给 HTTP）改为 `restored` 并立即排一次同步，下一轮重新带进来，不算新资料、不通知；`gone` 平台上删了；`handed_over` 平台删了或取消关联时有本地副本、已交给用户，不再带回。用户把同步来的文件“转存为我的文件”（M07 `make_own`）后也是 `handed_over`（下一轮看到 `source_ref` 为空时记下）。
+- **变更记录**（2026-11-18 PR 3）：`change`/`changed_at` 记最近一次平台带来的新增、内容更新（只改名不算）、删除与交给用户；`lms.sync.status` 的 `materials`（`SyncMaterialChange`，带项与所在文件夹名）与作业的最近更新一起按课程列出，`removed_materials` 列出 `dismissed` 的。与作业变更记录一样保留 14 天（`forget_old_changes`）。第一次同步一门课（`lms_course_links.materials_settled_at` 为空，直到一轮没有因 100 项上限截断为止）不记变化、不标新、不通知：关联课程带来的几百份资料不是“新”的。
+- **新资料**：之后新建的项标 M07 `files_items.unseen`（文件页名称后的蓝点，打开预览时 `files.item.mark_seen` 清掉），并作为 `Notice("material", …, item_id)` 随 `lms.course.synced` 交给 M18。
 - **出站**：远程文件的预览与下载经后端代理读取平台（与 `reads.open_file` 相同），不改成浏览器直连；本功能以自部署为主（owner 2026-11-16）。
-- **前端**：课程设置 LMS 分区的“同步课程资料”开关与“资料保存方式”下拉（`ChoiceControl`）；`files.itemActions` 贡献“在 {provider} 中打开”（`source_kind="lms"` 的文件与页面，打开 `url`），文件菜单里显示，预览对话框标题栏与“无法预览”时也作为按钮显示。
+- **前端**：Program 与课程设置 LMS 分区下的“课程资料”块是 `lms.materials` 的 `NamespaceForm`（课程级每项可跟随 Program；描述与选项说明经 `params` 带上平台名）；取消关联的确认框列出 `lms.course_link.get` 返回的 `materials`（本地副本 / 在线读取的数量）；状态面板的最近更新里资料行点名称关闭面板并打开该文件（M07 `filePath`），最下面“已移除 N 项”可恢复；`files.itemActions` 贡献“在 {provider} 中打开”（`source_kind="lms"` 的文件与页面，打开 `url`），文件菜单里显示，预览对话框标题栏与“无法预览”时也作为按钮显示。
 
 ## 5. Capabilities
 | name | effect | http | 说明 |

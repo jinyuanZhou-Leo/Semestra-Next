@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -69,10 +69,9 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
     external_term: Mapped[str | None] = mapped_column(String, default=None)
     web_url: Mapped[str | None] = mapped_column(String, default=None)
     sync_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # The sync brings the course's files, pages and links into its files (`sync_files.py`).
-    files_sync: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
-    # The materials are stored here (taking quota) rather than read from the platform when opened.
-    files_offline: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # When the sync first had all of the course's materials in (`sync_files.py`): what comes in
+    # until then (linking a course, turning its materials on) is not marked new or told.
+    materials_settled_at: Mapped[datetime | None] = mapped_column(default=None)
     # When the course was last synced (`sync.py`): every stage ran, failed or not. The
     # scheduler compares it with the account's interval.
     synced_at: Mapped[datetime | None] = mapped_column(default=None)
@@ -117,12 +116,26 @@ class LmsImportedRef(Base, OwnedMixin):
     dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
+MaterialState = Literal["synced", "list", "dismissed", "restored", "gone", "handed_over"]
+MaterialChange = Literal["added", "updated", "gone", "handed_over"]
+
+
 class LmsMaterial(Base, OwnedMixin):
     """A file, page or link of a linked course that the sync keeps in the course's files
-    (`sync_files.py`), one row per platform item. With `item_id`: the course's files have it.
-    Without: the user deleted its item (`deleted_at`), the page only lists other things
-    (`is_list`), or it is gone from the platform (then everything below is cleared, so it comes
-    back if the platform shows it again)."""
+    (`sync_files.py`), one row per platform item, in one of these states:
+
+    - `synced`: the course's files have it (`item_id`) and it follows the platform;
+    - `list`: a page that only lists other things, remembered (read again only when it changes)
+      but never an item;
+    - `dismissed`: the user deleted its item; not brought back until they restore it;
+    - `restored`: the user restored it: it comes in again with the next sync, as it did before
+      (not marked new or told);
+    - `gone`: deleted on the platform, so its item (read online) was removed; it comes in again
+      if the platform shows it again;
+    - `handed_over`: its item became the user's own file (`item_id` still names it): it had a
+      local copy when the platform deleted it, or the user asked. Not brought in again.
+
+    Items never seen have no row."""
 
     __tablename__ = "lms_materials"
     __table_args__ = (
@@ -135,8 +148,11 @@ class LmsMaterial(Base, OwnedMixin):
     )
     kind: Mapped[str] = mapped_column(String)  # 'file' | 'page' | 'link'
     external_id: Mapped[str] = mapped_column(String)
+    state: Mapped[str] = mapped_column(String, default="synced", server_default="synced")
+    # When it entered its state.
+    state_at: Mapped[datetime | None] = mapped_column(default=None)
     # The item of the course's files (M07's `files_items.id`). Not a foreign key: the sync tells
-    # an item the user deleted (`deleted_at`) from one never made.
+    # an item the user deleted from one never made.
     item_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
     # What the sync last applied from the platform: the platform's title, and its version of the
     # contents (it changes when the bytes do, not on a rename).
@@ -147,16 +163,15 @@ class LmsMaterial(Base, OwnedMixin):
     # The type it was filed under (`files.sorting.MaterialType`), and whether the model chose it.
     type: Mapped[str | None] = mapped_column(String, default=None)
     sorted_by_model: Mapped[bool] = mapped_column(Boolean, default=False)
-    # A page that only lists other things: remembered (so it is read again only when it
-    # changes), never an item.
-    is_list: Mapped[bool] = mapped_column(Boolean, default=False)
     # The course's files and pages a page links to, as `[kind, external id]` pairs.
     links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
     # When it was last read on its own (an item no list gives a version for).
     checked_at: Mapped[datetime | None] = mapped_column(default=None)
     imported_at: Mapped[datetime | None] = mapped_column(default=None)
-    # The user deleted its item: not brought back.
-    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+    # What the platform last did to it, for the status panel's recent updates (`CHANGES_KEPT`);
+    # none for what came in before the course settled (`materials_settled_at`).
+    change: Mapped[str | None] = mapped_column(String, default=None)
+    changed_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
 
 
 class LmsSyncChange(Base, OwnedMixin):

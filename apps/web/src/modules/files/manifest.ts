@@ -41,10 +41,12 @@ const ORGANIZE = ['filesOrganizationGet', 'filesOrganizationList']
 const INVALIDATIONS = {
   'files.organization.updated': ORGANIZE,
   'files.item.created': [courseList, 'filesItemSearch', 'filesUsageGet', 'filesDocumentSearch'],
+  // Keeping or removing a local copy changes the storage used.
   'files.item.updated': [
     courseList,
     'filesItemSearch',
     ofItem(['filesItemGet']),
+    'filesUsageGet',
     'filesDocumentSearch',
     ...ORGANIZE,
   ],
@@ -148,7 +150,7 @@ export default defineModule({
   ],
   jobKinds: [
     { kind: 'files.process', title: m.files_job_process },
-    { kind: 'files.keep_offline', title: m.files_job_keep_offline },
+    { kind: 'files.store_copy', title: m.files_job_store_copy },
     { kind: 'files.reindex_vectors', title: m.files_job_reindex },
     { kind: 'files.organize', title: m.files_job_organize, to: (job) => organizeLink(job.result) },
   ],

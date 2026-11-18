@@ -28,7 +28,21 @@ from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Tab
 from semestra.modules.portability.registry import Writer, register_portability
 from semestra.modules.portability.tables import TableAdapter
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+def _v1_to_v2(payload: dict[str, Any], archive: Any) -> dict[str, Any]:
+    """Version 1 (up to 2.0) had copies the user kept that no longer followed their source
+    (`kept_offline`); they follow it now, with the local copy the user asked for."""
+    del archive
+    items = [
+        {**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True}
+        if raw.get("kept_offline")
+        else {k: v for k, v in raw.items() if k != "kept_offline"}
+        for raw in payload.get("items") or []
+        if isinstance(raw, dict)
+    ]
+    return {**payload, "items": items}
 
 
 class FilesAdapter(TableAdapter):
@@ -85,8 +99,6 @@ class FilesAdapter(TableAdapter):
                 continue
             key = service.storage_key(ctx.user_id, row.id)
             size = opts.files.claim(key) if opts.files is not None else None
-            if size is None and row.kept_offline:
-                row.kept_offline = False  # without its bytes, a kept copy is its source's again
             if size is None and content.follows_source(row):
                 # Kept in step by its source (an LMS file; stored for it or not), whose
                 # credentials are not in a backup: read again, and stored again if the source
@@ -145,6 +157,7 @@ ADAPTER = FilesAdapter(
 register_portability(
     module="files",
     schema_version=SCHEMA_VERSION,
+    upgrades={1: _v1_to_v2},
     depends_on=("academics",),
     export=ADAPTER.export,
     import_=ADAPTER.import_,

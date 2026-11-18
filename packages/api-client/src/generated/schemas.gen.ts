@@ -5473,16 +5473,6 @@ export const CourseLinkSchema = {
             type: 'boolean',
             title: 'Sync Enabled'
         },
-        files_sync: {
-            type: 'boolean',
-            title: 'Files Sync',
-            description: 'The sync brings the course\'s files, pages and links in'
-        },
-        files_offline: {
-            type: 'boolean',
-            title: 'Files Offline',
-            description: 'They are stored here, not read when opened'
-        },
         synced_at: {
             anyOf: [
                 {
@@ -5548,8 +5538,6 @@ export const CourseLinkSchema = {
         'external_term',
         'web_url',
         'sync_enabled',
-        'files_sync',
-        'files_offline',
         'synced_at',
         'sync_errors',
         'features',
@@ -5590,6 +5578,17 @@ export const CourseLinkStateSchema = {
                     type: 'null'
                 }
             ]
+        },
+        materials: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/MaterialCounts'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Of the linked course; null when not linked'
         },
         program_connection_id: {
             anyOf: [
@@ -10288,6 +10287,23 @@ export const ItemOutSchema = {
             ],
             title: 'Source Ref'
         },
+        source_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Name',
+            description: 'The name of the source it follows (an LMS platform); null for own files'
+        },
+        unseen: {
+            type: 'boolean',
+            title: 'Unseen',
+            description: 'Brought in by its source and not opened yet'
+        },
         doc_status: {
             type: 'string',
             enum: [
@@ -10346,6 +10362,12 @@ export const ItemOutSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        modified_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Modified At',
+            description: 'When its contents last changed: on its source for a file that follows one (not when the sync saw it), else updated_at'
         }
     },
     type: 'object',
@@ -10365,13 +10387,16 @@ export const ItemOutSchema = {
         'pinned',
         'source_kind',
         'source_ref',
+        'source_name',
+        'unseen',
         'doc_status',
         'doc_error_code',
         'page_count',
         'ocr_skipped_pages',
         'job_id',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'modified_at'
     ],
     title: 'ItemOut'
 } as const;
@@ -10758,30 +10783,6 @@ export const LinkUpdateInputBodySchema = {
             ],
             title: 'Sync Enabled',
             description: 'Show in the calendar, check updates'
-        },
-        files_sync: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Files Sync',
-            description: 'Bring the course\'s files, pages and links into its files'
-        },
-        files_offline: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Files Offline',
-            description: 'Store them here (taking quota) instead of reading when opened'
         }
     },
     type: 'object',
@@ -11757,6 +11758,28 @@ export const LocalModelsSchema = {
     ],
     title: 'LocalModels',
     description: 'Models a self-hosted server runs itself for one purpose (local OCR, local embedding).'
+} as const;
+
+export const MaterialCountsSchema = {
+    properties: {
+        local: {
+            type: 'integer',
+            title: 'Local',
+            description: 'With a local copy: they become the user\'s own files'
+        },
+        online: {
+            type: 'integer',
+            title: 'Online',
+            description: 'Read online (and links): they leave the course\'s files'
+        }
+    },
+    type: 'object',
+    required: [
+        'local',
+        'online'
+    ],
+    title: 'MaterialCounts',
+    description: 'The course files that follow the linked course\'s materials, by what unlinking does to\nthem.'
 } as const;
 
 export const McpChangeListSchema = {
@@ -19234,6 +19257,94 @@ export const SyncItemSchema = {
     description: 'Something the sync asks the user about, or a new item the user ignored.'
 } as const;
 
+export const SyncMaterialChangeSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id',
+            description: 'The material\'s id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        title: {
+            type: 'string',
+            title: 'Title',
+            description: 'Its name on the platform'
+        },
+        change: {
+            type: 'string',
+            enum: [
+                'added',
+                'updated',
+                'gone',
+                'handed_over'
+            ],
+            title: 'Change',
+            description: 'added: new in the course\'s files; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user\'s own file (it had a local copy)'
+        },
+        at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'At'
+        },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'The course file it is now, if any'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        folder: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder',
+            description: 'The name of the folder it is in'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'course_id',
+        'course',
+        'title',
+        'change',
+        'at',
+        'item_id',
+        'folder_id',
+        'folder'
+    ],
+    title: 'SyncMaterialChange',
+    description: 'What the platform did lately to a course material (the files stage).'
+} as const;
+
 export const SyncQueuedSchema = {
     properties: {
         queued: {
@@ -19247,6 +19358,44 @@ export const SyncQueuedSchema = {
         'queued'
     ],
     title: 'SyncQueued'
+} as const;
+
+export const SyncRemovedMaterialSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id',
+            description: 'The material\'s id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'At',
+            description: 'When the user deleted it'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'course_id',
+        'course',
+        'title',
+        'at'
+    ],
+    title: 'SyncRemovedMaterial',
+    description: 'A material the user deleted from the course\'s files: not brought back until restored.'
 } as const;
 
 export const SyncRequestInputBodySchema = {
@@ -19401,6 +19550,22 @@ export const SyncStatusSchema = {
             title: 'Different',
             description: 'Fields the user set apart from the platform, by course and title'
         },
+        materials: {
+            items: {
+                $ref: '#/components/schemas/SyncMaterialChange'
+            },
+            type: 'array',
+            title: 'Materials',
+            description: 'What the platform did lately to the course materials, newest first'
+        },
+        removed_materials: {
+            items: {
+                $ref: '#/components/schemas/SyncRemovedMaterial'
+            },
+            type: 'array',
+            title: 'Removed Materials',
+            description: 'Materials the user deleted, newest first'
+        },
         errors: {
             items: {
                 $ref: '#/components/schemas/SyncCourseError'
@@ -19423,6 +19588,8 @@ export const SyncStatusSchema = {
         'ignored',
         'recent',
         'different',
+        'materials',
+        'removed_materials',
         'errors'
     ],
     title: 'SyncStatus'

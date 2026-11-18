@@ -769,8 +769,11 @@ function courseFile(id: string, name: string, created: string) {
     page_count: 3,
     ocr_skipped_pages: 0,
     job_id: null,
+    source_name: null,
+    unseen: false,
     created_at: created,
     updated_at: created,
+    modified_at: created,
   } as const
 }
 

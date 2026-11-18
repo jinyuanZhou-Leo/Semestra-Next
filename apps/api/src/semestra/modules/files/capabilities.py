@@ -4,6 +4,7 @@ from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import agent_hints
+from semestra.core.events import events
 from semestra.core.jobs import JobOut
 from semestra.core.labels import owned_row
 from semestra.modules.files import documents, organize, search, service, sources
@@ -251,19 +252,73 @@ async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
 
 
 @capability(
-    name="files.item.keep_offline",
-    summary="Keep an offline copy of a file read from its source.",
-    description="""Stores a file that is read from the LMS when opened (stored: false) here, in the
-background, so it still opens after the course closes there. It then takes storage quota; one
-too large or beyond the quota left is refused.""",
+    name="files.item.keep_copy",
+    summary="Keep a local copy of a file that follows its source.",
+    description="""Stores a file that follows the LMS here (in the background when it is read
+from the LMS), whatever the course's setting, so it still opens after the course closes there. It
+still follows the LMS (updated, and saved as the user's own file if deleted there). It takes
+storage quota; one too large or beyond the quota left is refused.""",
     effect="write",
-    http=Http("POST", "/files/{item_id}:keep-offline"),
+    http=Http("POST", "/files/{item_id}:keep-copy"),
     expose=("http",),
     tags=TAGS,
 )
-async def keep_offline(ctx: Ctx, inp: ItemRef) -> ItemOut:
+async def keep_copy(ctx: Ctx, inp: ItemRef) -> ItemOut:
     row = await service.get_item(ctx, inp.item_id)
-    await sources.keep_offline(ctx, row)
+    await sources.keep_copy(ctx, row)
+    return await service.item_out(ctx, row)
+
+
+@capability(
+    name="files.item.drop_copy",
+    summary="Remove the local copy of a file that follows its source.",
+    description="""The file is read from the LMS when opened again, whatever the course's
+setting, and its storage is freed.""",
+    effect="write",
+    http=Http("POST", "/files/{item_id}:drop-copy"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def drop_copy(ctx: Ctx, inp: ItemRef) -> ItemOut:
+    row = await service.get_item(ctx, inp.item_id)
+    await sources.drop_copy(ctx, row)
+    return await service.item_out(ctx, row)
+
+
+@capability(
+    name="files.item.make_own",
+    summary="Make a file that follows its source the user's own.",
+    description="""It is no longer updated or removed by the LMS. A file read from the LMS is
+stored here first, in the background (it fails, and stays as it was, when the LMS can't be
+reached); it takes storage quota.""",
+    effect="write",
+    http=Http("POST", "/files/{item_id}:make-own"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def make_own(ctx: Ctx, inp: ItemRef) -> ItemOut:
+    row = await service.get_item(ctx, inp.item_id)
+    await sources.make_own(ctx, row)
+    return await service.item_out(ctx, row)
+
+
+@capability(
+    name="files.item.mark_seen",
+    summary="Mark a file opened.",
+    description="A file its source brought in is new until opened or previewed.",
+    effect="write",
+    http=Http("POST", "/files/{item_id}:seen"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def mark_seen(ctx: Ctx, inp: ItemRef) -> ItemOut:
+    row = await service.get_item(ctx, inp.item_id)
+    if row.unseen:
+        row.unseen = False
+        await ctx.db.flush()
+        await events.publish(
+            ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
+        )
     return await service.item_out(ctx, row)
 
 

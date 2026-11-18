@@ -66,8 +66,6 @@ function link(courseId: string, features: CourseLink['features']): CourseLink {
     external_term: null,
     web_url: null,
     sync_enabled: true,
-    files_sync: true,
-    files_offline: false,
     synced_at: null,
     sync_errors: {},
     features,

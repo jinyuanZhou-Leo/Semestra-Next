@@ -123,8 +123,8 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   )
 }
 
-/** "Save to course files": the file is copied into the course's files (M07) and processed there,
- * or, when the course's files read it from the platform, stored there in place. */
+/** "Save to course files": the file keeps a local copy in the course's files (M07), the one it
+ * already has there or a new one, and keeps following the platform like the course's own. */
 function useSaveToCourse(fileId: string, name: string) {
   const { courseId } = useCanvasPage()
   const [saving, setSaving] = useState(false)

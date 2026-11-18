@@ -78,3 +78,27 @@ async def writes_allowed(ctx: Ctx) -> bool:
 
 async def completes_submitted(ctx: Ctx) -> bool:
     return (await account(ctx)).complete_submitted
+
+
+MaterialStore = Literal["online", "local"]
+
+
+class MaterialSettings(BaseModel):
+    """How a course's materials come in (M11 namespace `lms.materials`, Program and course):
+    the Program's choice holds for its courses unless a course sets its own."""
+
+    sync: bool = Field(
+        default=True,
+        description="The sync brings the course's files, pages and links into its files",
+    )
+    store: MaterialStore = Field(
+        default="online",
+        description="online: read from the platform when opened (no storage); local: a local "
+        "copy is kept, still updated by the platform, and saved as the user's own file when the "
+        "platform deletes it or the course is unlinked",
+    )
+
+
+async def materials(ctx: Ctx, course_id: str) -> MaterialSettings:
+    resolved = await settings_service.get_values(ctx, "lms.materials", "course", course_id)
+    return MaterialSettings.model_validate(resolved.values)

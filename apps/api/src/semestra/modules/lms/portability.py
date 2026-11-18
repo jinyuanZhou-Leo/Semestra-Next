@@ -12,7 +12,9 @@ with M13's `register_portability`.
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
 migration 0035 did. Version 3 keeps the materials apart from the assignments (`_v2_to_v3`, as
-migration 0056 did).
+migration 0056 did). Version 4 gives each material a state (`_v3_to_v4`, as migration 0057 did);
+the course's materials settings left the link for M11 (`lms.materials`), which the settings'
+own backup carries.
 """
 
 from collections.abc import Mapping
@@ -37,7 +39,7 @@ from semestra.modules.lms.models import (
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
@@ -81,12 +83,26 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
         "name": snap.get("name"),
         "type": snap.get("type"),
         "sorted_by_model": snap.get("by") == "ai",
-        "is_list": bool(snap.get("list")),
+        "is_list": bool(snap.get("list")),  # left out by `_v3_to_v4`
         "links": snap.get("links") or [],
         "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
         "imported_at": ref.get("imported_at"),
         "deleted_at": ref.get("dismissed_at"),
     }
+
+
+def _v3_to_v4(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+    del archive
+    materials = [
+        {
+            **{k: v for k, v in r.items() if k not in ("deleted_at", "is_list")},
+            "state": "dismissed" if r.get("deleted_at") else "synced",
+            "state_at": r.get("deleted_at"),
+        }
+        for r in payload.get("materials") or []
+        if isinstance(r, dict)
+    ]
+    return {**payload, "materials": materials}
 
 
 class Writer(Protocol):
@@ -117,8 +133,6 @@ class LinkRow(BaseModel):
     external_term: str | None = None
     web_url: str | None = None
     sync_enabled: bool = True
-    files_sync: bool = True
-    files_offline: bool = False
 
 
 class RefRow(BaseModel):
@@ -137,18 +151,19 @@ class MaterialRow(BaseModel):
     link_id: str
     kind: str
     external_id: str
-    # None: an item the user deleted (`deleted_at`).
+    # `synced`, `dismissed` (the user deleted its item) or `handed_over` (its item is the user's
+    # own file now).
+    state: str = "synced"
+    state_at: datetime | None = None
     item_id: str | None = None
     title: str | None = None
     version: str | None = None
     name: str | None = None
     type: str | None = None
     sorted_by_model: bool = False
-    is_list: bool = False
     links: list[list[str]] = []
     checked_at: datetime | None = None
     imported_at: datetime | None = None
-    deleted_at: datetime | None = None
 
 
 class LmsPayload(BaseModel):
@@ -180,7 +195,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
-            LmsMaterial.item_id.is_not(None) | LmsMaterial.deleted_at.is_not(None),
+            LmsMaterial.state.in_(("synced", "dismissed", "handed_over")),
         )
     )
     writer.write_json(
@@ -284,8 +299,6 @@ async def import_(
             external_term=li.external_term,
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
-            files_sync=li.files_sync,
-            files_offline=li.files_offline,
             created_at=ctx.now,
             updated_at=ctx.now,
         )
@@ -366,7 +379,7 @@ async def purge(ctx: Ctx) -> None:
 register_portability(
     module="lms",
     schema_version=SCHEMA_VERSION,
-    upgrades={1: _v1_to_v2, 2: _v2_to_v3},
+    upgrades={1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4},
     depends_on=("academics", "grading", "tasks", "schedule", "files"),
     export=export,
     import_=import_,

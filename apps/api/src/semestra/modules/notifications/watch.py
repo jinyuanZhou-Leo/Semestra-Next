@@ -1,10 +1,11 @@
 """LMS updates (M18 §4.4): what a background course sync (M09 `lms.course.synced`) did, one
-notification per course and kind: new grades, changed assignments, new announcements. The sync
-decides what is new and tells it once.
+notification per course and kind: new grades, changed assignments, new announcements, new course
+materials. The sync decides what is new and tells it once (not what a newly linked course brings
+in).
 
 Grades and changes show only while no Semestra tab is in front: the app tells those itself.
-Announcements show always: the app does not. All are held through quiet hours (sent when they
-end), since the sync does not tell them again."""
+Announcements and materials show always: the app does not. All are held through quiet hours
+(sent when they end), since the sync does not tell them again."""
 
 from typing import Any
 
@@ -76,6 +77,22 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
                 url=url,
                 hidden_only=False,
                 tag=f"lms_announcements:{course_id}",
+                held=True,
+            )
+        )
+    materials = [n for n in data.get("notices") or [] if n.get("kind") == "material"]
+    if materials and cfg.lms == "all":
+        one = materials[0].get("item_id") if len(materials) == 1 else None
+        messages.append(
+            Message(
+                kind=_kind("lms_materials", len(materials)),
+                params={
+                    "course": name,
+                    "items": texts.listing(locale, [x["title"] for x in materials]),
+                },
+                url=f"{page}/files?file={one}" if one else f"{page}/files",
+                hidden_only=False,
+                tag=f"lms_materials:{course_id}",
                 held=True,
             )
         )

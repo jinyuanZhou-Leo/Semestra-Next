@@ -3,6 +3,7 @@ import type {
   SyncConflict,
   SyncDifference,
   SyncItem,
+  SyncMaterialChange,
   SyncStatus,
 } from '@semestra/api-client'
 import {
@@ -10,6 +11,7 @@ import {
   lmsSyncChangeRevert,
   lmsSyncDismiss,
   lmsSyncFieldResolve,
+  lmsSyncMaterialRestore,
   lmsSyncResolve,
 } from '@semestra/api-client'
 import { lmsSyncRequestMutation, lmsSyncStatusQueryKey } from '@semestra/api-client/react-query'
@@ -23,6 +25,7 @@ import {
   RefreshCw,
   Undo2,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { type ReactNode, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -40,6 +43,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle }
 import { PopoverDescription, PopoverHeader, PopoverTitle } from '@/ui/popover'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { filePath } from '@/modules/files/location'
 import { importAssignments } from '../import/assignments'
 import { ERROR_LABEL } from '../settings/ConnectionsSection'
 import { byCourse, fieldLabel, formatValue, pendingCount } from './labels'
@@ -59,9 +63,11 @@ const FOLD_MS = 200
 /**
  * The panel of the LMS status line (M09 §4.1). The header (platform, last sync, "Sync now")
  * stays put while the rest scrolls: what waits for the user (new assignments, values both sides
- * changed, items deleted on the platform), what the sync changed lately (each can be put back,
- * and that undone), the fields the user set apart from the platform (each can take the
- * platform's value again) and the ignored new items, every list grouped by course.
+ * changed, items deleted on the platform), what the sync changed lately (each assignment change
+ * can be put back, and that undone; course materials that came, changed or went open from here),
+ * the fields the user set apart from the platform (each can take the platform's value again), the
+ * ignored new items and the materials the user removed (each can be restored), every list grouped
+ * by course.
  */
 export default function SyncPanel({ onClose }: { onClose: () => void }) {
   const programId = useProgramId()
@@ -175,6 +181,15 @@ function Panel({
         ? m.lms_sync_subtitle({ ago: syncedAgo(status.synced_at, now), every })
         : m.lms_sync_subtitle_never({ every })
   const groupProps = (courseId: string) => ({ color: colors.get(courseId) })
+  // Assignment changes and material changes, newest first.
+  const recent: Recent[] = [
+    ...status.recent.map((change) => ({ ...change, type: 'field' as const })),
+    ...status.materials.map((change) => ({ ...change, type: 'material' as const })),
+  ].toSorted((a, b) => b.at.localeCompare(a.at))
+  const restore = (id: string) =>
+    void answer([id], () =>
+      lmsSyncMaterialRestore({ path: { material_id: id }, throwOnError: true }),
+    )
 
   return (
     <div className="-m-4 flex max-h-[min(36rem,75vh)] flex-col">
@@ -312,22 +327,33 @@ function Panel({
 
         <section className="flex flex-col gap-2">
           <h3 className="text-xs text-muted-foreground">{m.lms_sync_recent()}</h3>
-          {status.recent.length > 0 ? (
-            byCourse(status.recent).map((group) => (
+          {recent.length > 0 ? (
+            byCourse(recent).map((group) => (
               <CourseGroup
                 key={group.courseId}
                 course={group.course}
                 {...groupProps(group.courseId)}
               >
-                {group.items.map((change) => (
-                  <ChangeRow
-                    key={change.id}
-                    change={change}
-                    now={now}
-                    busy={busy}
-                    onToggle={() => void toggle(change)}
-                  />
-                ))}
+                {group.items.map((change) =>
+                  change.type === 'material' ? (
+                    <MaterialRow
+                      key={change.id}
+                      change={change}
+                      programId={programId}
+                      provider={provider}
+                      now={now}
+                      onOpen={onClose}
+                    />
+                  ) : (
+                    <ChangeRow
+                      key={change.id}
+                      change={change}
+                      now={now}
+                      busy={busy}
+                      onToggle={() => void toggle(change)}
+                    />
+                  ),
+                )}
               </CourseGroup>
             ))
           ) : (
@@ -370,6 +396,57 @@ function Panel({
                         busy={busy}
                         onFollow={() => resolveField(d.id, d.field, 'platform')}
                       />
+                    </Fold>
+                  ))}
+                </CourseGroup>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
+
+        {status.removed_materials.length > 0 ? (
+          <Collapsible className="flex flex-col gap-2">
+            <CollapsibleTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
+                />
+              }
+            >
+              <ChevronRight aria-hidden className="transition-transform" />
+              {m.lms_sync_removed_materials({ count: status.removed_materials.length })}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-2">
+              {byCourse(status.removed_materials).map((group) => (
+                <CourseGroup
+                  key={group.courseId}
+                  course={group.course}
+                  {...groupProps(group.courseId)}
+                >
+                  {group.items.map((item) => (
+                    <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                      <Item size="xs" className="px-0 py-1.5">
+                        <ItemContent className="min-w-0">
+                          <ItemTitle className="w-full">
+                            <span className="truncate">{item.title}</span>
+                          </ItemTitle>
+                          <ItemDescription className="text-xs">
+                            {m.lms_sync_removed_by_you({ ago: formatTimeAgo(item.at, now) })}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => restore(item.id)}
+                          >
+                            {m.lms_sync_restore()}
+                          </Button>
+                        </ItemActions>
+                      </Item>
                     </Fold>
                   ))}
                 </CourseGroup>
@@ -448,6 +525,68 @@ function Panel({
         }}
       />
     </div>
+  )
+}
+
+type Recent = (SyncChange & { type: 'field' }) | (SyncMaterialChange & { type: 'material' })
+
+/**
+ * A course material that came, changed or went on the platform. Its name opens the course file it
+ * is now (none once it is gone), closing the panel.
+ */
+function MaterialRow({
+  change,
+  programId,
+  provider,
+  now,
+  onOpen,
+}: {
+  change: SyncMaterialChange
+  programId: string
+  provider: string
+  now: number
+  onOpen: () => void
+}) {
+  const what = {
+    added: () => m.lms_sync_material_added(),
+    updated: () => m.lms_sync_material_updated(),
+    gone: () => m.lms_sync_material_removed({ provider }),
+    handed_over: () => m.lms_sync_material_kept({ provider }),
+  }[change.change]()
+  const gone = change.change === 'gone'
+  return (
+    <Item size="xs" className={cn('px-0 py-1.5', gone && 'text-muted-foreground')}>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          {change.item_id ? (
+            <Link
+              to={filePath(programId, {
+                id: change.item_id,
+                course_id: change.course_id,
+                folder_id: change.folder_id ?? null,
+              })}
+              className="truncate hover:underline"
+              onClick={onOpen}
+            >
+              {change.title}
+            </Link>
+          ) : (
+            <span className={cn('truncate', gone && 'line-through')}>{change.title}</span>
+          )}
+        </ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
+          <span>{what}</span>
+          {change.folder ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{change.folder}</span>
+            </>
+          ) : null}
+          <span aria-hidden>·</span>
+          <span>{formatTimeAgo(change.at, now)}</span>
+        </ItemDescription>
+      </ItemContent>
+    </Item>
   )
 }
 

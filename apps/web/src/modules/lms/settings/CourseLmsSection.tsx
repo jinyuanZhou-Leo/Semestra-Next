@@ -1,9 +1,10 @@
-import type { CourseLink, ExternalCourse } from '@semestra/api-client'
+import type { CourseLink, ExternalCourse, MaterialCounts } from '@semestra/api-client'
 import {
   academicsCourseGetOptions,
   lmsConnectionListOptions,
   lmsCourseLinkDeleteMutation,
   lmsCourseLinkGetOptions,
+  lmsCourseLinkGetQueryKey,
   lmsCourseLinkSetMutation,
   lmsCourseLinkUpdateMutation,
   lmsCourseListOptions,
@@ -11,12 +12,26 @@ import {
   lmsSyncRequestMutation,
 } from '@semestra/api-client/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Link2, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  Cloud,
+  ExternalLink,
+  HardDrive,
+  Link2,
+  Link2Off,
+  RefreshCw,
+  TriangleAlert,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { RowMenu, SettingRow, SettingsGroup, useSettingsDialog } from '@/app/settings'
-import { ChoiceControl } from '@/app/settings/choice'
+import {
+  RowMenu,
+  SettingRow,
+  SettingsBlock,
+  SettingsGroup,
+  useSettingsDialog,
+} from '@/app/settings'
+import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useDialogTarget } from '@/lib/dialog-target'
@@ -55,9 +70,9 @@ import { Switch } from '@/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
-import { invalidateLms } from '../queries'
+import { MATERIALS, invalidateLms } from '../queries'
 import { ERROR_LABEL, LogoTile } from './ConnectionsSection'
-import { useOpenConnections } from './ProgramLmsSection'
+import { MATERIAL_FIELDS, useOpenConnections } from './ProgramLmsSection'
 
 /** Link errors that only a new token (or new permissions) on the connection fixes. */
 const CONNECTION_ERRORS = new Set([
@@ -87,6 +102,8 @@ export function CourseLmsSection({ scope }: SettingsSectionProps) {
           return (
             <LinkedCourse
               link={data.link}
+              materials={data.materials ?? null}
+              scope={scope}
               courseId={courseId}
               connection={connection}
               onChange={() => setChanging(true)}
@@ -148,19 +165,22 @@ function ProgramUnbound() {
 
 function LinkedCourse({
   link,
+  materials,
+  scope,
   courseId,
   connection,
   onChange,
 }: {
   link: CourseLink
+  /** The course's materials by where they are kept, for what unlinking does to them. */
+  materials: MaterialCounts | null
+  scope: SettingsSectionProps['scope']
   courseId: string
   connection: string | null
   onChange: () => void
 }) {
   const queryClient = useQueryClient()
   const syncId = useId()
-  const filesId = useId()
-  const storeId = useId()
   const now = useNow()
   const openConnections = useOpenConnections()
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
@@ -251,7 +271,16 @@ function LinkedCourse({
                 {m.lms_course_change_menu()}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={() => setUnlinking(true)}>
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => {
+                  // The counts in the confirmation are read again: files change without a link event.
+                  void queryClient.refetchQueries({
+                    queryKey: lmsCourseLinkGetQueryKey({ path: { course_id: courseId } }),
+                  })
+                  setUnlinking(true)
+                }}
+              >
                 <Link2Off aria-hidden />
                 {m.lms_course_unlink_menu()}
               </DropdownMenuItem>
@@ -272,47 +301,18 @@ function LinkedCourse({
             }
           />
         </SettingRow>
-        <SettingRow
-          label={m.lms_course_files_sync()}
-          description={m.lms_course_files_sync_description({ provider })}
-          htmlFor={filesId}
-        >
-          <Switch
-            id={filesId}
-            checked={link.sync_enabled && link.files_sync}
-            disabled={update.isPending || !link.sync_enabled}
-            onCheckedChange={(on) =>
-              update.mutate({ path: { course_id: courseId }, body: { files_sync: on } })
-            }
-          />
-        </SettingRow>
-        <SettingRow label={m.lms_course_files_store()} labelId={storeId}>
-          <ChoiceControl
-            labelId={storeId}
-            value={link.files_offline ? 'stored' : 'read'}
-            disabled={update.isPending || !link.sync_enabled || !link.files_sync}
-            selectClassName="w-44"
-            options={[
-              {
-                value: 'read',
-                label: m.lms_course_files_store_read(),
-                hint: m.lms_course_files_store_read_hint({ provider }),
-              },
-              {
-                value: 'stored',
-                label: m.lms_course_files_store_stored(),
-                hint: m.lms_course_files_store_stored_hint({ provider }),
-              },
-            ]}
-            onChange={(next) =>
-              update.mutate({
-                path: { course_id: courseId },
-                body: { files_offline: next === 'stored' },
-              })
-            }
-          />
-        </SettingRow>
       </SettingsGroup>
+      {link.sync_enabled ? (
+        <SettingsBlock title={m.lms_materials_group()}>
+          <NamespaceForm
+            namespace={MATERIALS}
+            level="course"
+            scope={scope}
+            fields={MATERIAL_FIELDS}
+            params={{ provider }}
+          />
+        </SettingsBlock>
+      ) : null}
       {code ? (
         <Alert variant="destructive">
           <TriangleAlert aria-hidden />
@@ -336,6 +336,25 @@ function LinkedCourse({
         onOpenChange={setUnlinking}
         title={m.lms_course_unlink_title()}
         description={m.lms_course_unlink_desc()}
+        extra={
+          materials && materials.local + materials.online > 0 ? (
+            // What happens to the course's materials, in numbers.
+            <ul className="flex flex-col gap-2 text-sm">
+              {materials.local > 0 ? (
+                <li className="flex items-start gap-2.5">
+                  <HardDrive aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span>{m.lms_course_unlink_kept({ count: materials.local })}</span>
+                </li>
+              ) : null}
+              {materials.online > 0 ? (
+                <li className="flex items-start gap-2.5">
+                  <Cloud aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span>{m.lms_course_unlink_removed({ count: materials.online, provider })}</span>
+                </li>
+              ) : null}
+            </ul>
+          ) : undefined
+        }
         confirmLabel={m.lms_course_unlink()}
         pending={remove.isPending}
         onConfirm={() => remove.mutate({ path: { course_id: courseId } })}

@@ -4,6 +4,7 @@ import mimetypes
 import re
 from collections.abc import AsyncIterable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -215,6 +216,8 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
+                source_name=r.source_name if content.follows_source(r) else None,
+                unseen=r.unseen,
                 doc_status=r.doc_status,  # pyright: ignore[reportArgumentType]
                 doc_error_code=r.doc_error_code,
                 page_count=doc.page_count if doc else None,
@@ -222,6 +225,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 job_id=jobs.get(r.id),
                 created_at=r.created_at,
                 updated_at=r.updated_at,
+                modified_at=r.source_modified_at or r.updated_at,
             )
         )
     return out
@@ -282,7 +286,7 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
     key = {
         "name": name,
         "size": FilesItem.size_bytes,
-        "updated": FilesItem.updated_at,
+        "updated": func.coalesce(FilesItem.source_modified_at, FilesItem.updated_at),
         "created": FilesItem.created_at,
         "type": func.coalesce(FilesItem.mime_type, "~"),
     }[inp.sort]
@@ -644,10 +648,13 @@ async def save_bytes_as_file(
     source_ref: str | None = None,
     folder_id: str | None = None,
     *,
-    kept_offline: bool = False,
+    source_name: str | None = None,
+    keep_copy: bool | None = None,
+    modified_at: datetime | None = None,
 ) -> ItemOut:
-    """For other modules (M09 saves Canvas files, M12 files the agent generates).
-    `kept_offline`: the user's own copy of a file `source_ref` names (see `FilesItem`)."""
+    """For other modules (M09 saves Canvas files, M12 files the agent generates). With a
+    `source_ref` its source keeps (`content.py`) the file follows that source with this local
+    copy (`keep_copy`: the user asked for one); without, it is a plain file."""
     row = await store_file(
         ctx,
         course_id=course_id,
@@ -657,10 +664,23 @@ async def save_bytes_as_file(
         source_kind=source_kind,
         source_ref=source_ref,
     )
-    if kept_offline:
-        row.kept_offline = True
+    if source_ref is not None:
+        row.source_name, row.keep_copy = source_name, keep_copy
+        row.source_modified_at = modified_at
         await ctx.db.flush()
     return await item_out(ctx, row)
+
+
+async def folder_names(ctx: Ctx, folder_ids: Sequence[str]) -> dict[str, str]:
+    """The names of the ctx user's folders with these ids (gone ones left out)."""
+    if not folder_ids:
+        return {}
+    rows = await ctx.db.execute(
+        select(FilesFolder.id, FilesFolder.name).where(
+            FilesFolder.user_id == ctx.user_id, FilesFolder.id.in_(list(folder_ids))
+        )
+    )
+    return {fid: name for fid, name in rows.all()}
 
 
 async def find_folder(ctx: Ctx, course_id: str, folder_id: str) -> FilesFolder | None:

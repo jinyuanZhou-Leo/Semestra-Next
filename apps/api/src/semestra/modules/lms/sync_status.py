@@ -1,15 +1,17 @@
 """What the app shows about a Program's sync (M09 §4.1): the status line, its panel and the
 reminders. Read from the database only, so it answers at once while courses sync."""
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select, update
 
 from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
+from semestra.modules.files import sources
 from semestra.modules.lms import service, sync
-from semestra.modules.lms.models import LmsImportedRef, LmsSyncChange
+from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef, LmsMaterial, LmsSyncChange
 from semestra.modules.lms.schemas.sync import (
     SyncChange,
     SyncConflict,
@@ -17,6 +19,8 @@ from semestra.modules.lms.schemas.sync import (
     SyncDifference,
     SyncItem,
     SyncItemKind,
+    SyncMaterialChange,
+    SyncRemovedMaterial,
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
@@ -53,6 +57,8 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         ignored=[],
         recent=[],
         different=[],
+        materials=[],
+        removed_materials=[],
         errors=[],
     )
     if binding is None:
@@ -182,6 +188,9 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         )
         for change, ref in rows
     ]
+    materials, removed = await _materials(
+        ctx, [li for li in by_link.values() if li.id not in paused], label
+    )
     errors = [
         SyncCourseError(course_id=li.course_id, course=label(li.course_id), stage=stage, code=code)
         for li in links
@@ -201,11 +210,83 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "ignored": ignored,
             "recent": recent,
             "different": different,
+            "materials": materials,
+            "removed_materials": removed,
             "errors": errors,
         }
     )
 
 
+async def _materials(
+    ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
+) -> tuple[list[SyncMaterialChange], list[SyncRemovedMaterial]]:
+    """What the platform did lately to the courses' materials, and those the user deleted."""
+    course_of = {li.id: li.course_id for li in links}
+    mats = list(
+        await ctx.db.scalars(
+            select(LmsMaterial)
+            .where(
+                LmsMaterial.user_id == ctx.user_id,
+                LmsMaterial.link_id.in_(list(course_of)),
+                or_(
+                    LmsMaterial.changed_at >= ctx.now - CHANGES_KEPT,
+                    LmsMaterial.state == "dismissed",
+                ),
+            )
+            .order_by(LmsMaterial.changed_at.desc())
+        )
+    )
+    changed = [
+        m for m in mats if m.changed_at is not None and m.changed_at >= ctx.now - CHANGES_KEPT
+    ][:RECENT_MAX]
+    items = {
+        r.id: r
+        for r in await sources.find_items(
+            ctx, [m.item_id for m in changed if m.item_id and m.change != "gone"]
+        )
+    }
+    folders = await sources.folder_names(
+        ctx, list({r.folder_id for r in items.values() if r.folder_id})
+    )
+    recent: list[SyncMaterialChange] = []
+    for m in changed:
+        row = items.get(m.item_id or "")
+        course_id = course_of[m.link_id]
+        recent.append(
+            SyncMaterialChange(
+                id=m.id,
+                course_id=course_id,
+                course=label(course_id),
+                title=m.title or "",
+                change=m.change,  # pyright: ignore[reportArgumentType]
+                at=m.changed_at or ctx.now,
+                item_id=row.id if row is not None else None,
+                folder_id=row.folder_id if row is not None else None,
+                folder=folders.get(row.folder_id or "") if row is not None else None,
+            )
+        )
+    removed = sorted(
+        (
+            SyncRemovedMaterial(
+                id=m.id,
+                course_id=course_of[m.link_id],
+                course=label(course_of[m.link_id]),
+                title=m.title or m.name or "",
+                at=m.state_at or ctx.now,
+            )
+            for m in mats
+            if m.state == "dismissed"
+        ),
+        key=lambda r: r.at,
+        reverse=True,
+    )
+    return recent, removed
+
+
 async def forget_old_changes(ctx: Ctx) -> None:
-    """The change log keeps `CHANGES_KEPT`."""
-    await ctx.db.execute(delete(LmsSyncChange).where(LmsSyncChange.at < ctx.now - CHANGES_KEPT))
+    """The change log keeps `CHANGES_KEPT`; so do the materials' last changes."""
+    old = ctx.now - CHANGES_KEPT
+    await ctx.db.execute(delete(LmsSyncChange).where(LmsSyncChange.at < old))
+    await ctx.db.execute(
+        update(LmsMaterial).where(LmsMaterial.changed_at < old).values(change=None, changed_at=None)
+    )

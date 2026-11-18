@@ -23,6 +23,8 @@
   "lms_changes_other": { "title": "Assignments changed in $course", "body": "$items" },
   "lms_announcements_one": { "title": "New announcement in $course", "body": "$items" },
   "lms_announcements_other": { "title": "New announcements in $course", "body": "$items" },
+  "lms_materials_one": { "title": "New material in $course", "body": "$items" },
+  "lms_materials_other": { "title": "New materials in $course", "body": "$items" },
   "habit_daily": { "title": "$name", "body": "Not checked in today." },
   "habit_weekly": { "title": "$name", "body": "$left to go this week." },
   "words": {

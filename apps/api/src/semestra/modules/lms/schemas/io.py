@@ -219,8 +219,6 @@ class CourseLink(BaseModel):
     external_term: str | None
     web_url: str | None
     sync_enabled: bool
-    files_sync: bool = Field(description="The sync brings the course's files, pages and links in")
-    files_offline: bool = Field(description="They are stored here, not read when opened")
     synced_at: datetime | None = Field(description="Last background sync of the course")
     sync_errors: dict[str, str] = Field(
         description="Error code of each sync stage whose last run failed (course, assignments, "
@@ -234,9 +232,20 @@ class CourseRef(BaseModel):
     course_id: Id = Field(description="Course id")
 
 
+class MaterialCounts(BaseModel):
+    """The course files that follow the linked course's materials, by what unlinking does to
+    them."""
+
+    local: int = Field(description="With a local copy: they become the user's own files")
+    online: int = Field(description="Read online (and links): they leave the course's files")
+
+
 class CourseLinkState(BaseModel):
     course_id: str
     link: CourseLink | None
+    materials: MaterialCounts | None = Field(
+        default=None, description="Of the linked course; null when not linked"
+    )
     program_connection_id: str | None = Field(
         description="Connection bound to the course's Program; null = bind one first"
     )
@@ -261,12 +270,6 @@ class LinkUpdateInput(BaseModel):
     course_id: Id = Field(description="Course id")
     sync_enabled: bool | None = Field(
         default=None, description="Show in the calendar, check updates"
-    )
-    files_sync: bool | None = Field(
-        default=None, description="Bring the course's files, pages and links into its files"
-    )
-    files_offline: bool | None = Field(
-        default=None, description="Store them here (taking quota) instead of reading when opened"
     )
 
 

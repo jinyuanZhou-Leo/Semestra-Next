@@ -17,14 +17,14 @@ from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_files import file_version, forget_applied, source_ref
+from semestra.modules.lms.sync_files import enter, file_version, forget_applied, source_ref
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
-    """A copy of the file in the course's files, stored here. Once per file: a file the course's
-    files have already is that item, and one the sync brought in (read from the platform when
-    opened) is stored in place by a job (`stored` false until it has run)."""
-    link, _ = linked = await service.require_link(ctx, inp.course_id)
+    """The file in the course's files with a local copy, following the platform like the
+    materials the sync brings in (`sync_files.py`). Once per file: one the course's files have
+    already keeps a local copy (stored by a job: `stored` false until it has run)."""
+    link, b = linked = await service.require_link(ctx, inp.course_id)
     mat = await ctx.db.scalar(
         select(LmsMaterial).where(
             LmsMaterial.link_id == link.id,
@@ -32,9 +32,10 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
             LmsMaterial.external_id == inp.file_id,
         )
     )
-    found = await sources.find_items(ctx, [mat.item_id]) if mat and mat.item_id else []
+    synced = mat is not None and mat.state == "synced" and mat.item_id
+    found = await sources.find_items(ctx, [mat.item_id]) if synced and mat and mat.item_id else []
     if found:
-        await sources.keep_offline(ctx, found[0])
+        await sources.keep_copy(ctx, found[0])
         return SavedFile(
             file_item_id=found[0].id,
             name=found[0].display_name,
@@ -49,17 +50,20 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         source_kind="lms",
         source_ref=source_ref("file", inp.file_id),
         folder_id=inp.folder_id,
-        kept_offline=True,
+        source_name=b.provider.display_name,
+        keep_copy=True,
+        modified_at=meta.content_at or meta.updated_at,
     )
     if mat is None:
         mat = LmsMaterial(
             user_id=ctx.user_id, link_id=link.id, kind="file", external_id=inp.file_id
         )
         ctx.db.add(mat)
-    # The sync leaves a saved copy as it is (and does not bring the file in again).
-    mat.item_id, mat.imported_at, mat.deleted_at = item.id, ctx.now, None
+    # The sync follows it from now on, and does not bring the file in again.
+    mat.item_id, mat.imported_at = item.id, ctx.now
+    enter(mat, "synced", ctx.now)
     forget_applied(mat)
-    mat.version, mat.name = file_version(meta), item.display_name
+    mat.title, mat.version, mat.name = meta.name, file_version(meta), item.display_name
     await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))
 

@@ -87,6 +87,34 @@ class SyncDifference(BaseModel):
     target_id: str
 
 
+class SyncMaterialChange(BaseModel):
+    """What the platform did lately to a course material (the files stage)."""
+
+    id: str = Field(description="The material's id")
+    course_id: str
+    course: str
+    title: str = Field(description="Its name on the platform")
+    change: Literal["added", "updated", "gone", "handed_over"] = Field(
+        description="added: new in the course's files; updated: its contents changed; gone: "
+        "deleted on the platform, so removed here (it was read online); handed_over: deleted on "
+        "the platform, kept as the user's own file (it had a local copy)"
+    )
+    at: datetime
+    item_id: str | None = Field(description="The course file it is now, if any")
+    folder_id: str | None
+    folder: str | None = Field(description="The name of the folder it is in")
+
+
+class SyncRemovedMaterial(BaseModel):
+    """A material the user deleted from the course's files: not brought back until restored."""
+
+    id: str = Field(description="The material's id")
+    course_id: str
+    course: str
+    title: str
+    at: datetime = Field(description="When the user deleted it")
+
+
 class SyncCourseError(BaseModel):
     course_id: str
     course: str
@@ -108,6 +136,12 @@ class SyncStatus(BaseModel):
     recent: list[SyncChange] = Field(description="What the sync changed lately, newest first")
     different: list[SyncDifference] = Field(
         description="Fields the user set apart from the platform, by course and title"
+    )
+    materials: list[SyncMaterialChange] = Field(
+        description="What the platform did lately to the course materials, newest first"
+    )
+    removed_materials: list[SyncRemovedMaterial] = Field(
+        description="Materials the user deleted, newest first"
     )
     errors: list[SyncCourseError]
 
@@ -136,3 +170,7 @@ class SyncFieldResolveInput(BaseModel):
 
 class SyncChangeRef(BaseModel):
     change_id: Id = Field(description="A recent change's id")
+
+
+class MaterialRef(BaseModel):
+    material_id: Id = Field(description="A removed material's id (lms.sync.status)")

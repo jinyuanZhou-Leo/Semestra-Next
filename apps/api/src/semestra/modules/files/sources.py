@@ -5,14 +5,20 @@ A source registers where its bytes come from (`content.register_content_source`)
 items here with these functions: an item for a file it keeps (`add_remote_file`, stored nowhere,
 taking no quota) or a link (`create_link` with a `source_ref`), updated when the source changes
 (`update_remote_file`, `rename_synced`, `update_link`), read again after the source failed
-(`retry_synced`), stored here for the source (`keep_synced_offline`) or as the user's own copy
-(`keep_offline`), let go of (`purge_items`) or handed to the user (`detach_from_source`).
-`find_items` and `get_folder` read what it keeps; the type folders are `sorting`'s. A source module
-reads and writes `files_*` only through these.
+(`retry_synced`), let go of (`purge_items`) or handed to the user (`detach_from_source`).
+`find_items`, `get_folder` and `folder_names` read what it keeps; the type folders are `sorting`'s.
+A source module reads and writes `files_*` only through these.
+
+A file that follows its source is read from it when opened, or has a local copy here; either
+way it keeps following (updated, removed). The source's setting for the course says which
+(`apply_copies`), unless the user chose for the file (`keep_copy`, `drop_copy`: `FilesItem.
+keep_copy`). Only `make_own` (or `detach_from_source`) ends the following: the file becomes the
+user's own, with its bytes stored here.
 """
 
 import hashlib
 from collections.abc import AsyncIterator, Sequence
+from datetime import datetime
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.db import new_id
@@ -34,6 +40,7 @@ from semestra.modules.files.schemas import SourceKind
 from semestra.modules.files.service import (
     create_link,
     find_items,
+    folder_names,
     get_folder,
     purge_items,
     save_bytes_as_file,
@@ -43,12 +50,15 @@ from semestra.modules.files.settings import auto_index
 __all__ = [
     "SOURCE_UNREAD",
     "add_remote_file",
+    "apply_copies",
     "create_link",
     "detach_from_source",
+    "drop_copy",
     "find_items",
+    "folder_names",
     "get_folder",
-    "keep_offline",
-    "keep_synced_offline",
+    "keep_copy",
+    "make_own",
     "purge_items",
     "read_again_synced",
     "remote",
@@ -108,11 +118,15 @@ async def add_remote_file(
     source_ref: str,
     version: str,
     url: str | None,
+    source_name: str,
+    modified_at: datetime | None,
+    unseen: bool,
     source_kind: SourceKind = "lms",
 ) -> FilesItem:
     """An item for a file kept by another module (`content.py`): stored nowhere, so it takes
-    no quota. `version` names the source's version of the bytes (it changes when they do) and
-    `url` where the source shows the file. Processed like an upload."""
+    no quota. `version` names the source's version of the bytes (it changes when they do), `url`
+    where the source shows the file, `modified_at` when the source last changed it; `unseen`
+    marks it new until the user opens it. Processed like an upload."""
     status, error = _remote_status(ctx, name, mime, size)
     clean = service.safe_name(name)
     row = FilesItem(
@@ -128,6 +142,9 @@ async def add_remote_file(
         url=url,
         source_kind=source_kind,
         source_ref=source_ref,
+        source_name=source_name,
+        source_modified_at=modified_at,
+        unseen=unseen,
         doc_status=status,
         doc_error_code=error,
         created_at=ctx.now,
@@ -152,18 +169,17 @@ async def update_remote_file(
     size: int,
     version: str,
     url: str | None,
+    modified_at: datetime | None,
 ) -> None:
     """The source's file changed: its new metadata, and its text read again. `name` replaces
-    the shown name (None: the user renamed it, keep theirs); its place is never changed. A copy
-    stored for the source (not one the user keeps) is let go: the item is read from the source
-    again, until the source stores the new bytes."""
-    assert not row.kept_offline
-    if row.storage_key:
-        delete_after_commit(ctx, [row.storage_key])
-        row.storage_key = None
+    the shown name (None: the user renamed it, keep theirs); its place is never changed. A local
+    copy is let go: the item is read from the source again, until the source stores the new
+    bytes (`apply_copies`)."""
+    _release(ctx, row)
     if name is not None:
         row.display_name = row.original_name = service.safe_name(name)
     row.mime_type, row.size_bytes, row.url = mime, size, url
+    row.source_modified_at = modified_at
     row.sha256 = _version_hash(version)
     status, error = _remote_status(ctx, row.original_name or row.display_name, mime, size)
     if status == "pending" and not await auto_index(ctx, row.course_id):
@@ -176,17 +192,19 @@ async def update_remote_file(
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
-async def keep_offline(ctx: Ctx, row: FilesItem) -> None:
-    """The user asks for an offline copy of a file read from its source (`content.py`): it is
-    stored here in place, in a listed job, so it still opens once the source is gone (a course
-    closed on the LMS), and the source no longer updates or removes it (`kept_offline`). What
-    can be told now (too large, no quota left) is refused here."""
-    if not content.follows_source(row):
-        return
-    if row.storage_key:  # stored for its source already: now the user's
-        row.kept_offline = True
-        await ctx.db.flush()
-        return
+def _release(ctx: Ctx, row: FilesItem) -> bool:
+    """Lets the local copy go (deleted once the transaction commits): the item is read from its
+    source again. False when it had none."""
+    if not row.storage_key:
+        return False
+    delete_after_commit(ctx, [row.storage_key])
+    row.storage_key = None
+    row.updated_at = ctx.now
+    return True
+
+
+async def _check_room(ctx: Ctx, row: FilesItem) -> None:
+    """Refuses now what can be told now about storing a copy: too large, no quota left."""
     cap = ctx.settings.files_max_upload_bytes
     if row.size_bytes > cap:
         raise AppError("files.too_large", 413, max=cap)
@@ -196,28 +214,79 @@ async def keep_offline(ctx: Ctx, row: FilesItem) -> None:
         raise AppError(
             "common.quota_exceeded", 413, used=current.used_bytes, quota=current.quota_bytes
         )
+
+
+async def _store(ctx: Ctx, row: FilesItem, *, own: bool) -> None:
     from semestra.modules.files.jobs import KeepPayload
 
-    # Marked the user's only once the bytes are here (`store_from_source`): until then, and
-    # after a failure, it is still the source's, and can be asked for again.
     await enqueue(
         ctx,
-        "files.keep_offline",
-        KeepPayload(item_ids=[row.id]),
-        dedupe_key=f"files.keep_offline:{row.id}",
+        "files.store_copy",
+        KeepPayload(item_ids=[row.id], own=own),
+        dedupe_key=f"files.store_copy:{row.id}",
     )
 
 
-async def keep_synced_offline(ctx: Ctx, items: Sequence[FilesItem], *, dedupe: str) -> None:
-    """Stores files read from their source here for the source, quietly in the background, as
-    far as the quota goes (M09's per-course "store here"); the rest stay read from the source.
-    The source still updates and removes them. Only what fits (by the source's sizes) is queued,
-    so a full quota downloads nothing."""
+async def _updated(ctx: Ctx, row: FilesItem) -> None:
+    await ctx.db.flush()
+    await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
+
+
+async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
+    """The user keeps a local copy of a file that follows its source, whatever the source's
+    setting: stored in a listed job (its failure shows in the status bar), so it still opens
+    once the source is gone (a course closed on the LMS). It still follows its source."""
+    if not content.follows_source(row):
+        return
+    row.keep_copy = True
+    if not row.storage_key:
+        await _check_room(ctx, row)
+        await _store(ctx, row, own=False)
+    await _updated(ctx, row)
+
+
+async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
+    """The user reads a file that follows its source from there again, whatever the source's
+    setting: its local copy is let go, freeing its storage."""
+    if not content.follows_source(row):
+        return
+    row.keep_copy = False
+    _release(ctx, row)
+    await _updated(ctx, row)
+
+
+async def make_own(ctx: Ctx, row: FilesItem) -> None:
+    """The user makes a file that follows its source their own: no longer updated or removed by
+    the source. Its bytes must be here first: a file read from its source is stored in a listed
+    job and handed over once they are (`store_from_source`); one that can't be stored (the
+    source is unreachable) stays as it was and the job's failure says why."""
+    if not content.follows_source(row):
+        return
+    if row.storage_key:
+        await detach_from_source(ctx, [row])
+        return
+    await _check_room(ctx, row)
+    await _store(ctx, row, own=True)
+
+
+async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedupe: str) -> None:
+    """Brings the files that follow their source in line with the source's setting for their
+    course (`local`: keep local copies), except where the user chose for a file (`keep_copy`).
+    Copies no longer wanted are let go at once; wanted ones are stored quietly in the background
+    as far as the quota goes (by the source's sizes, so a full quota downloads nothing): the
+    rest stay read from the source."""
     cap = ctx.settings.files_max_upload_bytes
     left = await remaining_quota(ctx)
     ids: list[str] = []
-    for row in items:
-        if not content.remote(row) or row.size_bytes > cap:
+    for row in rows:
+        if not content.follows_source(row):
+            continue
+        want = row.keep_copy if row.keep_copy is not None else local
+        if not want:
+            if _release(ctx, row):
+                await _updated(ctx, row)
+            continue
+        if row.storage_key or row.size_bytes > cap:
             continue
         if left is not None:
             if row.size_bytes > left:
@@ -228,26 +297,36 @@ async def keep_synced_offline(ctx: Ctx, items: Sequence[FilesItem], *, dedupe: s
         from semestra.modules.files.jobs import KeepPayload
 
         await enqueue(
-            ctx, "files.keep_offline_synced", KeepPayload(item_ids=ids), dedupe_key=dedupe
+            ctx, "files.store_synced_copies", KeepPayload(item_ids=ids), dedupe_key=dedupe
         )
 
 
-async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
-    """Stores one file read from its source (the keep-offline jobs). The source is opened in a
-    short transaction, the bytes are written to storage holding no database lock, and the item
-    takes them in another short transaction. Each run stages under a key of its own, so two runs
-    for one item never touch each other's bytes. Not `quiet` (the user asked), the item becomes
-    the user's own copy (`kept_offline`) only in the transaction that has its bytes stored, so a
-    failure leaves it the source's. False (`quiet` only): the quota is full and nothing
-    changed; otherwise that and every other failure raise."""
+async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = False) -> bool:
+    """Stores one file read from its source (the copy jobs). The source is opened in a short
+    transaction, the bytes are written to storage holding no database lock, and the item takes
+    them in another short transaction. Each run stages under a key of its own, so two runs for
+    one item never touch each other's bytes. `quiet` (the source's setting): a file the user
+    chose to read from its source meanwhile is left alone. `own`: the item becomes the user's
+    own file in the transaction that has its bytes stored, so a failure leaves it following.
+    False (`quiet` only): the quota is full and nothing changed; otherwise that and every other
+    failure raise."""
     opened: list[AsyncIterator[bytes]] = []
+
+    def wanted(row: FilesItem | None) -> bool:
+        return (
+            row is not None
+            and content.follows_source(row)
+            and not (quiet and row.keep_copy is False)
+        )
 
     async def open_(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
-        if row is not None and content.remote(row):
+        if row is None or not wanted(row):
+            return
+        if content.remote(row):
             opened.append(await content.open_content(sys_ctx, row))
-        elif row is not None and not quiet and row.storage_key and content.follows_source(row):
-            row.kept_offline = True  # stored for its source meanwhile: now the user's
+        elif own:  # stored meanwhile: hand it over now
+            await detach_from_source(sys_ctx, [row])
 
     await run_as_system(ctx.state, ctx.user_id, open_)
     if not opened:
@@ -270,19 +349,18 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool) -> bool:
 
     async def take(sys_ctx: Ctx) -> None:
         row = await sys_ctx.db.get(FilesItem, item_id)
-        if row is None:
+        if row is None or not wanted(row):
             return
-        if not quiet:
-            row.kept_offline = True  # the user's copy, now that its bytes are here
         if not row.storage_key:  # else stored meanwhile: these bytes are not needed
             row.storage_key = staged.stored.key
             row.size_bytes = staged.stored.size
             taken.append(True)
         row.updated_at = sys_ctx.now
         await charge(sys_ctx)
-        await events.publish(
-            sys_ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id}
-        )
+        if own:
+            await detach_from_source(sys_ctx, [row])
+        else:
+            await _updated(sys_ctx, row)
 
     try:
         await run_as_system(ctx.state, ctx.user_id, take)
@@ -326,11 +404,14 @@ async def rename_synced(ctx: Ctx, row: FilesItem, name: str) -> None:
 
 
 async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
-    """The source no longer keeps these copies the user kept (an LMS course unlinked): they are
-    plain files of the user's from now on (`source_ref` cleared), with nothing to read again."""
+    """Files with a local copy become the user's own (`make_own`, or the source no longer keeps
+    them: an LMS course unlinked, the file deleted there): plain files from now on (`source_ref`
+    cleared), never updated or removed by the source."""
     for row in rows:
-        row.source_ref, row.kept_offline, row.updated_at = None, False, ctx.now
-    await ctx.db.flush()
+        assert row.storage_key
+        row.source_ref = row.source_name = row.keep_copy = None
+        row.updated_at = ctx.now
+        await _updated(ctx, row)
 
 
 async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -> None:
