@@ -1,4 +1,5 @@
 import { createContext, use, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { Checkbox } from '@/ui/checkbox'
 
 /**
@@ -53,14 +54,22 @@ export function useRowSelection(shown: readonly string[]): RowSelection {
 export const RowSelectionContext = createContext<RowSelection | null>(null)
 
 /** A checkbox for a set of rows: one row, a group's rows, or every row shown. */
-export function SelectCheckbox({ ids, label }: { ids: readonly string[]; label: string }) {
+export function SelectCheckbox({
+  ids,
+  label,
+  className,
+}: {
+  ids: readonly string[]
+  label: string
+  className?: string
+}) {
   const selection = use(RowSelectionContext)
   if (!selection) throw new Error('SelectCheckbox renders inside RowSelectionContext')
   const state = selection.state(ids)
   return (
     <Checkbox
       aria-label={label}
-      className="align-middle"
+      className={cn('align-middle', className)}
       checked={state === true}
       indeterminate={state === 'some'}
       disabled={ids.length === 0}

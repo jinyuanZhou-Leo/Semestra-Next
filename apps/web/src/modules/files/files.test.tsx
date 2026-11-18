@@ -11,7 +11,9 @@ import { highlightHtml, searchTerms, snippetParts } from './highlight'
 import { Citation } from './components/Citation'
 import { DocumentText } from './components/DocumentText'
 import { type Target, canMoveInto, canMoveIntoNewFolder, folderTree } from './folders'
+import { course } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
+import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
 import { findDuplicates, planUpload } from './upload'
 
@@ -645,4 +647,82 @@ test('a plan waiting for review moves only the files kept', async () => {
 
   await waitFor(() => expect(applied).toEqual([{ item_ids: ['b'] }]))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('the folder and the previewed file are in the address, so back and reload return there', async () => {
+  items = [item({ folder_id: 'f2' })]
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Week 1'), makeFolder('f2', 'Slides', 'f1')],
+        items,
+        next_cursor: null,
+      }),
+    ),
+  )
+  const user = userEvent.setup()
+  const { router, container } = mount()
+  await user.click(await screen.findByRole('button', { name: 'Week 1' }))
+  await user.click(await screen.findByRole('button', { name: 'Slides' }))
+  expect(router.state.location.search).toEqual({ folder: 'f2' })
+  // The trail's items sit side by side in the list, separators between them.
+  expect(container.querySelector('li li')).toBeNull()
+
+  await user.click(await screen.findByRole('button', { name: 'syllabus.pdf' }))
+  expect(await screen.findByText('PDF page 1')).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({ folder: 'f2', file: 'i1' })
+
+  act(() => router.history.back())
+  await waitFor(() => expect(screen.queryByText('PDF page 1')).not.toBeInTheDocument())
+  act(() => router.history.back())
+  expect(await screen.findByRole('button', { name: 'Slides' })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({ folder: 'f1' })
+})
+
+test('a link opens the folder and file it names, and one that is gone goes up instead', async () => {
+  items = [item({ folder_id: 'f1' })]
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({ folders: [makeFolder('f1', 'Week 1')], items, next_cursor: null }),
+    ),
+  )
+  const opened = renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
+    path: '/',
+    at: '/?folder=f1&file=i1',
+  })
+  expect(await screen.findByText('PDF page 1')).toBeInTheDocument()
+  expect(screen.getAllByText('Week 1').length).toBeGreaterThan(0)
+  opened.unmount()
+
+  const gone = renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
+    path: '/',
+    at: '/?folder=gone&file=gone',
+  })
+  expect(await screen.findByRole('button', { name: 'Week 1' })).toBeInTheDocument()
+  await waitFor(() => expect(gone.router.state.location.search).toEqual({}))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('on a term page the course opened is in the address too, and back to all courses leaves it', async () => {
+  server.use(
+    http.get(`${API}/programs/p1/courses`, () =>
+      HttpResponse.json({
+        items: [course({ id: 'c1', code: 'APS105H1', term_ids: ['t1'] })],
+        next_cursor: null,
+      }),
+    ),
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({ folders: [makeFolder('f1', 'Week 1')], items, next_cursor: null }),
+    ),
+  )
+  const user = userEvent.setup()
+  const { router } = renderWithRouter(
+    <TermFilesPage scope={{ kind: 'term', programId: 'p1', termId: 't1' }} />,
+    undefined,
+    { path: '/', at: '/?course=c1&folder=f1' },
+  )
+  expect(await screen.findByText('Week 1')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'All courses' }))
+  expect(await screen.findByRole('button', { name: /APS105H1/ })).toBeInTheDocument()
+  expect(router.state.location.search).toEqual({})
 })
