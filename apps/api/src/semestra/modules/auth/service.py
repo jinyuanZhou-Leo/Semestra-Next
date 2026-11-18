@@ -192,7 +192,7 @@ async def _send_later(
     category = "auth_verification" if template.startswith("verification_code") else "auth_notice"
     message = OutgoingEmail(
         to,
-        render_email(template, locale, params),
+        render_email(template, locale, params, web_origin=ctx.settings.public_web_origin),
         idempotency_key=challenge_id,
         tags=(("category", category), ("purpose", template)),
     )

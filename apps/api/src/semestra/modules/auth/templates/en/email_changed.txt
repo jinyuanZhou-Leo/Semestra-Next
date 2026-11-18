@@ -1,7 +1,6 @@
 Subject: Your Semestra email address was changed
+Title: Your email address was changed
 
-Hi $name,
-
-The email address of your Semestra account was just changed to $new_email. From now on, sign-in codes go to the new address, and your other devices were signed out.
-
-If this was not you, someone else may have access to your account: contact whoever runs this Semestra site right away.
+The email address for your Semestra account is now $new_email. Verification codes will go to the new address from now on, and you've been signed out on your other devices.
+---
+If this wasn't you, someone else may have access to your account. Contact the administrator of this Semestra site right away.
