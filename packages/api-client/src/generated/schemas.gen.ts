@@ -8020,6 +8020,11 @@ export const FeedbackOutSchema = {
             type: 'string',
             title: 'Assessment Id'
         },
+        provider: {
+            type: 'string',
+            title: 'Provider',
+            description: 'The provider it was read from'
+        },
         assignment_id: {
             type: 'string',
             title: 'Assignment Id',
@@ -8122,10 +8127,11 @@ export const FeedbackOutSchema = {
     type: 'object',
     required: [
         'assessment_id',
+        'provider',
         'assignment_id'
     ],
     title: 'FeedbackOut',
-    description: 'The teacher\'s feedback on an imported assessment, as the last sync kept it (M09 §4.3).'
+    description: 'The teacher\'s feedback on an assessment, as the last sync kept it (M09 §4.3).'
 } as const;
 
 export const FileListSchema = {

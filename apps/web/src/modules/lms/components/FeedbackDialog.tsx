@@ -1,5 +1,4 @@
 import type { Assessment, FeedbackOut } from '@semestra/api-client'
-import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useState } from 'react'
@@ -27,8 +26,6 @@ type Shown = { assessment: Assessment; feedback: FeedbackOut }
  */
 export default function FeedbackDialog({ courseId, assessments }: AssessmentColumnDialogProps) {
   const param = useFeedbackParam()
-  const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link
-  const provider = useProviderName(link?.provider) ?? link?.provider ?? ''
   const feedback = useQuery({
     ...feedbackListOptions(courseId),
     select: (list) => list.items.find((f) => f.assessment_id === param.assessmentId),
@@ -43,6 +40,7 @@ export default function FeedbackDialog({ courseId, assessments }: AssessmentColu
     setShown(current)
   }
   const target = current ?? shown
+  const provider = useProviderName(target?.feedback.provider) ?? target?.feedback.provider ?? ''
   return (
     <Dialog
       open={current !== null}

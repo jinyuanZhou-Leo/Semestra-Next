@@ -112,18 +112,21 @@ async def test_feedback_is_kept_and_follows_the_platform(
     assert {"comments": 0, "rubric": True} in news
 
 
-async def test_unbinding_drops_the_feedback_and_keeps_the_grade(api: Api, fake: FakeProvider):
+async def test_unbinding_keeps_the_feedback_as_it_was(api: Api, fake: FakeProvider, clock: Clock):
     program_id, course = await _course(api, "a1")
     fake.course_submissions["101"] = [
         _submission("a1", SubmissionComment(id="1", comment="Good"), score=9)
     ]
     await api.sync(program_id)
     lab = (await _assessments(api, course))["a1"]
-    assert list(await _feedback(api, course)) == ["a1"]
     await api.call("DELETE", f"/assessments/{lab['id']}/lms-assignment")
-    assert await _feedback(api, course) == {}
-    items = (await api.call("GET", f"/courses/{course}/assessments"))["items"]
-    assert [a["id"] for a in items] == [lab["id"]]
+    # The platform changes it; the unbound assessment no longer follows.
+    fake.course_submissions["101"][0].comments = []
+    clock.advance(minutes=2)
+    await api.sync(program_id)
+    kept = await _feedback(api, course)
+    assert [c["comment"] for c in kept["a1"]["comments"]] == ["Good"]
+    assert kept["a1"]["provider"] == fake.kind
 
 
 async def test_the_users_own_comments_are_not_feedback(api: Api, fake: FakeProvider, clock: Clock):

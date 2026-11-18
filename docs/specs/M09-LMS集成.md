@@ -113,8 +113,9 @@ lms_materials                        # 课程资料（文件、页面、链接�
   imported_at?, deleted_at?          # deleted_at = 用户删了这一项，不再带回
   UNIQUE(link_id, kind, external_id)
 
-lms_feedback                         # 已导入考核的老师反馈（§4.3），每个考核一行
-  id, user_id, ref_id → lms_imported_refs (CASCADE, unique),
+lms_feedback                         # 已导入考核的老师反馈（§4.3），每个考核一行，属于考核
+  id, user_id, assessment_id → grading_assessments (CASCADE, unique),
+  course_id → academics_courses (CASCADE), provider, assignment_id（读自哪个平台的哪份作业）,
   web_url?, points?, score?, grade?, attempt?, graded_at?,
   comments [SubmissionComment], rubric [RubricCriterion], rubric_scores [RubricScore]
 
@@ -153,8 +154,8 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **跟随**：每次同步都用平台的当前内容覆盖，平台上改了或删了评语，本地也跟着改或删。
 - **最近更新**：有别人写的新评语（按评语 id 判断；平台没有 id 时按时间与内容），或评分细则第一次有得分时，记一条 `lms_sync_changes`（`field = feedback`，状态里的 `SyncChange.kind` 为 `feedback`，字段改动为 `field`，前端按 `kind` 区分，`new = {comments: 新评语条数, rubric: 是否第一次按评分细则评分}`），出现在状态行面板的“最近更新”里，点开跳到成绩册并打开这项考核的反馈（`?feedback=<考核 id>`）。它不能撤销（`toggleable` 恒为假），也不进 `lms.course.synced` 的 `applied`，所以不发通知（是否通知以后再定）。第一次读到某个考核时（新导入、新绑定、迁移后的第一次同步）已有的反馈不报。
 - **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有别人写的评语或评分细则得分的考核（本人的评论随之返回）；平台连不上、课程在平台上关闭后照常显示。`lms.submission.get` 仍实时读平台，只给 Canvas Tab 的作业详情用（那里的作业不一定已导入）。数据变化时发 `lms.feedback.updated {course_id}`（可合并）。
-- **解绑与取消关联**：反馈随作业的对应关系（`lms_imported_refs`）一起删除（外键级联）：解绑或取消关联后考核和成绩保留，评语不留；重新导入或绑定后下次同步再读回来。解绑、取消关联、更换关联的课程和删除使用中的连接的确认文字都写明保存的评语会被移除，文档同样说明。
-- **导出**：每条导入记录带上它的反馈（`RefRow.feedback`，可省略；评语、评分细则与得分用与接口相同的模型校验，格式不对的备份在导入时就被拒绝），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
+- **解绑与取消关联**（owner 2026-11-18：评语是解释成绩的，成绩留下评语也留下）：反馈属于考核，不属于它与平台的对应关系（`lms_imported_refs`）。解绑、取消关联、更换关联的课程或删除使用中的连接后，评语保持最后一次读到的样子，不再随平台更新（同步已经找不到它）；对话框的平台名与“在 {平台} 中打开”用行里存的 `provider` 与 `web_url`，不依赖关联。考核删除时反馈随之删除（外键级联）。绑定到另一份作业时（`assignment_id` 变了），下次同步按第一次读取处理，悄悄换成新作业的反馈，不报新评语。这几处确认文字都写明保存的老师评语会保留，文档同样说明。
+- **导出**：反馈单独一个列表（`LmsPayload.feedback`，按考核与课程的 id 映射，没跟过来的跳过；可省略；评语、评分细则与得分用与接口相同的模型校验，格式不对的备份在导入时就被拒绝），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
 
 ### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
 - **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按课程开关 `lms_course_links.files_sync`（默认开，课程设置“同步课程资料”；`sync_enabled=false` 时整个同步不跑）。打开开关时把 `synced_at` 清空，下一轮就同步。
@@ -276,7 +277,7 @@ Agent 与 MCP 只看到 11 个按任务设计的工具，而不是每个平台�
 `lms.provider_unknown`、`lms.invalid_config`、`lms.invalid_credentials`、`lms.forbidden`、`lms.not_found`（平台上没有该条目；provider 不再抛 `common.not_found`，那表示本应用的 id 错了）、`lms.area_hidden`（params: area；读整个栏目的列表被平台拒绝，即老师隐藏了该栏目）、`lms.invalid_ref`（params: ref）、`lms.unreachable`、`lms.rate_limited`（params: retry_after）、`lms.blocked_address`、`lms.feature_unsupported`（params: feature）、`lms.program_not_configured`、`lms.program_has_links`（params: count）、`lms.connection_in_use`（params: programs）、`lms.course_not_linked`、`lms.course_already_linked`（params: course_id）。
 
 ## 10. 导出
-注册 M13 适配器：导出连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联和导入记录（带上保存的老师反馈，§4.3）。缓存不导出。
+注册 M13 适配器：导出连接（不含凭证，导入后状态为"需要重新填写凭证"）、Program 绑定、课程关联、导入记录和保存的老师反馈（§4.3）。缓存不导出。
 
 ## 11. 测试
 - Provider 契约测试套件 `tests/lms/provider_contract.py`：每个 provider 都必须通过（以后新增 provider 时直接复用）。用一个假 provider 测试模块本身的逻辑，与 Canvas 无关。

@@ -469,9 +469,10 @@ class SubmissionInput(CourseReadInput):
 
 
 class FeedbackOut(BaseModel):
-    """The teacher's feedback on an imported assessment, as the last sync kept it (M09 §4.3)."""
+    """The teacher's feedback on an assessment, as the last sync kept it (M09 §4.3)."""
 
     assessment_id: str
+    provider: str = Field(description="The provider it was read from")
     assignment_id: str = Field(description="The assignment's external id")
     web_url: str | None = None
     points: float | None = Field(default=None, description="The assignment's points")

@@ -8,6 +8,9 @@ the platform are edited or deleted here. New comments, or a rubric assessed for 
 are a change of the assessment in the status panel's "recent updates"; what an assessment already
 had when the sync first read it is not, nor are the user's own comments under their submission.
 To-dos (assignments worth no points) have no gradebook row, so nothing is kept for them.
+
+The feedback belongs to the assessment: once it is unbound or its course unlinked, the sync no
+longer reaches it and it stays as last read.
 """
 
 from typing import Any
@@ -95,9 +98,11 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     )
     rows = {
-        f.ref_id: f
+        f.assessment_id: f
         for f in await ctx.db.scalars(
-            select(LmsFeedback).where(LmsFeedback.ref_id.in_([r.id for r in refs]))
+            select(LmsFeedback).where(
+                LmsFeedback.assessment_id.in_([str(r.target_id) for r in refs])
+            )
         )
     }
     changed = False
@@ -107,13 +112,22 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             continue  # a cut-off list says nothing about what is missing from it
         a = assignments.get(ref.external_id)
         values = _values(sub, a if a is not None or not cut else None)
-        row = rows.get(ref.id)
+        values |= {"provider": b.row.provider, "assignment_id": ref.external_id}
+        row = rows.get(str(ref.target_id))
         if row is None:
             # What the assessment has when first read is not news.
-            ctx.db.add(LmsFeedback(user_id=ctx.user_id, ref_id=ref.id, **values))
+            ctx.db.add(
+                LmsFeedback(
+                    user_id=ctx.user_id,
+                    assessment_id=ref.target_id,
+                    course_id=link.course_id,
+                    **values,
+                )
+            )
             changed = True
             continue
-        if (new := news(row, values)) is not None:
+        # Bound to another assignment since: its feedback is read for the first time.
+        if row.assignment_id == ref.external_id and (new := news(row, values)) is not None:
             ctx.db.add(
                 LmsSyncChange(
                     user_id=ctx.user_id, ref_id=ref.id, field=FIELD, old=None, new=new, at=ctx.now
@@ -139,34 +153,19 @@ register_sync_stage("feedback", run, order=30, enabled=_enabled)
 
 
 async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
-    """The kept feedback of the course's imported assessments that have feedback (someone
-    else's comments, or rubric scores), from the database only. The user's own comments come
-    with it, for the conversation."""
+    """The kept feedback of the course's assessments that have feedback (someone else's
+    comments, or rubric scores), from the database only; also of assessments no longer tied to
+    the platform. The user's own comments come with it, for the conversation."""
     await academics.get_course_row(ctx, course_id)  # owned, or not found
-    link = await service.link_row(ctx, course_id)
-    if link is None:
-        return FeedbackList(items=[])
-    rows = (
-        await ctx.db.execute(
-            select(LmsFeedback, LmsImportedRef)
-            .join(LmsImportedRef, LmsImportedRef.id == LmsFeedback.ref_id)
-            .where(
-                LmsImportedRef.link_id == link.id,
-                LmsImportedRef.target_kind == "assessment",
-                LmsImportedRef.target_id.is_not(None),
-            )
+    rows = await ctx.db.scalars(
+        select(LmsFeedback).where(
+            LmsFeedback.user_id == ctx.user_id, LmsFeedback.course_id == course_id
         )
-    ).all()
+    )
     return FeedbackList(
         items=[
-            FeedbackOut.model_validate(
-                {
-                    "assessment_id": ref.target_id,
-                    "assignment_id": ref.external_id,
-                    **{k: getattr(f, k) for k in FeedbackOut.model_fields if hasattr(f, k)},
-                }
-            )
-            for f, ref in rows
+            FeedbackOut.model_validate({k: getattr(f, k) for k in FeedbackOut.model_fields})
+            for f in rows
             if _theirs(f.comments) or f.rubric_scores
         ]
     )

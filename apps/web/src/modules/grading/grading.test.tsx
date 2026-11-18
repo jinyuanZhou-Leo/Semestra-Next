@@ -492,6 +492,7 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
         items: [
           {
             assessment_id: 'a1',
+            provider: 'canvas',
             assignment_id: '91',
             web_url: 'https://lms.example/a/91',
             points: 10,
@@ -521,8 +522,7 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
 })
 
 test('a gradebook without feedback has no feedback column', async () => {
-  // An imported assessment the teacher left nothing on (or whose course was unlinked since, which
-  // drops the kept feedback): no column.
+  // An imported assessment the teacher left nothing on: no column.
   book = gradebook({
     assessments: [
       assessment({ id: 'a1', title: 'Lab 1', weight: 40, source_kind: 'lms', source_ref: '91' }),

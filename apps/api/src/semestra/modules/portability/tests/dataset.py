@@ -402,7 +402,10 @@ async def populate(
     db.add(
         LmsFeedback(
             **u,
-            ref_id=lms_ref.id,
+            assessment_id=assessment_id,
+            course_id=course.id,
+            provider="canvas",
+            assignment_id="9001",
             points=100,
             score=88,
             comments=[{"id": "1", "author": "Prof", "comment": "Good", "created_at": None}],

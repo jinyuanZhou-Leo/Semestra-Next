@@ -120,16 +120,24 @@ class LmsImportedRef(Base, OwnedMixin):
 class LmsFeedback(Base, OwnedMixin):
     """The teacher's feedback on an imported assessment's assignment, as the sync last read it
     (`sync_feedback.py`): kept here so the gradebook shows it without asking the platform, after
-    the course closes there, and in backups. One row per imported assessment once the sync read
-    its submission, empty or not; it goes with its ref (unbinding or unlinking drops it, the
-    grade stays in the gradebook)."""
+    the course closes there, and in backups. One row per assessment once the sync read its
+    submission, empty or not. It belongs to the assessment, not to its tie to the platform:
+    unbinding the assessment or unlinking the course keeps it as it was (it no longer follows the
+    platform); deleting the assessment deletes it."""
 
     __tablename__ = "lms_feedback"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
-    ref_id: Mapped[str] = mapped_column(
-        String, ForeignKey("lms_imported_refs.id", ondelete="CASCADE"), unique=True
+    assessment_id: Mapped[str] = mapped_column(
+        String, ForeignKey("grading_assessments.id", ondelete="CASCADE"), unique=True
     )
+    course_id: Mapped[str] = mapped_column(
+        String, ForeignKey("academics_courses.id", ondelete="CASCADE"), index=True
+    )
+    # Where it was read from: the provider (named in the gradebook) and the platform's
+    # assignment (bound to another one, the assessment's feedback starts over, quietly).
+    provider: Mapped[str] = mapped_column(String)
+    assignment_id: Mapped[str] = mapped_column(String)
     # The assignment's address on the platform and its points (the score is shown against them).
     web_url: Mapped[str | None] = mapped_column(String, default=None)
     points: Mapped[float | None] = mapped_column(default=None)

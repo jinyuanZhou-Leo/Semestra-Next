@@ -2,7 +2,7 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
-imported assignments (refs, each with the teacher's feedback kept for it) and materials follow
+imported assignments (refs), the teacher's feedback kept for assessments and materials follow
 the id map of Programs, courses, assessments, tasks and course files (the items the sync brought
 in). The cache is not exported, nor is what
 the background sync keeps for itself (its change log, its conflicts, the new items it offers,
@@ -112,8 +112,12 @@ class LinkRow(BaseModel):
 
 
 class FeedbackRow(BaseModel):
-    """The teacher's feedback kept for an imported assessment (`LmsFeedback`)."""
+    """The teacher's feedback kept for an assessment (`LmsFeedback`)."""
 
+    assessment_id: str
+    course_id: str
+    provider: str
+    assignment_id: str
     web_url: str | None = None
     points: float | None = None
     score: float | None = None
@@ -139,8 +143,6 @@ class RefRow(BaseModel):
     imported_at: datetime | None = None
     submitted_at: datetime | None = None
     dismissed_at: datetime | None = None
-    # Left out of backups made before feedback was kept: the next sync reads it again.
-    feedback: FeedbackRow | None = None
 
 
 class MaterialRow(BaseModel):
@@ -168,6 +170,8 @@ class LmsPayload(BaseModel):
     links: list[LinkRow] = []
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
+    # Left out of backups made before feedback was kept: the next sync reads it again.
+    feedback: list[FeedbackRow] = []
 
     @model_validator(mode="before")
     @classmethod
@@ -206,10 +210,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
         )
     )
-    feedback = {
-        f.ref_id: FeedbackRow.model_validate({k: getattr(f, k) for k in FeedbackRow.model_fields})
-        for f in await ctx.db.scalars(select(LmsFeedback).where(LmsFeedback.user_id == uid))
-    }
+    feedback = await ctx.db.scalars(select(LmsFeedback).where(LmsFeedback.user_id == uid))
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
@@ -236,15 +237,15 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 for li in links
             ],
             refs=[
-                RefRow.model_validate(
-                    {k: getattr(r, k) for k in RefRow.model_fields if k != "feedback"}
-                    | {"feedback": feedback.get(r.id)}
-                )
-                for r in refs
+                RefRow.model_validate({k: getattr(r, k) for k in RefRow.model_fields}) for r in refs
             ],
             materials=[
                 MaterialRow.model_validate({k: getattr(r, k) for k in MaterialRow.model_fields})
                 for r in materials
+            ],
+            feedback=[
+                FeedbackRow.model_validate({k: getattr(f, k) for k in FeedbackRow.model_fields})
+                for f in feedback
             ],
         ).model_dump(mode="json")
     )
@@ -258,7 +259,8 @@ async def import_(
     del options
     data = LmsPayload.model_validate(payload)
     report = ImportReport(
-        {"connections": 0, "bindings": 0, "links": 0, "refs": 0, "materials": 0}, {}
+        {"connections": 0, "bindings": 0, "links": 0, "refs": 0, "materials": 0, "feedback": 0},
+        {},
     )
     connections: dict[str, str] = {}
     for c in data.connections:
@@ -340,13 +342,11 @@ async def import_(
         skip(kind, target_id or "", *((link.course_id, link.program_id) if link else ()))
         return None
 
-    feedback: list[LmsFeedback] = []
     for r in data.refs:
         if (got := mapped("refs", r.link_id, r.target_id)) is None:
             continue
         link_id, target_id = got
         ref = LmsImportedRef(
-            id=new_id(),
             user_id=ctx.user_id,
             link_id=link_id,
             external_id=r.external_id,
@@ -358,19 +358,22 @@ async def import_(
             dismissed_at=r.dismissed_at,
         )
         ctx.db.add(ref)
-        if r.feedback is not None and target_id is not None:
-            f = r.feedback
-            feedback.append(
-                LmsFeedback(
-                    **f.model_dump(exclude=FEEDBACK_JSON),
-                    **f.model_dump(mode="json", include=FEEDBACK_JSON),
-                    user_id=ctx.user_id,
-                    ref_id=ref.id,
-                )
-            )
         report.imported["refs"] += 1
-    await ctx.db.flush()  # the refs first: the feedback rows point at them
-    ctx.db.add_all(feedback)
+    for f in data.feedback:
+        assessment_id, course_id = id_map.get(f.assessment_id), id_map.get(f.course_id)
+        if assessment_id is None or course_id is None:
+            skip("feedback", f.assessment_id, f.course_id)
+            continue
+        ctx.db.add(
+            LmsFeedback(
+                **f.model_dump(exclude={"assessment_id", "course_id", *FEEDBACK_JSON}),
+                **f.model_dump(mode="json", include=FEEDBACK_JSON),
+                user_id=ctx.user_id,
+                assessment_id=assessment_id,
+                course_id=course_id,
+            )
+        )
+        report.imported["feedback"] += 1
     for r in data.materials:
         if (got := mapped("materials", r.link_id, r.item_id)) is None:
             continue
@@ -396,6 +399,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "links": len(data.links),
         "refs": len(data.refs),
         "materials": len(data.materials),
+        "feedback": len(data.feedback),
     }
 
 
