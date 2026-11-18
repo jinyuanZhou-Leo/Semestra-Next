@@ -2,13 +2,12 @@ import { Link } from '@tanstack/react-router'
 import { CircleAlert, Megaphone } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
-import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
-import { announcementPath } from '../announcements'
+import { announcementPath, postedLabel } from '../announcements'
 import { useAnnouncements } from '../posts'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
@@ -78,7 +77,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
             </span>
             {item.posted_at ? (
               <span className="shrink-0 text-xs text-muted-foreground">
-                {formatDate(item.posted_at)}
+                {postedLabel(item.posted_at)}
               </span>
             ) : null}
           </Link>

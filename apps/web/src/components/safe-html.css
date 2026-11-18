@@ -171,12 +171,6 @@
   font-size: 1em;
 }
 
-/* Text keeps a comfortable line length at any depth (templates wrap the whole page in a div);
- * tables, images and code may use the whole width. */
-.lms-simplified :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, h5, h6):not(:is(td, th, li) *) {
-  max-width: 72ch;
-}
-
 .lms-simplified a {
   font-weight: inherit;
   text-decoration-color: color-mix(in oklab, currentColor 35%, transparent);
@@ -240,4 +234,17 @@
 }
 .lms-simplified > :last-child {
   margin-bottom: 0;
+}
+
+/* Inline code as a quiet chip; typography's default wraps it in backticks, which editors' HTML
+ * never meant. Code blocks keep their own background. */
+.lms-simplified :not(pre) > code {
+  padding: 0.125em 0.375em;
+  border-radius: calc(var(--radius) * 0.6);
+  background-color: var(--muted);
+  font-weight: 500;
+}
+.lms-simplified code::before,
+.lms-simplified code::after {
+  content: none;
 }
