@@ -24,6 +24,7 @@ PUBLIC_ROUTES = {
     "POST /auth/email/verify": "signing in",
     "POST /auth/register/complete": "signing in",
     "POST /auth/password/login": "signing in",
+    "POST /auth/password/reset/verify": "signing in",
     "POST /auth/password/reset": "signing in",
     "POST /auth/google": "signing in",
     "POST /auth/passkey/options": "signing in",

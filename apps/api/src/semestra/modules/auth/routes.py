@@ -27,6 +27,8 @@ from semestra.modules.auth.schemas import (
     PasskeyAnswer,
     PasswordLoginIn,
     PasswordResetIn,
+    PasswordResetToken,
+    PasswordResetVerifyIn,
     RefreshIn,
     RegisterCompleteIn,
     TokenPair,
@@ -133,6 +135,20 @@ async def password_login(
     return await _finish(ctx, response, tasks, signed_in, client)
 
 
+@router.post(
+    "/password/reset/verify",
+    operation_id="authPasswordResetVerify",
+    response_model=PasswordResetToken,
+)
+async def password_reset_verify(body: PasswordResetVerifyIn, ctx: AnonCtx) -> PasswordResetToken:
+    """Checks the emailed code; the new password then goes to `/password/reset` with the token."""
+    token = await service.verify_reset_code(ctx, body.email, body.code)
+    await ctx.db.commit()
+    return PasswordResetToken(
+        reset_token=token, expires_in_seconds=int(service.VERIFIED_TTL.total_seconds())
+    )
+
+
 @router.post("/password/reset", operation_id="authPasswordReset", response_model=AuthResult)
 async def password_reset(
     body: PasswordResetIn,
@@ -143,7 +159,7 @@ async def password_reset(
     client: ClientParam = "web",
 ) -> AuthResult:
     signed_in = await service.reset_password(
-        ctx, body.email, body.code, body.new_password, client, _meta(request, ctx)
+        ctx, body.reset_token, body.new_password, client, _meta(request, ctx)
     )
     return await _finish(ctx, response, tasks, signed_in, client)
 

@@ -42,7 +42,8 @@ log = structlog.get_logger()
 
 CODE_TTL = timedelta(minutes=10)
 RESEND_INTERVAL = timedelta(seconds=60)
-REGISTRATION_TTL = timedelta(minutes=15)
+# How long a checked code's token stays good for the step after it (profile, new password).
+VERIFIED_TTL = timedelta(minutes=15)
 REAUTH_WINDOW = timedelta(minutes=10)
 # A Google ID token lives an hour and is not single-use: re-authenticating with one needs it to
 # have just been issued, so a leaked token (e.g. the one from signing in) cannot be replayed.
@@ -267,15 +268,23 @@ async def start_challenge(
     db.add(challenge)
 
     locale = existing.locale if existing and existing.locale else ctx.locale
+    # A reset code for an address without an account could never work: tell its owner that
+    # instead. Only the mailbox sees the difference; the response stays the same.
+    template = (
+        "reset_password_no_account"
+        if purpose == "reset_password" and existing is None
+        else f"verification_code_{purpose}"
+    )
     await _send_later(
         ctx,
         email,
-        f"verification_code_{purpose}",
+        template,
         locale,
         {
             "code": code,
             "minutes": int(CODE_TTL.total_seconds() // 60),
             "email": email,
+            "login_url": f"{s.public_web_origin}/login",
         },
         challenge_id=challenge.id,
     )
@@ -494,18 +503,48 @@ async def verify_email_code(
 ) -> tuple[SignedIn | None, str | None]:
     """§4.1 step 2: (signed_in, None) for an existing account, (None, token) for a new one."""
     challenge = await _check_code(ctx, email=email, purpose="continue", code=code)
-    challenge.verified_at = ctx.now
     user = await user_by_email(ctx.db, email)
     if user is not None:
-        challenge.consumed_at = ctx.now
+        challenge.verified_at = challenge.consumed_at = ctx.now
         if user.email_verified_at is None:
             user.email_verified_at = ctx.now
         signed_in = await create_session(ctx, user, client, meta)
         await notify_new_sign_in(ctx, signed_in, meta)
         return signed_in, None
-    token = crypto.new_token(crypto.REGISTRATION_PREFIX)
+    return None, _issue_verified_token(ctx, challenge, crypto.REGISTRATION_PREFIX)
+
+
+def _issue_verified_token(ctx: Ctx, challenge: AuthEmailChallenge, prefix: str) -> str:
+    """Marks a checked code as verified and returns the token that carries it to the next step.
+
+    The code is spent once here, so whatever the next step rejects (a weak password, a missing
+    name) can be fixed and sent again without a new code.
+    """
+    token = crypto.new_token(prefix)
+    challenge.verified_at = ctx.now
     challenge.verification_token_hash = crypto.hash_token(token)
-    return None, token
+    return token
+
+
+async def _verified_challenge(
+    ctx: Ctx, token: str, purpose: ChallengePurpose, expired_code: str
+) -> AuthEmailChallenge:
+    challenge = (
+        await ctx.db.execute(
+            select(AuthEmailChallenge).where(
+                AuthEmailChallenge.verification_token_hash == crypto.hash_token(token),
+                AuthEmailChallenge.purpose == purpose,
+                AuthEmailChallenge.consumed_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if (
+        challenge is None
+        or challenge.verified_at is None
+        or challenge.verified_at + VERIFIED_TTL <= ctx.now
+    ):
+        raise AppError(expired_code, 400)
+    return challenge
 
 
 async def complete_registration(
@@ -516,20 +555,9 @@ async def complete_registration(
     client: Client,
     meta: RequestMeta,
 ) -> SignedIn:
-    challenge = (
-        await ctx.db.execute(
-            select(AuthEmailChallenge).where(
-                AuthEmailChallenge.verification_token_hash == crypto.hash_token(registration_token),
-                AuthEmailChallenge.consumed_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if (
-        challenge is None
-        or challenge.verified_at is None
-        or challenge.verified_at + REGISTRATION_TTL <= ctx.now
-    ):
-        raise AppError("auth.registration_expired", 400)
+    challenge = await _verified_challenge(
+        ctx, registration_token, "continue", "auth.registration_expired"
+    )
     user = await _create_user(
         ctx, email=challenge.email, display_name=display_name, password=password
     )
@@ -572,18 +600,26 @@ async def _after_password_change(ctx: Ctx, user: AuthUser) -> None:
     )
 
 
-async def reset_password(
-    ctx: Ctx, email: str, code: str, new_password: str, client: Client, meta: RequestMeta
-) -> SignedIn:
-    crypto.validate_password(new_password, email)
+async def verify_reset_code(ctx: Ctx, email: str, code: str) -> str:
+    """§4.4 step 2: a correct code becomes a reset token for choosing the new password."""
     challenge = await _check_code(ctx, email=email, purpose="reset_password", code=code)
-    user = await user_by_email(ctx.db, email)
-    if user is None:
-        # A code was checked for an address with no account: indistinguishable from a bad code.
+    if await user_by_email(ctx.db, email) is None:
+        # The account went away after the code was sent: indistinguishable from a bad code.
         challenge.consumed_at = ctx.now
         await ctx.db.commit()
         raise AppError("auth.invalid_code", 400)
-    challenge.verified_at = challenge.consumed_at = ctx.now
+    return _issue_verified_token(ctx, challenge, crypto.RESET_PREFIX)
+
+
+async def reset_password(
+    ctx: Ctx, reset_token: str, new_password: str, client: Client, meta: RequestMeta
+) -> SignedIn:
+    challenge = await _verified_challenge(ctx, reset_token, "reset_password", "auth.reset_expired")
+    user = await user_by_email(ctx.db, challenge.email)
+    if user is None:
+        raise AppError("auth.reset_expired", 400)
+    crypto.validate_password(new_password, user.email)
+    challenge.consumed_at = ctx.now
     user.password_hash = await crypto.hash_password(new_password)
     if user.email_verified_at is None:
         user.email_verified_at = ctx.now

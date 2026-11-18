@@ -20,6 +20,7 @@ SESSION_PREFIX = "sses_"
 REFRESH_PREFIX = "srt_"
 PAT_PREFIX = "spat_"
 REGISTRATION_PREFIX = "sreg_"
+RESET_PREFIX = "srst_"
 MIN_PASSWORD_LENGTH = 8
 
 _hasher = PasswordHasher()

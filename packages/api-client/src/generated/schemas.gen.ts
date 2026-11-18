@@ -14643,14 +14643,10 @@ export const PasswordLoginInSchema = {
 
 export const PasswordResetInSchema = {
     properties: {
-        email: {
+        reset_token: {
             type: 'string',
-            title: 'Email'
-        },
-        code: {
-            type: 'string',
-            pattern: '^\\d{6}$',
-            title: 'Code'
+            maxLength: 200,
+            title: 'Reset Token'
         },
         new_password: {
             type: 'string',
@@ -14661,11 +14657,49 @@ export const PasswordResetInSchema = {
     },
     type: 'object',
     required: [
-        'email',
-        'code',
+        'reset_token',
         'new_password'
     ],
     title: 'PasswordResetIn'
+} as const;
+
+export const PasswordResetTokenSchema = {
+    properties: {
+        reset_token: {
+            type: 'string',
+            title: 'Reset Token'
+        },
+        expires_in_seconds: {
+            type: 'integer',
+            title: 'Expires In Seconds'
+        }
+    },
+    type: 'object',
+    required: [
+        'reset_token',
+        'expires_in_seconds'
+    ],
+    title: 'PasswordResetToken'
+} as const;
+
+export const PasswordResetVerifyInSchema = {
+    properties: {
+        email: {
+            type: 'string',
+            title: 'Email'
+        },
+        code: {
+            type: 'string',
+            pattern: '^\\d{6}$',
+            title: 'Code'
+        }
+    },
+    type: 'object',
+    required: [
+        'email',
+        'code'
+    ],
+    title: 'PasswordResetVerifyIn'
 } as const;
 
 export const PendingItemSchema = {

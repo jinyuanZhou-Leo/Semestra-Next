@@ -76,6 +76,7 @@ export const errorMessages = {
   error_auth_passkey_unknown: m.error_auth_passkey_unknown,
   error_auth_reauth_required: m.error_auth_reauth_required,
   error_auth_registration_expired: m.error_auth_registration_expired,
+  error_auth_reset_expired: m.error_auth_reset_expired,
   error_auth_session_expired: m.error_auth_session_expired,
   error_auth_token_scope: m.error_auth_token_scope,
   error_auth_too_many_attempts: m.error_auth_too_many_attempts,

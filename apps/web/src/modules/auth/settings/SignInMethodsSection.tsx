@@ -16,12 +16,13 @@ import { SettingsGroup } from '@/app/settings'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { COLLAPSE } from '@/lib/collapse'
 import { errorMessage, toastError } from '@/lib/errors'
+import { weakPasswordError } from '@/modules/auth/components/weak-password'
 import { ReauthGate, needsReauth, useReauthRequired } from '@/modules/auth/components/ReauthGate'
 import { focusOnMount } from '@/lib/focus'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent } from '@/ui/collapsible'
-import { Field, FieldError, FieldLabel, FieldSet } from '@/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel, FieldSet } from '@/ui/field'
 import { Input } from '@/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/ui/input-otp'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from '@/ui/item'
@@ -184,6 +185,7 @@ function PasswordRow({ user }: { user: UserOut }) {
   }
 
   const reauth = useReauthRequired(change.error, !user.has_password)
+  const weak = weakPasswordError(change.error)
   const save = () => {
     if (!next) return
     change.mutate({
@@ -245,7 +247,7 @@ function PasswordRow({ user }: { user: UserOut }) {
                   />
                 </Field>
               ) : null}
-              <Field>
+              <Field data-invalid={weak ? true : undefined}>
                 <FieldLabel htmlFor={`${id}-new`}>{m.auth_account_password_new()}</FieldLabel>
                 <Input
                   id={`${id}-new`}
@@ -254,10 +256,21 @@ function PasswordRow({ user }: { user: UserOut }) {
                   ref={!user.has_password ? focusOnMount : undefined}
                   value={next}
                   onChange={(e) => setNext(e.target.value)}
+                  aria-invalid={weak ? true : undefined}
+                  aria-describedby={`${id}-new-hint`}
                 />
+                {weak ? (
+                  <FieldError id={`${id}-new-hint`}>{weak}</FieldError>
+                ) : (
+                  <FieldDescription id={`${id}-new-hint`}>
+                    {m.auth_password_rule()}
+                  </FieldDescription>
+                )}
               </Field>
               <FieldError>
-                {change.error && !needsReauth(change.error) ? errorMessage(change.error) : null}
+                {change.error && !weak && !needsReauth(change.error)
+                  ? errorMessage(change.error)
+                  : null}
               </FieldError>
               <div className="flex gap-2">
                 <Button type="submit" disabled={!next || reauth}>
