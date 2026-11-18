@@ -1852,6 +1852,7 @@
   "assistant_value_pending": "Still to decide",
   "assistant_value_more": "{items} and {more} more",
   "assistant_field_title": "Title",
+  "assistant_field_pending_plan": "Plan waiting for review",
   "assistant_field_name": "Name",
   "assistant_field_code": "Code",
   "assistant_field_weight": "Weight",

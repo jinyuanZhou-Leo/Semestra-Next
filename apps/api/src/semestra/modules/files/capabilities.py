@@ -434,9 +434,12 @@ async def search_names(ctx: Ctx, inp: FileSearchInput) -> FileMatches:
     description="""Starts a job that gives each file at the top level or in "Course materials" a
 type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
 (replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the
-course's files or with you (`files.organization.get`, then `files.organization.apply`).""",
+course's files or with you (`files.organization.get`, then `files.organization.apply`). Call
+files.organization.get first: when a plan already waits for review, go through that one instead
+of starting again, unless the user asks to.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/files:organize"),
+    preview=organize.preview_start,
     tags=TAGS,
 )
 async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:

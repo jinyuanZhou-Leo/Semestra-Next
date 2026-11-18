@@ -70,12 +70,13 @@ async def _read(api: Api, course: str, ref: str, **params: Any) -> dict[str, Any
     return await api.call("GET", f"/courses/{course}/lms/content", params=params)
 
 
-def _platform_down(fake: FakeProvider) -> None:
-    """Every request to the platform fails, as when it can't be reached."""
+def _platform_down(fake: FakeProvider, code: str = "lms.unreachable") -> None:
+    """Every request to the platform fails with `code`: it can't be reached, or the
+    connection stopped working."""
 
     async def unreachable(*args: Any, **kwargs: Any) -> Any:
         del args, kwargs
-        raise lms_error("lms.unreachable")
+        raise lms_error(code)
 
     for name, _ in inspect.getmembers(FakeProvider, inspect.iscoroutinefunction):
         if not name.startswith("_"):
@@ -128,24 +129,37 @@ async def test_with_the_materials_sync_off_pages_come_from_the_platform(
     assert read["note"].startswith("Not in the course files")
 
 
-async def test_announcements_and_feedback_are_read_without_the_platform(
-    api: Api, fake: FakeProvider
-):
+async def _with_feedback(api: Api, fake: FakeProvider) -> tuple[str, str]:
+    """A linked course with Lab 1 imported and the teacher's comment on it kept."""
     program_id, course = await _course(api, "a1")
     note = SubmissionComment(id="1", author="Prof", comment="Check your loop bounds")
     fake.course_submissions["101"] = [
         SubmissionDetail(external_id="s-a1", assignment_id="a1", comments=[note], score=9)
     ]
     await api.sync(program_id)
-    _platform_down(fake)
+    return program_id, course
+
+
+@pytest.mark.parametrize(
+    ("code", "reconnect"), [("lms.unreachable", False), ("lms.invalid_credentials", True)]
+)
+async def test_announcements_and_feedback_are_read_without_the_platform(
+    api: Api, fake: FakeProvider, code: str, reconnect: bool
+):
+    _, course = await _with_feedback(api, fake)
+    _platform_down(fake, code)
 
     found = await _search(api, course, "welcome")
     assert [h["ref"] for h in found["hits"]] == ["announcement:n101"]
-    assert found["skipped"][-1]["reason"] == "lms.unreachable"
+    down = found["skipped"][-1]
+    assert down["reason"] == code
+    # A connection that stopped working is the user's to fix: Sem is told to say so.
+    assert ("reconnect" in (down["hint"] or "")) is reconnect
     read = await _read(api, course, "announcement:n101")
     assert read["title"] == "Welcome"
     assert "Hi" in read["text"]
-    assert read["note"] == "Its replies could not be read from the LMS."
+    assert read["note"].startswith("Its replies could not be read from the LMS.")
+    assert ("reconnect" in read["note"]) is reconnect
 
     found = await _search(api, course, "loop bounds")
     hit = found["hits"][0]
@@ -155,3 +169,28 @@ async def test_announcements_and_feedback_are_read_without_the_platform(
         assert "Check your loop bounds" in read["text"]
         assert "Score 9/10" in read["text"]
     assert read["note"].startswith("The LMS could not give the assignment")
+    assert ("reconnect" in read["note"]) is reconnect
+
+
+async def test_kept_feedback_joins_its_assignment_and_outlives_the_link(
+    api: Api, fake: FakeProvider
+):
+    _, course = await _with_feedback(api, fake)
+    # A match in the instructions is the assignment's, as the platform names and files it.
+    hit = (await _search(api, course, "do it"))["hits"][0]
+    assert (hit["ref"], hit["title"], hit["where"]) == ("assignment:a1", "Lab 1", "Labs")
+    hit = (await _search(api, course, "loop bounds"))["hits"][0]
+    assert (hit["ref"], hit["where"]) == ("assignment:a1", "Labs")
+
+    await api.call("DELETE", f"/courses/{course}/lms-link")
+    found = await _search(api, course, "loop bounds")
+    assert [h["ref"] for h in found["hits"]] == ["assignment:a1"]
+    assert found["skipped"][0]["reason"] == "lms.course_not_linked"
+    read = await _read(api, course, "assignment:a1")
+    assert "Check your loop bounds" in read["text"]
+    assert read["note"].startswith("The course is no longer linked")
+    # Nothing else is left to read.
+    err = await api.call(
+        "GET", f"/courses/{course}/lms/content", 409, params={"ref": "announcement:n101"}
+    )
+    assert err["error"]["code"] == "lms.course_not_linked"

@@ -6794,6 +6794,12 @@ export type LmsSkipped = {
      * hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)
      */
     reason: string;
+    /**
+     * Hint
+     *
+     * What to tell the user, when anything
+     */
+    hint?: string | null;
 };
 
 /**

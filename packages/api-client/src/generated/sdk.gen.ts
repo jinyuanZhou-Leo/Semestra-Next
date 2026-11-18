@@ -3131,7 +3131,9 @@ export const filesOrganizationGet = <ThrowOnError extends boolean = false>(optio
  * Starts a job that gives each file at the top level or in "Course materials" a
  * type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
  * (replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the
- * course's files or with you (`files.organization.get`, then `files.organization.apply`).
+ * course's files or with you (`files.organization.get`, then `files.organization.apply`). Call
+ * files.organization.get first: when a plan already waits for review, go through that one instead
+ * of starting again, unless the user asks to.
  */
 export const filesOrganizationStart = <ThrowOnError extends boolean = false>(options: Options<FilesOrganizationStartData, ThrowOnError>): RequestResult<FilesOrganizationStartResponses, FilesOrganizationStartErrors, ThrowOnError> => (options.client ?? client).post<FilesOrganizationStartResponses, FilesOrganizationStartErrors, ThrowOnError>({
     security: [

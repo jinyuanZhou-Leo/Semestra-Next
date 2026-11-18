@@ -1852,6 +1852,7 @@
   "assistant_value_pending": "待决定",
   "assistant_value_more": "{items} 等 {total} 项",
   "assistant_field_title": "标题",
+  "assistant_field_pending_plan": "待核对的方案",
   "assistant_field_name": "名称",
   "assistant_field_code": "代码",
   "assistant_field_weight": "权重",

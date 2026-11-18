@@ -270,6 +270,30 @@ async def pending(ctx: Ctx, program_id: str) -> PendingOrganizeList:
     return PendingOrganizeList(items=items)
 
 
+async def preview_start(ctx: Ctx, inp: OrganizeInput) -> dict[str, Any]:
+    """The assistant's confirmation card: a plan still waiting for the user's review is
+    replaced, so the card names its files."""
+    course = await academics.get_course_row(ctx, inp.course_id)
+    saved = await _plan_row(ctx, course.id)
+    changes: list[dict[str, Any]] = []
+    if saved is not None and saved.moves is not None:
+        names = [m.name for m in await _live_moves(ctx, course.id, saved)]
+        if names:
+            changes.append(
+                {
+                    "field": "pending_plan",
+                    "before": names[:SHOWN],
+                    "after": None,
+                    "count": len(names),
+                }
+            )
+    return {
+        "target": f"{course.code} {course.title}" if course.code else course.title,
+        "changes": changes,
+        "link": {"to": f"/p/{course.program_id}/c/{course.id}/files", "page": "files"},
+    }
+
+
 async def preview_apply(ctx: Ctx, inp: OrganizeApplyInput) -> dict[str, Any]:
     """The assistant's confirmation card (M12 §3.5): each folder with the files going in it,
     as `apply` would move them."""

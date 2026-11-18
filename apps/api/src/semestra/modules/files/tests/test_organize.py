@@ -125,3 +125,15 @@ async def test_sem_shows_where_each_file_goes_before_moving_it(fx: Fx):
     }
     assert card["link"]["to"].endswith(f"/c/{fx.course_id}/files")
     assert (await _where(fx))["Lecture 3.txt"] is None  # the card moved nothing
+
+    # Starting again would drop the plan waiting for review: the card says which files it has.
+    card.clear()
+
+    async def restart(ctx: Ctx) -> None:
+        start = registry.get("files.organization.start")
+        card.update(await make_preview(ctx, start, {"course_id": fx.course_id}))
+
+    await run_as_system(fx.app.state, fx.user.id, restart)
+    [pending] = card["changes"]
+    assert (pending["field"], pending["after"], pending["count"]) == ("pending_plan", None, 3)
+    assert sorted(pending["before"]) == ["Lecture 3.txt", "Lecture 4.txt", "Midterm 2023.txt"]

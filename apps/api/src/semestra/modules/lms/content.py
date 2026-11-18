@@ -66,12 +66,36 @@ ACTIVITY_MAX = 60
 _SKIPPABLE = frozenset(
     ("lms.area_hidden", "lms.not_found", "lms.forbidden", "lms.feature_unsupported")
 )
-# The platform could not be reached or refused the course (it closed there): what the app keeps
-# of it (announcements, feedback, the course's files) is still searched and read.
+# The platform could not be reached or refused the course (it closed there), or the connection
+# itself stopped working (`BROKEN_ON_READ`: only the user can fix that, so results say so): what
+# the app keeps of the course (announcements, feedback, the course's files) is still searched
+# and read.
 _PLATFORM_DOWN = (
     frozenset(("lms.unreachable", "lms.rate_limited", "lms.forbidden", "lms.not_found"))
     | BROKEN_ON_READ
 )
+_RECONNECT = (
+    "The LMS connection stopped working: tell the user to reconnect it in settings (LMS). Until "
+    "then only what the app keeps of the course can be read."
+)
+_UNLINKED = "The course is no longer linked to the LMS: only the feedback the app kept can be read."
+
+
+def _down_hint(code: str) -> str | None:
+    return _RECONNECT if code in BROKEN_ON_READ else None
+
+
+async def _linked(ctx: Ctx, course_id: str) -> tuple[LmsCourseLink, Bound] | None:
+    """The course's link, or None when it has none (any more): what the app kept of it (the
+    teacher's feedback) is still read."""
+    try:
+        return await service.require_link(ctx, course_id)
+    except AppError as exc:
+        if exc.code != "lms.course_not_linked":
+            raise
+        return None
+
+
 # Areas whose lists the platform refuses when the instructor hid them (Canvas answers 404):
 # skipped up front when the navigation says so.
 _GUARDED_AREAS = frozenset(("pages", "files", "quizzes", "discussions"))
@@ -361,41 +385,64 @@ class _Docs:
 
 
 async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
-    link, b = await service.require_link(ctx, inp.course_id)
+    linked = await _linked(ctx, inp.course_id)
+    feedback = await _feedback(ctx, inp.course_id)
+    if linked is None and not feedback:
+        raise lms_error("lms.course_not_linked")
     wanted: set[str] = set(inp.kinds or get_args(ContentKind))
-    docs = _Docs(await _kept(ctx, link))
+    docs = _Docs(await _kept(ctx, linked[0]) if linked else {})
+    skipped: list[LmsSkipped] = []
 
-    # What the app keeps is searched without the platform.
-    if "announcement" in wanted and "announcements" in b.provider.features:
-        for a in (await announcements.course_list(ctx, inp.course_id)).items:
-            ref = refs.make("announcement", a.external_id)
-            docs.add(
-                "announcement", ref, a.title, _md(a.html), where="Announcements", date=a.posted_at
+    if linked is None:
+        skipped.append(
+            LmsSkipped(
+                source="the course on the LMS", reason="lms.course_not_linked", hint=_UNLINKED
             )
+        )
+    else:
+        # What the app keeps is searched without the platform.
+        if "announcement" in wanted and "announcements" in linked[1].provider.features:
+            for a in (await announcements.course_list(ctx, inp.course_id)).items:
+                ref = refs.make("announcement", a.external_id)
+                docs.add(
+                    "announcement",
+                    ref,
+                    a.title,
+                    _md(a.html),
+                    where="Announcements",
+                    date=a.posted_at,
+                )
+        if wanted & {"page", "file"}:
+            await _search_kept(ctx, inp, docs, wanted)
+        # The rest is the platform's: when it can't be reached, what the app keeps answers.
+        try:
+            course = await _course(ctx, inp.course_id, inp.refresh)
+            skipped += course.skipped
+            await _search_platform(ctx, inp, course, docs, skipped, wanted)
+        except AppError as exc:
+            if exc.code not in _PLATFORM_DOWN:
+                raise
+            skipped.append(
+                LmsSkipped(
+                    source="the rest of the course on the LMS",
+                    reason=exc.code,
+                    hint=_down_hint(exc.code),
+                )
+            )
+    # The kept feedback joins its assignment as the platform has it (its title, its group);
+    # alone (the platform not reached, the course unlinked) it is named by its assessment.
     if "assignment" in wanted:
-        for f, title in await _feedback(ctx, inp.course_id):
+        for f, title in feedback:
+            ref = refs.make("assignment", f.assignment_id)
             docs.add(
                 "assignment",
-                refs.make("assignment", f.assignment_id),
+                ref,
                 title,
                 _feedback_text(f),
-                where="Feedback",
+                where=None if ref in docs.by_key else "Feedback",
                 url=f.web_url,
                 date=f.graded_at,
             )
-    if wanted & {"page", "file"}:
-        await _search_kept(ctx, inp, docs, wanted)
-
-    # The rest is the platform's: when it can't be reached, what the app keeps still answers.
-    skipped: list[LmsSkipped] = []
-    try:
-        course = await _course(ctx, inp.course_id, inp.refresh)
-        skipped += course.skipped
-        await _search_platform(ctx, inp, course, docs, skipped, wanted)
-    except AppError as exc:
-        if exc.code not in _PLATFORM_DOWN:
-            raise
-        skipped.append(LmsSkipped(source="the rest of the course on the LMS", reason=exc.code))
 
     scored: list[tuple[ranking.Match, _Entry]] = []
     for e in docs.by_key.values():
@@ -597,7 +644,10 @@ def _dt(value: Any) -> datetime | None:
 
 
 async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
-    link, b = await service.require_link(ctx, inp.course_id)
+    linked = await _linked(ctx, inp.course_id)
+    if linked is None:
+        return await _read_unlinked(ctx, inp)
+    link, b = linked
     if inp.ref is not None:
         kind, item_id = refs.parse(inp.ref)
     else:
@@ -641,6 +691,17 @@ async def _from_files(ctx: Ctx, ref: str, kind: ContentKind, item: FilesItem) ->
         citations=doc.citations,
         note=note,
     )
+
+
+async def _read_unlinked(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
+    """A course no longer linked: only an assignment's kept feedback is left to read."""
+    if inp.ref is not None:
+        kind, item_id = refs.parse(inp.ref)
+        if kind == "assignment":
+            for f, title in await _feedback(ctx, inp.course_id):
+                if f.assignment_id == item_id:
+                    return _kept_feedback(item_id, f, title, _UNLINKED)
+    raise lms_error("lms.course_not_linked")
 
 
 type _Reader = Callable[
@@ -719,7 +780,11 @@ async def _read_announcement(
         except AppError as exc:
             if exc.code not in _PLATFORM_DOWN | _SKIPPABLE:
                 raise
-            note = "Its replies could not be read from the LMS."
+            note = " ".join(
+                n
+                for n in ("Its replies could not be read from the LMS.", _down_hint(exc.code))
+                if n
+            )
     return LmsContentDetail(
         ref=refs.make("announcement", a.external_id),
         kind="announcement",
@@ -745,17 +810,23 @@ async def _read_assignment(
         ),
         None,
     )
+    down = None
     try:
         data, _ = await reads.raw_assignments(ctx, inp.course_id, inp.refresh, linked=linked)
     except AppError as exc:
         if kept is None or exc.code not in _PLATFORM_DOWN:
             raise
-        data = []
+        data, down = [], exc.code
     a = next((a for a in data if a["external_id"] == item_id), None)
     if a is None:
         if kept is None:
             raise lms_error("lms.not_found")
-        return _kept_feedback(item_id, *kept)
+        note = (
+            "The LMS could not give the assignment: this is its feedback as the app kept it at "
+            "the last sync."
+        )
+        hint = _down_hint(down) if down else None
+        return _kept_feedback(item_id, *kept, f"{note} {hint}" if hint else note)
     parts = [_md(a.get("html"))]
     sub = a.get("submission") or {}
     if sub:
@@ -822,7 +893,7 @@ def _kept_score(f: FeedbackOut) -> str:
     return line + (f" ({f.grade})" if f.grade else "")
 
 
-def _kept_feedback(item_id: str, f: FeedbackOut, title: str) -> LmsContentDetail:
+def _kept_feedback(item_id: str, f: FeedbackOut, title: str, note: str) -> LmsContentDetail:
     feedback = f.model_dump()
     parts = [_kept_score(f), *_feedback_lines(feedback["rubric"], feedback)]
     return LmsContentDetail(
@@ -833,8 +904,7 @@ def _kept_feedback(item_id: str, f: FeedbackOut, title: str) -> LmsContentDetail
         date=f.graded_at,
         points=f.points,
         text="\n\n".join(p for p in parts if p),
-        note="The LMS could not give the assignment: this is its feedback as the app kept it at "
-        "the last sync.",
+        note=note,
     )
 
 

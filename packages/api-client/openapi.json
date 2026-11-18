@@ -7943,7 +7943,7 @@
           "files"
         ],
         "summary": "Work out how to sort a course's unsorted files into type folders.",
-        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the\ncourse's files or with you (`files.organization.get`, then `files.organization.apply`).",
+        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the\ncourse's files or with you (`files.organization.get`, then `files.organization.apply`). Call\nfiles.organization.get first: when a plan already waits for review, go through that one instead\nof starting again, unless the user asks to.",
         "operationId": "filesOrganizationStart",
         "security": [
           {
@@ -31290,6 +31290,18 @@
             "type": "string",
             "title": "Reason",
             "description": "hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint",
+            "description": "What to tell the user, when anything"
           }
         },
         "type": "object",

@@ -11963,6 +11963,18 @@ export const LmsSkippedSchema = {
             type: 'string',
             title: 'Reason',
             description: 'hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)'
+        },
+        hint: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Hint',
+            description: 'What to tell the user, when anything'
         }
     },
     type: 'object',

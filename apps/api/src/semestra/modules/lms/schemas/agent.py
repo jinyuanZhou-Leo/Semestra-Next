@@ -34,6 +34,7 @@ class LmsSkipped(BaseModel):
         description="hidden (the instructor hid it), failed, limit, or why the LMS could not be "
         "reached (an error code)"
     )
+    hint: str | None = Field(default=None, description="What to tell the user, when anything")
 
 
 class LmsOutlineInput(BaseModel):
