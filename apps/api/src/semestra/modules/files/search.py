@@ -15,7 +15,7 @@ from semestra.core.errors import AppError
 from semestra.core.jobs import enqueue
 from semestra.modules import ai
 from semestra.modules.academics import service as academics
-from semestra.modules.files import service
+from semestra.modules.files import listing
 from semestra.modules.files.chunking import plain_text
 from semestra.modules.files.embeddings import embed_query
 from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
@@ -374,7 +374,7 @@ def citation(hit: SearchHit) -> Citation:
 async def _scope(ctx: Ctx, inp: SearchInput) -> list[str]:
     """The courses to search; course ids outside the Program (or term) are an error, not an
     empty result."""
-    course_ids = await service.program_course_ids(ctx, inp.program_id, inp.term_id)
+    course_ids = await listing.program_course_ids(ctx, inp.program_id, inp.term_id)
     if inp.course_ids is None:
         return course_ids
     known = set(course_ids)

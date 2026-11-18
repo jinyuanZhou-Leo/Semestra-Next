@@ -19,6 +19,8 @@
   "sign_in": { "title": "新的登录", "body": "$device 登录了你的账户。如果不是你，在设置 → 账户中将其退出。" },
   "lms_grades_one": { "title": "$course 有新成绩", "body": "$items" },
   "lms_grades_other": { "title": "$course 有新成绩", "body": "$items" },
+  "lms_feedback_one": { "title": "$course 有新反馈", "body": "$items" },
+  "lms_feedback_other": { "title": "$course 有新反馈", "body": "$items" },
   "lms_changes_one": { "title": "$course 的作业有变更", "body": "$items" },
   "lms_changes_other": { "title": "$course 的作业有变更", "body": "$items" },
   "lms_announcements_one": { "title": "$course 有新公告", "body": "$items" },

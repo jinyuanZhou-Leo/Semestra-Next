@@ -21,7 +21,7 @@ from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.academics import service as academics
 from semestra.modules.files import content as files_content
-from semestra.modules.files import service
+from semestra.modules.files import entries, items, service
 from semestra.modules.files.models import FilesDocumentPage
 from semestra.modules.files.parse.detect import INLINE_SAFE
 from semestra.modules.files.schemas import UploadResult
@@ -55,19 +55,19 @@ async def upload(
     if not files or len(files) > MAX_FILES_PER_REQUEST:
         raise AppError("common.validation", 422, errors=[{"loc": ["files"], "code": "count"}])
     folder = folder_id or None
-    await service.check_upload_target(ctx, course_id, folder)
-    staged: list[service.StagedFile] = []
+    await items.check_upload_target(ctx, course_id, folder)
+    staged: list[items.StagedFile] = []
     try:
         # Every file is in storage before the first row is written, so the database's write
         # lock is held only for the inserts, not while the bytes arrive.
         for file in files:
             reserved = sum(f.stored.size for f in staged)
             staged.append(
-                await service.stage_file(
+                await items.stage_file(
                     ctx, filename=file.filename, stream=_read(file), reserved=reserved
                 )
             )
-        rows = await service.add_staged_files(ctx, course_id, folder, staged)
+        rows = await items.add_staged_files(ctx, course_id, folder, staged)
         result = UploadResult(items=await service.item_outs(ctx, rows))
         await ctx.db.commit()
     except BaseException:
@@ -128,7 +128,7 @@ async def content(
     span = _byte_range(request.headers.get("range"), item.size_bytes)
     headers = {
         "Content-Disposition": _content_disposition(
-            shown, service.download_name(item.display_name, mime)
+            shown, entries.download_name(item.display_name, mime)
         ),
         "Accept-Ranges": "bytes",
         "ETag": f'"{item.copy_version if item.storage_key and item.copy_version else item.sha256}"',
@@ -213,13 +213,13 @@ async def download_many(
     `files.download_unavailable` instead of an archive without them. A file that fails halfway
     breaks the download off, so no archive that looks whole is left behind."""
     course = await academics.get_course_row(ctx, course_id)
-    entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
-    if not entries:
+    picked = await entries.download_entries(ctx, course_id, item_ids, folder_ids)
+    if not picked:
         raise not_found()
     state, user_id, now = ctx.state, ctx.user_id, ctx.now.replace(tzinfo=None)
     members = [
         (path, row.id, row.updated_at.replace(tzinfo=None)) if row else (path, None, now)
-        for path, row in entries
+        for path, row in picked
     ]
     missing: list[str] = []
 

@@ -5,7 +5,8 @@ Each sync reads the user's submissions of the whole course at once (`LmsProvider
 and keeps, for every imported assessment, the comments, the rubric with what the teacher gave per
 criterion, and the score as the platform shows it (`LmsFeedback`). Comments edited or deleted on
 the platform are edited or deleted here. New comments, or a rubric assessed for the first time,
-are a change of the assessment in the status panel's "recent updates"; what an assessment already
+are a change of the assessment in the status panel's "recent updates" (and a notification, M18
+§4.4); what an assessment already
 had when the sync first read it is not, nor are the user's own comments under their submission.
 To-dos (assignments worth no points) have no gradebook row, so nothing is kept for them.
 
@@ -25,7 +26,7 @@ from semestra.modules.lms.models import LmsCourseLink, LmsFeedback, LmsImportedR
 from semestra.modules.lms.schemas.dto import SubmissionDetail
 from semestra.modules.lms.schemas.io import FeedbackList, FeedbackOut
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync import StageResult, hold, register_sync_stage
+from semestra.modules.lms.sync import Applied, StageResult, hold, register_sync_stage
 
 # The gradebook's feedback refetches on it.
 UPDATED = "lms.feedback.updated"
@@ -106,6 +107,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     }
     changed = False
+    news_of: list[tuple[LmsSyncChange, str]] = []
     for ref in refs:
         sub = subs.get(ref.external_id)
         if sub is None and truncated:
@@ -128,11 +130,12 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
             continue
         # Bound to another assignment since: its feedback is read for the first time.
         if row.assignment_id == ref.external_id and (new := news(row, values)) is not None:
-            ctx.db.add(
-                LmsSyncChange(
-                    user_id=ctx.user_id, ref_id=ref.id, field=FIELD, old=None, new=new, at=ctx.now
-                )
+            change = LmsSyncChange(
+                user_id=ctx.user_id, ref_id=ref.id, field=FIELD, old=None, new=new, at=ctx.now
             )
+            ctx.db.add(change)
+            title = (a or {}).get("name") or ref.snapshot.get("title") or ""
+            news_of.append((change, str(title)))
         for name, value in values.items():
             if getattr(row, name) != value:
                 setattr(row, name, value)
@@ -140,7 +143,9 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     await ctx.db.flush()
     if changed:
         await events.publish(ctx, UPDATED, {"course_id": link.course_id})
-    return StageResult()
+    return StageResult(
+        applied=[Applied(change_id=c.id, name=title, field=FIELD) for c, title in news_of]
+    )
 
 
 async def _enabled(ctx: Ctx, link: LmsCourseLink, b: Bound) -> bool:

@@ -3264,7 +3264,7 @@
   "settings_notifications_lms_label": "LMS",
   "settings_notifications_lms_option_off": "Off",
   "settings_notifications_lms_option_updates": "Grades and changes",
-  "settings_notifications_lms_option_updates_description": "New grades, and changed names, due dates or weights",
+  "settings_notifications_lms_option_updates_description": "New grades and feedback, and changed names, due dates or weights",
   "settings_notifications_lms_option_all": "Everything",
   "settings_notifications_lms_option_all_description": "Also new announcements and materials",
   "settings_notifications_assistant_label": "Sem approvals",

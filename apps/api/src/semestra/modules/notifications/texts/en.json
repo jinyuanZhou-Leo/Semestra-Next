@@ -19,6 +19,8 @@
   "sign_in": { "title": "New sign-in", "body": "$device signed in to your account. Not you? Sign it out in Settings → Account." },
   "lms_grades_one": { "title": "New grade in $course", "body": "$items" },
   "lms_grades_other": { "title": "New grades in $course", "body": "$items" },
+  "lms_feedback_one": { "title": "New feedback in $course", "body": "$items" },
+  "lms_feedback_other": { "title": "New feedback in $course", "body": "$items" },
   "lms_changes_one": { "title": "Assignment changed in $course", "body": "$items" },
   "lms_changes_other": { "title": "Assignments changed in $course", "body": "$items" },
   "lms_announcements_one": { "title": "New announcement in $course", "body": "$items" },

@@ -5,7 +5,9 @@ and new comments are a recent update of the assessment."""
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
 
+from semestra.modules.lms import sync
 from semestra.modules.lms.schemas.dto import (
     RubricCriterion,
     RubricRating,
@@ -15,7 +17,7 @@ from semestra.modules.lms.schemas.dto import (
 )
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_sync import _assessments, _course
-from semestra.testing import Clock
+from semestra.testing import Clock, collect_events
 
 pytestmark = pytest.mark.usefixtures("fake")
 
@@ -44,7 +46,7 @@ async def _feedback(api: Api, course: str) -> dict[str, dict[str, Any]]:
 
 
 async def test_feedback_is_kept_and_follows_the_platform(
-    api: Api, fake: FakeProvider, clock: Clock
+    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
 ):
     program_id, course = await _course(api, "a1", "a3")
     labs = fake.course_assignments["101"]
@@ -81,14 +83,19 @@ async def test_feedback_is_kept_and_follows_the_platform(
     await _feedback(api, course)
     assert fake.calls[calls:] == []
 
-    # A new comment is a recent update of the assessment, which cannot be put back.
+    # A new comment is a recent update of the assessment, which cannot be put back, and told
+    # by the sync (a notification, M18 §4.4).
+    user_id = (await api.call("GET", "/account/me"))["id"]
     edited = hello.model_copy(update={"comment": "See me after class"})
     fake.course_submissions["101"][0].comments = [
         edited,
         SubmissionComment(id="2", author="TA", comment="Regraded"),
     ]
     clock.advance(minutes=2)
-    status = await api.sync(program_id)
+    with collect_events(app, user_id) as messages:
+        status = await api.sync(program_id)
+    [synced] = [m["data"] for m in messages if m["type"] == sync.SYNCED]
+    assert [(a["name"], a["field"]) for a in synced["applied"]] == [("Lab 1", "feedback")]
     [change] = [c for c in status["recent"] if c["field"] == "feedback"]
     assert change["new"] == {"comments": 1, "rubric": False}
     assert (change["target_kind"], change["target_id"]) == ("assessment", lab["id"])

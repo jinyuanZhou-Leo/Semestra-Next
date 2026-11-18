@@ -26,6 +26,8 @@ from semestra.core.jobs import periodic
 from semestra.core.storage import charge, delete_after_commit, get_storage, user_key
 from semestra.modules.agent import service, tools
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
+from semestra.modules.files import items as files_items
+from semestra.modules.files import quota as files_quota
 from semestra.modules.files import service as files
 from semestra.modules.files.chunking import heading
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
@@ -216,7 +218,7 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
         file_item_id=item.id,
         created_at=ctx.now,
         sent_at=ctx.now,
-        doc_kind=files.file_type(item.mime_type),
+        doc_kind=files_quota.file_type(item.mime_type),
     )
     try:
         document_id = await documents.active_document_id(ctx, item.id)
@@ -472,7 +474,7 @@ async def save_to_course(ctx: Ctx, inp: SaveToCourseInput) -> ItemOut:
     async def chunks() -> AsyncIterator[bytes]:
         yield data
 
-    item = await files.save_bytes_as_file(
+    item = await files_items.save_bytes_as_file(
         ctx, inp.course_id, row.name, chunks(), source_kind="agent", source_ref=row.id
     )
     row.file_item_id = item.id

@@ -18,7 +18,7 @@ from semestra.core.context import Ctx, run_as_system
 from semestra.core.events import events
 from semestra.core.jobs import TERMINAL, CoreJob, JobCtx, JobOut, enqueue, job_handler
 from semestra.modules.academics import service as academics
-from semestra.modules.files import service, sorting
+from semestra.modules.files import entries, service, sorting
 from semestra.modules.files.models import (
     FilesDocumentPage,
     FilesItem,
@@ -329,7 +329,7 @@ async def apply(ctx: Ctx, course_id: str, item_ids: list[str]) -> OrganizeApplie
     moved = 0
     for kind, ids in by_type.items():
         folder_id = await sorting.folder_for(ctx, course.id, kind, known, if_deleted="remake")
-        moved += await service.move_entries(ctx, course.id, ids, [], folder_id)
+        moved += await entries.move_entries(ctx, course.id, ids, [], folder_id)
     await _drop_plan(ctx, course.id, course.program_id)
     return OrganizeApplied(moved=moved)
 

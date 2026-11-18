@@ -7,7 +7,18 @@ from semestra.core.errors import agent_hints
 from semestra.core.events import events
 from semestra.core.jobs import JobOut
 from semestra.core.labels import owned_row
-from semestra.modules.files import documents, organize, search, service, sources
+from semestra.modules.files import (
+    documents,
+    entries,
+    folders,
+    items,
+    listing,
+    organize,
+    quota,
+    search,
+    service,
+    sources,
+)
 from semestra.modules.files.models import FilesFolder, FilesItem
 from semestra.modules.files.schemas import (
     Deleted,
@@ -94,7 +105,7 @@ list). Do not use to look for what the files say; use files.document.search for 
     ),
 )
 async def files_list(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
-    return await service.list_files(ctx, inp)
+    return await listing.list_files(ctx, inp)
 
 
 @capability(
@@ -120,12 +131,12 @@ course (folder_id null = course root), or pin it for quick access. Only send the
 change.""",
     effect="write",
     http=Http("PATCH", "/files/{item_id}"),
-    check=service.check_item_update,
+    check=items.check_item_update,
     tags=TAGS,
     agent_output_fields=("id", "display_name", CHANGED),
 )
 async def item_update(ctx: Ctx, inp: ItemUpdateInput) -> ItemOut:
-    return await service.update_item(ctx, inp)
+    return await items.update_item(ctx, inp)
 
 
 @capability(
@@ -154,7 +165,7 @@ the course files. Do not use to save a file; uploads are done by the user in the
     agent_output_fields=("id", "display_name", "url"),
 )
 async def link_create(ctx: Ctx, inp: LinkCreateInput) -> ItemOut:
-    return await service.create_link(ctx, inp.course_id, inp.url, inp.display_name, inp.folder_id)
+    return await items.create_link(ctx, inp.course_id, inp.url, inp.display_name, inp.folder_id)
 
 
 @capability(
@@ -168,7 +179,7 @@ a file into the new folder with files.item.update (`folder_id`).""",
     agent_output_fields=("id", "name", "parent_id"),
 )
 async def folder_create(ctx: Ctx, inp: FolderCreateInput) -> FolderOut:
-    return await service.create_folder(ctx, inp.course_id, inp.name, inp.parent_id)
+    return await folders.create_folder(ctx, inp.course_id, inp.name, inp.parent_id)
 
 
 @capability(
@@ -183,7 +194,7 @@ Folders are listed by name. Only send the fields to change.""",
     tags=TAGS,
 )
 async def folder_update(ctx: Ctx, inp: FolderUpdateInput) -> FolderOut:
-    return await service.update_folder(
+    return await folders.update_folder(
         ctx, inp.folder_id, set(inp.model_fields_set), inp.name, inp.parent_id
     )
 
@@ -195,12 +206,12 @@ async def folder_update(ctx: Ctx, inp: FolderUpdateInput) -> FolderOut:
 unless recursive=true, which permanently deletes all its files, links and subfolders.""",
     effect="destructive",
     http=Http("DELETE", "/folders/{folder_id}"),
-    preview=service.preview_folder_delete,
-    check=service.check_folder_delete,
+    preview=folders.preview_folder_delete,
+    check=folders.check_folder_delete,
     tags=TAGS,
 )
 async def folder_delete(ctx: Ctx, inp: FolderDeleteInput) -> Deleted:
-    await service.delete_folder(ctx, inp.folder_id, inp.recursive)
+    await folders.delete_folder(ctx, inp.folder_id, inp.recursive)
     return Deleted()
 
 
@@ -216,7 +227,7 @@ do.""",
     tags=TAGS,
 )
 async def entries_move(ctx: Ctx, inp: EntriesMoveInput) -> EntriesMoved:
-    moved = await service.move_entries(
+    moved = await entries.move_entries(
         ctx, inp.course_id, inp.item_ids, inp.folder_ids, inp.to_folder_id
     )
     return EntriesMoved(moved=moved)
@@ -230,11 +241,11 @@ everything inside them; nothing can be restored. All of them are deleted, or non
 not found.""",
     effect="destructive",
     http=Http("POST", "/courses/{course_id}/files:delete"),
-    preview=service.preview_entries_delete,
+    preview=entries.preview_entries_delete,
     tags=TAGS,
 )
 async def entries_delete(ctx: Ctx, inp: EntriesDeleteInput) -> Deleted:
-    await service.delete_entries(ctx, inp.course_id, inp.item_ids, inp.folder_ids)
+    await entries.delete_entries(ctx, inp.course_id, inp.item_ids, inp.folder_ids)
     return Deleted()
 
 
@@ -249,7 +260,7 @@ after an AI model for reading scanned pages was set up.""",
     tags=TAGS,
 )
 async def reprocess(ctx: Ctx, inp: ItemRef) -> ItemOut:
-    return await service.reprocess(ctx, inp.item_id)
+    return await items.reprocess(ctx, inp.item_id)
 
 
 @capability(
@@ -381,7 +392,7 @@ async def document_outline(ctx: Ctx, inp: ItemRef) -> DocumentOutline:
 )
 async def usage(ctx: Ctx, inp: NoInput) -> FilesUsageGet:
     del inp
-    return await service.usage(ctx)
+    return await quota.usage(ctx)
 
 
 @capability(
@@ -396,7 +407,7 @@ other), largest first. Shown on the account's data settings.""",
 )
 async def usage_breakdown(ctx: Ctx, inp: NoInput) -> FilesUsageBreakdown:
     del inp
-    return await service.usage_breakdown(ctx)
+    return await quota.usage_breakdown(ctx)
 
 
 @capability(
@@ -410,7 +421,7 @@ courses.""",
     tags=TAGS,
 )
 async def pinned(ctx: Ctx, inp: PinnedInput) -> PinnedFiles:
-    return PinnedFiles(items=await service.pinned(ctx, inp.program_id))
+    return PinnedFiles(items=await listing.pinned(ctx, inp.program_id))
 
 
 @capability(
@@ -425,7 +436,7 @@ menu.""",
     tags=TAGS,
 )
 async def search_names(ctx: Ctx, inp: FileSearchInput) -> FileMatches:
-    return FileMatches(items=await service.search_names(ctx, inp))
+    return FileMatches(items=await listing.search_names(ctx, inp))
 
 
 @capability(

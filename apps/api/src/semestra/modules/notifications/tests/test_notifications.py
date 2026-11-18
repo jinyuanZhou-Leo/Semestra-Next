@@ -397,6 +397,9 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
             {"change_id": "c3", "name": "Midterm", "field": "due_at"},
             # A weight alone is not told (a new assignment in a group moves all of them).
             {"change_id": "c4", "name": "Quiz 2", "field": "weight"},
+            # The teacher's new feedback; with a new grade of the same item, told as the grade.
+            {"change_id": "c5", "name": "Lab 1", "field": "feedback"},
+            {"change_id": "c6", "name": "Lab 2", "field": "feedback"},
         ]
         notices = [{"kind": "announcement", "external_id": "n1", "title": "Room change"}]
         data = {"course_id": course_id, "program_id": program_id, "applied": applied,
@@ -410,6 +413,7 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
     # The app shows grades and changes itself; announcements only when asked for, and always.
     assert {t: (m["body"], m["hidden_only"]) for t, m in told.items()} == {
         "New grade in APS105H1": ("Lab 1", True),
+        "New feedback in APS105H1": ("Lab 2", True),
         "Assignment changed in APS105H1": ("Midterm", True),
     }
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "all"}})
@@ -424,7 +428,7 @@ async def test_what_an_lms_sync_did_is_told_per_course_and_kind(
     assert len(received(push, browser)) == before
     clock.advance(hours=1, minutes=1)
     await run_jobs()
-    assert len(received(push, browser)) == before + 3
+    assert len(received(push, browser)) == before + 4
     await call(client, "PATCH", "/me/settings/notifications", json={"values": {"lms": "off"}})
     assert await synced() == {}
 

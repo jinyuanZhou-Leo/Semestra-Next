@@ -920,7 +920,7 @@ async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings
     from semestra.core.errors import AppError
     from semestra.core.storage import usage
     from semestra.modules.auth.models import AuthUser
-    from semestra.modules.files import service
+    from semestra.modules.files import items
 
     async def chunks():
         yield b"x" * 60
@@ -945,13 +945,13 @@ async def test_two_uploads_cannot_both_take_the_last_free_bytes(fx: Fx, settings
         settings.user_storage_quota_bytes = (await usage(ctxs[0])).used_bytes + 100
         # Both check the quota before either has written: each sees 100 bytes free.
         staged = [
-            await service.stage_file(ctx, filename=f"{n}.txt", stream=chunks())
+            await items.stage_file(ctx, filename=f"{n}.txt", stream=chunks())
             for n, ctx in enumerate(ctxs)
         ]
-        await service.add_staged_files(ctxs[0], fx.course_id, None, [staged[0]])
+        await items.add_staged_files(ctxs[0], fx.course_id, None, [staged[0]])
         await db_a.commit()
         with pytest.raises(AppError) as exc:
-            await service.add_staged_files(ctxs[1], fx.course_id, None, [staged[1]])
+            await items.add_staged_files(ctxs[1], fx.course_id, None, [staged[1]])
         assert exc.value.code == "common.quota_exceeded"
         await db_b.rollback()
     listing = await fx.call("GET", f"/courses/{fx.course_id}/files")

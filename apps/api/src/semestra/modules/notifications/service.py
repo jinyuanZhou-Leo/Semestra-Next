@@ -42,6 +42,8 @@ CATEGORY: dict[str, str] = {
     "model_failed": "jobs",
     "lms_grades_one": "lms",
     "lms_grades_other": "lms",
+    "lms_feedback_one": "lms",
+    "lms_feedback_other": "lms",
     "lms_changes_one": "lms",
     "lms_changes_other": "lms",
     "lms_announcements_one": "lms",
