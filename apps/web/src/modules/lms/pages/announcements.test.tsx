@@ -177,7 +177,8 @@ test('links and attachments open what Semestra has, the rest go to the platform'
           '<p><a href="https://q/files/77" data-lms-kind="file" data-lms-ref="77">notes</a> ' +
           '<a href="https://q/assignments/5" data-lms-kind="assignment" data-lms-ref="5">lab</a> ' +
           '<a href="https://q/pages/x" data-lms-kind="page" data-lms-ref="x">page</a> ' +
-          '<a href="https://q/files/99" data-lms-kind="file" data-lms-ref="99">handout</a></p>',
+          '<a href="https://q/files/99" data-lms-kind="file" data-lms-ref="99">handout</a> ' +
+          '<a href="https://piazza.com/class/aps105">forum</a></p>',
         targets: [
           { kind: 'file', ref: '77', target: file },
           {
@@ -230,6 +231,11 @@ test('links and attachments open what Semestra has, the rest go to the platform'
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/grades'))
   expect(router.state.location.search).toEqual({ assessment: 'a1' })
   router.history.back()
+  // A link to another site asks first, as links elsewhere in the app do.
+  await userEvent.click(await screen.findByRole('link', { name: 'forum' }))
+  const leave = await screen.findByRole('alertdialog', { name: 'Open an external site?' })
+  expect(leave).toHaveTextContent('https://piazza.com/class/aps105')
+  await userEvent.click(within(leave).getByRole('button', { name: 'Cancel' }))
   await userEvent.click(await screen.findByRole('link', { name: 'notes' }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/p/p1/c/c1/files'))
 })

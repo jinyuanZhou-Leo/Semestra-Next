@@ -1,6 +1,23 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render as renderPlain, screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
+import type { ReactElement, ReactNode } from 'react'
+import { beforeEach, expect, test } from 'vitest'
+import { API, newQueryClient, server } from '@/test-utils'
 import { SafeHtml } from './SafeHtml'
+
+// Links inside ask before leaving for another site, which reads the sites the user trusts.
+beforeEach(() => {
+  server.use(http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })))
+})
+
+function render(ui: ReactElement) {
+  const client = newQueryClient()
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  )
+  return renderPlain(ui, { wrapper })
+}
 
 test("a marked image loads from the app and goes back to the platform's address if that fails", () => {
   const original = 'https://canvas.example/courses/9/files/77/preview'

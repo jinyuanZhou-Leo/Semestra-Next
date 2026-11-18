@@ -15,6 +15,7 @@ import { course } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
+import { Toaster } from '@/ui/sonner'
 import { findDuplicates, planUpload } from './upload'
 
 // pdf.js does not run in jsdom; the viewer's page is enough to check where it opens.
@@ -44,7 +45,12 @@ vi.mock('react-pdf', () => ({
     }, [file, onLoadSuccess, onLoadError])
     return <div>{children}</div>
   },
-  Page: ({ pageNumber }: { pageNumber: number }) => <p>PDF page {pageNumber}</p>,
+  Page: ({ pageNumber }: { pageNumber: number }) => (
+    <p>
+      PDF page {pageNumber}{' '}
+      <a href={`https://example.com/notes/${pageNumber}`}>notes {pageNumber}</a>
+    </p>
+  ),
 }))
 
 beforeAll(async () => {
@@ -284,11 +290,20 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
       source_kind: 'lms',
       source_ref: 'lms:file:301',
       source_name: 'Canvas',
+      url: 'https://q.utoronto.ca/courses/101/files/301',
       unseen: true,
       modified_at: '2026-02-01T12:00:00Z',
     }),
   ]
   server.use(
+    http.get(`${API}/programs/p1/lms-binding`, () =>
+      HttpResponse.json({
+        program_id: 'p1',
+        connection_id: 'k1',
+        connection: { id: 'k1', provider: 'canvas' },
+        link_count: 1,
+      }),
+    ),
     http.get(`${API}/courses/c1/files`, () =>
       HttpResponse.json({
         folders: [makeFolder('f1', 'Lecture slides')],
@@ -311,7 +326,10 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
     }),
   )
   const user = userEvent.setup()
-  mount()
+  renderWithRouter(<CourseFilesPage scope={scope} />, undefined, {
+    path: '/p/$programId',
+    at: '/p/p1',
+  })
   // The folder holding it is marked too.
   const folder = await screen.findByRole('button', { name: /^Lecture slides/ })
   expect(within(folder).getByText('New')).toBeInTheDocument()
@@ -348,6 +366,13 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
     await screen.findByText("Can't read the original from Canvas right now"),
   ).toBeInTheDocument()
   expect(await screen.findByText('Read from page one')).toBeInTheDocument()
+  // Where else it opens is one entry, not two look-alike icons.
+  expect(screen.queryByRole('link', { name: 'Open in new tab' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Open in…' }))
+  expect((await screen.findAllByRole('menuitem')).map((i) => i.textContent)).toEqual([
+    'Open in new tab',
+    'Open in Canvas',
+  ])
 })
 
 test('links ask before leaving, and can remember the site', async () => {
@@ -452,6 +477,17 @@ test('the preview goes to a heading of the contents or a match of its search', a
   expect(searches.at(-1)).toMatchObject({ query: 'midterm', item_ids: ['i1'] })
   await userEvent.click(hit)
   expect(await within(dialog).findByText('PDF page 3')).toBeInTheDocument()
+})
+
+test("a link in a PDF asks before leaving, like the course's other links", async () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  const dialog = await openPreview()
+  await userEvent.click(await within(dialog).findByRole('link', { name: 'notes 1' }))
+  const leave = await screen.findByRole('alertdialog', { name: 'Open an external site?' })
+  expect(leave).toHaveTextContent('https://example.com/notes/1')
+  await userEvent.click(within(leave).getByRole('button', { name: 'Open' }))
+  expect(open).toHaveBeenCalledWith('https://example.com/notes/1', '_blank', 'noopener,noreferrer')
+  open.mockRestore()
 })
 
 test('a PDF can be read as the text Semestra recognized in it', async () => {
@@ -616,14 +652,19 @@ test('selected files move together to a folder picked in the tree', async () => 
   expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
 })
 
-test('chosen files and folders download together as one archive, links left out', async () => {
+test('chosen files and folders download together as one archive, links left out, or say why not', async () => {
   server.use(
     http.get(`${API}/courses/c1/files`, () =>
       HttpResponse.json({ folders: [makeFolder('f1', 'Labs')], items, next_cursor: null }),
     ),
   )
   const user = userEvent.setup()
-  mount()
+  renderWithRouter(
+    <>
+      <CourseFilesPage scope={scope} />
+      <Toaster />
+    </>,
+  )
   await user.click(await screen.findByRole('checkbox', { name: 'Select Piazza' }))
   // Only a link: nothing to download.
   expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
@@ -635,10 +676,40 @@ test('chosen files and folders download together as one archive, links left out'
   await user.click(
     screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
   )
-  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
-    'href',
-    `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
+  // More than one: an archive. The server is asked first (so a refusal can be shown), then the
+  // browser downloads it.
+  const saved: string[] = []
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    saved.push(this.href)
+  })
+  const asked: string[] = []
+  server.use(
+    http.get(`${API}/courses/c1/files:download`, ({ request }) => {
+      asked.push(new URL(request.url).search)
+      return new HttpResponse('PK', { headers: { 'content-type': 'application/zip' } })
+    }),
   )
+  const archive = `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`
+  await user.click(screen.getByRole('button', { name: 'Download' }))
+  await waitFor(() => expect(saved).toEqual([archive]))
+  expect(asked).toEqual(['?item_ids=i1&folder_ids=f1'])
+
+  // None of them could be read: an error, nothing saved.
+  server.use(
+    http.get(`${API}/courses/c1/files:download`, () =>
+      HttpResponse.json(
+        { error: { code: 'files.download_unavailable', params: {}, request_id: 'r' } },
+        { status: 502 },
+      ),
+    ),
+  )
+  await user.click(screen.getByRole('button', { name: 'Download' }))
+  expect(
+    await screen.findByText("The files couldn't be read from where they're kept. Try again later."),
+  ).toBeInTheDocument()
+  expect(saved).toEqual([archive])
 })
 
 const job = (status: string, step: string | null) => ({
