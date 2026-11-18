@@ -13,7 +13,7 @@ import { Link } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { KeyRound } from 'lucide-react'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
-import { errorMessage } from '@/lib/errors'
+import { errorCode, errorMessage } from '@/lib/errors'
 import { focusOnMount } from '@/lib/focus'
 import { passkeysSupported } from '@/modules/auth/passkey'
 import { m } from '@/paraglide/messages'
@@ -32,6 +32,7 @@ import { EmailField } from './EmailField'
 import { GoogleSignInButton } from './GoogleSignInButton'
 import { usePasskeySignIn } from './usePasskeySignIn'
 import { useCountdown } from './useCountdown'
+import { weakPasswordError } from './weak-password'
 
 type Step =
   | { name: 'email' }
@@ -103,6 +104,9 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       { body: { email: trimmedEmail, purpose: 'continue' } },
       {
         onSuccess: (data) => {
+          // A new code replaces the old one, and with it any error about the old one.
+          verify.reset()
+          register.reset()
           setCode('')
           setStep({ name: 'code', resendAt: Date.now() + data.resend_in_seconds * 1000 })
           onSent?.()
@@ -148,7 +152,13 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
           password: password || null,
         },
       },
-      { onSuccess: (data) => finish(data.user) },
+      {
+        onSuccess: (data) => finish(data.user),
+        // The verified code ran out: start over from the email step, which shows why.
+        onError: (err) => {
+          if (errorCode(err) === 'auth.registration_expired') setStep({ name: 'email' })
+        },
+      },
     )
   }
 
@@ -250,6 +260,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
   }
 
   if (step.name === 'profile') {
+    const weak = weakPasswordError(register.error)
     return (
       <form onSubmit={submitProfile} noValidate>
         <Heading title={m.auth_profile_title()} subtitle={m.auth_profile_subtitle()} />
@@ -268,7 +279,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             />
             {nameError ? <FieldError id={`${id}-name-error`}>{nameError}</FieldError> : null}
           </Field>
-          <Field>
+          <Field data-invalid={weak ? true : undefined}>
             <FieldLabel htmlFor={`${id}-new-password`}>
               {m.auth_password_optional_label()}
             </FieldLabel>
@@ -277,14 +288,19 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
               type="password"
               autoComplete="new-password"
               aria-describedby={`${id}-new-password-hint`}
+              aria-invalid={weak ? true : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <FieldDescription id={`${id}-new-password-hint`}>
-              {m.auth_password_optional_hint()}
-            </FieldDescription>
+            {weak ? (
+              <FieldError id={`${id}-new-password-hint`}>{weak}</FieldError>
+            ) : (
+              <FieldDescription id={`${id}-new-password-hint`}>
+                {m.auth_password_optional_hint()}
+              </FieldDescription>
+            )}
           </Field>
-          <FieldError>{register.error ? errorMessage(register.error) : null}</FieldError>
+          <FieldError>{register.error && !weak ? errorMessage(register.error) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {register.isPending ? m.auth_creating() : m.auth_create_account()}
           </Button>
@@ -352,6 +368,8 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
     )
   }
 
+  // Back here after the sign-up code ran out, the reason stays under the button.
+  const emailStepError = start.error ?? register.error
   return (
     <div>
       <Heading title={m.auth_login_title()} subtitle={m.auth_login_subtitle()} />
@@ -366,7 +384,7 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
             // Lets the browser list this site's passkeys among the field's suggestions.
             autoComplete="username webauthn"
           />
-          <FieldError>{start.error ? errorMessage(start.error) : null}</FieldError>
+          <FieldError>{emailStepError ? errorMessage(emailStepError) : null}</FieldError>
           <Button type="submit" className="w-full" size="lg">
             {start.isPending ? m.auth_sending() : m.auth_continue()}
           </Button>

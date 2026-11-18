@@ -296,6 +296,48 @@
         }
       }
     },
+    "/auth/password/reset/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Password Reset Verify",
+        "description": "Checks the emailed code; the new password then goes to `/password/reset` with the token.",
+        "operationId": "authPasswordResetVerify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetToken"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/password/reset": {
       "post": {
         "tags": [
@@ -33915,14 +33957,10 @@
       },
       "PasswordResetIn": {
         "properties": {
-          "email": {
+          "reset_token": {
             "type": "string",
-            "title": "Email"
-          },
-          "code": {
-            "type": "string",
-            "pattern": "^\\d{6}$",
-            "title": "Code"
+            "maxLength": 200,
+            "title": "Reset Token"
           },
           "new_password": {
             "type": "string",
@@ -33933,11 +33971,47 @@
         },
         "type": "object",
         "required": [
-          "email",
-          "code",
+          "reset_token",
           "new_password"
         ],
         "title": "PasswordResetIn"
+      },
+      "PasswordResetToken": {
+        "properties": {
+          "reset_token": {
+            "type": "string",
+            "title": "Reset Token"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "title": "Expires In Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reset_token",
+          "expires_in_seconds"
+        ],
+        "title": "PasswordResetToken"
+      },
+      "PasswordResetVerifyIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "PasswordResetVerifyIn"
       },
       "PendingItem": {
         "properties": {

@@ -16,6 +16,14 @@ async def start(client: AsyncClient, email: str, purpose: str = "continue"):
     return await client.post("/auth/email/start", json={"email": email, "purpose": purpose})
 
 
+async def reset_token(client: AsyncClient, mailer: MemoryMailer, email: str) -> str:
+    r = await client.post(
+        "/auth/password/reset/verify", json={"email": email, "code": last_code(mailer, email)}
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["reset_token"]
+
+
 async def register(client: AsyncClient, mailer: MemoryMailer, email: str, **profile):
     assert (await start(client, email)).status_code == 200
     r = await client.post(
@@ -325,10 +333,10 @@ async def test_reset_password_signs_in_and_revokes_old_sessions(
         pat_headers = {"Authorization": f"Bearer {pat.json()['token']}"}
 
         await start(client, "reset@example.com", "reset_password")
-        code = last_code(mailer, "reset@example.com")
+        token = await reset_token(client, mailer, "reset@example.com")
         r = await client.post(
             "/auth/password/reset",
-            json={"email": "reset@example.com", "code": code, "new_password": "brand new pass 42"},
+            json={"reset_token": token, "new_password": "brand new pass 42"},
         )
         assert r.status_code == 200
         assert r.json()["status"] == "signed_in"
@@ -345,16 +353,30 @@ async def test_reset_password_signs_in_and_revokes_old_sessions(
     assert any("password was changed" in s for s in subjects)
 
 
-async def test_reset_password_with_wrong_code_or_unknown_account(
+async def test_a_rejected_new_password_keeps_the_verified_code(
+    client: AsyncClient, mailer: MemoryMailer, make_user: MakeUser
+) -> None:
+    await make_user(email="weak@example.com", password=PASSWORD)
+    await start(client, "weak@example.com", "reset_password")
+    token = await reset_token(client, mailer, "weak@example.com")
+    body = {"reset_token": token, "new_password": "password"}
+    weak = await client.post("/auth/password/reset", json=body)
+    assert weak.json()["error"]["code"] == "auth.weak_password"
+
+    body["new_password"] = "brand new pass 42"
+    assert (await client.post("/auth/password/reset", json=body)).status_code == 200
+    again = await client.post("/auth/password/reset", json=body)
+    assert again.json()["error"]["code"] == "auth.reset_expired"
+
+
+async def test_reset_for_an_address_without_an_account_sends_no_code(
     client: AsyncClient, mailer: MemoryMailer
 ) -> None:
-    await start(client, "ghost@example.com", "reset_password")
-    code = last_code(mailer, "ghost@example.com")
-    r = await client.post(
-        "/auth/password/reset",
-        json={"email": "ghost@example.com", "code": code, "new_password": "brand new pass 42"},
-    )
-    assert r.json()["error"]["code"] == "auth.invalid_code"
+    r = await start(client, "ghost@example.com", "reset_password")
+    assert r.status_code == 200
+    (email,) = [m for m in mailer.outbox if m.to == "ghost@example.com"]
+    assert "no Semestra account" in email.content.text
+    assert "/login" in email.content.text
 
 
 async def test_code_for_one_purpose_does_not_work_for_another(

@@ -99,9 +99,18 @@ class PasswordLoginIn(BaseModel):
     password: Password
 
 
-class PasswordResetIn(BaseModel):
+class PasswordResetVerifyIn(BaseModel):
     email: Email
     code: Code
+
+
+class PasswordResetToken(BaseModel):
+    reset_token: str
+    expires_in_seconds: int
+
+
+class PasswordResetIn(BaseModel):
+    reset_token: str = Field(max_length=200)
     new_password: Password
 
 

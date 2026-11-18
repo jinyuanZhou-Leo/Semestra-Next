@@ -8319,6 +8319,34 @@ export type PasswordLoginIn = {
  */
 export type PasswordResetIn = {
     /**
+     * Reset Token
+     */
+    reset_token: string;
+    /**
+     * New Password
+     */
+    new_password: string;
+};
+
+/**
+ * PasswordResetToken
+ */
+export type PasswordResetToken = {
+    /**
+     * Reset Token
+     */
+    reset_token: string;
+    /**
+     * Expires In Seconds
+     */
+    expires_in_seconds: number;
+};
+
+/**
+ * PasswordResetVerifyIn
+ */
+export type PasswordResetVerifyIn = {
+    /**
      * Email
      */
     email: string;
@@ -8326,10 +8354,6 @@ export type PasswordResetIn = {
      * Code
      */
     code: string;
-    /**
-     * New Password
-     */
-    new_password: string;
 };
 
 /**
@@ -13697,6 +13721,31 @@ export type AuthPasswordLoginResponses = {
 };
 
 export type AuthPasswordLoginResponse = AuthPasswordLoginResponses[keyof AuthPasswordLoginResponses];
+
+export type AuthPasswordResetVerifyData = {
+    body: PasswordResetVerifyIn;
+    path?: never;
+    query?: never;
+    url: '/auth/password/reset/verify';
+};
+
+export type AuthPasswordResetVerifyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AuthPasswordResetVerifyError = AuthPasswordResetVerifyErrors[keyof AuthPasswordResetVerifyErrors];
+
+export type AuthPasswordResetVerifyResponses = {
+    /**
+     * Successful Response
+     */
+    200: PasswordResetToken;
+};
+
+export type AuthPasswordResetVerifyResponse = AuthPasswordResetVerifyResponses[keyof AuthPasswordResetVerifyResponses];
 
 export type AuthPasswordResetData = {
     body: PasswordResetIn;
