@@ -62,7 +62,9 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
 
 
 # The same work for files another module keeps in step with its source (M09's course materials):
-# behind what the user is waiting on, and only shown on the file itself, not in the status bar.
+# behind what the user is waiting on and behind the source's own sync (one run can bring hundreds
+# of files; a course sync queued meanwhile goes first), and only shown on the file itself, not in
+# the status bar.
 @job_handler(
     "files.process_synced",
     stages=PROCESS_STAGES,
@@ -71,9 +73,10 @@ async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     lane="background",
     listed=False,
     labels="files.process",
+    priority=-1,
 )
 async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
-    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
+    return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, synced=True))
 
 
 @job_handler("files.keep_offline", stages=[("storing", 1)], max_attempts=1)
@@ -91,6 +94,7 @@ async def keep_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
     lane="background",
     listed=False,
     labels="files.keep_offline",
+    priority=-1,
 )
 async def keep_synced_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
     """Files read from their source, stored here one by one until the quota is full; one that

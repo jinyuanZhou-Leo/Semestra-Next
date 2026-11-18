@@ -5,7 +5,11 @@ Every file, page and link of a course has a type, and a type is a folder at the 
 course's files ("Lectures", "Past exams"...). The type comes from what the item says about itself
 first (its title, its kind of file, the address of a link), then from where it was put: the
 subheader above it in a module, the module's name, its folder on the platform, the pages that
-list it. Nothing found: the general "Course materials". A syllabus stays at the top level.
+list it. The first of these that names one type decides. One that names two ("Tutorial 3
+solutions") leaves the choice between them to the next clue that names one of them (a module
+"Tutorials"), and to the model when none does. "Final" alone names nothing: the final exam, or the
+final version of the notes. Nothing found: the general "Course materials". A syllabus stays at the
+top level.
 
 What the rules leave in "general", the model reads the same clues for (plus the start of the
 text, when the file has been read) and picks one of the type folders, never a folder of its own.
@@ -69,8 +73,8 @@ def _words(pattern: str, chinese: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![a-z])(?:{pattern})(?![a-z])|{chinese}", re.IGNORECASE)
 
 
-# In order: the first that matches wins ("Midterm solutions" are exams, "Tutorial 3 problems"
-# problem sets, "Lecture recordings" recordings).
+# What names each type. A word inside a longer phrase of another type is that phrase ("past
+# papers" and "midterm solutions" are exams, "lecture recordings" recordings).
 PATTERNS: tuple[tuple[MaterialType, re.Pattern[str]], ...] = (
     (
         "info",
@@ -79,15 +83,16 @@ PATTERNS: tuple[tuple[MaterialType, re.Pattern[str]], ...] = (
     (
         "exams",
         _words(
-            r"mid-?terms?|finals?(?!\s*(?:project|report|presentation|paper))|exams?|"
-            r"term[\s_-]?tests?|past\s+papers?",
+            r"(?:mid-?terms?|exams?|term[\s_-]?tests?)(?:\s+\d+)?\s+(?:solutions?|answers?)|"
+            r"mid-?terms?|exams?|term[\s_-]?tests?|past\s+papers?",
             "期中|期末|考试|试卷|真题",
         ),
     ),
     (
         "recordings",
         _words(
-            r"recordings?|recorded|videos?|lecture\s+capture|panopto|echo\s?360|kaltura",
+            r"(?:lecture\s+)?(?:recordings?|videos?)|recorded|lecture\s+capture|panopto|"
+            r"echo\s?360|kaltura",
             "录播|录像|回放|视频",
         ),
     ),
@@ -137,15 +142,23 @@ class Clues:
     excerpt: str | None = None
 
 
-def match(text: str | None) -> MaterialType | None:
+def match(text: str | None) -> frozenset[MaterialType]:
+    """The types `text` names: none, one, or several (then it is unclear which)."""
     if not text:
-        return None
+        return frozenset()
     # File names separate words with dots, dashes and underscores ("Lec_03-intro.pdf").
     spaced = re.sub(r"[._\-]+", " ", text)
-    for kind, pattern in PATTERNS:
-        if pattern.search(spaced):
-            return kind
-    return None
+    found: list[tuple[MaterialType, tuple[int, int]]] = [
+        (kind, hit.span()) for kind, pattern in PATTERNS for hit in pattern.finditer(spaced)
+    ]
+    return frozenset(
+        kind
+        for kind, (start, end) in found
+        if not any(
+            other != kind and s <= start and end <= e and e - s > end - start
+            for other, (s, e) in found
+        )
+    )
 
 
 def _is_video(clues: Clues) -> bool:
@@ -163,13 +176,21 @@ def classify(clues: Clues) -> MaterialType:
     if _is_video(clues):
         return "recordings"
     folders = [p for p in reversed((clues.folder_path or "").split("/")) if p]  # deepest first
+    # The first clue that names one type decides. One that names several narrows the choice to
+    # them, for the next clue that names one of them; failing that, the model decides.
+    choices: frozenset[MaterialType] | None = None
     for text in (clues.title, clues.subheader, clues.module, *folders, *clues.listed_by):
-        if (kind := match(text)) is not None:
-            # Only the item's own title says it is the syllabus; a module called "Course
-            # information" holds more than that.
-            if kind == "info" and text != clues.title:
-                continue
-            return kind
+        named = match(text)
+        # Only the item's own title says it is the syllabus; a module called "Course
+        # information" holds more than that.
+        if text != clues.title:
+            named -= {"info"}
+        if choices is not None:
+            named &= choices
+        if len(named) == 1:
+            return next(iter(named))
+        if named:
+            choices = named
     return "general"
 
 

@@ -117,14 +117,18 @@ export function StatusCell({ item, compact = false }: { item: ItemOut; compact?:
 
 /**
  * Scanned pages that were not read. With this server's own OCR the usual cause is that its model
- * could not be downloaded, not a missing model choice, so the hint says so.
+ * could not be downloaded; with a provider set up, that the file was synced from the LMS (whose
+ * scanned pages are read only when the course's setting says so) or the provider failed on them:
+ * processing it again reads them. Without either, a model has to be chosen first.
  */
 function OcrSkipped({ count }: { count: number }) {
-  const { status } = useAiStatus('ocr')
+  const { status, available } = useAiStatus('ocr')
   const text =
     status?.source === 'local'
       ? m.files_ocr_skipped_local({ count })
-      : m.files_ocr_skipped({ count })
+      : available
+        ? m.files_ocr_skipped_process({ count })
+        : m.files_ocr_skipped({ count })
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="inline-flex text-muted-foreground" />}>
