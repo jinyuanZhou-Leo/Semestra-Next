@@ -1,6 +1,7 @@
 import type {
   Connection,
   CourseLink,
+  CourseOverview,
   ExternalCourse,
   ImportSessionDetail,
 } from '@semestra/api-client'
@@ -10,6 +11,9 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 import { API, apiError, renderWithRouter, server } from '@/test-utils'
 import AnnouncementsCard from './cards/AnnouncementsCard'
+import { CourseLinks } from './components/CourseLinks'
+import CourseInfoCard from '@/modules/academics/cards/CourseInfoCard'
+import { course as academicsCourse } from '@/modules/academics/test-data'
 import { groupByTerm } from './external'
 import { CoursePicker } from './import/CoursePicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
@@ -544,4 +548,103 @@ test('the term announcements card says when the platform could not be read', asy
     />,
   )
   expect(await screen.findByText("Couldn't load this.")).toBeInTheDocument()
+})
+
+test("course links list the course's web tools on other sites, not its own pages or hidden tools", async () => {
+  const tab = (id: string, kind: string, label: string, hidden = false) => ({
+    external_id: id,
+    web_url: `https://q.utoronto.ca/courses/101/${id}`,
+    kind,
+    label,
+    position: 0,
+    hidden,
+  })
+  server.use(
+    http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json({ link: link() })),
+    http.get(`${API}/courses/c1/lms`, () =>
+      HttpResponse.json({
+        link: link(),
+        navigation: [
+          tab('modules', 'modules', 'Modules'),
+          tab('tool_1', 'external', 'Piazza'),
+          tab('tool_2', 'external', 'Old quizzes', true),
+          tab('tool_3', 'external', 'Gradescope'),
+          { ...tab('tool_4', 'external', 'Script'), web_url: 'javascript:alert(1)' },
+        ],
+      } as unknown as CourseOverview),
+    ),
+  )
+  renderWithRouter(
+    <dl>
+      <CourseLinks
+        programId="p1"
+        courseId="c1"
+        Row={({ label, children }) => (
+          <div>
+            <dt>{label}</dt>
+            <dd>{children}</dd>
+          </div>
+        )}
+      />
+    </dl>,
+  )
+  const piazza = await screen.findByRole('link', { name: 'Piazza' })
+  expect(piazza).toHaveAttribute('href', 'https://q.utoronto.ca/courses/101/tool_1')
+  expect(piazza).toHaveAttribute('target', '_blank')
+  expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['Piazza', 'Gradescope'])
+})
+
+test('an unlinked course has no course links row and asks nothing of the platform', async () => {
+  const linkRead = vi.fn<() => void>()
+  const overview = vi.fn<() => void>()
+  server.use(
+    http.get(`${API}/courses/c1/lms-link`, () => {
+      linkRead()
+      return HttpResponse.json({ link: null })
+    }),
+    http.get(`${API}/courses/c1/lms`, () => {
+      overview()
+      return HttpResponse.json({})
+    }),
+  )
+  renderWithRouter(<CourseLinks programId="p1" courseId="c1" Row={() => <div>row</div>} />)
+  await waitFor(() => expect(linkRead).toHaveBeenCalled())
+  expect(screen.queryByText('row')).not.toBeInTheDocument()
+  expect(overview).not.toHaveBeenCalled()
+})
+
+test('the course info card shows its facts and the LMS rows together', async () => {
+  server.use(
+    http.get(`${API}/courses/c1`, () =>
+      HttpResponse.json(academicsCourse({ id: 'c1', term_ids: [], title: 'Programming' })),
+    ),
+    http.get(`${API}/programs/p1/terms`, () => HttpResponse.json({ items: [], next_cursor: null })),
+    http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json({ link: link() })),
+    http.get(`${API}/courses/c1/lms`, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return HttpResponse.json({
+        link: link(),
+        navigation: [
+          {
+            external_id: 'tool_1',
+            web_url: 'https://piazza.com/x',
+            kind: 'external',
+            label: 'Piazza',
+            position: 0,
+            hidden: false,
+          },
+        ],
+      } as unknown as CourseOverview)
+    }),
+  )
+  renderWithRouter(
+    <CourseInfoCard
+      scope={{ kind: 'course', programId: 'p1', courseId: 'c1' }}
+      size="l"
+      instanceId="i1"
+      settings={{}}
+    />,
+  )
+  expect(await screen.findByText('Programming')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Piazza' })).toBeInTheDocument()
 })

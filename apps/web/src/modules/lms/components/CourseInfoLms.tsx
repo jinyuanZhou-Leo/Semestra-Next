@@ -1,15 +1,15 @@
-import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import type { CourseInfoRowProps } from '@/modules/academics/types'
 import { m } from '@/paraglide/messages'
 import { Badge } from '@/ui/badge'
+import { courseLinkOptions } from '../course-info'
 import { externalLabel } from '../external'
 import { useProviderName } from '../providers'
 
 /** On the course info card of a linked course: one line with the platform and its course, linked. */
 export function CourseInfoLms({ courseId, Row }: CourseInfoRowProps) {
-  const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: courseId } })).data?.link
+  const link = useQuery(courseLinkOptions(courseId)).data?.link
   const providerName = useProviderName(link?.provider)
   if (!link) return null
   const provider = providerName ?? link.provider

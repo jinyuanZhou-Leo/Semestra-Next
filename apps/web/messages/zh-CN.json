@@ -2565,6 +2565,7 @@
   "lms_course_unlink_title": "解除本课程的关联？",
   "lms_course_unlink_desc": "LMS 日历和变更提醒将停止，已导入的考核和待办会保留。",
   "lms_course_info_label": "LMS",
+  "lms_course_links_label": "课程链接",
   "lms_open_in": "在 {provider} 中打开",
   "lms_task_graded": "已评分",
   "lms_task_submitted": "{time} 已提交",

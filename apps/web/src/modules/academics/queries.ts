@@ -9,7 +9,14 @@ import {
 } from '@semestra/api-client/react-query'
 import { type QueryClient, useQueries, useQuery } from '@tanstack/react-query'
 import { type ModuleManifest, type Scope, preload } from '@/app/extensions'
-import { COURSE_COLUMNS, COURSE_INFO_FILLS, type CourseColumn, type CourseInfoFill } from './types'
+import {
+  COURSE_COLUMNS,
+  COURSE_INFO_FILLS,
+  COURSE_INFO_ROWS,
+  type CourseColumn,
+  type CourseInfoFill,
+  type CourseInfoRow,
+} from './types'
 
 export function usePrograms() {
   return useQuery(academicsProgramListOptions())
@@ -105,6 +112,48 @@ export function prefetchTermCourses(
         void queryClient.prefetchQuery(column.query(scope.programId))
     }
   }
+}
+
+/**
+ * Longest the course info card waits for its extra rows' data (`CourseInfoRow.prefetch`, which
+ * may read an LMS) before showing what it has: a slow platform must not hold up the course's facts.
+ */
+const COURSE_INFO_ROWS_TIMEOUT_MS = 1000
+
+/**
+ * Resolves once every extra row of the course info card has its data (or failed), after
+ * `COURSE_INFO_ROWS_TIMEOUT_MS` at the latest. The card renders when this query has data; the
+ * board's prefetch starts the same query, so the rows load along with the card's code.
+ */
+export function courseInfoRowsReadyOptions(
+  rows: readonly CourseInfoRow[],
+  course: { programId: string; courseId: string },
+  queryClient: QueryClient,
+) {
+  return {
+    queryKey: ['academics', 'courseInfoRowsReady', course.courseId, rows.map((row) => row.id)],
+    queryFn: () =>
+      Promise.race([
+        Promise.all(rows.map((row) => row.prefetch?.(course, queryClient).catch(() => undefined))),
+        new Promise((resolve) => setTimeout(resolve, COURSE_INFO_ROWS_TIMEOUT_MS)),
+      ]).then(() => true),
+    // Only the first showing waits; afterwards each row follows its own queries.
+    staleTime: Infinity,
+  }
+}
+
+/** The course info card (`CardContribution.prefetch`): its extra rows' data. */
+export function prefetchCourseInfo(
+  scope: Scope,
+  queryClient: QueryClient,
+  { modules }: { modules: readonly ModuleManifest[] },
+) {
+  if (scope.kind !== 'course') return
+  const rows = modules
+    .flatMap((module) => (module.extensions?.[COURSE_INFO_ROWS] ?? []) as readonly CourseInfoRow[])
+    .toSorted((a, b) => a.order - b.order)
+  const course = { programId: scope.programId, courseId: scope.courseId }
+  void queryClient.prefetchQuery(courseInfoRowsReadyOptions(rows, course, queryClient))
 }
 
 /**

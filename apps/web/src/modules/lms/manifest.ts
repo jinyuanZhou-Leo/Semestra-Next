@@ -47,6 +47,8 @@ import { bindAction, unbindAction } from './binding/actions'
 import { OpenInPlatform, PlatformMark } from './components/PlatformMark'
 import { CourseInfoLms } from './components/CourseInfoLms'
 import { AssessmentFeedbackCell } from './components/AssessmentFeedback'
+import { CourseLinks } from './components/CourseLinks'
+import { prefetchCourseLink, prefetchCourseTools } from './course-info'
 import TaskSubmission from './components/TaskSubmission'
 import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
@@ -310,7 +312,10 @@ export default defineModule({
       },
     ] satisfies AssessmentColumn<CourseLinkState>[],
     [FIELD_ORIGINS]: [{ id: 'lms.sync', Button: FollowButton }] satisfies FieldOrigin[],
-    [COURSE_INFO_ROWS]: [{ id: 'lms.link', order: 100, component: CourseInfoLms }],
+    [COURSE_INFO_ROWS]: [
+      { id: 'lms.link', order: 100, component: CourseInfoLms, prefetch: prefetchCourseLink },
+      { id: 'lms.links', order: 110, component: CourseLinks, prefetch: prefetchCourseTools },
+    ],
     // What the sync brought in from the platform, opened there (pages and files, not links:
     // a link's address is already where it leads).
     [FILE_ITEM_ACTIONS]: [
