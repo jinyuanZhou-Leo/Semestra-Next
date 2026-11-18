@@ -8,11 +8,12 @@ from typing import Any
 import pytest
 import respx
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from semestra.core.config import Settings
+from semestra.core.jobs import BACKGROUND, CoreJob
 from semestra.modules.files.models import FilesItem
-from semestra.modules.files.tests.conftest import model_sorts, sorting_model
+from semestra.modules.files.tests.conftest import FakeAi, make_pdf, model_sorts, sorting_model
 from semestra.modules.lms.schemas.dto import FileMeta, InternalRef, Module, ModuleItem, PageSummary
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
@@ -477,3 +478,63 @@ async def test_the_model_sorts_what_the_rules_cannot(
         folders, items = await _files(api, course)
         assert route.call_count == 1
         assert _where(folders, items["Crib sheet.pdf"]) is None
+
+
+async def test_reading_the_files_waits_for_a_course_sync_queued_since(
+    api: Api, fake: FakeProvider, app: FastAPI, clock: Clock
+):
+    """One worker for the whole background queue (as on a small server): the files the first
+    sync brings are read after a "Sync now" the user asks for meanwhile."""
+    _materials(fake)
+    program_id, _ = await _course(api)
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await app.state.jobs.run_one(BACKGROUND) is True  # the first sync
+    assert await _pending(app, "files.process_synced") > 0
+
+    clock.advance(minutes=1)
+    await api.call("POST", f"/programs/{program_id}/lms/sync", json={"force": True})
+    assert await _pending(app, "lms.course.sync") == 1
+    assert await app.state.jobs.run_one(BACKGROUND) is True
+    assert await _pending(app, "lms.course.sync") == 0
+    assert await _pending(app, "files.process_synced") > 0
+
+
+async def test_scanned_pages_of_synced_files_wait_for_the_user_or_the_setting(
+    api: Api, fake: FakeProvider, fake_ai: FakeAi, clock: Clock
+):
+    """The provider reads the scanned pages of a synced file only when the user asks (processing
+    it again) or the course's setting says so; hundreds come at once, and nobody asked."""
+    fake_ai.enabled.add("ocr")
+    pdf = "application/pdf"
+    fake.course_file_list = [_file("201", "Scan 1.pdf", "Lectures", mime_type=pdf)]
+    fake.file_bytes["201"] = make_pdf(["scan"], scanned={0})
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    scan = (await _files(api, course))[1]["Scan 1.pdf"]
+    assert (scan["doc_status"], scan["ocr_skipped_pages"]) == ("ready", 1)
+    assert fake_ai.ocr_calls == 0
+
+    await api.call("POST", f"/files/{scan['id']}:reprocess")
+    await api.run_jobs()
+    assert (await api.call("GET", f"/files/{scan['id']}"))["ocr_skipped_pages"] == 0
+    assert fake_ai.ocr_calls == 1
+
+    await api.call(
+        "PATCH",
+        "/me/settings/files",
+        json={"scope_type": "course", "scope_id": course, "values": {"synced_scans": True}},
+    )
+    fake.course_file_list.append(
+        _file("202", "Scan 2.pdf", "Lectures", mime_type="application/pdf")
+    )
+    fake.file_bytes["202"] = make_pdf(["scan"], scanned={0})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    assert (await _files(api, course))[1]["Scan 2.pdf"]["ocr_skipped_pages"] == 0
+    assert fake_ai.ocr_calls == 2
+
+
+async def _pending(app: FastAPI, kind: str) -> int:
+    async with app.state.session_factory() as db:
+        query = select(func.count()).where(CoreJob.kind == kind, CoreJob.status == "pending")
+        return await db.scalar(query) or 0

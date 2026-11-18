@@ -62,6 +62,8 @@ export const settingsMessages = {
   settings_empty: m.settings_empty,
   settings_files_auto_index_description: m.settings_files_auto_index_description,
   settings_files_auto_index_label: m.settings_files_auto_index_label,
+  settings_files_synced_scans_description: m.settings_files_synced_scans_description,
+  settings_files_synced_scans_label: m.settings_files_synced_scans_label,
   settings_follow: m.settings_follow,
   settings_follow_option: m.settings_follow_option,
   settings_grading_count_in_progress_description: m.settings_grading_count_in_progress_description,

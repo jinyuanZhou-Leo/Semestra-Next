@@ -20,9 +20,12 @@
 * Jobs run in lanes. `default` is for the jobs a user is waiting on (an import, a new file);
   `bulk` for minutes to hours of work (rebuilding every vector, model downloads), which may hold
   at most `job_bulk_concurrency` of the `job_concurrency` workers, so the others stay free;
-  `background` for work nobody waits on that mostly waits on the network (the LMS course sync),
-  run by `job_background_concurrency` workers of its own, so a queue of syncs never delays the
+  `background` for work nobody waits on (the LMS course sync, reading the files it brings),
+  run by `job_background_concurrency` workers of its own, so a queue of it never delays the
   others even on a server with a single worker.
+* Due jobs run oldest first, except that kinds of a lower `priority` wait for the others: the
+  files a course sync brings (hundreds at first) are read after any sync queued since, however
+  few workers there are (`job_handler(priority=-1)`).
 * `async with waiting("ai.rate_limited", until=...)` inside a job tells its owner what the job is
   waiting for (`JobOut.waiting`); kept in memory, as it changes too often to be worth a write.
 """
@@ -62,7 +65,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import InstrumentedAttribute, Mapped, mapped_column
 from starlette.datastructures import State
 
 from semestra.core.capability import Http, capability
@@ -303,6 +306,8 @@ class JobHandler:
     listed: bool = True
     # Another kind whose stage names it shares (the same work queued in another lane).
     labels: str | None = None
+    # Due jobs of a higher priority are taken first, whatever their age (default 0).
+    priority: int = 0
 
 
 OnFailure = Callable[[Ctx, Any, "CoreJob"], Awaitable[None]]
@@ -318,6 +323,7 @@ def job_handler(
     on_failure: OnFailure | None = None,
     listed: bool = True,
     labels: str | None = None,
+    priority: int = 0,
 ) -> Callable[[Callable[[JobCtx, Any], Awaitable[Any]]], Callable[[JobCtx, Any], Awaitable[Any]]]:
     keys = [k for k, _ in stages]
     if len(set(keys)) != len(keys) or any(w <= 0 for _, w in stages):
@@ -337,7 +343,16 @@ def job_handler(
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{kind}: payload and result must be Pydantic models")
         _handlers[kind] = JobHandler(
-            kind, payload_model, fn, max_attempts, tuple(stages), lane, on_failure, listed, labels
+            kind,
+            payload_model,
+            fn,
+            max_attempts,
+            tuple(stages),
+            lane,
+            on_failure,
+            listed,
+            labels,
+            priority,
         )
         return fn
 
@@ -504,6 +519,14 @@ def _kinds(lanes: Iterable[Lane]) -> list[str]:
     return [kind for kind, handler in _handlers.items() if handler.lane in wanted]
 
 
+def _first() -> tuple[ColumnElement[Any] | InstrumentedAttribute[datetime], ...]:
+    """The order due jobs are taken in: higher priority, then oldest."""
+    ranked = {kind: h.priority for kind, h in _handlers.items() if h.priority}
+    if not ranked:
+        return (CoreJob.run_after,)
+    return (case(ranked, value=CoreJob.kind, else_=0).desc(), CoreJob.run_after)
+
+
 async def _ended(state: State, job: CoreJob) -> None:
     """After a write to a job has committed: its progress event, and `core.job.finished` once it
     has ended."""
@@ -641,7 +664,7 @@ class JobRunner:
         # One that could not be ended (its `on_failure` failed) is left for the next poll.
         due = and_(due, not_(and_(lapsed, _GIVE_UP)))
         async with self.state.session_factory() as db:
-            pick = select(CoreJob.id).where(due).order_by(CoreJob.run_after).limit(1)
+            pick = select(CoreJob.id).where(due).order_by(*_first()).limit(1)
             job = await db.scalar(
                 update(CoreJob)
                 .where(CoreJob.id == pick.scalar_subquery(), due)

@@ -11,6 +11,7 @@ from httpx import AsyncClient, Response
 from pydantic import BaseModel, Field, SecretStr
 
 from semestra.core.config import Settings
+from semestra.modules.files.tests.conftest import fake_ai  # noqa: F401 (a fixture)
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.providers import Io, register_lms_provider, unregister_lms_provider
