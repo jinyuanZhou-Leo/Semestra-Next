@@ -179,9 +179,11 @@ async def test_links_and_attachments_open_what_the_app_has(
         attachments=[
             Attachment(external_id="77", name="Notes.pdf", size_bytes=10),
             Attachment(
-                external_id="88", name="Rubric.pdf", size_bytes=20,
+                external_id="88",
+                name="Rubric.pdf",
+                size_bytes=20,
                 download_url="https://fake/files/88/download?verifier=v",
-            ),  # fmt: skip
+            ),
         ],
     )
     await api.sync(program_id)
