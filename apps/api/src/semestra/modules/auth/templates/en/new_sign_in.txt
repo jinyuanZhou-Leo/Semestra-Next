@@ -1,11 +1,10 @@
 Subject: New sign-in to Semestra
-
-Hi $name,
+Title: New sign-in
 
 Your Semestra account was just signed in to from a new session.
 
 Time (UTC): $time
 Device: $device
 IP address: $ip
-
-If this was not you, change your password at $settings_url and sign out the other sessions.
+---
+If this wasn't you, change your password and sign out the other sessions at $settings_url.

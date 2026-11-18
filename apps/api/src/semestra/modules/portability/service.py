@@ -700,7 +700,7 @@ async def send_deleted_email(state: State, email: str, locale: str) -> None:
 
     message = OutgoingEmail(
         email,
-        render_email("account_deleted", locale, {}),
+        render_email("account_deleted", locale, {}, web_origin=state.settings.public_web_origin),
         tags=(("category", "auth_notice"), ("purpose", "account_deleted")),
     )
     try:
