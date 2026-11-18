@@ -409,6 +409,7 @@ async def _create(
             folder_id,
             source_kind="lms",
             source_ref=source_ref("link", m.external_id),
+            source_name=b.provider.display_name,
         )
         [row] = await sources.find_items(ctx, [out.id])
         return row

@@ -182,6 +182,7 @@ async def update_remote_file(
     row.sha256 = _version_hash(version)
     row.updated_at = ctx.now
     if row.storage_key:
+        row.source_mime, row.source_size = mime, size
         await _updated(ctx, row)
         return
     row.mime_type, row.size_bytes = mime, size
@@ -195,15 +196,28 @@ async def update_remote_file(
     await events.publish(ctx, "files.item.updated", {"item_id": row.id, "course_id": row.course_id})
 
 
-def _release(ctx: Ctx, row: FilesItem) -> bool:
+async def _release(ctx: Ctx, row: FilesItem) -> bool:
     """Lets the local copy go (deleted once the transaction commits): the item is read from its
-    source again. False when it had none."""
+    source again, its newer version if the copy held an older one. False when it had none."""
     if not row.storage_key:
         return False
     delete_after_commit(ctx, [row.storage_key])
+    older = row.copy_version != row.sha256
     row.storage_key = row.copy_version = None
+    _take_source_meta(row)
     row.updated_at = ctx.now
+    if older:
+        await _read_new_bytes(ctx, row)
     return True
+
+
+def _take_source_meta(row: FilesItem) -> None:
+    """The type and size of the source's version the item now holds (see `source_mime`)."""
+    if row.source_mime is not None:
+        row.mime_type = row.source_mime
+    if row.source_size is not None:
+        row.size_bytes = row.source_size
+    row.source_mime = row.source_size = None
 
 
 def _outdated(row: FilesItem) -> bool:
@@ -259,7 +273,7 @@ async def drop_copy(ctx: Ctx, row: FilesItem) -> None:
     if not content.follows_source(row):
         return
     row.keep_copy = False
-    _release(ctx, row)
+    await _release(ctx, row)
     await _updated(ctx, row)
 
 
@@ -291,7 +305,7 @@ async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedu
             continue
         want = row.keep_copy if row.keep_copy is not None else local
         if not want:
-            if _release(ctx, row):
+            if await _release(ctx, row):
                 await _updated(ctx, row)
             continue
         if not _outdated(row) or row.size_bytes > cap:
@@ -365,6 +379,8 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
         if not row.storage_key or row.copy_version != version[0]:
             older = row.storage_key
             row.storage_key, row.copy_version = staged.stored.key, version[0]
+            if version[0] == row.sha256:
+                _take_source_meta(row)
             row.size_bytes = staged.stored.size
             taken.append(True)
             if older:  # a newer version replaces the copy: its text is read again
@@ -435,7 +451,7 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
         row.source_ref = row.source_name = row.keep_copy = None
         # The version it holds (an older one if the newest was still being fetched).
         row.sha256 = row.copy_version or row.sha256
-        row.copy_version = None
+        row.copy_version = row.source_mime = row.source_size = None
         row.updated_at = ctx.now
         await _updated(ctx, row)
 

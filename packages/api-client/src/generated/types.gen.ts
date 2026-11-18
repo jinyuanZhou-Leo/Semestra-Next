@@ -5889,7 +5889,7 @@ export type ItemOut = {
     /**
      * Source Name
      *
-     * The name of the source it follows (an LMS platform); null for own files
+     * The name of the source it came from and follows (an LMS platform), for files and links alike; null for the user's own
      */
     source_name: string | null;
     /**

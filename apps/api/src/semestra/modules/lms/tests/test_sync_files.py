@@ -510,6 +510,7 @@ async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
     """The local copy is read until the new version's bytes replace it; one the platform then
     deletes is still the user's."""
     _materials(fake)
+    fake.file_bytes["201"] = make_pdf(["Lecture 1"])
     fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
@@ -520,13 +521,19 @@ async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
     old = (await api.client.get(f"/files/{lecture['id']}/content")).content
 
     files = fake.course_file_list
-    files[0] = files[0].model_copy(update={"content_at": FEB, "size_bytes": 2000})
+    files[0] = files[0].model_copy(
+        update={"content_at": FEB, "size_bytes": 2000, "mime_type": "text/plain"}
+    )
     fake.fail_downloads = True
     clock.advance(minutes=1)
     await api.sync(program_id)
     await api.run_jobs()
     after = await api.call("GET", f"/files/{lecture['id']}")
-    assert (after["stored"], after["size_bytes"]) == (True, lecture["size_bytes"])
+    assert (after["stored"], after["size_bytes"], after["mime_type"]) == (
+        True,
+        lecture["size_bytes"],
+        "application/pdf",
+    )  # the copy's, not the new version's
     assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
 
     files[:] = [f for f in files if f.external_id != "201"]
@@ -539,6 +546,39 @@ async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
         lecture["sha256"],
     )
     assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
+
+
+async def test_a_new_version_of_another_type_replaces_the_copy(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The new bytes bring the new version's type with them, stored or read online again."""
+    _materials(fake)
+    for n in ("201", "203"):
+        fake.file_bytes[n] = make_pdf([n])
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    midterm = (await _files(api, course))[1]["Midterm 2025.pdf"]
+
+    files = fake.course_file_list
+    for i, n in ((0, "201"), (2, "203")):
+        files[i] = files[i].model_copy(update={"content_at": FEB, "mime_type": "text/plain"})
+        fake.file_bytes[n] = b"notes in plain text"
+    fake.fail_downloads = True
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    await api.call("POST", f"/files/{midterm['id']}:drop-copy")  # read online: the new one
+    fake.fail_downloads = False
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    for item, stored in ((lecture, True), (midterm, False)):
+        got = await api.call("GET", f"/files/{item['id']}")
+        assert (got["stored"], got["mime_type"]) == (stored, "text/plain")
 
 
 async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI):

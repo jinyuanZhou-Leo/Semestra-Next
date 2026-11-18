@@ -174,7 +174,7 @@ function UpdatedCell({ row }: CellProps) {
  * user's own files show nothing.
  */
 function Origin({ item }: { item: ItemOut }) {
-  if (!item.source_name) return null
+  if (!item.follows_source || !item.source_name) return null
   const Icon = item.stored ? HardDrive : Cloud
   const kept = item.stored ? m.files_origin_stored() : m.files_origin_online()
   return (
@@ -264,7 +264,10 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       <DropdownMenuContent
         align="end"
         className={
-          item.source_name || (programId && actions.some((a) => a.description)) ? 'w-72' : undefined
+          (item.follows_source && item.source_name) ||
+          (programId && actions.some((a) => a.description))
+            ? 'w-72'
+            : undefined
         }
       >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
@@ -284,7 +287,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {item.source_name ? <CopyItems item={item} source={item.source_name} /> : null}
+        {item.follows_source && item.source_name ? (
+          <CopyItems item={item} source={item.source_name} />
+        ) : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>

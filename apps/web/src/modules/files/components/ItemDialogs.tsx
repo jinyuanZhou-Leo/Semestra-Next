@@ -60,11 +60,8 @@ function DeleteDialog({
   const fileCount = deleted.length
   // Synced materials are not gone for good: the sync leaves them out from now on, and the sync
   // status lists them to restore.
-  const synced = deleted.filter((i) => i.source_kind === 'lms' && i.source_ref !== null)
-  const provider =
-    synced.find((i) => i.source_name)?.source_name ??
-    items.find((i) => i.source_name)?.source_name ??
-    'LMS'
+  const synced = deleted.filter((i) => i.source_name !== null)
+  const provider = synced[0]?.source_name ?? ''
   const description =
     synced.length > 0
       ? synced.length === deleted.length

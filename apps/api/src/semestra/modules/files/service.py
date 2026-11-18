@@ -216,7 +216,7 @@ async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
                 pinned=r.pinned,
                 source_kind=r.source_kind,  # pyright: ignore[reportArgumentType]
                 source_ref=r.source_ref,
-                source_name=r.source_name if content.follows_source(r) else None,
+                source_name=r.source_name if r.source_ref else None,
                 unseen=r.unseen,
                 doc_status=r.doc_status,  # pyright: ignore[reportArgumentType]
                 doc_error_code=r.doc_error_code,
@@ -741,6 +741,7 @@ async def create_link(
     *,
     source_kind: SourceKind | None = None,
     source_ref: str | None = None,
+    source_name: str | None = None,
 ) -> ItemOut:
     await academics.get_course_row(ctx, course_id)
     await _folder_for(ctx, course_id, folder_id)
@@ -755,6 +756,7 @@ async def create_link(
         url=clean,
         source_kind=source_kind,
         source_ref=source_ref,
+        source_name=source_name if source_ref else None,
         doc_status="none",
         created_at=ctx.now,
         updated_at=ctx.now,

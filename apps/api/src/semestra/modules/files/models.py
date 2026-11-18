@@ -76,6 +76,10 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     # The source version (`sha256`) the local copy holds: an older one while the new bytes are
     # being fetched, read until they replace it (`sources.update_remote_file`).
     copy_version: Mapped[str | None] = mapped_column(String(64), default=None)
+    # The type and size of the source's newer version while the local copy holds an older one
+    # (`mime_type` and `size_bytes` are the copy's until the new bytes replace it).
+    source_mime: Mapped[str | None] = mapped_column(String, default=None)
+    source_size: Mapped[int | None] = mapped_column(Integer, default=None)
     # The source's name for itself ("Canvas"), shown with the file while it follows the source.
     source_name: Mapped[str | None] = mapped_column(String, default=None)
     # When the source last changed the contents (its time, not when the sync saw it).

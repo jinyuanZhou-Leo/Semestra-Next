@@ -50,7 +50,8 @@ class ItemOut(BaseModel):
     source_kind: SourceKind | None
     source_ref: str | None
     source_name: str | None = Field(
-        description="The name of the source it follows (an LMS platform); null for own files"
+        description="The name of the source it came from and follows (an LMS platform), for files"
+        " and links alike; null for the user's own"
     )
     unseen: bool = Field(description="Brought in by its source and not opened yet")
     doc_status: DocStatus
