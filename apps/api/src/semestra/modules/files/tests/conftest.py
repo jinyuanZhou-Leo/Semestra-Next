@@ -267,14 +267,23 @@ async def sorting_model(
     return mock.post(f"{ANTHROPIC}/v1/messages").mock(return_value=httpx.Response(500))
 
 
-def model_sorts(route: respx.Route, types: dict[str, str]) -> None:
-    """The model answers with the type `types` gives each title it is shown (else "general")."""
+def model_sorts(route: respx.Route, places: dict[str, str]) -> None:
+    """The model puts each file it is shown where `places` says by its name: a folder's path
+    ("Labs / Lab 3"), or `new:<name>` for a new folder; files not named are left out."""
 
     def answer(request: httpx.Request) -> httpx.Response:
-        text = json.dumps(json.loads(request.content)["messages"])
-        listing = json.loads(json.loads(text)[0]["content"][0]["text"].split("\n", 1)[1]
-                             .rsplit("\n", 1)[0])  # fmt: skip
-        items = [{"id": i["id"], "type": types.get(i["title"], "general")} for i in listing]
+        text = json.loads(request.content)["messages"][0]["content"][0]["text"]
+        listing = json.loads(text.split("\n", 1)[1].rsplit("\n", 1)[0])
+        paths = {f["path"]: f["index"] for f in listing["folders"]}
+        items: list[dict[str, object]] = []
+        for file in listing["files"]:
+            place = places.get(file["name"])
+            if place is None:
+                continue
+            if place.startswith("new:"):
+                items.append({"id": file["id"], "new_folder": place[4:]})
+            else:
+                items.append({"id": file["id"], "folder": paths[place]})
         return anthropic_reply(json.dumps({"items": items}))
 
     route.reset()

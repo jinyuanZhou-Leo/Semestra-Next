@@ -22,7 +22,7 @@ from semestra.modules.files.models import (
     FilesIndexState,
     FilesItem,
     FilesOrganizePlan,
-    FilesTypeFolder,
+    FilesSourceFolder,
 )
 from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Table
 from semestra.modules.portability.registry import Writer, register_portability
@@ -33,8 +33,10 @@ SCHEMA_VERSION = 1
 
 def _current(payload: dict[str, Any]) -> dict[str, Any]:
     """Backups up to 2.0 had copies the user kept that no longer followed their source
-    (`kept_offline`); they follow it now, with the local copy the user asked for. Read as such
-    at the same version (owner 2026-11-18: the backup versions stay)."""
+    (`kept_offline`); they follow it now, with the local copy the user asked for. Their LMS
+    type folders (`type_folders`) are left out: synced materials go to their platform folders
+    now (`source_folders`), and the folders themselves come as any folder. Read as such at the
+    same version (owner 2026-11-18: the backup versions stay)."""
     items = [
         {**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True}
         if raw.get("kept_offline")
@@ -42,6 +44,7 @@ def _current(payload: dict[str, Any]) -> dict[str, Any]:
         for raw in payload.get("items") or []
         if isinstance(raw, dict)
     ]
+    payload = {k: v for k, v in payload.items() if k != "type_folders"}
     return {**payload, "items": items}
 
 
@@ -145,8 +148,8 @@ ADAPTER = FilesAdapter(
             exclude=("storage_key", "doc_error_code", "active_document_id"),
         ),
         Table(
-            FilesTypeFolder,
-            "type_folders",
+            FilesSourceFolder,
+            "source_folders",
             refs={"course_id": "required", "folder_id": "optional"},
         ),
         Table(FilesOrganizePlan, "organize_plans", exported=False),

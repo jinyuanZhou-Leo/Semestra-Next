@@ -17,7 +17,8 @@ migration 0035 did. Later changes kept version 2 (owner 2026-11-18) and are read
 file, page or link), moved into `materials` as migration 0056 did; materials without a `state`
 (before migration 0057) take it from `deleted_at`, and pages that only list others are left
 out. The course's materials settings left the link for M11 (`lms.materials`), which the
-settings' own backup carries.
+settings' own backup carries. Materials of backups made before their places were kept (`path`,
+`placed_folder_id`) get their place from the next sync, and are not offered to move back.
 """
 
 from collections.abc import Mapping
@@ -73,8 +74,6 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
         "title": snap.get("title"),
         "version": snap.get("version"),
         "name": snap.get("name"),
-        "type": snap.get("type"),
-        "sorted_by_model": snap.get("by") == "ai",
         "is_list": bool(snap.get("list")),
         "links": snap.get("links") or [],
         "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
@@ -182,8 +181,9 @@ class MaterialRow(BaseModel):
     title: str | None = None
     version: str | None = None
     name: str | None = None
-    type: str | None = None
-    sorted_by_model: bool = False
+    path: list[str] | None = None
+    # The folder the sync put its item in (M07's folder id).
+    placed_folder_id: str | None = None
     links: list[list[str]] = []
     checked_at: datetime | None = None
     imported_at: datetime | None = None
@@ -434,10 +434,11 @@ async def import_(
         link_id, item_id = got
         ctx.db.add(
             LmsMaterial(
-                **r.model_dump(exclude={"link_id", "item_id"}),
+                **r.model_dump(exclude={"link_id", "item_id", "placed_folder_id"}),
                 user_id=ctx.user_id,
                 link_id=link_id,
                 item_id=item_id,
+                placed_folder_id=id_map.get(r.placed_folder_id) if r.placed_folder_id else None,
             )
         )
         report.imported["materials"] += 1

@@ -11,7 +11,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.modules.academics import service as academics
 from semestra.modules.files import service
-from semestra.modules.files.models import FilesFolder, FilesItem
+from semestra.modules.files.models import FilesFolder, FilesItem, FilesSourceFolder
 from semestra.modules.files.schemas import MAX_FOLDER_DEPTH, FolderDeleteInput, FolderOut
 
 
@@ -62,16 +62,31 @@ def subtree_height(folder_id: str, folders: Sequence[FilesFolder]) -> int:
     return height(folder_id)
 
 
-def folder_out(row: FilesFolder, counts: dict[str, int]) -> FolderOut:
+def folder_out(
+    row: FilesFolder, counts: dict[str, int], sources: dict[str, str] | None = None
+) -> FolderOut:
     return FolderOut(
         id=row.id,
         course_id=row.course_id,
         parent_id=row.parent_id,
         name=row.name,
         item_count=counts.get(row.id, 0),
+        source_name=(sources or {}).get(row.id),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+async def source_names(ctx: Ctx, course_id: str) -> dict[str, str]:
+    """The course's folders that stand for a place on a source, with the source's name."""
+    rows = await ctx.db.execute(
+        select(FilesSourceFolder.folder_id, FilesSourceFolder.source_name).where(
+            FilesSourceFolder.user_id == ctx.user_id,
+            FilesSourceFolder.course_id == course_id,
+            FilesSourceFolder.folder_id.is_not(None),
+        )
+    )
+    return {folder_id: name for folder_id, name in rows.all() if folder_id}
 
 
 async def folder_counts(ctx: Ctx, course_id: str) -> dict[str, int]:
@@ -201,7 +216,9 @@ async def update_folder(
     await events.publish(
         ctx, "files.folder.updated", {"folder_id": row.id, "course_id": row.course_id}
     )
-    return folder_out(row, await folder_counts(ctx, row.course_id))
+    return folder_out(
+        row, await folder_counts(ctx, row.course_id), await source_names(ctx, row.course_id)
+    )
 
 
 async def _folder_contents(

@@ -197,9 +197,11 @@ class LmsMaterial(Base, OwnedMixin):
     version: Mapped[str | None] = mapped_column(String, default=None)
     # The item's name as the sync last set it: a different one, the user renamed it.
     name: Mapped[str | None] = mapped_column(String, default=None)
-    # The type it was filed under (`files.sorting.MaterialType`), and whether the model chose it.
-    type: Mapped[str | None] = mapped_column(String, default=None)
-    sorted_by_model: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Its place on the platform, as folder names from the top (`sync_files._place`; None until
+    # a sync has seen it since places were kept), and the
+    # folder the sync put its item in: while the item is still there, the user has not moved it.
+    path: Mapped[list[str] | None] = mapped_column(JSON, default=None)
+    placed_folder_id: Mapped[str | None] = mapped_column(String, default=None)
     # The course's files and pages a page links to, as `[kind, external id]` pairs.
     links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
     # When it was last read on its own (an item no list gives a version for).

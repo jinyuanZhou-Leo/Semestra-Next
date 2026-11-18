@@ -94,19 +94,25 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     active_document_id: Mapped[str | None] = mapped_column(String, default=None)
 
 
-class FilesTypeFolder(Base, OwnedMixin):
-    """The folder of one type of course material in a course (`sorting.py`): the one made for
-    it, or the user's own that took its place. Kept when the user renames it; its `folder_id`
-    is emptied when they delete it."""
+class FilesSourceFolder(Base, OwnedMixin):
+    """A folder of a course that stands for a folder of its source (`sources.folder_at`): a
+    module, a folder or a page of the LMS course its materials come from. Made by the source's
+    sync where the course had none of that name (or the user's own of that name, which it then
+    uses), and remembered by its place on the source (`path`, the folder names from the top as a
+    JSON list), so a folder the user renamed or moved keeps being used. Its `folder_id` is
+    emptied when the user deletes it: new items of that place then go to the folder above."""
 
-    __tablename__ = "files_type_folders"
-    __table_args__ = (UniqueConstraint("course_id", "type"),)
+    __tablename__ = "files_source_folders"
+    __table_args__ = (UniqueConstraint("course_id", "source_kind", "path"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     course_id: Mapped[str] = mapped_column(
         String, ForeignKey("academics_courses.id", ondelete="CASCADE"), index=True
     )
-    type: Mapped[str] = mapped_column(String)
+    source_kind: Mapped[str] = mapped_column(String)
+    path: Mapped[str] = mapped_column(String)
+    # The source's name as the files page shows it ("Canvas").
+    source_name: Mapped[str] = mapped_column(String)
     folder_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("files_folders.id", ondelete="SET NULL"), default=None, index=True
     )

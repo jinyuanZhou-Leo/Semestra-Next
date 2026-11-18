@@ -1,16 +1,18 @@
-"""Organizing a course's files into type folders, when the user asks (M07 §8).
+"""Organizing a course's files, when the user asks (M07 §8).
 
-The files not yet sorted (at the top level, or in the general "Course materials" folder) get a
-type: by the rules where they tell, else by the model, which also reads the start of their text.
-A job works out where each would go and keeps it as the course's plan (`files_organize_plans`,
-one per course) until the user applies or discards it. Nothing moves before that, and a file the
-user has moved since the plan is left where they put it.
+Two kinds of moves are proposed: items of a source (M09's course materials) that sit where the
+source once put them, away from their place on it, go back to that place (`sources.homes`: the
+course materials used to be filed by type; works without a model), and the user's own files at
+the top level go into the course's folder that fits them, or a new folder for a group of them
+(`sorting.place_loose`, by the model). A job works out the moves and keeps them as the course's
+plan (`files_organize_plans`, one per course) until the user applies or discards it. Nothing moves
+before that, and a file the user has moved since the plan is left where they put it.
 """
 
 import asyncio
 import time
 from collections import defaultdict
-from typing import Any, cast
+from typing import Any
 
 from sqlalchemy import delete, select
 
@@ -18,12 +20,12 @@ from semestra.core.context import Ctx, run_as_system
 from semestra.core.events import events
 from semestra.core.jobs import TERMINAL, CoreJob, JobCtx, JobOut, enqueue, job_handler
 from semestra.modules.academics import service as academics
-from semestra.modules.files import entries, service, sorting
+from semestra.modules.files import entries, folders, service, sorting, sources
 from semestra.modules.files.models import (
     FilesDocumentPage,
+    FilesFolder,
     FilesItem,
     FilesOrganizePlan,
-    FilesTypeFolder,
 )
 from semestra.modules.files.schemas import (
     OrganizeApplied,
@@ -35,9 +37,9 @@ from semestra.modules.files.schemas import (
     PendingOrganize,
     PendingOrganizeList,
     PlannedMove,
-    TypeName,
 )
-from semestra.modules.files.sorting import Clues, MaterialType
+from semestra.modules.files.sorting import Clues
+from semestra.modules.files.source_folders import SourceFolders, clean_path
 
 KIND = "files.organize"
 UPDATED = "files.organization.updated"
@@ -47,14 +49,25 @@ EXCERPT_CHARS = 400
 WAIT_POLL_SECONDS = 0.5
 # File names the assistant's confirmation card shows per folder; the rest are counted.
 SHOWN = 10
+# Between the folder names of a path, as the review shows it.
+SEPARATOR = " / "
 
 
-async def unsorted_folders(
-    ctx: Ctx, course_id: str, known: dict[MaterialType, FilesTypeFolder]
-) -> set[str | None]:
-    """Where the files not yet sorted are: the top level and "Course materials"."""
-    general = await sorting.existing_folder(ctx, course_id, "general", known)
-    return {None, general.id if general is not None else None}
+def folder_paths(all_folders: list[FilesFolder]) -> dict[str, list[str]]:
+    """Each folder's names from the top."""
+    by_id = {f.id: f for f in all_folders}
+
+    def path(folder: FilesFolder) -> list[str]:
+        names: list[str] = []
+        seen: set[str] = set()
+        current: FilesFolder | None = folder
+        while current is not None and current.id not in seen:
+            seen.add(current.id)
+            names.insert(0, current.name)
+            current = by_id.get(current.parent_id) if current.parent_id else None
+        return names
+
+    return {f.id: path(f) for f in all_folders}
 
 
 async def _plan_row(ctx: Ctx, course_id: str) -> FilesOrganizePlan | None:
@@ -103,83 +116,140 @@ async def _failed(ctx: Ctx, payload: OrganizeInput, job: CoreJob) -> None:
 )
 async def plan(ctx: JobCtx, payload: OrganizeInput) -> OrganizeDone:
     course = await academics.get_course_row(ctx, payload.course_id)
-    known = await sorting.type_folders(ctx, course.id)
-    unsorted = await unsorted_folders(ctx, course.id, known)
-    rows = [
-        r
-        for r in await ctx.db.scalars(
+    rows = list(
+        await ctx.db.scalars(
             select(FilesItem).where(
                 FilesItem.user_id == ctx.user_id, FilesItem.course_id == course.id
             )
         )
-        if r.folder_id in unsorted
-    ]
-    types: dict[str, MaterialType] = {}
-    leftovers: dict[str, Clues] = {}
-    for n, row in enumerate(rows):
-        await ctx.stage("reading", current=n, total=len(rows))
-        clues = Clues(title=row.display_name, mime=row.mime_type, url=row.url)
-        kind = sorting.classify(clues)
-        if kind == "general":
-            excerpt = await _excerpt(ctx, row)
-            leftovers[row.id] = Clues(row.display_name, row.mime_type, row.url, excerpt=excerpt)
-        else:
-            types[row.id] = kind
+    )
+    moves: list[dict[str, Any]] = []
+    # Back to their place on their source.
+    by_id = {r.id: r for r in rows}
+    for home in await sources.homes(ctx, course.id):
+        row = by_id.get(home.item_id)
+        if row is None:
+            continue
+        moves.append(
+            {
+                "item_id": row.id,
+                "from_folder_id": row.folder_id,
+                "source": home.source_kind,
+                "source_name": home.source_name,
+                "path": list(home.path),
+            }
+        )
+    # The user's own files at the top level.
+    loose = [r for r in rows if r.folder_id is None and r.source_ref is None]
+    all_folders = await folders.course_folders(ctx, course.id)
+    paths = folder_paths(all_folders)
+    ids = [f.id for f in all_folders]
+    clues: dict[str, Clues] = {}
+    for n, row in enumerate(loose):
+        await ctx.stage("reading", current=n, total=len(loose))
+        clues[row.id] = Clues(
+            row.display_name, row.mime_type, row.url, excerpt=await _excerpt(ctx, row)
+        )
 
     async def batch(done: int, total: int) -> None:
         await ctx.stage("sorting", current=done, total=total)
 
     # The provider's errors fail the job: the user asked, so they are told (and can check the
-    # provider). Without a model set up, only the rules sort.
-    types |= await sorting.classify_leftovers(ctx, leftovers, on_batch=batch) or {}
-
-    moves: list[dict[str, Any]] = []
-    for row in rows:
-        kind = types.get(row.id, "general")
-        if kind in ("info", "general"):
-            continue  # a syllabus stays at the top; what has no type stays where it is
-        folder = await sorting.existing_folder(ctx, course.id, kind, known)
-        if folder is not None and folder.id == row.folder_id:
+    # provider). Without a model set up, only the moves back are proposed.
+    places = await sorting.place_loose(
+        ctx, [SEPARATOR.join(paths[i]) for i in ids], clues, on_batch=batch
+    )
+    for row in loose:
+        place = (places or {}).get(row.id)
+        if place is None:
             continue
-        moves.append({"item_id": row.id, "type": kind, "from_folder_id": row.folder_id})
+        target: dict[str, Any] = (
+            {"folder_id": ids[place.folder]} if place.folder is not None else {"new": place.new}
+        )
+        moves.append({"item_id": row.id, "from_folder_id": None, **target})
     saved = await _plan_row(ctx, course.id)
     if saved is not None and saved.job_id == ctx.job_id:
-        saved.moves, saved.left = moves, len(rows) - len(moves)
+        saved.moves, saved.left = moves, len(loose) - sum(1 for m in moves if "source" not in m)
         await _updated(ctx, course.id, course.program_id)
     return OrganizeDone(course_id=course.id, program_id=course.program_id)
 
 
-async def _live_moves(ctx: Ctx, course_id: str, saved: FilesOrganizePlan) -> list[PlannedMove]:
+class _Targets:
+    """Where the plan's moves go now, as the review shows them and `apply` makes them."""
+
+    def __init__(self, ctx: Ctx, course_id: str, all_folders: list[FilesFolder]) -> None:
+        self.ctx, self.course_id = ctx, course_id
+        self.paths = folder_paths(all_folders)
+        self.roots = {f.name.casefold(): f.id for f in all_folders if f.parent_id is None}
+        self.sources: dict[str, SourceFolders] = {}
+
+    def _source(self, move: dict[str, Any]) -> SourceFolders:
+        kind = move["source"]
+        if kind not in self.sources:
+            self.sources[kind] = SourceFolders(
+                self.ctx, self.course_id, kind, move.get("source_name") or kind
+            )
+        return self.sources[kind]
+
+    async def shown(self, move: dict[str, Any]) -> tuple[str | None, list[str], bool] | None:
+        """(folder id, its path, whether it is still to make); None: the folder is gone."""
+        if "source" in move:
+            path = clean_path(move.get("path") or [])
+            folder_id, complete = await self._source(move).existing(path)
+            if complete:
+                return folder_id, self.paths.get(folder_id, []) if folder_id else [], False
+            return None, path, True
+        if "folder_id" in move:
+            folder_id = move["folder_id"]
+            return (folder_id, self.paths[folder_id], False) if folder_id in self.paths else None
+        name = str(move.get("new") or "")
+        if (existing := self.roots.get(name.casefold())) is not None:
+            return existing, self.paths[existing], False
+        return None, [name], True
+
+    async def make(self, move: dict[str, Any]) -> str | None:
+        if "source" in move:
+            return await self._source(move).folder_at(move.get("path") or [])
+        if "folder_id" in move:
+            return move["folder_id"]
+        name = str(move.get("new") or "")
+        if (existing := self.roots.get(name.casefold())) is None:
+            existing = (await folders.create_folder(self.ctx, self.course_id, name, None)).id
+            self.roots[name.casefold()] = existing
+        return existing
+
+
+async def _live_moves(
+    ctx: Ctx, course_id: str, saved: FilesOrganizePlan
+) -> list[tuple[PlannedMove, dict[str, Any]]]:
     """The plan's moves still to make: its files that are still where they were, each with the
     folder it would go in now."""
     stored = saved.moves or []
     rows = {r.id: r for r in await service.find_items(ctx, [m["item_id"] for m in stored])}
-    known = await sorting.type_folders(ctx, course_id)
-    folders: dict[str, tuple[str | None, str]] = {}
-    moves: list[PlannedMove] = []
+    targets = _Targets(ctx, course_id, await folders.course_folders(ctx, course_id))
+    moves: list[tuple[PlannedMove, dict[str, Any]]] = []
     for move in stored:
         row = rows.get(move["item_id"])
         if row is None or row.course_id != course_id or row.folder_id != move["from_folder_id"]:
             continue  # deleted, or the user has moved it since
-        kind = cast(MaterialType, move["type"])
-        if kind not in folders:
-            folder = await sorting.existing_folder(ctx, course_id, kind, known)
-            folders[kind] = (
-                (folder.id, folder.name)
-                if folder is not None
-                else (None, sorting.folder_name(kind, ctx.locale))
-            )
-        folder_id, folder_name = folders[kind]
-        if folder_id is not None and folder_id == row.folder_id:
+        shown = await targets.shown(move)
+        if shown is None:
+            continue  # the folder it was to go in is gone
+        folder_id, path, new = shown
+        if not new and folder_id == row.folder_id:
             continue
         moves.append(
-            PlannedMove(
-                item_id=row.id,
-                name=row.display_name,
-                type=cast(TypeName, kind),
-                folder_id=folder_id,
-                folder_name=folder_name,
-                from_folder_id=row.folder_id,
+            (
+                PlannedMove(
+                    item_id=row.id,
+                    name=row.display_name,
+                    folder_id=folder_id,
+                    folder_name=SEPARATOR.join(path),
+                    new_folder=new,
+                    from_folder_id=row.folder_id,
+                    back=move.get("source_name") if "source" in move else None,
+                ),
+                move,
             )
         )
     return moves
@@ -229,7 +299,7 @@ async def state(ctx: Ctx, course_id: str, wait_seconds: int = 0) -> OrganizeStat
     if saved is None:
         return OrganizeState(job=None, plan=None)
     if saved.moves is not None:
-        moves = await _live_moves(ctx, course_id, saved)
+        moves = [m for m, _ in await _live_moves(ctx, course_id, saved)]
         return OrganizeState(job=None, plan=OrganizePlan(moves=moves, left=saved.left))
     job = await ctx.db.scalar(
         select(CoreJob).where(CoreJob.id == saved.job_id, CoreJob.user_id == ctx.user_id)
@@ -277,7 +347,7 @@ async def preview_start(ctx: Ctx, inp: OrganizeInput) -> dict[str, Any]:
     saved = await _plan_row(ctx, course.id)
     changes: list[dict[str, Any]] = []
     if saved is not None and saved.moves is not None:
-        names = [m.name for m in await _live_moves(ctx, course.id, saved)]
+        names = [m.name for m, _ in await _live_moves(ctx, course.id, saved)]
         if names:
             changes.append(
                 {
@@ -302,7 +372,7 @@ async def preview_apply(ctx: Ctx, inp: OrganizeApplyInput) -> dict[str, Any]:
     kept = set(inp.item_ids)
     by_folder: dict[str, list[str]] = defaultdict(list)
     if saved is not None and saved.moves is not None:
-        for move in await _live_moves(ctx, course.id, saved):
+        for move, _ in await _live_moves(ctx, course.id, saved):
             if move.item_id in kept:
                 by_folder[move.folder_name].append(move.name)
     return {
@@ -316,20 +386,26 @@ async def preview_apply(ctx: Ctx, inp: OrganizeApplyInput) -> dict[str, Any]:
 
 
 async def apply(ctx: Ctx, course_id: str, item_ids: list[str]) -> OrganizeApplied:
-    """Moves the plan's files the user kept into their type folders; the plan is done with."""
+    """Moves the plan's files the user kept into their folders, making the ones still to make;
+    the plan is done with."""
     course = await academics.get_course_row(ctx, course_id)
     saved = await _plan_row(ctx, course.id)
     kept = set(item_ids)
-    by_type: dict[MaterialType, list[str]] = defaultdict(list)
-    if saved is not None and saved.moves is not None:
-        for move in await _live_moves(ctx, course.id, saved):
-            if move.item_id in kept:
-                by_type[move.type].append(move.item_id)
-    known = await sorting.type_folders(ctx, course.id)
+    live = await _live_moves(ctx, course.id, saved) if saved and saved.moves is not None else []
+    targets = _Targets(ctx, course.id, await folders.course_folders(ctx, course.id))
+    by_folder: dict[str | None, list[str]] = defaultdict(list)
+    back: dict[str, dict[str, str | None]] = defaultdict(dict)
+    for move, stored in live:
+        if move.item_id in kept:
+            folder_id = await targets.make(stored)
+            by_folder[folder_id].append(move.item_id)
+            if "source" in stored:
+                back[stored["source"]][move.item_id] = folder_id
     moved = 0
-    for kind, ids in by_type.items():
-        folder_id = await sorting.folder_for(ctx, course.id, kind, known, if_deleted="remake")
+    for folder_id, ids in by_folder.items():
         moved += await entries.move_entries(ctx, course.id, ids, [], folder_id)
+    for kind, placed in back.items():
+        await sources.moved_back(ctx, kind, placed)
     await _drop_plan(ctx, course.id, course.program_id)
     return OrganizeApplied(moved=moved)
 
