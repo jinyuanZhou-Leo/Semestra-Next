@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { useMutation } from '@tanstack/react-query'
 import type { FilesItemList, ItemOut } from '@semestra/api-client'
 import {
   Download,
@@ -16,6 +17,7 @@ import { useUiPref } from '@/app/ui-pref'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { FileDropOverlay } from '@/components/FileDropOverlay'
 import { useDialogTarget } from '@/lib/dialog-target'
+import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import {
   Breadcrumb,
@@ -26,6 +28,7 @@ import {
   BreadcrumbSeparator,
 } from '@/ui/breadcrumb'
 import { Button } from '@/ui/button'
+import { Spinner } from '@/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +68,7 @@ import { useDebounced } from '@/hooks/use-debounced'
 import { useFileDrop } from '../hooks'
 import { useFilesLocation, usePreviewLocation } from '../location'
 import { DOWNLOAD_MAX, downloadUrl, useCourseFiles } from '../queries'
+import { downloadArchive } from '../download'
 
 /** The `files` page of a course (M07 §6.1). */
 export default function CourseFilesPage({ scope }: PageProps) {
@@ -165,6 +169,7 @@ export function CourseFiles({
   const selecting = selected.length > 0 && !searching
   const download = downloadUrl(courseId, selected)
   const tooMany = selected.length > DOWNLOAD_MAX
+  const archive = useMutation({ mutationFn: downloadArchive, onError: toastError })
 
   const needle = search.trim().toLowerCase()
   const nameMatches = needle
@@ -204,13 +209,23 @@ export function CourseFiles({
                       <Download aria-hidden />
                       {m.files_download()}
                     </Button>
+                  ) : download?.archive ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={archive.isPending}
+                      onClick={() => archive.mutate(download.url)}
+                    >
+                      {archive.isPending ? <Spinner /> : <Download aria-hidden />}
+                      {m.files_download()}
+                    </Button>
                   ) : download ? (
                     <Button
                       variant="outline"
                       size="sm"
                       nativeButton={false}
                       // oxlint-disable-next-line jsx-a11y/anchor-has-content -- the content arrives through `props`
-                      render={(props) => <a {...props} href={download} download />}
+                      render={(props) => <a {...props} href={download.url} download />}
                     >
                       <Download aria-hidden />
                       {m.files_download()}

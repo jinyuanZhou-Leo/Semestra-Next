@@ -1,10 +1,13 @@
 """Upload, download and page images (M07 §5): routes that are not capabilities."""
 
+import json
 import re
 import stat
 import zlib
 from collections.abc import AsyncIterable, AsyncIterator
 from datetime import datetime
+from functools import cache
+from pathlib import Path as FsPath
 from typing import Annotated
 from urllib.parse import quote
 
@@ -13,7 +16,7 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from stream_zip import ZIP_64, Method, async_stream_zip
 
-from semestra.core.context import Ctx, get_ctx, run_after_commit
+from semestra.core.context import DEFAULT_LOCALE, SUPPORTED_LOCALES, Ctx, get_ctx, run_after_commit
 from semestra.core.errors import AppError, ErrorResponse, not_found
 from semestra.core.storage import CHUNK_SIZE, get_storage
 from semestra.modules.academics import service as academics
@@ -27,6 +30,7 @@ from semestra.modules.files.upload import MAX_FILES_PER_REQUEST
 router = APIRouter(tags=["files"])
 CurrentCtx = Annotated[Ctx, Depends(get_ctx)]
 _RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+_TEXTS = FsPath(__file__).resolve().parent / "texts"
 
 
 async def _read(file: UploadFile) -> AsyncIterator[bytes]:
@@ -171,6 +175,19 @@ async def _nothing() -> AsyncIterator[bytes]:
     yield
 
 
+async def _once(data: bytes) -> AsyncIterator[bytes]:
+    yield data
+
+
+@cache
+def _texts(locale: str) -> dict[str, str]:
+    """The words of the list a download leaves in the archive (`texts/<locale>.json`): a file the
+    user keeps, so rendered here in their language like an email (M00 §3.11)."""
+    if locale not in SUPPORTED_LOCALES:
+        locale = DEFAULT_LOCALE
+    return json.loads((_TEXTS / f"{locale}.json").read_text(encoding="utf-8"))
+
+
 @router.get(
     "/courses/{course_id}/files:download",
     operation_id="filesDownloadMany",
@@ -190,8 +207,11 @@ async def download_many(
     ] = [],  # noqa: B006
 ) -> Response:
     """Links are left out. The archive is written while it is sent: each file is opened (read
-    from its source, if it is kept there) when its turn comes, and one that cannot be read then
-    (gone from its source, the source unreachable) is left out."""
+    from its source, if it is kept there) when its turn comes. One that cannot be read then (gone
+    from its source, the source unreachable) is left out and named in a list at the end of the
+    archive, in the user's language; when none can be read the answer is
+    `files.download_unavailable` instead of an archive without them. A file that fails halfway
+    breaks the download off, so no archive that looks whole is left behind."""
     course = await academics.get_course_row(ctx, course_id)
     entries = await service.download_entries(ctx, course_id, item_ids, folder_ids)
     if not entries:
@@ -201,17 +221,45 @@ async def download_many(
         (path, row.id, row.updated_at.replace(tzinfo=None)) if row else (path, None, now)
         for path, row in entries
     ]
+    missing: list[str] = []
+
+    async def open_(path: str, item_id: str) -> AsyncIterator[bytes] | None:
+        try:
+            return await files_content.open_detached(state, user_id, item_id)
+        except AppError:
+            missing.append(path)
+            return None
+
+    # Files are opened until one can be read before the answer starts, so that a download of
+    # nothing but unreadable files can fail with an error.
+    first: tuple[int, AsyncIterator[bytes]] | None = None
+    for i, (path, item_id, _) in enumerate(members):
+        if item_id is not None and (stream := await open_(path, item_id)) is not None:
+            first = (i, stream)
+            break
+    if first is None and missing:
+        raise AppError("files.download_unavailable", 502)
+    texts = _texts(ctx.locale)
+    title, intro = texts["missing_list_name"], texts["missing_list_intro"]
+    taken = {path.lower() for path, _, _ in members}
+    stem, n = title.removesuffix(".txt"), 1
+    while title.lower() in taken:
+        n += 1
+        title = f"{stem} ({n}).txt"
 
     async def files() -> AsyncIterator[tuple[str, datetime, int, Method, AsyncIterable[bytes]]]:
-        for path, item_id, modified in members:
+        for i, (path, item_id, modified) in enumerate(members):
             if item_id is None:
                 yield path, modified, stat.S_IFDIR | 0o755, ZIP_64, _nothing()
                 continue
-            try:
-                stream = await files_content.open_detached(state, user_id, item_id)
-            except AppError:
-                continue
-            yield path, modified, 0o644, ZIP_64, stream
+            if first is None or i < first[0]:
+                continue  # could not be opened above (in `missing` already)
+            stream = first[1] if i == first[0] else await open_(path, item_id)
+            if stream is not None:
+                yield path, modified, 0o644, ZIP_64, stream
+        if missing:
+            text = intro + "\n\n" + "".join(f"{path}\n" for path in missing)
+            yield title, now, 0o644, ZIP_64, _once(text.encode())
 
     name = f"{course.code or course.title}.zip"
     headers = {

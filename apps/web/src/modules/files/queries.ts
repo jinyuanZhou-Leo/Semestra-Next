@@ -119,22 +119,28 @@ export function contentUrl(itemId: string, disposition: 'inline' | 'attachment' 
 export const DOWNLOAD_MAX = 300
 
 /**
- * Where to download the chosen files and folders: one file as it is, anything more as a zip.
- * Null when there is nothing to download (only links).
+ * Where to download the chosen files and folders: one file as it is, anything more as a zip
+ * (`archive`). Null when there is nothing to download (only links).
  */
-export function downloadUrl(courseId: string, targets: readonly Target[]): string | null {
+export function downloadUrl(
+  courseId: string,
+  targets: readonly Target[],
+): { url: string; archive: boolean } | null {
   const items = targets.flatMap((t) =>
     t.type === 'item' && t.item.kind === 'file' ? [t.item] : [],
   )
   const folders = targets.flatMap((t) => (t.type === 'folder' ? [t.folder.id] : []))
   const [only] = items
-  if (only && items.length === 1 && folders.length === 0) return contentUrl(only.id, 'attachment')
+  if (only && items.length === 1 && folders.length === 0) {
+    return { url: contentUrl(only.id, 'attachment'), archive: false }
+  }
   if (items.length === 0 && folders.length === 0) return null
-  return client.buildUrl({
+  const url = client.buildUrl({
     url: '/courses/{course_id}/files:download',
     path: { course_id: courseId },
     query: { item_ids: items.map((i) => i.id), folder_ids: folders },
   })
+  return { url, archive: true }
 }
 
 /** A small picture of one page of a processed file (only when `doc_status` is ready). */

@@ -1074,7 +1074,8 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
     link = await fx.call(
         "POST", f"/courses/{fx.course_id}/file-links", json={"url": "https://example.com"}
     )
-    # A file that cannot be read when its turn comes (gone from its source) is left out.
+    # A file that cannot be read when its turn comes (gone from its source) is left out, and a
+    # list in the archive, in the user's language, names it.
     opened = content.open_content
 
     async def open_content(ctx: Any, row: Any, **kw: Any) -> Any:
@@ -1098,7 +1099,37 @@ async def test_downloading_several_as_one_zip(fx: Fx, monkeypatch: pytest.Monkey
             "Labs/Lab 2/": b"",
             "Labs/notes.txt": b"inside",
             "Labs/Lab 1/data.csv": b"1,2",
+            "Files not downloaded.txt": (
+                b"These files could not be read from where they are kept, "
+                b"so they are not in this download:\n\nLabs/Lab 1/gone.pdf\n"
+            ),
         }
+    await fx.call("PATCH", "/me/preferences", json={"locale": "zh-CN"})
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"item_ids": [a["id"], gone["id"]]}
+    )
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        assert zf.read("未下载的文件.txt").decode().endswith("\n\ngone.pdf\n")
+    # None of them can be read: an error, not an empty archive.
+    r = await fx.client.get(
+        f"/courses/{fx.course_id}/files:download", params={"item_ids": [gone["id"]]}
+    )
+    assert r.status_code == 502
+    assert r.json()["error"]["code"] == "files.download_unavailable"
+    # A file that breaks off halfway breaks the download off: no archive that looks whole.
+
+    async def broken() -> Any:
+        yield b"part"
+        raise not_found()
+
+    async def open_broken(ctx: Any, row: Any, **kw: Any) -> Any:
+        return broken() if row.id == a["id"] else await opened(ctx, row, **kw)
+
+    monkeypatch.setattr(content, "open_content", open_broken)
+    with pytest.raises(RuntimeError, match="response already started"):
+        await fx.client.get(
+            f"/courses/{fx.course_id}/files:download", params={"item_ids": [a["id"]]}
+        )
     # Only links: nothing to download.
     r = await fx.client.get(
         f"/courses/{fx.course_id}/files:download", params={"item_ids": [link["id"]]}

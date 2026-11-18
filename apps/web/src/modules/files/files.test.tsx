@@ -15,6 +15,7 @@ import { course } from '@/modules/academics/test-data'
 import CourseFilesPage from './pages/CourseFilesPage'
 import TermFilesPage from './pages/TermFilesPage'
 import { pageTarget } from './page-target'
+import { Toaster } from '@/ui/sonner'
 import { findDuplicates, planUpload } from './upload'
 
 // pdf.js does not run in jsdom; the viewer's page is enough to check where it opens.
@@ -616,14 +617,19 @@ test('selected files move together to a folder picked in the tree', async () => 
   expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
 })
 
-test('chosen files and folders download together as one archive, links left out', async () => {
+test('chosen files and folders download together as one archive, links left out, or say why not', async () => {
   server.use(
     http.get(`${API}/courses/c1/files`, () =>
       HttpResponse.json({ folders: [makeFolder('f1', 'Labs')], items, next_cursor: null }),
     ),
   )
   const user = userEvent.setup()
-  mount()
+  renderWithRouter(
+    <>
+      <CourseFilesPage scope={scope} />
+      <Toaster />
+    </>,
+  )
   await user.click(await screen.findByRole('checkbox', { name: 'Select Piazza' }))
   // Only a link: nothing to download.
   expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument()
@@ -635,10 +641,45 @@ test('chosen files and folders download together as one archive, links left out'
   await user.click(
     screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
   )
-  expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
-    'href',
-    `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`,
+  // More than one: an archive, saved once it has arrived whole.
+  const saved: string[] = []
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    saved.push(this.download)
+  })
+  URL.createObjectURL ??= () => 'blob:x'
+  URL.revokeObjectURL ??= () => {}
+  const asked: string[] = []
+  server.use(
+    http.get(`${API}/courses/c1/files:download`, ({ request }) => {
+      asked.push(new URL(request.url).search)
+      return new HttpResponse('PK', {
+        headers: {
+          'content-type': 'application/zip',
+          'content-disposition': `attachment; filename="APS105.zip"; filename*=UTF-8''APS105.zip`,
+        },
+      })
+    }),
   )
+  await user.click(screen.getByRole('button', { name: 'Download' }))
+  await waitFor(() => expect(saved).toEqual(['APS105.zip']))
+  expect(asked).toEqual(['?item_ids=i1&folder_ids=f1'])
+
+  // None of them could be read: an error, nothing saved.
+  server.use(
+    http.get(`${API}/courses/c1/files:download`, () =>
+      HttpResponse.json(
+        { error: { code: 'files.download_unavailable', params: {}, request_id: 'r' } },
+        { status: 502 },
+      ),
+    ),
+  )
+  await user.click(screen.getByRole('button', { name: 'Download' }))
+  expect(
+    await screen.findByText("The files couldn't be read from where they're kept. Try again later."),
+  ).toBeInTheDocument()
+  expect(saved).toEqual(['APS105.zip'])
 })
 
 const job = (status: string, step: string | null) => ({
