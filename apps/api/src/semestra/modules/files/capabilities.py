@@ -33,6 +33,7 @@ from semestra.modules.files.schemas import (
     LinkCreateInput,
     OrganizeApplied,
     OrganizeApplyInput,
+    OrganizeGetInput,
     OrganizeInput,
     OrganizeState,
     PendingOrganizeList,
@@ -432,11 +433,10 @@ async def search_names(ctx: Ctx, inp: FileSearchInput) -> FileMatches:
     summary="Work out how to sort a course's unsorted files into type folders.",
     description="""Starts a job that gives each file at the top level or in "Course materials" a
 type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
-(replacing one not yet applied). Nothing is moved: the user reviews the plan
-(`files.organization.get`) and applies it (`files.organization.apply`).""",
+(replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the
+course's files or with you (`files.organization.get`, then `files.organization.apply`).""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/files:organize"),
-    expose=("http",),
     tags=TAGS,
 )
 async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:
@@ -445,16 +445,18 @@ async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:
 
 @capability(
     name="files.organization.get",
-    summary="Where a course's organizing stands.",
-    description="""The course's organizing: its job while it reads (or when it failed), and the
-plan once read, with the files the user has moved or deleted since left out.""",
+    untrusted=True,
+    summary="Where a course's organizing stands, with its plan once worked out.",
+    description="""While the job reads (`job` set, no `plan`), pass wait_seconds to wait for the
+plan. The plan lists each file with the folder it would go in, the files the user has moved or
+deleted since left out; `left` files stay where they are. Show the user the plan before applying
+it.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/files:organize"),
-    expose=("http",),
     tags=TAGS,
 )
-async def organization_get(ctx: Ctx, inp: OrganizeInput) -> OrganizeState:
-    return await organize.state(ctx, inp.course_id)
+async def organization_get(ctx: Ctx, inp: OrganizeGetInput) -> OrganizeState:
+    return await organize.state(ctx, inp.course_id, inp.wait_seconds)
 
 
 @capability(
@@ -474,12 +476,12 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
 @capability(
     name="files.organization.apply",
     summary="Move a course's files into their type folders, as its plan says.",
-    description="""Applies the course's plan to the files the user kept: each goes in its type's
-folder, made when the course has none. Files moved or deleted since the plan stay as they are.
-The plan is done with afterwards.""",
+    description="""Applies the course's plan to the files the user kept (`item_ids`, from
+files.organization.get): each goes in its type's folder, made when the course has none. Files
+moved or deleted since the plan stay as they are. The plan is done with afterwards.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/files:organize-apply"),
-    expose=("http",),
+    preview=organize.preview_apply,
     tags=TAGS,
 )
 async def organization_apply(ctx: Ctx, inp: OrganizeApplyInput) -> OrganizeApplied:

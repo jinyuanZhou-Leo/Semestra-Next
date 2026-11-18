@@ -616,8 +616,7 @@ async def syllabus_get(ctx: Ctx, inp: CourseReadInput) -> RichText:
 @capability(
     name="lms.file.get",
     summary="Details of a file of a linked course.",
-    description="""Read its text with lms.file.preview; to search or cite it, save it with
-lms.file.save_to_course.""",
+    description="""Read its text with lms.file.preview.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}"),
     expose=HTTP_ONLY,
@@ -646,7 +645,7 @@ async def folder_get(ctx: Ctx, inp: FolderInput) -> FolderListing:
     summary="Find files of a linked course on the LMS by name.",
     description="""Matches part of the file name, not its contents. Each result says its type, size,
 last change and whether it is locked. Browse by folder with lms.folder.get, open one with
-lms.file.preview, or copy it into the course's files with lms.file.save_to_course.""",
+lms.file.preview.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files"),
     expose=HTTP_ONLY,
@@ -659,8 +658,7 @@ async def file_search(ctx: Ctx, inp: FileSearchInput) -> FileList:
 @capability(
     name="lms.file.preview",
     summary="The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
-    description="""Reads it without saving it. To search it or cite it, save it with
-lms.file.save_to_course instead.""",
+    description="""Reads it without saving it.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/files/{file_id}/preview"),
     expose=HTTP_ONLY,
@@ -674,11 +672,11 @@ async def file_preview(ctx: Ctx, inp: FileInput) -> FilePreview:
 
 @capability(
     name="lms.file.save_to_course",
-    summary="Save a file of a linked course on the LMS into the course's files.",
-    description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It
-is then processed like an upload and can be searched (files.document.search), cited and
-extracted. A file the sync already brought into the course's files (its course materials) is
-stored in place as an offline copy, not added again.""",
+    summary="Keep a local copy of a file of a linked course on the {lms} in the course's files.",
+    description="""Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline.
+Only when the user asks to keep a copy, so it opens after the course closes on the LMS: the
+course files usually have the file already, and reading it does not need a copy. A file the
+course files have keeps its copy in place; one they don't have is added with a copy.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/files/{file_id}:save"),
     preview=previews.preview_file_save,

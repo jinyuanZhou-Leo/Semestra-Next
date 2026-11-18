@@ -9,6 +9,9 @@ from typing import Any
 import pytest
 import respx
 
+from semestra.core.capability import registry
+from semestra.core.context import Ctx, run_as_system
+from semestra.modules.agent.display import make_preview
 from semestra.modules.files import sorting
 from semestra.modules.files.tests.conftest import Fx, model_sorts, sorting_model
 
@@ -100,3 +103,25 @@ async def test_organizing_the_unsorted_files(fx: Fx, monkeypatch: pytest.MonkeyP
             ("lectures", None, "Lectures"),
             ("exams", exams["id"], "Old tests"),
         ]
+
+
+async def test_sem_shows_where_each_file_goes_before_moving_it(fx: Fx):
+    """Sem applies a plan through a confirmation card that names each file's folder."""
+    await fx.upload_ready("Lecture 3.txt", b"Pointers and arrays.")
+    await fx.upload_ready("Lecture 4.txt", b"Structs.")
+    await fx.upload_ready("Midterm 2023.txt", b"Midterm.")
+    plan = (await _organize(fx))["plan"]
+    args = {"course_id": fx.course_id, "item_ids": [m["item_id"] for m in plan["moves"]]}
+    card: dict[str, Any] = {}
+
+    async def preview(ctx: Ctx) -> None:
+        card.update(await make_preview(ctx, registry.get("files.organization.apply"), args))
+
+    await run_as_system(fx.app.state, fx.user.id, preview)
+    shown = {c["label"]: (sorted(c["after"]), c["count"]) for c in card["changes"]}
+    assert shown == {
+        "Lectures": (["Lecture 3.txt", "Lecture 4.txt"], 2),
+        "Past exams": (["Midterm 2023.txt"], 1),
+    }
+    assert card["link"]["to"].endswith(f"/c/{fx.course_id}/files")
+    assert (await _where(fx))["Lecture 3.txt"] is None  # the card moved nothing

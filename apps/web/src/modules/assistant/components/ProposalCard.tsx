@@ -199,9 +199,13 @@ export function ChangeList({
       {changes.map((change) => {
         const removed = destructive && change.after === null && 'before' in change
         return (
-          <div key={change.field} className="flex flex-wrap items-baseline gap-x-2">
+          <div
+            key={`${change.field}:${change.label ?? ''}`}
+            className="flex flex-wrap items-baseline gap-x-2"
+          >
             <dt className="text-muted-foreground">
-              {fieldLabel(change.field, resolve(root.properties?.[change.field], root)?.title)}
+              {change.label ??
+                fieldLabel(change.field, resolve(root.properties?.[change.field], root)?.title)}
             </dt>
             <dd className="flex min-w-0 items-baseline gap-1.5">
               {'before' in change ? (

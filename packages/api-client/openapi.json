@@ -7760,7 +7760,7 @@
           "files"
         ],
         "summary": "Move a course's files into their type folders, as its plan says.",
-        "description": "Applies the course's plan to the files the user kept: each goes in its type's\nfolder, made when the course has none. Files moved or deleted since the plan stay as they are.\nThe plan is done with afterwards.",
+        "description": "Applies the course's plan to the files the user kept (`item_ids`, from\nfiles.organization.get): each goes in its type's folder, made when the course has none. Files\nmoved or deleted since the plan stay as they are. The plan is done with afterwards.",
         "operationId": "filesOrganizationApply",
         "security": [
           {
@@ -7768,6 +7768,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7873,8 +7876,8 @@
         "tags": [
           "files"
         ],
-        "summary": "Where a course's organizing stands.",
-        "description": "The course's organizing: its job while it reads (or when it failed), and the\nplan once read, with the files the user has moved or deleted since left out.",
+        "summary": "Where a course's organizing stands, with its plan once worked out.",
+        "description": "While the job reads (`job` set, no `plan`), pass wait_seconds to wait for the\nplan. The plan lists each file with the folder it would go in, the files the user has moved or\ndeleted since left out; `left` files stay where they are. Show the user the plan before applying\nit.",
         "operationId": "filesOrganizationGet",
         "security": [
           {
@@ -7882,6 +7885,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -7895,6 +7901,18 @@
               "title": "Course Id"
             },
             "description": "The course whose files to organize."
+          },
+          {
+            "name": "wait_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "While the plan is still being worked out, wait up to this long for it before answering",
+              "default": 0,
+              "title": "Wait Seconds"
+            },
+            "description": "While the plan is still being worked out, wait up to this long for it before answering"
           }
         ],
         "responses": {
@@ -7925,7 +7943,7 @@
           "files"
         ],
         "summary": "Work out how to sort a course's unsorted files into type folders.",
-        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the user reviews the plan\n(`files.organization.get`) and applies it (`files.organization.apply`).",
+        "description": "Starts a job that gives each file at the top level or in \"Course materials\" a\ntype (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan\n(replacing one not yet applied). Nothing is moved: the plan waits for the user's review, in the\ncourse's files or with you (`files.organization.get`, then `files.organization.apply`).",
         "operationId": "filesOrganizationStart",
         "security": [
           {
@@ -7933,6 +7951,9 @@
           },
           {
             "accessToken": []
+          },
+          {
+            "personalAccessToken": []
           }
         ],
         "parameters": [
@@ -12322,7 +12343,7 @@
           "lms"
         ],
         "summary": "Read one item of a course on its LMS (Canvas) in full, as Markdown.",
-        "description": "Takes a `ref` from any lms tool (a page, announcement with its replies,\nassignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's\ntext, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call\nagain with `next_offset`. Links in the text written `lms:<ref>` open with this tool.",
+        "description": "Takes a `ref` from any lms tool (a page, announcement with its replies,\nassignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's\ntext, `syllabus`) or the item's address on the LMS as `url`. A page or file the course files\nhave is read from there, with `item_id` and a citation per page (go on with\nfiles.document.read); `note` says when one was read from the LMS instead. A long text comes\nin parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this\ntool.",
         "operationId": "lmsContentRead",
         "security": [
           {
@@ -12439,8 +12460,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
-        "description": "Use first when looking for something in the course's LMS (a link, a date, a\npolicy, where the slides are). Words are matched, not meanings: search in the course's\nlanguage and try other words before concluding it is not there. Each hit has a `ref` for\nlms.content.read and a snippet; `skipped` says what could not be searched (an area the\ninstructor hid, a limit).",
+        "summary": "Search everything in a course on its LMS (Canvas): pages, announcements, assignments and feedback, quizzes, discussions, the syllabus, files and links, titles and full text.",
+        "description": "Use for what is not a course file (the course's posts, assignments and\nfeedback, quizzes, discussions, syllabus and links) and to find where something is in the\ncourse. Pages and files the course files have are searched there and come back as they would from\nfiles.document.search, with `item_id` and `citation_id` (cite them as [[cite:<citation_id>]]);\nthe rest are read from the LMS. Words are matched, not meanings: search in the course's\nlanguage and try other words before concluding it is not there. Each hit has a `ref` for\nlms.content.read and a snippet; `skipped` says what could not be searched (an area the\ninstructor hid, a limit, the LMS not reachable: what the app keeps is still found).",
         "operationId": "lmsContentSearch",
         "security": [
           {
@@ -13010,7 +13031,7 @@
           "lms"
         ],
         "summary": "A course on its LMS (Canvas) at a glance: its modules with every item, in order.",
-        "description": "Each item has a `ref` to read it with lms.content.read (external links and\ntools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas\nof the course open to the user; the instructor may hide some (pages, files...), and their items\nare then reachable only through the modules. Pages in no module are in `other_pages`. Use it to\nsee what a course has; to find something specific, lms.content.search is faster.",
+        "description": "Each item has a `ref` to read it with lms.content.read (external links and\ntools have a `url` instead), and says whether it is locked and why; a file or page the course\nfiles have also has its `item_id` there. `open_areas` lists the areas of the course open to the\nuser; the instructor may hide some (pages, files...), and their items are then reachable only\nthrough the modules. Pages in no module are in `other_pages`. Use it to see what a course has;\nto find something specific, lms.content.search is faster.",
         "operationId": "lmsCourseOutline",
         "security": [
           {
@@ -13267,7 +13288,7 @@
           "lms"
         ],
         "summary": "Details of a file of a linked course.",
-        "description": "Read its text with lms.file.preview; to search or cite it, save it with\nlms.file.save_to_course.",
+        "description": "Read its text with lms.file.preview.",
         "operationId": "lmsFileGet",
         "security": [
           {
@@ -13343,7 +13364,7 @@
           "lms"
         ],
         "summary": "The text of a file of a linked course, page by page (PDF, Word, PowerPoint, Excel).",
-        "description": "Reads it without saving it. To search it or cite it, save it with\nlms.file.save_to_course instead.",
+        "description": "Reads it without saving it.",
         "operationId": "lmsFilePreview",
         "security": [
           {
@@ -13418,8 +13439,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Save a file of a linked course on the LMS into the course's files.",
-        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline. It\nis then processed like an upload and can be searched (files.document.search), cited and\nextracted. A file the sync already brought into the course's files (its course materials) is\nstored in place as an offline copy, not added again.",
+        "summary": "Keep a local copy of a file of a linked course on the LMS (Canvas) in the course's files.",
+        "description": "Takes its ref (`file:<id>`) from lms.content.search or lms.course.outline.\nOnly when the user asks to keep a copy, so it opens after the course closes on the LMS: the\ncourse files usually have the file already, and reading it does not need a copy. A file the\ncourse files have keeps its copy in place; one they don't have is added with a copy.",
         "operationId": "lmsFileSaveToCourse",
         "security": [
           {
@@ -13496,7 +13517,7 @@
           "lms"
         ],
         "summary": "Find files of a linked course on the LMS by name.",
-        "description": "Matches part of the file name, not its contents. Each result says its type, size,\nlast change and whether it is locked. Browse by folder with lms.folder.get, open one with\nlms.file.preview, or copy it into the course's files with lms.file.save_to_course.",
+        "description": "Matches part of the file name, not its contents. Each result says its type, size,\nlast change and whether it is locked. Browse by folder with lms.folder.get, open one with\nlms.file.preview.",
         "operationId": "lmsFileSearch",
         "security": [
           {
@@ -30640,6 +30661,26 @@
             "title": "Next Offset",
             "description": "The text goes on: call again with this offset"
           },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "From the course files: one per page of `text`, cite a page by its id"
+          },
           "note": {
             "anyOf": [
               {
@@ -30894,6 +30935,18 @@
             "title": "Ref",
             "description": "Read it with lms.content.read"
           },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search"
+          },
           "url": {
             "anyOf": [
               {
@@ -31021,6 +31074,18 @@
             "type": "string",
             "title": "Ref"
           },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -31106,6 +31171,30 @@
             "type": "string",
             "title": "Title"
           },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search"
+          },
+          "citation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Citation Id",
+            "description": "Where the snippet is in the course files: cite it as [[cite:<citation_id>]]"
+          },
           "where": {
             "anyOf": [
               {
@@ -31175,6 +31264,14 @@
             "type": "array",
             "title": "Skipped",
             "description": "What could not be searched, and why"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "One per hit with a citation_id"
           }
         },
         "type": "object",
@@ -31192,7 +31289,7 @@
           "reason": {
             "type": "string",
             "title": "Reason",
-            "description": "hidden (the instructor hid it), failed, or limit"
+            "description": "hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)"
           }
         },
         "type": "object",
@@ -33927,6 +34024,10 @@
             "type": "string",
             "title": "Item Id"
           },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
           "type": {
             "type": "string",
             "enum": [
@@ -33970,6 +34071,7 @@
         "type": "object",
         "required": [
           "item_id",
+          "name",
           "type",
           "folder_id",
           "folder_name",

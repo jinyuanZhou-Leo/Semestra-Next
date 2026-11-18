@@ -6445,6 +6445,18 @@ export type LmsContentDetail = {
      */
     next_offset?: number | null;
     /**
+     * Item Id
+     *
+     * Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search
+     */
+    item_id?: string | null;
+    /**
+     * Citations
+     *
+     * From the course files: one per page of `text`, cite a page by its id
+     */
+    citations?: Array<Citation>;
+    /**
      * Note
      */
     note?: string | null;
@@ -6583,6 +6595,12 @@ export type LmsOutlineItem = {
      */
     ref?: string | null;
     /**
+     * Item Id
+     *
+     * Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search
+     */
+    item_id?: string | null;
+    /**
      * Url
      *
      * Where an external link or tool leads; such items can't be read, give the user the link
@@ -6649,6 +6667,12 @@ export type LmsOutlinePage = {
      */
     ref: string;
     /**
+     * Item Id
+     *
+     * Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search
+     */
+    item_id?: string | null;
+    /**
      * Title
      */
     title: string;
@@ -6695,6 +6719,18 @@ export type LmsSearchHit = {
      */
     title: string;
     /**
+     * Item Id
+     *
+     * Set when the course's files have it (the sync keeps the course's files and pages there): read and search it with files.document.read / files.document.search
+     */
+    item_id?: string | null;
+    /**
+     * Citation Id
+     *
+     * Where the snippet is in the course files: cite it as [[cite:<citation_id>]]
+     */
+    citation_id?: string | null;
+    /**
      * Where
      *
      * The module or area it is in
@@ -6736,6 +6772,12 @@ export type LmsSearchResults = {
      * What could not be searched, and why
      */
     skipped?: Array<LmsSkipped>;
+    /**
+     * Citations
+     *
+     * One per hit with a citation_id
+     */
+    citations?: Array<Citation>;
 };
 
 /**
@@ -6749,7 +6791,7 @@ export type LmsSkipped = {
     /**
      * Reason
      *
-     * hidden (the instructor hid it), failed, or limit
+     * hidden (the instructor hid it), failed, limit, or why the LMS could not be reached (an error code)
      */
     reason: string;
 };
@@ -8345,6 +8387,10 @@ export type PlannedMove = {
      * Item Id
      */
     item_id: string;
+    /**
+     * Name
+     */
+    name: string;
     /**
      * Type
      */
@@ -17746,7 +17792,14 @@ export type FilesOrganizationGetData = {
          */
         course_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Wait Seconds
+         *
+         * While the plan is still being worked out, wait up to this long for it before answering
+         */
+        wait_seconds?: number;
+    };
     url: '/courses/{course_id}/files:organize';
 };
 

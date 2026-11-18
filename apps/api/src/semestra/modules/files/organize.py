@@ -7,6 +7,8 @@ one per course) until the user applies or discards it. Nothing moves before that
 user has moved since the plan is left where they put it.
 """
 
+import asyncio
+import time
 from collections import defaultdict
 from typing import Any, cast
 
@@ -14,7 +16,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.events import events
-from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue, job_handler
+from semestra.core.jobs import TERMINAL, CoreJob, JobCtx, JobOut, enqueue, job_handler
 from semestra.modules.academics import service as academics
 from semestra.modules.files import service, sorting
 from semestra.modules.files.models import (
@@ -25,6 +27,7 @@ from semestra.modules.files.models import (
 )
 from semestra.modules.files.schemas import (
     OrganizeApplied,
+    OrganizeApplyInput,
     OrganizeDone,
     OrganizeInput,
     OrganizePlan,
@@ -40,6 +43,10 @@ KIND = "files.organize"
 UPDATED = "files.organization.updated"
 # The start of a file's text the model reads.
 EXCERPT_CHARS = 400
+# How often a wait for the plan (`state`'s `wait_seconds`) looks again.
+WAIT_POLL_SECONDS = 0.5
+# File names the assistant's confirmation card shows per folder; the rest are counted.
+SHOWN = 10
 
 
 async def unsorted_folders(
@@ -168,6 +175,7 @@ async def _live_moves(ctx: Ctx, course_id: str, saved: FilesOrganizePlan) -> lis
         moves.append(
             PlannedMove(
                 item_id=row.id,
+                name=row.display_name,
                 type=cast(TypeName, kind),
                 folder_id=folder_id,
                 folder_name=folder_name,
@@ -192,8 +200,31 @@ async def start(ctx: Ctx, course_id: str) -> JobOut:
     return JobOut.of(job)
 
 
-async def state(ctx: Ctx, course_id: str) -> OrganizeState:
+async def _wait(ctx: Ctx, course_id: str, seconds: int) -> None:
+    """Holds the call until the plan is worked out (or its job ended), or `seconds` pass, so
+    the assistant waits with one call. Reads through a session of its own: the caller's
+    transaction may not see the job's commits."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        async with ctx.state.session_factory() as db:
+            saved = await db.scalar(
+                select(FilesOrganizePlan).where(
+                    FilesOrganizePlan.user_id == ctx.user_id,
+                    FilesOrganizePlan.course_id == course_id,
+                )
+            )
+            if saved is None or saved.moves is not None:
+                return
+            status = await db.scalar(select(CoreJob.status).where(CoreJob.id == saved.job_id))
+            if status is None or status in TERMINAL:
+                return
+        await asyncio.sleep(WAIT_POLL_SECONDS)
+
+
+async def state(ctx: Ctx, course_id: str, wait_seconds: int = 0) -> OrganizeState:
     await academics.get_course_row(ctx, course_id)
+    if wait_seconds:
+        await _wait(ctx, course_id, wait_seconds)
     saved = await _plan_row(ctx, course_id)
     if saved is None:
         return OrganizeState(job=None, plan=None)
@@ -237,6 +268,27 @@ async def pending(ctx: Ctx, program_id: str) -> PendingOrganizeList:
         elif (job := jobs.get(s.job_id)) is not None:
             items.append(PendingOrganize(course_id=s.course_id, job=JobOut.of(job), count=None))
     return PendingOrganizeList(items=items)
+
+
+async def preview_apply(ctx: Ctx, inp: OrganizeApplyInput) -> dict[str, Any]:
+    """The assistant's confirmation card (M12 §3.5): each folder with the files going in it,
+    as `apply` would move them."""
+    course = await academics.get_course_row(ctx, inp.course_id)
+    saved = await _plan_row(ctx, course.id)
+    kept = set(inp.item_ids)
+    by_folder: dict[str, list[str]] = defaultdict(list)
+    if saved is not None and saved.moves is not None:
+        for move in await _live_moves(ctx, course.id, saved):
+            if move.item_id in kept:
+                by_folder[move.folder_name].append(move.name)
+    return {
+        "target": f"{course.code} {course.title}" if course.code else course.title,
+        "changes": [
+            {"field": "folder", "label": folder, "after": names[:SHOWN], "count": len(names)}
+            for folder, names in by_folder.items()
+        ],
+        "link": {"to": f"/p/{course.program_id}/c/{course.id}/files", "page": "files"},
+    }
 
 
 async def apply(ctx: Ctx, course_id: str, item_ids: list[str]) -> OrganizeApplied:

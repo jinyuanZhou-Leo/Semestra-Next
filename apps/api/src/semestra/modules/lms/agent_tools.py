@@ -23,10 +23,11 @@ AGENTS = ("http", "agent", "mcp")
     name="lms.course.outline",
     summary="A course on its {lms} at a glance: its modules with every item, in order.",
     description="""Each item has a `ref` to read it with lms.content.read (external links and
-tools have a `url` instead), and says whether it is locked and why. `open_areas` lists the areas
-of the course open to the user; the instructor may hide some (pages, files...), and their items
-are then reachable only through the modules. Pages in no module are in `other_pages`. Use it to
-see what a course has; to find something specific, lms.content.search is faster.""",
+tools have a `url` instead), and says whether it is locked and why; a file or page the course
+files have also has its `item_id` there. `open_areas` lists the areas of the course open to the
+user; the instructor may hide some (pages, files...), and their items are then reachable only
+through the modules. Pages in no module are in `other_pages`. Use it to see what a course has;
+to find something specific, lms.content.search is faster.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/outline"),
     expose=AGENTS,
@@ -39,13 +40,16 @@ async def course_outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
 @capability(
     name="lms.content.search",
     untrusted=True,
-    summary="Search everything in a course on its {lms}: pages, announcements, "
-    "assignments, quizzes, discussions, the syllabus, files and links, titles and full text.",
-    description="""Use first when looking for something in the course's LMS (a link, a date, a
-policy, where the slides are). Words are matched, not meanings: search in the course's
+    summary="Search everything in a course on its {lms}: pages, announcements, assignments "
+    "and feedback, quizzes, discussions, the syllabus, files and links, titles and full text.",
+    description="""Use for what is not a course file (the course's posts, assignments and
+feedback, quizzes, discussions, syllabus and links) and to find where something is in the
+course. Pages and files the course files have are searched there and come back as they would from
+files.document.search, with `item_id` and `citation_id` (cite them as [[cite:<citation_id>]]);
+the rest are read from the LMS. Words are matched, not meanings: search in the course's
 language and try other words before concluding it is not there. Each hit has a `ref` for
 lms.content.read and a snippet; `skipped` says what could not be searched (an area the
-instructor hid, a limit).""",
+instructor hid, a limit, the LMS not reachable: what the app keeps is still found).""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/search"),
     expose=AGENTS,
@@ -61,8 +65,11 @@ async def content_search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
     summary="Read one item of a course on its {lms} in full, as Markdown.",
     description="""Takes a `ref` from any lms tool (a page, announcement with its replies,
 assignment with the user's score, rubric and the teacher's comments, quiz, discussion, file's
-text, `syllabus`) or the item's address on the LMS as `url`. A long text comes in parts: call
-again with `next_offset`. Links in the text written `lms:<ref>` open with this tool.""",
+text, `syllabus`) or the item's address on the LMS as `url`. A page or file the course files
+have is read from there, with `item_id` and a citation per page (go on with
+files.document.read); `note` says when one was read from the LMS instead. A long text comes
+in parts: call again with `next_offset`. Links in the text written `lms:<ref>` open with this
+tool.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/content"),
     expose=AGENTS,

@@ -1,22 +1,37 @@
 """The assistant's LMS reads (M09 §8): a course's outline, search across its content, reading
 any item by its ref, and what is new. Built on the cached reads of `reads.py`; areas the
 instructor hid are not asked for (the course's navigation says which are open), and what could
-not be read is reported instead of failing the call."""
+not be read is reported instead of failing the call.
 
+One piece of content has one way in. A platform file or page that the course's files have with
+readable text (the sync keeps them there, `sync_files.py`) is searched and read there (M07), and
+cited like any file; only what they don't have (the area's sync is off, the user removed it, it
+is not read yet or can't be) is read from the platform, and the result says so. Announcements
+and the teacher's feedback are the app's own copies (`announcements.py`, `sync_feedback.py`), so
+they are found and read when the platform can't be reached."""
+
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, get_args
+from typing import Any, cast, get_args
 from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import announcements, files, reads, refs, service
+from semestra.modules.files import documents, sources
+from semestra.modules.files import search as file_search
+from semestra.modules.files.models import FilesItem
+from semestra.modules.files.schemas import Citation, SearchInput
+from semestra.modules.grading import service as grading
+from semestra.modules.lms import announcements, files, reads, refs, service, sync_feedback
 from semestra.modules.lms import search as ranking
-from semestra.modules.lms.errors import lms_error
+from semestra.modules.lms.errors import BROKEN_ON_READ, lms_error
 from semestra.modules.lms.markdown import to_markdown
-from semestra.modules.lms.models import LmsCourseLink
+from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.agent import (
     ContentKind,
     LmsActivityInput,
@@ -35,8 +50,8 @@ from semestra.modules.lms.schemas.agent import (
     LmsSearchResults,
     LmsSkipped,
 )
-from semestra.modules.lms.schemas.dto import Module, ModuleItem
-from semestra.modules.lms.schemas.io import CourseOverview
+from semestra.modules.lms.schemas.dto import DiscussionDetail, Module, ModuleItem
+from semestra.modules.lms.schemas.io import CourseOverview, FeedbackOut
 from semestra.modules.lms.service import Bound
 
 # Module items one outline call returns at most; the rest come with `next_cursor`.
@@ -50,6 +65,12 @@ ACTIVITY_MAX = 60
 # What makes one source of a search or one course of the activity list fail on its own.
 _SKIPPABLE = frozenset(
     ("lms.area_hidden", "lms.not_found", "lms.forbidden", "lms.feature_unsupported")
+)
+# The platform could not be reached or refused the course (it closed there): what the app keeps
+# of it (announcements, feedback, the course's files) is still searched and read.
+_PLATFORM_DOWN = (
+    frozenset(("lms.unreachable", "lms.rate_limited", "lms.forbidden", "lms.not_found"))
+    | BROKEN_ON_READ
 )
 # Areas whose lists the platform refuses when the instructor hid them (Canvas answers 404):
 # skipped up front when the navigation says so.
@@ -67,6 +88,44 @@ _ITEM_KINDS: dict[str, ContentKind] = {
 
 def _md(html: str | None) -> str:
     return (to_markdown(html) if html else None) or ""
+
+
+# --- what the course's files have ------------------------------------------------------------
+
+
+async def _kept(ctx: Ctx, link: LmsCourseLink) -> dict[str, FilesItem]:
+    """The platform files and pages of the course that its files have (the sync follows them
+    there), by ref. Whether each one's text can be read there is `_readable`."""
+    found = (
+        await ctx.db.execute(
+            select(LmsMaterial.kind, LmsMaterial.external_id, LmsMaterial.item_id).where(
+                LmsMaterial.link_id == link.id,
+                LmsMaterial.state == "synced",
+                LmsMaterial.kind.in_(("file", "page")),
+                LmsMaterial.item_id.is_not(None),
+            )
+        )
+    ).all()
+    rows = {r.id: r for r in await sources.find_items(ctx, [i for _, _, i in found if i])}
+    return {
+        refs.make(kind, ext): rows[item_id]  # pyright: ignore[reportArgumentType]
+        for kind, ext, item_id in found
+        if item_id in rows
+    }
+
+
+def _readable(item: FilesItem | None) -> FilesItem | None:
+    """The item, when its text can be read and searched in the course's files."""
+    return item if item is not None and item.active_document_id is not None else None
+
+
+def _not_kept_note(item: FilesItem | None) -> str:
+    if item is None:
+        return "Not in the course files: read from the LMS."
+    return (
+        f"In the course files, but its text is not readable there ({item.doc_status}): read "
+        "from the LMS."
+    )
 
 
 # --- the course as the assistant sees it ---------------------------------------------------
@@ -168,16 +227,19 @@ def _skip(skipped: list[LmsSkipped], source: str, exc: AppError) -> None:
         skipped.append(LmsSkipped(source=source, reason=reason))
 
 
-def _item(item: ModuleItem) -> LmsOutlineItem:
+def _item(item: ModuleItem, kept: dict[str, FilesItem] | None = None) -> LmsOutlineItem:
     url = None
     if item.kind == "external_url":
         url = item.external_url
     elif item.kind == "external_tool":
         url = item.web_url
+    ref = refs.from_internal(item.target)
+    in_files = _readable((kept or {}).get(ref or ""))
     return LmsOutlineItem(
         title=item.title,
         kind=item.kind,
-        ref=refs.from_internal(item.target),
+        ref=ref,
+        item_id=in_files.id if in_files else None,
         url=url,
         indent=item.indent,
         due_at=item.due_at,
@@ -188,13 +250,19 @@ def _item(item: ModuleItem) -> LmsOutlineItem:
     )
 
 
+def _page(page: LmsOutlinePage, kept: dict[str, FilesItem]) -> LmsOutlinePage:
+    in_files = _readable(kept.get(page.ref))
+    return page.model_copy(update={"item_id": in_files.id if in_files else None})
+
+
 async def outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
     course = await _course(ctx, inp.course_id, inp.refresh)
+    kept = await _kept(ctx, course.link)
     start = int(inp.cursor) if inp.cursor and inp.cursor.isdigit() else 0
     modules: list[LmsOutlineModule] = []
     count, next_cursor = 0, None
     for n, module in enumerate(course.modules[start:], start):
-        items = [_item(i) for i in module.items or []]
+        items = [_item(i, kept) for i in module.items or []]
         if modules and count + len(items) > OUTLINE_ITEMS:
             next_cursor = str(n)
             break
@@ -224,7 +292,7 @@ async def outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
             if t.kind == "external" and not t.hidden
         ],
         modules=modules,
-        other_pages=[p for p in course.pages or [] if p.ref not in in_modules]
+        other_pages=[_page(p, kept) for p in course.pages or [] if p.ref not in in_modules]
         if start == 0
         else [],
         next_cursor=next_cursor,
@@ -233,6 +301,8 @@ async def outline(ctx: Ctx, inp: LmsOutlineInput) -> LmsCourseOutline:
 
 
 # --- search ----------------------------------------------------------------------------------
+
+_MARK = re.compile(r"</?mark>")
 
 
 @dataclass
@@ -243,11 +313,17 @@ class _Entry:
     where: str | None = None
     url: str | None = None
     date: datetime | None = None
+    # In the course's files, readable there: the item, and where its match is (from M07's
+    # search, with the text around it).
+    item_id: str | None = None
+    citation: Citation | None = None
+    snippet: str | None = None
 
 
 class _Docs:
-    def __init__(self) -> None:
+    def __init__(self, kept: dict[str, FilesItem]) -> None:
         self.by_key: dict[str, _Entry] = {}
+        self.kept = kept
 
     def add(
         self,
@@ -259,25 +335,141 @@ class _Docs:
         where: str | None = None,
         url: str | None = None,
         date: datetime | None = None,
-    ) -> None:
+    ) -> _Entry:
         key = ref or f"link:{url or title}"
         have = self.by_key.get(key)
         if have is None:
-            self.by_key[key] = _Entry(kind, ref, ranking.Doc(key, title, text), where, url, date)
-            return
-        # The same item from a module and from its own list: keep the module as `where`.
-        if text and not have.doc.text:
-            have.doc.text = text
+            in_files = _readable(self.kept.get(ref or ""))
+            have = self.by_key[key] = _Entry(
+                kind,
+                ref,
+                ranking.Doc(key, title, text),
+                where,
+                url,
+                date,
+                item_id=in_files.id if in_files else None,
+            )
+            return have
+        # The same item from a module and from its own list (or an assignment and its kept
+        # feedback): keep the module as `where`, both texts.
+        if text and text not in have.doc.text:
+            have.doc.text = f"{have.doc.text}\n\n{text}" if have.doc.text else text
         have.where = have.where or where
         have.url = have.url or url
         have.date = have.date or date
+        return have
 
 
 async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
-    course = await _course(ctx, inp.course_id, inp.refresh)
+    link, b = await service.require_link(ctx, inp.course_id)
     wanted: set[str] = set(inp.kinds or get_args(ContentKind))
-    docs = _Docs()
-    skipped = list(course.skipped)
+    docs = _Docs(await _kept(ctx, link))
+
+    # What the app keeps is searched without the platform.
+    if "announcement" in wanted and "announcements" in b.provider.features:
+        for a in (await announcements.course_list(ctx, inp.course_id)).items:
+            ref = refs.make("announcement", a.external_id)
+            docs.add(
+                "announcement", ref, a.title, _md(a.html), where="Announcements", date=a.posted_at
+            )
+    if "assignment" in wanted:
+        for f, title in await _feedback(ctx, inp.course_id):
+            docs.add(
+                "assignment",
+                refs.make("assignment", f.assignment_id),
+                title,
+                _feedback_text(f),
+                where="Feedback",
+                url=f.web_url,
+                date=f.graded_at,
+            )
+    if wanted & {"page", "file"}:
+        await _search_kept(ctx, inp, docs, wanted)
+
+    # The rest is the platform's: when it can't be reached, what the app keeps still answers.
+    skipped: list[LmsSkipped] = []
+    try:
+        course = await _course(ctx, inp.course_id, inp.refresh)
+        skipped += course.skipped
+        await _search_platform(ctx, inp, course, docs, skipped, wanted)
+    except AppError as exc:
+        if exc.code not in _PLATFORM_DOWN:
+            raise
+        skipped.append(LmsSkipped(source="the rest of the course on the LMS", reason=exc.code))
+
+    scored: list[tuple[ranking.Match, _Entry]] = []
+    for e in docs.by_key.values():
+        if e.kind not in wanted:
+            continue
+        m = ranking.rank(inp.query, e.doc)
+        if m is None and e.citation is not None:  # the files' search matched it by meaning
+            m = ranking.Match(matched=1, score=0.0, at=-1)
+        if m is not None:
+            scored.append((m, e))
+    scored.sort(key=lambda pair: ranking.order_key(pair[0], pair[1].date))
+    top = scored[: inp.limit]
+    hits = [
+        LmsSearchHit(
+            ref=e.ref,
+            kind=e.kind,
+            title=e.doc.title,
+            item_id=e.item_id,
+            citation_id=e.citation.id if e.citation else None,
+            where=e.where,
+            snippet=e.snippet
+            if e.snippet is not None
+            else ranking.snippet(e.doc.text, m.at)
+            if e.doc.text
+            else "",
+            url=e.url,
+            date=e.date,
+        )
+        for m, e in top
+    ]
+    citations = [e.citation for _, e in top if e.citation is not None]
+    return LmsSearchResults(hits=hits, skipped=skipped, citations=citations)
+
+
+async def _search_kept(ctx: Ctx, inp: LmsSearchInput, docs: _Docs, wanted: set[str]) -> None:
+    """The course's platform files and pages that its files have: searched there (M07), so a
+    hit comes with the passage and its citation, as `files.document.search` gives them."""
+    items = {
+        row.id: ref
+        for ref, row in docs.kept.items()
+        if _readable(row) and refs.parse(ref)[0] in wanted
+    }
+    if not items:
+        return
+    course = await academics.get_course_row(ctx, inp.course_id)
+    found = await file_search.search(
+        ctx,
+        SearchInput(
+            program_id=course.program_id,
+            query=inp.query,
+            item_ids=list(items),
+            top_k=min(inp.limit, 20),
+        ),
+    )
+    cited = {c.id: c for c in found.citations}
+    for hit in found.results:
+        ref = items[hit.item_id]
+        kind = cast(ContentKind, refs.parse(ref)[0])
+        text = _MARK.sub("", hit.snippet)
+        entry = docs.add(kind, ref, hit.display_name, text)
+        if entry.citation is None:  # the best passage of the file
+            entry.citation, entry.snippet = cited.get(hit.citation_id), text
+
+
+async def _search_platform(
+    ctx: Ctx,
+    inp: LmsSearchInput,
+    course: _Course,
+    docs: _Docs,
+    skipped: list[LmsSkipped],
+    wanted: set[str],
+) -> None:
+    """What only the platform has: the course's structure, its assignments, quizzes,
+    discussions and syllabus, and the text of pages the course's files don't have."""
     for module in course.modules:
         for item in module.items or []:
             kind = _ITEM_KINDS.get(item.kind)
@@ -289,7 +481,9 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
         docs.add("page", page.ref, page.title, where="Pages", date=page.updated_at)
 
     if "page" in wanted and course.has("pages"):
-        page_refs = [e.ref for e in docs.by_key.values() if e.kind == "page" and e.ref]
+        page_refs = [
+            e.ref for e in docs.by_key.values() if e.kind == "page" and e.ref and e.item_id is None
+        ]
         if len(page_refs) > SEARCH_MAX_PAGES:
             skipped.append(
                 LmsSkipped(source=f"pages after the first {SEARCH_MAX_PAGES}", reason="limit")
@@ -316,13 +510,6 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
             _skip(skipped, name, exc)
 
     cid = inp.course_id
-
-    async def posts() -> None:
-        for a in (await announcements.course_list(ctx, cid)).items:
-            ref = refs.make("announcement", a.external_id)
-            docs.add(
-                "announcement", ref, a.title, _md(a.html), where="Announcements", date=a.posted_at
-            )
 
     async def assignments() -> None:
         data, _ = await reads.raw_assignments(ctx, cid, inp.refresh, linked=(course.link, course.b))
@@ -371,8 +558,6 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
                 "file", refs.make("file", f.external_id), f.name, where="Files", date=f.updated_at
             )
 
-    if "announcement" in wanted and course.has("announcements"):
-        await source("announcements", None, posts)
     if "assignment" in wanted and course.has("assignments"):
         await source("assignments", None, assignments)
     if "quiz" in wanted and course.has("quizzes"):
@@ -384,25 +569,22 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
     if "file" in wanted and course.has("folders") and len(inp.query.strip()) >= 2:
         await source("files", "files", file_names)
 
-    scored = [
-        (m, e)
-        for e in docs.by_key.values()
-        if e.kind in wanted and (m := ranking.rank(inp.query, e.doc)) is not None
-    ]
-    scored.sort(key=lambda pair: ranking.order_key(pair[0], pair[1].date))
-    hits = [
-        LmsSearchHit(
-            ref=e.ref,
-            kind=e.kind,
-            title=e.doc.title,
-            where=e.where,
-            snippet=ranking.snippet(e.doc.text, m.at) if e.doc.text else "",
-            url=e.url,
-            date=e.date,
-        )
-        for m, e in scored[: inp.limit]
-    ]
-    return LmsSearchResults(hits=hits, skipped=skipped)
+
+# --- the teacher's feedback, as the sync kept it ---------------------------------------------
+
+
+async def _feedback(ctx: Ctx, course_id: str) -> list[tuple[FeedbackOut, str]]:
+    """The course's kept feedback (`sync_feedback.py`), each with its assessment's title."""
+    kept = (await sync_feedback.feedback_list(ctx, course_id)).items
+    titles = await grading.find_assessment_rows(ctx, [f.assessment_id for f in kept])
+    return [(f, titles[f.assessment_id].title) for f in kept if f.assessment_id in titles]
+
+
+def _feedback_text(f: FeedbackOut) -> str:
+    """The comments and rubric notes, as `_read_assignment` writes them."""
+    parts = [f"- **{c.author or '?'}**: {c.comment}" for c in f.comments if c.comment]
+    parts += [s.comments for s in f.rubric_scores if s.comments]
+    return "\n".join(parts)
 
 
 def _dt(value: Any) -> datetime | None:
@@ -426,12 +608,39 @@ async def read(ctx: Ctx, inp: LmsReadInput) -> LmsContentDetail:
         if ref is None:
             raise lms_error("lms.invalid_ref", ref=(inp.url or "")[:100])
         kind, item_id = refs.parse(ref)
+    kept = None
+    if kind in ("file", "page"):
+        kept = (await _kept(ctx, link)).get(refs.make(kind, item_id))
+        if (in_files := _readable(kept)) is not None:
+            return await _from_files(ctx, refs.make(kind, item_id), kind, in_files)
     detail = await _READERS[kind](ctx, inp, (link, b), item_id)
+    if kind in ("file", "page"):
+        detail.note = " ".join(n for n in (_not_kept_note(kept), detail.note) if n)
     text = detail.text
     detail.text = text[inp.offset : inp.offset + TEXT_CHUNK]
     if inp.offset + TEXT_CHUNK < len(text):
         detail.next_offset = inp.offset + TEXT_CHUNK
     return detail
+
+
+async def _from_files(ctx: Ctx, ref: str, kind: ContentKind, item: FilesItem) -> LmsContentDetail:
+    """A platform file or page the course's files have: their text and citations (M07), the
+    same as `files.document.read` gives."""
+    doc = await documents.read_document(ctx, item.id, 1, None)
+    note = "From the course files: cite a page by its id in `citations`."
+    if doc.next_page is not None:
+        note += f" The rest: files.document.read(item_id, page_from={doc.next_page})."
+    return LmsContentDetail(
+        ref=ref,
+        kind=kind,
+        title=item.display_name,
+        url=item.url,
+        date=item.source_modified_at,
+        text="\n\n".join(f"--- page {p.page_no} ---\n\n{p.markdown}" for p in doc.pages),
+        item_id=item.id,
+        citations=doc.citations,
+        note=note,
+    )
 
 
 type _Reader = Callable[
@@ -463,13 +672,7 @@ async def _read_discussion(
     kind: ContentKind = "discussion",
 ) -> LmsContentDetail:
     d = await reads.discussion(ctx, inp.course_id, item_id, inp.refresh)
-    parts = [_md(d.html)]
-    if d.entries:
-        parts.append(f"## Replies ({d.reply_count})")
-        for e in d.entries:
-            when = f" ({e.created_at:%Y-%m-%d})" if e.created_at else ""
-            body = " ".join(_md(e.html).split())
-            parts.append(f"{'  ' * e.depth}- **{e.author or '?'}**{when}: {body}")
+    parts = [_md(d.html), *_replies(d)]
     return LmsContentDetail(
         ref=refs.make(kind, d.external_id),  # pyright: ignore[reportArgumentType]
         kind=kind,
@@ -483,31 +686,76 @@ async def _read_discussion(
     )
 
 
+def _replies(d: DiscussionDetail) -> list[str]:
+    if not d.entries:
+        return []
+    parts = [f"## Replies ({d.reply_count})"]
+    for e in d.entries:
+        when = f" ({e.created_at:%Y-%m-%d})" if e.created_at else ""
+        body = " ".join(_md(e.html).split())
+        parts.append(f"{'  ' * e.depth}- **{e.author or '?'}**{when}: {body}")
+    return parts
+
+
 async def _read_announcement(
     ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
 ) -> LmsContentDetail:
-    if "discussions" in linked[1].provider.features:  # an announcement is a topic, with replies
+    """The announcement as the sync kept it; its replies, which are not kept, from the
+    platform when it can be reached."""
+    discussions = "discussions" in linked[1].provider.features
+    try:
+        a = await announcements.find(ctx, inp.course_id, item_id)
+    except AppError as exc:
+        if exc.code != "lms.not_found" or not discussions:
+            raise
+        # Not kept (the sync reads the last months only, or has not read the course yet).
         return await _read_discussion(ctx, inp, linked, item_id, "announcement")
-    for a in (await announcements.course_list(ctx, inp.course_id)).items:
-        if a.external_id == item_id:
-            return LmsContentDetail(
-                ref=refs.make("announcement", a.external_id),
-                kind="announcement",
-                title=a.title,
-                url=a.web_url,
-                date=a.posted_at,
-                text=_md(a.html),
-            )
-    raise lms_error("lms.not_found")
+    parts, note = [_md(a.html)], None
+    if discussions:  # an announcement is a topic, with replies
+        try:
+            d = await reads.discussion(ctx, inp.course_id, item_id, inp.refresh)
+            parts += _replies(d)
+            note = "Only the first replies are included." if d.entries_truncated else None
+        except AppError as exc:
+            if exc.code not in _PLATFORM_DOWN | _SKIPPABLE:
+                raise
+            note = "Its replies could not be read from the LMS."
+    return LmsContentDetail(
+        ref=refs.make("announcement", a.external_id),
+        kind="announcement",
+        title=a.title,
+        url=a.web_url,
+        date=a.posted_at,
+        text="\n\n".join(p for p in parts if p),
+        note=note,
+    )
 
 
 async def _read_assignment(
     ctx: Ctx, inp: LmsReadInput, linked: tuple[LmsCourseLink, Bound], item_id: str
 ) -> LmsContentDetail:
-    data, _ = await reads.raw_assignments(ctx, inp.course_id, inp.refresh, linked=linked)
+    """The assignment from the platform, with the teacher's feedback as the sync kept it (an
+    imported one's), else as the platform has it. When the platform can't be reached, or the
+    assignment is gone from it, the kept feedback is still read."""
+    kept = next(
+        (
+            (f, title)
+            for f, title in await _feedback(ctx, inp.course_id)
+            if f.assignment_id == item_id
+        ),
+        None,
+    )
+    try:
+        data, _ = await reads.raw_assignments(ctx, inp.course_id, inp.refresh, linked=linked)
+    except AppError as exc:
+        if kept is None or exc.code not in _PLATFORM_DOWN:
+            raise
+        data = []
     a = next((a for a in data if a["external_id"] == item_id), None)
     if a is None:
-        raise lms_error("lms.not_found")
+        if kept is None:
+            raise lms_error("lms.not_found")
+        return _kept_feedback(item_id, *kept)
     parts = [_md(a.get("html"))]
     sub = a.get("submission") or {}
     if sub:
@@ -520,11 +768,11 @@ async def _read_assignment(
             line += f" ({sub['grade']})"
         flags = [f for f in ("late", "missing") if sub.get(f)]
         parts.append(line + (f"; {', '.join(flags)}" if flags else ""))
-    rubric = a.get("rubric") or []
-    feedback: dict[str, Any] = {}
-    if "submissions" in linked[1].provider.features and sub.get("state") not in (
-        None,
-        "unsubmitted",
+    feedback: dict[str, Any] = kept[0].model_dump() if kept else {}
+    if (
+        kept is None
+        and "submissions" in linked[1].provider.features
+        and sub.get("state") not in (None, "unsubmitted")
     ):
         try:
             detail = await reads.submission(ctx, inp.course_id, item_id, inp.refresh)
@@ -532,6 +780,25 @@ async def _read_assignment(
         except AppError as exc:
             if exc.code not in _SKIPPABLE:
                 raise
+    if kept is not None and sub.get("score") is None:
+        parts.append(_kept_score(kept[0]))
+    parts += _feedback_lines(a.get("rubric") or feedback.get("rubric") or [], feedback)
+    return LmsContentDetail(
+        ref=refs.make("assignment", item_id),
+        kind="assignment",
+        title=a["name"],
+        url=a.get("web_url"),
+        date=_dt(a.get("updated_at")),
+        due_at=_dt(a.get("due_at")),
+        points=a.get("points"),
+        locked=bool(a.get("locked")),
+        lock_explanation=a.get("lock_explanation"),
+        text="\n\n".join(p for p in parts if p),
+    )
+
+
+def _feedback_lines(rubric: list[dict[str, Any]], feedback: dict[str, Any]) -> list[str]:
+    parts: list[str] = []
     scores = {s["criterion_id"]: s for s in feedback.get("rubric_scores", [])}
     if rubric:
         parts.append("## Rubric")
@@ -545,17 +812,29 @@ async def _read_assignment(
         parts.append("## Comments")
         for cm in feedback["comments"]:
             parts.append(f"- **{cm.get('author') or '?'}**: {cm.get('comment', '')}")
+    return parts
+
+
+def _kept_score(f: FeedbackOut) -> str:
+    if f.score is None:
+        return ""
+    line = f"Score {f.score:g}" + (f"/{f.points:g}" if f.points else "")
+    return line + (f" ({f.grade})" if f.grade else "")
+
+
+def _kept_feedback(item_id: str, f: FeedbackOut, title: str) -> LmsContentDetail:
+    feedback = f.model_dump()
+    parts = [_kept_score(f), *_feedback_lines(feedback["rubric"], feedback)]
     return LmsContentDetail(
         ref=refs.make("assignment", item_id),
         kind="assignment",
-        title=a["name"],
-        url=a.get("web_url"),
-        date=_dt(a.get("updated_at")),
-        due_at=_dt(a.get("due_at")),
-        points=a.get("points"),
-        locked=bool(a.get("locked")),
-        lock_explanation=a.get("lock_explanation"),
+        title=title,
+        url=f.web_url,
+        date=f.graded_at,
+        points=f.points,
         text="\n\n".join(p for p in parts if p),
+        note="The LMS could not give the assignment: this is its feedback as the app kept it at "
+        "the last sync.",
     )
 
 
@@ -608,7 +887,7 @@ async def _read_file(
     text = "\n\n".join(f"--- page {n} ---\n\n{page}" for n, page in enumerate(preview.pages, 1))
     note = None
     if preview.truncated:
-        note = "Only the first pages; lms.file.save_to_course keeps the whole file searchable."
+        note = "Only the first pages."
     return LmsContentDetail(
         ref=refs.make("file", item_id),
         kind="file",

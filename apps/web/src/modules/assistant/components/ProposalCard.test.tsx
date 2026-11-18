@@ -82,3 +82,24 @@ test('what a delete removes is struck through, without "cleared" after it', () =
   expect(rows()).toEqual(['APS105H1'])
   expect(screen.getByText('APS105H1')).toHaveClass('line-through')
 })
+
+test('rows named by their data (a folder) show that name, one row each', () => {
+  render(
+    <ProposalChanges
+      proposal={proposal({
+        changes: [
+          {
+            field: 'folder',
+            label: 'Lectures',
+            after: ['Lecture 3.pdf', 'Lecture 4.pdf'],
+            count: 2,
+          },
+          { field: 'folder', label: 'Past exams', after: ['Midterm 2023.pdf'], count: 1 },
+        ],
+      })}
+    />,
+  )
+  const terms = screen.getAllByRole('term').map((dt) => dt.textContent)
+  expect(terms).toEqual(['Lectures', 'Past exams'])
+  expect(rows()).toEqual(['Lecture 3.pdf, Lecture 4.pdf', 'Midterm 2023.pdf'])
+})

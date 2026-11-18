@@ -8,6 +8,7 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 from semestra.modules.academics.schemas import Id
+from semestra.modules.files.schemas import Citation
 
 ContentKind = Literal[
     "page", "announcement", "assignment", "quiz", "discussion", "file", "syllabus", "link"
@@ -21,9 +22,18 @@ _REFRESH = (
 )
 
 
+_IN_FILES = (
+    "Set when the course's files have it (the sync keeps the course's files and pages there): "
+    "read and search it with files.document.read / files.document.search"
+)
+
+
 class LmsSkipped(BaseModel):
     source: str
-    reason: str = Field(description="hidden (the instructor hid it), failed, or limit")
+    reason: str = Field(
+        description="hidden (the instructor hid it), failed, limit, or why the LMS could not be "
+        "reached (an error code)"
+    )
 
 
 class LmsOutlineInput(BaseModel):
@@ -41,6 +51,7 @@ class LmsOutlineItem(BaseModel):
         "subheader"
     )
     ref: str | None = Field(default=None, description="Read it with lms.content.read")
+    item_id: str | None = Field(default=None, description=_IN_FILES)
     url: str | None = Field(
         default=None,
         description="Where an external link or tool leads; such items can't be read, give the "
@@ -65,6 +76,7 @@ class LmsOutlineModule(BaseModel):
 
 class LmsOutlinePage(BaseModel):
     ref: str
+    item_id: str | None = Field(default=None, description=_IN_FILES)
     title: str
     updated_at: datetime | None = None
     front_page: bool = False
@@ -120,6 +132,11 @@ class LmsSearchHit(BaseModel):
     ref: str | None = Field(description="Read it with lms.content.read (null for a link)")
     kind: ContentKind
     title: str
+    item_id: str | None = Field(default=None, description=_IN_FILES)
+    citation_id: str | None = Field(
+        default=None,
+        description="Where the snippet is in the course files: cite it as [[cite:<citation_id>]]",
+    )
     where: str | None = Field(default=None, description="The module or area it is in")
     snippet: str = Field(description="The text around the match, as Markdown")
     url: str | None = Field(default=None, description="Its address (a link's target)")
@@ -130,6 +147,9 @@ class LmsSearchResults(BaseModel):
     hits: list[LmsSearchHit] = Field(description="Best match first")
     skipped: list[LmsSkipped] = Field(
         default_factory=list, description="What could not be searched, and why"
+    )
+    citations: list[Citation] = Field(
+        default_factory=list, description="One per hit with a citation_id"
     )
 
 
@@ -169,6 +189,11 @@ class LmsContentDetail(BaseModel):
     )
     next_offset: int | None = Field(
         default=None, description="The text goes on: call again with this offset"
+    )
+    item_id: str | None = Field(default=None, description=_IN_FILES)
+    citations: list[Citation] = Field(
+        default_factory=list,
+        description="From the course files: one per page of `text`, cite a page by its id",
     )
     note: str | None = None
 
