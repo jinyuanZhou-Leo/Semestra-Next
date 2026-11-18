@@ -141,8 +141,10 @@ class SyncStatus(BaseModel):
         description="What the platform did lately to the course materials, newest first"
     )
     removed_materials: list[SyncRemovedMaterial] = Field(
-        description="Materials the user deleted, newest first"
+        description="Materials the user deleted, newest first (at most 50), where the course's"
+        " materials sync"
     )
+    removed_count: int = Field(description="How many materials the user deleted, all told")
     errors: list[SyncCourseError]
 
 

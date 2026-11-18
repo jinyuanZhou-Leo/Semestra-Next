@@ -282,6 +282,7 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
       stored: false,
       follows_source: true,
       source_kind: 'lms',
+      source_ref: 'lms:file:301',
       source_name: 'Canvas',
       unseen: true,
       modified_at: '2026-02-01T12:00:00Z',
@@ -328,6 +329,17 @@ test('a file new from the LMS is marked until opened, and shows where it is kept
   expect(await screen.findByText('No longer updated or removed with Canvas.')).toBeInTheDocument()
   await user.click(screen.getByRole('menuitem', { name: /^Save as my file/ }))
   await waitFor(() => expect(calls).toEqual(['keep-copy', 'make-own']))
+
+  // Deleting it says what happens: no sync brings it back, and the sync status can restore it.
+  await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+  const confirm = await screen.findByRole('alertdialog')
+  expect(
+    within(confirm).getByText(
+      "It won't sync from Canvas again. You can restore it under Removed materials in the sync status.",
+    ),
+  ).toBeInTheDocument()
+  await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
 
   // Opened: no longer new. Canvas can't be reached: what was read from it last time instead.
   await user.click(name)

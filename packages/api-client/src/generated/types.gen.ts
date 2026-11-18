@@ -11152,9 +11152,15 @@ export type SyncStatus = {
     /**
      * Removed Materials
      *
-     * Materials the user deleted, newest first
+     * Materials the user deleted, newest first (at most 50), where the course's materials sync
      */
     removed_materials: Array<SyncRemovedMaterial>;
+    /**
+     * Removed Count
+     *
+     * How many materials the user deleted, all told
+     */
+    removed_count: number;
     /**
      * Errors
      */

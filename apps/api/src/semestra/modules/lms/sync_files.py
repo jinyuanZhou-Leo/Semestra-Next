@@ -747,7 +747,12 @@ async def restore(ctx: Ctx, material_id: str) -> str:
     assert link is not None
     await hold(ctx, link)
     await ctx.db.refresh(mat)
-    if mat.state != "dismissed":
+    # Only where the materials sync: elsewhere nothing would bring it back.
+    if (
+        mat.state != "dismissed"
+        or not link.sync_enabled
+        or not (await material_settings(ctx, link.course_id)).sync
+    ):
         raise lms_error("lms.sync_nothing_to_resolve")
     enter(mat, "restored", ctx.now)
     await sync_queue(ctx, [link], manual=True)
@@ -756,8 +761,9 @@ async def restore(ctx: Ctx, material_id: str) -> str:
 
 @events.subscribe("settings.values.updated")
 async def on_settings_changed(ctx: Ctx, event: Event) -> None:
-    """The materials settings of a Program or course changed: turned on, its courses sync now;
-    a new way of keeping them applies at once (local copies let go, or stored)."""
+    """The materials settings of a Program or course changed: turned on, its courses sync now
+    and quietly, as at first (what came meanwhile is not told as new); a new way of keeping
+    them applies at once (local copies let go, or stored)."""
     data = event.data
     scope = data.get("scope")
     changed = set(data.get("changed") or [])
@@ -778,6 +784,8 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
             continue
         cfg = await material_settings(ctx, link.course_id)
         if "sync" in changed and cfg.sync:
+            # What the platform added while off is not news: the next run is quiet again.
+            link.materials_settled_at = None
             turned_on.append(link)
         if "store" in changed:
             await sources.apply_copies(

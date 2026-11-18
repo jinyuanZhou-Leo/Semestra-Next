@@ -416,7 +416,7 @@ function Panel({
               }
             >
               <ChevronRight aria-hidden className="transition-transform" />
-              {m.lms_sync_removed_materials({ count: status.removed_materials.length })}
+              {m.lms_sync_removed_materials({ count: status.removed_count })}
             </CollapsibleTrigger>
             <CollapsibleContent className="flex flex-col gap-2">
               {byCourse(status.removed_materials).map((group) => (

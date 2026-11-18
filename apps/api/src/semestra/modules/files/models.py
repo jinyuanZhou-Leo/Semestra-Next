@@ -73,6 +73,9 @@ class FilesItem(Base, OwnedMixin, TimestampMixin):
     # this file (True keep one, False read it from the source); None: the source's setting for
     # its course decides.
     keep_copy: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    # The source version (`sha256`) the local copy holds: an older one while the new bytes are
+    # being fetched, read until they replace it (`sources.update_remote_file`).
+    copy_version: Mapped[str | None] = mapped_column(String(64), default=None)
     # The source's name for itself ("Canvas"), shown with the file while it follows the source.
     source_name: Mapped[str | None] = mapped_column(String, default=None)
     # When the source last changed the contents (its time, not when the sync saw it).

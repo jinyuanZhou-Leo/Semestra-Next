@@ -173,19 +173,22 @@ async def update_remote_file(
 ) -> None:
     """The source's file changed: its new metadata, and its text read again. `name` replaces
     the shown name (None: the user renamed it, keep theirs); its place is never changed. A local
-    copy is let go: the item is read from the source again, until the source stores the new
-    bytes (`apply_copies`)."""
-    _release(ctx, row)
+    copy is kept until the new bytes replace it (`apply_copies` stores them, `store_from_source`
+    swaps them in and reads the text again): until then the item opens as the copy it has, and
+    the platform deleting it meanwhile still hands that copy over."""
     if name is not None:
         row.display_name = row.original_name = service.safe_name(name)
-    row.mime_type, row.size_bytes, row.url = mime, size, url
-    row.source_modified_at = modified_at
+    row.url, row.source_modified_at = url, modified_at
     row.sha256 = _version_hash(version)
+    row.updated_at = ctx.now
+    if row.storage_key:
+        await _updated(ctx, row)
+        return
+    row.mime_type, row.size_bytes = mime, size
     status, error = _remote_status(ctx, row.original_name or row.display_name, mime, size)
     if status == "pending" and not await auto_index(ctx, row.course_id):
         status = "none"
     row.doc_status, row.doc_error_code = status, error
-    row.updated_at = ctx.now
     await ctx.db.flush()
     if status == "pending":
         await service.enqueue_processing(ctx, row, synced=True)
@@ -198,9 +201,14 @@ def _release(ctx: Ctx, row: FilesItem) -> bool:
     if not row.storage_key:
         return False
     delete_after_commit(ctx, [row.storage_key])
-    row.storage_key = None
+    row.storage_key = row.copy_version = None
     row.updated_at = ctx.now
     return True
+
+
+def _outdated(row: FilesItem) -> bool:
+    """Its bytes are not the source's current version: none here, or an older local copy."""
+    return not row.storage_key or row.copy_version != row.sha256
 
 
 async def _check_room(ctx: Ctx, row: FilesItem) -> None:
@@ -239,7 +247,7 @@ async def keep_copy(ctx: Ctx, row: FilesItem) -> None:
     if not content.follows_source(row):
         return
     row.keep_copy = True
-    if not row.storage_key:
+    if _outdated(row):
         await _check_room(ctx, row)
         await _store(ctx, row, own=False)
     await _updated(ctx, row)
@@ -262,7 +270,7 @@ async def make_own(ctx: Ctx, row: FilesItem) -> None:
     source is unreachable) stays as it was and the job's failure says why."""
     if not content.follows_source(row):
         return
-    if row.storage_key:
+    if not _outdated(row):
         await detach_from_source(ctx, [row])
         return
     await _check_room(ctx, row)
@@ -286,7 +294,7 @@ async def apply_copies(ctx: Ctx, rows: Sequence[FilesItem], local: bool, *, dedu
             if _release(ctx, row):
                 await _updated(ctx, row)
             continue
-        if row.storage_key or row.size_bytes > cap:
+        if not _outdated(row) or row.size_bytes > cap:
             continue
         if left is not None:
             if row.size_bytes > left:
@@ -311,6 +319,7 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
     False (`quiet` only): the quota is full and nothing changed; otherwise that and every other
     failure raise."""
     opened: list[AsyncIterator[bytes]] = []
+    version: list[str | None] = []  # of the bytes opened
 
     def wanted(row: FilesItem | None) -> bool:
         return (
@@ -323,8 +332,9 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
         row = await sys_ctx.db.get(FilesItem, item_id)
         if row is None or not wanted(row):
             return
-        if content.remote(row):
-            opened.append(await content.open_content(sys_ctx, row))
+        if _outdated(row):
+            version.append(row.sha256)
+            opened.append(await content.open_source(sys_ctx, row))
         elif own:  # stored meanwhile: hand it over now
             await detach_from_source(sys_ctx, [row])
 
@@ -351,10 +361,15 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
         row = await sys_ctx.db.get(FilesItem, item_id)
         if row is None or not wanted(row):
             return
-        if not row.storage_key:  # else stored meanwhile: these bytes are not needed
-            row.storage_key = staged.stored.key
+        # Else the same version was stored meanwhile: these bytes are not needed.
+        if not row.storage_key or row.copy_version != version[0]:
+            older = row.storage_key
+            row.storage_key, row.copy_version = staged.stored.key, version[0]
             row.size_bytes = staged.stored.size
             taken.append(True)
+            if older:  # a newer version replaces the copy: its text is read again
+                delete_after_commit(sys_ctx, [older])
+                await _read_new_bytes(sys_ctx, row)
         row.updated_at = sys_ctx.now
         await charge(sys_ctx)
         if own:
@@ -372,6 +387,14 @@ async def store_from_source(ctx: Ctx, item_id: str, *, quiet: bool, own: bool = 
     if not taken:
         await get_storage(ctx).delete(staged.stored.key)
     return True
+
+
+async def _read_new_bytes(ctx: Ctx, row: FilesItem) -> None:
+    status = "pending" if await auto_index(ctx, row.course_id) else "none"
+    row.doc_status, row.doc_error_code = status, None
+    await ctx.db.flush()
+    if status == "pending":
+        await service.enqueue_processing(ctx, row, synced=True)
 
 
 async def retry_synced(ctx: Ctx, row: FilesItem) -> None:
@@ -410,6 +433,9 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
     for row in rows:
         assert row.storage_key
         row.source_ref = row.source_name = row.keep_copy = None
+        # The version it holds (an older one if the newest was still being fetched).
+        row.sha256 = row.copy_version or row.sha256
+        row.copy_version = None
         row.updated_at = ctx.now
         await _updated(ctx, row)
 

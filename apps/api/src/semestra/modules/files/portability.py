@@ -28,13 +28,13 @@ from semestra.modules.portability import IdMap, ImportOptions, ImportReport, Tab
 from semestra.modules.portability.registry import Writer, register_portability
 from semestra.modules.portability.tables import TableAdapter
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 
 
-def _v1_to_v2(payload: dict[str, Any], archive: Any) -> dict[str, Any]:
-    """Version 1 (up to 2.0) had copies the user kept that no longer followed their source
-    (`kept_offline`); they follow it now, with the local copy the user asked for."""
-    del archive
+def _current(payload: dict[str, Any]) -> dict[str, Any]:
+    """Backups up to 2.0 had copies the user kept that no longer followed their source
+    (`kept_offline`); they follow it now, with the local copy the user asked for. Read as such
+    at the same version (owner 2026-11-18: the backup versions stay)."""
     items = [
         {**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True}
         if raw.get("kept_offline")
@@ -90,6 +90,7 @@ class FilesAdapter(TableAdapter):
     ) -> ImportReport:
         assert isinstance(id_map, IdMap)
         opts: ImportOptions = options
+        payload = _current(payload)
         report = await super().import_(ctx, payload, id_map, opts)
         assert ctx.user_id
         for old_id, _ in self._file_items(payload):
@@ -113,6 +114,8 @@ class FilesAdapter(TableAdapter):
                 continue
             row.size_bytes = size
             row.storage_key = key
+            if content.follows_source(row) and row.copy_version is None:
+                row.copy_version = row.sha256  # a backup from before copies had versions
             if row.doc_status != "unsupported":
                 row.doc_status = "pending"
                 # A copy stored for its source is read as its source's sync reads it.
@@ -157,7 +160,6 @@ ADAPTER = FilesAdapter(
 register_portability(
     module="files",
     schema_version=SCHEMA_VERSION,
-    upgrades={1: _v1_to_v2},
     depends_on=("academics",),
     export=ADAPTER.export,
     import_=ADAPTER.import_,

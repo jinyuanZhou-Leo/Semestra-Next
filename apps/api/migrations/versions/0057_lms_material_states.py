@@ -44,7 +44,13 @@ def upgrade() -> None:
             )
         )
         batch_op.add_column(sa.Column("unseen", sa.Boolean(), server_default="0", nullable=False))
+        batch_op.add_column(sa.Column("copy_version", sa.String(length=64), nullable=True))
     op.execute("UPDATE files_items SET keep_copy = 1 WHERE kept_offline = 1")
+    # The local copies hold the version their source last had.
+    op.execute(
+        "UPDATE files_items SET copy_version = sha256"
+        " WHERE storage_key IS NOT NULL AND source_ref IS NOT NULL"
+    )
     for provider, name in PROVIDER_NAMES.items():
         op.execute(
             sa.text(
@@ -178,6 +184,7 @@ def downgrade() -> None:
         )
     op.execute("UPDATE files_items SET kept_offline = 1 WHERE keep_copy = 1")
     with op.batch_alter_table("files_items", schema=None) as batch_op:
+        batch_op.drop_column("copy_version")
         batch_op.drop_column("unseen")
         batch_op.drop_column("source_modified_at")
         batch_op.drop_column("source_name")

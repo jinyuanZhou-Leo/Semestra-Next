@@ -58,6 +58,11 @@ async def open_content(
     whole). Not found: a link, or a file whose source is gone."""
     if row.storage_key:
         return get_storage(ctx).open(row.storage_key, start=start, length=length)
+    return await open_source(ctx, row)
+
+
+async def open_source(ctx: Ctx, row: FilesItem) -> AsyncIterator[bytes]:
+    """The current bytes of a file at its source, whatever copy is stored here."""
     opener = _source(row) if row.kind == "file" else None
     if opener is None:
         raise not_found()

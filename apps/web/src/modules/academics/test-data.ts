@@ -173,6 +173,7 @@ export function academicsHandlers(world: World) {
         different: [],
         materials: [],
         removed_materials: [],
+        removed_count: 0,
         errors: [],
       }),
     ),

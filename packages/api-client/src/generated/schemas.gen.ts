@@ -19564,7 +19564,12 @@ export const SyncStatusSchema = {
             },
             type: 'array',
             title: 'Removed Materials',
-            description: 'Materials the user deleted, newest first'
+            description: 'Materials the user deleted, newest first (at most 50), where the course\'s materials sync'
+        },
+        removed_count: {
+            type: 'integer',
+            title: 'Removed Count',
+            description: 'How many materials the user deleted, all told'
         },
         errors: {
             items: {
@@ -19590,6 +19595,7 @@ export const SyncStatusSchema = {
         'different',
         'materials',
         'removed_materials',
+        'removed_count',
         'errors'
     ],
     title: 'SyncStatus'

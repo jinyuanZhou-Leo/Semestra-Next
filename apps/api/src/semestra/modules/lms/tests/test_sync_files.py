@@ -169,6 +169,7 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     status = await api.call("GET", f"/programs/{program_id}/lms/sync")
     [removed] = status["removed_materials"]
     assert (removed["title"], removed["course_id"]) == ("Midterm 2025.pdf", course)
+    assert status["removed_count"] == 1
 
     files = fake.course_file_list
     files[0] = files[0].model_copy(update={"name": "Lecture 1 (v2).pdf", "updated_at": FEB})
@@ -205,6 +206,21 @@ async def test_the_users_changes_win(api: Api, fake: FakeProvider, clock: Clock)
     assert _where(folders, items["Lecture 3.pdf"]) is None
     assert "Slides" not in {f["name"] for f in folders.values()}
     assert "Lectures" not in {f["name"] for f in folders.values()}
+
+    # With the course's materials sync off nothing could bring a removed one back: none is
+    # listed or restored. Turned on again, what came meanwhile is not told as new.
+    await _materials_setting(api, course, sync=False)
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert (status["removed_materials"], status["removed_count"]) == ([], 0)
+    r = await api.client.post(f"/lms/sync/materials/{removed['id']}:restore")
+    assert r.json()["error"]["code"] == "lms.sync_nothing_to_resolve"
+    files.append(_file("212", "Lecture 4.pdf"))
+    await _materials_setting(api, course, sync=True)
+    clock.advance(minutes=1)
+    await api.run_jobs()  # turning it on queued the sync
+    assert (await _files(api, course))[1]["Lecture 4.pdf"]["unseen"] is False
+    status = await api.call("GET", f"/programs/{program_id}/lms/sync")
+    assert "Lecture 4.pdf" not in {m["title"] for m in status["materials"]}
 
     # Restored: back with the sync queued at once, quietly (the user asked for it).
     status = await api.call("POST", f"/lms/sync/materials/{removed['id']}:restore")
@@ -486,6 +502,43 @@ async def test_stored_here_still_follows_the_platform(
     await api.run_jobs()
     assert (await _files(api, course))[1]["Lecture 11.pdf"]["stored"] is False
     assert await storing_jobs() == before
+
+
+async def test_a_local_copy_outlasts_a_new_version_it_could_not_get(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """The local copy is read until the new version's bytes replace it; one the platform then
+    deletes is still the user's."""
+    _materials(fake)
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"content_at": JAN})
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    await api.run_jobs()
+    lecture = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert lecture["stored"] is True
+    old = (await api.client.get(f"/files/{lecture['id']}/content")).content
+
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"content_at": FEB, "size_bytes": 2000})
+    fake.fail_downloads = True
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    await api.run_jobs()
+    after = await api.call("GET", f"/files/{lecture['id']}")
+    assert (after["stored"], after["size_bytes"]) == (True, lecture["size_bytes"])
+    assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
+
+    files[:] = [f for f in files if f.external_id != "201"]
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    kept = (await _files(api, course))[1]["Lecture 1.pdf"]
+    assert (kept["stored"], kept["follows_source"], kept["sha256"]) == (
+        True,
+        False,
+        lecture["sha256"],
+    )
+    assert (await api.client.get(f"/files/{lecture['id']}/content")).content == old
 
 
 async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI):

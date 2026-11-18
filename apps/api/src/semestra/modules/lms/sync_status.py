@@ -5,7 +5,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, select, update
 
 from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
@@ -24,6 +24,7 @@ from semestra.modules.lms.schemas.sync import (
     SyncStatus,
 )
 from semestra.modules.lms.settings import account
+from semestra.modules.lms.settings import materials as material_settings
 from semestra.modules.lms.sync_assignments import (
     FIELDS,
     differences,
@@ -59,6 +60,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         different=[],
         materials=[],
         removed_materials=[],
+        removed_count=0,
         errors=[],
     )
     if binding is None:
@@ -188,7 +190,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
         )
         for change, ref in rows
     ]
-    materials, removed = await _materials(
+    materials, removed, removed_count = await _materials(
         ctx, [li for li in by_link.values() if li.id not in paused], label
     )
     errors = [
@@ -212,6 +214,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             "different": different,
             "materials": materials,
             "removed_materials": removed,
+            "removed_count": removed_count,
             "errors": errors,
         }
     )
@@ -219,26 +222,35 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
 
 async def _materials(
     ctx: Ctx, links: list[LmsCourseLink], label: Callable[[str], str]
-) -> tuple[list[SyncMaterialChange], list[SyncRemovedMaterial]]:
-    """What the platform did lately to the courses' materials, and those the user deleted."""
+) -> tuple[list[SyncMaterialChange], list[SyncRemovedMaterial], int]:
+    """What the platform did lately to the courses' materials, and those the user deleted (the
+    newest `RECENT_MAX`, and how many) where the course's materials sync, so they can come back."""
     course_of = {li.id: li.course_id for li in links}
-    mats = list(
+    changed = list(
         await ctx.db.scalars(
             select(LmsMaterial)
             .where(
                 LmsMaterial.user_id == ctx.user_id,
                 LmsMaterial.link_id.in_(list(course_of)),
-                or_(
-                    LmsMaterial.changed_at >= ctx.now - CHANGES_KEPT,
-                    LmsMaterial.state == "dismissed",
-                ),
+                LmsMaterial.changed_at >= ctx.now - CHANGES_KEPT,
             )
             .order_by(LmsMaterial.changed_at.desc())
+            .limit(RECENT_MAX)
         )
     )
-    changed = [
-        m for m in mats if m.changed_at is not None and m.changed_at >= ctx.now - CHANGES_KEPT
-    ][:RECENT_MAX]
+    syncing = [li.id for li in links if (await material_settings(ctx, li.course_id)).sync]
+    dismissed = (
+        LmsMaterial.user_id == ctx.user_id,
+        LmsMaterial.link_id.in_(syncing),
+        LmsMaterial.state == "dismissed",
+    )
+    removed_count = await ctx.db.scalar(select(func.count()).where(*dismissed)) or 0
+    removed_rows = await ctx.db.scalars(
+        select(LmsMaterial)
+        .where(*dismissed)
+        .order_by(LmsMaterial.state_at.desc())
+        .limit(RECENT_MAX)
+    )
     items = {
         r.id: r
         for r in await sources.find_items(
@@ -265,22 +277,17 @@ async def _materials(
                 folder=folders.get(row.folder_id or "") if row is not None else None,
             )
         )
-    removed = sorted(
-        (
-            SyncRemovedMaterial(
-                id=m.id,
-                course_id=course_of[m.link_id],
-                course=label(course_of[m.link_id]),
-                title=m.title or m.name or "",
-                at=m.state_at or ctx.now,
-            )
-            for m in mats
-            if m.state == "dismissed"
-        ),
-        key=lambda r: r.at,
-        reverse=True,
-    )
-    return recent, removed
+    removed = [
+        SyncRemovedMaterial(
+            id=m.id,
+            course_id=course_of[m.link_id],
+            course=label(course_of[m.link_id]),
+            title=m.title or m.name or "",
+            at=m.state_at or ctx.now,
+        )
+        for m in removed_rows
+    ]
+    return recent, removed, removed_count
 
 
 async def forget_old_changes(ctx: Ctx) -> None:

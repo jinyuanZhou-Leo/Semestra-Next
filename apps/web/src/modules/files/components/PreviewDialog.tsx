@@ -133,20 +133,17 @@ function PreviewBody({
   // Which attempt at reading the original failed; "Try again" starts the next.
   const [attempt, setAttempt] = useState(0)
   const [failed, setFailed] = useState(-1)
-  if (
-    kind === 'pdf' &&
-    view === 'original' &&
-    failed === attempt &&
-    item.source_name &&
-    !item.stored
-  ) {
-    // Read from its source, which can't be reached: the text read from it last time instead.
+  const original = (kind === 'pdf' && view === 'original') || kind === 'image'
+  if (original && failed === attempt && item.source_name && !item.stored) {
+    // Read from its source, which can't be reached: what was read from it last time, if anything.
     return (
       <>
         <Alert className="m-4 mb-0 w-auto">
           <CloudOff aria-hidden />
           <AlertTitle>{m.files_preview_unreachable({ source: item.source_name })}</AlertTitle>
-          <AlertDescription>{m.files_preview_unreachable_description()}</AlertDescription>
+          {kind === 'pdf' ? (
+            <AlertDescription>{m.files_preview_unreachable_description()}</AlertDescription>
+          ) : null}
           <AlertAction>
             <Button size="sm" variant="outline" onClick={() => setAttempt(attempt + 1)}>
               <RotateCw aria-hidden />
@@ -154,13 +151,15 @@ function PreviewBody({
             </Button>
           </AlertAction>
         </Alert>
-        <DocumentText
-          itemId={item.id}
-          target={target}
-          terms={terms}
-          onNavigate={onNavigate}
-          onPageChange={onPageChange}
-        />
+        {kind === 'pdf' ? (
+          <DocumentText
+            itemId={item.id}
+            target={target}
+            terms={terms}
+            onNavigate={onNavigate}
+            onPageChange={onPageChange}
+          />
+        ) : null}
       </>
     )
   }
@@ -198,7 +197,13 @@ function PreviewBody({
   if (kind === 'image') {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
-        <img src={contentUrl(item.id)} alt={item.display_name} className="max-h-full max-w-full" />
+        <img
+          key={attempt}
+          src={contentUrl(item.id)}
+          alt={item.display_name}
+          onError={() => setFailed(attempt)}
+          className="max-h-full max-w-full"
+        />
       </div>
     )
   }

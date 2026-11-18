@@ -3441,12 +3441,12 @@
   "lms_sync_material_updated": "Updated",
   "lms_sync_material_removed": "Deleted on {provider}",
   "lms_sync_material_kept": "Deleted on {provider}; saved as your own file",
-  "lms_sync_removed_materials": "{count} removed",
+  "lms_sync_removed_materials": "Removed materials ({count})",
   "lms_sync_removed_by_you": "Removed by you {ago}",
   "lms_sync_restore": "Restore",
   "lms_materials_group": "Course materials",
-  "lms_course_unlink_kept": "{count} materials with a local copy are saved as your own files.",
-  "lms_course_unlink_removed": "{count} materials read online leave the course's files. They remain on {provider}.",
+  "lms_course_unlink_kept": "With a local copy ({count}): saved as your own files.",
+  "lms_course_unlink_removed": "Read online ({count}): removed from the course's files. They remain on {provider}.",
   "settings_lms_materials_sync_label": "Bring in course materials",
   "settings_lms_materials_sync_description": "Slides, pages and recordings from {provider} appear in the course's files, sorted by type.",
   "settings_lms_materials_store_label": "Keep materials",
@@ -3454,5 +3454,8 @@
   "settings_lms_materials_store_option_online": "Read online",
   "settings_lms_materials_store_option_online_description": "Read from {provider} when opened. Uses no storage.",
   "settings_lms_materials_store_option_local": "Keep a local copy",
-  "settings_lms_materials_store_option_local_description": "Updates with {provider}. If deleted there or unlinked, it is saved as your own file."
+  "settings_lms_materials_store_option_local_description": "Updates with {provider}. If deleted there or unlinked, it is saved as your own file.",
+  "files_delete_synced_description": "It won't sync from {provider} again. You can restore it under Removed materials in the sync status.",
+  "files_delete_many_synced_description": "Files deleted: {count}. They won't sync from {provider} again; you can restore them under Removed materials in the sync status.",
+  "files_delete_mixed_description": "Files deleted: {count}. The ones from {provider} ({synced}) can be restored under Removed materials in the sync status; the rest can't be undone."
 }

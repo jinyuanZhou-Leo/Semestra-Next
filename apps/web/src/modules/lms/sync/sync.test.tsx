@@ -55,6 +55,7 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     different: [],
     materials: [],
     removed_materials: [],
+    removed_count: 0,
     errors: [],
     ...overrides,
   }
@@ -204,6 +205,7 @@ test('materials the platform changed open from the panel; ones the user removed 
           material('m4', 'Rubric.pdf', 'handed_over'),
         ],
         removed_materials: [removed],
+        removed_count: 1,
       }),
     ),
     http.post(`${API}/lms/sync/materials/m9\\:restore`, ({ request }) => {
@@ -222,7 +224,7 @@ test('materials the platform changed open from the panel; ones the user removed 
   expect(screen.queryByRole('link', { name: 'Midterm.pdf' })).not.toBeInTheDocument()
   expect(screen.getByText('Deleted on Canvas')).toBeInTheDocument()
 
-  await userEvent.click(screen.getByRole('button', { name: '1 removed' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Removed materials (1)' }))
   expect(await screen.findByText('Old notes.pdf')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Restore' }))
   await waitFor(() => expect(restored).toHaveBeenCalled())

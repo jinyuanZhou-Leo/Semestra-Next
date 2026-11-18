@@ -4,7 +4,6 @@ import {
   lmsConnectionListOptions,
   lmsCourseLinkDeleteMutation,
   lmsCourseLinkGetOptions,
-  lmsCourseLinkGetQueryKey,
   lmsCourseLinkSetMutation,
   lmsCourseLinkUpdateMutation,
   lmsCourseListOptions,
@@ -271,16 +270,7 @@ function LinkedCourse({
                 {m.lms_course_change_menu()}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => {
-                  // The counts in the confirmation are read again: files change without a link event.
-                  void queryClient.refetchQueries({
-                    queryKey: lmsCourseLinkGetQueryKey({ path: { course_id: courseId } }),
-                  })
-                  setUnlinking(true)
-                }}
-              >
+              <DropdownMenuItem variant="destructive" onClick={() => setUnlinking(true)}>
                 <Link2Off aria-hidden />
                 {m.lms_course_unlink_menu()}
               </DropdownMenuItem>

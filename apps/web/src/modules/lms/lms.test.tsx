@@ -445,11 +445,11 @@ test('course settings: guidance without a binding, then the switches, materials 
   const confirm = await screen.findByRole('alertdialog')
   // What happens to the materials, in numbers.
   expect(
-    within(confirm).getByText('2 materials with a local copy are saved as your own files.'),
+    within(confirm).getByText('With a local copy (2): saved as your own files.'),
   ).toBeInTheDocument()
   expect(
     within(confirm).getByText(
-      "5 materials read online leave the course's files. They remain on Canvas.",
+      "Read online (5): removed from the course's files. They remain on Canvas.",
     ),
   ).toBeInTheDocument()
   await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))

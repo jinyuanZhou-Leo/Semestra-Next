@@ -666,6 +666,7 @@ async def save_bytes_as_file(
     )
     if source_ref is not None:
         row.source_name, row.keep_copy = source_name, keep_copy
+        row.copy_version = row.sha256
         row.source_modified_at = modified_at
         await ctx.db.flush()
     return await item_out(ctx, row)

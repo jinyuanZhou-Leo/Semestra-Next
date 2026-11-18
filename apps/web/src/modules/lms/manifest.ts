@@ -352,6 +352,19 @@ export default defineModule({
     ...Object.fromEntries(
       LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
     ),
+    // A course's files changed: how many of its materials are kept locally or read online (what
+    // unlinking it would do to them).
+    ...Object.fromEntries(
+      ['files.item.created', 'files.item.updated', 'files.item.deleted'].map((event) => [
+        event,
+        [
+          (data: { course_id?: unknown }) =>
+            typeof data.course_id === 'string'
+              ? [{ _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } }]
+              : ['lmsCourseLinkGet'],
+        ],
+      ]),
+    ),
     // Which courses a term has: the term's links and announcements.
     'academics.course.terms_changed': ['lmsCourseLinkList', 'lmsTermAnnouncementList'],
     // The sync was queued, ran or was answered: its status line, panel and reminders.
