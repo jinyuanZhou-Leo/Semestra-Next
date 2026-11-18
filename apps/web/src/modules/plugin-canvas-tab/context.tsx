@@ -1,18 +1,12 @@
 import { createContext, use } from 'react'
 import type { CanvasLocation } from './navigation'
 
-/** How Canvas HTML is shown: in the app's typography, or as it looks in Canvas. */
-export type CanvasDisplay = 'simplified' | 'original'
-
 export type CanvasPage = {
   programId: string
   courseId: string
   go: (next: CanvasLocation) => void
   /** Opens the preview of a Canvas file. */
   openFile: (fileId: string) => void
-  /** The account setting until the user picks another here; the pick lasts while the page is open. */
-  display: CanvasDisplay
-  setDisplay: (display: CanvasDisplay) => void
   /** The open view's name as Canvas's course menu has it ("Assignments"), for its header. */
   title: string
 }

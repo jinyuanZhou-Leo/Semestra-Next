@@ -3,7 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { coursePath } from '@/modules/academics/paths'
 
 /**
- * The teacher's feedback kept for a course's imported assessments (M09 §4.3): read from
+ * The teacher's feedback kept for a course's imported assessments (M09 §4.4): read from
  * Semestra, so the gradebook shows it at once and while the platform cannot be reached.
  */
 export const feedbackListOptions = (courseId: string) =>

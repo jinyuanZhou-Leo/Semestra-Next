@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
 import { FieldError } from '@/ui/field'
 import { useDeleteTargets } from '../actions'
-import { type Target, filesInside, folderTree, targetName } from '../folders'
+import { type Target, folderTree, itemsInside, targetName } from '../folders'
 import { invalidateFiles } from '../queries'
 import { MoveDialog } from './MoveDialog'
 import { NameDialog } from './NameDialog'
@@ -54,19 +54,30 @@ function DeleteDialog({
   const remove = useDeleteTargets()
   const tree = folderTree(folders)
   const only = targets.length === 1 ? targets[0] : undefined
-  const fileCount = targets.reduce(
-    (sum, t) => sum + (t.type === 'folder' ? filesInside(t.folder.id, tree, items) : 1),
-    0,
+  const deleted = targets.flatMap((t) =>
+    t.type === 'folder' ? itemsInside(t.folder.id, tree, items) : [t.item],
   )
-  const description = !only
-    ? m.files_delete_many_description({ count: fileCount })
-    : only.type === 'item'
-      ? only.item.kind === 'link'
-        ? m.files_delete_link_description()
-        : m.files_delete_item_description()
-      : fileCount > 0
-        ? m.files_delete_folder_with_files_description({ count: fileCount })
-        : m.files_delete_folder_description()
+  const fileCount = deleted.length
+  // Synced materials are not gone for good: the sync leaves them out from now on, and the sync
+  // status lists them to restore.
+  const synced = deleted.filter((i) => i.source_name !== null)
+  const provider = synced[0]?.source_name ?? ''
+  const description =
+    synced.length > 0
+      ? synced.length === deleted.length
+        ? only?.type === 'item'
+          ? m.files_delete_synced_description({ provider })
+          : m.files_delete_many_synced_description({ count: fileCount, provider })
+        : m.files_delete_mixed_description({ count: fileCount, synced: synced.length, provider })
+      : !only
+        ? m.files_delete_many_description({ count: fileCount })
+        : only.type === 'item'
+          ? only.item.kind === 'link'
+            ? m.files_delete_link_description()
+            : m.files_delete_item_description()
+          : fileCount > 0
+            ? m.files_delete_folder_with_files_description({ count: fileCount })
+            : m.files_delete_folder_description()
   return (
     <ConfirmDialog
       {...shown}

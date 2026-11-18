@@ -43,12 +43,17 @@ class ItemOut(BaseModel):
     url: str | None
     # Its bytes are kept here; False: read from its source when opened (`content.py`).
     stored: bool
-    # Kept in step with its source (`content.py`): read from it or stored for it, updated and
-    # removed with it. False for the user's own files and the copies they keep (`kept_offline`).
+    # Kept in step with its source (`content.py`): read from it or with a local copy (`stored`),
+    # updated and removed with it. False for the user's own files.
     follows_source: bool
     pinned: bool
     source_kind: SourceKind | None
     source_ref: str | None
+    source_name: str | None = Field(
+        description="The name of the source it came from and follows (an LMS platform), for files"
+        " and links alike; null for the user's own"
+    )
+    unseen: bool = Field(description="Brought in by its source and not opened yet")
     doc_status: DocStatus
     doc_error_code: str | None
     # From the active document.
@@ -58,6 +63,10 @@ class ItemOut(BaseModel):
     job_id: str | None
     created_at: datetime
     updated_at: datetime
+    modified_at: datetime = Field(
+        description="When its contents last changed: on its source for a file that follows one "
+        "(not when the sync saw it), else updated_at"
+    )
 
 
 # --- list -----------------------------------------------------------------------------------
@@ -78,6 +87,8 @@ ItemField = Literal[
     "pinned",
     "source_kind",
     "source_ref",
+    "source_name",
+    "unseen",
     "doc_status",
     "doc_error_code",
     "page_count",
@@ -85,6 +96,7 @@ ItemField = Literal[
     "job_id",
     "created_at",
     "updated_at",
+    "modified_at",
 ]
 
 

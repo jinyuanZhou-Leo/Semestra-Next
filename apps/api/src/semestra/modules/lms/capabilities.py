@@ -4,6 +4,7 @@ through agents or MCP clients."""
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.modules.lms import (
+    announcements,
     imports,
     previews,
     reads,
@@ -11,6 +12,7 @@ from semestra.modules.lms import (
     sync,
     sync_assignments,
     sync_feedback,
+    sync_files,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -22,7 +24,6 @@ from semestra.modules.lms.schemas.dto import (
 )
 from semestra.modules.lms.schemas.io import (
     AnnouncementList,
-    AnnouncementRead,
     AnnouncementReadInput,
     AnnouncementsInput,
     AssessmentRef,
@@ -41,6 +42,7 @@ from semestra.modules.lms.schemas.io import (
     ConnectionList,
     ConnectionUpdateInput,
     ConnectionValidateInput,
+    CourseAnnouncement,
     CourseLinkList,
     CourseLinkState,
     CourseOverview,
@@ -77,8 +79,11 @@ from semestra.modules.lms.schemas.io import (
     SubmissionInput,
     TermAnnouncementList,
     TermAnnouncementsInput,
+    UnreadCounts,
+    UnreadInput,
 )
 from semestra.modules.lms.schemas.sync import (
+    MaterialRef,
     SyncChangeRef,
     SyncDismissInput,
     SyncFieldResolveInput,
@@ -102,7 +107,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "files_sync", "files_offline", "synced_at", "sync_errors",
+    "external_term", "sync_enabled", "synced_at", "sync_errors",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 
@@ -338,11 +343,9 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 
 @capability(
     name="lms.course.link.update",
-    summary="Turn LMS sync of a linked course, or of its materials, on or off.",
+    summary="Turn LMS sync of a linked course on or off.",
     description="""`sync_enabled` off: no calendar overlay and no update checks; reading still
-works. `files_sync` off: the course's files, pages and links no longer come in or follow the
-LMS (those there stay). `files_offline` on: they are stored here (taking storage quota) rather
-than read from the LMS when opened.
+works. Whether its materials come in, and how they are kept, are the settings `lms.materials`.
 To remove the link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
@@ -350,9 +353,7 @@ To remove the link altogether use lms.course.link.delete.""",
     tags=TAGS,
 )
 async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
-    return await service.update_link(
-        ctx, inp.course_id, inp.sync_enabled, inp.files_sync, inp.files_offline
-    )
+    return await service.update_link(ctx, inp.course_id, inp.sync_enabled)
 
 
 @capability(
@@ -388,8 +389,9 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
 
 @capability(
     name="lms.course.refresh",
-    summary="Forget what the app cached about a linked course, so its next reads ask the LMS.",
-    description="""The Canvas tab's "Refresh". Reads with `refresh` do the same for one read.
+    summary="Forget what the app cached about a linked course and sync it now.",
+    description="""The Canvas tab's "Refresh": its next reads ask the {lms}, and the sync updates
+what the app keeps (announcements, files). Reads with `refresh` do the first for one read.
 Not for agents.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms:refresh"),
@@ -398,49 +400,65 @@ Not for agents.""",
 )
 async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     await reads.refresh_course(ctx, inp.course_id)
-    return await service.link_state(ctx, inp.course_id)
+    state = await service.link_state(ctx, inp.course_id)
+    if state.link is not None:
+        await sync.request_sync(ctx, state.link.program_id, inp.course_id, force=True)
+    return state
 
 
 @capability(
     name="lms.announcement.list",
-    summary="Recent announcements of a linked course on its {lms}, newest first.",
-    description="",
+    summary="Announcements of a linked course on its {lms}, newest first.",
+    description="""As the background sync last read them; `pending`: not read yet, but it will.""",
     effect="read",
     http=Http("GET", "/courses/{course_id}/lms/announcements"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def announcements_list(ctx: Ctx, inp: AnnouncementsInput) -> AnnouncementList:
-    return await reads.announcements(ctx, inp.course_id, inp.since, inp.refresh)
+    return await announcements.course_list(ctx, inp.course_id, inp.since)
 
 
 @capability(
     name="lms.term.announcement.list",
-    summary="Recent announcements of every LMS-linked course of a term, newest first.",
-    description="""One request per connection (the term board's card); each item names its
-`course_id`. Not for agents: they read one course with lms.announcement.list.""",
+    summary="Announcements of every LMS-linked course of a term, newest first.",
+    description="""Each item names its `course_id`. Not for agents: they read one course with
+lms.announcement.list.""",
     effect="read",
     http=Http("GET", "/terms/{term_id}/lms/announcements"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
 async def term_announcements_list(ctx: Ctx, inp: TermAnnouncementsInput) -> TermAnnouncementList:
-    return await reads.term_announcements(ctx, inp.term_id, inp.refresh)
+    return await announcements.term_list(ctx, inp.term_id)
+
+
+@capability(
+    name="lms.announcement.unread",
+    summary="How many announcements of each linked course of a Program are unread.",
+    description="""Optionally only a term's courses; courses with none are left out (the 公告
+tab's count). Not for agents.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/lms/announcements/unread"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def announcements_unread(ctx: Ctx, inp: UnreadInput) -> UnreadCounts:
+    return await announcements.unread(ctx, inp.program_id, inp.term_id)
 
 
 @capability(
     name="lms.announcement.mark_read",
-    summary="Mark an announcement read on the LMS.",
-    description="""Only when the user allows Semestra to change things on the platform (account
-setting `lms.allow_writes`), otherwise lms.writes_disabled. Not for agents.""",
+    summary="Mark an announcement read.",
+    description="""Read in the app; also on the platform when the user allows Semestra to change
+things there (account setting `lms.allow_writes`). Not for agents.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms/announcements/{announcement_id}:read"),
     expose=HTTP_ONLY,
     tags=TAGS,
 )
-async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> AnnouncementRead:
-    await reads.mark_announcement_read(ctx, inp.course_id, inp.announcement_id)
-    return AnnouncementRead(announcement_id=inp.announcement_id, unread=False)
+async def announcement_mark_read(ctx: Ctx, inp: AnnouncementReadInput) -> CourseAnnouncement:
+    return await announcements.mark_read(ctx, inp.course_id, inp.announcement_id)
 
 
 @capability(
@@ -837,6 +855,20 @@ A value taken from the platform is logged as a recent change, so it can be put b
 )
 async def sync_field_resolve(ctx: Ctx, inp: SyncFieldResolveInput) -> SyncStatus:
     program_id = await sync_assignments.answer(ctx, inp.item_id, inp.field, inp.choice)
+    return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.material.restore",
+    summary="Bring back a course material the user deleted.",
+    description="""It comes in again with a sync of its course, queued now.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/materials/{material_id}:restore"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_restore(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
+    program_id = await sync_files.restore(ctx, inp.material_id)
     return await sync_status.status(ctx, program_id)
 
 

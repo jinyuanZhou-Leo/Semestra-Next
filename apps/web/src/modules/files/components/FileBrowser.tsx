@@ -1,8 +1,10 @@
 import type { FilesItemList, FolderOut, ItemOut } from '@semestra/api-client'
 import {
-  filesItemUpdateMutation,
-  filesItemKeepOfflineMutation,
+  filesItemDropCopyMutation,
+  filesItemKeepCopyMutation,
+  filesItemMakeOwnMutation,
   filesItemReprocessMutation,
+  filesItemUpdateMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -19,10 +21,13 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Cloud,
   Download,
+  FileOutput,
   FileSearch,
   Folder,
   FolderInput,
+  HardDrive,
   HardDriveDownload,
   LayoutGrid,
   List,
@@ -107,6 +112,15 @@ function usePinToggle() {
   })
 }
 
+/** The mark of something not opened yet: the same dot as an unread announcement. */
+export function NewDot({ className }: { className?: string }) {
+  return (
+    <span className={cn('size-2 shrink-0 rounded-full bg-primary', className)}>
+      <span className="sr-only">{m.files_unseen()}</span>
+    </span>
+  )
+}
+
 function NameCell({ row }: CellProps) {
   const { open } = useHandlers()
   const item = row.original
@@ -117,7 +131,9 @@ function NameCell({ row }: CellProps) {
       className="flex max-w-full items-center gap-2.5 text-left hover:underline"
     >
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{item.display_name}</span>
+      <span className={cn('truncate', item.unseen && 'font-medium')}>{item.display_name}</span>
+      {/* After the name, so nothing in the row moves when the dot goes. */}
+      {item.unseen ? <NewDot /> : null}
     </button>
   )
 }
@@ -150,14 +166,41 @@ function SizeCell({ row }: CellProps) {
 }
 
 function UpdatedCell({ row }: CellProps) {
-  return formatDateTime(row.original.updated_at)
+  return formatDateTime(row.original.modified_at)
+}
+
+/**
+ * Where a file that follows its source is kept: read from it when opened, or a local copy. The
+ * user's own files show nothing.
+ */
+function Origin({ item }: { item: ItemOut }) {
+  if (!item.follows_source || !item.source_name) return null
+  const Icon = item.stored ? HardDrive : Cloud
+  const kept = item.stored ? m.files_origin_stored() : m.files_origin_online()
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
+          <Icon aria-hidden className="size-3.5" />
+          <span className="sr-only">{kept}</span>
+        </TooltipTrigger>
+        <TooltipContent>{kept}</TooltipContent>
+      </Tooltip>
+      <span className="truncate">{item.source_name}</span>
+    </span>
+  )
 }
 
 function StatusColumnCell({ row }: CellProps) {
+  const item = row.original
+  // While the pipeline has something to say it takes the cell; otherwise where the file is kept.
+  const quiet =
+    item.doc_status === 'unsupported' ||
+    (item.doc_status === 'ready' && item.ocr_skipped_pages === 0)
   // A fixed height, so a row does not grow or shrink as its file moves through the pipeline.
   return (
     <div className="flex h-8 items-center">
-      <StatusCell item={row.original} />
+      {quiet ? <Origin item={item} /> : <StatusCell item={item} />}
     </div>
   )
 }
@@ -220,7 +263,12 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       </Tooltip>
       <DropdownMenuContent
         align="end"
-        className={programId && actions.some((a) => a.description) ? 'w-72' : undefined}
+        className={
+          (item.follows_source && item.source_name) ||
+          (programId && actions.some((a) => a.description))
+            ? 'w-72'
+            : undefined
+        }
       >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
           <Pencil aria-hidden />
@@ -239,7 +287,9 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {item.follows_source ? <KeepOfflineItem item={item} /> : null}
+        {item.follows_source && item.source_name ? (
+          <CopyItems item={item} source={item.source_name} />
+        ) : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>
@@ -277,19 +327,45 @@ export function ItemMenu({ item }: { item: ItemOut }) {
   )
 }
 
-/** A file read from its source when opened (an LMS file), stored here so it opens offline too. */
-function KeepOfflineItem({ item }: { item: ItemOut }) {
+/**
+ * A file that follows its source (an LMS file) is read from it when opened or keeps a local copy;
+ * either way it keeps following. Saving it as the user's own file is the one way to stop that.
+ * Each fetches what it needs in a job the status bar shows, failing there with the reason.
+ */
+function CopyItems({ item, source }: { item: ItemOut; source: string }) {
   const queryClient = useQueryClient()
-  const keep = useMutation({
-    ...filesItemKeepOfflineMutation(),
+  const options = {
     onError: toastError,
-    onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
-  })
+    onSuccess: (saved: ItemOut) => invalidateFiles(queryClient, saved.course_id),
+  }
+  const keep = useMutation({ ...filesItemKeepCopyMutation(), ...options })
+  const drop = useMutation({ ...filesItemDropCopyMutation(), ...options })
+  const own = useMutation({ ...filesItemMakeOwnMutation(), ...options })
+  const path = { item_id: item.id }
   return (
-    <DropdownMenuItem onClick={() => keep.mutate({ path: { item_id: item.id } })}>
-      <HardDriveDownload aria-hidden />
-      {m.files_keep_offline()}
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuSeparator />
+      {item.stored ? (
+        <DropdownMenuItem onClick={() => drop.mutate({ path })}>
+          <Cloud aria-hidden />
+          {m.files_read_online()}
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem onClick={() => keep.mutate({ path })}>
+          <HardDriveDownload aria-hidden />
+          {m.files_store_here()}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem onClick={() => own.mutate({ path })}>
+        <FileOutput aria-hidden />
+        <span className="min-w-0">
+          <span className="block">{m.files_make_mine()}</span>
+          <span className="block text-xs text-muted-foreground">
+            {m.files_make_mine_hint({ source })}
+          </span>
+        </span>
+      </DropdownMenuItem>
+    </>
   )
 }
 
@@ -380,10 +456,10 @@ const columns = column.columns([
     sortFn: (a, b) => a.original.size_bytes - b.original.size_bytes,
     cell: SizeCell,
   }),
-  column.accessor((i) => i.updated_at, {
+  column.accessor((i) => i.modified_at, {
     id: 'updated',
     header: () => m.files_modified(),
-    sortFn: (a, b) => compareNames(a.original.updated_at, b.original.updated_at),
+    sortFn: (a, b) => compareNames(a.original.modified_at, b.original.modified_at),
     cell: UpdatedCell,
   }),
   column.display({
@@ -535,7 +611,8 @@ const FolderTile = memo(function FolderTile({
   selected,
   selecting,
   dropOver,
-}: TileProps & { folder: FolderOut; dropOver: boolean }) {
+  fresh,
+}: TileProps & { folder: FolderOut; dropOver: boolean; fresh: boolean }) {
   const { openFolder } = useHandlers()
   const dnd = useFolderDnd(folder, dropOver)
   const target: Target = { type: 'folder', folder }
@@ -575,6 +652,7 @@ const FolderTile = memo(function FolderTile({
         className="flex min-w-0 flex-1 items-center text-left text-sm after:absolute after:inset-0"
       >
         <span className="truncate font-medium">{folder.name}</span>
+        {fresh ? <NewDot className="ml-2" /> : null}
       </button>
       <div className="relative">
         <FolderMenu folder={folder} />
@@ -637,7 +715,10 @@ const ItemTile = memo(function ItemTile({
           onClick={() => open(item)}
           className="min-w-0 flex-1 text-left text-sm after:absolute after:inset-0"
         >
-          <span className="block truncate font-medium">{item.display_name}</span>
+          <span className="flex items-center gap-2">
+            <span className="truncate font-medium">{item.display_name}</span>
+            {item.unseen ? <NewDot /> : null}
+          </span>
           <span className="block truncate text-xs text-muted-foreground">
             {[typeLabel(item), item.kind === 'file' ? formatBytes(item.size_bytes) : null]
               .filter(Boolean)
@@ -691,10 +772,13 @@ const FolderRow = memo(function FolderRow({
   folder,
   selected,
   dropOver,
+  fresh,
 }: {
   folder: FolderOut
   selected: boolean
   dropOver: boolean
+  /** Something in it, at any depth, has not been opened. */
+  fresh: boolean
 }) {
   const { openFolder } = useHandlers()
   const dnd = useFolderDnd(folder, dropOver)
@@ -720,6 +804,7 @@ const FolderRow = memo(function FolderRow({
         >
           <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{folder.name}</span>
+          {fresh ? <NewDot /> : null}
         </button>
       </TableCell>
       <TableCell className={cn('py-2', ICON_COLUMN)}>
@@ -761,9 +846,22 @@ export function FileBrowser({
     .filter((f) => f.parent_id === folderId)
     .toSorted((a, b) => compareNames(a.name, b.name))
   const items = list.items.filter((i) => i.folder_id === folderId)
+  // Folders with something not opened in them, at any depth.
+  const parents = new Map(list.folders.map((f) => [f.id, f.parent_id]))
+  const fresh = new Set<string>()
+  for (const item of list.items) {
+    if (!item.unseen) continue
+    for (let id = item.folder_id; id && !fresh.has(id); id = parents.get(id) ?? null) fresh.add(id)
+  }
   return (
     <BrowserContext value={handlers}>
-      <Entries folders={folders} items={items} view={view} dropOver={dropOver ?? null} />
+      <Entries
+        folders={folders}
+        items={items}
+        view={view}
+        dropOver={dropOver ?? null}
+        fresh={fresh}
+      />
     </BrowserContext>
   )
 }
@@ -773,11 +871,13 @@ function Entries({
   items,
   view,
   dropOver,
+  fresh,
 }: {
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
   view: 'list' | 'grid'
   dropOver: string | null
+  fresh: ReadonlySet<string>
 }) {
   // The page provides the selection: its toolbar acts on it too.
   const selection = use(RowSelectionContext)
@@ -812,6 +912,7 @@ function Entries({
                 selected={selected({ type: 'folder', folder })}
                 selecting={selecting}
                 dropOver={dropOver === folder.id}
+                fresh={fresh.has(folder.id)}
               />
             ))}
           </div>
@@ -882,6 +983,7 @@ function Entries({
                 folder={folder}
                 selected={selected({ type: 'folder', folder })}
                 dropOver={dropOver === folder.id}
+                fresh={fresh.has(folder.id)}
               />
             ))}
             {rows.length < VIRTUAL_FROM

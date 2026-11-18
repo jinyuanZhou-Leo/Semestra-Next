@@ -1,4 +1,4 @@
-import type { SyncItem, SyncStatus } from '@semestra/api-client'
+import type { SyncItem, SyncMaterialChange, SyncStatus } from '@semestra/api-client'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
@@ -53,6 +53,9 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
     ignored: [],
     recent: [],
     different: [],
+    materials: [],
+    removed_materials: [],
+    removed_count: 0,
     errors: [],
     ...overrides,
   }
@@ -178,6 +181,57 @@ test('a change the sync made is undone from the panel, and so is undoing it', as
   await userEvent.click(screen.getByRole('button', { name: 'Redo' }))
   await waitFor(() => expect(screen.queryByText('Undone')).not.toBeInTheDocument())
   expect(calls.mock.calls.map(([url]) => url.split(':').at(-1))).toEqual(['revert', 'reapply'])
+})
+
+test('materials the platform changed open from the panel; ones the user removed come back', async () => {
+  const at = new Date().toISOString()
+  const material = (id: string, title: string, change: SyncMaterialChange['change']) => ({
+    id,
+    course_id: 'c1',
+    course: 'CSC148',
+    title,
+    change,
+    at,
+    item_id: change === 'gone' ? null : `item-${id}`,
+    folder_id: change === 'gone' ? null : 'f1',
+    folder: change === 'gone' ? null : 'Lecture slides',
+  })
+  const restored = vi.fn<(url: string) => void>()
+  const removed = { id: 'm9', course_id: 'c1', course: 'CSC148', title: 'Old notes.pdf', at }
+  server.use(
+    ...handlers(
+      status({
+        materials: [
+          material('m1', 'Week 3.pdf', 'added'),
+          material('m2', 'Syllabus', 'updated'),
+          material('m3', 'Midterm.pdf', 'gone'),
+          material('m4', 'Rubric.pdf', 'handed_over'),
+        ],
+        removed_materials: [removed],
+        removed_count: 1,
+      }),
+    ),
+    http.post(`${API}/lms/sync/materials/m9\\:restore`, ({ request }) => {
+      restored(request.url)
+      return HttpResponse.json(status())
+    }),
+  )
+  renderWithRouter(<InPopover />, undefined, IN_PROGRAM)
+  // A material still in the course's files opens there, in its folder.
+  const added = await screen.findByRole('link', { name: 'Week 3.pdf' })
+  expect(added).toHaveAttribute('href', '/p/p1/c/c1/files?folder=f1&file=item-m1')
+  expect(screen.getByText('New material')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Rubric.pdf' })).toBeInTheDocument()
+  expect(screen.getByText('Deleted on Canvas; saved as your own file')).toBeInTheDocument()
+  // One gone with the platform has nothing to open.
+  expect(screen.queryByRole('link', { name: 'Midterm.pdf' })).not.toBeInTheDocument()
+  expect(screen.getByText('Deleted on Canvas')).toBeInTheDocument()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Removed materials (1)' }))
+  expect(await screen.findByText('Old notes.pdf')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Restore' }))
+  await waitFor(() => expect(restored).toHaveBeenCalled())
+  await waitFor(() => expect(screen.queryByText('Old notes.pdf')).not.toBeInTheDocument())
 })
 
 test('a connection that stopped working says so and goes to its settings from the panel', async () => {

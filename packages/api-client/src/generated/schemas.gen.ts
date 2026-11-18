@@ -851,47 +851,17 @@ export const AiStatusGetSchema = {
     title: 'AiStatusGet'
 } as const;
 
-export const AnnouncementSchema = {
+export const AnnouncementAttachmentSchema = {
     properties: {
         external_id: {
             type: 'string',
             title: 'External Id'
         },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        external_course_id: {
+        name: {
             type: 'string',
-            title: 'External Course Id',
-            description: 'The course it was posted in',
-            default: ''
+            title: 'Name'
         },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        html: {
+        mime_type: {
             anyOf: [
                 {
                     type: 'string'
@@ -900,96 +870,115 @@ export const AnnouncementSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Html'
+            title: 'Mime Type'
         },
-        author: {
+        size_bytes: {
             anyOf: [
                 {
-                    type: 'string'
+                    type: 'integer'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Author'
+            title: 'Size Bytes'
         },
-        posted_at: {
+        file: {
             anyOf: [
                 {
-                    type: 'string',
-                    format: 'date-time'
+                    $ref: '#/components/schemas/AppTarget'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Posted At'
-        },
-        updated_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Updated At'
-        },
-        unread: {
-            type: 'boolean',
-            title: 'Unread',
-            default: false
+            description: 'The course file it is, when the course\'s files have it'
         }
     },
     type: 'object',
     required: [
         'external_id',
-        'title'
+        'name'
     ],
-    title: 'Announcement'
+    title: 'AnnouncementAttachment'
 } as const;
 
 export const AnnouncementListSchema = {
     properties: {
         items: {
             items: {
-                $ref: '#/components/schemas/Announcement'
+                $ref: '#/components/schemas/CourseAnnouncement'
             },
             type: 'array',
-            title: 'Items'
+            title: 'Items',
+            description: 'Newest first'
         },
-        truncated: {
-            type: 'boolean',
-            title: 'Truncated'
+        not_read: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'waiting',
+                        'ended',
+                        'paused'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Not Read',
+            description: 'Why the sync has not read the course\'s announcements yet; null: it has'
         }
     },
     type: 'object',
     required: [
         'items',
-        'truncated'
+        'not_read'
     ],
     title: 'AnnouncementList'
 } as const;
 
-export const AnnouncementReadSchema = {
+export const AppTargetSchema = {
     properties: {
-        announcement_id: {
+        kind: {
             type: 'string',
-            title: 'Announcement Id'
+            enum: [
+                'file',
+                'assessment',
+                'task'
+            ],
+            title: 'Kind'
         },
-        unread: {
-            type: 'boolean',
-            title: 'Unread'
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id',
+            description: 'The file\'s folder (kind file)'
         }
     },
     type: 'object',
     required: [
-        'announcement_id',
-        'unread'
+        'kind',
+        'id',
+        'course_id'
     ],
-    title: 'AnnouncementRead'
+    title: 'AppTarget',
+    description: 'What a platform item is in the app: a course file (a synced file or page), or what an\nimported assignment became.'
 } as const;
 
 export const AssessmentSchema = {
@@ -4775,6 +4764,112 @@ export const CourseSchema = {
     title: 'Course'
 } as const;
 
+export const CourseAnnouncementSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id',
+            description: 'The app\'s course it was posted in'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens it on the platform'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        html: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Html'
+        },
+        author: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Author'
+        },
+        posted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Posted At'
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        unread: {
+            type: 'boolean',
+            title: 'Unread',
+            description: 'Not opened in the app yet'
+        },
+        attachments: {
+            items: {
+                $ref: '#/components/schemas/AnnouncementAttachment'
+            },
+            type: 'array',
+            title: 'Attachments',
+            default: []
+        },
+        targets: {
+            items: {
+                $ref: '#/components/schemas/LinkTarget'
+            },
+            type: 'array',
+            title: 'Targets',
+            description: 'Where the platform links in `html` open in the app',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'course_id',
+        'title',
+        'unread'
+    ],
+    title: 'CourseAnnouncement'
+} as const;
+
 export const CourseCreateInputBodySchema = {
     properties: {
         code: {
@@ -5508,16 +5603,6 @@ export const CourseLinkSchema = {
             type: 'boolean',
             title: 'Sync Enabled'
         },
-        files_sync: {
-            type: 'boolean',
-            title: 'Files Sync',
-            description: 'The sync brings the course\'s files, pages and links in'
-        },
-        files_offline: {
-            type: 'boolean',
-            title: 'Files Offline',
-            description: 'They are stored here, not read when opened'
-        },
         synced_at: {
             anyOf: [
                 {
@@ -5583,8 +5668,6 @@ export const CourseLinkSchema = {
         'external_term',
         'web_url',
         'sync_enabled',
-        'files_sync',
-        'files_offline',
         'synced_at',
         'sync_errors',
         'features',
@@ -5625,6 +5708,17 @@ export const CourseLinkStateSchema = {
                     type: 'null'
                 }
             ]
+        },
+        materials: {
+            anyOf: [
+                {
+                    $ref: '#/components/schemas/MaterialCounts'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Of the linked course; null when not linked'
         },
         program_connection_id: {
             anyOf: [
@@ -6008,6 +6102,25 @@ export const CourseSetTermsInputBodySchema = {
         'term_ids'
     ],
     title: 'CourseSetTermsInputBody'
+} as const;
+
+export const CourseUnreadSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        unread: {
+            type: 'integer',
+            title: 'Unread'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'unread'
+    ],
+    title: 'CourseUnread'
 } as const;
 
 export const CourseUpdateInputBodySchema = {
@@ -8131,7 +8244,7 @@ export const FeedbackOutSchema = {
         'assignment_id'
     ],
     title: 'FeedbackOut',
-    description: 'The teacher\'s feedback on an assessment, as the last sync kept it (M09 §4.3).'
+    description: 'The teacher\'s feedback on an assessment, as the last sync kept it (M09 §4.4).'
 } as const;
 
 export const FileListSchema = {
@@ -10461,6 +10574,23 @@ export const ItemOutSchema = {
             ],
             title: 'Source Ref'
         },
+        source_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Name',
+            description: 'The name of the source it came from and follows (an LMS platform), for files and links alike; null for the user\'s own'
+        },
+        unseen: {
+            type: 'boolean',
+            title: 'Unseen',
+            description: 'Brought in by its source and not opened yet'
+        },
         doc_status: {
             type: 'string',
             enum: [
@@ -10519,6 +10649,12 @@ export const ItemOutSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        modified_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Modified At',
+            description: 'When its contents last changed: on its source for a file that follows one (not when the sync saw it), else updated_at'
         }
     },
     type: 'object',
@@ -10538,13 +10674,16 @@ export const ItemOutSchema = {
         'pinned',
         'source_kind',
         'source_ref',
+        'source_name',
+        'unseen',
         'doc_status',
         'doc_error_code',
         'page_count',
         'ocr_skipped_pages',
         'job_id',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'modified_at'
     ],
     title: 'ItemOut'
 } as const;
@@ -10918,6 +11057,30 @@ export const LinkSetInputBodySchema = {
     title: 'LinkSetInputBody'
 } as const;
 
+export const LinkTargetSchema = {
+    properties: {
+        kind: {
+            type: 'string',
+            title: 'Kind'
+        },
+        ref: {
+            type: 'string',
+            title: 'Ref'
+        },
+        target: {
+            $ref: '#/components/schemas/AppTarget'
+        }
+    },
+    type: 'object',
+    required: [
+        'kind',
+        'ref',
+        'target'
+    ],
+    title: 'LinkTarget',
+    description: 'A link in the HTML (`data-lms-kind` / `data-lms-ref`) to something the app has.'
+} as const;
+
 export const LinkUpdateInputBodySchema = {
     properties: {
         sync_enabled: {
@@ -10931,30 +11094,6 @@ export const LinkUpdateInputBodySchema = {
             ],
             title: 'Sync Enabled',
             description: 'Show in the calendar, check updates'
-        },
-        files_sync: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Files Sync',
-            description: 'Bring the course\'s files, pages and links into its files'
-        },
-        files_offline: {
-            anyOf: [
-                {
-                    type: 'boolean'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Files Offline',
-            description: 'Store them here (taking quota) instead of reading when opened'
         }
     },
     type: 'object',
@@ -11930,6 +12069,28 @@ export const LocalModelsSchema = {
     ],
     title: 'LocalModels',
     description: 'Models a self-hosted server runs itself for one purpose (local OCR, local embedding).'
+} as const;
+
+export const MaterialCountsSchema = {
+    properties: {
+        local: {
+            type: 'integer',
+            title: 'Local',
+            description: 'With a local copy: they become the user\'s own files'
+        },
+        online: {
+            type: 'integer',
+            title: 'Online',
+            description: 'Read online (and links): they leave the course\'s files'
+        }
+    },
+    type: 'object',
+    required: [
+        'local',
+        'online'
+    ],
+    title: 'MaterialCounts',
+    description: 'The course files that follow the linked course\'s materials, by what unlinking does to\nthem.'
 } as const;
 
 export const McpChangeListSchema = {
@@ -19454,6 +19615,94 @@ export const SyncItemSchema = {
     description: 'Something the sync asks the user about, or a new item the user ignored.'
 } as const;
 
+export const SyncMaterialChangeSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id',
+            description: 'The material\'s id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        title: {
+            type: 'string',
+            title: 'Title',
+            description: 'Its name on the platform'
+        },
+        change: {
+            type: 'string',
+            enum: [
+                'added',
+                'updated',
+                'gone',
+                'handed_over'
+            ],
+            title: 'Change',
+            description: 'added: new in the course\'s files; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user\'s own file (it had a local copy)'
+        },
+        at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'At'
+        },
+        item_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Item Id',
+            description: 'The course file it is now, if any'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        folder: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder',
+            description: 'The name of the folder it is in'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'course_id',
+        'course',
+        'title',
+        'change',
+        'at',
+        'item_id',
+        'folder_id',
+        'folder'
+    ],
+    title: 'SyncMaterialChange',
+    description: 'What the platform did lately to a course material (the files stage).'
+} as const;
+
 export const SyncQueuedSchema = {
     properties: {
         queued: {
@@ -19467,6 +19716,44 @@ export const SyncQueuedSchema = {
         'queued'
     ],
     title: 'SyncQueued'
+} as const;
+
+export const SyncRemovedMaterialSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id',
+            description: 'The material\'s id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        course: {
+            type: 'string',
+            title: 'Course'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'At',
+            description: 'When the user deleted it'
+        }
+    },
+    type: 'object',
+    required: [
+        'id',
+        'course_id',
+        'course',
+        'title',
+        'at'
+    ],
+    title: 'SyncRemovedMaterial',
+    description: 'A material the user deleted from the course\'s files: not brought back until restored.'
 } as const;
 
 export const SyncRequestInputBodySchema = {
@@ -19621,6 +19908,27 @@ export const SyncStatusSchema = {
             title: 'Different',
             description: 'Fields the user set apart from the platform, by course and title'
         },
+        materials: {
+            items: {
+                $ref: '#/components/schemas/SyncMaterialChange'
+            },
+            type: 'array',
+            title: 'Materials',
+            description: 'What the platform did lately to the course materials, newest first'
+        },
+        removed_materials: {
+            items: {
+                $ref: '#/components/schemas/SyncRemovedMaterial'
+            },
+            type: 'array',
+            title: 'Removed Materials',
+            description: 'Materials the user deleted, newest first (at most 50), where the course\'s materials sync'
+        },
+        removed_count: {
+            type: 'integer',
+            title: 'Removed Count',
+            description: 'How many materials the user deleted, all told'
+        },
         errors: {
             items: {
                 $ref: '#/components/schemas/SyncCourseError'
@@ -19643,6 +19951,9 @@ export const SyncStatusSchema = {
         'ignored',
         'recent',
         'different',
+        'materials',
+        'removed_materials',
+        'removed_count',
         'errors'
     ],
     title: 'SyncStatus'
@@ -20949,117 +21260,11 @@ export const TermSchema = {
     title: 'Term'
 } as const;
 
-export const TermAnnouncementSchema = {
-    properties: {
-        external_id: {
-            type: 'string',
-            title: 'External Id'
-        },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        external_course_id: {
-            type: 'string',
-            title: 'External Course Id',
-            description: 'The course it was posted in',
-            default: ''
-        },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        html: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Html'
-        },
-        author: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Author'
-        },
-        posted_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Posted At'
-        },
-        updated_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Updated At'
-        },
-        unread: {
-            type: 'boolean',
-            title: 'Unread',
-            default: false
-        },
-        course_id: {
-            type: 'string',
-            title: 'Course Id',
-            description: 'The app\'s course it was posted in'
-        }
-    },
-    type: 'object',
-    required: [
-        'external_id',
-        'title',
-        'course_id'
-    ],
-    title: 'TermAnnouncement'
-} as const;
-
 export const TermAnnouncementListSchema = {
     properties: {
         items: {
             items: {
-                $ref: '#/components/schemas/TermAnnouncement'
+                $ref: '#/components/schemas/CourseAnnouncement'
             },
             type: 'array',
             title: 'Items',
@@ -21073,16 +21278,29 @@ export const TermAnnouncementListSchema = {
             title: 'Linked Course Ids',
             description: 'The term\'s courses linked to an LMS'
         },
-        truncated: {
-            type: 'boolean',
-            title: 'Truncated'
+        not_read: {
+            anyOf: [
+                {
+                    type: 'string',
+                    enum: [
+                        'waiting',
+                        'ended',
+                        'paused'
+                    ]
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Not Read',
+            description: 'Why the sync has not read some of their announcements yet; null: it has'
         }
     },
     type: 'object',
     required: [
         'items',
         'linked_course_ids',
-        'truncated'
+        'not_read'
     ],
     title: 'TermAnnouncementList'
 } as const;
@@ -22212,6 +22430,24 @@ export const UiStateSetInputBodySchema = {
         'value'
     ],
     title: 'UiStateSetInputBody'
+} as const;
+
+export const UnreadCountsSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/CourseUnread'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Courses with unread announcements'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'UnreadCounts'
 } as const;
 
 export const UnreadableItemSchema = {

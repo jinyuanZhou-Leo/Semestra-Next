@@ -15,6 +15,7 @@ from semestra.core.jobs import periodic
 from semestra.modules.academics.service import register_course_source
 from semestra.modules.lms import (  # noqa: F401  (registers on import)
     agent_tools,
+    announcements,
     calendar,
     capabilities,
     imports,
@@ -31,7 +32,7 @@ from semestra.modules.lms import (  # noqa: F401  (registers on import)
 )
 from semestra.modules.lms.cache import purge_expired, runtime
 from semestra.modules.lms.service import linked_course_ids
-from semestra.modules.lms.settings import LmsSettings, offered
+from semestra.modules.lms.settings import LmsSettings, MaterialSettings, offered
 from semestra.modules.lms.sync_status import forget_old_changes
 from semestra.modules.settings import register_settings
 
@@ -45,6 +46,7 @@ register_settings(
     agent_writable=False,
     adapt=offered,
 )
+register_settings(namespace="lms.materials", schema=MaterialSettings, levels=("program", "course"))
 
 
 @periodic("lms.cleanup", every=timedelta(hours=6))

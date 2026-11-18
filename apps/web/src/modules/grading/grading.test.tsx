@@ -457,8 +457,6 @@ test("an assessment from the LMS opens the teacher's comments and rubric", async
     external_term: null,
     web_url: null,
     sync_enabled: true,
-    files_sync: false,
-    files_offline: false,
     synced_at: null,
     sync_errors: {},
     created_at: '2026-01-01T00:00:00Z',

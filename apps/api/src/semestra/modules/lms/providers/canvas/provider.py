@@ -38,6 +38,7 @@ from semestra.modules.lms.schemas.dto import (
     FRONT_PAGE_REF,
     Announcement,
     Assignment,
+    Attachment,
     CommentAttachment,
     Completion,
     ConnectionSummary,
@@ -602,6 +603,17 @@ class CanvasProvider:
                 posted_at=r.get("posted_at") or r.get("created_at"),
                 updated_at=r.get("last_reply_at") or r.get("updated_at"),
                 unread=r.get("read_state") == "unread",
+                attachments=[
+                    Attachment(
+                        external_id=str(f.get("id")),
+                        name=_text(f.get("display_name")) or _text(f.get("filename")) or "",
+                        mime_type=_text(f.get("content-type")),
+                        size_bytes=_int(f.get("size")) if f.get("size") is not None else None,
+                        download_url=_text(f.get("url")),
+                    )
+                    for f in cast(list[dict[str, Any]], r.get("attachments") or [])
+                    if isinstance(f, dict) and f.get("id") is not None
+                ],
             )
             for course, r in rows
         ]

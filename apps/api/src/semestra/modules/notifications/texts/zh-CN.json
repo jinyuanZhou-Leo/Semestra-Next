@@ -23,6 +23,8 @@
   "lms_changes_other": { "title": "$course 的作业有变更", "body": "$items" },
   "lms_announcements_one": { "title": "$course 有新公告", "body": "$items" },
   "lms_announcements_other": { "title": "$course 有新公告", "body": "$items" },
+  "lms_materials_one": { "title": "$course 有新资料", "body": "$items" },
+  "lms_materials_other": { "title": "$course 有新资料", "body": "$items" },
   "habit_daily": { "title": "$name", "body": "今天还没有打卡。" },
   "habit_weekly": { "title": "$name", "body": "本周还差 $left。" },
   "words": {

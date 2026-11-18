@@ -121,9 +121,18 @@ export function canMoveIntoNewFolder(
 }
 
 /** Files in a folder and all its subfolders. */
-export function filesInside(folderId: string, tree: FolderTree, items: readonly ItemOut[]): number {
+/** The files and links in a folder, at any depth. */
+export function itemsInside(
+  folderId: string,
+  tree: FolderTree,
+  items: readonly ItemOut[],
+): ItemOut[] {
   return items.filter(
     (i) =>
       i.folder_id && (i.folder_id === folderId || tree.ancestors.get(i.folder_id)?.has(folderId)),
-  ).length
+  )
+}
+
+export function filesInside(folderId: string, tree: FolderTree, items: readonly ItemOut[]): number {
+  return itemsInside(folderId, tree, items).length
 }

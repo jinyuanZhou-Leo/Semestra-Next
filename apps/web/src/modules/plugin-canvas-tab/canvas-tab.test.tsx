@@ -72,8 +72,6 @@ const LINK: CourseLink = {
   external_term: '2026 Fall',
   web_url: 'https://q.utoronto.ca/courses/101',
   sync_enabled: false,
-  files_sync: true,
-  files_offline: false,
   synced_at: null,
   sync_errors: {},
   created_at: '2026-09-01T10:00:00Z',
@@ -107,14 +105,17 @@ const ANNOUNCEMENTS = {
       html: '<p>See the <a href="https://q.utoronto.ca/courses/101/pages/rooms" data-lms-kind="page" data-lms-ref="rooms">rooms page</a>.</p><script>alert(1)</script>',
       author: 'Prof. Lee',
       posted_at: '2026-10-01T15:00:00Z',
+      course_id: 'c1',
+      web_url: 'https://q.utoronto.ca/courses/101/discussion_topics/a1',
       unread: true,
+      attachments: [],
+      targets: [],
     },
   ],
-  truncated: false,
+  pending: false,
 }
 
 let saved: Record<string, unknown> = {}
-let allowWrites = false
 let display = 'simplified'
 
 function lmsSettings() {
@@ -122,8 +123,8 @@ function lmsSettings() {
     namespace: 'lms',
     scope_type: 'account',
     scope_id: null,
-    values: { allow_writes: allowWrites },
-    sources: { allow_writes: allowWrites ? 'account' : 'default' },
+    values: { allow_writes: false, display },
+    sources: { allow_writes: 'default', display: 'account' },
     inherited: {},
   }
 }
@@ -131,7 +132,6 @@ const puts = vi.fn<(key: string, value: unknown) => void>()
 
 beforeEach(() => {
   saved = {}
-  allowWrites = false
   display = 'simplified'
   puts.mockClear()
   server.use(
@@ -161,19 +161,12 @@ beforeEach(() => {
     ),
     http.get(`${API}/courses/c1/lms`, () => HttpResponse.json(overview())),
     http.get(`${API}/courses/c1/lms/announcements`, () => HttpResponse.json(ANNOUNCEMENTS)),
+    http.post(`${API}/courses/c1/lms/announcements/:id\\:read`, () =>
+      HttpResponse.json({ ...ANNOUNCEMENTS.items[0], unread: false }),
+    ),
     http.get(`${API}/me/settings/lms`, () => HttpResponse.json(lmsSettings())),
     http.get(`${API}/courses/c1/lms/quizzes`, () =>
       HttpResponse.json({ items: [], truncated: false }),
-    ),
-    http.get(`${API}/me/settings/plugin.canvas-tab`, () =>
-      HttpResponse.json({
-        namespace: 'plugin.canvas-tab',
-        scope_type: 'account',
-        scope_id: null,
-        values: { display },
-        sources: { display: 'account' },
-        inherited: {},
-      }),
     ),
     http.get(`${API}/ai/status`, () =>
       HttpResponse.json({
@@ -596,34 +589,20 @@ test('smart import of the syllabus opens its review', async () => {
   expect(started).toHaveBeenCalledOnce()
 })
 
-async function openUnreadAnnouncement() {
+test('opening an unread announcement marks it read', async () => {
   const reads = vi.fn<() => void>()
   server.use(
     http.post(`${API}/courses/c1/lms/announcements/a1\\:read`, () => {
       reads()
-      return HttpResponse.json({ announcement_id: 'a1', unread: false })
+      return HttpResponse.json({ ...ANNOUNCEMENTS.items[0], unread: false })
     }),
   )
-  const { queryClient } = renderPage('/?tab=announcements&ref=a1')
+  renderPage('/?tab=announcements&ref=a1')
   expect(await screen.findByRole('heading', { name: 'Midterm room change' })).toBeInTheDocument()
-  await waitFor(() =>
-    expect(queryClient.isFetching({ queryKey: [{ _id: 'settingsValueGet' }] })).toBe(0),
-  )
-  return reads
-}
-
-test('opening an unread announcement marks it read on Canvas when writes are allowed', async () => {
-  allowWrites = true
-  const reads = await openUnreadAnnouncement()
   await waitFor(() => expect(reads).toHaveBeenCalledOnce())
   await userEvent.click(screen.getByRole('button', { name: 'Back' }))
   expect(await screen.findByText('Midterm room change')).toBeInTheDocument()
   expect(screen.queryByText('Unread')).toBeNull()
-})
-
-test('without the setting, opening an announcement changes nothing on Canvas', async () => {
-  const reads = await openUnreadAnnouncement()
-  expect(reads).not.toHaveBeenCalled()
 })
 
 test('an opened assignment shows when and how to submit, the lock, the grade, comments and rubric', async () => {

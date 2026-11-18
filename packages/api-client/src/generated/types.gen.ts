@@ -495,55 +495,29 @@ export type AiStatusGet = {
 };
 
 /**
- * Announcement
+ * AnnouncementAttachment
  */
-export type Announcement = {
+export type AnnouncementAttachment = {
     /**
      * External Id
      */
     external_id: string;
     /**
-     * Web Url
-     *
-     * Opens the item on the platform
+     * Name
      */
-    web_url?: string | null;
+    name: string;
     /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
+     * Mime Type
      */
-    raw_kind?: string | null;
+    mime_type?: string | null;
     /**
-     * External Course Id
-     *
-     * The course it was posted in
+     * Size Bytes
      */
-    external_course_id?: string;
+    size_bytes?: number | null;
     /**
-     * Title
+     * The course file it is, when the course's files have it
      */
-    title: string;
-    /**
-     * Html
-     */
-    html?: string | null;
-    /**
-     * Author
-     */
-    author?: string | null;
-    /**
-     * Posted At
-     */
-    posted_at?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
-    /**
-     * Unread
-     */
-    unread?: boolean;
+    file?: AppTarget | null;
 };
 
 /**
@@ -552,26 +526,43 @@ export type Announcement = {
 export type AnnouncementList = {
     /**
      * Items
+     *
+     * Newest first
      */
-    items: Array<Announcement>;
+    items: Array<CourseAnnouncement>;
     /**
-     * Truncated
+     * Not Read
+     *
+     * Why the sync has not read the course's announcements yet; null: it has
      */
-    truncated: boolean;
+    not_read: 'waiting' | 'ended' | 'paused' | null;
 };
 
 /**
- * AnnouncementRead
+ * AppTarget
+ *
+ * What a platform item is in the app: a course file (a synced file or page), or what an
+ * imported assignment became.
  */
-export type AnnouncementRead = {
+export type AppTarget = {
     /**
-     * Announcement Id
+     * Kind
      */
-    announcement_id: string;
+    kind: 'file' | 'assessment' | 'task';
     /**
-     * Unread
+     * Id
      */
-    unread: boolean;
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     *
+     * The file's folder (kind file)
+     */
+    folder_id?: string | null;
 };
 
 /**
@@ -2777,6 +2768,64 @@ export type Course = {
 };
 
 /**
+ * CourseAnnouncement
+ */
+export type CourseAnnouncement = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Course Id
+     *
+     * The app's course it was posted in
+     */
+    course_id: string;
+    /**
+     * Web Url
+     *
+     * Opens it on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Posted At
+     */
+    posted_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Unread
+     *
+     * Not opened in the app yet
+     */
+    unread: boolean;
+    /**
+     * Attachments
+     */
+    attachments?: Array<AnnouncementAttachment>;
+    /**
+     * Targets
+     *
+     * Where the platform links in `html` open in the app
+     */
+    targets?: Array<LinkTarget>;
+};
+
+/**
  * CourseCreateInputBody
  */
 export type CourseCreateInputBody = {
@@ -3179,18 +3228,6 @@ export type CourseLink = {
      */
     sync_enabled: boolean;
     /**
-     * Files Sync
-     *
-     * The sync brings the course's files, pages and links in
-     */
-    files_sync: boolean;
-    /**
-     * Files Offline
-     *
-     * They are stored here, not read when opened
-     */
-    files_offline: boolean;
-    /**
      * Synced At
      *
      * Last background sync of the course
@@ -3235,6 +3272,10 @@ export type CourseLinkState = {
      */
     course_id: string;
     link: CourseLink | null;
+    /**
+     * Of the linked course; null when not linked
+     */
+    materials?: MaterialCounts | null;
     /**
      * Program Connection Id
      *
@@ -3407,6 +3448,20 @@ export type CourseSetTermsInputBody = {
      * All terms of the course; must be consecutive
      */
     term_ids: Array<string>;
+};
+
+/**
+ * CourseUnread
+ */
+export type CourseUnread = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Unread
+     */
+    unread: number;
 };
 
 /**
@@ -4577,7 +4632,7 @@ export type FeedbackList = {
 /**
  * FeedbackOut
  *
- * The teacher's feedback on an assessment, as the last sync kept it (M09 §4.3).
+ * The teacher's feedback on an assessment, as the last sync kept it (M09 §4.4).
  */
 export type FeedbackOut = {
     /**
@@ -5992,6 +6047,18 @@ export type ItemOut = {
      */
     source_ref: string | null;
     /**
+     * Source Name
+     *
+     * The name of the source it came from and follows (an LMS platform), for files and links alike; null for the user's own
+     */
+    source_name: string | null;
+    /**
+     * Unseen
+     *
+     * Brought in by its source and not opened yet
+     */
+    unseen: boolean;
+    /**
      * Doc Status
      */
     doc_status: 'none' | 'pending' | 'processing' | 'ready' | 'failed' | 'unsupported';
@@ -6019,6 +6086,12 @@ export type ItemOut = {
      * Updated At
      */
     updated_at: string;
+    /**
+     * Modified At
+     *
+     * When its contents last changed: on its source for a file that follows one (not when the sync saw it), else updated_at
+     */
+    modified_at: string;
 };
 
 /**
@@ -6217,6 +6290,23 @@ export type LinkSetInputBody = {
 };
 
 /**
+ * LinkTarget
+ *
+ * A link in the HTML (`data-lms-kind` / `data-lms-ref`) to something the app has.
+ */
+export type LinkTarget = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Ref
+     */
+    ref: string;
+    target: AppTarget;
+};
+
+/**
  * LinkUpdateInputBody
  */
 export type LinkUpdateInputBody = {
@@ -6226,18 +6316,6 @@ export type LinkUpdateInputBody = {
      * Show in the calendar, check updates
      */
     sync_enabled?: boolean | null;
-    /**
-     * Files Sync
-     *
-     * Bring the course's files, pages and links into its files
-     */
-    files_sync?: boolean | null;
-    /**
-     * Files Offline
-     *
-     * Store them here (taking quota) instead of reading when opened
-     */
-    files_offline?: boolean | null;
 };
 
 /**
@@ -6776,6 +6854,27 @@ export type LocalModels = {
      * Custom
      */
     custom?: boolean;
+};
+
+/**
+ * MaterialCounts
+ *
+ * The course files that follow the linked course's materials, by what unlinking does to
+ * them.
+ */
+export type MaterialCounts = {
+    /**
+     * Local
+     *
+     * With a local copy: they become the user's own files
+     */
+    local: number;
+    /**
+     * Online
+     *
+     * Read online (and links): they leave the course's files
+     */
+    online: number;
 };
 
 /**
@@ -11052,6 +11151,60 @@ export type SyncItem = {
 };
 
 /**
+ * SyncMaterialChange
+ *
+ * What the platform did lately to a course material (the files stage).
+ */
+export type SyncMaterialChange = {
+    /**
+     * Id
+     *
+     * The material's id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     *
+     * Its name on the platform
+     */
+    title: string;
+    /**
+     * Change
+     *
+     * added: new in the course's files; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user's own file (it had a local copy)
+     */
+    change: 'added' | 'updated' | 'gone' | 'handed_over';
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Item Id
+     *
+     * The course file it is now, if any
+     */
+    item_id: string | null;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Folder
+     *
+     * The name of the folder it is in
+     */
+    folder: string | null;
+};
+
+/**
  * SyncQueued
  */
 export type SyncQueued = {
@@ -11061,6 +11214,38 @@ export type SyncQueued = {
      * How many courses were queued
      */
     queued: number;
+};
+
+/**
+ * SyncRemovedMaterial
+ *
+ * A material the user deleted from the course's files: not brought back until restored.
+ */
+export type SyncRemovedMaterial = {
+    /**
+     * Id
+     *
+     * The material's id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     *
+     * When the user deleted it
+     */
+    at: string;
 };
 
 /**
@@ -11161,6 +11346,24 @@ export type SyncStatus = {
      * Fields the user set apart from the platform, by course and title
      */
     different: Array<SyncDifference>;
+    /**
+     * Materials
+     *
+     * What the platform did lately to the course materials, newest first
+     */
+    materials: Array<SyncMaterialChange>;
+    /**
+     * Removed Materials
+     *
+     * Materials the user deleted, newest first (at most 50), where the course's materials sync
+     */
+    removed_materials: Array<SyncRemovedMaterial>;
+    /**
+     * Removed Count
+     *
+     * How many materials the user deleted, all told
+     */
+    removed_count: number;
     /**
      * Errors
      */
@@ -11894,64 +12097,6 @@ export type Term = {
 };
 
 /**
- * TermAnnouncement
- */
-export type TermAnnouncement = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Web Url
-     *
-     * Opens the item on the platform
-     */
-    web_url?: string | null;
-    /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
-     */
-    raw_kind?: string | null;
-    /**
-     * External Course Id
-     *
-     * The course it was posted in
-     */
-    external_course_id?: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Html
-     */
-    html?: string | null;
-    /**
-     * Author
-     */
-    author?: string | null;
-    /**
-     * Posted At
-     */
-    posted_at?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
-    /**
-     * Unread
-     */
-    unread?: boolean;
-    /**
-     * Course Id
-     *
-     * The app's course it was posted in
-     */
-    course_id: string;
-};
-
-/**
  * TermAnnouncementList
  */
 export type TermAnnouncementList = {
@@ -11960,7 +12105,7 @@ export type TermAnnouncementList = {
      *
      * Newest first
      */
-    items: Array<TermAnnouncement>;
+    items: Array<CourseAnnouncement>;
     /**
      * Linked Course Ids
      *
@@ -11968,9 +12113,11 @@ export type TermAnnouncementList = {
      */
     linked_course_ids: Array<string>;
     /**
-     * Truncated
+     * Not Read
+     *
+     * Why the sync has not read some of their announcements yet; null: it has
      */
-    truncated: boolean;
+    not_read: 'waiting' | 'ended' | 'paused' | null;
 };
 
 /**
@@ -12623,6 +12770,18 @@ export type UiStateSetInputBody = {
      * Any JSON value up to 16 KB
      */
     value: JsonValue;
+};
+
+/**
+ * UnreadCounts
+ */
+export type UnreadCounts = {
+    /**
+     * Items
+     *
+     * Courses with unread announcements
+     */
+    items: Array<CourseUnread>;
 };
 
 /**
@@ -13743,7 +13902,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'source_name' | 'unseen' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at' | 'modified_at'> | null;
         /**
          * Cursor
          *
@@ -17244,7 +17403,7 @@ export type FilesItemUpdateResponses = {
 
 export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
 
-export type FilesItemKeepOfflineData = {
+export type FilesItemDropCopyData = {
     body?: never;
     path: {
         /**
@@ -17255,26 +17414,58 @@ export type FilesItemKeepOfflineData = {
         item_id: string;
     };
     query?: never;
-    url: '/files/{item_id}:keep-offline';
+    url: '/files/{item_id}:drop-copy';
 };
 
-export type FilesItemKeepOfflineErrors = {
+export type FilesItemDropCopyErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type FilesItemKeepOfflineError = FilesItemKeepOfflineErrors[keyof FilesItemKeepOfflineErrors];
+export type FilesItemDropCopyError = FilesItemDropCopyErrors[keyof FilesItemDropCopyErrors];
 
-export type FilesItemKeepOfflineResponses = {
+export type FilesItemDropCopyResponses = {
     /**
      * Successful Response
      */
     200: ItemOut;
 };
 
-export type FilesItemKeepOfflineResponse = FilesItemKeepOfflineResponses[keyof FilesItemKeepOfflineResponses];
+export type FilesItemDropCopyResponse = FilesItemDropCopyResponses[keyof FilesItemDropCopyResponses];
+
+export type FilesItemKeepCopyData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:keep-copy';
+};
+
+export type FilesItemKeepCopyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemKeepCopyError = FilesItemKeepCopyErrors[keyof FilesItemKeepCopyErrors];
+
+export type FilesItemKeepCopyResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemKeepCopyResponse = FilesItemKeepCopyResponses[keyof FilesItemKeepCopyResponses];
 
 export type FilesItemListPinnedData = {
     body?: never;
@@ -17307,6 +17498,70 @@ export type FilesItemListPinnedResponses = {
 };
 
 export type FilesItemListPinnedResponse = FilesItemListPinnedResponses[keyof FilesItemListPinnedResponses];
+
+export type FilesItemMakeOwnData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:make-own';
+};
+
+export type FilesItemMakeOwnErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemMakeOwnError = FilesItemMakeOwnErrors[keyof FilesItemMakeOwnErrors];
+
+export type FilesItemMakeOwnResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemMakeOwnResponse = FilesItemMakeOwnResponses[keyof FilesItemMakeOwnResponses];
+
+export type FilesItemMarkSeenData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:seen';
+};
+
+export type FilesItemMarkSeenErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemMarkSeenError = FilesItemMarkSeenErrors[keyof FilesItemMarkSeenErrors];
+
+export type FilesItemMarkSeenResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemMarkSeenResponse = FilesItemMarkSeenResponses[keyof FilesItemMarkSeenResponses];
 
 export type FilesItemReprocessData = {
     body?: never;
@@ -19248,12 +19503,6 @@ export type LmsAnnouncementListData = {
     };
     query?: {
         /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-        /**
          * Since
          *
          * Only posted after this time
@@ -19264,7 +19513,7 @@ export type LmsAnnouncementListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'author' | 'posted_at' | 'updated_at' | 'unread'> | null;
+        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'author' | 'posted_at' | 'updated_at' | 'unread' | 'attachments'> | null;
     };
     url: '/courses/{course_id}/lms/announcements';
 };
@@ -19320,10 +19569,49 @@ export type LmsAnnouncementMarkReadResponses = {
     /**
      * Successful Response
      */
-    200: AnnouncementRead;
+    200: CourseAnnouncement;
 };
 
 export type LmsAnnouncementMarkReadResponse = LmsAnnouncementMarkReadResponses[keyof LmsAnnouncementMarkReadResponses];
+
+export type LmsAnnouncementUnreadData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only the courses of this term
+         */
+        term_id?: string | null;
+    };
+    url: '/programs/{program_id}/lms/announcements/unread';
+};
+
+export type LmsAnnouncementUnreadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAnnouncementUnreadError = LmsAnnouncementUnreadErrors[keyof LmsAnnouncementUnreadErrors];
+
+export type LmsAnnouncementUnreadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UnreadCounts;
+};
+
+export type LmsAnnouncementUnreadResponse = LmsAnnouncementUnreadResponses[keyof LmsAnnouncementUnreadResponses];
 
 export type LmsAssignmentAddToGradebookData = {
     body: AssignmentsImportInputBody;
@@ -21040,6 +21328,38 @@ export type LmsSyncFieldResolveResponses = {
 
 export type LmsSyncFieldResolveResponse = LmsSyncFieldResolveResponses[keyof LmsSyncFieldResolveResponses];
 
+export type LmsSyncMaterialRestoreData = {
+    body?: never;
+    path: {
+        /**
+         * Material Id
+         *
+         * A removed material's id (lms.sync.status)
+         */
+        material_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/materials/{material_id}:restore';
+};
+
+export type LmsSyncMaterialRestoreErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRestoreError = LmsSyncMaterialRestoreErrors[keyof LmsSyncMaterialRestoreErrors];
+
+export type LmsSyncMaterialRestoreResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRestoreResponse = LmsSyncMaterialRestoreResponses[keyof LmsSyncMaterialRestoreResponses];
+
 export type LmsSyncStatusData = {
     body?: never;
     path: {
@@ -21146,14 +21466,7 @@ export type LmsTermAnnouncementListData = {
          */
         term_id: string;
     };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
+    query?: never;
     url: '/terms/{term_id}/lms/announcements';
 };
 

@@ -1,4 +1,3 @@
-import { client } from '@semestra/api-client'
 import { lmsCourseLinkGetOptions, lmsCourseLinkListOptions } from '@semestra/api-client/react-query'
 import type { QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -32,11 +31,4 @@ export async function openLinkedCourse(queryClient: QueryClient, courseId: strin
   } catch (error) {
     toastError(error)
   }
-}
-
-/** Where the API streams an LMS file (M09 `lmsFileContent`), for previews and downloads. */
-export function fileContentUrl(courseId: string, fileId: string, download = false): string {
-  const base = client.getConfig().baseUrl ?? ''
-  const path = `/courses/${encodeURIComponent(courseId)}/lms/files/${encodeURIComponent(fileId)}/content`
-  return `${base}${path}${download ? '?download=true' : ''}`
 }

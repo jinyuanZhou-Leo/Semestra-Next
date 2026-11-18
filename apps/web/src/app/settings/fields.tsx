@@ -16,7 +16,7 @@ import {
 } from '@/ui/select'
 import { ChoiceControl, type FollowChoice } from './choice'
 import type { FieldDescriptor } from './schema'
-import { optionHint, optionLabel } from './texts'
+import { type TextParams, optionHint, optionLabel } from './texts'
 
 /** The choice that stands for "follow the level above" next to a field's own values. */
 const FOLLOW = '__follow__'
@@ -56,6 +56,8 @@ export type ControlProps = {
   onChange: (value: unknown) => void
   /** Only on scoped levels whose fields can follow a level above. */
   inherit?: Inheritance
+  /** Values the option texts take (`NamespaceForm`'s `params`). */
+  params?: TextParams
 }
 
 function numberProblem(field: FieldDescriptor, text: string): string | null {
@@ -167,7 +169,7 @@ export function FieldControlView(props: ControlProps) {
 
 /** A field's own control; `follow` adds the "follow the level above" choice to choice controls. */
 function PlainControl(props: ControlProps & { follow?: FollowChoice }) {
-  const { namespace, field, id, labelId, value, onChange, follow } = props
+  const { namespace, field, id, labelId, value, onChange, follow, params } = props
   switch (field.control) {
     case 'switch':
       // A switch cannot show a third state, so a following one becomes Follow / On / Off.
@@ -199,7 +201,7 @@ function PlainControl(props: ControlProps & { follow?: FollowChoice }) {
       const options = field.options.map((o) => ({
         value: String(o),
         label: optionLabel(namespace, field.key, o),
-        hint: optionHint(namespace, field.key, o),
+        hint: optionHint(namespace, field.key, o, params),
       }))
       return (
         <ChoiceControl

@@ -7,6 +7,7 @@ import {
   RefreshCw,
   School,
   ShieldCheck,
+  Type,
 } from 'lucide-react'
 import { lmsSyncRequest } from '@semestra/api-client'
 import { defineModule, preloadable } from '@/app/extensions'
@@ -14,12 +15,15 @@ import type {
   FeedbackList,
   LmsProgramBindingGetResponse,
   LmsProviderListResponse,
+  UnreadCounts,
 } from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
+  lmsAnnouncementUnreadOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
   lmsTermAnnouncementListOptions,
+  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import {
   COURSE_INFO_ROWS,
@@ -83,14 +87,15 @@ const ofCourse = (data: Readonly<Record<string, unknown>>) => [
 const sections = () => import('./settings/sections')
 
 /**
- * The `lms` namespace shows as four sections: background sync, what follows the platform without
- * asking, to-dos, writes. Each hides the fields of the others.
+ * The `lms` namespace shows as five sections: background sync, what follows the platform without
+ * asking, to-dos, writes, how platform content is shown. Each hides the fields of the others.
  */
 const LMS_FIELDS = {
   sync: ['sync_every'],
   follow: ['follow_title', 'follow_due_at', 'follow_weight', 'follow_score'],
   todos: ['complete_submitted'],
   writes: ['allow_writes'],
+  display: ['display'],
 } as const
 const showOnly = (part: keyof typeof LMS_FIELDS) => ({
   hidden: Object.entries(LMS_FIELDS).flatMap(([key, fields]) => (key === part ? [] : fields)),
@@ -143,9 +148,23 @@ export default defineModule({
       component: preloadable(() => import('./pages/AnnouncementsPage')),
       availabilityQuery: announcementLinksQuery,
       isAvailable: hasAnnouncements,
-      // Not on hover: a list the server has not cached yet is read from the platform.
-      prefetch: (scope, queryClient, { preload }) => {
-        if (preload) return
+      unread: {
+        // A course counts from its Program's numbers, so its courses share one request.
+        query: (scope) =>
+          scope.kind === 'course' || scope.kind === 'term'
+            ? lmsAnnouncementUnreadOptions({
+                path: { program_id: scope.programId },
+                query: scope.kind === 'term' ? { term_id: scope.termId } : undefined,
+              })
+            : null,
+        count: (scope, data) =>
+          (data as UnreadCounts).items
+            .filter((c) => scope.kind !== 'course' || c.course_id === scope.courseId)
+            .reduce((sum, c) => sum + c.unread, 0),
+      },
+      prefetch: (scope, queryClient) => {
+        // The display setting decides how the first announcement opened looks.
+        void queryClient.prefetchQuery(settingsValueGetOptions({ path: { namespace: 'lms' } }))
         if (scope.kind === 'course') {
           void queryClient.prefetchQuery(
             lmsAnnouncementListOptions({ path: { course_id: scope.courseId } }),
@@ -239,6 +258,16 @@ export default defineModule({
       order: 40,
       namespace: 'lms',
       fields: showOnly('writes'),
+    },
+    {
+      id: 'lms-display',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_display,
+      icon: Type,
+      order: 45,
+      namespace: 'lms',
+      fields: showOnly('display'),
     },
     {
       id: 'program-lms',
@@ -353,11 +382,32 @@ export default defineModule({
     ...Object.fromEntries(
       LINK_EVENTS.map((event) => [event, [...LMS_STATE_QUERIES, 'lmsTermAnnouncementList']]),
     ),
+    // A course's files changed: how many of its materials are kept locally or read online (what
+    // unlinking it would do to them).
+    ...Object.fromEntries(
+      ['files.item.created', 'files.item.updated', 'files.item.deleted'].map((event) => [
+        event,
+        [
+          (data: { course_id?: unknown }) =>
+            typeof data.course_id === 'string'
+              ? [{ _id: 'lmsCourseLinkGet', path: { course_id: data.course_id } }]
+              : ['lmsCourseLinkGet'],
+        ],
+      ]),
+    ),
     // Which courses a term has: the term's links and announcements.
     'academics.course.terms_changed': ['lmsCourseLinkList', 'lmsTermAnnouncementList'],
     // The sync was queued, ran or was answered: its status line, panel and reminders.
     'lms.sync.updated': [
       (data) => [{ _id: 'lmsSyncStatus', path: { program_id: data.program_id } }],
+    ],
+    // The sync stored a course's announcements, or one was read: the lists and unread counts.
+    'lms.announcement.updated': [
+      (data) => [
+        { _id: 'lmsAnnouncementList', path: { course_id: data.course_id } },
+        'lmsTermAnnouncementList',
+        { _id: 'lmsAnnouncementUnread', path: { program_id: data.program_id } },
+      ],
     ],
     // A course synced: its link (when, errors) and the assignments the sync read afresh.
     'lms.course.synced': [

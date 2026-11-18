@@ -21,7 +21,7 @@ import { type ScopeParams, namespaceQueries, scopeParamsFor } from './namespace-
 import { FieldControlView, type Inheritance, valueText } from './fields'
 import { SettingRow, SettingsGroup } from './rows'
 import { type FieldDescriptor, type JsonSchema, describeFields } from './schema'
-import { fieldDescription, fieldLabel } from './texts'
+import { type TextParams, fieldDescription, fieldLabel } from './texts'
 
 export const LEVEL_ORDER: readonly SettingsLevel[] = ['account', 'program', 'term', 'course']
 
@@ -39,6 +39,8 @@ type Props = {
   fields?: FieldOverrides
   /** Replaces the group's rounded border, for a form shown inside another list. */
   className?: string
+  /** Values its descriptions and option hints take, such as `{ provider: 'Canvas' }`. */
+  params?: TextParams
 }
 
 /**
@@ -46,7 +48,14 @@ type Props = {
  * per field, saved automatically. On a level below another that can set the namespace, each
  * control starts with "follow …" (M11 §5.2).
  */
-export function NamespaceForm({ namespace, level, scope, fields, className }: Props) {
+export function NamespaceForm({
+  namespace,
+  level,
+  scope,
+  fields,
+  className,
+  params: texts,
+}: Props) {
   const params = scopeParamsFor(level, scope)
   const queries = namespaceQueries(namespace, params ?? { scope_type: 'account' })
   const schemas = useQuery(queries.schemas)
@@ -72,6 +81,7 @@ export function NamespaceForm({ namespace, level, scope, fields, className }: Pr
                 fields={describeFields(definition.json_schema as JsonSchema, fields)}
                 when={fields?.when ?? {}}
                 className={className}
+                texts={texts}
               />
             )}
           </AsyncBoundary>
@@ -93,6 +103,7 @@ function Form({
   fields,
   when,
   className,
+  texts,
 }: {
   namespace: string
   level: SettingsLevel
@@ -103,6 +114,7 @@ function Form({
   data: ResolvedSettings
   fields: FieldDescriptor[]
   className?: string
+  texts?: TextParams
 }) {
   const queryClient = useQueryClient()
   const idBase = useId()
@@ -201,7 +213,7 @@ function Form({
           label={fieldLabel(namespace, field.key)}
           labelId={labelId}
           htmlFor={id}
-          description={fieldDescription(namespace, field.key)}
+          description={fieldDescription(namespace, field.key, texts)}
         >
           <FieldControlView
             namespace={namespace}
@@ -211,6 +223,7 @@ function Form({
             value={value}
             onChange={(next) => change(field.key, next)}
             inherit={inherit}
+            params={texts}
           />
         </SettingRow>
       ),

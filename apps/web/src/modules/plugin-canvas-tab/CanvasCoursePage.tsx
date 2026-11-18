@@ -1,5 +1,5 @@
 import { type CourseOverview, lmsCourseRefresh } from '@semestra/api-client'
-import { lmsCourseOverviewOptions, settingsValueGetOptions } from '@semestra/api-client/react-query'
+import { lmsCourseOverviewOptions } from '@semestra/api-client/react-query'
 import { keepPreviousData, useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpRight,
@@ -20,6 +20,10 @@ import { toastError } from '@/lib/errors'
 import { formatTimeAgo } from '@/lib/format'
 import { useNow } from '@/hooks/use-now'
 import { cn } from '@/lib/utils'
+import { type LmsContent, LmsContentContext } from '@/modules/lms/content/context'
+import { useLmsDisplay } from '@/modules/lms/content/display'
+import { IconAction, OpenOnPlatformIcon } from '@/modules/lms/content/LmsContent'
+import { useProviderName } from '@/modules/lms/providers'
 import { invalidateLms, isCourseContent } from '@/modules/lms/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
@@ -35,7 +39,7 @@ import {
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary, ListSkeleton } from './CanvasBoundary'
-import { type CanvasDisplay, type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
+import { type CanvasPage, CanvasPageContext, useCanvasPage } from './context'
 import { useCanvasLocation } from './location'
 import { openExternal } from './open-in-canvas'
 import {
@@ -44,11 +48,11 @@ import {
   type NavEntry,
   type Resolved,
   navEntries,
+  refLocation,
   resolveLocation,
 } from './navigation'
 import { AnnouncementsView } from './views/AnnouncementsView'
 import { AssignmentsView } from './views/AssignmentsView'
-import { IconAction, OpenInCanvasIcon } from './views/common'
 import { FilePreviewDialog } from './views/FilePreview'
 import { FilesView } from './views/FilesView'
 import { HomeView } from './views/HomeView'
@@ -77,10 +81,8 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
   })
   const fetching =
     useIsFetching({ predicate: isCourseContent(courseId) }) > 0 || overview.isFetching
-  const config = useQuery(settingsValueGetOptions({ path: { namespace: 'plugin.canvas-tab' } }))
-  const [picked, setDisplay] = useState<CanvasDisplay | null>(null)
-  const display: CanvasDisplay =
-    picked ?? (config.data?.values.display === 'original' ? 'original' : 'simplified')
+  const { display, setDisplay } = useLmsDisplay()
+  const provider = useProviderName('canvas') ?? 'Canvas'
 
   // "Refresh" drops this course's cached reads once on the server, then refetches them; later
   // reads use the cache again (M16 implementation notes).
@@ -97,26 +99,44 @@ function CanvasCourse({ programId, courseId }: { programId: string; courseId: st
     courseId,
     go,
     openFile: file.show,
+    title,
+  }
+  // Platform links in Canvas HTML stay in the tab: pages, assignments, quizzes, modules and
+  // announcements switch the view, files open the preview; anything else is a normal link.
+  const content: LmsContent = {
+    courseId,
+    provider,
     display,
     setDisplay,
-    title,
+    openLink: (link) => {
+      if (link.kind === 'file') {
+        file.show(link.ref)
+        return true
+      }
+      const target = refLocation(link)
+      if (!target) return false
+      go(target)
+      return true
+    },
   }
 
   return (
     <CanvasPageContext value={page}>
-      <div className="flex flex-col gap-4">
-        <CanvasBoundary query={overview} skeleton={<PageSkeleton />}>
-          {(data) => (
-            <Body
-              overview={data}
-              location={location}
-              fetching={fetching || refreshing}
-              onRefresh={reload}
-            />
-          )}
-        </CanvasBoundary>
-      </div>
-      <FilePreviewDialog fileId={file.target} {...file.props} />
+      <LmsContentContext value={content}>
+        <div className="flex flex-col gap-4">
+          <CanvasBoundary query={overview} skeleton={<PageSkeleton />}>
+            {(data) => (
+              <Body
+                overview={data}
+                location={location}
+                fetching={fetching || refreshing}
+                onRefresh={reload}
+              />
+            )}
+          </CanvasBoundary>
+        </div>
+        <FilePreviewDialog fileId={file.target} {...file.props} />
+      </LmsContentContext>
     </CanvasPageContext>
   )
 }
@@ -225,7 +245,7 @@ function SyncControls({ overview, fetching, onRefresh }: { overview: CourseOverv
           className={cn(fetching && 'animate-spin motion-reduce:animate-none')}
         />
       </IconAction>
-      {url ? <OpenInCanvasIcon href={url} /> : null}
+      {url ? <OpenOnPlatformIcon href={url} /> : null}
     </div>
   )
 }

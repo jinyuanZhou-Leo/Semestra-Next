@@ -5,9 +5,9 @@ assignment, one row per assessment (it stays when the assessment is unbound or i
 unlinked). It starts empty: the next sync of each course fills it, quietly (what an assessment
 has when first read is not reported as new).
 
-Revision ID: 0057
-Revises: 0056
-Create Date: 2026-11-18 05:21:10.002025
+Revision ID: 0059
+Revises: 0058
+Create Date: 2026-11-18 06:28:34.231280
 
 """
 from collections.abc import Sequence
@@ -18,8 +18,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = '0057'
-down_revision: str | Sequence[str] | None = '0056'
+revision: str = '0059'
+down_revision: str | Sequence[str] | None = '0058'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

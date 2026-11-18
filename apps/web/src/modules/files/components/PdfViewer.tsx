@@ -50,11 +50,14 @@ export function PdfViewer({
   target,
   terms = NO_TERMS,
   onPageChange,
+  onFail,
 }: {
   url: string
   target?: PageTarget
   terms?: readonly string[]
   onPageChange?: (page: number) => void
+  /** The file could not be read (say its source cannot be reached). */
+  onFail?: () => void
 }) {
   // Each page's height / width.
   const [shapes, setShapes] = useState<readonly number[]>([])
@@ -207,6 +210,7 @@ export function PdfViewer({
       >
         <Document
           file={url}
+          onLoadError={onFail}
           options={OPTIONS}
           externalLinkTarget="_blank"
           externalLinkRel="noopener noreferrer"

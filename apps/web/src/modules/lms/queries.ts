@@ -5,6 +5,8 @@ import {
   lmsCourseListOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
+  settingsSchemaListOptions,
+  settingsValueGetOptions,
 } from '@semestra/api-client/react-query'
 import type { Query, QueryClient } from '@tanstack/react-query'
 import type { Scope } from '@/app/extensions'
@@ -24,6 +26,7 @@ export const LMS_STATE_QUERIES = [
   'lmsSyncStatus',
   // The feedback the sync kept for the course's assessments (stays after unbinding or unlinking).
   'lmsFeedbackList',
+  'lmsAnnouncementUnread',
 ]
 
 /** What linked courses hold on the platform: refetched for one course, not on every change. */
@@ -112,6 +115,19 @@ const bindingOf = (scope: Scope | undefined, queryClient: QueryClient) =>
   )
 
 /** `prefetch` of the LMS settings sections (M11 §5.2). */
+/** The settings namespace of how courses take in their materials (Program and course levels). */
+export const MATERIALS = 'lms.materials'
+
+/** What the materials form of the Program or course LMS section shows (the same queries). */
+const materialSettings = (
+  query: { scope_type: 'program' | 'course'; scope_id: string },
+  queryClient: QueryClient,
+) =>
+  Promise.all([
+    queryClient.ensureQueryData({ ...settingsSchemaListOptions(), staleTime: Infinity }),
+    queryClient.ensureQueryData(settingsValueGetOptions({ path: { namespace: MATERIALS }, query })),
+  ])
+
 export const settingsPrefetch = {
   connections: (_scope: unknown, queryClient: QueryClient) =>
     Promise.all([
@@ -122,6 +138,7 @@ export const settingsPrefetch = {
     Promise.all([
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       bindingOf(scope, queryClient),
+      materialSettings({ scope_type: 'program', scope_id: scope?.programId ?? '' }, queryClient),
     ]),
   // A linked course shows its link; an unlinked one the platform's courses to pick from; one in an
   // unbound Program a way to connect.
@@ -134,7 +151,9 @@ export const settingsPrefetch = {
     if (!state.program_connection_id) {
       return queryClient.ensureQueryData(lmsConnectionListOptions())
     }
-    if (state.link) return undefined
+    if (state.link) {
+      return materialSettings({ scope_type: 'course', scope_id: courseId }, queryClient)
+    }
     return Promise.all([
       queryClient.ensureQueryData(academicsCourseGetOptions({ path: { course_id: courseId } })),
       queryClient.ensureQueryData(

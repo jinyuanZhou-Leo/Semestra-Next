@@ -367,7 +367,7 @@ def test_file_cdn_hosts_match_whole_labels():
     assert not p._allowed_hop(base, "https://evilinstructure.com/f")
 
 
-async def test_tab_links_read_state_and_front_page(
+async def test_tab_links_read_state_attachments_and_front_page(
     settings: Settings, io: Io, mock: respx.MockRouter
 ):
     """Fields the Canvas tab relies on, as the Canvas API docs describe them."""
@@ -380,7 +380,10 @@ async def test_tab_links_read_state_and_front_page(
     )  # fmt: skip
     mock.get(f"{API}/announcements").mock(
         return_value=Response(200, json=[
-            {"id": 1, "title": "New", "read_state": "unread", "posted_at": "2026-01-02T00:00:00Z"},
+            {"id": 1, "title": "New", "read_state": "unread", "posted_at": "2026-01-02T00:00:00Z",
+             "attachments": [{"id": 9, "display_name": "Rubric.pdf", "filename": "rubric.pdf",
+                              "content-type": "application/pdf", "size": 2048,
+                              "url": f"{CANVAS}/files/9/download"}]},
             {"id": 2, "title": "Old", "read_state": "read", "posted_at": "2026-01-01T00:00:00Z"},
         ])
     )  # fmt: skip
@@ -392,6 +395,10 @@ async def test_tab_links_read_state_and_front_page(
     assert tab.web_url == f"{CANVAS}/courses/1/external_tools/4"
     news = await p.announcements(io, cfg, creds, "1")
     assert [(a.title, a.unread) for a in news] == [("New", True), ("Old", False)]
+    assert [a.model_dump() for a in news[0].attachments] == [
+        {"external_id": "9", "name": "Rubric.pdf", "mime_type": "application/pdf",
+         "size_bytes": 2048}
+    ]  # fmt: skip
     page = await p.page(io, cfg, creds, "1", FRONT_PAGE_REF)
     assert (page.ref, page.front_page, page.html) == ("welcome", True, "<p>Hi</p>")
     assert front.called

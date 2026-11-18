@@ -6,7 +6,8 @@ import { m } from '@/paraglide/messages'
 import { SubmissionFeedback } from '@/modules/lms/components/SubmissionFeedback'
 import { CanvasBoundary, ListSkeleton } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { CanvasHtml, DisplayMenu, LockNote, OpenInCanvasIcon, attemptsLabel } from './common'
+import { DisplayMenu, LmsHtml, OpenOnPlatformIcon } from '@/modules/lms/content/LmsContent'
+import { LockNote, attemptsLabel } from './common'
 
 /** Canvas `submission_types`, as a student reads them. */
 const SUBMISSION_TYPES: Record<string, () => string> = {
@@ -79,14 +80,14 @@ export function AssignmentDetail({
         </dl>
         <div className="flex shrink-0 items-center gap-1">
           {a.html ? <DisplayMenu /> : null}
-          {a.web_url ? <OpenInCanvasIcon href={a.web_url} /> : null}
+          {a.web_url ? <OpenOnPlatformIcon href={a.web_url} /> : null}
         </div>
       </div>
       {a.locked ? (
         <LockNote title={m.canvas_tab_assignment_locked()} explanation={a.lock_explanation} />
       ) : null}
       {a.html ? (
-        <CanvasHtml html={a.html} />
+        <LmsHtml html={a.html} />
       ) : (
         <p className="text-sm text-muted-foreground">{m.canvas_tab_no_description()}</p>
       )}

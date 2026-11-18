@@ -31,6 +31,20 @@ from semestra.modules.portability.tables import TableAdapter
 SCHEMA_VERSION = 1
 
 
+def _current(payload: dict[str, Any]) -> dict[str, Any]:
+    """Backups up to 2.0 had copies the user kept that no longer followed their source
+    (`kept_offline`); they follow it now, with the local copy the user asked for. Read as such
+    at the same version (owner 2026-11-18: the backup versions stay)."""
+    items = [
+        {**{k: v for k, v in raw.items() if k != "kept_offline"}, "keep_copy": True}
+        if raw.get("kept_offline")
+        else {k: v for k, v in raw.items() if k != "kept_offline"}
+        for raw in payload.get("items") or []
+        if isinstance(raw, dict)
+    ]
+    return {**payload, "items": items}
+
+
 class FilesAdapter(TableAdapter):
     async def _items(self, ctx: Ctx) -> list[FilesItem]:
         return list(
@@ -76,6 +90,7 @@ class FilesAdapter(TableAdapter):
     ) -> ImportReport:
         assert isinstance(id_map, IdMap)
         opts: ImportOptions = options
+        payload = _current(payload)
         report = await super().import_(ctx, payload, id_map, opts)
         assert ctx.user_id
         for old_id, _ in self._file_items(payload):
@@ -85,8 +100,6 @@ class FilesAdapter(TableAdapter):
                 continue
             key = service.storage_key(ctx.user_id, row.id)
             size = opts.files.claim(key) if opts.files is not None else None
-            if size is None and row.kept_offline:
-                row.kept_offline = False  # without its bytes, a kept copy is its source's again
             if size is None and content.follows_source(row):
                 # Kept in step by its source (an LMS file; stored for it or not), whose
                 # credentials are not in a backup: read again, and stored again if the source
@@ -101,6 +114,8 @@ class FilesAdapter(TableAdapter):
                 continue
             row.size_bytes = size
             row.storage_key = key
+            if content.follows_source(row) and row.copy_version is None:
+                row.copy_version = row.sha256  # a backup from before copies had versions
             if row.doc_status != "unsupported":
                 row.doc_status = "pending"
                 # A copy stored for its source is read as its source's sync reads it.

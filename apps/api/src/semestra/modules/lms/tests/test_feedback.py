@@ -1,4 +1,4 @@
-"""The teacher's feedback kept in Semestra (M09 §4.3): the sync keeps the comments and rubric of
+"""The teacher's feedback kept in Semestra (M09 §4.4): the sync keeps the comments and rubric of
 imported assessments from one read of the course, the gradebook reads them from the database,
 and new comments are a recent update of the assessment."""
 

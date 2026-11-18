@@ -50,6 +50,7 @@ from semestra.modules.layouts.models import (
     LayoutsTemplate,
 )
 from semestra.modules.lms.models import (
+    LmsAnnouncement,
     LmsCache,
     LmsConnection,
     LmsCourseLink,
@@ -315,6 +316,16 @@ async def populate(
                 name="Syllabus",
                 type="info",
                 imported_at=NOW,
+            ),
+            LmsAnnouncement(
+                **u,
+                link_id=course_link.id,
+                external_id="501",
+                title="Room change",
+                html="<p>Room change</p>",
+                posted_at=NOW,
+                attachments=[{"external_id": "88", "name": "map.pdf", "size_bytes": 10}],
+                read_at=NOW,
             ),
             AgentProposal(
                 **u,

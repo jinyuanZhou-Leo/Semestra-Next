@@ -1,4 +1,4 @@
-"""The teacher's feedback, kept in Semestra (M09 §4.3): the feedback stage of the course sync and
+"""The teacher's feedback, kept in Semestra (M09 §4.4): the feedback stage of the course sync and
 what the gradebook reads.
 
 Each sync reads the user's submissions of the whole course at once (`LmsProvider.submissions`)

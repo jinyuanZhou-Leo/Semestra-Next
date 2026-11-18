@@ -18,8 +18,9 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Skeleton } from '@/ui/skeleton'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
-import { fileContentUrl } from '../open-in-canvas'
-import { IconAction, LockNote } from './common'
+import { fileContentUrl } from '@/modules/lms/content/file-url'
+import { IconAction } from '@/modules/lms/content/LmsContent'
+import { LockNote } from './common'
 
 /** What the browser shows inline; the backend streams anything else as a download (M09). */
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
@@ -123,8 +124,8 @@ function ContentCheck({ file, children }: { file: FileMeta; children: ReactNode 
   )
 }
 
-/** "Save to course files": the file is copied into the course's files (M07) and processed there,
- * or, when the course's files read it from the platform, stored there in place. */
+/** "Save to course files": the file keeps a local copy in the course's files (M07), the one it
+ * already has there or a new one, and keeps following the platform like the course's own. */
 function useSaveToCourse(fileId: string, name: string) {
   const { courseId } = useCanvasPage()
   const [saving, setSaving] = useState(false)

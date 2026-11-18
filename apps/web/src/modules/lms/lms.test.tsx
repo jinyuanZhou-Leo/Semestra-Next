@@ -71,8 +71,6 @@ function link(overrides: Partial<CourseLink> = {}): CourseLink {
     external_term: '2026 Fall',
     web_url: 'https://q.utoronto.ca/courses/101',
     sync_enabled: true,
-    files_sync: true,
-    files_offline: false,
     synced_at: '2026-09-02T10:00:00Z',
     sync_errors: {},
     created_at: '2026-09-01T10:00:00Z',
@@ -304,8 +302,32 @@ test('deleting a connection in use says what it unlinks and detaches everything'
   expect(removed.mock.calls[0]?.[0]).toContain('detach_all=true')
 })
 
+const MATERIALS_SCHEMA = {
+  namespace: 'lms.materials',
+  levels: ['program', 'course'],
+  plugin_id: null,
+  json_schema: {
+    type: 'object',
+    properties: {
+      sync: { type: 'boolean', default: true },
+      store: { type: 'string', enum: ['online', 'local'], default: 'online' },
+    },
+  },
+}
+
 test("a program's connection is locked while courses are linked through it", async () => {
   server.use(
+    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
+    http.get(`${API}/me/settings/lms.materials`, () =>
+      HttpResponse.json({
+        namespace: 'lms.materials',
+        scope_type: 'program',
+        scope_id: 'p1',
+        values: { sync: true, store: 'online' },
+        sources: { sync: 'default', store: 'default' },
+        inherited: {},
+      }),
+    ),
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({
@@ -321,9 +343,11 @@ test("a program's connection is locked while courses are linked through it", asy
     await screen.findByText(/2 courses are linked through this connection/),
   ).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: 'Connection' })).toBeDisabled()
+  // How its courses take in materials, for each course to follow or not.
+  expect(await screen.findByRole('switch', { name: 'Bring in course materials' })).toBeChecked()
 })
 
-test('course settings: guidance without a binding, then the calendar switch and unlink', async () => {
+test('course settings: guidance without a binding, then the switches, materials and unlink', async () => {
   const scope = { kind: 'course', programId: 'p1', courseId: 'c1' } as const
   server.use(
     http.get(`${API}/courses/c1/lms-link`, () =>
@@ -339,11 +363,45 @@ test('course settings: guidance without a binding, then the calendar switch and 
   first.unmount()
 
   const patched = vi.fn<(body: unknown) => void>()
+  const settingsPatched = vi.fn<(body: unknown) => void>()
   const deleted = vi.fn<() => void>()
+  const state = {
+    course_id: 'c1',
+    link: link(),
+    program_connection_id: 'k1',
+    materials: { local: 2, online: 5 },
+  }
   server.use(
-    http.get(`${API}/courses/c1/lms-link`, () =>
-      HttpResponse.json({ course_id: 'c1', link: link(), program_connection_id: 'k1' }),
+    http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json(state)),
+    http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
+    // The Program keeps local copies; the course follows it.
+    http.get(`${API}/me/settings/lms.materials`, () =>
+      HttpResponse.json({
+        namespace: 'lms.materials',
+        scope_type: 'course',
+        scope_id: 'c1',
+        values: { sync: true, store: 'local' },
+        sources: { sync: 'default', store: 'program' },
+        inherited: {
+          sync: { value: true, source: 'default' },
+          store: { value: 'local', source: 'program' },
+        },
+      }),
     ),
+    http.patch(`${API}/me/settings/lms.materials`, async ({ request }) => {
+      settingsPatched(await request.json())
+      return HttpResponse.json({
+        namespace: 'lms.materials',
+        scope_type: 'course',
+        scope_id: 'c1',
+        values: { sync: false, store: 'local' },
+        sources: { sync: 'course', store: 'program' },
+        inherited: {
+          sync: { value: true, source: 'default' },
+          store: { value: 'local', source: 'program' },
+        },
+      })
+    }),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({
         program_id: 'p1',
@@ -369,11 +427,31 @@ test('course settings: guidance without a binding, then the calendar switch and 
   )
   await userEvent.click(screen.getByRole('switch', { name: 'Sync this course' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ sync_enabled: false }))
-  await userEvent.click(screen.getByRole('switch', { name: 'Bring in course materials' }))
-  await waitFor(() => expect(patched).toHaveBeenCalledWith({ files_sync: false }))
+  // Course materials: each setting follows the Program until the course picks its own.
+  const [materials] = await screen.findAllByRole('region', { name: 'Course materials' })
+  if (!materials) throw new Error('no materials block')
+  expect(within(materials).getByText('Keep materials')).toBeInTheDocument()
+  const bring = within(materials).getByRole('button', { name: 'Off' })
+  await userEvent.click(bring)
+  await waitFor(() =>
+    expect(settingsPatched).toHaveBeenCalledWith({
+      scope_type: 'course',
+      scope_id: 'c1',
+      values: { sync: false },
+    }),
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Actions for/ }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Unlink…' }))
   const confirm = await screen.findByRole('alertdialog')
+  // What happens to the materials, in numbers.
+  expect(
+    within(confirm).getByText('With a local copy (2): saved as your own files.'),
+  ).toBeInTheDocument()
+  expect(
+    within(confirm).getByText(
+      "Read online (5): removed from the course's files. They remain on Canvas.",
+    ),
+  ).toBeInTheDocument()
   await userEvent.click(within(confirm).getByRole('button', { name: 'Unlink' }))
   await waitFor(() => expect(deleted).toHaveBeenCalled())
 })

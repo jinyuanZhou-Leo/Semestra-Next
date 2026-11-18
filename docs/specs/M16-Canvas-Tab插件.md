@@ -47,7 +47,7 @@ defineModule({
 | 视图 | 数据 | 内容 |
 |---|---|---|
 | 首页 | `overview.default_view` | `wiki` → 首页 page；`modules` / `syllabus` / `assignments` → 对应视图；`feed` → 公告列表 |
-| 公告 | `lms.announcement.list` | 列表（标题、作者、时间、未读点），详情显示清洗后的 HTML |
+| 公告 | `lms.announcement.list` | 列表（标题、作者、时间、未读点），详情显示清洗后的 HTML；数据是同步保存在 Semestra 里的（M09 §4.3） |
 | 作业 | `lms.assignment.list` | 表格（名称、分组、截止、分值、提交状态、Semestra），按分组折叠；多选"导入"，M08 审核；行点击显示描述 |
 | 成绩 | `lms.grade.list` | Canvas 得分列表；顶部推荐卡片"在成绩簿中计算 GPA 与目标"，跳转到 M03 成绩 Page |
 | 单元 | `lms.module.list` + `lms.module_item.list`（展开时懒加载） | 可展开的模块列表；条目内联渲染：页面（应用内打开）、文件（M07 预览组件 + 下载 + "保存到课程文件"）、外部链接（打开前确认）、作业（跳到作业视图对应行）、测验（跳到测验视图） |
@@ -90,8 +90,8 @@ defineModule({
 - 外部工具与未知页签的链接：Canvas Tab 对象的 `html_url` 是相对路径，M09 按连接的 `base_url` 补成绝对地址。
 
 **视图**
-- 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。
-- 公告列表的未读点来自 Canvas 公告（DiscussionTopic）的 `read_state`，M09 映射为 `Announcement.unread`；列表有 5 分钟缓存，在 Canvas 里读过后要等缓存过期或点"刷新"才消失。
+- 共享组件 `components/SafeHtml.tsx`（DOMPurify 3）：后端已用 nh3 清洗，前端再净化一次，禁止 style/表单元素；图片 `loading=lazy`，表格横向滚动，链接新标签页打开；带 `data-lms-kind`/`data-lms-ref` 的链接在插件内跳转（page/assignment/quiz/module/announcement 切换视图，file 打开预览，discussion 仍去 Canvas）。 2026-11-18 起标题行（`ViewHeader`/`DetailHeader`）、显示方式菜单、`LmsHtml`（含课程文件图片走文件代理）、`IconAction` 与「在 {provider} 中打开」移到 M09 的 `modules/lms/content/`，与「公告」页共用；插件经 `LmsContentContext` 提供显示方式与链接处理，链接仍在插件内跳转。
+- 公告列表的未读点是 Semestra 自己的已读状态（2026-11-18 起，M09 §4.3）：在这里或「公告」页读过就消失；允许修改平台时，同步也会带来 Canvas 上的已读。
 - 作业表（TanStack Table）按作业组分组、可折叠，组标题显示数量与权重；工具栏常驻（不会因勾选改变高度），"导入到成绩簿"/"导入到待办"调用 `lms.assignment.import`（`as_kind`）后用 `openImport({ source: 'session' })` 进入 M08 审核；已导入的行不能勾选（Base UI 的勾选框是 span，生成样式里的 `disabled:` 匹配不到，所以调用方加 `data-disabled:` 让它变淡）。点击行在下方展开描述，`ref` 指向的行会展开并滚动到可见处。表格用 `table-fixed` 和固定列宽（名称列占剩余宽度），展开描述或折叠分组时列不移动。
 - 成绩页顶部 `Alert` 引导到成绩簿（`grades` Page）。测验表每行"在 Canvas 中打开"。
 - 单元条目：页面/作业/测验在插件内打开，点文件名打开预览，行尾有下载、"保存到课程文件"两个按钮，外部链接先弹确认框显示完整地址，外部工具和讨论在 Canvas 中打开。
@@ -105,7 +105,7 @@ defineModule({
   - 作业展开后显示开放/关闭时间、提交方式、可提交次数、锁定原因，以及"成绩与反馈"（`lms.submission.get`：得分、第几次提交、评分时间、老师评语、评分标准每项的评定与得分）。
   - 单元：标题行显示进度（已完成/进行中/未解锁），展开后说明前置单元和是否需按顺序完成；条目显示截止时间、分值、锁（悬停看 Canvas 给的原因）与完成要求（圆圈/对勾，悬停看要求）。
   - 测验表新增限时、次数（已用/允许）和我的得分（通过 `assignment_id` 对上作业列表里的 submission）；锁定的测验在标题后显示锁和原因。锁定页面在空状态里显示原因。
-  - 打开未读公告时，若账户设置"允许在平台上做修改"已开，同时在 Canvas 上标为已读，列表和课程看板上的未读点随之消失（直接改查询缓存，不重新请求）；失败不提示。
+  - 打开未读公告时标为已读（2026-11-18 起总是本地标记，允许修改平台时再写回 Canvas），列表和课程看板上的未读点随之消失（直接改查询缓存）；失败不提示。
 - **界面调整（2026-10-27 界面评估后，标题区按方案乙）**：
   - 宽度 ≥ `xl` 时才显示左侧菜单列（1024 宽加上应用侧边栏后表格放不下），更窄时是下拉加控件。去掉内容区上方的大标题行；课程代码与学期放在左侧菜单顶部，"更新于…"（每 30 秒按当前时间重算）、刷新、在 Canvas 中打开放在菜单底部，窄屏时在下拉框旁边（图标按钮带 tooltip）。`CourseOverview` 新增 `fetched_at`：概览这次从平台读取的时间，随缓存一起存，刷新后更新。详情页（公告、页面、syllabus）的"在 Canvas 中打开"改为图标按钮。
   - 页面根是 `flex flex-col`，内容区是占满剩余高度的 flex 列，外部工具、锁定页面、空文件夹等空状态垂直居中。
@@ -117,7 +117,7 @@ defineModule({
   - 公告列表：未读的标题加粗，前面有圆点（之前是行内 span，宽度为 0 不显示）；每条多一行正文摘要（前端从清洗后的 HTML 取文字）。
   - **Canvas 正文里的图片**：Canvas 的图片地址（`/courses/:id/files/:id/preview` 等）要 Canvas 登录才能看。M09 清洗 HTML 时，指向本课程文件的 `<img>` 和链接一样带上 `data-lms-kind="file"`/`data-lms-ref`，`SafeHtml` 新增 `imageSrc`，插件把这些图片指向文件代理 `/courses/{id}/lms/files/{fid}/content`。原地址存进 `data-original-src`，代理加载失败（别的课程的文件、学生的 Files API 读不到的文件）时换回原地址，已登录 Canvas 的浏览器仍可能显示。
   - **修复**：`FileMeta.download_url` 标了 `exclude=True`，而所有读接口都经 `service.cached()` 把 DTO 转成 JSON 再还原，下载地址因此丢失，Canvas 上的文件预览、下载和"保存到课程文件"一律报 `lms.forbidden`。缓存的 JSON 现在保留 `exclude=True` 的字段（只在服务端）：`Dto` 带一个 wrap 序列化器，序列化上下文 `dto.INTERNAL` 下补回这些字段（嵌套的 DTO 也会，如 `FolderListing.files`），对外的 schema 与输出仍不含它；测试用的假 provider 也像 Canvas 一样在没有下载地址时报错。
-  - **原样显示**（2026-11-06）：页面（含首页）、公告、作业说明和课程大纲可以用“简洁”（应用排版，去掉内联样式，原来的做法）或“Canvas 样式”显示。M09 清洗时保留 `style`，但只留 `lms/html.py` 的 `STYLE_PROPERTIES`（颜色、字体、间距、边框、尺寸等；不留定位、层级、显示与背景图这类会遮挡页面或加载资源的属性），`SafeHtml` 在浏览器里按同一份清单再过滤一次（包括浏览器展开的分写属性）。Agent/MCP 拿到的是 Markdown，不受影响。`SafeHtml` 的 `original` 把内容放在浅色卡片里（`components/safe-html.css` 的 `.lms-original`：Canvas 的字体、文字色和链接色，补回 Tailwind preflight 去掉的标题、列表等默认样式），深色主题下也保持浅色，因为作者的颜色按浅色页面挑选。学校主题文件里按 class 套用的样式拿不到。默认方式是插件设置 `plugin.canvas-tab` 的 `display`（`simplified`/`original`，账户级），各视图标题旁的下拉菜单（`DisplayMenu`）只改当前打开的页面，不保存。已缓存的读取在刷新或过期（五分钟）前仍是去掉样式的版本。
+  - **原样显示**（2026-11-06）：页面（含首页）、公告、作业说明和课程大纲可以用“简洁”（应用排版，去掉内联样式，原来的做法）或“Canvas 样式”显示。M09 清洗时保留 `style`，但只留 `lms/html.py` 的 `STYLE_PROPERTIES`（颜色、字体、间距、边框、尺寸等；不留定位、层级、显示与背景图这类会遮挡页面或加载资源的属性），`SafeHtml` 在浏览器里按同一份清单再过滤一次（包括浏览器展开的分写属性）。Agent/MCP 拿到的是 Markdown，不受影响。`SafeHtml` 的 `original` 把内容放在浅色卡片里（`components/safe-html.css` 的 `.lms-original`：Canvas 的字体、文字色和链接色，补回 Tailwind preflight 去掉的标题、列表等默认样式），深色主题下也保持浅色，因为作者的颜色按浅色页面挑选。学校主题文件里按 class 套用的样式拿不到。默认方式原是插件设置 `plugin.canvas-tab` 的 `display`，2026-11-18 起是 LMS 的账户设置 `lms.display`（M09 §4.3，与「公告」页共用），各视图标题旁的下拉菜单（`DisplayMenu`）只改当前打开的页面，不保存。已缓存的读取在刷新或过期（五分钟）前仍是去掉样式的版本。
 - **理顺界面（2026-11-07）**：
   - **作业与成绩合并**：Canvas 菜单里的作业、测验、成绩三项合成一项“作业与成绩”（`navigation.ts` 的 `MERGED`，放在三者中第一个的位置），`?tab=grades|quizzes` 跳到 `assignments`，测验 `ref` 变成 `quiz:<id>`。一张表：计分测验并到对应作业行（名称前有测验图标，展开后多次数、题目数、限时），练习测验单独成组放最后（不能勾选、不显示反馈）。去掉成绩页的总评卡片和引导 `Alert`，删掉 `GradesView`、`QuizzesView`。
   - 表格用 TanStack 的排序（名称、截止、得分；空值排最后，得分按得分率）和选择（`enableRowSelection` 排除已导入与练习测验）；表头有全选，分组行有本组勾选。勾选状态经 context 传给单元格（React Compiler 会缓存 `row` 不变的单元格，直接读 `row.getIsSelected()` 不会刷新）。展开详情里评分标准表加圆角边框与表头底色，老师评语用 shadcn `Item`。评语与评分标准的渲染在 M09 的 `modules/lms/components/SubmissionFeedback.tsx`，与成绩册的“反馈”对话框共用。

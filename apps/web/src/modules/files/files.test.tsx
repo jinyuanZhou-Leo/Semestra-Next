@@ -20,19 +20,28 @@ import { findDuplicates, planUpload } from './upload'
 // pdf.js does not run in jsdom; the viewer's page is enough to check where it opens.
 vi.mock('react-pdf', () => ({
   pdfjs: { GlobalWorkerOptions: {} },
+  // A file whose id starts with "offline" cannot be read (its platform is unreachable).
   Document: ({
     children,
+    file,
     onLoadSuccess,
+    onLoadError,
   }: {
     children: ReactNode
+    file: string
     onLoadSuccess: (doc: unknown) => void
+    onLoadError?: () => void
   }) => {
     useEffect(() => {
+      if (file.includes('/files/offline')) {
+        onLoadError?.()
+        return
+      }
       onLoadSuccess({
         numPages: 9,
         getPage: async () => ({ getViewport: () => ({ width: 210, height: 297 }) }),
       })
-    }, [onLoadSuccess])
+    }, [file, onLoadSuccess, onLoadError])
     return <div>{children}</div>
   },
   Page: ({ pageNumber }: { pageNumber: number }) => <p>PDF page {pageNumber}</p>,
@@ -81,8 +90,11 @@ function item(overrides: Partial<ItemOut> = {}): ItemOut {
     page_count: 9,
     ocr_skipped_pages: 0,
     job_id: null,
+    source_name: null,
+    unseen: false,
     created_at: '2026-01-10T12:00:00Z',
     updated_at: '2026-01-10T12:00:00Z',
+    modified_at: '2026-01-10T12:00:00Z',
     ...overrides,
   }
 }
@@ -257,6 +269,85 @@ test('a search hit opens the preview on its page', async () => {
   expect(within(hit).getByText('midterm').tagName).toBe('MARK')
   await userEvent.click(hit)
   expect(await screen.findByText('PDF page 3')).toBeInTheDocument()
+})
+
+test('a file new from the LMS is marked until opened, and shows where it is kept', async () => {
+  const seen = vi.fn<(id: string) => void>()
+  const calls: string[] = []
+  items = [
+    item({
+      id: 'offline1',
+      folder_id: 'f1',
+      display_name: 'Week 3.pdf',
+      stored: false,
+      follows_source: true,
+      source_kind: 'lms',
+      source_ref: 'lms:file:301',
+      source_name: 'Canvas',
+      unseen: true,
+      modified_at: '2026-02-01T12:00:00Z',
+    }),
+  ]
+  server.use(
+    http.get(`${API}/courses/c1/files`, () =>
+      HttpResponse.json({
+        folders: [makeFolder('f1', 'Lecture slides')],
+        items,
+        next_cursor: null,
+      }),
+    ),
+    http.post(`${API}/files/:id\\:seen`, ({ params }) => {
+      seen(String(params.id))
+      items = items.map((i) => ({ ...i, unseen: false }))
+      return HttpResponse.json(items[0])
+    }),
+    http.post(`${API}/files/:id\\:keep-copy`, ({ request }) => {
+      calls.push(request.url.split(':').at(-1) ?? '')
+      return HttpResponse.json(items[0])
+    }),
+    http.post(`${API}/files/:id\\:make-own`, ({ request }) => {
+      calls.push(request.url.split(':').at(-1) ?? '')
+      return HttpResponse.json(items[0])
+    }),
+  )
+  const user = userEvent.setup()
+  mount()
+  // The folder holding it is marked too.
+  const folder = await screen.findByRole('button', { name: /^Lecture slides/ })
+  expect(within(folder).getByText('New')).toBeInTheDocument()
+  await user.click(folder)
+
+  const name = await screen.findByRole('button', { name: /^Week 3\.pdf/ })
+  expect(within(name).getByText('New')).toBeInTheDocument()
+  expect(screen.getByText('Canvas')).toBeInTheDocument()
+  expect(screen.getByText('Read online')).toBeInTheDocument()
+
+  // Kept online or as a local copy; or the user's own, no longer following Canvas.
+  await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Keep a local copy' }))
+  await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
+  expect(await screen.findByText('No longer updated or removed with Canvas.')).toBeInTheDocument()
+  await user.click(screen.getByRole('menuitem', { name: /^Save as my file/ }))
+  await waitFor(() => expect(calls).toEqual(['keep-copy', 'make-own']))
+
+  // Deleting it says what happens: no sync brings it back, and the sync status can restore it.
+  await user.click(screen.getByRole('button', { name: 'Actions for Week 3.pdf' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+  const confirm = await screen.findByRole('alertdialog')
+  expect(
+    within(confirm).getByText(
+      "It won't sync from Canvas again. You can restore it under Removed materials in the sync status.",
+    ),
+  ).toBeInTheDocument()
+  await user.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+
+  // Opened: no longer new. Canvas can't be reached: what was read from it last time instead.
+  await user.click(name)
+  await waitFor(() => expect(seen).toHaveBeenCalledWith('offline1'))
+  expect(
+    await screen.findByText("Can't read the original from Canvas right now"),
+  ).toBeInTheDocument()
+  expect(await screen.findByText('Read from page one')).toBeInTheDocument()
 })
 
 test('links ask before leaving, and can remember the site', async () => {
