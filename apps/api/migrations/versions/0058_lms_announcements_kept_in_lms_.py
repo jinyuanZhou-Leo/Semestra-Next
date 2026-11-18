@@ -4,8 +4,8 @@ The announcements stage now stores what it reads. Each link's `watched_at` (when
 read the course) is cleared, so the first read after the upgrade stores what is there as read and
 reports nothing, as on a newly linked course.
 
-Revision ID: 0057
-Revises: 0056
+Revision ID: 0058
+Revises: 0057
 Create Date: 2026-11-18 03:46:49.470246
 
 """
@@ -18,8 +18,8 @@ from alembic import op
 import semestra.core.db
 
 # revision identifiers, used by Alembic.
-revision: str = "0057"
-down_revision: str | Sequence[str] | None = "0056"
+revision: str = "0058"
+down_revision: str | Sequence[str] | None = "0057"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
