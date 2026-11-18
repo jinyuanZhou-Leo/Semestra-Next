@@ -2,7 +2,15 @@ import type { ItemOut, SearchHit } from '@semestra/api-client'
 import { filesContentOptions, filesDocumentOutlineOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { Download, FileX, Search, SquareArrowOutUpRight, X } from 'lucide-react'
+import {
+  CloudOff,
+  Download,
+  FileX,
+  RotateCw,
+  Search,
+  SquareArrowOutUpRight,
+  X,
+} from 'lucide-react'
 import { Suspense, useRef, useState } from 'react'
 import { formatHotkey, useHotkey } from '@/app/hotkeys'
 import { useUiPref } from '@/app/ui-pref'
@@ -12,6 +20,7 @@ import { formatBytes } from '@/lib/format'
 import { SEGMENT, SEGMENTED } from '@/lib/segmented'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
 import {
   Empty,
@@ -125,6 +134,34 @@ function PreviewBody({
   onPageChange: (page: number) => void
 }) {
   const kind = previewKind(item)
+  // SAMPLE (PR 3): which attempt at reading the original failed; "Try again" starts the next.
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(-1)
+  if (kind === 'pdf' && view === 'original' && failed === attempt && !item.stored) {
+    const source = (item as { source_name?: string | null }).source_name ?? ''
+    return (
+      <>
+        <Alert className="m-4 mb-0 w-auto">
+          <CloudOff aria-hidden />
+          <AlertTitle>{m.files_preview_unreachable({ source })}</AlertTitle>
+          <AlertDescription>{m.files_preview_unreachable_description()}</AlertDescription>
+          <AlertAction>
+            <Button size="sm" variant="outline" onClick={() => setAttempt(attempt + 1)}>
+              <RotateCw aria-hidden />
+              {m.common_retry()}
+            </Button>
+          </AlertAction>
+        </Alert>
+        <DocumentText
+          itemId={item.id}
+          target={target}
+          terms={terms}
+          onNavigate={onNavigate}
+          onPageChange={onPageChange}
+        />
+      </>
+    )
+  }
   if ((kind === 'pdf' && view === 'text') || kind === 'document') {
     return (
       <DocumentText
@@ -146,7 +183,9 @@ function PreviewBody({
         }
       >
         <LazyPdfViewer
+          key={attempt}
           url={contentUrl(item.id)}
+          onFail={() => setFailed(attempt)}
           target={target}
           terms={terms}
           onPageChange={onPageChange}

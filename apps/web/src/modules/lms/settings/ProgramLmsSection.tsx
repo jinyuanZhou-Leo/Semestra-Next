@@ -6,8 +6,17 @@ import {
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
+import { useId, useState } from 'react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
+import { ChoiceControl } from '@/app/settings/choice'
+import { Switch } from '@/ui/switch'
+import {
+  SettingRow,
+  SettingsBlock,
+  SettingsGroup,
+  SettingsNote,
+  useSettingsDialog,
+} from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -131,9 +140,58 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
             {linked > 0 ? (
               <SettingsNote>{m.lms_binding_locked({ count: linked })}</SettingsNote>
             ) : null}
+            {bound ? <MaterialDefaults provider={uis.get(bound.provider)?.label() ?? ''} /> : null}
           </div>
         )
       }}
     </AsyncBoundary>
+  )
+}
+
+/**
+ * SAMPLE (PR 3): how the Program's courses take in materials, unless a course sets its own. The
+ * real rows come from the settings namespace (Program and course levels), like every two-level
+ * setting.
+ */
+function MaterialDefaults({ provider }: { provider: string }) {
+  const [sync, setSync] = useState(true)
+  const [store, setStore] = useState<'read' | 'stored'>('read')
+  const syncId = useId()
+  const storeId = useId()
+  return (
+    <div className="pt-4">
+      <SettingsBlock title={m.lms_materials_group()}>
+        <SettingsGroup>
+      <SettingRow
+        label={m.lms_course_files_sync()}
+        description={m.lms_program_files_sync_description({ provider })}
+        htmlFor={syncId}
+      >
+        <Switch id={syncId} checked={sync} onCheckedChange={setSync} />
+      </SettingRow>
+      <SettingRow label={m.lms_course_files_store()} labelId={storeId}>
+        <ChoiceControl
+          labelId={storeId}
+          value={store}
+          disabled={!sync}
+          selectClassName="w-56"
+          options={[
+            {
+              value: 'read',
+              label: m.lms_course_files_store_read(),
+              hint: m.lms_course_files_store_read_hint({ provider }),
+            },
+            {
+              value: 'stored',
+              label: m.lms_course_files_store_stored(),
+              hint: m.lms_course_files_store_stored_hint({ provider }),
+            },
+          ]}
+          onChange={setStore}
+        />
+      </SettingRow>
+        </SettingsGroup>
+      </SettingsBlock>
+    </div>
   )
 }

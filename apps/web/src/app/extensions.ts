@@ -95,6 +95,15 @@ export type PageContribution = {
    */
   // oxlint-disable-next-line no-explicit-any
   availabilityQuery?: (scope: Scope) => UseQueryOptions<any, any, any, any> | null
+  /**
+   * SAMPLE (PR 4): how many things on the page wait to be looked at, shown after its name on the
+   * tab (not in the sidebar). The query goes through the cache the page reads from.
+   */
+  unread?: {
+    // oxlint-disable-next-line no-explicit-any
+    query: (scope: Scope) => UseQueryOptions<any, any, any, any> | null
+    count: (scope: Scope, data: unknown) => number
+  }
 }
 
 /** s = 1×1, m = 2×1, l = 2×2, xl = 4×2 on a 4-column grid. */

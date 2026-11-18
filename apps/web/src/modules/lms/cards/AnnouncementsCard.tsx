@@ -11,6 +11,7 @@ import { CircleAlert, Megaphone } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
@@ -65,6 +66,14 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
             to={announcementPath(scope, course.id, item.external_id)}
             className="flex items-center gap-2 rounded-lg hover:bg-muted/50"
           >
+            {/* SAMPLE (PR 4): the same dot as the page's list; its slot stays, so titles align. */}
+            <span className="flex w-2 shrink-0 items-center">
+              {item.unread ? (
+                <span className="size-2 rounded-full bg-primary">
+                  <span className="sr-only">{m.lms_announcements_unread()}</span>
+                </span>
+              ) : null}
+            </span>
             {courseId ? null : (
               <span
                 aria-hidden
@@ -72,7 +81,7 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
                 style={{ backgroundColor: courseColor(course) }}
               />
             )}
-            <span className="min-w-0 flex-1 truncate">
+            <span className={cn('min-w-0 flex-1 truncate', item.unread && 'font-medium')}>
               {item.title}
               {courseId ? null : (
                 <span className="ml-1.5 text-xs text-muted-foreground">{courseLabel(course)}</span>

@@ -143,6 +143,18 @@ export default defineModule({
       component: preloadable(() => import('./pages/AnnouncementsPage')),
       availabilityQuery: announcementLinksQuery,
       isAvailable: hasAnnouncements,
+      unread: {
+        query: (scope) =>
+          scope.kind === 'course'
+            ? lmsAnnouncementListOptions({ path: { course_id: scope.courseId } })
+            : scope.kind === 'term'
+              ? lmsTermAnnouncementListOptions({ path: { term_id: scope.termId } })
+              : null,
+        count: (_scope, data) =>
+          ((data as { items?: { unread?: boolean }[] } | undefined)?.items ?? []).filter(
+            (a) => a.unread,
+          ).length,
+      },
       // Not on hover: a list the server has not cached yet is read from the platform.
       prefetch: (scope, queryClient, { preload }) => {
         if (preload) return

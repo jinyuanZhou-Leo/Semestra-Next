@@ -1,6 +1,7 @@
 import type { CourseLink, ExternalCourse } from '@semestra/api-client'
 import {
   academicsCourseGetOptions,
+  filesItemListOptions,
   lmsConnectionListOptions,
   lmsCourseLinkDeleteMutation,
   lmsCourseLinkGetOptions,
@@ -11,7 +12,15 @@ import {
   lmsSyncRequestMutation,
 } from '@semestra/api-client/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, Link2, Link2Off, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  Cloud,
+  ExternalLink,
+  HardDrive,
+  Link2,
+  Link2Off,
+  RefreshCw,
+  TriangleAlert,
+} from 'lucide-react'
 import { useId, useState } from 'react'
 import { toast } from 'sonner'
 import type { SettingsSectionProps } from '@/app/extensions'
@@ -166,6 +175,11 @@ function LinkedCourse({
   const Logo = useProviderUis().get(link.provider)?.logo ?? Link2
   const provider = useProviderName(link.provider) ?? link.provider
   const [unlinking, setUnlinking] = useState(false)
+  const [following, setFollowing] = useState(true)
+  const files = useQuery(filesItemListOptions({ path: { course_id: courseId } })).data?.items ?? []
+  const synced = files.filter((i) => i.follows_source)
+  const stored = synced.filter((i) => i.stored).length
+  const online = synced.length - stored
   const refresh = () => invalidateLms(queryClient, { courseId })
   const update = useMutation({
     ...lmsCourseLinkUpdateMutation(),
@@ -291,7 +305,17 @@ function LinkedCourse({
             labelId={storeId}
             value={link.files_offline ? 'stored' : 'read'}
             disabled={update.isPending || !link.sync_enabled || !link.files_sync}
-            selectClassName="w-44"
+            selectClassName="w-64"
+            // SAMPLE (PR 3): the Program's choice applies until the course sets its own.
+            follow={{
+              selected: following,
+              short: m.settings_follow(),
+              full: m.settings_follow_option({
+                level: 'Program',
+                value: m.lms_course_files_store_read(),
+              }),
+              onSelect: () => setFollowing(true),
+            }}
             options={[
               {
                 value: 'read',
@@ -304,12 +328,13 @@ function LinkedCourse({
                 hint: m.lms_course_files_store_stored_hint({ provider }),
               },
             ]}
-            onChange={(next) =>
+            onChange={(next) => {
+              setFollowing(false)
               update.mutate({
                 path: { course_id: courseId },
                 body: { files_offline: next === 'stored' },
               })
-            }
+            }}
           />
         </SettingRow>
       </SettingsGroup>
@@ -336,6 +361,25 @@ function LinkedCourse({
         onOpenChange={setUnlinking}
         title={m.lms_course_unlink_title()}
         description={m.lms_course_unlink_desc()}
+        extra={
+          synced.length > 0 ? (
+            // SAMPLE (PR 3): what happens to the course's materials, in numbers.
+            <ul className="flex flex-col gap-2 text-sm">
+              {stored > 0 ? (
+                <li className="flex items-start gap-2.5">
+                  <HardDrive aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span>{m.lms_course_unlink_kept({ count: stored })}</span>
+                </li>
+              ) : null}
+              {online > 0 ? (
+                <li className="flex items-start gap-2.5">
+                  <Cloud aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <span>{m.lms_course_unlink_removed({ count: online, provider })}</span>
+                </li>
+              ) : null}
+            </ul>
+          ) : undefined
+        }
         confirmLabel={m.lms_course_unlink()}
         pending={remove.isPending}
         onConfirm={() => remove.mutate({ path: { course_id: courseId } })}

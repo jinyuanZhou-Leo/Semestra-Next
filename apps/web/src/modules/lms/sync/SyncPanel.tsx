@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Undo2,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { type ReactNode, useState } from 'react'
 import { useSettingsDialog } from '@/app/settings/use-settings-dialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -40,6 +41,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle }
 import { PopoverDescription, PopoverHeader, PopoverTitle } from '@/ui/popover'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
+import { filePath } from '@/modules/files/location'
 import { importAssignments } from '../import/assignments'
 import { ERROR_LABEL } from '../settings/ConnectionsSection'
 import { byCourse, fieldLabel, formatValue, pendingCount } from './labels'
@@ -175,6 +177,7 @@ function Panel({
         ? m.lms_sync_subtitle({ ago: syncedAgo(status.synced_at, now), every })
         : m.lms_sync_subtitle_never({ every })
   const groupProps = (courseId: string) => ({ color: colors.get(courseId) })
+  const removed = (status as MaterialStatus).removed_materials ?? []
 
   return (
     <div className="-m-4 flex max-h-[min(36rem,75vh)] flex-col">
@@ -319,15 +322,26 @@ function Panel({
                 course={group.course}
                 {...groupProps(group.courseId)}
               >
-                {group.items.map((change) => (
-                  <ChangeRow
-                    key={change.id}
-                    change={change}
-                    now={now}
-                    busy={busy}
-                    onToggle={() => void toggle(change)}
-                  />
-                ))}
+                {group.items.map((change) =>
+                  (change as MaterialChange).material ? (
+                    <MaterialRow
+                      key={change.id}
+                      change={change as MaterialChange}
+                      programId={programId}
+                      provider={provider}
+                      now={now}
+                      onOpen={onClose}
+                    />
+                  ) : (
+                    <ChangeRow
+                      key={change.id}
+                      change={change}
+                      now={now}
+                      busy={busy}
+                      onToggle={() => void toggle(change)}
+                    />
+                  ),
+                )}
               </CourseGroup>
             ))
           ) : (
@@ -370,6 +384,52 @@ function Panel({
                         busy={busy}
                         onFollow={() => resolveField(d.id, d.field, 'platform')}
                       />
+                    </Fold>
+                  ))}
+                </CourseGroup>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
+
+        {removed.length > 0 ? (
+          <Collapsible className="flex flex-col gap-2">
+            <CollapsibleTrigger
+              render={
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
+                />
+              }
+            >
+              <ChevronRight aria-hidden className="transition-transform" />
+              {m.lms_sync_removed_materials({ count: removed.length })}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-2">
+              {byCourse(removed).map((group) => (
+                <CourseGroup
+                  key={group.courseId}
+                  course={group.course}
+                  {...groupProps(group.courseId)}
+                >
+                  {group.items.map((item) => (
+                    <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                      <Item size="xs" className="px-0 py-1.5">
+                        <ItemContent className="min-w-0">
+                          <ItemTitle className="w-full">
+                            <span className="truncate">{item.title}</span>
+                          </ItemTitle>
+                          <ItemDescription className="text-xs">
+                            {m.lms_sync_removed_by_you({ ago: formatTimeAgo(item.at, now) })}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions>
+                          <Button size="xs" variant="outline" disabled={busy}>
+                            {m.lms_sync_restore()}
+                          </Button>
+                        </ItemActions>
+                      </Item>
                     </Fold>
                   ))}
                 </CourseGroup>
@@ -448,6 +508,72 @@ function Panel({
         }}
       />
     </div>
+  )
+}
+
+/**
+ * SAMPLE (PR 3): what the files stage of a sync reports. A course material that came, changed or
+ * went on the platform; `item` is the course file it is now (none once it is gone).
+ */
+type MaterialChange = SyncChange & {
+  material: 'added' | 'updated' | 'removed' | 'kept'
+  folder?: string | null
+  item?: { id: string; course_id: string; folder_id: string | null } | null
+}
+type MaterialStatus = SyncStatus & {
+  /** Materials the user deleted from the course's files: no longer synced until restored. */
+  removed_materials?: { id: string; course_id: string; course: string; title: string; at: string }[]
+}
+
+function MaterialRow({
+  change,
+  programId,
+  provider,
+  now,
+  onOpen,
+}: {
+  change: MaterialChange
+  programId: string
+  provider: string
+  now: number
+  onOpen: () => void
+}) {
+  const what = {
+    added: () => m.lms_sync_material_added(),
+    updated: () => m.lms_sync_material_updated(),
+    removed: () => m.lms_sync_material_removed({ provider }),
+    kept: () => m.lms_sync_material_kept({ provider }),
+  }[change.material]()
+  const gone = change.material === 'removed'
+  return (
+    <Item size="xs" className={cn('px-0 py-1.5', gone && 'text-muted-foreground')}>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="w-full">
+          {change.item ? (
+            <Link
+              to={filePath(programId, change.item)}
+              className="truncate hover:underline"
+              onClick={onOpen}
+            >
+              {change.title}
+            </Link>
+          ) : (
+            <span className={cn('truncate', gone && 'line-through')}>{change.title}</span>
+          )}
+        </ItemTitle>
+        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
+          <span>{what}</span>
+          {change.folder && !gone ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>{change.folder}</span>
+            </>
+          ) : null}
+          <span aria-hidden>·</span>
+          <span>{formatTimeAgo(change.at, now)}</span>
+        </ItemDescription>
+      </ItemContent>
+    </Item>
   )
 }
 

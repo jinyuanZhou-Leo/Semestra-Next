@@ -5,14 +5,16 @@ import {
   lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, CircleAlert, ExternalLink, Megaphone, SearchX } from 'lucide-react'
 import type { PageProps } from '@/app/extensions'
 import { SafeHtml } from '@/components/SafeHtml'
-import { formatDate, formatDateTime } from '@/lib/format'
+import { formatBytes, formatDate, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourse, useCourses } from '@/modules/academics/queries'
+import { FileIcon } from '@/modules/files/components/FileIcon'
+import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -24,7 +26,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -38,7 +40,7 @@ import { Skeleton } from '@/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { plainText, postKey } from '../announcements'
 import { useProviderName } from '../providers'
-import { useMarkRead, useWritesAllowed } from '../read-state'
+import { useMarkRead } from '../read-state'
 
 /** An announcement with the course it was posted in. */
 type Post = { item: Announcement; course: Course }
@@ -70,7 +72,6 @@ export default function AnnouncementsPage({ scope }: PageProps) {
     })
   const canGoBack = useCanGoBack()
   const back = () => (canGoBack ? router.history.back() : go({ post: undefined }, true))
-  const unreadShown = useWritesAllowed()
   useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
 
   if (posts.failed && posts.rows.length === 0) {
@@ -125,7 +126,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
                 key={keyOf(p)}
                 post={p}
                 withCourse={term}
-                unread={unreadShown && Boolean(p.item.unread)}
+                unread={Boolean(p.item.unread)}
                 selected={p === open}
                 onOpen={() => go({ post: keyOf(p) })}
               />
@@ -319,7 +320,55 @@ function Reading({
         ) : null}
       </header>
       {a.html ? <SafeHtml html={a.html} /> : null}
+      <Attachments files={(a as WithAttachments).attachments ?? []} programId={course.program_id} />
     </article>
+  )
+}
+
+/**
+ * SAMPLE (PR 4): the files a teacher attached, kept with the announcement. `item` is the course
+ * file it is: it opens in the file preview, not on the platform.
+ */
+type Attachment = {
+  name: string
+  size_bytes: number
+  mime_type: string | null
+  item: { id: string; course_id: string; folder_id: string | null }
+}
+type WithAttachments = Announcement & { attachments?: Attachment[] }
+
+function Attachments({ files, programId }: { files: Attachment[]; programId: string }) {
+  if (files.length === 0) return null
+  return (
+    <section className="flex flex-col gap-2 border-t border-border pt-4">
+      <h3 className="text-xs text-muted-foreground">
+        {m.lms_announcements_attachments({ count: files.length })}
+      </h3>
+      <ItemGroup className="grid gap-2 @page-lg/main:grid-cols-2">
+        {files.map((file) => (
+          <Item
+            key={file.item.id}
+            variant="outline"
+            size="sm"
+            render={<Link to={filePath(programId, file.item)} className="hover:bg-muted/50" />}
+          >
+            <ItemMedia>
+              <FileIcon
+                item={{ kind: 'file', mime_type: file.mime_type }}
+                aria-hidden
+                className="size-4 text-muted-foreground"
+              />
+            </ItemMedia>
+            <ItemContent className="min-w-0 gap-0">
+              <ItemTitle className="w-full">
+                <span className="truncate">{file.name}</span>
+              </ItemTitle>
+              <ItemDescription className="text-xs">{formatBytes(file.size_bytes)}</ItemDescription>
+            </ItemContent>
+          </Item>
+        ))}
+      </ItemGroup>
+    </section>
   )
 }
 

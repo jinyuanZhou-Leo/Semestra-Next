@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { MoreHorizontal } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
@@ -13,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { type Scope, scopePath } from '../extensions'
+import { type PageContribution, type Scope, scopePath } from '../extensions'
 import { useHostAction } from '../commands/bus'
 import { ManagePagesDialog } from './ManagePagesDialog'
 import { useScopePages } from './nav'
@@ -78,6 +79,7 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
             >
               <page.icon aria-hidden className="size-4" />
               {page.title()}
+              {page.unread ? <Unread page={page} scope={scope} /> : null}
             </a>
           )
         })}
@@ -112,5 +114,18 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
       </DropdownMenu>
       <ManagePagesDialog scope={scope} open={managing} onOpenChange={setManaging} />
     </div>
+  )
+}
+
+/** SAMPLE (PR 4): the number of unread things on a page, after its name. Nothing at zero. */
+function Unread({ page, scope }: { page: PageContribution; scope: Scope }) {
+  const options = page.unread?.query(scope)
+  const data = useQuery({ ...(options ?? { queryKey: ['none'] }), enabled: Boolean(options) }).data
+  const count = data === undefined ? 0 : (page.unread?.count(scope, data) ?? 0)
+  if (count === 0) return null
+  return (
+    <span className="rounded-full bg-primary/10 px-1.5 text-xs leading-5 font-medium text-primary tabular-nums">
+      {count}
+    </span>
   )
 }

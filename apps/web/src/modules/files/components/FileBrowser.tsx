@@ -23,6 +23,9 @@ import {
   FileSearch,
   Folder,
   FolderInput,
+  Cloud,
+  FileOutput,
+  HardDrive,
   HardDriveDownload,
   LayoutGrid,
   List,
@@ -107,17 +110,40 @@ function usePinToggle() {
   })
 }
 
+/**
+ * SAMPLE (PR 3): what the list will get from the API for a file that follows the LMS. `seen` is
+ * false until the file is opened or previewed; `source_name` is the platform's name;
+ * `source_updated_at` is when the platform says it last changed.
+ */
+export type Synced = ItemOut & {
+  seen?: boolean
+  source_name?: string | null
+  source_updated_at?: string | null
+}
+
+/** The mark of something not looked at yet: the same dot as an unread announcement. */
+export function NewDot({ className }: { className?: string }) {
+  return (
+    <span className={cn('size-2 shrink-0 rounded-full bg-primary', className)}>
+      <span className="sr-only">{m.files_new()}</span>
+    </span>
+  )
+}
+
 function NameCell({ row }: CellProps) {
   const { open } = useHandlers()
-  const item = row.original
+  const item = row.original as Synced
+  const fresh = item.seen === false
   return (
     <button
       type="button"
       onClick={() => open(item)}
-      className="flex max-w-full items-center gap-2.5 text-left hover:underline"
+      className="relative flex max-w-full items-center gap-2.5 text-left hover:underline"
     >
+      {/* In the gap before the icon, so a row does not move when its dot goes. */}
+      {fresh ? <NewDot className="absolute top-1/2 -left-4 -translate-y-1/2" /> : null}
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{item.display_name}</span>
+      <span className={cn('truncate', fresh && 'font-medium')}>{item.display_name}</span>
     </button>
   )
 }
@@ -149,15 +175,41 @@ function SizeCell({ row }: CellProps) {
   )
 }
 
+const changedAt = (item: ItemOut) => (item as Synced).source_updated_at ?? item.updated_at
+
 function UpdatedCell({ row }: CellProps) {
-  return formatDateTime(row.original.updated_at)
+  return formatDateTime(changedAt(row.original))
+}
+
+/**
+ * Where a file that follows the LMS is kept: read from the platform when opened, or stored here.
+ * The user's own files show nothing.
+ */
+function Origin({ item }: { item: Synced }) {
+  if (!item.follows_source || !item.source_name) return null
+  const Icon = item.stored ? HardDrive : Cloud
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      <Icon aria-hidden className="size-3.5 shrink-0" />
+      <span className="truncate">
+        {item.stored
+          ? m.files_origin_stored({ source: item.source_name })
+          : m.files_origin_online({ source: item.source_name })}
+      </span>
+    </span>
+  )
 }
 
 function StatusColumnCell({ row }: CellProps) {
+  const item = row.original
+  // While the pipeline has something to say it takes the cell; otherwise where the file is kept.
+  const quiet =
+    item.doc_status === 'unsupported' ||
+    (item.doc_status === 'ready' && item.ocr_skipped_pages === 0)
   // A fixed height, so a row does not grow or shrink as its file moves through the pipeline.
   return (
     <div className="flex h-8 items-center">
-      <StatusCell item={row.original} />
+      {quiet ? <Origin item={item} /> : <StatusCell item={item} />}
     </div>
   )
 }
@@ -220,7 +272,11 @@ export function ItemMenu({ item }: { item: ItemOut }) {
       </Tooltip>
       <DropdownMenuContent
         align="end"
-        className={programId && actions.some((a) => a.description) ? 'w-72' : undefined}
+        className={
+          item.follows_source || (programId && actions.some((a) => a.description))
+            ? 'w-72'
+            : undefined
+        }
       >
         <DropdownMenuItem onClick={() => act({ kind: 'rename', target: { type: 'item', item } })}>
           <Pencil aria-hidden />
@@ -239,7 +295,7 @@ export function ItemMenu({ item }: { item: ItemOut }) {
             {m.files_download()}
           </DropdownMenuItem>
         ) : null}
-        {item.follows_source ? <KeepOfflineItem item={item} /> : null}
+        {item.follows_source ? <KeepItems item={item} /> : null}
         {canReprocess || canIndex ? <ReprocessItem item={item} /> : null}
         {programId && actions.length > 0 ? (
           <>
@@ -277,19 +333,42 @@ export function ItemMenu({ item }: { item: ItemOut }) {
   )
 }
 
-/** A file read from its source when opened (an LMS file), stored here so it opens offline too. */
-function KeepOfflineItem({ item }: { item: ItemOut }) {
+/**
+ * SAMPLE (PR 3): a file that follows the LMS is read from it when opened or stored here; either
+ * way it keeps following. "Make it mine" is the one way to stop that.
+ */
+function KeepItems({ item }: { item: ItemOut }) {
   const queryClient = useQueryClient()
   const keep = useMutation({
     ...filesItemKeepOfflineMutation(),
     onError: toastError,
     onSuccess: (saved) => invalidateFiles(queryClient, saved.course_id),
   })
+  const source = (item as Synced).source_name ?? ''
   return (
-    <DropdownMenuItem onClick={() => keep.mutate({ path: { item_id: item.id } })}>
-      <HardDriveDownload aria-hidden />
-      {m.files_keep_offline()}
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuSeparator />
+      {item.stored ? (
+        <DropdownMenuItem>
+          <Cloud aria-hidden />
+          {m.files_read_online()}
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem onClick={() => keep.mutate({ path: { item_id: item.id } })}>
+          <HardDriveDownload aria-hidden />
+          {m.files_store_here()}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem>
+        <FileOutput aria-hidden />
+        <span className="min-w-0">
+          <span className="block">{m.files_make_mine()}</span>
+          <span className="block text-xs text-muted-foreground">
+            {m.files_make_mine_hint({ source })}
+          </span>
+        </span>
+      </DropdownMenuItem>
+    </>
   )
 }
 
@@ -383,7 +462,7 @@ const columns = column.columns([
   column.accessor((i) => i.updated_at, {
     id: 'updated',
     header: () => m.files_modified(),
-    sortFn: (a, b) => compareNames(a.original.updated_at, b.original.updated_at),
+    sortFn: (a, b) => compareNames(changedAt(a.original), changedAt(b.original)),
     cell: UpdatedCell,
   }),
   column.display({
@@ -691,10 +770,13 @@ const FolderRow = memo(function FolderRow({
   folder,
   selected,
   dropOver,
+  fresh,
 }: {
   folder: FolderOut
   selected: boolean
   dropOver: boolean
+  /** Something in it has not been looked at. */
+  fresh: boolean
 }) {
   const { openFolder } = useHandlers()
   const dnd = useFolderDnd(folder, dropOver)
@@ -716,8 +798,9 @@ const FolderRow = memo(function FolderRow({
         <button
           type="button"
           onClick={() => openFolder(folder.id)}
-          className="flex max-w-full items-center gap-2.5 font-medium hover:underline"
+          className="relative flex max-w-full items-center gap-2.5 font-medium hover:underline"
         >
+          {fresh ? <NewDot className="absolute top-1/2 -left-4 -translate-y-1/2" /> : null}
           <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{folder.name}</span>
         </button>
@@ -761,9 +844,22 @@ export function FileBrowser({
     .filter((f) => f.parent_id === folderId)
     .toSorted((a, b) => compareNames(a.name, b.name))
   const items = list.items.filter((i) => i.folder_id === folderId)
+  // Folders with something new in them, at any depth.
+  const parents = new Map(list.folders.map((f) => [f.id, f.parent_id]))
+  const fresh = new Set<string>()
+  for (const item of list.items) {
+    if ((item as Synced).seen !== false) continue
+    for (let id = item.folder_id; id && !fresh.has(id); id = parents.get(id) ?? null) fresh.add(id)
+  }
   return (
     <BrowserContext value={handlers}>
-      <Entries folders={folders} items={items} view={view} dropOver={dropOver ?? null} />
+      <Entries
+        folders={folders}
+        items={items}
+        view={view}
+        dropOver={dropOver ?? null}
+        fresh={fresh}
+      />
     </BrowserContext>
   )
 }
@@ -773,11 +869,13 @@ function Entries({
   items,
   view,
   dropOver,
+  fresh,
 }: {
   folders: readonly FolderOut[]
   items: readonly ItemOut[]
   view: 'list' | 'grid'
   dropOver: string | null
+  fresh: ReadonlySet<string>
 }) {
   // The page provides the selection: its toolbar acts on it too.
   const selection = use(RowSelectionContext)
@@ -882,6 +980,7 @@ function Entries({
                 folder={folder}
                 selected={selected({ type: 'folder', folder })}
                 dropOver={dropOver === folder.id}
+                fresh={fresh.has(folder.id)}
               />
             ))}
             {rows.length < VIRTUAL_FROM
