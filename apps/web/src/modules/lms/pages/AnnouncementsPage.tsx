@@ -6,7 +6,16 @@ import {
 } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, CircleAlert, ExternalLink, Megaphone, SearchX } from 'lucide-react'
+import {
+  ArrowLeft,
+  CircleAlert,
+  ExternalLink,
+  Megaphone,
+  Palette,
+  SearchX,
+  Type,
+} from 'lucide-react'
+import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
 import { SafeHtml } from '@/components/SafeHtml'
 import { formatBytes, formatDate, formatDateTime } from '@/lib/format'
@@ -14,10 +23,19 @@ import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
 import { useCourse, useCourses } from '@/modules/academics/queries'
 import { FileIcon } from '@/modules/files/components/FileIcon'
-import { filePath } from '@/modules/files/location'
+import { courseFilesPath, filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
@@ -274,6 +292,8 @@ function Reading({
 }) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: course.id } })).data?.link
   const provider = useProviderName(link?.provider) ?? link?.provider ?? ''
+  const navigate = useNavigate()
+  const [display, setDisplay] = useState<Display>('simplified')
   const meta = [a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
     .filter(Boolean)
     .join(' · ')
@@ -288,38 +308,55 @@ function Reading({
         <ArrowLeft aria-hidden />
         {m.lms_announcements_back()}
       </Button>
-      <header className="flex items-start gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <h2 className="font-heading text-xl font-semibold tracking-tight">{a.title}</h2>
+      {/* SAMPLE (PR 4): the header and body the Canvas tab gives an announcement. */}
+      <header className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <h2 className="font-heading text-lg font-semibold">{a.title}</h2>
           <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
             {withCourse ? <CourseName course={course} className="text-foreground" /> : null}
             {withCourse && meta ? <span aria-hidden>·</span> : null}
             <span>{meta}</span>
           </p>
         </div>
-        {a.web_url ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={m.lms_open_in({ provider })}
-                  nativeButton={false}
-                  render={
-                    // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by aria-label
-                    <a href={a.web_url} target="_blank" rel="noreferrer" />
-                  }
-                />
-              }
-            >
-              <ExternalLink aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>{m.lms_open_in({ provider })}</TooltipContent>
-          </Tooltip>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {a.html ? <DisplayMenu display={display} onChange={setDisplay} /> : null}
+          {a.web_url ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={m.lms_open_in({ provider })}
+                    nativeButton={false}
+                    render={
+                      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by aria-label
+                      <a href={a.web_url} target="_blank" rel="noreferrer" />
+                    }
+                  />
+                }
+              >
+                <ExternalLink aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent>{m.lms_open_in({ provider })}</TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
       </header>
-      {a.html ? <SafeHtml html={a.html} /> : null}
+      {a.html ? (
+        <SafeHtml
+          html={a.html}
+          original={display === 'original'}
+          onInternalLink={(target) => {
+            // Files open in the course's files; the rest of the kinds go to their own pages.
+            if (target.kind !== 'file') return false
+            void navigate({
+              to: courseFilesPath(course.program_id, course.id, { itemId: target.ref }),
+            })
+            return true
+          }}
+        />
+      ) : null}
       <Attachments files={(a as WithAttachments).attachments ?? []} programId={course.program_id} />
     </article>
   )
@@ -369,6 +406,47 @@ function Attachments({ files, programId }: { files: Attachment[]; programId: str
         ))}
       </ItemGroup>
     </section>
+  )
+}
+
+type Display = 'simplified' | 'original'
+const DISPLAYS = [
+  ['simplified', Type, m.settings_plugin_canvas_tab_display_option_simplified],
+  ['original', Palette, m.settings_plugin_canvas_tab_display_option_original],
+] as const
+
+/** The Canvas tab's display switch: the app's reading typography, or the platform's own look. */
+function DisplayMenu({ display, onChange }: { display: Display; onChange: (d: Display) => void }) {
+  const [, Icon, name] = DISPLAYS.find(([d]) => d === display) ?? DISPLAYS[0]
+  const label = `${m.canvas_tab_display()}: ${name()}`
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" aria-label={label} />}
+            />
+          }
+        >
+          <Icon aria-hidden />
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{m.canvas_tab_display()}</DropdownMenuLabel>
+          <DropdownMenuRadioGroup value={display} onValueChange={(v) => onChange(v as Display)}>
+            {DISPLAYS.map(([d, ItemIcon, text]) => (
+              <DropdownMenuRadioItem key={d} value={d}>
+                <ItemIcon aria-hidden />
+                {text()}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

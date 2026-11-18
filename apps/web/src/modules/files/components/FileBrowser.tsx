@@ -188,14 +188,17 @@ function UpdatedCell({ row }: CellProps) {
 function Origin({ item }: { item: Synced }) {
   if (!item.follows_source || !item.source_name) return null
   const Icon = item.stored ? HardDrive : Cloud
+  const kept = item.stored ? m.files_origin_stored() : m.files_origin_online()
   return (
     <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-      <Icon aria-hidden className="size-3.5 shrink-0" />
-      <span className="truncate">
-        {item.stored
-          ? m.files_origin_stored({ source: item.source_name })
-          : m.files_origin_online({ source: item.source_name })}
-      </span>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
+          <Icon aria-hidden className="size-3.5" />
+          <span className="sr-only">{kept}</span>
+        </TooltipTrigger>
+        <TooltipContent>{kept}</TooltipContent>
+      </Tooltip>
+      <span className="truncate">{item.source_name}</span>
     </span>
   )
 }
