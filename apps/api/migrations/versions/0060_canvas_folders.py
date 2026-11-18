@@ -7,10 +7,9 @@
   and the folder the sync put its item in (`placed_folder_id`), so "Organize" can offer to move
   untouched items back to their platform folders. Items filed under a type folder get that
   folder here, from the type folders being dropped.
-- Whether the scanned pages of synced files are read becomes a materials setting
-  (`files.synced_scans` → `lms.materials.scans`), and the materials settings move from the
-  Program to the account and the course: a Program's choice is copied to each of its courses
-  that has none of its own, then the Program rows go.
+- `files.synced_scans` goes: synced files are read like any other, as `auto_index` says. The
+  materials settings move from the Program to the account and the course: a Program's choice is
+  copied to each of its courses that has none of its own, then the Program rows go.
 
 Revision ID: 0060
 Revises: 0059
@@ -67,19 +66,16 @@ def _load(raw: object) -> dict[str, object]:
     return json.loads(raw) if isinstance(raw, str) else dict(raw or {})  # type: ignore[arg-type]
 
 
-def _scans_to_materials(conn: sa.Connection) -> None:
-    """`files.synced_scans` of every scope becomes `lms.materials.scans` of that scope."""
+def _drop_synced_scans(conn: sa.Connection) -> None:
+    """`files.synced_scans` is gone: synced files are read like any other (`auto_index`)."""
     rows = conn.execute(
-        sa.text(
-            "SELECT id, user_id, scope_type, scope_id, data FROM settings_values "
-            "WHERE namespace = 'files'"
-        )
+        sa.text("SELECT id, data FROM settings_values WHERE namespace = 'files'")
     ).all()
-    for row_id, user_id, scope_type, scope_id, raw in rows:
+    for row_id, raw in rows:
         data = _load(raw)
         if "synced_scans" not in data:
             continue
-        scans = data.pop("synced_scans")
+        del data["synced_scans"]
         if data:
             conn.execute(
                 sa.text("UPDATE settings_values SET data = :d WHERE id = :id"),
@@ -87,7 +83,6 @@ def _scans_to_materials(conn: sa.Connection) -> None:
             )
         else:
             conn.execute(sa.text("DELETE FROM settings_values WHERE id = :id"), {"id": row_id})
-        _merge(conn, user_id, "lms.materials", scope_type, scope_id, {"scans": scans})
 
 
 def _merge(
@@ -182,7 +177,7 @@ def upgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_files_type_folders_user_id"))
     op.drop_table("files_type_folders")
 
-    _scans_to_materials(conn)
+    _drop_synced_scans(conn)
     _move_program_settings(conn, "lms.materials", None)
 
 

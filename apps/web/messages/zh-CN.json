@@ -3470,8 +3470,6 @@
   "settings_lms_materials_store_option_online_description": "打开时从 {provider} 读取，不占用存储空间。",
   "settings_lms_materials_store_option_local": "保留本地副本",
   "settings_lms_materials_store_option_local_description": "随 {provider} 更新。在 {provider} 上删除或解除关联后，转存为你的文件。",
-  "settings_lms_materials_scans_label": "识别扫描页中的文字",
-  "settings_lms_materials_scans_description": "使用 AI 识别扫描页，便于搜索和向 Sem 提问。",
   "files_delete_synced_description": "之后不会再从 {provider} 同步。可以在同步状态的“已移除的资料”里恢复。",
   "files_delete_many_synced_description": "将删除 {count} 个文件。之后不会再从 {provider} 同步，可以在同步状态的“已移除的资料”里恢复。",
   "files_delete_mixed_description": "将删除 {count} 个文件。其中来自 {provider} 的 {synced} 个可以在同步状态的“已移除的资料”里恢复，其余的无法撤销。",

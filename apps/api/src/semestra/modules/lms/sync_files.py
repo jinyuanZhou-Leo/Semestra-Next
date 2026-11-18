@@ -689,13 +689,6 @@ async def moved_back(ctx: Ctx, placed: Mapping[str, str | None]) -> None:
 sources.register_homes("lms", homes, moved_back)
 
 
-async def _reads_scans(ctx: Ctx, course_id: str) -> bool:
-    return (await material_settings(ctx, course_id)).scans
-
-
-sources.register_synced_scans(_reads_scans)
-
-
 # --- reading the bytes (M07's content source) -----------------------------------------------
 
 
@@ -835,6 +828,4 @@ async def on_settings_changed(ctx: Ctx, event: Event) -> None:
                 cfg.store == "local",
                 dedupe=f"lms.materials:{link.id}",
             )
-        if "scans" in changed and cfg.scans:
-            await sources.read_skipped_scans(ctx, [link.course_id])
     await sync_queue(ctx, turned_on)

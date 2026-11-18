@@ -4,8 +4,8 @@ import { NamespaceForm } from '@/app/settings/NamespaceForm'
 import { useProviderName } from '../providers'
 import { MATERIALS } from '../queries'
 
-/** Where materials are kept and whether their scans are read matter only while they come in. */
-export const MATERIAL_FIELDS = { when: { store: 'sync', scans: 'sync' } }
+/** Where materials are kept matters only while they come in. */
+export const MATERIAL_FIELDS = { when: { store: 'sync' } }
 
 /**
  * Account settings → LMS → Course materials (M09 §4.2): how every linked course takes in its

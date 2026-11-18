@@ -3470,8 +3470,6 @@
   "settings_lms_materials_store_option_online_description": "Read from {provider} when opened. Uses no storage.",
   "settings_lms_materials_store_option_local": "Keep a local copy",
   "settings_lms_materials_store_option_local_description": "Updates with {provider}. If deleted there or unlinked, it is saved as your own file.",
-  "settings_lms_materials_scans_label": "Recognize text in scanned pages",
-  "settings_lms_materials_scans_description": "Uses AI to read scanned pages so you can search them and ask Sem.",
   "files_delete_synced_description": "It won't sync from {provider} again. You can restore it under Removed materials in the sync status.",
   "files_delete_many_synced_description": "Files deleted: {count}. They won't sync from {provider} again; you can restore them under Removed materials in the sync status.",
   "files_delete_mixed_description": "Files deleted: {count}. The ones from {provider} ({synced}) can be restored under Removed materials in the sync status; the rest can't be undone.",

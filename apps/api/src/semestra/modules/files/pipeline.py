@@ -22,7 +22,7 @@ from semestra.core.events import Event, events
 from semestra.core.jobs import CoreJob, JobCancelled, JobCtx, enqueue
 from semestra.core.storage import Storage
 from semestra.modules import ai
-from semestra.modules.files import chunking, content, indexing, service, sources
+from semestra.modules.files import chunking, content, indexing, service
 from semestra.modules.files.embeddings import BATCH_SIZE, embed_texts, embedding_text
 from semestra.modules.files.models import (
     FilesChunk,
@@ -80,8 +80,6 @@ class _Work:
     storage_key: str | None
     source_ref: str | None
     original_name: str | None
-    # Queued by the sync of its source, not by the user.
-    synced: bool = False
     document_id: str = field(default_factory=new_id)
     thumbnail_keys: list[str] = field(default_factory=lambda: [])
     document_written: bool = False
@@ -92,7 +90,7 @@ async def _announce(ctx: Ctx, *kinds: tuple[str, dict[str, object]]) -> None:
         await events.dispatch(ctx.state, Event(kind, data, ctx.user_id))
 
 
-async def _begin(ctx: JobCtx, item_id: str, synced: bool) -> _Work | None:
+async def _begin(ctx: JobCtx, item_id: str) -> _Work | None:
     """Marks the item as processing and clears leftovers of an interrupted earlier run."""
     store = get_vector_store()
     async with ctx.state.session_factory() as db:
@@ -119,7 +117,6 @@ async def _begin(ctx: JobCtx, item_id: str, synced: bool) -> _Work | None:
             item.storage_key,
             item.source_ref,
             item.original_name,
-            synced,
         )
         await db.commit()
     await _remove_objects(ctx.state.storage, keys)
@@ -179,11 +176,10 @@ async def mark_failed(ctx: Ctx, item_id: str, job: CoreJob) -> None:
     )
 
 
-async def run(ctx: JobCtx, item_id: str, *, synced: bool = False) -> int:
+async def run(ctx: JobCtx, item_id: str) -> int:
     """Processes one item; returns its page count. A failure ends the job with the reason as its
-    error code, which `mark_failed` records on the item. `synced`: queued by the sync of the
-    item's source, not by the user (see `_ocr`)."""
-    work = await _begin(ctx, item_id, synced)
+    error code, which `mark_failed` records on the item."""
+    work = await _begin(ctx, item_id)
     if work is None:
         return 0
     try:
@@ -349,21 +345,14 @@ async def _ocr(
     (no OCR engine or model, or it failed on that page: the rest of the file is still read).
     A self-hosted install with local OCR reads them on this machine; otherwise the user's model
     for the `ocr` purpose does (also when the local model it would use on Auto fails to
-    download). A file its source's sync queued is read by that model only when the source's
-    setting for the course says so (`sources.synced_scans`): hundreds of them come at once, and
-    nobody asked; the user processing it again reads them."""
+    download)."""
     needed = [i for i, p in enumerate(parsed.pages) if p.needs_ocr]
     if not needed or kind not in ("pdf", "image"):
         await _skip_ocr(ctx)
         return None, 0
     local = await ai.local_ocr.choice(ctx)
 
-    async def provider_reads() -> bool:
-        if work.synced and not await sources.synced_scans(ctx, work.course_id):
-            return False
-        return await ai.available(ctx, "ocr")
-
-    if local is None and not await provider_reads():
+    if local is None and not await ai.available(ctx, "ocr"):
         await _skip_ocr(ctx)
         return None, len(needed)
     if local is not None and not ai.local_ocr.downloaded(local):
@@ -373,7 +362,7 @@ async def _ocr(
         except AppError as exc:
             log.warning("files_local_ocr_download_failed", code=exc.code, model=local)
             # On Auto, the user's AI model reads the pages instead; a model they picked does not.
-            if await ai.local_ocr.picked(ctx) or not await provider_reads():
+            if await ai.local_ocr.picked(ctx) or not await ai.available(ctx, "ocr"):
                 await _skip_ocr(ctx)
                 return None, len(needed)
             local = None

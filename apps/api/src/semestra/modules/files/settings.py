@@ -1,6 +1,5 @@
-"""The `files` settings namespace (M07 §6.4, M11): whether new course files are indexed. Whether
-the scanned pages of synced materials are read is their source's setting (`sources.synced_scans`).
-"""
+"""The `files` settings namespace (M07 §6.4, M11): whether new course files are indexed, synced
+ones included (scanned pages too)."""
 
 from pydantic import BaseModel, Field
 

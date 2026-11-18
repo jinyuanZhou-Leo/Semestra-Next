@@ -106,8 +106,6 @@ export const settingsMessages = {
   settings_lms_follow_score_label: m.settings_lms_follow_score_label,
   settings_lms_follow_title_label: m.settings_lms_follow_title_label,
   settings_lms_follow_weight_label: m.settings_lms_follow_weight_label,
-  settings_lms_materials_scans_description: m.settings_lms_materials_scans_description,
-  settings_lms_materials_scans_label: m.settings_lms_materials_scans_label,
   settings_lms_materials_store_description: m.settings_lms_materials_store_description,
   settings_lms_materials_store_label: m.settings_lms_materials_store_label,
   settings_lms_materials_store_option_local: m.settings_lms_materials_store_option_local,
