@@ -422,19 +422,15 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
 
 
-def _as_version_2(archive: bytes) -> bytes:
-    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`: the
-    materials among the refs, their state in `snapshot`."""
+def _as_2_0_0(archive: bytes) -> bytes:
+    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`, at the
+    same lms version 2: the materials among the refs, their state in `snapshot`."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
         for name in source.namelist():
             data = source.read(name)
-            if name == "manifest.json":
-                manifest = json.loads(data)
-                manifest["modules"]["lms"] = 2
-                data = json.dumps(manifest).encode()
-            elif name == "data/lms.json":
+            if name == "data/lms.json":
                 payload = json.loads(data)
                 refs = [{**r, "external_kind": "assignment"} for r in payload["refs"]]
                 for m in payload.pop("materials"):
@@ -452,7 +448,7 @@ def _as_version_2(archive: bytes) -> bytes:
     return out.getvalue()
 
 
-async def test_a_version_2_backup_keeps_the_materials_in_step(api: Api, fake: FakeProvider):
+async def test_a_2_0_0_backup_keeps_the_materials_in_step(api: Api, fake: FakeProvider):
     """Restored from a backup made before the materials had a table of their own, the items
     still follow the platform's: none comes twice, and one the user deleted stays deleted."""
     _materials(fake)
@@ -466,7 +462,7 @@ async def test_a_version_2_backup_keeps_the_materials_in_step(api: Api, fake: Fa
     await api.run_jobs()
     archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
     uploaded = await api.client.post(
-        "/me/imports", files={"file": ("backup.zip", _as_version_2(archive), "application/zip")}
+        "/me/imports", files={"file": ("backup.zip", _as_2_0_0(archive), "application/zip")}
     )
     body = {"mode": "replace", "confirmation": "Replace my data"}
     await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
