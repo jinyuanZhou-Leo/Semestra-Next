@@ -3450,6 +3450,7 @@
   "settings_lms_materials_sync_label": "Bring in course materials",
   "settings_lms_materials_sync_description": "Slides, pages and recordings from {provider} appear in the course's files, sorted by type.",
   "settings_lms_materials_store_label": "Keep materials",
+  "settings_lms_materials_store_description": "Read from {provider} when opened, or keep a copy here.",
   "settings_lms_materials_store_option_online": "Read online",
   "settings_lms_materials_store_option_online_description": "Read from {provider} when opened. Uses no storage.",
   "settings_lms_materials_store_option_local": "Keep a local copy",

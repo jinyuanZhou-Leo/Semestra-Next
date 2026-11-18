@@ -11,10 +11,11 @@ with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
-migration 0035 did. Version 3 keeps the materials apart from the assignments (`_v2_to_v3`, as
-migration 0056 did). Version 4 gives each material a state (`_v3_to_v4`, as migration 0057 did);
-the course's materials settings left the link for M11 (`lms.materials`), which the settings'
-own backup carries.
+migration 0035 did. Version 3 gives each material a state (`_v2_to_v3`, as migration 0057 did);
+the course's materials settings left the link for M11 (`lms.materials`), which the settings' own
+backup carries. A version 2 backup written before migration 0056 (2.0.0) keeps the materials
+among the refs (`external_kind` file, page or link); the step first moves them into `materials`
+the way that migration did, so both shapes of version 2 restore.
 """
 
 from collections.abc import Mapping
@@ -39,7 +40,7 @@ from semestra.modules.lms.models import (
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 3
 
 
 def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
@@ -54,23 +55,9 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     return {**payload, "refs": kept}
 
 
-def _v2_to_v3(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
-    del archive
-    refs = [r for r in payload.get("refs") or [] if isinstance(r, dict)]
-    materials = [
-        _material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")
-    ]
-    assignments = [
-        {k: v for k, v in r.items() if k != "external_kind"}
-        for r in refs
-        if r.get("external_kind") == "assignment"
-    ]
-    return {**payload, "refs": assignments, "materials": materials}
-
-
 def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
-    """A version 2 material ref (its state in `snapshot`) as a row of `lms_materials`, as
-    migration 0056 moves it."""
+    """A material ref of a 2.0.0 backup (its state in `snapshot`) as a row of `lms_materials`,
+    as migration 0056 moves it."""
     snap = ref.get("snapshot") or {}
     checked = snap.get("checked")
     return {
@@ -83,7 +70,7 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
         "name": snap.get("name"),
         "type": snap.get("type"),
         "sorted_by_model": snap.get("by") == "ai",
-        "is_list": bool(snap.get("list")),  # left out by `_v3_to_v4`
+        "is_list": bool(snap.get("list")),
         "links": snap.get("links") or [],
         "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
         "imported_at": ref.get("imported_at"),
@@ -91,18 +78,26 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _v3_to_v4(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
+def _v2_to_v3(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     del archive
+    refs = [r for r in payload.get("refs") or [] if isinstance(r, dict)]
+    # 2.0.0: the materials among the refs, told apart by `external_kind` (migration 0056).
+    moved = [_material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")]
+    kept = [
+        {k: v for k, v in r.items() if k != "external_kind"}
+        for r in refs
+        if r.get("external_kind", "assignment") == "assignment"
+    ]
     materials = [
         {
             **{k: v for k, v in r.items() if k not in ("deleted_at", "is_list")},
             "state": "dismissed" if r.get("deleted_at") else "synced",
             "state_at": r.get("deleted_at"),
         }
-        for r in payload.get("materials") or []
-        if isinstance(r, dict)
+        for r in [*(payload.get("materials") or []), *moved]
+        if isinstance(r, dict) and not r.get("is_list")  # pages that only list others: not kept
     ]
-    return {**payload, "materials": materials}
+    return {**payload, "refs": kept, "materials": materials}
 
 
 class Writer(Protocol):
@@ -379,7 +374,7 @@ async def purge(ctx: Ctx) -> None:
 register_portability(
     module="lms",
     schema_version=SCHEMA_VERSION,
-    upgrades={1: _v1_to_v2, 2: _v2_to_v3, 3: _v3_to_v4},
+    upgrades={1: _v1_to_v2, 2: _v2_to_v3},
     depends_on=("academics", "grading", "tasks", "schedule", "files"),
     export=export,
     import_=import_,

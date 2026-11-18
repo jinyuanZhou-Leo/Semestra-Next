@@ -3450,6 +3450,7 @@
   "settings_lms_materials_sync_label": "同步课程资料",
   "settings_lms_materials_sync_description": "{provider} 上的讲义、页面和录播按类型出现在课程文件中。",
   "settings_lms_materials_store_label": "资料保存方式",
+  "settings_lms_materials_store_description": "打开时从 {provider} 读取，或在这里保留一份副本。",
   "settings_lms_materials_store_option_online": "在线读取",
   "settings_lms_materials_store_option_online_description": "打开时从 {provider} 读取，不占用存储空间。",
   "settings_lms_materials_store_option_local": "保留本地副本",
