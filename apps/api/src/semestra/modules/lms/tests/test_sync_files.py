@@ -423,8 +423,8 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
 
 
 def _as_version_2(archive: bytes) -> bytes:
-    """The backup as 2.0 betas before `lms_materials` wrote it: the materials among the refs,
-    their state in `snapshot`."""
+    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`: the
+    materials among the refs, their state in `snapshot`."""
     source = zipfile.ZipFile(io.BytesIO(archive))
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as z:
