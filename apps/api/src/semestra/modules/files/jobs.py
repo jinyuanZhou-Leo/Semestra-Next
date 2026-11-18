@@ -9,7 +9,7 @@ from semestra.core.context import Ctx, run_as_system
 from semestra.core.errors import AppError
 from semestra.core.jobs import CoreJob, JobCtx, enqueue, job_handler, periodic
 from semestra.modules import ai
-from semestra.modules.files import pipeline, service
+from semestra.modules.files import pipeline, sources
 from semestra.modules.files.models import FilesChunk, FilesIndexState, FilesItem
 
 # Weights follow M07 §3.1; stages that do not apply are skipped and their weight is shared out.
@@ -84,7 +84,7 @@ async def keep_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
     """An offline copy the user asked for; a failure shows in the status bar."""
     for item_id in payload.item_ids:
         await ctx.stage("storing")
-        await service.store_from_source(ctx, item_id, quiet=False)
+        await sources.store_from_source(ctx, item_id, quiet=False)
     return KeepResult(kept=len(payload.item_ids), left=0)
 
 
@@ -103,7 +103,7 @@ async def keep_synced_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
     for index, item_id in enumerate(payload.item_ids):
         await ctx.stage("storing", current=index, total=len(payload.item_ids))
         try:
-            if not await service.store_from_source(ctx, item_id, quiet=True):
+            if not await sources.store_from_source(ctx, item_id, quiet=True):
                 break
         except AppError:
             continue

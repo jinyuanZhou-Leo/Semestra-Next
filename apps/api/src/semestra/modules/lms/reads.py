@@ -280,7 +280,6 @@ async def _imported_targets(
     refs = await ctx.db.scalars(
         select(LmsImportedRef).where(
             LmsImportedRef.link_id.in_(link_ids),
-            LmsImportedRef.external_kind == "assignment",
             LmsImportedRef.target_id.is_not(None),
         )
     )

@@ -54,6 +54,7 @@ from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
+    LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
 )
@@ -296,11 +297,22 @@ async def populate(
             lms_ref := LmsImportedRef(
                 **u,
                 link_id=course_link.id,
-                external_kind="assignment",
                 external_id="9001",
                 target_kind="assessment",
                 target_id=assessment_id,
                 snapshot={"title": "Midterm"},
+                imported_at=NOW,
+            ),
+            LmsMaterial(
+                **u,
+                link_id=course_link.id,
+                kind="link",
+                external_id="77",
+                item_id=link.id,
+                title="Syllabus",
+                version="https://example.com/syllabus",
+                name="Syllabus",
+                type="info",
                 imported_at=NOW,
             ),
             AgentProposal(

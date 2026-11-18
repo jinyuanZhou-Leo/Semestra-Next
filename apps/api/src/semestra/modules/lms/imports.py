@@ -457,7 +457,6 @@ async def _item_ref(ctx: Ctx, link_id: str, external_id: str) -> LmsImportedRef 
     return await ctx.db.scalar(
         select(LmsImportedRef).where(
             LmsImportedRef.link_id == link_id,
-            LmsImportedRef.external_kind == "assignment",
             LmsImportedRef.external_id == external_id,
         )
     )
@@ -478,7 +477,6 @@ async def _ref_of(ctx: Ctx, assessment_id: str) -> LmsImportedRef | None:
     return await ctx.db.scalar(
         select(LmsImportedRef).where(
             LmsImportedRef.user_id == ctx.user_id,
-            LmsImportedRef.external_kind == "assignment",
             LmsImportedRef.target_kind == "assessment",
             LmsImportedRef.target_id == assessment_id,
         )
@@ -508,7 +506,6 @@ async def bind_assignment(ctx: Ctx, inp: AssignmentBindInput) -> AssignmentBindi
         ref = LmsImportedRef(
             user_id=ctx.user_id,
             link_id=link.id,
-            external_kind="assignment",
             external_id=inp.assignment_id,
         )
         ctx.db.add(ref)
@@ -641,7 +638,6 @@ async def on_commit(ctx: Ctx, row: ImportsSession, created: dict[str, str]) -> N
             ref = LmsImportedRef(
                 user_id=row.user_id,
                 link_id=link.id,
-                external_kind="assignment",
                 external_id=info["external_id"],
             )
             ctx.db.add(ref)

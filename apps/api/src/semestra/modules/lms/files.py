@@ -1,4 +1,4 @@
-"""Saving LMS files into the course's files (M09 §5 → M07 `save_bytes_as_file`), and reading
+"""Saving LMS files into the course's files (M09 §5 → M07 `sources`), and reading
 their text with M07's parser for previews."""
 
 from datetime import timedelta
@@ -8,16 +8,16 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
-from semestra.modules.files import service as files
+from semestra.modules.files import sources
 from semestra.modules.files.parse import ParseError, detect, parse
 from semestra.modules.files.parse.isolated import Parsed, parse_isolated
 from semestra.modules.lms import cache, reads, service
 from semestra.modules.lms.errors import lms_error
-from semestra.modules.lms.models import LmsCourseLink, LmsImportedRef
+from semestra.modules.lms.models import LmsCourseLink, LmsMaterial
 from semestra.modules.lms.schemas.dto import FileMeta
 from semestra.modules.lms.schemas.io import FilePreview, FileSaveInput, SavedFile
 from semestra.modules.lms.service import Bound
-from semestra.modules.lms.sync_files import ITEM, file_version, source_ref
+from semestra.modules.lms.sync_files import file_version, forget_applied, source_ref
 
 
 async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
@@ -25,23 +25,23 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
     files have already is that item, and one the sync brought in (read from the platform when
     opened) is stored in place by a job (`stored` false until it has run)."""
     link, _ = linked = await service.require_link(ctx, inp.course_id)
-    ref = await ctx.db.scalar(
-        select(LmsImportedRef).where(
-            LmsImportedRef.link_id == link.id,
-            LmsImportedRef.external_kind == "file",
-            LmsImportedRef.external_id == inp.file_id,
+    mat = await ctx.db.scalar(
+        select(LmsMaterial).where(
+            LmsMaterial.link_id == link.id,
+            LmsMaterial.kind == "file",
+            LmsMaterial.external_id == inp.file_id,
         )
     )
-    found = await files.find_items(ctx, [ref.target_id]) if ref and ref.target_id else []
+    found = await sources.find_items(ctx, [mat.item_id]) if mat and mat.item_id else []
     if found:
-        await files.keep_offline(ctx, found[0])
+        await sources.keep_offline(ctx, found[0])
         return SavedFile(
             file_item_id=found[0].id,
             name=found[0].display_name,
             stored=bool(found[0].storage_key),
         )
     meta, stream = await reads.open_file(ctx, inp.course_id, inp.file_id, linked=linked)
-    item = await files.save_bytes_as_file(
+    item = await sources.save_bytes_as_file(
         ctx,
         inp.course_id,
         meta.name,
@@ -51,14 +51,15 @@ async def save_to_course(ctx: Ctx, inp: FileSaveInput) -> SavedFile:
         folder_id=inp.folder_id,
         kept_offline=True,
     )
-    if ref is None:
-        ref = LmsImportedRef(
-            user_id=ctx.user_id, link_id=link.id, external_kind="file", external_id=inp.file_id
+    if mat is None:
+        mat = LmsMaterial(
+            user_id=ctx.user_id, link_id=link.id, kind="file", external_id=inp.file_id
         )
-        ctx.db.add(ref)
+        ctx.db.add(mat)
     # The sync leaves a saved copy as it is (and does not bring the file in again).
-    ref.target_kind, ref.target_id, ref.imported_at, ref.dismissed_at = ITEM, item.id, ctx.now, None
-    ref.snapshot = {"version": file_version(meta), "name": item.display_name}
+    mat.item_id, mat.imported_at, mat.deleted_at = item.id, ctx.now, None
+    forget_applied(mat)
+    mat.version, mat.name = file_version(meta), item.display_name
     await ctx.db.flush()
     return SavedFile(file_item_id=str(item.id), name=str(item.display_name))
 

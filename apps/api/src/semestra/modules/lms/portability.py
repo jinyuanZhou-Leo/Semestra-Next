@@ -1,16 +1,19 @@
 """Export/import adapter for M13 (M09 §10), in the shape of `plugins_builtin/portability.py`.
 
 Connections are exported without credentials: after an import they need the token entered
-again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links
-and imported refs follow the id map of Programs, courses, assessments, tasks and course files
-(the materials the sync brought in, and their type folders). The cache is
-not exported, nor is what the background sync keeps for itself (its change log, its
-conflicts, the new items it offers): the first sync after an import finds them again; only the
-new items the user ignored are kept. Registered at the bottom with M13's `register_portability`.
+again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
+imported assignments (refs) and materials follow the id map of Programs, courses, assessments,
+tasks and course files (the items the sync brought in). The cache is not exported, nor is what
+the background sync keeps for itself (its change log, its conflicts, the new items it offers,
+the pages that only list others): the first sync after an import finds them again; only the new
+assignments the user ignored and the materials they deleted are kept. Registered at the bottom
+with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
-migration 0035 did.
+migration 0035 did. A version 2 backup written before migration 0056 (2.0.0) keeps the materials
+among the refs (`external_kind` file, page or link); `LmsPayload` reads them into `materials` the
+way that migration moved them, so both shapes restore under the same version.
 """
 
 from collections.abc import Mapping
@@ -18,7 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
@@ -28,6 +31,7 @@ from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
+    LmsMaterial,
     LmsProgramBinding,
     LmsSyncChange,
 )
@@ -47,6 +51,29 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     graded = {item(r) for r in refs if r.get("target_kind") == "assessment"}
     kept = [r for r in refs if r.get("target_kind") == "assessment" or item(r) not in graded]
     return {**payload, "refs": kept}
+
+
+def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
+    """A material ref of a 2.0.0 backup (its state in `snapshot`) as a row of `lms_materials`,
+    as migration 0056 moves it."""
+    snap = ref.get("snapshot") or {}
+    checked = snap.get("checked")
+    return {
+        "link_id": ref.get("link_id"),
+        "kind": ref.get("external_kind"),
+        "external_id": ref.get("external_id"),
+        "item_id": ref.get("target_id"),
+        "title": snap.get("title"),
+        "version": snap.get("version"),
+        "name": snap.get("name"),
+        "type": snap.get("type"),
+        "sorted_by_model": snap.get("by") == "ai",
+        "is_list": bool(snap.get("list")),
+        "links": snap.get("links") or [],
+        "checked_at": datetime.fromisoformat(checked) if isinstance(checked, str) else None,
+        "imported_at": ref.get("imported_at"),
+        "deleted_at": ref.get("dismissed_at"),
+    }
 
 
 class Writer(Protocol):
@@ -83,7 +110,6 @@ class LinkRow(BaseModel):
 
 class RefRow(BaseModel):
     link_id: str
-    external_kind: str
     external_id: str
     # None: a new item the user ignored (`dismissed_at`).
     target_kind: str | None = None
@@ -94,12 +120,50 @@ class RefRow(BaseModel):
     dismissed_at: datetime | None = None
 
 
+class MaterialRow(BaseModel):
+    link_id: str
+    kind: str
+    external_id: str
+    # None: an item the user deleted (`deleted_at`).
+    item_id: str | None = None
+    title: str | None = None
+    version: str | None = None
+    name: str | None = None
+    type: str | None = None
+    sorted_by_model: bool = False
+    is_list: bool = False
+    links: list[list[str]] = []
+    checked_at: datetime | None = None
+    imported_at: datetime | None = None
+    deleted_at: datetime | None = None
+
+
 class LmsPayload(BaseModel):
     schema_version: int = SCHEMA_VERSION
     connections: list[ConnectionRow] = []
     bindings: list[BindingRow] = []
     links: list[LinkRow] = []
     refs: list[RefRow] = []
+    materials: list[MaterialRow] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _materials_among_refs(cls, data: Any) -> Any:
+        """A 2.0.0 backup keeps the materials among the refs, told apart by `external_kind`."""
+        if not isinstance(data, dict):
+            return data
+        refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
+        if not any("external_kind" in r for r in refs):
+            return data
+        kept = [r for r in refs if r.get("external_kind", "assignment") == "assignment"]
+        moved = [
+            _material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")
+        ]
+        return {
+            **data,
+            "refs": [{k: v for k, v in r.items() if k != "external_kind"} for r in kept],
+            "materials": [*(data.get("materials") or []), *moved],
+        }
 
 
 @dataclass
@@ -117,6 +181,12 @@ async def export(ctx: Ctx, writer: Writer) -> None:
         select(LmsImportedRef).where(
             LmsImportedRef.user_id == uid,
             LmsImportedRef.target_id.is_not(None) | LmsImportedRef.dismissed_at.is_not(None),
+        )
+    )
+    materials = await ctx.db.scalars(
+        select(LmsMaterial).where(
+            LmsMaterial.user_id == uid,
+            LmsMaterial.item_id.is_not(None) | LmsMaterial.deleted_at.is_not(None),
         )
     )
     writer.write_json(
@@ -141,6 +211,10 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             refs=[
                 RefRow.model_validate({k: getattr(r, k) for k in RefRow.model_fields}) for r in refs
             ],
+            materials=[
+                MaterialRow.model_validate({k: getattr(r, k) for k in MaterialRow.model_fields})
+                for r in materials
+            ],
         ).model_dump(mode="json")
     )
 
@@ -152,7 +226,9 @@ async def import_(
     and targets came along (`id_map`), the bindings, links and imported refs."""
     del options
     data = LmsPayload.model_validate(payload)
-    report = ImportReport({"connections": 0, "bindings": 0, "links": 0, "refs": 0}, {})
+    report = ImportReport(
+        {"connections": 0, "bindings": 0, "links": 0, "refs": 0, "materials": 0}, {}
+    )
     connections: dict[str, str] = {}
     for c in data.connections:
         row = LmsConnection(
@@ -222,17 +298,25 @@ async def import_(
         ctx.db.add(row)
         links[li.id] = row.id
         report.imported["links"] += 1
+
+    def mapped(kind: str, link_id: str, target_id: str | None) -> tuple[str, str | None] | None:
+        """The new link and target of a row, or None (reported skipped) when either did not
+        come along."""
+        new_target = id_map.get(target_id) if target_id is not None else None
+        if link_id in links and (new_target is not None or target_id is None):
+            return links[link_id], new_target
+        link = next((li for li in data.links if li.id == link_id), None)
+        skip(kind, target_id or "", *((link.course_id, link.program_id) if link else ()))
+        return None
+
     for r in data.refs:
-        target_id = id_map.get(r.target_id) if r.target_id is not None else None
-        if r.link_id not in links or (target_id is None and r.target_id is not None):
-            link = next((li for li in data.links if li.id == r.link_id), None)
-            skip("refs", r.target_id or "", *((link.course_id, link.program_id) if link else ()))
+        if (got := mapped("refs", r.link_id, r.target_id)) is None:
             continue
+        link_id, target_id = got
         ctx.db.add(
             LmsImportedRef(
                 user_id=ctx.user_id,
-                link_id=links[r.link_id],
-                external_kind=r.external_kind,
+                link_id=link_id,
                 external_id=r.external_id,
                 target_kind=r.target_kind,
                 target_id=target_id,
@@ -243,6 +327,19 @@ async def import_(
             )
         )
         report.imported["refs"] += 1
+    for r in data.materials:
+        if (got := mapped("materials", r.link_id, r.item_id)) is None:
+            continue
+        link_id, item_id = got
+        ctx.db.add(
+            LmsMaterial(
+                **r.model_dump(exclude={"link_id", "item_id"}),
+                user_id=ctx.user_id,
+                link_id=link_id,
+                item_id=item_id,
+            )
+        )
+        report.imported["materials"] += 1
     await ctx.db.flush()
     return report
 
@@ -254,6 +351,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "bindings": len(data.bindings),
         "links": len(data.links),
         "refs": len(data.refs),
+        "materials": len(data.materials),
     }
 
 
@@ -262,6 +360,7 @@ async def purge(ctx: Ctx) -> None:
     for model in (
         LmsSyncChange,
         LmsImportedRef,
+        LmsMaterial,
         LmsCourseLink,
         LmsProgramBinding,
         LmsCache,
@@ -284,6 +383,7 @@ register_portability(
         LmsProgramBinding.__tablename__,
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
+        LmsMaterial.__tablename__,
         LmsSyncChange.__tablename__,
         LmsCache.__tablename__,
     ),

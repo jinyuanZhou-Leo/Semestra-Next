@@ -85,25 +85,19 @@ class LmsCourseLink(Base, OwnedMixin, TimestampMixin):
 
 
 class LmsImportedRef(Base, OwnedMixin):
-    """A platform item Semestra keeps track of, one row per item. Imported: one Semestra object
-    (`target_*`), whose fields follow the platform through the sync (an assignment worth points
-    is an assessment with its to-do, else a to-do, which may later move into the gradebook).
-    Not imported (`target_*` null): a new item waiting for the user, or one the user ignored
-    (`dismissed_at`). `external_kind` is free text: `assignment` for the assignments, `file`,
-    `page` and `link` for the course's materials (`sync_files.py`)."""
+    """A platform assignment Semestra keeps track of, one row per assignment. Imported: one
+    Semestra object (`target_*`), whose fields follow the platform through the sync (an
+    assignment worth points is an assessment with its to-do, else a to-do, which may later move
+    into the gradebook). Not imported (`target_*` null): a new assignment waiting for the user,
+    or one the user ignored (`dismissed_at`). The course's materials are `LmsMaterial`."""
 
     __tablename__ = "lms_imported_refs"
-    __table_args__ = (
-        UniqueConstraint(
-            "link_id", "external_kind", "external_id", name="uq_lms_imported_refs_item"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("link_id", "external_id", name="uq_lms_imported_refs_item"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
     link_id: Mapped[str] = mapped_column(
         String, ForeignKey("lms_course_links.id", ondelete="CASCADE"), index=True
     )
-    external_kind: Mapped[str] = mapped_column(String)
     external_id: Mapped[str] = mapped_column(String)
     target_kind: Mapped[str | None] = mapped_column(String, default=None)
     target_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
@@ -121,6 +115,48 @@ class LmsImportedRef(Base, OwnedMixin):
     removed_at: Mapped[datetime | None] = mapped_column(default=None)
     # A new item the user chose not to import: not offered again, still listed as ignored.
     dismissed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class LmsMaterial(Base, OwnedMixin):
+    """A file, page or link of a linked course that the sync keeps in the course's files
+    (`sync_files.py`), one row per platform item. With `item_id`: the course's files have it.
+    Without: the user deleted its item (`deleted_at`), the page only lists other things
+    (`is_list`), or it is gone from the platform (then everything below is cleared, so it comes
+    back if the platform shows it again)."""
+
+    __tablename__ = "lms_materials"
+    __table_args__ = (
+        UniqueConstraint("link_id", "kind", "external_id", name="uq_lms_materials_item"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_id)
+    link_id: Mapped[str] = mapped_column(
+        String, ForeignKey("lms_course_links.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String)  # 'file' | 'page' | 'link'
+    external_id: Mapped[str] = mapped_column(String)
+    # The item of the course's files (M07's `files_items.id`). Not a foreign key: the sync tells
+    # an item the user deleted (`deleted_at`) from one never made.
+    item_id: Mapped[str | None] = mapped_column(String, default=None, index=True)
+    # What the sync last applied from the platform: the platform's title, and its version of the
+    # contents (it changes when the bytes do, not on a rename).
+    title: Mapped[str | None] = mapped_column(String, default=None)
+    version: Mapped[str | None] = mapped_column(String, default=None)
+    # The item's name as the sync last set it: a different one, the user renamed it.
+    name: Mapped[str | None] = mapped_column(String, default=None)
+    # The type it was filed under (`files.sorting.MaterialType`), and whether the model chose it.
+    type: Mapped[str | None] = mapped_column(String, default=None)
+    sorted_by_model: Mapped[bool] = mapped_column(Boolean, default=False)
+    # A page that only lists other things: remembered (so it is read again only when it
+    # changes), never an item.
+    is_list: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The course's files and pages a page links to, as `[kind, external id]` pairs.
+    links: Mapped[list[list[str]]] = mapped_column(JSON, default=list)
+    # When it was last read on its own (an item no list gives a version for).
+    checked_at: Mapped[datetime | None] = mapped_column(default=None)
+    imported_at: Mapped[datetime | None] = mapped_column(default=None)
+    # The user deleted its item: not brought back.
+    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class LmsSyncChange(Base, OwnedMixin):

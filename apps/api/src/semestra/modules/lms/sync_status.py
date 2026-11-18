@@ -22,7 +22,6 @@ from semestra.modules.lms.schemas.sync import (
 from semestra.modules.lms.settings import account
 from semestra.modules.lms.sync_assignments import (
     FIELDS,
-    KIND,
     differences,
     local_values,
     toggleable,
@@ -80,7 +79,6 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
             select(LmsImportedRef).where(
                 LmsImportedRef.user_id == ctx.user_id,
                 LmsImportedRef.link_id.in_(list(by_link)),
-                LmsImportedRef.external_kind == KIND,  # the panel lists assignments
             )
         )
     )

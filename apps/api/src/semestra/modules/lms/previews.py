@@ -165,7 +165,7 @@ async def preview_add_to_gradebook(ctx: Ctx, inp: AssignmentsImportInput) -> dic
 
 
 async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:
-    from semestra.modules.files import service as files
+    from semestra.modules.files import sources
 
     changes: list[dict[str, Any]] = []
     if (name := await _file_name(ctx, inp.course_id, inp.file_id)) is not None:
@@ -173,7 +173,7 @@ async def preview_file_save(ctx: Ctx, inp: FileSaveInput) -> dict[str, Any]:
     folder = None
     if inp.folder_id is not None:
         with suppress(AppError):
-            folder = (await files.get_folder(ctx, inp.folder_id)).name
+            folder = (await sources.get_folder(ctx, inp.folder_id)).name
     changes.append({"field": "folder", "after": folder})
     return {"target": await _course(ctx, inp.course_id), "changes": changes}
 

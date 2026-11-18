@@ -10,10 +10,8 @@ user has moved since the plan is left where they put it.
 from collections import defaultdict
 from typing import Any, cast
 
-from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
-from semestra.core.capability import Http, capability
 from semestra.core.context import Ctx, run_as_system
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, JobCtx, JobOut, enqueue, job_handler
@@ -25,77 +23,23 @@ from semestra.modules.files.models import (
     FilesOrganizePlan,
     FilesTypeFolder,
 )
-from semestra.modules.files.schemas import Deleted
+from semestra.modules.files.schemas import (
+    OrganizeApplied,
+    OrganizeDone,
+    OrganizeInput,
+    OrganizePlan,
+    OrganizeState,
+    PendingOrganize,
+    PendingOrganizeList,
+    PlannedMove,
+    TypeName,
+)
 from semestra.modules.files.sorting import Clues, MaterialType
 
 KIND = "files.organize"
 UPDATED = "files.organization.updated"
 # The start of a file's text the model reads.
 EXCERPT_CHARS = 400
-
-TypeName = sorting.TypeName
-
-
-class OrganizeInput(BaseModel):
-    course_id: str = Field(description="The course whose files to organize.")
-
-
-class OrganizeDone(BaseModel):
-    """The job's result: where the plan is."""
-
-    course_id: str
-    program_id: str
-
-
-class PlannedMove(BaseModel):
-    item_id: str
-    type: TypeName
-    # The folder it goes in; None: made when the move is applied.
-    folder_id: str | None
-    folder_name: str
-    # Where it is now (None: the top level).
-    from_folder_id: str | None
-
-
-class OrganizePlan(BaseModel):
-    moves: list[PlannedMove]
-    # Files looked at and left where they are.
-    left: int
-
-
-class OrganizeState(BaseModel):
-    """The course's organizing: its job (while reading, or when it failed; None once the job
-    record is gone), and its plan once read. Both None: nothing waits."""
-
-    job: JobOut | None
-    plan: OrganizePlan | None
-
-
-class OrganizeApplyInput(BaseModel):
-    course_id: str = Field(description="The course whose plan to apply.")
-    item_ids: list[str] = Field(
-        max_length=5000, description="The files of the plan the user kept; the rest stay."
-    )
-
-
-class OrganizeApplied(BaseModel):
-    moved: int
-
-
-class PendingOrganize(BaseModel):
-    course_id: str
-    # While reading, or when it failed (None once read).
-    job: JobOut | None
-    # Files the plan would still move (None until read).
-    count: int | None
-
-
-class PendingOrganizeList(BaseModel):
-    items: list[PendingOrganize]
-
-
-class ProgramInput(BaseModel):
-    program_id: str = Field(description="The Program whose courses to look at.")
 
 
 async def unsorted_folders(
@@ -233,21 +177,12 @@ async def _live_moves(ctx: Ctx, course_id: str, saved: FilesOrganizePlan) -> lis
     return moves
 
 
-@capability(
-    name="files.organization.start",
-    summary="Work out how to sort a course's unsorted files into type folders.",
-    description="""Starts a job that gives each file at the top level or in "Course materials" a
-type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
-(replacing one not yet applied). Nothing is moved: the user reviews the plan
-(`files.organization.get`) and applies it (`files.organization.apply`).""",
-    effect="write",
-    http=Http("POST", "/courses/{course_id}/files:organize"),
-    expose=("http",),
-    tags=("files",),
-)
-async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:
-    course = await academics.get_course_row(ctx, inp.course_id)
-    job = await enqueue(ctx, KIND, inp, dedupe_key=f"{KIND}:{inp.course_id}")
+async def start(ctx: Ctx, course_id: str) -> JobOut:
+    """Queues working out the course's plan, replacing one not yet applied."""
+    course = await academics.get_course_row(ctx, course_id)
+    job = await enqueue(
+        ctx, KIND, OrganizeInput(course_id=course_id), dedupe_key=f"{KIND}:{course_id}"
+    )
     saved = await _plan_row(ctx, course.id)
     if saved is None:
         ctx.db.add(FilesOrganizePlan(user_id=ctx.user_id, course_id=course.id, job_id=job.id))
@@ -257,23 +192,13 @@ async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:
     return JobOut.of(job)
 
 
-@capability(
-    name="files.organization.get",
-    summary="Where a course's organizing stands.",
-    description="""The course's organizing: its job while it reads (or when it failed), and the
-plan once read, with the files the user has moved or deleted since left out.""",
-    effect="read",
-    http=Http("GET", "/courses/{course_id}/files:organize"),
-    expose=("http",),
-    tags=("files",),
-)
-async def organization_get(ctx: Ctx, inp: OrganizeInput) -> OrganizeState:
-    await academics.get_course_row(ctx, inp.course_id)
-    saved = await _plan_row(ctx, inp.course_id)
+async def state(ctx: Ctx, course_id: str) -> OrganizeState:
+    await academics.get_course_row(ctx, course_id)
+    saved = await _plan_row(ctx, course_id)
     if saved is None:
         return OrganizeState(job=None, plan=None)
     if saved.moves is not None:
-        moves = await _live_moves(ctx, inp.course_id, saved)
+        moves = await _live_moves(ctx, course_id, saved)
         return OrganizeState(job=None, plan=OrganizePlan(moves=moves, left=saved.left))
     job = await ctx.db.scalar(
         select(CoreJob).where(CoreJob.id == saved.job_id, CoreJob.user_id == ctx.user_id)
@@ -281,18 +206,8 @@ async def organization_get(ctx: Ctx, inp: OrganizeInput) -> OrganizeState:
     return OrganizeState(job=JobOut.of(job) if job is not None else None, plan=None)
 
 
-@capability(
-    name="files.organization.list",
-    summary="The organizing under way in a Program's courses.",
-    description="""Each course whose organizing is reading, failed (not yet seen), or waits for
-review, with how many files its plan would still move.""",
-    effect="read",
-    http=Http("GET", "/programs/{program_id}/file-organizations"),
-    expose=("http",),
-    tags=("files",),
-)
-async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
-    await academics.get_program_row(ctx, inp.program_id)
+async def pending(ctx: Ctx, program_id: str) -> PendingOrganizeList:
+    await academics.get_program_row(ctx, program_id)
     saved = list(
         await ctx.db.scalars(
             select(FilesOrganizePlan).where(FilesOrganizePlan.user_id == ctx.user_id)
@@ -301,7 +216,7 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
     courses = {
         c.id
         for c in await academics.courses_by_id(ctx, [s.course_id for s in saved])
-        if c.program_id == inp.program_id
+        if c.program_id == program_id
     }
     reading = [s for s in saved if s.course_id in courses and s.moves is None]
     jobs = {
@@ -324,21 +239,11 @@ async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
     return PendingOrganizeList(items=items)
 
 
-@capability(
-    name="files.organization.apply",
-    summary="Move a course's files into their type folders, as its plan says.",
-    description="""Applies the course's plan to the files the user kept: each goes in its type's
-folder, made when the course has none. Files moved or deleted since the plan stay as they are.
-The plan is done with afterwards.""",
-    effect="write",
-    http=Http("POST", "/courses/{course_id}/files:organize-apply"),
-    expose=("http",),
-    tags=("files",),
-)
-async def organization_apply(ctx: Ctx, inp: OrganizeApplyInput) -> OrganizeApplied:
-    course = await academics.get_course_row(ctx, inp.course_id)
+async def apply(ctx: Ctx, course_id: str, item_ids: list[str]) -> OrganizeApplied:
+    """Moves the plan's files the user kept into their type folders; the plan is done with."""
+    course = await academics.get_course_row(ctx, course_id)
     saved = await _plan_row(ctx, course.id)
-    kept = set(inp.item_ids)
+    kept = set(item_ids)
     by_type: dict[MaterialType, list[str]] = defaultdict(list)
     if saved is not None and saved.moves is not None:
         for move in await _live_moves(ctx, course.id, saved):
@@ -346,29 +251,19 @@ async def organization_apply(ctx: Ctx, inp: OrganizeApplyInput) -> OrganizeAppli
                 by_type[move.type].append(move.item_id)
     known = await sorting.type_folders(ctx, course.id)
     moved = 0
-    for kind, item_ids in by_type.items():
-        folder_id = await sorting.make_folder(ctx, course.id, kind, known)
-        moved += await service.move_entries(ctx, course.id, item_ids, [], folder_id)
-    await _discard(ctx, course.id, course.program_id)
+    for kind, ids in by_type.items():
+        folder_id = await sorting.folder_for(ctx, course.id, kind, known, if_deleted="remake")
+        moved += await service.move_entries(ctx, course.id, ids, [], folder_id)
+    await _drop_plan(ctx, course.id, course.program_id)
     return OrganizeApplied(moved=moved)
 
 
-@capability(
-    name="files.organization.discard",
-    summary="Discard a course's organizing plan without moving anything.",
-    description="The plan is done with; the files stay where they are.",
-    effect="write",
-    http=Http("DELETE", "/courses/{course_id}/files:organize"),
-    expose=("http",),
-    tags=("files",),
-)
-async def organization_discard(ctx: Ctx, inp: OrganizeInput) -> Deleted:
-    course = await academics.get_course_row(ctx, inp.course_id)
-    await _discard(ctx, course.id, course.program_id)
-    return Deleted()
+async def discard(ctx: Ctx, course_id: str) -> None:
+    course = await academics.get_course_row(ctx, course_id)
+    await _drop_plan(ctx, course.id, course.program_id)
 
 
-async def _discard(ctx: Ctx, course_id: str, program_id: str) -> None:
+async def _drop_plan(ctx: Ctx, course_id: str, program_id: str) -> None:
     await ctx.db.execute(
         delete(FilesOrganizePlan).where(
             FilesOrganizePlan.user_id == ctx.user_id, FilesOrganizePlan.course_id == course_id

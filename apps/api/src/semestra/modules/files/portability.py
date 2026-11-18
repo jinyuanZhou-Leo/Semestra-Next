@@ -13,7 +13,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.core.storage import get_storage
-from semestra.modules.files import content, service
+from semestra.modules.files import content, service, sources
 from semestra.modules.files.models import (
     FilesChunk,
     FilesDocument,
@@ -90,9 +90,9 @@ class FilesAdapter(TableAdapter):
             if size is None and content.follows_source(row):
                 # Kept in step by its source (an LMS file; stored for it or not), whose
                 # credentials are not in a backup: read again, and stored again if the source
-                # stores it, by the source's sync once they are back (`service.SOURCE_UNREAD`).
+                # stores it, by the source's sync once they are back (`sources.SOURCE_UNREAD`).
                 if row.doc_status != "unsupported":
-                    row.doc_status, row.doc_error_code = "failed", service.SOURCE_UNREAD
+                    row.doc_status, row.doc_error_code = "failed", sources.SOURCE_UNREAD
                 continue
             if size is None:
                 await ctx.db.delete(row)

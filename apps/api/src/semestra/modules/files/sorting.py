@@ -30,6 +30,7 @@ from semestra.core.context import Ctx
 from semestra.modules import ai
 from semestra.modules.files import service
 from semestra.modules.files.models import FilesFolder, FilesTypeFolder
+from semestra.modules.files.schemas import TypeName
 
 MaterialType = Literal[
     "info", "exams", "recordings", "problems", "tutorials", "lectures", "readings", "general"
@@ -207,9 +208,6 @@ TYPES: dict[MaterialType, str] = {
     "general": "anything else (course logistics, schedules, data files, forms, templates)",
 }
 
-TypeName = Literal[
-    "lectures", "tutorials", "problems", "exams", "recordings", "readings", "general"
-]  # fmt: skip
 
 SYSTEM = (
     "You sort a university course's materials into folders. Each item below is a file, page "
@@ -338,19 +336,31 @@ async def existing_folder(
     return await service.root_folder_named(ctx, course_id, folder_name(kind, ctx.locale))
 
 
-async def make_folder(
-    ctx: Ctx, course_id: str, kind: MaterialType, known: dict[MaterialType, FilesTypeFolder]
-) -> str:
-    """The type's folder (`existing_folder`), made in the account's language when there is
-    none, and remembered."""
+async def folder_for(
+    ctx: Ctx,
+    course_id: str,
+    kind: MaterialType,
+    known: dict[MaterialType, FilesTypeFolder],
+    *,
+    if_deleted: Literal["remake", "top_level"],
+) -> str | None:
+    """Where the type's items go (None: the top level; a syllabus always stays there): its
+    folder (`existing_folder`), made in the account's language when the course has none, and
+    remembered. When the user deleted the remembered folder, `if_deleted` decides: "remake"
+    finds or makes one again like the first time (the user's "Organize": they ask for the type
+    folders), "top_level" leaves the type's items at the top level (M09's sync: owner
+    2026-11-17, nothing is guessed from where the user put other items)."""
+    if kind == "info":
+        return None
+    row = known.get(kind)
+    if row is not None and if_deleted == "top_level":
+        if row.folder_id and await service.find_folder(ctx, course_id, row.folder_id) is not None:
+            return row.folder_id
+        return None
     folder = await existing_folder(ctx, course_id, kind, known)
     if folder is None:
         name = folder_name(kind, ctx.locale)
-        return remember(
-            ctx,
-            course_id,
-            kind,
-            (await service.create_folder(ctx, course_id, name, None)).id,
-            known,
-        )
-    return remember(ctx, course_id, kind, folder.id, known)
+        folder_id = (await service.create_folder(ctx, course_id, name, None)).id
+    else:
+        folder_id = folder.id
+    return remember(ctx, course_id, kind, folder_id, known)

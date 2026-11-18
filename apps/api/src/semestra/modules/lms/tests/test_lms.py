@@ -506,13 +506,15 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
         await ctx.db.commit()
     assert "good-token-1" not in str(writer.payload)
     assert await portability.preview(writer.payload) == {
-        "connections": 1, "bindings": 1, "links": 1, "refs": 0,
+        "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
     }  # fmt: skip
     identity = {program_id: program_id, course: course}
     async with system_ctx(app.state, user_id) as ctx:
         report = await portability.import_(ctx, writer.payload, identity)
         await ctx.db.commit()
-    assert report.imported == {"connections": 1, "bindings": 1, "links": 1, "refs": 0}
+    assert report.imported == {
+        "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
+    }  # fmt: skip
     listed = (await api.call("GET", "/lms/connections"))["items"]
     assert len(listed) == 1
     assert listed[0]["has_credentials"] is False
@@ -533,7 +535,6 @@ async def test_deleted_tasks_can_be_imported_again(api: Api, app: FastAPI):
             ref = LmsImportedRef(
                 user_id=owner.user_id,
                 link_id=link["id"],
-                external_kind="assignment",
                 external_id=n,
                 target_kind="task",
                 target_id=f"t{n}",
@@ -621,7 +622,7 @@ async def test_an_assignment_imported_as_the_other_kind_meanwhile_rolls_back(
         owner = await ctx.db.get(LmsConnection, link["connection_id"])
         assert owner is not None
         ctx.db.add(
-            LmsImportedRef(user_id=owner.user_id, link_id=link["id"], external_kind="assignment",
+            LmsImportedRef(user_id=owner.user_id, link_id=link["id"],
                            external_id="a1", target_kind="assessment", target_id="as1",
                            snapshot={}, imported_at=datetime(2026, 1, 15, tzinfo=UTC))
         )  # fmt: skip
@@ -819,7 +820,7 @@ async def test_assistant_cards_name_the_lms_side(api: Api, app: FastAPI, fake: F
 
     async with system_ctx(app.state) as ctx:
         ctx.db.add(
-            LmsImportedRef(user_id=me["id"], link_id=link["id"], external_kind="assignment",
+            LmsImportedRef(user_id=me["id"], link_id=link["id"],
                            external_id="a3", target_kind="assessment", target_id="x",
                            snapshot={}, imported_at=datetime(2026, 1, 15, tzinfo=UTC))
         )  # fmt: skip

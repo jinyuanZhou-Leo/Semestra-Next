@@ -2,6 +2,9 @@
 come into the course's files in type folders without taking storage, follow the platform, and
 leave alone what the user moved, renamed or deleted."""
 
+import io
+import json
+import zipfile
 from datetime import UTC, datetime
 from typing import Any
 
@@ -417,6 +420,65 @@ async def test_a_backup_without_files(api: Api, fake: FakeProvider, app: FastAPI
     # The user's own copy, without its bytes in the backup: its source's again, not lost.
     midterm_row = rows["Midterm 2025.pdf"]
     assert (midterm_row.kept_offline, midterm_row.doc_error_code) == (False, "files.source_unread")
+
+
+def _as_2_0_0(archive: bytes) -> bytes:
+    """The backup as 2.0.0 (and the betas before it) wrote it, before `lms_materials`, at the
+    same lms version 2: the materials among the refs, their state in `snapshot`."""
+    source = zipfile.ZipFile(io.BytesIO(archive))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "data/lms.json":
+                payload = json.loads(data)
+                refs = [{**r, "external_kind": "assignment"} for r in payload["refs"]]
+                for m in payload.pop("materials"):
+                    snap = {"links": m["links"], "title": m["title"], "version": m["version"]}
+                    snap |= {"name": m["name"], "type": m["type"]} if m["name"] else {}
+                    refs.append({
+                        "link_id": m["link_id"], "external_kind": m["kind"],
+                        "external_id": m["external_id"],
+                        "target_kind": "file_item" if m["item_id"] else None,
+                        "target_id": m["item_id"], "snapshot": snap,
+                        "imported_at": m["imported_at"], "dismissed_at": m["deleted_at"],
+                    })  # fmt: skip
+                data = json.dumps({**payload, "schema_version": 2, "refs": refs}).encode()
+            z.writestr(name, data)
+    return out.getvalue()
+
+
+async def test_a_2_0_0_backup_keeps_the_materials_in_step(api: Api, fake: FakeProvider):
+    """Restored from a backup made before the materials had a table of their own, the items
+    still follow the platform's: none comes twice, and one the user deleted stays deleted."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    items = (await _files(api, course))[1]
+    await api.call("DELETE", f"/files/{items['data.zip']['id']}")
+    await api.sync(program_id)  # which tells the deletion
+
+    started = await api.call("POST", "/me/exports", json={"include_files": False})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    uploaded = await api.client.post(
+        "/me/imports", files={"file": ("backup.zip", _as_2_0_0(archive), "application/zip")}
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data"}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+
+    [connection] = (await api.call("GET", "/lms/connections"))["items"]
+    token = {"credentials": {"token": "good-token-1"}}  # not in backups: typed again
+    await api.call("PATCH", f"/lms/connections/{connection['id']}", json=token)
+    [program] = (await api.call("GET", "/programs"))["items"]
+    [course] = [
+        c["id"] for c in (await api.call("GET", f"/programs/{program['id']}/courses"))["items"]
+    ]
+    before = sorted((await _files(api, course))[1])
+    assert "data.zip" not in before
+    await api.sync(program["id"])
+    assert sorted((await _files(api, course))[1]) == before
 
 
 async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(
