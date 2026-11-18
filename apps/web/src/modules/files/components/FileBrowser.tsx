@@ -140,10 +140,10 @@ function NameCell({ row }: CellProps) {
       onClick={() => open(item)}
       className="relative flex max-w-full items-center gap-2.5 text-left hover:underline"
     >
-      {/* In the gap before the icon, so a row does not move when its dot goes. */}
-      {fresh ? <NewDot className="absolute top-1/2 -left-4 -translate-y-1/2" /> : null}
       <FileIcon item={item} aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className={cn('truncate', fresh && 'font-medium')}>{item.display_name}</span>
+      {/* After the name, so nothing in the row moves when the dot goes. */}
+      {fresh ? <NewDot /> : null}
     </button>
   )
 }
@@ -803,9 +803,9 @@ const FolderRow = memo(function FolderRow({
           onClick={() => openFolder(folder.id)}
           className="relative flex max-w-full items-center gap-2.5 font-medium hover:underline"
         >
-          {fresh ? <NewDot className="absolute top-1/2 -left-4 -translate-y-1/2" /> : null}
           <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{folder.name}</span>
+          {fresh ? <NewDot /> : null}
         </button>
       </TableCell>
       <TableCell className={cn('py-2', ICON_COLUMN)}>
