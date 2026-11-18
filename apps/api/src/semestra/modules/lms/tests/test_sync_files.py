@@ -787,44 +787,19 @@ async def test_reading_the_files_waits_for_a_course_sync_queued_since(
     assert await _pending(app, "files.process_synced") > 0
 
 
-async def test_scanned_pages_of_synced_files_wait_for_the_user_or_the_setting(
-    api: Api, fake: FakeProvider, fake_ai: FakeAi, clock: Clock
+async def test_scanned_pages_of_synced_files_are_read_like_any_file(
+    api: Api, fake: FakeProvider, fake_ai: FakeAi
 ):
-    """The provider reads the scanned pages of a synced file only when the user asks (processing
-    it again) or the course's setting says so; hundreds come at once, and nobody asked."""
+    """Synced files follow the course's `auto_index` like any other, scanned pages included."""
     fake_ai.enabled.add("ocr")
-    pdf = "application/pdf"
-    fake.course_file_list = [
-        _file(n, f"Scan {n}.pdf", "Lectures", mime_type=pdf) for n in ("201", "202")
-    ]
-    for n in ("201", "202", "203"):
-        fake.file_bytes[n] = make_pdf(["scan"], scanned={0})
+    fake.course_file_list = [_file("201", "Scan 201.pdf", "Lectures", mime_type="application/pdf")]
+    fake.file_bytes["201"] = make_pdf(["scan"], scanned={0})
     program_id, course = await _course(api)
     await api.sync(program_id)
     items = (await _files(api, course))[1]
-    assert {(i["doc_status"], i["ocr_skipped_pages"]) for i in items.values()} == {("ready", 1)}
-    assert fake_ai.ocr_calls == 0
-
-    first, second = items["Scan 201.pdf"]["id"], items["Scan 202.pdf"]["id"]
-    await api.call("POST", f"/files/{first}:reprocess")
-    await api.run_jobs()
-    assert (await api.call("GET", f"/files/{first}"))["ocr_skipped_pages"] == 0
+    assert items["Scan 201.pdf"]["doc_status"] == "ready"
+    assert items["Scan 201.pdf"]["ocr_skipped_pages"] == 0
     assert fake_ai.ocr_calls == 1
-
-    # Turned on: what was skipped is read now, and what comes next as it comes.
-    await api.call(
-        "PATCH",
-        "/me/settings/lms.materials",
-        json={"scope_type": "account", "values": {"scans": True}},
-    )
-    await api.run_jobs()
-    assert (await api.call("GET", f"/files/{second}"))["ocr_skipped_pages"] == 0
-    assert fake_ai.ocr_calls == 2
-    fake.course_file_list.append(_file("203", "Scan 203.pdf", "Lectures", mime_type=pdf))
-    clock.advance(minutes=1)
-    await api.sync(program_id)
-    assert (await _files(api, course))[1]["Scan 203.pdf"]["ocr_skipped_pages"] == 0
-    assert fake_ai.ocr_calls == 3
 
 
 async def _pending(app: FastAPI, kind: str) -> int:

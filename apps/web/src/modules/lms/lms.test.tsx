@@ -312,7 +312,6 @@ const MATERIALS_SCHEMA = {
     properties: {
       sync: { type: 'boolean', default: true },
       store: { type: 'string', enum: ['online', 'local'], default: 'online' },
-      scans: { type: 'boolean', default: false },
     },
   },
 }
@@ -325,8 +324,8 @@ test('account settings: how every course takes in its materials', async () => {
         namespace: 'lms.materials',
         scope_type: 'account',
         scope_id: null,
-        values: { sync: true, store: 'online', scans: false },
-        sources: { sync: 'default', store: 'default', scans: 'default' },
+        values: { sync: true, store: 'online' },
+        sources: { sync: 'default', store: 'default' },
         inherited: {},
       }),
     ),
@@ -336,7 +335,6 @@ test('account settings: how every course takes in its materials', async () => {
   expect(await screen.findByRole('switch', { name: 'Bring in course materials' })).toBeChecked()
   // Named after the platform of the account's connections.
   expect(screen.getByText(/from Canvas into course files/)).toBeInTheDocument()
-  expect(screen.getByRole('switch', { name: 'Recognize text in scanned pages' })).not.toBeChecked()
 })
 
 test("a program's connection is locked while courses are linked through it", async () => {
@@ -391,12 +389,11 @@ test('course settings: guidance without a binding, then the switches, materials 
         namespace: 'lms.materials',
         scope_type: 'course',
         scope_id: 'c1',
-        values: { sync: true, store: 'local', scans: false },
-        sources: { sync: 'default', store: 'account', scans: 'default' },
+        values: { sync: true, store: 'local' },
+        sources: { sync: 'default', store: 'account' },
         inherited: {
           sync: { value: true, source: 'default' },
           store: { value: 'local', source: 'account' },
-          scans: { value: false, source: 'default' },
         },
       }),
     ),
@@ -406,12 +403,11 @@ test('course settings: guidance without a binding, then the switches, materials 
         namespace: 'lms.materials',
         scope_type: 'course',
         scope_id: 'c1',
-        values: { sync: false, store: 'local', scans: false },
-        sources: { sync: 'course', store: 'account', scans: 'default' },
+        values: { sync: false, store: 'local' },
+        sources: { sync: 'course', store: 'account' },
         inherited: {
           sync: { value: true, source: 'default' },
           store: { value: 'local', source: 'account' },
-          scans: { value: false, source: 'default' },
         },
       })
     }),

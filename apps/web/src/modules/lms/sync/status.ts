@@ -65,7 +65,8 @@ export function useSyncLine(): StatusItem | null {
   const { status, provider } = useSync(programId)
   const now = useNow()
   if (!hasSyncLine(status) || !provider) return null
-  const line = { rank: 'idle', icon: School, Panel: SyncPanel, label: provider } as const
+  // Each state names its rank, so a red line never ranks as a resting one.
+  const line = { icon: School, Panel: SyncPanel, label: provider } as const
   if (status.connection_error) {
     return {
       ...line,
@@ -77,7 +78,8 @@ export function useSyncLine(): StatusItem | null {
     }
   }
   const pending = status.pending.length > 0 ? pendingCount(status.pending) : 0
-  const waiting = pending > 0 ? { rank: 'attention' as const, badge: pending } : {}
+  const waiting =
+    pending > 0 ? { rank: 'attention' as const, badge: pending } : { rank: 'idle' as const }
   if (status.syncing) {
     const round = status.round
     return {
@@ -95,8 +97,14 @@ export function useSyncLine(): StatusItem | null {
     const courses = [...new Set(status.errors.map((e) => e.course))].join(
       m.lms_sync_list_separator(),
     )
-    return { ...line, icon: CircleAlert, tone: 'error', hint: m.lms_sync_hint_failed({ courses }) }
+    return {
+      ...line,
+      rank: 'error',
+      icon: CircleAlert,
+      tone: 'error',
+      hint: m.lms_sync_hint_failed({ courses }),
+    }
   }
-  if (!status.synced_at) return { ...line, meta: m.lms_sync_meta_waiting() }
-  return { ...line, meta: syncedAgo(status.synced_at, now) }
+  if (!status.synced_at) return { ...line, rank: 'idle', meta: m.lms_sync_meta_waiting() }
+  return { ...line, rank: 'idle', meta: syncedAgo(status.synced_at, now) }
 }
