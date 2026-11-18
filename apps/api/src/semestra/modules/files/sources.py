@@ -33,18 +33,13 @@ from semestra.core.storage import (
     stage,
 )
 from semestra.core.storage import usage as core_usage
-from semestra.modules.files import content, service
+from semestra.modules.files import content, items, service
+from semestra.modules.files.folders import folder_names
+from semestra.modules.files.items import create_link, save_bytes_as_file
 from semestra.modules.files.models import FilesItem
 from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import SourceKind
-from semestra.modules.files.service import (
-    create_link,
-    find_items,
-    folder_names,
-    get_folder,
-    purge_items,
-    save_bytes_as_file,
-)
+from semestra.modules.files.service import find_items, get_folder, purge_items
 from semestra.modules.files.settings import auto_index
 
 __all__ = [
@@ -458,7 +453,7 @@ async def detach_from_source(ctx: Ctx, rows: Sequence[FilesItem]) -> None:
 
 async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -> None:
     """Another module's link moved (and, unless None, was renamed); its place stays."""
-    row.url = service.normalize_url(url)
+    row.url = items.normalize_url(url)
     if name is not None:
         row.display_name = service.clean_name(name)
     row.updated_at = ctx.now

@@ -205,7 +205,12 @@ async def test_a_new_grade_is_applied_and_announced(api: Api, app: FastAPI, fake
     assert (lab2["points_earned"], lab2["points_possible"]) == (27, 30)
     [synced] = [m["data"] for m in messages if m["type"] == sync.SYNCED]
     assert synced["applied"] == [
-        {"change_id": synced["applied"][0]["change_id"], "name": "Lab 2", "field": "score"}
+        {
+            "change_id": synced["applied"][0]["change_id"],
+            "ref_id": synced["applied"][0]["ref_id"],
+            "name": "Lab 2",
+            "field": "score",
+        }
     ]
     # Told once: the next sync finds nothing to do.
     with collect_events(app, user_id) as messages:

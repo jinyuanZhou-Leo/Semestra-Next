@@ -16,13 +16,14 @@ from semestra.modules.files import (  # noqa: F401  (registers on import)
     models,
     organize,
     portability,
+    quota,
     settings,
     subscribers,
     upload,
 )
 from semestra.modules.files.content import register_content_source
+from semestra.modules.files.items import save_bytes_as_file
 from semestra.modules.files.routes import router
-from semestra.modules.files.service import save_bytes_as_file
 
 __all__ = ["register", "register_content_source", "save_bytes_as_file"]
 

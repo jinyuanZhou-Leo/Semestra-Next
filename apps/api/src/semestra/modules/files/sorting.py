@@ -28,7 +28,7 @@ from sqlalchemy import select
 
 from semestra.core.context import Ctx
 from semestra.modules import ai
-from semestra.modules.files import service
+from semestra.modules.files import folders
 from semestra.modules.files.models import FilesFolder, FilesTypeFolder
 from semestra.modules.files.schemas import TypeName
 
@@ -330,10 +330,10 @@ async def existing_folder(
     top-level folder with the type's name."""
     row = known.get(kind)
     if row is not None and row.folder_id is not None:
-        folder = await service.find_folder(ctx, course_id, row.folder_id)
+        folder = await folders.find_folder(ctx, course_id, row.folder_id)
         if folder is not None:
             return folder
-    return await service.root_folder_named(ctx, course_id, folder_name(kind, ctx.locale))
+    return await folders.root_folder_named(ctx, course_id, folder_name(kind, ctx.locale))
 
 
 async def folder_for(
@@ -354,13 +354,13 @@ async def folder_for(
         return None
     row = known.get(kind)
     if row is not None and if_deleted == "top_level":
-        if row.folder_id and await service.find_folder(ctx, course_id, row.folder_id) is not None:
+        if row.folder_id and await folders.find_folder(ctx, course_id, row.folder_id) is not None:
             return row.folder_id
         return None
     folder = await existing_folder(ctx, course_id, kind, known)
     if folder is None:
         name = folder_name(kind, ctx.locale)
-        folder_id = (await service.create_folder(ctx, course_id, name, None)).id
+        folder_id = (await folders.create_folder(ctx, course_id, name, None)).id
     else:
         folder_id = folder.id
     return remember(ctx, course_id, kind, folder_id, known)

@@ -21,8 +21,9 @@ class NotificationsSettings(BaseModel):
     jobs: bool = Field(
         default=True, description="Imports ready to review, finished or failed background tasks"
     )
-    # Linked LMS courses (Canvas): new grades and changed imported assignments, plus new
-    # announcements with "all". Checked every few hours in the background.
+    # Linked LMS courses (Canvas): new grades, the teacher's new feedback and changed imported
+    # assignments, plus new announcements and materials with "all". Checked every few hours in
+    # the background.
     lms: Literal["off", "updates", "all"] = "updates"
     assistant: bool = True  # Sem waits for an approval
     sign_in: bool = True  # a new sign-in to this account

@@ -274,10 +274,10 @@ async def move_to_course(
     ctx: Ctx, *, course_id: str, filename: str, chunks: AsyncIterator[bytes]
 ) -> str | None:
     """Stores an import upload as a file of the course (M07); None when M07 is not there."""
-    service = _files("service")
-    if service is None:
+    items = _files("items")
+    if items is None:
         return None
-    row = await service.store_file(
+    row = await items.store_file(
         ctx, course_id=course_id, filename=filename, stream=chunks, source_kind="upload"
     )
     return str(row.id)

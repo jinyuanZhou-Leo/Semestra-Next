@@ -69,6 +69,8 @@ class Applied:
     """A field the stage changed on a Semestra object (`LmsSyncChange`)."""
 
     change_id: str
+    # The assignment it is about (`LmsImportedRef`): names repeat within a course.
+    ref_id: str
     name: str
     field: str
 
@@ -222,7 +224,7 @@ async def sync_course(
                 "program_id": link.program_id,
                 "manual": manual,
                 "applied": [
-                    {"change_id": a.change_id, "name": a.name, "field": a.field}
+                    {"change_id": a.change_id, "ref_id": a.ref_id, "name": a.name, "field": a.field}
                     for r in results
                     for a in r.applied
                 ],

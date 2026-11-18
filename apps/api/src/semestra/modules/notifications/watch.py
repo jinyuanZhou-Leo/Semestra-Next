@@ -1,12 +1,13 @@
 """LMS updates (M18 §4.4): what a background course sync (M09 `lms.course.synced`) did, one
-notification per course and kind: new grades, changed assignments, new announcements, new course
-materials. The sync decides what is new and tells it once (not what a newly linked course brings
-in).
+notification per course and kind: new grades, the teacher's new feedback, changed assignments,
+new announcements, new course materials. The sync decides what is new and tells it once (not
+what a newly linked course brings in).
 
-Grades and changes show only while no Semestra tab is in front: the app tells those itself.
-Announcements and materials show always: the app does not. All are held through quiet hours
+Grades, feedback and changes show only while no Semestra tab is in front: the app tells those
+itself. Announcements and materials show always: the app does not. All are held through quiet hours
 (sent when they end), since the sync does not tell them again."""
 
+from collections.abc import Container
 from typing import Any
 
 from semestra.core.context import Ctx
@@ -21,16 +22,22 @@ def _kind(base: str, n: int) -> str:
     return f"{base}_{'one' if n == 1 else 'other'}"
 
 
-def _names(applied: list[dict[str, Any]], graded: bool) -> list[str]:
-    """Each item once, in the order the sync changed them. A weight alone is not told: one
-    assignment added to a group changes the weight of all the others in it."""
-    out: list[str] = []
+# The fields told on their own; a weight alone is not told: one assignment added to a group
+# changes the weight of all the others in it.
+_OWN = {"score", "feedback", "weight"}
+
+
+def _items(
+    applied: list[dict[str, Any]], field: str | None, skip: Container[str] = ()
+) -> dict[str, str]:
+    """The assignments (ref id → name) changed in `field`, or with None in the fields not told
+    on their own (the name, due date), each once, in the order the sync changed them; leaves
+    out those in `skip`. By id, not name: names repeat within a course."""
+    out: dict[str, str] = {}
     for a in applied:
-        field = a.get("field")
-        if field == "weight" or (field == "score") != graded:
-            continue
-        if a.get("name") and a["name"] not in out:
-            out.append(str(a["name"]))
+        kind, ref = a.get("field"), str(a["ref_id"])
+        if (kind == field if field else kind not in _OWN) and a.get("name") and ref not in skip:
+            out.setdefault(ref, str(a["name"]))
     return out
 
 
@@ -48,10 +55,16 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
     name = course.alias or course.code or course.title
     page = f"/p/{program_id}/c/{course_id}"
     applied: list[dict[str, Any]] = data.get("applied") or []
-    graded = _names(applied, graded=True)
-    changed = [n for n in _names(applied, graded=False) if n not in graded]
+    graded = _items(applied, "score")
+    # A grade that comes with feedback is told once, as the grade.
+    feedback = list(_items(applied, "feedback", graded).values())
+    changed = list(_items(applied, None, graded).values())
     messages: list[Message] = []
-    for base, names in (("lms_grades", graded), ("lms_changes", changed)):
+    for base, names in (
+        ("lms_grades", list(graded.values())),
+        ("lms_feedback", feedback),
+        ("lms_changes", changed),
+    ):
         if names:
             messages.append(
                 Message(
