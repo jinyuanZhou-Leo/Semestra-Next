@@ -107,7 +107,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
         )
     }
     changed = False
-    news_of: list[tuple[LmsSyncChange, str]] = []
+    news_of: list[tuple[LmsSyncChange, str]] = []  # (the change, the assignment's name)
     for ref in refs:
         sub = subs.get(ref.external_id)
         if sub is None and truncated:
@@ -144,7 +144,10 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     if changed:
         await events.publish(ctx, UPDATED, {"course_id": link.course_id})
     return StageResult(
-        applied=[Applied(change_id=c.id, name=title, field=FIELD) for c, title in news_of]
+        applied=[
+            Applied(change_id=c.id, ref_id=c.ref_id, name=title, field=FIELD)
+            for c, title in news_of
+        ]
     )
 
 

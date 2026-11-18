@@ -27,7 +27,6 @@ from semestra.core.storage import charge, delete_after_commit, get_storage, user
 from semestra.modules.agent import service, tools
 from semestra.modules.agent.models import AgentAttachment, AgentAttachmentPage
 from semestra.modules.files import items as files_items
-from semestra.modules.files import quota as files_quota
 from semestra.modules.files import service as files
 from semestra.modules.files.chunking import heading
 from semestra.modules.files.parse import ParsedDocument, ParsedPage, ParseError, parse
@@ -218,7 +217,7 @@ async def snapshot_file(ctx: Ctx, session_id: str, item_id: str) -> AgentAttachm
         file_item_id=item.id,
         created_at=ctx.now,
         sent_at=ctx.now,
-        doc_kind=files_quota.file_type(item.mime_type),
+        doc_kind=files.file_type(item.mime_type),
     )
     try:
         document_id = await documents.active_document_id(ctx, item.id)

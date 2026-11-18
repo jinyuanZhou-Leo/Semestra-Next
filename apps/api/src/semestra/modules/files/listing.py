@@ -58,7 +58,7 @@ async def list_files(ctx: Ctx, inp: FilesItemListInput) -> FilesItemList:
 
 async def pinned(ctx: Ctx, program_id: str) -> list[ItemOut]:
     await academics.get_program_row(ctx, program_id)
-    course_ids = await program_course_ids(ctx, program_id)
+    course_ids = await service.program_course_ids(ctx, program_id)
     if not course_ids:
         return []
     rows = (
@@ -77,7 +77,7 @@ async def pinned(ctx: Ctx, program_id: str) -> list[ItemOut]:
 
 async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
     await academics.get_program_row(ctx, inp.program_id)
-    course_ids = await program_course_ids(ctx, inp.program_id)
+    course_ids = await service.program_course_ids(ctx, inp.program_id)
     if not course_ids:
         return []
     stmt = select(
@@ -106,20 +106,3 @@ async def search_names(ctx: Ctx, inp: FileSearchInput) -> list[FileMatch]:
         )
         for r in rows
     ]
-
-
-async def program_course_ids(ctx: Ctx, program_id: str, term_id: str | None = None) -> list[str]:
-    """Ids of the Program's courses (of one term if given), through M02's list."""
-    from semestra.modules.academics.schemas import CourseListInput
-
-    ids: list[str] = []
-    cursor: str | None = None
-    while True:
-        page = await academics.list_courses(
-            ctx,
-            CourseListInput(program_id=program_id, term_id=term_id, cursor=cursor, limit=500),
-        )
-        ids += [c.id for c in page.items]
-        cursor = page.next_cursor
-        if cursor is None:
-            return ids

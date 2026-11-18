@@ -15,9 +15,11 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import events
 from semestra.core.jobs import CoreJob, enqueue
 from semestra.core.storage import delete_after_commit
+from semestra.modules.academics import service as academics
 from semestra.modules.files import content, indexing
 from semestra.modules.files.models import FilesDocument, FilesFolder, FilesIndexState, FilesItem
-from semestra.modules.files.schemas import ItemOut, ItemRef
+from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
+from semestra.modules.files.schemas import FileType, ItemOut, ItemRef
 from semestra.modules.files.vectors import get_vector_store
 
 PARSEABLE = frozenset({"pdf", "docx", "pptx", "xlsx", "csv", "text", "markdown", "html", "image"})
@@ -74,6 +76,21 @@ async def find_items(ctx: Ctx, item_ids: Sequence[str]) -> list[FilesItem]:
 async def preview_item_delete(ctx: Ctx, inp: ItemRef) -> dict[str, Any]:
     row = await get_item(ctx, inp.item_id)
     return {"target": row.display_name, "changes": []}
+
+
+_OFFICE_MIMES = frozenset({DOCX, PPTX, XLSX, "application/x-ole-storage"})
+
+
+def file_type(mime: str | None) -> FileType:
+    if mime == "application/pdf":
+        return "pdf"
+    if mime in _OFFICE_MIMES:
+        return "office"
+    if mime and mime.startswith("image/"):
+        return "image"
+    if mime and mime.startswith("text/"):
+        return "text"
+    return "other"
 
 
 async def item_outs(ctx: Ctx, rows: Sequence[FilesItem]) -> list[ItemOut]:
@@ -221,3 +238,20 @@ async def purge_course(ctx: Ctx, course_id: str) -> None:
             FilesFolder.user_id == ctx.user_id, FilesFolder.course_id == course_id
         )
     )
+
+
+async def program_course_ids(ctx: Ctx, program_id: str, term_id: str | None = None) -> list[str]:
+    """Ids of the Program's courses (of one term if given), through M02's list."""
+    from semestra.modules.academics.schemas import CourseListInput
+
+    ids: list[str] = []
+    cursor: str | None = None
+    while True:
+        page = await academics.list_courses(
+            ctx,
+            CourseListInput(program_id=program_id, term_id=term_id, cursor=cursor, limit=500),
+        )
+        ids += [c.id for c in page.items]
+        cursor = page.next_cursor
+        if cursor is None:
+            return ids

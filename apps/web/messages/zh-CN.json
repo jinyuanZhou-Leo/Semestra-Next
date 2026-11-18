@@ -3264,7 +3264,7 @@
   "settings_notifications_lms_label": "LMS",
   "settings_notifications_lms_option_off": "关闭",
   "settings_notifications_lms_option_updates": "成绩与变更",
-  "settings_notifications_lms_option_updates_description": "新成绩与反馈，以及名称、截止日期或权重的变化",
+  "settings_notifications_lms_option_updates_description": "新成绩与反馈，以及名称或截止日期的变化",
   "settings_notifications_lms_option_all": "全部",
   "settings_notifications_lms_option_all_description": "再加上新公告和新资料",
   "settings_notifications_assistant_label": "Sem 等待确认",

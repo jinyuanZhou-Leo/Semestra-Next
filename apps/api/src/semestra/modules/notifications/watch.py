@@ -7,6 +7,7 @@ Grades, feedback and changes show only while no Semestra tab is in front: the ap
 itself. Announcements and materials show always: the app does not. All are held through quiet hours
 (sent when they end), since the sync does not tell them again."""
 
+from collections.abc import Container
 from typing import Any
 
 from semestra.core.context import Ctx
@@ -26,14 +27,17 @@ def _kind(base: str, n: int) -> str:
 _OWN = {"score", "feedback", "weight"}
 
 
-def _names(applied: list[dict[str, Any]], field: str | None) -> list[str]:
-    """Each item once, in the order the sync changed them: of `field`, or with None of the
-    fields not told on their own (the assignment's name, due date)."""
-    out: list[str] = []
+def _items(
+    applied: list[dict[str, Any]], field: str | None, skip: Container[str] = ()
+) -> dict[str, str]:
+    """The assignments (ref id → name) changed in `field`, or with None in the fields not told
+    on their own (the name, due date), each once, in the order the sync changed them; leaves
+    out those in `skip`. By id, not name: names repeat within a course."""
+    out: dict[str, str] = {}
     for a in applied:
-        kind, name = a.get("field"), a.get("name")
-        if (kind == field if field else kind not in _OWN) and name and name not in out:
-            out.append(str(name))
+        kind, ref = a.get("field"), str(a["ref_id"])
+        if (kind == field if field else kind not in _OWN) and a.get("name") and ref not in skip:
+            out.setdefault(ref, str(a["name"]))
     return out
 
 
@@ -51,13 +55,13 @@ async def on_course_synced(ctx: Ctx, event: Event) -> None:
     name = course.alias or course.code or course.title
     page = f"/p/{program_id}/c/{course_id}"
     applied: list[dict[str, Any]] = data.get("applied") or []
-    graded = _names(applied, "score")
+    graded = _items(applied, "score")
     # A grade that comes with feedback is told once, as the grade.
-    feedback = [n for n in _names(applied, "feedback") if n not in graded]
-    changed = [n for n in _names(applied, None) if n not in graded]
+    feedback = list(_items(applied, "feedback", graded).values())
+    changed = list(_items(applied, None, graded).values())
     messages: list[Message] = []
     for base, names in (
-        ("lms_grades", graded),
+        ("lms_grades", list(graded.values())),
         ("lms_feedback", feedback),
         ("lms_changes", changed),
     ):

@@ -7,8 +7,8 @@ from semestra.core.context import Ctx
 from semestra.core.storage import storage_usage_provider
 from semestra.core.storage import usage as core_usage
 from semestra.modules.academics import service as academics
+from semestra.modules.files import service
 from semestra.modules.files.models import FilesIndexState, FilesItem
-from semestra.modules.files.parse.detect import DOCX, PPTX, XLSX
 from semestra.modules.files.schemas import (
     CourseUsage,
     FilesUsageBreakdown,
@@ -50,21 +50,6 @@ async def usage(ctx: Ctx) -> FilesUsageGet:
     )
 
 
-_OFFICE_MIMES = frozenset({DOCX, PPTX, XLSX, "application/x-ole-storage"})
-
-
-def file_type(mime: str | None) -> FileType:
-    if mime == "application/pdf":
-        return "pdf"
-    if mime in _OFFICE_MIMES:
-        return "office"
-    if mime and mime.startswith("image/"):
-        return "image"
-    if mime and mime.startswith("text/"):
-        return "text"
-    return "other"
-
-
 async def usage_breakdown(ctx: Ctx) -> FilesUsageBreakdown:
     rows = (
         await ctx.db.execute(
@@ -87,7 +72,7 @@ async def usage_breakdown(ctx: Ctx) -> FilesUsageBreakdown:
     for course_id, mime, files, size in rows:
         for totals in (
             per_course.setdefault(course_id, [0, 0]),
-            per_type.setdefault(file_type(mime), [0, 0]),
+            per_type.setdefault(service.file_type(mime), [0, 0]),
         ):
             totals[0] += files
             totals[1] += size
