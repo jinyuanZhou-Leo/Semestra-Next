@@ -51,7 +51,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { AssignmentDetail } from './AssignmentDetail'
-import { ScoreText, SubmissionStatus, ViewHeader } from './common'
+import { ViewHeader } from '@/modules/lms/content/LmsContent'
+import { ScoreText, SubmissionStatus } from './common'
 import { useScrollIntoView } from './scroll'
 
 /**

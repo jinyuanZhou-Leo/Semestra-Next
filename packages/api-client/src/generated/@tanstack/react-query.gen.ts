@@ -4678,9 +4678,10 @@ export const lmsCourseOverviewOptions = (options: Options<LmsCourseOverviewData>
 });
 
 /**
- * Forget what the app cached about a linked course, so its next reads ask the LMS.
+ * Forget what the app cached about a linked course and sync it now.
  *
- * The Canvas tab's "Refresh". Reads with `refresh` do the same for one read.
+ * The Canvas tab's "Refresh": its next reads ask the LMS (Canvas), and the sync updates
+ * what the app keeps (announcements, files). Reads with `refresh` do the first for one read.
  * Not for agents.
  */
 export const lmsCourseRefreshMutation = (options?: Partial<Options<LmsCourseRefreshData>>): UseMutationOptions<LmsCourseRefreshResponse, LmsCourseRefreshError, Options<LmsCourseRefreshData>> => {

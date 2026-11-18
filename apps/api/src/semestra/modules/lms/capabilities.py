@@ -387,8 +387,9 @@ async def course_overview(ctx: Ctx, inp: CourseReadInput) -> CourseOverview:
 
 @capability(
     name="lms.course.refresh",
-    summary="Forget what the app cached about a linked course, so its next reads ask the LMS.",
-    description="""The Canvas tab's "Refresh". Reads with `refresh` do the same for one read.
+    summary="Forget what the app cached about a linked course and sync it now.",
+    description="""The Canvas tab's "Refresh": its next reads ask the {lms}, and the sync updates
+what the app keeps (announcements, files). Reads with `refresh` do the first for one read.
 Not for agents.""",
     effect="write",
     http=Http("POST", "/courses/{course_id}/lms:refresh"),
@@ -397,7 +398,10 @@ Not for agents.""",
 )
 async def course_refresh(ctx: Ctx, inp: CourseRef) -> CourseLinkState:
     await reads.refresh_course(ctx, inp.course_id)
-    return await service.link_state(ctx, inp.course_id)
+    state = await service.link_state(ctx, inp.course_id)
+    if state.link is not None:
+        await sync.request_sync(ctx, state.link.program_id, inp.course_id, force=True)
+    return state
 
 
 @capability(

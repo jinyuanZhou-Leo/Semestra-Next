@@ -14,9 +14,11 @@ import type {
   CourseLinkState,
   LmsProgramBindingGetResponse,
   LmsProviderListResponse,
+  UnreadCounts,
 } from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
+  lmsAnnouncementUnreadOptions,
   lmsCourseLinkGetOptions,
   lmsProgramBindingGetOptions,
   lmsProviderListOptions,
@@ -143,9 +145,21 @@ export default defineModule({
       component: preloadable(() => import('./pages/AnnouncementsPage')),
       availabilityQuery: announcementLinksQuery,
       isAvailable: hasAnnouncements,
-      // Not on hover: a list the server has not cached yet is read from the platform.
-      prefetch: (scope, queryClient, { preload }) => {
-        if (preload) return
+      unread: {
+        // A course counts from its Program's numbers, so its courses share one request.
+        query: (scope) =>
+          scope.kind === 'course' || scope.kind === 'term'
+            ? lmsAnnouncementUnreadOptions({
+                path: { program_id: scope.programId },
+                query: scope.kind === 'term' ? { term_id: scope.termId } : undefined,
+              })
+            : null,
+        count: (scope, data) =>
+          (data as UnreadCounts).items
+            .filter((c) => scope.kind !== 'course' || c.course_id === scope.courseId)
+            .reduce((sum, c) => sum + c.unread, 0),
+      },
+      prefetch: (scope, queryClient) => {
         if (scope.kind === 'course') {
           void queryClient.prefetchQuery(
             lmsAnnouncementListOptions({ path: { course_id: scope.courseId } }),
@@ -370,6 +384,14 @@ export default defineModule({
     // The sync was queued, ran or was answered: its status line, panel and reminders.
     'lms.sync.updated': [
       (data) => [{ _id: 'lmsSyncStatus', path: { program_id: data.program_id } }],
+    ],
+    // The sync stored a course's announcements, or one was read: the lists and unread counts.
+    'lms.announcement.updated': [
+      (data) => [
+        { _id: 'lmsAnnouncementList', path: { course_id: data.course_id } },
+        'lmsTermAnnouncementList',
+        { _id: 'lmsAnnouncementUnread', path: { program_id: data.program_id } },
+      ],
     ],
     // A course synced: its link (when, errors) and the assignments the sync read afresh.
     'lms.course.synced': [

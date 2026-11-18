@@ -46,7 +46,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CanvasBoundary } from '../CanvasBoundary'
 import { useCanvasPage } from '../context'
 import { FileActions } from './FilePreview'
-import { ViewHeader } from './common'
+import { ViewHeader } from '@/modules/lms/content/LmsContent'
 
 /** Canvas needs two characters to search (`search_term`). */
 const MIN_TERM = 2

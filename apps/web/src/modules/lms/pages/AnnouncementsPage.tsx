@@ -1,18 +1,17 @@
-import type { Announcement, Course } from '@semestra/api-client'
-import {
-  lmsAnnouncementListOptions,
-  lmsCourseLinkGetOptions,
-  lmsTermAnnouncementListOptions,
-} from '@semestra/api-client/react-query'
+import type { AnnouncementAttachment, Course } from '@semestra/api-client'
+import { lmsCourseLinkGetOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
-import { useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, CircleAlert, ExternalLink, Megaphone, SearchX } from 'lucide-react'
+import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
+import { useState } from 'react'
 import type { PageProps } from '@/app/extensions'
-import { SafeHtml } from '@/components/SafeHtml'
-import { formatDate, formatDateTime } from '@/lib/format'
+import type { InternalLink } from '@/components/SafeHtml'
+import { formatBytes, formatDate, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { useCourse, useCourses } from '@/modules/academics/queries'
+import { coursePath } from '@/modules/academics/paths'
+import { FileIcon } from '@/modules/files/components/FileIcon'
+import { filePath } from '@/modules/files/location'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Button } from '@/ui/button'
@@ -24,7 +23,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/ui/empty'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import {
   Select,
   SelectContent,
@@ -35,13 +34,13 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { plainText, postKey } from '../announcements'
+import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
+import { fileContentUrl } from '../content/file-url'
+import { LmsHtml, ViewHeader } from '../content/LmsContent'
+import { type Post, useAnnouncements } from '../posts'
 import { useProviderName } from '../providers'
-import { useMarkRead, useWritesAllowed } from '../read-state'
-
-/** An announcement with the course it was posted in. */
-type Post = { item: Announcement; course: Course }
+import { useMarkRead } from '../read-state'
 
 const ALL = '__all__'
 
@@ -57,7 +56,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
   const navigate = useNavigate()
   const router = useRouter()
   const term = scope.kind === 'term'
-  const posts = usePosts(scope)
+  const posts = useAnnouncements(scope)
   const filter = term ? (search.course ?? ALL) : ALL
   const shown = posts.rows.filter((p) => filter === ALL || p.course.id === filter)
   const open = posts.rows.find((p) => keyOf(p) === search.post)
@@ -70,7 +69,6 @@ export default function AnnouncementsPage({ scope }: PageProps) {
     })
   const canGoBack = useCanGoBack()
   const back = () => (canGoBack ? router.history.back() : go({ post: undefined }, true))
-  const unreadShown = useWritesAllowed()
   useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
 
   if (posts.failed && posts.rows.length === 0) {
@@ -89,7 +87,9 @@ export default function AnnouncementsPage({ scope }: PageProps) {
           <EmptyMedia variant="icon">
             <Megaphone aria-hidden />
           </EmptyMedia>
-          <EmptyTitle>{m.lms_announcements_empty()}</EmptyTitle>
+          <EmptyTitle>
+            {posts.checked ? m.lms_announcements_empty() : m.lms_announcements_not_read()}
+          </EmptyTitle>
         </EmptyHeader>
       </Empty>
     )
@@ -125,7 +125,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
                 key={keyOf(p)}
                 post={p}
                 withCourse={term}
-                unread={unreadShown && Boolean(p.item.unread)}
+                unread={p.item.unread}
                 selected={p === open}
                 onOpen={() => go({ post: keyOf(p) })}
               />
@@ -134,7 +134,13 @@ export default function AnnouncementsPage({ scope }: PageProps) {
         )}
       </div>
       {open ? (
-        <Reading post={open} withCourse={term} onBack={back} />
+        <Reading
+          key={keyOf(open)}
+          post={open}
+          withCourse={term}
+          onBack={back}
+          onOpenPost={(key) => go({ post: key })}
+        />
       ) : (
         <Empty className="hidden rounded-2xl border border-solid border-border @page-lg/main:flex">
           <EmptyHeader>
@@ -266,60 +272,129 @@ function Reading({
   post: { item: a, course },
   withCourse,
   onBack,
+  onOpenPost,
 }: {
   post: Post
   withCourse: boolean
   onBack: () => void
+  onOpenPost: (key: string) => void
 }) {
   const link = useQuery(lmsCourseLinkGetOptions({ path: { course_id: course.id } })).data?.link
   const provider = useProviderName(link?.provider) ?? link?.provider ?? ''
+  const navigate = useNavigate()
+  const [display, setDisplay] = useState<LmsDisplay>('simplified')
   const meta = [a.author, a.posted_at ? formatDateTime(a.posted_at) : null]
     .filter(Boolean)
     .join(' · ')
+  // Platform links open what Semestra has (M09 §4.3): a course file in its preview, an
+  // assignment in the gradebook or the course's to-dos, another announcement here. The rest of
+  // them go to the platform in a new tab.
+  const openLink = (target: InternalLink) => {
+    if (target.kind === 'announcement') {
+      onOpenPost(postKey(course.id, target.ref))
+      return true
+    }
+    const found = a.targets?.find((t) => t.kind === target.kind && t.ref === target.ref)?.target
+    if (!found) return false
+    const to =
+      found.kind === 'file'
+        ? filePath(course.program_id, { ...found, folder_id: found.folder_id ?? null })
+        : found.kind === 'assessment'
+          ? `${coursePath(course.program_id, found.course_id, 'grades')}?assessment=${encodeURIComponent(found.id)}`
+          : coursePath(course.program_id, found.course_id, 'tasks')
+    void navigate({ href: to })
+    return true
+  }
+  const content: LmsContent = { courseId: course.id, provider, display, setDisplay, openLink }
   return (
-    <article className="flex min-w-0 flex-col gap-4 @page-lg/main:sticky @page-lg/main:top-4 @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border @page-lg/main:p-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="-ml-2 self-start @page-lg/main:hidden"
-        onClick={onBack}
-      >
-        <ArrowLeft aria-hidden />
-        {m.lms_announcements_back()}
-      </Button>
-      <header className="flex items-start gap-3">
-        <div className="min-w-0 flex-1 space-y-1">
-          <h2 className="font-heading text-xl font-semibold tracking-tight">{a.title}</h2>
-          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-            {withCourse ? <CourseName course={course} className="text-foreground" /> : null}
-            {withCourse && meta ? <span aria-hidden>·</span> : null}
-            <span>{meta}</span>
-          </p>
-        </div>
-        {a.web_url ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={m.lms_open_in({ provider })}
-                  nativeButton={false}
-                  render={
-                    // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by aria-label
-                    <a href={a.web_url} target="_blank" rel="noreferrer" />
-                  }
+    <LmsContentContext value={content}>
+      <article className="flex min-w-0 flex-col gap-4 @page-lg/main:sticky @page-lg/main:top-4 @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border @page-lg/main:p-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 self-start @page-lg/main:hidden"
+          onClick={onBack}
+        >
+          <ArrowLeft aria-hidden />
+          {m.lms_announcements_back()}
+        </Button>
+        <ViewHeader
+          title={a.title}
+          meta={
+            <span className="flex flex-wrap items-center gap-x-2">
+              {withCourse ? <CourseName course={course} className="text-foreground" /> : null}
+              {withCourse && meta ? <span aria-hidden>·</span> : null}
+              <span>{meta}</span>
+            </span>
+          }
+          withDisplay={Boolean(a.html)}
+          webUrl={a.web_url}
+        />
+        {a.html ? <LmsHtml html={a.html} /> : null}
+        <Attachments files={a.attachments ?? []} course={course} />
+      </article>
+    </LmsContentContext>
+  )
+}
+
+/**
+ * The files attached to an announcement: the course's own copy opens in the file preview; one
+ * the course's files do not have opens from the platform through Semestra, in a new tab.
+ */
+function Attachments({ files, course }: { files: AnnouncementAttachment[]; course: Course }) {
+  if (files.length === 0) return null
+  return (
+    <section className="flex flex-col gap-2 border-t border-border pt-4">
+      <h3 className="text-xs text-muted-foreground">
+        {m.lms_announcements_attachments({ count: files.length })}
+      </h3>
+      <ItemGroup className="grid gap-2 @page-lg/main:grid-cols-2">
+        {files.map((file) => (
+          <Item
+            key={file.external_id}
+            variant="outline"
+            size="sm"
+            render={
+              file.file ? (
+                <Link
+                  to={filePath(course.program_id, {
+                    ...file.file,
+                    folder_id: file.file.folder_id ?? null,
+                  })}
+                  className="hover:bg-muted/50"
                 />
-              }
-            >
-              <ExternalLink aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>{m.lms_open_in({ provider })}</TooltipContent>
-          </Tooltip>
-        ) : null}
-      </header>
-      {a.html ? <SafeHtml html={a.html} /> : null}
-    </article>
+              ) : (
+                // oxlint-disable-next-line jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- the children label it
+                <a
+                  href={fileContentUrl(course.id, file.external_id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:bg-muted/50"
+                />
+              )
+            }
+          >
+            <ItemMedia>
+              <FileIcon
+                item={{ kind: 'file', mime_type: file.mime_type ?? null }}
+                aria-hidden
+                className="size-4 text-muted-foreground"
+              />
+            </ItemMedia>
+            <ItemContent className="min-w-0 gap-0">
+              <ItemTitle className="w-full">
+                <span className="truncate">{file.name}</span>
+              </ItemTitle>
+              {file.size_bytes != null ? (
+                <ItemDescription className="text-xs">
+                  {formatBytes(file.size_bytes)}
+                </ItemDescription>
+              ) : null}
+            </ItemContent>
+          </Item>
+        ))}
+      </ItemGroup>
+    </section>
   )
 }
 
@@ -333,46 +408,4 @@ function ListSkeleton() {
       </div>
     </div>
   )
-}
-
-/** The scope's announcements with their courses: the course's own, or the term's linked courses'. */
-function usePosts(scope: PageProps['scope']) {
-  const courseId = scope.kind === 'course' ? scope.courseId : ''
-  const termId = scope.kind === 'term' ? scope.termId : ''
-  const course = useCourse(courseId, { enabled: courseId !== '' }).data
-  const own = useQuery({
-    ...lmsAnnouncementListOptions({ path: { course_id: courseId } }),
-    enabled: courseId !== '',
-  })
-  const courses = useCourses(scope.programId, termId || undefined, {
-    enabled: termId !== '',
-  }).data?.items
-  const termList = useQuery({
-    ...lmsTermAnnouncementListOptions({ path: { term_id: termId } }),
-    enabled: termId !== '',
-  })
-  if (courseId) {
-    const rows = course ? (own.data?.items ?? []).map((item) => ({ item, course })) : []
-    return {
-      rows,
-      courses: course ? [course] : [],
-      loading: own.isPending || !course,
-      failed: own.isError,
-    }
-  }
-  const byId = new Map((courses ?? []).map((c) => [c.id, c]))
-  const rows = (termList.data?.items ?? []).flatMap((item): Post[] => {
-    const c = byId.get(item.course_id)
-    return c ? [{ item, course: c }] : []
-  })
-  const linked = (termList.data?.linked_course_ids ?? []).flatMap((id) => {
-    const c = byId.get(id)
-    return c ? [c] : []
-  })
-  return {
-    rows,
-    courses: linked,
-    loading: termList.isPending || !courses,
-    failed: termList.isError,
-  }
 }

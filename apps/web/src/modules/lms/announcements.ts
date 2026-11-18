@@ -1,4 +1,4 @@
-import type { Announcement, CourseLinkList, TermAnnouncement } from '@semestra/api-client'
+import type { CourseAnnouncement, CourseLinkList } from '@semestra/api-client'
 import {
   lmsAnnouncementListOptions,
   lmsCourseLinkListOptions,
@@ -68,7 +68,7 @@ export const announcementSearch: SearchProviderContribution = {
   search: async (query, scope, queryClient) => {
     const links = scope ? announcementLinksQuery(scope) : null
     if (!scope || !links) return []
-    let items: readonly (Announcement | TermAnnouncement)[]
+    let items: readonly CourseAnnouncement[]
     try {
       if (!hasAnnouncements(scope, await queryClient.ensureQueryData(links))) return []
       items =
@@ -86,15 +86,14 @@ export const announcementSearch: SearchProviderContribution = {
               ).items
             : []
     } catch {
-      return [] // the platform can't be reached: nothing to find
+      return [] // not readable now: nothing to find
     }
     const needle = query.toLocaleLowerCase()
     return items
       .filter((a) => `${a.title} ${plainText(a.html)}`.toLocaleLowerCase().includes(needle))
       .slice(0, MAX_RESULTS)
       .map((a) => {
-        const courseId =
-          'course_id' in a ? a.course_id : scope.kind === 'course' ? scope.courseId : ''
+        const courseId = a.course_id
         return {
           id: postKey(courseId, a.external_id),
           title: a.title,

@@ -1,3 +1,4 @@
+import { type UseQueryOptions, useQuery } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { MoreHorizontal } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
@@ -62,6 +63,7 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
         {pages.map((page) => {
           const href = scopePath(scope, page.id)
           const active = page.id === activePageId
+          const unread = page.unread?.query(scope)
           return (
             <a
               key={page.id}
@@ -78,6 +80,12 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
             >
               <page.icon aria-hidden className="size-4" />
               {page.title()}
+              {unread && page.unread ? (
+                <UnreadCount
+                  options={unread}
+                  count={(data) => page.unread?.count(scope, data) ?? 0}
+                />
+              ) : null}
             </a>
           )
         })}
@@ -112,5 +120,25 @@ export function ScopeNav({ scope, activePageId }: { scope: Scope; activePageId?:
       </DropdownMenu>
       <ManagePagesDialog scope={scope} open={managing} onOpenChange={setManaging} />
     </div>
+  )
+}
+
+/** The number of unread things on a page, after its name; nothing at zero. */
+function UnreadCount({
+  options,
+  count,
+}: {
+  // oxlint-disable-next-line no-explicit-any
+  options: UseQueryOptions<any, any, any, any>
+  count: (data: unknown) => number
+}) {
+  const data = useQuery(options).data
+  const n = data === undefined ? 0 : count(data)
+  if (n === 0) return null
+  return (
+    <span className="rounded-full bg-primary/10 px-1.5 text-xs leading-5 font-medium text-primary tabular-nums">
+      <span aria-hidden>{n}</span>
+      <span className="sr-only">{m.host_nav_unread({ count: n })}</span>
+    </span>
   )
 }

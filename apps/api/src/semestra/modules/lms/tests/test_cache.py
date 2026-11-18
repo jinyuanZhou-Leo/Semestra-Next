@@ -36,7 +36,7 @@ async def test_second_level_is_written_after_the_request(api: Api, app: FastAPI)
     assert again["items"]
 
 
-async def test_refresh_drops_one_course(api: Api, fake: FakeProvider):
+async def test_refresh_drops_one_course_and_syncs_it(api: Api, fake: FakeProvider):
     program_id, term_id, _ = await setup_program(api)
     first = await api.course(program_id, term_id)
     second = await api.course(program_id, term_id, code="MAT186H1", title="Calculus")
@@ -50,6 +50,14 @@ async def test_refresh_drops_one_course(api: Api, fake: FakeProvider):
     for course in (first, second):
         await api.call("GET", f"/courses/{course}/lms/assignments")
     assert fake.calls == [("assignments", "101")]  # the other course stays cached
+    # What the app keeps of the course (announcements) is read again too.
+    await api.run_jobs()
+    links = {
+        li["course_id"]: li
+        for li in (await api.call("GET", f"/programs/{program_id}/lms-links"))["items"]
+    }
+    assert links[first]["synced_at"] is not None
+    assert links[second]["synced_at"] is None
 
 
 async def test_sync_keeps_the_course_content_cached(api: Api, fake: FakeProvider):

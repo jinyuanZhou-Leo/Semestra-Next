@@ -13160,8 +13160,8 @@
         "tags": [
           "lms"
         ],
-        "summary": "Forget what the app cached about a linked course, so its next reads ask the LMS.",
-        "description": "The Canvas tab's \"Refresh\". Reads with `refresh` do the same for one read.\nNot for agents.",
+        "summary": "Forget what the app cached about a linked course and sync it now.",
+        "description": "The Canvas tab's \"Refresh\": its next reads ask the LMS (Canvas), and the sync updates\nwhat the app keeps (announcements, files). Reads with `refresh` do the first for one read.\nNot for agents.",
         "operationId": "lmsCourseRefresh",
         "security": [
           {

@@ -1,37 +1,26 @@
-import type { Announcement, Course } from '@semestra/api-client'
-import {
-  academicsCourseGetOptions,
-  lmsAnnouncementListOptions,
-  lmsCourseLinkGetOptions,
-  lmsTermAnnouncementListOptions,
-} from '@semestra/api-client/react-query'
-import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, Megaphone } from 'lucide-react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
 import type { CardProps } from '@/app/extensions'
 import { formatDate } from '@/lib/format'
 import { courseColor, courseLabel } from '@/modules/academics/color'
-import { useCourses } from '@/modules/academics/queries'
+import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertTitle } from '@/ui/alert'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { announcementPath } from '../announcements'
+import { useAnnouncements } from '../posts'
 
 const LIMIT: Record<string, number> = { m: 4, l: 8 }
 
-type Row = { item: Announcement; course: Course }
-
 /**
  * Latest announcements from the LMS (M09 §6): the course's own, or on a term every linked
- * course's together (one read for the term). Titles open the announcement on the 公告 page.
+ * course's together, as the 公告 page lists them (unread ones with a dot and in bold). Titles open the
+ * announcement on the 公告 page.
  */
 export default function AnnouncementsCard({ scope, size }: CardProps) {
-  const termId = scope.kind === 'term' ? scope.termId : undefined
   const courseId = scope.kind === 'course' ? scope.courseId : undefined
-  const own = useCourseAnnouncements(courseId)
-  const term = useTermAnnouncements(scope.programId, termId)
-  const { rows: all, linked, loading, failed } = courseId ? own : term
+  const { rows: all, linked, loading, failed } = useAnnouncements(scope)
   const rows = all.slice(0, LIMIT[size] ?? 8)
 
   if (loading && rows.length === 0) return <CardSkeleton />
@@ -65,6 +54,13 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
             to={announcementPath(scope, course.id, item.external_id)}
             className="flex items-center gap-2 rounded-lg hover:bg-muted/50"
           >
+            <span className="flex w-2 shrink-0 justify-center">
+              {item.unread ? (
+                <span className="size-2 rounded-full bg-primary">
+                  <span className="sr-only">{m.lms_announcements_unread()}</span>
+                </span>
+              ) : null}
+            </span>
             {courseId ? null : (
               <span
                 aria-hidden
@@ -72,10 +68,12 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
                 style={{ backgroundColor: courseColor(course) }}
               />
             )}
-            <span className="min-w-0 flex-1 truncate">
+            <span className={cn('min-w-0 flex-1 truncate', item.unread && 'font-semibold')}>
               {item.title}
               {courseId ? null : (
-                <span className="ml-1.5 text-xs text-muted-foreground">{courseLabel(course)}</span>
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {courseLabel(course)}
+                </span>
               )}
             </span>
             {item.posted_at ? (
@@ -88,47 +86,4 @@ export default function AnnouncementsCard({ scope, size }: CardProps) {
       ))}
     </ul>
   )
-}
-
-function useCourseAnnouncements(courseId: string | undefined) {
-  const course = useQuery({
-    ...academicsCourseGetOptions({ path: { course_id: courseId ?? '' } }),
-    enabled: Boolean(courseId),
-  }).data
-  const link = useQuery({
-    ...lmsCourseLinkGetOptions({ path: { course_id: courseId ?? '' } }),
-    enabled: Boolean(courseId),
-    staleTime: 60_000,
-  })
-  const linked = Boolean(link.data?.link)
-  const list = useQuery({
-    ...lmsAnnouncementListOptions({ path: { course_id: courseId ?? '' } }),
-    enabled: Boolean(courseId) && linked,
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  const rows: Row[] = course ? (list.data?.items ?? []).map((item) => ({ item, course })) : []
-  return {
-    rows,
-    linked,
-    loading: link.isPending || (linked && list.isPending),
-    failed: list.isError,
-  }
-}
-
-function useTermAnnouncements(programId: string, termId: string | undefined) {
-  const courses = useCourses(programId, termId).data?.items
-  const list = useQuery({
-    ...lmsTermAnnouncementListOptions({ path: { term_id: termId ?? '' } }),
-    enabled: Boolean(termId),
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  const byId = new Map((courses ?? []).map((c) => [c.id, c]))
-  const rows = (list.data?.items ?? []).flatMap((item): Row[] => {
-    const course = byId.get(item.course_id)
-    return course ? [{ item, course }] : []
-  })
-  const linked = (list.data?.linked_course_ids.length ?? 0) > 0
-  return { rows, linked, loading: list.isPending || !courses, failed: list.isError }
 }
