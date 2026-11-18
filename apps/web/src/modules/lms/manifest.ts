@@ -1,8 +1,9 @@
 import {
   ArrowDownToLine,
+  BellRing,
   ExternalLink,
+  FolderSync,
   Link2,
-  ListChecks,
   Megaphone,
   RefreshCw,
   School,
@@ -58,6 +59,7 @@ import { assignmentSource, wizardCourseSource } from './import/sources'
 import { canvasUi } from './providers/canvas'
 import { LMS_KEPT_QUERIES, LMS_QUERIES, LMS_STATE_QUERIES, settingsPrefetch } from './queries'
 import { LMS_PROVIDER_UI } from './types'
+import { hiddenExcept } from '@/modules/notifications/categories'
 import { SYNC_LINE, hasSyncLine, syncStatusOptions, useSyncLine } from './sync/status'
 import { SyncOnOpen } from './sync/SyncOnOpen'
 import { FollowButton } from './sync/FollowButton'
@@ -228,6 +230,17 @@ export default defineModule({
       fields: showOnly('sync'),
     },
     {
+      id: 'lms-materials',
+      level: 'account',
+      group: 'lms',
+      title: m.lms_settings_materials,
+      description: m.lms_settings_materials_description,
+      icon: FolderSync,
+      order: 25,
+      component: preloadable(() => sections().then((s) => ({ default: s.MaterialsSection }))),
+      prefetch: settingsPrefetch.materials,
+    },
+    {
       id: 'lms-follow',
       level: 'account',
       group: 'lms',
@@ -236,17 +249,19 @@ export default defineModule({
       icon: ArrowDownToLine,
       order: 30,
       namespace: 'lms',
-      fields: showOnly('follow'),
+      // What follows the platform, then the to-do it completes.
+      fields: { hidden: [...LMS_FIELDS.sync, ...LMS_FIELDS.writes, ...LMS_FIELDS.display] },
     },
     {
-      id: 'lms-todos',
+      id: 'lms-notify',
       level: 'account',
       group: 'lms',
-      title: m.lms_settings_todos,
-      icon: ListChecks,
+      title: m.lms_settings_notify,
+      icon: BellRing,
       order: 35,
-      namespace: 'lms',
-      fields: showOnly('todos'),
+      // The same setting as in Notifications, where it is one of the activity kinds.
+      namespace: 'notifications',
+      fields: { hidden: hiddenExcept(['lms']) },
     },
     {
       id: 'lms-writes',

@@ -7,7 +7,7 @@ import {
   filesOrganizationStartMutation,
 } from '@semestra/api-client/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Folder, FolderInput } from 'lucide-react'
+import { Folder, FolderInput, FolderSync } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useProviderProblem } from '@/components/AiRequired'
 import { JobProgress } from '@/components/JobProgress'
@@ -31,6 +31,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/ui/empty'
 import { Label } from '@/ui/label'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/ui/item'
 import { Spinner } from '@/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
 import { invalidateFiles } from '../queries'
 import { FileIcon } from './FileIcon'
 
@@ -259,7 +260,7 @@ function Review({
   const shown = moves.filter((move) => items.has(move.item_id))
   const groups = new Map<string, PlannedMove[]>()
   for (const move of shown) {
-    const key = move.folder_id ?? `new:${move.type}`
+    const key = move.folder_id ?? `new:${move.folder_name}`
     groups.set(key, [...(groups.get(key) ?? []), move])
   }
   const kept = shown.filter((move) => !skipped.has(move.item_id))
@@ -319,17 +320,32 @@ function Review({
           if (!first) return null
           return (
             <section
-              key={first.folder_id ?? first.type}
+              key={first.folder_id ?? `new:${first.folder_name}`}
               aria-label={first.folder_name}
               className="not-first:border-t"
             >
               <h3 className="flex items-center gap-2 bg-muted/50 px-3 py-2 text-sm font-medium">
-                <Folder aria-hidden className="size-4 text-muted-foreground" />
-                {first.folder_name}
+                {first.back ? (
+                  // Back to where its source has it now.
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="inline-flex" />}>
+                      <FolderSync aria-hidden className="size-4 text-muted-foreground" />
+                      <span className="sr-only">
+                        {m.files_origin_folder({ provider: first.back })}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {m.files_origin_folder({ provider: first.back })}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Folder aria-hidden className="size-4 text-muted-foreground" />
+                )}
+                <span className="min-w-0 truncate">{first.folder_name}</span>
                 <span className="font-normal text-muted-foreground tabular-nums">
                   {group.length}
                 </span>
-                {first.folder_id === null ? (
+                {first.new_folder ? (
                   <span className="text-xs font-normal text-muted-foreground">
                     · {m.files_organize_new_folder()}
                   </span>

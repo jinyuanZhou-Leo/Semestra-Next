@@ -118,9 +118,9 @@ const bindingOf = (scope: Scope | undefined, queryClient: QueryClient) =>
 /** The settings namespace of how courses take in their materials (Program and course levels). */
 export const MATERIALS = 'lms.materials'
 
-/** What the materials form of the Program or course LMS section shows (the same queries). */
+/** What the materials form of the account or course LMS section shows (the same queries). */
 const materialSettings = (
-  query: { scope_type: 'program' | 'course'; scope_id: string },
+  query: { scope_type: 'account' } | { scope_type: 'course'; scope_id: string },
   queryClient: QueryClient,
 ) =>
   Promise.all([
@@ -134,11 +134,15 @@ export const settingsPrefetch = {
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       queryClient.ensureQueryData(lmsProviderListOptions()),
     ]),
+  materials: (_scope: unknown, queryClient: QueryClient) =>
+    Promise.all([
+      queryClient.ensureQueryData(lmsConnectionListOptions()),
+      materialSettings({ scope_type: 'account' }, queryClient),
+    ]),
   program: (scope: Scope | undefined, queryClient: QueryClient) =>
     Promise.all([
       queryClient.ensureQueryData(lmsConnectionListOptions()),
       bindingOf(scope, queryClient),
-      materialSettings({ scope_type: 'program', scope_id: scope?.programId ?? '' }, queryClient),
     ]),
   // A linked course shows its link; an unlinked one the platform's courses to pick from; one in an
   // unbound Program a way to connect.

@@ -2,7 +2,7 @@ import type { SyncStatus } from '@semestra/api-client'
 import { lmsSyncStatusOptions } from '@semestra/api-client/react-query'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
-import { BellDot, CircleAlert, School } from 'lucide-react'
+import { CircleAlert, School } from 'lucide-react'
 import { type StatusItem, preloadable } from '@/app/extensions'
 import { useNow } from '@/hooks/use-now'
 import { formatTimeAgo } from '@/lib/format'
@@ -55,7 +55,9 @@ export function syncedAgo(at: string, now: number): string {
 
 /**
  * The status line of the Program's LMS sync (M09 §4.1): there whenever the Program is bound,
- * so starting or ending a job only grows the bar from one line to two. What waits for the user
+ * so starting or ending a job only grows the bar from one line to two. It always reads as the
+ * platform's name; the state is in the icon and at the line's end (when it last synced, how far
+ * a "Sync now" is, how many items wait), and a reason in the tooltip. What waits for the user
  * ranks above running jobs; a broken connection above everything.
  */
 export function useSyncLine(): StatusItem | null {
@@ -63,32 +65,38 @@ export function useSyncLine(): StatusItem | null {
   const { status, provider } = useSync(programId)
   const now = useNow()
   if (!hasSyncLine(status) || !provider) return null
-  const line = { rank: 'idle', icon: School, Panel: SyncPanel } as const
+  const line = { rank: 'idle', icon: School, Panel: SyncPanel, label: provider } as const
   if (status.connection_error) {
     return {
       ...line,
       rank: 'error',
       icon: CircleAlert,
       tone: 'error',
-      label: m.lms_sync_line_reconnect({ provider }),
+      meta: m.lms_sync_meta_reconnect(),
+      hint: m.lms_sync_hint_reconnect({ provider }),
     }
   }
-  if (status.pending.length > 0) {
+  const pending = status.pending.length > 0 ? pendingCount(status.pending) : 0
+  const waiting = pending > 0 ? { rank: 'attention' as const, badge: pending } : {}
+  if (status.syncing) {
+    const round = status.round
     return {
       ...line,
-      rank: 'attention',
-      icon: BellDot,
-      tone: 'accent',
-      label: m.lms_sync_line_pending({ provider, count: pendingCount(status.pending) }),
+      ...waiting,
+      spin: true,
+      meta: round ? `${round.done}/${round.total}` : undefined,
+      progress: round ? (round.done / round.total) * 100 : undefined,
     }
   }
-  if (status.syncing) return { ...line, spin: true, label: m.lms_sync_line_syncing({ provider }) }
+  if (pending > 0) {
+    return { ...line, ...waiting, hint: m.lms_sync_line_pending({ provider, count: pending }) }
+  }
   if (status.errors.length > 0) {
-    return { ...line, icon: CircleAlert, label: m.lms_sync_line_failed({ provider }) }
+    const courses = [...new Set(status.errors.map((e) => e.course))].join(
+      m.lms_sync_list_separator(),
+    )
+    return { ...line, icon: CircleAlert, tone: 'error', hint: m.lms_sync_hint_failed({ courses }) }
   }
-  if (!status.synced_at) return { ...line, label: m.lms_sync_line_waiting({ provider }) }
-  return {
-    ...line,
-    label: m.lms_sync_line_synced({ provider, ago: syncedAgo(status.synced_at, now) }),
-  }
+  if (!status.synced_at) return { ...line, meta: m.lms_sync_meta_waiting() }
+  return { ...line, meta: syncedAgo(status.synced_at, now) }
 }

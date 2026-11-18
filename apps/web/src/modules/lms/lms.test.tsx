@@ -19,6 +19,7 @@ import { CoursePicker } from './import/CoursePicker'
 import { ConnectionsSection } from './settings/ConnectionsSection'
 import { CourseLmsSection, pickerGroups } from './settings/CourseLmsSection'
 import { ProgramLmsSection } from './settings/ProgramLmsSection'
+import { MaterialsSection } from './settings/MaterialsSection'
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -304,30 +305,42 @@ test('deleting a connection in use says what it unlinks and detaches everything'
 
 const MATERIALS_SCHEMA = {
   namespace: 'lms.materials',
-  levels: ['program', 'course'],
+  levels: ['account', 'course'],
   plugin_id: null,
   json_schema: {
     type: 'object',
     properties: {
       sync: { type: 'boolean', default: true },
       store: { type: 'string', enum: ['online', 'local'], default: 'online' },
+      scans: { type: 'boolean', default: false },
     },
   },
 }
 
-test("a program's connection is locked while courses are linked through it", async () => {
+test('account settings: how every course takes in its materials', async () => {
   server.use(
     http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
     http.get(`${API}/me/settings/lms.materials`, () =>
       HttpResponse.json({
         namespace: 'lms.materials',
-        scope_type: 'program',
-        scope_id: 'p1',
-        values: { sync: true, store: 'online' },
-        sources: { sync: 'default', store: 'default' },
+        scope_type: 'account',
+        scope_id: null,
+        values: { sync: true, store: 'online', scans: false },
+        sources: { sync: 'default', store: 'default', scans: 'default' },
         inherited: {},
       }),
     ),
+    http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
+  )
+  renderWithRouter(<MaterialsSection />)
+  expect(await screen.findByRole('switch', { name: 'Bring in course materials' })).toBeChecked()
+  // Named after the platform of the account's connections.
+  expect(screen.getByText(/from Canvas into course files/)).toBeInTheDocument()
+  expect(screen.getByRole('switch', { name: 'Recognize text in scanned pages' })).not.toBeChecked()
+})
+
+test("a program's connection is locked while courses are linked through it", async () => {
+  server.use(
     http.get(`${API}/lms/connections`, () => HttpResponse.json({ items: [connection()] })),
     http.get(`${API}/programs/p1/lms-binding`, () =>
       HttpResponse.json({
@@ -343,8 +356,6 @@ test("a program's connection is locked while courses are linked through it", asy
     await screen.findByText(/2 courses are linked through this connection/),
   ).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: 'Connection' })).toBeDisabled()
-  // How its courses take in materials, for each course to follow or not.
-  expect(await screen.findByRole('switch', { name: 'Bring in course materials' })).toBeChecked()
 })
 
 test('course settings: guidance without a binding, then the switches, materials and unlink', async () => {
@@ -374,17 +385,18 @@ test('course settings: guidance without a binding, then the switches, materials 
   server.use(
     http.get(`${API}/courses/c1/lms-link`, () => HttpResponse.json(state)),
     http.get(`${API}/me/settings-schemas`, () => HttpResponse.json({ items: [MATERIALS_SCHEMA] })),
-    // The Program keeps local copies; the course follows it.
+    // Local copies for every course; this one follows that.
     http.get(`${API}/me/settings/lms.materials`, () =>
       HttpResponse.json({
         namespace: 'lms.materials',
         scope_type: 'course',
         scope_id: 'c1',
-        values: { sync: true, store: 'local' },
-        sources: { sync: 'default', store: 'program' },
+        values: { sync: true, store: 'local', scans: false },
+        sources: { sync: 'default', store: 'account', scans: 'default' },
         inherited: {
           sync: { value: true, source: 'default' },
-          store: { value: 'local', source: 'program' },
+          store: { value: 'local', source: 'account' },
+          scans: { value: false, source: 'default' },
         },
       }),
     ),
@@ -394,11 +406,12 @@ test('course settings: guidance without a binding, then the switches, materials 
         namespace: 'lms.materials',
         scope_type: 'course',
         scope_id: 'c1',
-        values: { sync: false, store: 'local' },
-        sources: { sync: 'course', store: 'program' },
+        values: { sync: false, store: 'local', scans: false },
+        sources: { sync: 'course', store: 'account', scans: 'default' },
         inherited: {
           sync: { value: true, source: 'default' },
-          store: { value: 'local', source: 'program' },
+          store: { value: 'local', source: 'account' },
+          scans: { value: false, source: 'default' },
         },
       })
     }),
@@ -427,11 +440,13 @@ test('course settings: guidance without a binding, then the switches, materials 
   )
   await userEvent.click(screen.getByRole('switch', { name: 'Sync this course' }))
   await waitFor(() => expect(patched).toHaveBeenCalledWith({ sync_enabled: false }))
-  // Course materials: each setting follows the Program until the course picks its own.
+  // Course materials: each setting follows the global one until the course picks its own.
   const [materials] = await screen.findAllByRole('region', { name: 'Course materials' })
   if (!materials) throw new Error('no materials block')
   expect(within(materials).getByText('Keep materials')).toBeInTheDocument()
-  const bring = within(materials).getByRole('button', { name: 'Off' })
+  // The first choice: whether materials come in (then scanned pages).
+  const [bring] = within(materials).getAllByRole('button', { name: 'Off' })
+  if (!bring) throw new Error('no materials switch')
   await userEvent.click(bring)
   await waitFor(() =>
     expect(settingsPatched).toHaveBeenCalledWith({

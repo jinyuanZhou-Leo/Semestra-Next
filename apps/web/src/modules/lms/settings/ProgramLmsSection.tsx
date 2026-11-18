@@ -7,14 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { SettingsSectionProps } from '@/app/extensions'
-import {
-  SettingRow,
-  SettingsBlock,
-  SettingsGroup,
-  SettingsNote,
-  useSettingsDialog,
-} from '@/app/settings'
-import { NamespaceForm } from '@/app/settings/NamespaceForm'
+import { SettingRow, SettingsGroup, SettingsNote, useSettingsDialog } from '@/app/settings'
 import { AsyncBoundary } from '@/components/AsyncBoundary'
 import { toastError } from '@/lib/errors'
 import { m } from '@/paraglide/messages'
@@ -36,13 +29,10 @@ import {
   SelectValue,
 } from '@/ui/select'
 import { useProviderUis } from '../providers'
-import { MATERIALS, invalidateLms } from '../queries'
+import { invalidateLms } from '../queries'
 import { ConnectionStatus } from './ConnectionsSection'
 
 const NONE = 'none'
-
-/** Where materials are kept matters only while they come in. */
-export const MATERIAL_FIELDS = { when: { store: 'sync' } }
 
 /** Opens account settings on the LMS connections, e.g. from a Program without one. */
 export function useOpenConnections() {
@@ -140,20 +130,6 @@ export function ProgramLmsSection({ scope }: SettingsSectionProps) {
             </SettingsGroup>
             {linked > 0 ? (
               <SettingsNote>{m.lms_binding_locked({ count: linked })}</SettingsNote>
-            ) : null}
-            {bound ? (
-              // How the Program's courses take in their materials, unless a course sets its own.
-              <div className="pt-4">
-                <SettingsBlock title={m.lms_materials_group()}>
-                  <NamespaceForm
-                    namespace={MATERIALS}
-                    level="program"
-                    scope={scope}
-                    fields={MATERIAL_FIELDS}
-                    params={{ provider: uis.get(bound.provider)?.label() ?? bound.display_name }}
-                  />
-                </SettingsBlock>
-              </div>
             ) : null}
           </div>
         )

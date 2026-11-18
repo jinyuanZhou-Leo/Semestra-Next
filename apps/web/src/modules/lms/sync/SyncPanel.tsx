@@ -1,7 +1,6 @@
 import type {
   SyncChange,
   SyncConflict,
-  SyncDifference,
   SyncItem,
   SyncMaterialChange,
   SyncStatus,
@@ -19,11 +18,25 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
+  CalendarClock,
   ChevronRight,
   CircleAlert,
+  ClipboardPlus,
   CloudDownload,
+  FileCheck,
+  FileMinus,
+  FilePen,
+  FilePlus,
+  FileX,
+  type LucideIcon,
+  MessageSquareText,
+  PencilLine,
+  Percent,
   Redo2,
   RefreshCw,
+  Settings2,
+  SquareCheck,
+  Trash2,
   Undo2,
 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
@@ -33,14 +46,24 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useNow } from '@/hooks/use-now'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { errorMessage, toastError } from '@/lib/errors'
-import { formatTimeAgo } from '@/lib/format'
+import { formatDate, formatTimeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { courseColor } from '@/modules/academics/color'
 import { useCourses } from '@/modules/academics/queries'
 import { m } from '@/paraglide/messages'
 import { Button } from '@/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/ui/collapsible'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/ui/item'
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/ui/item'
+import { Progress } from '@/ui/progress'
 import { PopoverDescription, PopoverHeader, PopoverTitle } from '@/ui/popover'
 import { Spinner } from '@/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
@@ -50,14 +73,6 @@ import { ERROR_LABEL } from '../settings/ConnectionsSection'
 import { feedbackPath } from '../feedback'
 import { byCourse, fieldLabel, formatValue, pendingCount } from './labels'
 import { syncedAgo, useProgramId, useSync } from './status'
-
-const EVERY: Record<SyncStatus['every'], () => string> = {
-  '15m': () => m.settings_lms_sync_every_option_15m(),
-  '30m': () => m.settings_lms_sync_every_option_30m(),
-  '1h': () => m.settings_lms_sync_every_option_1h(),
-  '6h': () => m.settings_lms_sync_every_option_6h(),
-  '1d': () => m.settings_lms_sync_every_option_1d(),
-}
 
 /** How long an answered row takes to fold away (M10 §5.6 uses the same). */
 const FOLD_MS = 200
@@ -170,20 +185,9 @@ function Panel({
 
   const busy = leaving.length > 0 || toggling !== null
   const syncing = status.syncing || request.isPending
-  const every = EVERY[status.every]()
   const broken = status.connection_error
     ? errorMessage({ error: { code: status.connection_error } })
     : null
-  const subtitle = broken
-    ? status.synced_at
-      ? m.lms_sync_subtitle_broken({ reason: broken, ago: syncedAgo(status.synced_at, now) })
-      : broken
-    : syncing
-      ? m.lms_sync_subtitle_syncing({ count: status.courses })
-      : status.synced_at
-        ? m.lms_sync_subtitle({ ago: syncedAgo(status.synced_at, now), every })
-        : m.lms_sync_subtitle_never({ every })
-  const groupProps = (courseId: string) => ({ color: colors.get(courseId) })
   // Assignment changes and material changes, newest first.
   const recent: Recent[] = [
     ...status.recent.map((change) => ({ ...change, type: 'field' as const })),
@@ -194,13 +198,26 @@ function Panel({
       lmsSyncMaterialRestore({ path: { material_id: id }, throwOnError: true }),
     )
 
+  // How far a sync the user asked for is; the background's own shows no count.
+  const shownRound = syncing ? (status.round ?? null) : null
+  const headline = broken
+    ? broken
+    : shownRound
+      ? m.lms_sync_panel_progress({ done: shownRound.done, total: shownRound.total })
+      : syncing
+        ? m.lms_sync_panel_syncing()
+        : status.synced_at
+          ? m.lms_sync_panel_synced({ ago: syncedAgo(status.synced_at, now) })
+          : m.lms_sync_meta_waiting()
+  const course = (id: string, code: string) => ({ course: code, color: colors.get(id) })
+
   return (
     <div className="-m-4 flex max-h-[min(36rem,75vh)] flex-col">
-      <div className="flex items-start gap-3 border-b p-4 pb-3">
-        <PopoverHeader className="min-w-0 flex-1 gap-0.5">
+      <div className="relative flex items-center gap-3 border-b py-3 pr-2.5 pl-4">
+        <PopoverHeader className="min-w-0 flex-1 gap-0">
           <PopoverTitle className="truncate text-sm">{provider}</PopoverTitle>
-          <PopoverDescription className={cn('text-xs', broken && 'text-destructive')}>
-            {subtitle}
+          <PopoverDescription className={cn('text-xs tabular-nums', broken && 'text-destructive')}>
+            {headline}
           </PopoverDescription>
         </PopoverHeader>
         {broken ? (
@@ -214,318 +231,343 @@ function Panel({
             {m.lms_sync_reconnect()}
           </Button>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={syncing}
-            onClick={() =>
-              request.mutate({ path: { program_id: programId }, body: { force: true } })
-            }
-          >
-            {syncing ? <Spinner aria-hidden /> : <RefreshCw aria-hidden />}
-            {m.lms_sync_now()}
-          </Button>
+          <div className="flex items-center gap-0.5">
+            <IconAction
+              label={m.lms_sync_now()}
+              disabled={syncing}
+              onClick={() =>
+                request.mutate({ path: { program_id: programId }, body: { force: true } })
+              }
+            >
+              <RefreshCw aria-hidden className={cn(syncing && 'animate-spin')} />
+            </IconAction>
+            <IconAction
+              label={m.lms_sync_panel_settings()}
+              onClick={() => {
+                onClose()
+                settings.open({ level: 'account', group: 'lms' })
+              }}
+            >
+              <Settings2 aria-hidden />
+            </IconAction>
+          </div>
         )}
+        {shownRound ? (
+          <Progress
+            value={(shownRound.done / shownRound.total) * 100}
+            aria-label={headline}
+            className="absolute inset-x-0 -bottom-px [&_[data-slot=progress-track]]:h-0.5 [&_[data-slot=progress-track]]:rounded-none"
+          />
+        ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 pt-3">
+      <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-2 pb-3">
         {status.errors.length > 0 && !status.connection_error ? (
-          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-            {status.errors.map((e) => (
-              <li key={`${e.course_id}:${e.stage}`} className="flex items-center gap-1.5">
-                <CircleAlert aria-hidden className="size-3.5 shrink-0 text-destructive" />
-                <span className="truncate">
-                  {m.lms_sync_course_failed({
-                    course: e.course,
-                    reason: ERROR_LABEL[e.code]?.() ?? errorMessage({ error: { code: e.code } }),
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <Alert variant="destructive" className="mx-2 mt-1 w-auto px-3 py-2 text-xs">
+            <CircleAlert aria-hidden />
+            <AlertTitle className="text-xs">
+              {m.lms_sync_panel_failed({
+                courses: [...new Set(status.errors.map((e) => e.course))].join(
+                  m.lms_sync_list_separator(),
+                ),
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {[
+                ...new Set(
+                  status.errors.map(
+                    (e) => ERROR_LABEL[e.code]?.() ?? errorMessage({ error: { code: e.code } }),
+                  ),
+                ),
+              ].join(' ')}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         {status.pending.length > 0 ? (
-          <section className="flex flex-col gap-2">
-            <h3 className="text-xs text-muted-foreground">
-              {m.lms_sync_pending()}{' '}
-              <span className="text-muted-foreground/70 tabular-nums">
-                {pendingCount(status.pending)}
-              </span>
-            </h3>
-            {byCourse(status.pending).map((group) => {
-              const fresh = group.items.filter((i) => i.kind === 'new')
-              const asked = group.items.filter((i) => i.kind !== 'new')
-              return (
-                <CourseGroup
-                  key={group.courseId}
-                  course={group.course}
-                  {...groupProps(group.courseId)}
-                >
-                  {fresh.length > 0 ? (
-                    <Fold leaving={fresh.every((i) => leaving.includes(i.id))}>
-                      <Item size="xs" className="px-0 py-1.5">
-                        <ItemContent className="min-w-0">
-                          <ItemTitle className="w-full">
-                            <span className="truncate">
-                              {fresh.map((i) => i.title).join(m.common_list_separator())}
-                            </span>
-                          </ItemTitle>
-                          <ItemDescription className="text-xs">
-                            {m.lms_sync_kind_new()}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions className="gap-1.5">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => setDismissed(fresh, true)}
-                          >
-                            {m.lms_sync_ignore()}
-                          </Button>
-                          <Button
-                            size="xs"
-                            disabled={Boolean(broken)}
-                            onClick={() => void importItems(fresh)}
-                          >
-                            {m.lms_sync_import()}
-                          </Button>
-                        </ItemActions>
-                      </Item>
-                    </Fold>
-                  ) : null}
-                  {asked.map((item) =>
-                    item.kind === 'removed' ? (
-                      <Fold key={item.id} leaving={leaving.includes(item.id)}>
-                        <RemovedRow
-                          item={item}
-                          provider={provider}
-                          busy={busy}
-                          onKeep={() => settle(item, 'keep')}
-                          onDelete={() => deleting.show(item)}
-                        />
-                      </Fold>
-                    ) : (
-                      (item.conflicts ?? []).map((conflict) => (
-                        <Fold
-                          key={`${item.id}:${conflict.field}`}
-                          leaving={leaving.includes(`${item.id}:${conflict.field}`)}
+          <section className="flex flex-col gap-1">
+            <SectionTitle count={pendingCount(status.pending)}>{m.lms_sync_pending()}</SectionTitle>
+            <ItemGroup className="gap-0 has-data-[size=xs]:gap-0">
+              {status.pending.map((item) =>
+                item.kind === 'new' ? (
+                  <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                    <Row
+                      icon={ClipboardPlus}
+                      title={item.title}
+                      {...course(item.course_id, item.course)}
+                      detail={
+                        item.due_at
+                          ? m.lms_sync_panel_new_due({
+                              due: formatDate(item.due_at, { short: true }),
+                            })
+                          : m.lms_sync_kind_new()
+                      }
+                    >
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setDismissed([item], true)}
+                      >
+                        {m.lms_sync_ignore()}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={Boolean(broken)}
+                        onClick={() => void importItems([item])}
+                      >
+                        {m.lms_sync_import()}
+                      </Button>
+                    </Row>
+                  </Fold>
+                ) : item.kind === 'removed' ? (
+                  <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                    <Row
+                      icon={Trash2}
+                      title={item.title}
+                      {...course(item.course_id, item.course)}
+                      detail={m.lms_sync_removed({ provider })}
+                    >
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => settle(item, 'keep')}
+                      >
+                        {m.lms_sync_keep()}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="text-destructive"
+                        disabled={busy}
+                        onClick={() => deleting.show(item)}
+                      >
+                        {m.lms_sync_delete()}
+                      </Button>
+                    </Row>
+                  </Fold>
+                ) : (
+                  (item.conflicts ?? []).map((conflict) => (
+                    <Fold
+                      key={`${item.id}:${conflict.field}`}
+                      leaving={leaving.includes(`${item.id}:${conflict.field}`)}
+                    >
+                      <Row
+                        icon={FIELD_ICON[conflict.field] ?? PencilLine}
+                        title={m.lms_sync_change({
+                          title: item.title,
+                          field: fieldLabel(conflict.field),
+                        })}
+                        {...course(item.course_id, item.course)}
+                        detail={
+                          <>
+                            <Values
+                              field={conflict.field}
+                              from={conflict.mine}
+                              to={conflict.platform}
+                            />
+                            {conflict.edited ? ` · ${m.lms_sync_yours_changed()}` : null}
+                          </>
+                        }
+                      >
+                        <Button
+                          size="xs"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => resolveField(item.id, conflict.field, 'mine')}
                         >
-                          <ConflictRow
-                            title={item.title}
-                            conflict={conflict}
-                            busy={busy}
-                            onResolve={(choice) => resolveField(item.id, conflict.field, choice)}
-                          />
-                        </Fold>
-                      ))
-                    ),
-                  )}
-                </CourseGroup>
-              )
-            })}
+                          {m.lms_sync_keep()}
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => resolveField(item.id, conflict.field, 'platform')}
+                        >
+                          {m.lms_sync_update()}
+                        </Button>
+                      </Row>
+                    </Fold>
+                  ))
+                ),
+              )}
+            </ItemGroup>
           </section>
         ) : null}
 
-        <section className="flex flex-col gap-2">
-          <h3 className="text-xs text-muted-foreground">{m.lms_sync_recent()}</h3>
+        <section className="flex flex-col gap-1">
+          <SectionTitle>{m.lms_sync_recent()}</SectionTitle>
           {recent.length > 0 ? (
-            byCourse(recent).map((group) => (
-              <CourseGroup
-                key={group.courseId}
-                course={group.course}
-                {...groupProps(group.courseId)}
-              >
-                {group.items.map((change) =>
-                  change.type === 'material' ? (
-                    <MaterialRow
-                      key={change.id}
-                      change={change}
-                      programId={programId}
-                      provider={provider}
-                      now={now}
-                      onOpen={onClose}
-                    />
-                  ) : change.kind === 'feedback' ? (
-                    <FeedbackRow
-                      key={change.id}
-                      change={change}
-                      now={now}
-                      onOpen={() => {
-                        onClose()
-                        void navigate({
-                          href: feedbackPath(programId, change.course_id, change.target_id),
-                        })
-                      }}
-                    />
-                  ) : (
-                    <ChangeRow
-                      key={change.id}
-                      change={change}
-                      now={now}
-                      busy={busy}
-                      onToggle={() => void toggle(change)}
-                    />
-                  ),
-                )}
-              </CourseGroup>
-            ))
+            <ItemGroup className="gap-0 has-data-[size=xs]:gap-0">
+              {recent.map((change) =>
+                change.type === 'material' ? (
+                  <Row
+                    key={change.id}
+                    icon={MATERIAL_ICON[change.change]}
+                    title={change.title}
+                    muted={change.change === 'gone'}
+                    {...course(change.course_id, change.course)}
+                    detail={
+                      change.change === 'added' || change.change === 'updated'
+                        ? (change.folder ?? MATERIAL_TEXT[change.change](provider))
+                        : MATERIAL_TEXT[change.change](provider)
+                    }
+                    time={formatTimeAgo(change.at, now)}
+                    href={
+                      change.item_id
+                        ? filePath(programId, {
+                            id: change.item_id,
+                            course_id: change.course_id,
+                            folder_id: change.folder_id ?? null,
+                          })
+                        : undefined
+                    }
+                    onOpen={onClose}
+                  />
+                ) : change.kind === 'feedback' ? (
+                  <Row
+                    key={change.id}
+                    icon={MessageSquareText}
+                    title={m.lms_sync_change({
+                      title: change.title,
+                      field: fieldLabel(change.field),
+                    })}
+                    {...course(change.course_id, change.course)}
+                    detail={feedbackDetail(change)}
+                    time={formatTimeAgo(change.at, now)}
+                    onOpen={() => {
+                      onClose()
+                      void navigate({
+                        href: feedbackPath(programId, change.course_id, change.target_id),
+                      })
+                    }}
+                  />
+                ) : (
+                  <Row
+                    key={change.id}
+                    icon={FIELD_ICON[change.field] ?? PencilLine}
+                    title={m.lms_sync_change({
+                      title: change.title,
+                      field: fieldLabel(change.field),
+                    })}
+                    muted={change.reverted}
+                    {...course(change.course_id, change.course)}
+                    detail={
+                      <Values
+                        field={change.field}
+                        from={change.old}
+                        to={change.new}
+                        struck={change.reverted}
+                      />
+                    }
+                    time={change.reverted ? m.lms_sync_undone() : formatTimeAgo(change.at, now)}
+                  >
+                    {change.toggleable ? (
+                      <IconAction
+                        label={change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()}
+                        disabled={busy}
+                        onClick={() => void toggle(change)}
+                        className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+                      >
+                        {change.reverted ? <Redo2 aria-hidden /> : <Undo2 aria-hidden />}
+                      </IconAction>
+                    ) : null}
+                  </Row>
+                ),
+              )}
+            </ItemGroup>
           ) : (
-            <p className="text-xs text-muted-foreground">{m.lms_sync_recent_empty()}</p>
+            <p className="px-2 text-xs text-muted-foreground">{m.lms_sync_recent_empty()}</p>
           )}
         </section>
 
-        {status.different.length > 0 ? (
-          <Collapsible className="flex flex-col gap-2">
-            <CollapsibleTrigger
-              render={
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
-                />
-              }
-            >
-              <ChevronRight aria-hidden className="transition-transform" />
-              {m.lms_sync_different({ provider })}
-              <span className="text-muted-foreground/70 tabular-nums">
-                {status.different.length}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="flex flex-col gap-2">
-              {byCourse(status.different).map((group) => (
-                <CourseGroup
-                  key={group.courseId}
-                  course={group.course}
-                  {...groupProps(group.courseId)}
-                >
-                  {group.items.map((d) => (
-                    <Fold
-                      key={`${d.id}:${d.field}`}
-                      leaving={leaving.includes(`${d.id}:${d.field}`)}
+        {status.different.length > 0 ||
+        status.ignored.length > 0 ||
+        status.removed_materials.length > 0 ? (
+          <section className="flex flex-col gap-0.5 border-t px-2 pt-2">
+            {status.different.length > 0 ? (
+              <MoreList label={m.lms_sync_different({ provider })} count={status.different.length}>
+                {status.different.map((d) => (
+                  <Fold key={`${d.id}:${d.field}`} leaving={leaving.includes(`${d.id}:${d.field}`)}>
+                    <Row
+                      icon={FIELD_ICON[d.field] ?? PencilLine}
+                      title={m.lms_sync_change({ title: d.title, field: fieldLabel(d.field) })}
+                      {...course(d.course_id, d.course)}
+                      detail={m.lms_sync_different_values({
+                        mine: formatValue(d.field, d.mine),
+                        provider,
+                        platform: formatValue(d.field, d.platform),
+                      })}
                     >
-                      <DifferenceRow
-                        difference={d}
-                        provider={provider}
-                        busy={busy}
-                        onFollow={() => resolveField(d.id, d.field, 'platform')}
-                      />
-                    </Fold>
-                  ))}
-                </CourseGroup>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
-
-        {status.removed_materials.length > 0 ? (
-          <Collapsible className="flex flex-col gap-2">
-            <CollapsibleTrigger
-              render={
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
-                />
-              }
-            >
-              <ChevronRight aria-hidden className="transition-transform" />
-              {m.lms_sync_removed_materials({ count: status.removed_count })}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="flex flex-col gap-2">
-              {byCourse(status.removed_materials).map((group) => (
-                <CourseGroup
-                  key={group.courseId}
-                  course={group.course}
-                  {...groupProps(group.courseId)}
-                >
-                  {group.items.map((item) => (
-                    <Fold key={item.id} leaving={leaving.includes(item.id)}>
-                      <Item size="xs" className="px-0 py-1.5">
-                        <ItemContent className="min-w-0">
-                          <ItemTitle className="w-full">
-                            <span className="truncate">{item.title}</span>
-                          </ItemTitle>
-                          <ItemDescription className="text-xs">
-                            {m.lms_sync_removed_by_you({ ago: formatTimeAgo(item.at, now) })}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => restore(item.id)}
-                          >
-                            {m.lms_sync_restore()}
-                          </Button>
-                        </ItemActions>
-                      </Item>
-                    </Fold>
-                  ))}
-                </CourseGroup>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
-
-        {status.ignored.length > 0 ? (
-          <Collapsible className="flex flex-col gap-2">
-            <CollapsibleTrigger
-              render={
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="-ml-2 self-start text-muted-foreground [&[data-panel-open]>svg]:rotate-90"
-                />
-              }
-            >
-              <ChevronRight aria-hidden className="transition-transform" />
-              {m.lms_sync_ignored({ count: status.ignored.length })}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="flex flex-col gap-2">
-              {byCourse(status.ignored).map((group) => (
-                <CourseGroup
-                  key={group.courseId}
-                  course={group.course}
-                  {...groupProps(group.courseId)}
-                >
-                  {group.items.map((item) => (
-                    <Fold key={item.id} leaving={leaving.includes(item.id)}>
-                      <Item size="xs" className="px-0 py-1.5">
-                        <ItemContent className="min-w-0">
-                          <ItemTitle className="w-full">
-                            <span className="truncate">{item.title}</span>
-                          </ItemTitle>
-                          <ItemDescription className="text-xs">
-                            {m.lms_sync_kind_new()}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions className="gap-1.5">
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={busy}
-                            onClick={() => setDismissed([item], false)}
-                          >
-                            {m.lms_sync_remind()}
-                          </Button>
-                          <Button
-                            size="xs"
-                            disabled={Boolean(broken)}
-                            onClick={() => void importItems([item])}
-                          >
-                            {m.lms_sync_import()}
-                          </Button>
-                        </ItemActions>
-                      </Item>
-                    </Fold>
-                  ))}
-                </CourseGroup>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+                      <IconAction
+                        label={m.lms_sync_follow({ provider })}
+                        disabled={busy}
+                        onClick={() => resolveField(d.id, d.field, 'platform')}
+                      >
+                        <CloudDownload aria-hidden />
+                      </IconAction>
+                    </Row>
+                  </Fold>
+                ))}
+              </MoreList>
+            ) : null}
+            {status.removed_materials.length > 0 ? (
+              <MoreList label={m.lms_sync_panel_removed()} count={status.removed_count}>
+                {status.removed_materials.map((item) => (
+                  <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                    <Row
+                      icon={FileMinus}
+                      title={item.title}
+                      {...course(item.course_id, item.course)}
+                      detail={m.lms_sync_removed_by_you({ ago: formatTimeAgo(item.at, now) })}
+                    >
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => restore(item.id)}
+                      >
+                        {m.lms_sync_restore()}
+                      </Button>
+                    </Row>
+                  </Fold>
+                ))}
+              </MoreList>
+            ) : null}
+            {status.ignored.length > 0 ? (
+              <MoreList label={m.lms_sync_panel_ignored()} count={status.ignored.length}>
+                {status.ignored.map((item) => (
+                  <Fold key={item.id} leaving={leaving.includes(item.id)}>
+                    <Row
+                      icon={ClipboardPlus}
+                      title={item.title}
+                      {...course(item.course_id, item.course)}
+                      detail={m.lms_sync_kind_new()}
+                    >
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setDismissed([item], false)}
+                      >
+                        {m.lms_sync_remind()}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={Boolean(broken)}
+                        onClick={() => void importItems([item])}
+                      >
+                        {m.lms_sync_import()}
+                      </Button>
+                    </Row>
+                  </Fold>
+                ))}
+              </MoreList>
+            ) : null}
+          </section>
         ) : null}
       </div>
 
@@ -543,94 +585,236 @@ function Panel({
   )
 }
 
-type Recent = (SyncChange & { type: 'field' }) | (SyncMaterialChange & { type: 'material' })
+const FIELD_ICON: Record<string, LucideIcon> = {
+  title: PencilLine,
+  due_at: CalendarClock,
+  weight: Percent,
+  score: SquareCheck,
+}
+
+const MATERIAL_ICON: Record<SyncMaterialChange['change'], LucideIcon> = {
+  added: FilePlus,
+  updated: FilePen,
+  gone: FileX,
+  handed_over: FileCheck,
+}
+
+const MATERIAL_TEXT: Record<SyncMaterialChange['change'], (provider: string) => string> = {
+  added: () => m.lms_sync_material_added(),
+  updated: () => m.lms_sync_material_updated(),
+  gone: (provider) => m.lms_sync_material_removed({ provider }),
+  handed_over: (provider) => m.lms_sync_material_kept({ provider }),
+}
+
+/** What new feedback has: comments, a rubric score, or both. */
+function feedbackDetail(change: SyncChange): string {
+  const news = change.new as { comments?: number; rubric?: boolean } | null
+  return [
+    news?.comments ? m.lms_sync_feedback_comments() : null,
+    news?.rubric ? m.lms_sync_feedback_rubric() : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** A small muted section heading with an optional count. */
+function SectionTitle({ count, children }: { count?: number; children: ReactNode }) {
+  return (
+    <h3 className="flex items-center gap-1.5 px-2 pt-1 text-xs font-medium text-muted-foreground">
+      {children}
+      {count ? <span className="tabular-nums text-muted-foreground/70">{count}</span> : null}
+    </h3>
+  )
+}
+
+/** An icon button with a tooltip. */
+function IconAction({
+  label,
+  disabled,
+  onClick,
+  className,
+  children,
+}: {
+  label: string
+  disabled?: boolean
+  onClick: () => void
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onClick}
+            className={cn('text-muted-foreground', className)}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
- * A course material that came, changed or went on the platform. Its name opens the course file it
- * is now (none once it is gone), closing the panel.
+ * One row of the panel: an icon, the title, the course (color dot + code) and a detail, and on the
+ * right either the time or the row's actions. A row with `href`/`onOpen` opens on click.
  */
-function MaterialRow({
-  change,
-  programId,
-  provider,
-  now,
+function Row({
+  icon: Icon,
+  title,
+  course,
+  color,
+  detail,
+  time,
+  muted = false,
+  href,
   onOpen,
+  children,
 }: {
-  change: SyncMaterialChange
-  programId: string
-  provider: string
-  now: number
-  onOpen: () => void
+  icon: LucideIcon
+  title: string
+  course: string
+  color: string | undefined
+  detail?: ReactNode
+  time?: string
+  muted?: boolean
+  href?: string
+  onOpen?: () => void
+  children?: ReactNode
 }) {
-  const what = {
-    added: () => m.lms_sync_material_added(),
-    updated: () => m.lms_sync_material_updated(),
-    gone: () => m.lms_sync_material_removed({ provider }),
-    handed_over: () => m.lms_sync_material_kept({ provider }),
-  }[change.change]()
-  const gone = change.change === 'gone'
-  return (
-    <Item size="xs" className={cn('px-0 py-1.5', gone && 'text-muted-foreground')}>
-      <ItemContent className="min-w-0">
+  const clickable = href !== undefined || (onOpen !== undefined && children === undefined)
+  const body = (
+    <>
+      <ItemMedia className="mt-0.5 flex size-7 items-center justify-center self-start rounded-lg bg-muted text-muted-foreground [&_svg]:size-3.5">
+        <Icon aria-hidden />
+      </ItemMedia>
+      <ItemContent className="min-w-0 gap-0.5">
         <ItemTitle className="w-full">
-          {change.item_id ? (
-            <Link
-              to={filePath(programId, {
-                id: change.item_id,
-                course_id: change.course_id,
-                folder_id: change.folder_id ?? null,
-              })}
-              className="truncate hover:underline"
-              onClick={onOpen}
-            >
-              {change.title}
-            </Link>
-          ) : (
-            <span className={cn('truncate', gone && 'line-through')}>{change.title}</span>
-          )}
+          <span className={cn('truncate', muted && 'text-muted-foreground line-through')}>
+            {title}
+          </span>
         </ItemTitle>
-        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
-          <span>{what}</span>
-          {change.folder ? (
+        <ItemDescription className="flex min-w-0 items-center gap-1.5 text-xs">
+          <span
+            aria-hidden
+            className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+            style={color ? { backgroundColor: color } : undefined}
+          />
+          <span className="shrink-0">{course}</span>
+          {detail ? (
             <>
               <span aria-hidden>·</span>
-              <span>{change.folder}</span>
+              <span className="min-w-0 truncate">{detail}</span>
             </>
           ) : null}
-          <span aria-hidden>·</span>
-          <span>{formatTimeAgo(change.at, now)}</span>
         </ItemDescription>
       </ItemContent>
+      {children || time ? (
+        <ItemActions className="relative shrink-0 gap-1 self-center">
+          {time ? (
+            <span
+              className={cn(
+                'text-xs whitespace-nowrap text-muted-foreground tabular-nums',
+                children &&
+                  'transition-opacity group-focus-within/item:opacity-0 group-hover/item:opacity-0',
+              )}
+            >
+              {time}
+            </span>
+          ) : null}
+          {children ? (
+            <div
+              className={cn(
+                'flex items-center gap-1',
+                // In the time's place on hover or keyboard focus.
+                time &&
+                  'absolute right-0 opacity-0 transition-opacity group-focus-within/item:opacity-100 group-hover/item:opacity-100',
+              )}
+            >
+              {children}
+            </div>
+          ) : null}
+        </ItemActions>
+      ) : null}
+    </>
+  )
+  const className = cn('gap-3 rounded-lg px-2 py-2', clickable && 'hover:bg-muted/60')
+  if (href) {
+    return (
+      <Item size="xs" className={className} render={<Link to={href} onClick={onOpen} />}>
+        {body}
+      </Item>
+    )
+  }
+  if (clickable) {
+    return (
+      <Item
+        size="xs"
+        className={cn(className, 'w-full text-left')}
+        // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- `body` labels it
+        render={<button type="button" onClick={onOpen} />}
+      >
+        {body}
+      </Item>
+    )
+  }
+  return (
+    <Item size="xs" className={className}>
+      {body}
     </Item>
   )
 }
 
-/** A course's rows under its color dot and code. */
-function CourseGroup({
-  course,
-  color,
+/** A folded list at the bottom of the panel ("Different from Canvas 1"). */
+function MoreList({
+  label,
+  count,
   children,
 }: {
-  course: string
-  color: string | undefined
+  label: string
+  count: number
   children: ReactNode
 }) {
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span
-          aria-hidden
-          className="size-2 shrink-0 rounded-full bg-muted-foreground"
-          style={color ? { backgroundColor: color } : undefined}
-        />
-        <span className="truncate">{course}</span>
-      </div>
-      <ItemGroup aria-label={course} className="gap-0 pl-4 has-data-[size=xs]:gap-0">
-        {children}
-      </ItemGroup>
-    </div>
+    <Collapsible className="flex flex-col">
+      <CollapsibleTrigger
+        render={
+          <Button
+            size="xs"
+            variant="ghost"
+            className="justify-start text-muted-foreground [&[data-panel-open]>svg:first-child]:rotate-90"
+          />
+        }
+      >
+        <ChevronRight aria-hidden className="transition-transform" />
+        {label}
+        <span className="tabular-nums text-muted-foreground/70">{count}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="-mx-2">
+        <ItemGroup className="gap-0 has-data-[size=xs]:gap-0">{children}</ItemGroup>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
+
+/** A due date without its time when both sides share it ("Nov 25 → Nov 27"). */
+function short(field: string, value: unknown, other: unknown): string {
+  if (field !== 'due_at' || !value || !other) return formatValue(field, value)
+  const a = value as { date: string; time: string | null }
+  const b = other as { date: string; time: string | null }
+  if (a.time === b.time && a.date !== b.date)
+    return formatValue(field, { date: a.date, time: null })
+  return formatValue(field, value)
+}
+
+type Recent = (SyncChange & { type: 'field' }) | (SyncMaterialChange & { type: 'material' })
 
 /** A row that folds away (200 ms, in height) once answered. */
 function Fold({ leaving, children }: { leaving: boolean; children: ReactNode }) {
@@ -660,239 +844,10 @@ function Values({
   struck?: boolean
 }) {
   return (
-    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1">
-      <span className="whitespace-nowrap">{formatValue(field, from)}</span>
-      <ArrowRight aria-label="→" className="size-3 shrink-0" />
-      <span className={cn('whitespace-nowrap', struck ? 'line-through' : 'text-foreground')}>
-        {formatValue(field, to)}
-      </span>
+    <span className="whitespace-nowrap">
+      {short(field, from, to)}
+      <ArrowRight aria-label="→" className="mx-1 inline size-3 align-[-2px]" />
+      <span className={struck ? 'line-through' : 'text-foreground'}>{short(field, to, from)}</span>
     </span>
-  )
-}
-
-function RemovedRow({
-  item,
-  provider,
-  busy,
-  onKeep,
-  onDelete,
-}: {
-  item: SyncItem
-  provider: string
-  busy: boolean
-  onKeep: () => void
-  onDelete: () => void
-}) {
-  return (
-    <Item size="xs" className="px-0 py-1.5">
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          <span className="truncate">{item.title}</span>
-        </ItemTitle>
-        <ItemDescription className="text-xs">{m.lms_sync_removed({ provider })}</ItemDescription>
-      </ItemContent>
-      <ItemActions className="gap-1.5">
-        <Button size="xs" variant="outline" disabled={busy} onClick={onKeep}>
-          {m.lms_sync_keep()}
-        </Button>
-        <Button size="xs" variant="destructive" disabled={busy} onClick={onDelete}>
-          {m.lms_sync_delete()}
-        </Button>
-      </ItemActions>
-    </Item>
-  )
-}
-
-function ConflictRow({
-  title,
-  conflict,
-  busy,
-  onResolve,
-}: {
-  title: string
-  conflict: SyncConflict
-  busy: boolean
-  onResolve: (choice: 'platform' | 'mine') => void
-}) {
-  return (
-    <Item size="xs" className="px-0 py-1.5">
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          <span className="truncate">
-            {m.lms_sync_change({ title, field: fieldLabel(conflict.field) })}
-          </span>
-        </ItemTitle>
-        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
-          <Values field={conflict.field} from={conflict.mine} to={conflict.platform} />
-          {conflict.edited ? (
-            <>
-              <span aria-hidden>·</span>
-              <span>{m.lms_sync_yours_changed()}</span>
-            </>
-          ) : null}
-        </ItemDescription>
-      </ItemContent>
-      <ItemActions className="gap-1.5">
-        <Button size="xs" variant="outline" disabled={busy} onClick={() => onResolve('mine')}>
-          {m.lms_sync_keep()}
-        </Button>
-        <Button size="xs" disabled={busy} onClick={() => onResolve('platform')}>
-          {m.lms_sync_update()}
-        </Button>
-      </ItemActions>
-    </Item>
-  )
-}
-
-function ChangeRow({
-  change,
-  now,
-  busy,
-  onToggle,
-}: {
-  change: SyncChange
-  now: number
-  busy: boolean
-  /** Puts the change back, or applies it again once put back. */
-  onToggle: () => void
-}) {
-  const label = change.reverted ? m.lms_sync_redo() : m.lms_sync_undo()
-  const Icon = change.reverted ? Redo2 : Undo2
-  return (
-    <Item size="xs" className={cn('px-0 py-1.5', change.reverted && 'text-muted-foreground')}>
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          <span className="truncate">
-            {m.lms_sync_change({ title: change.title, field: fieldLabel(change.field) })}
-          </span>
-        </ItemTitle>
-        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
-          {change.reverted ? (
-            <>
-              <span>{m.lms_sync_undone()}</span>
-              <span aria-hidden>·</span>
-            </>
-          ) : null}
-          <Values field={change.field} from={change.old} to={change.new} struck={change.reverted} />
-          {change.reverted ? null : (
-            <>
-              <span aria-hidden>·</span>
-              <span>{formatTimeAgo(change.at, now)}</span>
-            </>
-          )}
-        </ItemDescription>
-      </ItemContent>
-      {change.toggleable ? (
-        <ItemActions>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="outline"
-                  aria-label={label}
-                  disabled={busy}
-                  onClick={onToggle}
-                />
-              }
-            >
-              <Icon aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent>{label}</TooltipContent>
-          </Tooltip>
-        </ItemActions>
-      ) : null}
-    </Item>
-  )
-}
-
-/**
- * New feedback on an assessment ("Lab 1 feedback · New comments · 5 min ago"): opens it in the
- * gradebook. Nothing to put back.
- */
-function FeedbackRow({
-  change,
-  now,
-  onOpen,
-}: {
-  change: SyncChange
-  now: number
-  onOpen: () => void
-}) {
-  const news = change.new as { comments?: number; rubric?: boolean } | null
-  return (
-    <Item
-      size="xs"
-      className="w-full px-0 py-1.5 text-left hover:bg-transparent"
-      // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- labelled by the row's text
-      render={<button type="button" onClick={onOpen} />}
-    >
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          <span className="truncate">
-            {m.lms_sync_change({ title: change.title, field: fieldLabel(change.field) })}
-          </span>
-        </ItemTitle>
-        <ItemDescription className="flex flex-wrap items-center gap-x-1 text-xs">
-          {news?.comments ? <span>{m.lms_sync_feedback_comments()}</span> : null}
-          {news?.comments && news.rubric ? <span aria-hidden>·</span> : null}
-          {news?.rubric ? <span>{m.lms_sync_feedback_rubric()}</span> : null}
-          <span aria-hidden>·</span>
-          <span>{formatTimeAgo(change.at, now)}</span>
-        </ItemDescription>
-      </ItemContent>
-      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-    </Item>
-  )
-}
-
-/** A field the user set apart from the platform: both values, and taking the platform's back. */
-function DifferenceRow({
-  difference: d,
-  provider,
-  busy,
-  onFollow,
-}: {
-  difference: SyncDifference
-  provider: string
-  busy: boolean
-  onFollow: () => void
-}) {
-  const label = m.lms_sync_follow({ provider })
-  return (
-    <Item size="xs" className="px-0 py-1.5">
-      <ItemContent className="min-w-0">
-        <ItemTitle className="w-full">
-          <span className="truncate">
-            {m.lms_sync_change({ title: d.title, field: fieldLabel(d.field) })}
-          </span>
-        </ItemTitle>
-        <ItemDescription className="text-xs">
-          {m.lms_sync_different_values({
-            mine: formatValue(d.field, d.mine),
-            provider,
-            platform: formatValue(d.field, d.platform),
-          })}
-        </ItemDescription>
-      </ItemContent>
-      <ItemActions>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon-xs"
-                variant="outline"
-                aria-label={label}
-                disabled={busy}
-                onClick={onFollow}
-              />
-            }
-          >
-            <CloudDownload aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
-      </ItemActions>
-    </Item>
   )
 }

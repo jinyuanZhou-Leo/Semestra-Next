@@ -71,7 +71,8 @@ import { externalLabel, groupByTerm } from '../external'
 import { useProviderName, useProviderUis } from '../providers'
 import { MATERIALS, invalidateLms } from '../queries'
 import { ERROR_LABEL, LogoTile } from './ConnectionsSection'
-import { MATERIAL_FIELDS, useOpenConnections } from './ProgramLmsSection'
+import { MATERIAL_FIELDS } from './MaterialsSection'
+import { useOpenConnections } from './ProgramLmsSection'
 
 /** Link errors that only a new token (or new permissions) on the connection fixes. */
 const CONNECTION_ERRORS = new Set([
