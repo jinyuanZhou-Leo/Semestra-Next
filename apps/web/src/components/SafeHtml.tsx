@@ -164,7 +164,7 @@ function fallBackToOriginal(node: HTMLDivElement | null) {
 }
 
 /** Reading typography (`@tailwindcss/typography`) in the app's tokens (`safe-html.css`); text
- * keeps a comfortable line length there, tables scroll sideways when they don't fit. */
+ * uses the whole width it is given, tables scroll sideways when they don't fit. */
 const SIMPLIFIED = 'lms-simplified prose prose-sm min-w-0 max-w-none break-words sm:prose-base'
 
 /**

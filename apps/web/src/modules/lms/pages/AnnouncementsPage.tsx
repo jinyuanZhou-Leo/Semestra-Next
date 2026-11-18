@@ -5,7 +5,8 @@ import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack
 import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
 import type { PageProps } from '@/app/extensions'
 import type { InternalLink } from '@/components/SafeHtml'
-import { formatBytes, formatDate, formatDateTime } from '@/lib/format'
+import { useNow } from '@/hooks/use-now'
+import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { courseColor, courseLabel } from '@/modules/academics/color'
@@ -35,7 +36,7 @@ import {
 } from '@/ui/select'
 import { Skeleton } from '@/ui/skeleton'
 import { Spinner } from '@/ui/spinner'
-import { plainText, postKey } from '../announcements'
+import { plainText, postedLabel, postKey } from '../announcements'
 import { type LmsContent, LmsContentContext, type LmsDisplay } from '../content/context'
 import { useLmsDisplay } from '../content/display'
 import { fileContentUrl } from '../content/file-url'
@@ -45,6 +46,15 @@ import { useProviderName } from '../providers'
 import { useMarkRead } from '../read-state'
 
 const ALL = '__all__'
+
+/**
+ * The list and the open announcement side by side once the content area has room for both (the
+ * list narrower while it is tight); below that one at a time. The page itself doesn't scroll: it
+ * fills the content area (size containment keeps it from growing it), and the list and the announcement each
+ * scroll on their own, like a mail app.
+ */
+const SPLIT =
+  'grid min-h-0 flex-1 contain-size grid-rows-[minmax(0,1fr)] gap-6 @page-lg/main:grid-cols-[17rem_minmax(0,1fr)] @page-xl/main:grid-cols-[22rem_minmax(0,1fr)]'
 
 const keyOf = (p: Post) => postKey(p.course.id, p.item.external_id)
 
@@ -74,6 +84,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
   useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
   // Kept here, not in the reading view: a display picked stays for the next announcement.
   const { display, setDisplay } = useLmsDisplay()
+  const now = useNow()
 
   if (posts.failed && posts.rows.length === 0) {
     return (
@@ -117,8 +128,10 @@ export default function AnnouncementsPage({ scope }: PageProps) {
     )
   }
   return (
-    <div className="grid min-h-0 flex-1 items-start gap-6 @page-lg/main:grid-cols-[24rem_minmax(0,1fr)]">
-      <div className={cn('flex min-w-0 flex-col gap-3', open && 'hidden @page-lg/main:flex')}>
+    <div className={SPLIT}>
+      <div
+        className={cn('flex min-h-0 min-w-0 flex-col gap-3', open && 'hidden @page-lg/main:flex')}
+      >
         {term ? (
           <CourseFilter
             courses={posts.courses}
@@ -141,7 +154,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
             </EmptyContent>
           </Empty>
         ) : (
-          <ItemGroup className="gap-0 overflow-hidden rounded-2xl border border-border">
+          <ItemGroup className="min-h-0 gap-0 overflow-y-auto overscroll-contain rounded-2xl border border-border has-data-[size=sm]:gap-0">
             {shown.map((p) => (
               <PostRow
                 key={keyOf(p)}
@@ -149,6 +162,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
                 withCourse={term}
                 unread={p.item.unread}
                 selected={p === open}
+                now={now}
                 onOpen={() => go({ post: keyOf(p) })}
               />
             ))}
@@ -236,12 +250,14 @@ function PostRow({
   withCourse,
   unread,
   selected,
+  now,
   onOpen,
 }: {
   post: Post
   withCourse: boolean
   unread: boolean
   selected: boolean
+  now: number
   onOpen: () => void
 }) {
   return (
@@ -275,7 +291,7 @@ function PostRow({
           </ItemTitle>
           {a.posted_at ? (
             <span className="shrink-0 text-xs text-muted-foreground">
-              {formatDate(a.posted_at)}
+              {postedLabel(a.posted_at, now)}
             </span>
           ) : null}
         </div>
@@ -340,30 +356,35 @@ function Reading({
   const content: LmsContent = { courseId: course.id, provider, display, setDisplay, openLink }
   return (
     <LmsContentContext value={content}>
-      <article className="flex min-w-0 flex-col gap-4 @page-lg/main:sticky @page-lg/main:top-4 @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border @page-lg/main:p-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-2 self-start @page-lg/main:hidden"
-          onClick={onBack}
-        >
-          <ArrowLeft aria-hidden />
-          {m.lms_announcements_back()}
-        </Button>
-        <ViewHeader
-          title={a.title}
-          meta={
-            <span className="flex flex-wrap items-center gap-x-2">
-              {withCourse ? <CourseName course={course} className="text-foreground" /> : null}
-              {withCourse && meta ? <span aria-hidden>·</span> : null}
-              <span>{meta}</span>
-            </span>
-          }
-          withDisplay={Boolean(a.html)}
-          webUrl={a.web_url}
-        />
-        {a.html ? <LmsHtml html={a.html} /> : null}
-        <Attachments files={a.attachments ?? []} course={course} />
+      {/* The back button and the header stay put; only the text and the attachments scroll. */}
+      <article className="flex min-h-0 min-w-0 flex-col @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
+        <div className="flex flex-col gap-4 pb-4 @page-lg/main:px-6 @page-lg/main:pt-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 self-start @page-lg/main:hidden"
+            onClick={onBack}
+          >
+            <ArrowLeft aria-hidden />
+            {m.lms_announcements_back()}
+          </Button>
+          <ViewHeader
+            title={a.title}
+            meta={
+              <span className="flex flex-wrap items-center gap-x-2">
+                {withCourse ? <CourseName course={course} className="text-foreground" /> : null}
+                {withCourse && meta ? <span aria-hidden>·</span> : null}
+                <span>{meta}</span>
+              </span>
+            }
+            withDisplay={Boolean(a.html)}
+            webUrl={a.web_url}
+          />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain @page-lg/main:px-6 @page-lg/main:pb-6">
+          {a.html ? <LmsHtml html={a.html} /> : null}
+          <Attachments files={a.attachments ?? []} course={course} />
+        </div>
       </article>
     </LmsContentContext>
   )
@@ -432,7 +453,7 @@ function Attachments({ files, course }: { files: AnnouncementAttachment[]; cours
 
 function ListSkeleton() {
   return (
-    <div className="grid gap-6 @page-lg/main:grid-cols-[24rem_minmax(0,1fr)]">
+    <div className={SPLIT}>
       <div className="space-y-2">
         {[0, 1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-16 w-full" />

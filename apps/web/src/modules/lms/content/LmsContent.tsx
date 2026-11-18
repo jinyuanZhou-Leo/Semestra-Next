@@ -40,8 +40,9 @@ export function ViewHeader({
   webUrl?: string | null
 }) {
   return (
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <div className="min-w-0">
+    <div className="flex min-h-9 flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      {/* The title wraps before the buttons do: they move under it only when it can't keep 15rem. */}
+      <div className="min-w-0 flex-1 basis-60">
         <h2 className="font-heading text-lg font-semibold">{title}</h2>
         {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}
       </div>

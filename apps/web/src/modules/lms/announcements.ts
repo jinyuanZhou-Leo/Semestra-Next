@@ -5,7 +5,8 @@ import {
   lmsTermAnnouncementListOptions,
 } from '@semestra/api-client/react-query'
 import { type Scope, type SearchProviderContribution, scopePath } from '@/app/extensions'
-import { formatDate } from '@/lib/format'
+import { isSameDay, isSameYear } from 'date-fns'
+import { formatDate, formatTime } from '@/lib/format'
 import { m } from '@/paraglide/messages'
 
 /** The 公告 page's id: `/c/<course>/announcements`, `/t/<term>/announcements`. */
@@ -18,6 +19,17 @@ export const postKey = (courseId: string, announcementId: string) => `${courseId
 export function announcementPath(scope: Scope, courseId: string, announcementId: string): string {
   const post = encodeURIComponent(postKey(courseId, announcementId))
   return `${scopePath(scope, ANNOUNCEMENTS_PAGE)}?post=${post}`
+}
+
+/**
+ * When an announcement was posted, as a mail list shows it: the time for today's, the day for this
+ * year's, the full date for older ones. `now` comes from `useNow`, so a list left open past midnight
+ * turns today's times into dates.
+ */
+export function postedLabel(at: string, now: number): string {
+  const date = new Date(at)
+  if (isSameDay(date, now)) return formatTime(date)
+  return formatDate(date, { short: isSameYear(date, now) })
 }
 
 /** An announcement as plain text: its row in the list, and what the search looks through. */
