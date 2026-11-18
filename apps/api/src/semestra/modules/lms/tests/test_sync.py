@@ -2,7 +2,6 @@
 platform, what the user changed too is asked about, new and removed assignments wait for the
 user, and the scheduler syncs what is due."""
 
-from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -15,7 +14,7 @@ from semestra.core.context import system_ctx
 from semestra.modules.lms import sync
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.models import LmsCache
-from semestra.modules.lms.schemas.dto import Announcement, Submission
+from semestra.modules.lms.schemas.dto import Submission
 from semestra.modules.lms.tests.conftest import Api, FakeProvider
 from semestra.modules.lms.tests.test_lms import setup_program
 from semestra.modules.notifications import service as notifications
@@ -357,38 +356,6 @@ async def test_a_course_that_cannot_be_read_keeps_its_error(
     status = await api.sync(program_id, course)
     assert status["errors"] == []
     assert status["synced_at"] is not None
-
-
-async def test_announcements_since_the_last_sync_are_told(
-    api: Api, app: FastAPI, fake: FakeProvider, clock: Clock
-):
-    program_id, _ = await _course(api)
-    user_id = (await api.call("GET", "/account/me"))["id"]
-
-    async def posted(*_: Any, **__: Any) -> Sequence[Announcement]:
-        at = clock.now - timedelta(minutes=5)
-        return [
-            Announcement(external_id="n1", external_course_id="101", title="Room change",
-                         posted_at=at),
-            Announcement(external_id="n0", external_course_id="101", title="Old",
-                         posted_at=at - timedelta(days=2)),
-        ]  # fmt: skip
-
-    fake.announcements = posted  # pyright: ignore[reportAttributeAccessIssue]
-
-    async def told() -> list[str]:
-        clock.advance(hours=1)
-        with collect_events(app, user_id) as messages:
-            await api.sync(program_id)
-        [synced] = [m["data"] for m in messages if m["type"] == sync.SYNCED]
-        return [n["title"] for n in synced["notices"]]
-
-    # The first sync only looks: what was there already is not news.
-    assert await told() == []
-    assert await told() == ["Room change"]
-    # After days without a sync (the server was off), what came meanwhile is only recorded.
-    clock.advance(days=3)
-    assert await told() == []
 
 
 async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Clock):

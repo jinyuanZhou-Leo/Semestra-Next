@@ -2,8 +2,9 @@
 
 Connections are exported without credentials: after an import they need the token entered
 again (`has_credentials` false, status `error` with `lms.credentials_missing`). Bindings, links,
-imported assignments (refs) and materials follow the id map of Programs, courses, assessments,
-tasks and course files (the items the sync brought in). The cache is not exported, nor is what
+imported assignments (refs), materials and announcements (with whether each was read) follow the
+id map of Programs, courses, assessments, tasks and course files (the items the sync brought
+in). The cache is not exported, nor is what
 the background sync keeps for itself (its change log, its conflicts, the new items it offers,
 the pages that only list others): the first sync after an import finds them again; only the new
 assignments the user ignored and the materials they deleted are kept. Registered at the bottom
@@ -30,6 +31,7 @@ from sqlalchemy import delete, select
 from semestra.core.context import Ctx
 from semestra.core.db import new_id
 from semestra.modules.lms.models import (
+    LmsAnnouncement,
     LmsCache,
     LmsConnection,
     LmsCourseLink,
@@ -163,6 +165,19 @@ class MaterialRow(BaseModel):
     imported_at: datetime | None = None
 
 
+class AnnouncementRow(BaseModel):
+    link_id: str
+    external_id: str
+    title: str
+    html: str | None = None
+    author: str | None = None
+    web_url: str | None = None
+    posted_at: datetime | None = None
+    updated_at: datetime | None = None
+    attachments: list[dict[str, Any]] = []
+    read_at: datetime | None = None
+
+
 class LmsPayload(BaseModel):
     schema_version: int = SCHEMA_VERSION
     connections: list[ConnectionRow] = []
@@ -170,6 +185,7 @@ class LmsPayload(BaseModel):
     links: list[LinkRow] = []
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
+    announcements: list[AnnouncementRow] = []
 
 
 @dataclass
@@ -195,6 +211,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
             LmsMaterial.state.in_(("synced", "dismissed", "handed_over")),
         )
     )
+    posts = await ctx.db.scalars(select(LmsAnnouncement).where(LmsAnnouncement.user_id == uid))
     writer.write_json(
         LmsPayload(
             connections=[
@@ -221,6 +238,12 @@ async def export(ctx: Ctx, writer: Writer) -> None:
                 MaterialRow.model_validate({k: getattr(r, k) for k in MaterialRow.model_fields})
                 for r in materials
             ],
+            announcements=[
+                AnnouncementRow.model_validate(
+                    {k: getattr(r, k) for k in AnnouncementRow.model_fields}
+                )
+                for r in posts
+            ],
         ).model_dump(mode="json")
     )
 
@@ -233,7 +256,15 @@ async def import_(
     del options
     data = LmsPayload.model_validate(_current(payload))
     report = ImportReport(
-        {"connections": 0, "bindings": 0, "links": 0, "refs": 0, "materials": 0}, {}
+        {
+            "connections": 0,
+            "bindings": 0,
+            "links": 0,
+            "refs": 0,
+            "materials": 0,
+            "announcements": 0,
+        },
+        {},
     )
     connections: dict[str, str] = {}
     for c in data.connections:
@@ -302,6 +333,9 @@ async def import_(
         ctx.db.add(row)
         links[li.id] = row.id
         report.imported["links"] += 1
+    # The unit of work orders inserts by class name, not by foreign key: the links go in before
+    # the rows that point at them.
+    await ctx.db.flush()
 
     def mapped(kind: str, link_id: str, target_id: str | None) -> tuple[str, str | None] | None:
         """The new link and target of a row, or None (reported skipped) when either did not
@@ -344,6 +378,15 @@ async def import_(
             )
         )
         report.imported["materials"] += 1
+    for r in data.announcements:
+        if (got := mapped("announcements", r.link_id, None)) is None:
+            continue
+        ctx.db.add(
+            LmsAnnouncement(
+                **r.model_dump(exclude={"link_id"}), user_id=ctx.user_id, link_id=got[0]
+            )
+        )
+        report.imported["announcements"] += 1
     await ctx.db.flush()
     return report
 
@@ -356,6 +399,7 @@ async def preview(payload: dict[str, Any]) -> dict[str, int]:
         "links": len(data.links),
         "refs": len(data.refs),
         "materials": len(data.materials),
+        "announcements": len(data.announcements),
     }
 
 
@@ -365,6 +409,7 @@ async def purge(ctx: Ctx) -> None:
         LmsSyncChange,
         LmsImportedRef,
         LmsMaterial,
+        LmsAnnouncement,
         LmsCourseLink,
         LmsProgramBinding,
         LmsCache,
@@ -388,6 +433,7 @@ register_portability(
         LmsCourseLink.__tablename__,
         LmsImportedRef.__tablename__,
         LmsMaterial.__tablename__,
+        LmsAnnouncement.__tablename__,
         LmsSyncChange.__tablename__,
         LmsCache.__tablename__,
     ),

@@ -195,6 +195,7 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     err = await api.call("GET", f"/courses/{course}/lms/announcements", 409)
     assert err["error"]["code"] == "lms.course_not_linked"
     await api.link(course, "101")
+    await api.sync(program_id)
 
     news = await api.call("GET", f"/courses/{course}/lms/announcements")
     html = news["items"][0]["html"]
@@ -213,12 +214,6 @@ async def test_reads_are_cleaned_and_cached(api: Api, fake: FakeProvider):
     assert 'src="https://fake/images/logo.png"' in page["html"]
     # A table's own grid stays, for the "Canvas style" display.
     assert '<table border="1" cellpadding="4">' in page["html"]
-
-    fake.calls.clear()
-    await api.call("GET", f"/courses/{course}/lms/announcements")
-    assert fake.calls == []  # from the cache
-    await api.call("GET", f"/courses/{course}/lms/announcements?refresh=true")
-    assert fake.calls == [("announcements", ["101"])]
 
     overview = await api.call("GET", f"/courses/{course}/lms")
     assert overview["provider"] == "fake"
@@ -512,6 +507,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
     assert "good-token-1" not in str(writer.payload)
     assert await portability.preview(writer.payload) == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
+        "announcements": 0,
     }  # fmt: skip
     identity = {program_id: program_id, course: course}
     async with system_ctx(app.state, user_id) as ctx:
@@ -519,6 +515,7 @@ async def test_portability_round_trip(api: Api, app: FastAPI):
         await ctx.db.commit()
     assert report.imported == {
         "connections": 1, "bindings": 1, "links": 1, "refs": 0, "materials": 0,
+        "announcements": 0,
     }  # fmt: skip
     listed = (await api.call("GET", "/lms/connections"))["items"]
     assert len(listed) == 1

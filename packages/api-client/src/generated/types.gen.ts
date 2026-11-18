@@ -495,55 +495,29 @@ export type AiStatusGet = {
 };
 
 /**
- * Announcement
+ * AnnouncementAttachment
  */
-export type Announcement = {
+export type AnnouncementAttachment = {
     /**
      * External Id
      */
     external_id: string;
     /**
-     * Web Url
-     *
-     * Opens the item on the platform
+     * Name
      */
-    web_url?: string | null;
+    name: string;
     /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
+     * Mime Type
      */
-    raw_kind?: string | null;
+    mime_type?: string | null;
     /**
-     * External Course Id
-     *
-     * The course it was posted in
+     * Size Bytes
      */
-    external_course_id?: string;
+    size_bytes?: number | null;
     /**
-     * Title
+     * The course file it is, when the course's files have it
      */
-    title: string;
-    /**
-     * Html
-     */
-    html?: string | null;
-    /**
-     * Author
-     */
-    author?: string | null;
-    /**
-     * Posted At
-     */
-    posted_at?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
-    /**
-     * Unread
-     */
-    unread?: boolean;
+    file?: AppTarget | null;
 };
 
 /**
@@ -552,26 +526,43 @@ export type Announcement = {
 export type AnnouncementList = {
     /**
      * Items
+     *
+     * Newest first
      */
-    items: Array<Announcement>;
+    items: Array<CourseAnnouncement>;
     /**
-     * Truncated
+     * Checked At
+     *
+     * When the sync last read the course's announcements; null: not yet
      */
-    truncated: boolean;
+    checked_at: string | null;
 };
 
 /**
- * AnnouncementRead
+ * AppTarget
+ *
+ * What a platform item is in the app: a course file (a synced file or page), or what an
+ * imported assignment became.
  */
-export type AnnouncementRead = {
+export type AppTarget = {
     /**
-     * Announcement Id
+     * Kind
      */
-    announcement_id: string;
+    kind: 'file' | 'assessment' | 'task';
     /**
-     * Unread
+     * Id
      */
-    unread: boolean;
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     *
+     * The file's folder (kind file)
+     */
+    folder_id?: string | null;
 };
 
 /**
@@ -2756,6 +2747,64 @@ export type Course = {
 };
 
 /**
+ * CourseAnnouncement
+ */
+export type CourseAnnouncement = {
+    /**
+     * External Id
+     */
+    external_id: string;
+    /**
+     * Course Id
+     *
+     * The app's course it was posted in
+     */
+    course_id: string;
+    /**
+     * Web Url
+     *
+     * Opens it on the platform
+     */
+    web_url?: string | null;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Html
+     */
+    html?: string | null;
+    /**
+     * Author
+     */
+    author?: string | null;
+    /**
+     * Posted At
+     */
+    posted_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Unread
+     *
+     * Not opened in the app yet
+     */
+    unread: boolean;
+    /**
+     * Attachments
+     */
+    attachments?: Array<AnnouncementAttachment>;
+    /**
+     * Targets
+     *
+     * Where the platform links in `html` open in the app
+     */
+    targets?: Array<LinkTarget>;
+};
+
+/**
  * CourseCreateInputBody
  */
 export type CourseCreateInputBody = {
@@ -3378,6 +3427,20 @@ export type CourseSetTermsInputBody = {
      * All terms of the course; must be consecutive
      */
     term_ids: Array<string>;
+};
+
+/**
+ * CourseUnread
+ */
+export type CourseUnread = {
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Unread
+     */
+    unread: number;
 };
 
 /**
@@ -6127,6 +6190,23 @@ export type LinkSetInputBody = {
      * Replace the course's link to another external course; only when the user asked to change it
      */
     replace?: boolean;
+};
+
+/**
+ * LinkTarget
+ *
+ * A link in the HTML (`data-lms-kind` / `data-lms-ref`) to something the app has.
+ */
+export type LinkTarget = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Ref
+     */
+    ref: string;
+    target: AppTarget;
 };
 
 /**
@@ -11894,64 +11974,6 @@ export type Term = {
 };
 
 /**
- * TermAnnouncement
- */
-export type TermAnnouncement = {
-    /**
-     * External Id
-     */
-    external_id: string;
-    /**
-     * Web Url
-     *
-     * Opens the item on the platform
-     */
-    web_url?: string | null;
-    /**
-     * Raw Kind
-     *
-     * The platform's own type (debugging)
-     */
-    raw_kind?: string | null;
-    /**
-     * External Course Id
-     *
-     * The course it was posted in
-     */
-    external_course_id?: string;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Html
-     */
-    html?: string | null;
-    /**
-     * Author
-     */
-    author?: string | null;
-    /**
-     * Posted At
-     */
-    posted_at?: string | null;
-    /**
-     * Updated At
-     */
-    updated_at?: string | null;
-    /**
-     * Unread
-     */
-    unread?: boolean;
-    /**
-     * Course Id
-     *
-     * The app's course it was posted in
-     */
-    course_id: string;
-};
-
-/**
  * TermAnnouncementList
  */
 export type TermAnnouncementList = {
@@ -11960,7 +11982,7 @@ export type TermAnnouncementList = {
      *
      * Newest first
      */
-    items: Array<TermAnnouncement>;
+    items: Array<CourseAnnouncement>;
     /**
      * Linked Course Ids
      *
@@ -11968,9 +11990,11 @@ export type TermAnnouncementList = {
      */
     linked_course_ids: Array<string>;
     /**
-     * Truncated
+     * Checked
+     *
+     * The sync has read the announcements of all of them
      */
-    truncated: boolean;
+    checked: boolean;
 };
 
 /**
@@ -12623,6 +12647,18 @@ export type UiStateSetInputBody = {
      * Any JSON value up to 16 KB
      */
     value: JsonValue;
+};
+
+/**
+ * UnreadCounts
+ */
+export type UnreadCounts = {
+    /**
+     * Items
+     *
+     * Courses with unread announcements
+     */
+    items: Array<CourseUnread>;
 };
 
 /**
@@ -19344,12 +19380,6 @@ export type LmsAnnouncementListData = {
     };
     query?: {
         /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-        /**
          * Since
          *
          * Only posted after this time
@@ -19360,7 +19390,7 @@ export type LmsAnnouncementListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its external_id); default title, author, posted_at, unread. `markdown` (or `html`) is the body, as Markdown
          */
-        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'author' | 'posted_at' | 'updated_at' | 'unread'> | null;
+        fields?: Array<'web_url' | 'title' | 'html' | 'markdown' | 'author' | 'posted_at' | 'updated_at' | 'unread' | 'attachments'> | null;
     };
     url: '/courses/{course_id}/lms/announcements';
 };
@@ -19416,10 +19446,49 @@ export type LmsAnnouncementMarkReadResponses = {
     /**
      * Successful Response
      */
-    200: AnnouncementRead;
+    200: CourseAnnouncement;
 };
 
 export type LmsAnnouncementMarkReadResponse = LmsAnnouncementMarkReadResponses[keyof LmsAnnouncementMarkReadResponses];
+
+export type LmsAnnouncementUnreadData = {
+    body?: never;
+    path: {
+        /**
+         * Program Id
+         *
+         * Program id
+         */
+        program_id: string;
+    };
+    query?: {
+        /**
+         * Term Id
+         *
+         * Only the courses of this term
+         */
+        term_id?: string | null;
+    };
+    url: '/programs/{program_id}/lms/announcements/unread';
+};
+
+export type LmsAnnouncementUnreadErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsAnnouncementUnreadError = LmsAnnouncementUnreadErrors[keyof LmsAnnouncementUnreadErrors];
+
+export type LmsAnnouncementUnreadResponses = {
+    /**
+     * Successful Response
+     */
+    200: UnreadCounts;
+};
+
+export type LmsAnnouncementUnreadResponse = LmsAnnouncementUnreadResponses[keyof LmsAnnouncementUnreadResponses];
 
 export type LmsAssignmentAddToGradebookData = {
     body: AssignmentsImportInputBody;
@@ -21242,14 +21311,7 @@ export type LmsTermAnnouncementListData = {
          */
         term_id: string;
     };
-    query?: {
-        /**
-         * Refresh
-         *
-         * Skip the 5-minute cache and ask again
-         */
-        refresh?: boolean;
-    };
+    query?: never;
     url: '/terms/{term_id}/lms/announcements';
 };
 

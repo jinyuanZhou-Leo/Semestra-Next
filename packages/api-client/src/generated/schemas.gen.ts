@@ -851,47 +851,17 @@ export const AiStatusGetSchema = {
     title: 'AiStatusGet'
 } as const;
 
-export const AnnouncementSchema = {
+export const AnnouncementAttachmentSchema = {
     properties: {
         external_id: {
             type: 'string',
             title: 'External Id'
         },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        external_course_id: {
+        name: {
             type: 'string',
-            title: 'External Course Id',
-            description: 'The course it was posted in',
-            default: ''
+            title: 'Name'
         },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        html: {
+        mime_type: {
             anyOf: [
                 {
                     type: 'string'
@@ -900,96 +870,111 @@ export const AnnouncementSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Html'
+            title: 'Mime Type'
         },
-        author: {
+        size_bytes: {
             anyOf: [
                 {
-                    type: 'string'
+                    type: 'integer'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Author'
+            title: 'Size Bytes'
         },
-        posted_at: {
+        file: {
             anyOf: [
                 {
-                    type: 'string',
-                    format: 'date-time'
+                    $ref: '#/components/schemas/AppTarget'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Posted At'
-        },
-        updated_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Updated At'
-        },
-        unread: {
-            type: 'boolean',
-            title: 'Unread',
-            default: false
+            description: 'The course file it is, when the course\'s files have it'
         }
     },
     type: 'object',
     required: [
         'external_id',
-        'title'
+        'name'
     ],
-    title: 'Announcement'
+    title: 'AnnouncementAttachment'
 } as const;
 
 export const AnnouncementListSchema = {
     properties: {
         items: {
             items: {
-                $ref: '#/components/schemas/Announcement'
+                $ref: '#/components/schemas/CourseAnnouncement'
             },
             type: 'array',
-            title: 'Items'
+            title: 'Items',
+            description: 'Newest first'
         },
-        truncated: {
-            type: 'boolean',
-            title: 'Truncated'
+        checked_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Checked At',
+            description: 'When the sync last read the course\'s announcements; null: not yet'
         }
     },
     type: 'object',
     required: [
         'items',
-        'truncated'
+        'checked_at'
     ],
     title: 'AnnouncementList'
 } as const;
 
-export const AnnouncementReadSchema = {
+export const AppTargetSchema = {
     properties: {
-        announcement_id: {
+        kind: {
             type: 'string',
-            title: 'Announcement Id'
+            enum: [
+                'file',
+                'assessment',
+                'task'
+            ],
+            title: 'Kind'
         },
-        unread: {
-            type: 'boolean',
-            title: 'Unread'
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id',
+            description: 'The file\'s folder (kind file)'
         }
     },
     type: 'object',
     required: [
-        'announcement_id',
-        'unread'
+        'kind',
+        'id',
+        'course_id'
     ],
-    title: 'AnnouncementRead'
+    title: 'AppTarget',
+    description: 'What a platform item is in the app: a course file (a synced file or page), or what an\nimported assignment became.'
 } as const;
 
 export const AssessmentSchema = {
@@ -4740,6 +4725,112 @@ export const CourseSchema = {
     title: 'Course'
 } as const;
 
+export const CourseAnnouncementSchema = {
+    properties: {
+        external_id: {
+            type: 'string',
+            title: 'External Id'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id',
+            description: 'The app\'s course it was posted in'
+        },
+        web_url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Web Url',
+            description: 'Opens it on the platform'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        html: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Html'
+        },
+        author: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Author'
+        },
+        posted_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Posted At'
+        },
+        updated_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Updated At'
+        },
+        unread: {
+            type: 'boolean',
+            title: 'Unread',
+            description: 'Not opened in the app yet'
+        },
+        attachments: {
+            items: {
+                $ref: '#/components/schemas/AnnouncementAttachment'
+            },
+            type: 'array',
+            title: 'Attachments',
+            default: []
+        },
+        targets: {
+            items: {
+                $ref: '#/components/schemas/LinkTarget'
+            },
+            type: 'array',
+            title: 'Targets',
+            description: 'Where the platform links in `html` open in the app',
+            default: []
+        }
+    },
+    type: 'object',
+    required: [
+        'external_id',
+        'course_id',
+        'title',
+        'unread'
+    ],
+    title: 'CourseAnnouncement'
+} as const;
+
 export const CourseCreateInputBodySchema = {
     properties: {
         code: {
@@ -5972,6 +6063,25 @@ export const CourseSetTermsInputBodySchema = {
         'term_ids'
     ],
     title: 'CourseSetTermsInputBody'
+} as const;
+
+export const CourseUnreadSchema = {
+    properties: {
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        unread: {
+            type: 'integer',
+            title: 'Unread'
+        }
+    },
+    type: 'object',
+    required: [
+        'course_id',
+        'unread'
+    ],
+    title: 'CourseUnread'
 } as const;
 
 export const CourseUpdateInputBodySchema = {
@@ -10768,6 +10878,30 @@ export const LinkSetInputBodySchema = {
         'external_course_id'
     ],
     title: 'LinkSetInputBody'
+} as const;
+
+export const LinkTargetSchema = {
+    properties: {
+        kind: {
+            type: 'string',
+            title: 'Kind'
+        },
+        ref: {
+            type: 'string',
+            title: 'Ref'
+        },
+        target: {
+            $ref: '#/components/schemas/AppTarget'
+        }
+    },
+    type: 'object',
+    required: [
+        'kind',
+        'ref',
+        'target'
+    ],
+    title: 'LinkTarget',
+    description: 'A link in the HTML (`data-lms-kind` / `data-lms-ref`) to something the app has.'
 } as const;
 
 export const LinkUpdateInputBodySchema = {
@@ -20902,117 +21036,11 @@ export const TermSchema = {
     title: 'Term'
 } as const;
 
-export const TermAnnouncementSchema = {
-    properties: {
-        external_id: {
-            type: 'string',
-            title: 'External Id'
-        },
-        web_url: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Web Url',
-            description: 'Opens the item on the platform'
-        },
-        raw_kind: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Raw Kind',
-            description: 'The platform\'s own type (debugging)'
-        },
-        external_course_id: {
-            type: 'string',
-            title: 'External Course Id',
-            description: 'The course it was posted in',
-            default: ''
-        },
-        title: {
-            type: 'string',
-            title: 'Title'
-        },
-        html: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Html'
-        },
-        author: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Author'
-        },
-        posted_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Posted At'
-        },
-        updated_at: {
-            anyOf: [
-                {
-                    type: 'string',
-                    format: 'date-time'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Updated At'
-        },
-        unread: {
-            type: 'boolean',
-            title: 'Unread',
-            default: false
-        },
-        course_id: {
-            type: 'string',
-            title: 'Course Id',
-            description: 'The app\'s course it was posted in'
-        }
-    },
-    type: 'object',
-    required: [
-        'external_id',
-        'title',
-        'course_id'
-    ],
-    title: 'TermAnnouncement'
-} as const;
-
 export const TermAnnouncementListSchema = {
     properties: {
         items: {
             items: {
-                $ref: '#/components/schemas/TermAnnouncement'
+                $ref: '#/components/schemas/CourseAnnouncement'
             },
             type: 'array',
             title: 'Items',
@@ -21026,16 +21054,17 @@ export const TermAnnouncementListSchema = {
             title: 'Linked Course Ids',
             description: 'The term\'s courses linked to an LMS'
         },
-        truncated: {
+        checked: {
             type: 'boolean',
-            title: 'Truncated'
+            title: 'Checked',
+            description: 'The sync has read the announcements of all of them'
         }
     },
     type: 'object',
     required: [
         'items',
         'linked_course_ids',
-        'truncated'
+        'checked'
     ],
     title: 'TermAnnouncementList'
 } as const;
@@ -22165,6 +22194,24 @@ export const UiStateSetInputBodySchema = {
         'value'
     ],
     title: 'UiStateSetInputBody'
+} as const;
+
+export const UnreadCountsSchema = {
+    properties: {
+        items: {
+            items: {
+                $ref: '#/components/schemas/CourseUnread'
+            },
+            type: 'array',
+            title: 'Items',
+            description: 'Courses with unread announcements'
+        }
+    },
+    type: 'object',
+    required: [
+        'items'
+    ],
+    title: 'UnreadCounts'
 } as const;
 
 export const UnreadableItemSchema = {

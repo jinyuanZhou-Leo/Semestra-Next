@@ -138,6 +138,15 @@ class NavTab(Dto):
     hidden: bool = False
 
 
+class Attachment(BaseModel):
+    """A file attached to an announcement; `external_id` is the platform's file id."""
+
+    external_id: str
+    name: str
+    mime_type: str | None = None
+    size_bytes: int | None = None
+
+
 class Announcement(Dto):
     external_course_id: str = Field(default="", description="The course it was posted in")
     title: str
@@ -145,7 +154,9 @@ class Announcement(Dto):
     author: str | None = None
     posted_at: datetime | None = None
     updated_at: datetime | None = None
+    # The platform's own read mark (taken only when the user allows writes).
     unread: bool = False
+    attachments: list[Attachment] = Field(default_factory=lambda: [])
 
 
 class Submission(BaseModel):

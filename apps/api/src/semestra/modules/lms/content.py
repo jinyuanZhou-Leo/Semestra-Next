@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from semestra.core.context import Ctx
 from semestra.core.errors import AppError
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import files, reads, refs, service
+from semestra.modules.lms import announcements, files, reads, refs, service
 from semestra.modules.lms import search as ranking
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.markdown import to_markdown
@@ -317,8 +317,8 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
 
     cid = inp.course_id
 
-    async def announcements() -> None:
-        for a in (await reads.announcements(ctx, cid, None, inp.refresh)).items:
+    async def posts() -> None:
+        for a in (await announcements.course_list(ctx, cid)).items:
             ref = refs.make("announcement", a.external_id)
             docs.add(
                 "announcement", ref, a.title, _md(a.html), where="Announcements", date=a.posted_at
@@ -372,7 +372,7 @@ async def search(ctx: Ctx, inp: LmsSearchInput) -> LmsSearchResults:
             )
 
     if "announcement" in wanted and course.has("announcements"):
-        await source("announcements", None, announcements)
+        await source("announcements", None, posts)
     if "assignment" in wanted and course.has("assignments"):
         await source("assignments", None, assignments)
     if "quiz" in wanted and course.has("quizzes"):
@@ -488,7 +488,7 @@ async def _read_announcement(
 ) -> LmsContentDetail:
     if "discussions" in linked[1].provider.features:  # an announcement is a topic, with replies
         return await _read_discussion(ctx, inp, linked, item_id, "announcement")
-    for a in (await reads.announcements(ctx, inp.course_id, None, inp.refresh)).items:
+    for a in (await announcements.course_list(ctx, inp.course_id)).items:
         if a.external_id == item_id:
             return LmsContentDetail(
                 ref=refs.make("announcement", a.external_id),
@@ -720,7 +720,7 @@ async def _course_activity(
 
     if "announcements" in b.provider.features:
         try:
-            for a in (await reads.announcements(ctx, course_id, None, refresh)).items:
+            for a in (await announcements.course_list(ctx, course_id)).items:
                 if a.posted_at and a.posted_at >= since:
                     text = " ".join(_md(a.html).split())
                     ref = refs.make("announcement", a.external_id)
