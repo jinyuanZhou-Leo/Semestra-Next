@@ -126,6 +126,31 @@ async def test_unbinding_drops_the_feedback_and_keeps_the_grade(api: Api, fake: 
     assert [a["id"] for a in items] == [lab["id"]]
 
 
+async def test_the_users_own_comments_are_not_feedback(api: Api, fake: FakeProvider, clock: Clock):
+    program_id, course = await _course(api, "a1")
+    mine = SubmissionComment(id="1", author="Me", own=True, comment="Late, sorry")
+    fake.course_submissions["101"] = [_submission("a1", mine)]
+    await api.sync(program_id)
+    # Only the user's own comment: the gradebook shows no feedback for it.
+    assert await _feedback(api, course) == {}
+
+    # Writing another is no news either; the teacher's reply is, and comes with the user's.
+    reply = SubmissionComment(id="3", author="Prof", comment="Fine")
+    fake.course_submissions["101"][0].comments = [
+        mine,
+        SubmissionComment(id="2", author="Me", own=True, comment="Uploaded"),
+        reply,
+    ]
+    clock.advance(minutes=2)
+    status = await api.sync(program_id)
+    [change] = [c for c in status["recent"] if c["kind"] == "feedback"]
+    assert change["new"] == {"comments": 1, "rubric": False}
+    comments = (await _feedback(api, course))["a1"]["comments"]
+    assert [(c["comment"], c["own"]) for c in comments] == [
+        ("Late, sorry", True), ("Uploaded", True), ("Fine", False)
+    ]  # fmt: skip
+
+
 async def test_a_cut_off_list_keeps_what_was_kept(api: Api, fake: FakeProvider, clock: Clock):
     program_id, course = await _course(api, "a1")
     fake.course_submissions["101"] = [_submission("a1", SubmissionComment(id="1", comment="Ok"))]

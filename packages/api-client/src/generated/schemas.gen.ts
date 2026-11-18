@@ -3927,6 +3927,41 @@ export const ClearedSchema = {
     title: 'Cleared'
 } as const;
 
+export const CommentAttachmentSchema = {
+    properties: {
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        url: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Url'
+        },
+        media: {
+            type: 'boolean',
+            title: 'Media',
+            default: false
+        }
+    },
+    type: 'object',
+    title: 'CommentAttachment',
+    description: 'A file attached to a comment, or a recorded audio/video comment (`media`); opened on the\nplatform.'
+} as const;
+
 export const CommitInputBodySchema = {
     properties: {
         wizard_courses: {
@@ -18795,6 +18830,11 @@ export const SubmissionCommentSchema = {
             ],
             title: 'Author'
         },
+        own: {
+            type: 'boolean',
+            title: 'Own',
+            default: false
+        },
         comment: {
             type: 'string',
             title: 'Comment',
@@ -18811,6 +18851,14 @@ export const SubmissionCommentSchema = {
                 }
             ],
             title: 'Created At'
+        },
+        attachments: {
+            items: {
+                $ref: '#/components/schemas/CommentAttachment'
+            },
+            type: 'array',
+            title: 'Attachments',
+            default: []
         }
     },
     type: 'object',
@@ -19077,6 +19125,14 @@ export const SyncChangeSchema = {
             type: 'string',
             title: 'Id'
         },
+        kind: {
+            type: 'string',
+            enum: [
+                'field',
+                'feedback'
+            ],
+            title: 'Kind'
+        },
         course_id: {
             type: 'string',
             title: 'Course Id'
@@ -19129,6 +19185,7 @@ export const SyncChangeSchema = {
     type: 'object',
     required: [
         'id',
+        'kind',
         'course_id',
         'course',
         'title',
@@ -19142,7 +19199,7 @@ export const SyncChangeSchema = {
         'toggleable'
     ],
     title: 'SyncChange',
-    description: 'A field the sync changed on an imported item, or new feedback on it (`field` feedback:\n`new` is `{comments: <how many new>, rubric: <assessed for the first time>}`).'
+    description: 'A recent update of an imported item: a field the sync changed (`kind` field: `old` and\n`new` are its values) or new feedback on it (`kind` feedback: `new` is\n`{comments: <how many new>, rubric: <assessed for the first time>}`, never put back).'
 } as const;
 
 export const SyncConflictSchema = {

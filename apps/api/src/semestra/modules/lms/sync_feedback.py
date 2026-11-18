@@ -6,8 +6,8 @@ and keeps, for every imported assessment, the comments, the rubric with what the
 criterion, and the score as the platform shows it (`LmsFeedback`). Comments edited or deleted on
 the platform are edited or deleted here. New comments, or a rubric assessed for the first time,
 are a change of the assessment in the status panel's "recent updates"; what an assessment already
-had when the sync first read it is not. To-dos (assignments worth no points) have no gradebook
-row, so nothing is kept for them.
+had when the sync first read it is not, nor are the user's own comments under their submission.
+To-dos (assignments worth no points) have no gradebook row, so nothing is kept for them.
 """
 
 from typing import Any
@@ -60,11 +60,16 @@ def _key(comment: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _theirs(comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The comments that are feedback: not the user's own."""
+    return [c for c in comments if not c.get("own")]
+
+
 def news(before: LmsFeedback, after: dict[str, Any]) -> dict[str, Any] | None:
-    """What is new for the user: comments not there before, a rubric assessed for the first
-    time. None when nothing is."""
+    """What is new for the user: someone else's comments not there before, a rubric assessed
+    for the first time. None when nothing is."""
     seen = {_key(c) for c in before.comments}
-    comments = sum(1 for c in after["comments"] if _key(c) not in seen)
+    comments = sum(1 for c in _theirs(after["comments"]) if _key(c) not in seen)
     rubric = bool(after["rubric_scores"]) and not before.rubric_scores
     return {"comments": comments, "rubric": rubric} if comments or rubric else None
 
@@ -134,8 +139,9 @@ register_sync_stage("feedback", run, order=30, enabled=_enabled)
 
 
 async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
-    """The kept feedback of the course's imported assessments that have comments or rubric
-    scores, from the database only."""
+    """The kept feedback of the course's imported assessments that have feedback (someone
+    else's comments, or rubric scores), from the database only. The user's own comments come
+    with it, for the conversation."""
     await academics.get_course_row(ctx, course_id)  # owned, or not found
     link = await service.link_row(ctx, course_id)
     if link is None:
@@ -161,6 +167,6 @@ async def feedback_list(ctx: Ctx, course_id: str) -> FeedbackList:
                 }
             )
             for f, ref in rows
-            if f.comments or f.rubric_scores
+            if _theirs(f.comments) or f.rubric_scores
         ]
     )

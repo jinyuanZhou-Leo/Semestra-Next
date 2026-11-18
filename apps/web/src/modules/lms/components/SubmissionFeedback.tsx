@@ -10,6 +10,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/react-table'
+import { AudioLines, Paperclip } from 'lucide-react'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { m } from '@/paraglide/messages'
@@ -60,9 +61,35 @@ export function SubmissionFeedback({
                     .filter(Boolean)
                     .join(' · ')}
                 </ItemDescription>
-                <ItemTitle className="font-normal break-words whitespace-pre-wrap">
-                  {c.comment}
-                </ItemTitle>
+                {c.comment ? (
+                  <ItemTitle className="font-normal break-words whitespace-pre-wrap">
+                    {c.comment}
+                  </ItemTitle>
+                ) : null}
+                {(c.attachments ?? []).length > 0 ? (
+                  <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+                    {(c.attachments ?? []).map((f, j) => (
+                      <li key={j} className="min-w-0">
+                        <a
+                          href={f.url ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+                        >
+                          {f.media ? (
+                            <AudioLines aria-hidden className="size-3.5 shrink-0" />
+                          ) : (
+                            <Paperclip aria-hidden className="size-3.5 shrink-0" />
+                          )}
+                          <span className="truncate">
+                            {f.name ??
+                              (f.media ? m.lms_feedback_media() : m.lms_feedback_attachment())}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </ItemContent>
             </Item>
           ))}

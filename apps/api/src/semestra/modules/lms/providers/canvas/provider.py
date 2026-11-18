@@ -38,6 +38,7 @@ from semestra.modules.lms.schemas.dto import (
     FRONT_PAGE_REF,
     Announcement,
     Assignment,
+    CommentAttachment,
     Completion,
     ConnectionSummary,
     Discussion,
@@ -210,20 +211,38 @@ def _rubric(raw: Any) -> list[RubricCriterion]:
 FEEDBACK = [("include[]", "submission_comments"), ("include[]", "rubric_assessment")]
 
 
+def _comment(c: dict[str, Any], user_id: str | None) -> SubmissionComment:
+    files = [
+        CommentAttachment(name=_text(_dict(f).get("display_name")), url=_text(_dict(f).get("url")))
+        for f in cast(list[Any], c.get("attachments") or [])
+    ]
+    media = _dict(c.get("media_comment"))
+    if media:
+        files.append(
+            CommentAttachment(
+                name=_text(media.get("display_name")), url=_text(media.get("url")), media=True
+            )
+        )
+    author = _text(c.get("author_id"))
+    return SubmissionComment(
+        id=_text(c.get("id")),
+        author=_text(c.get("author_name")),
+        own=author is not None and author == user_id,
+        comment=_text(c.get("comment")) or "",
+        created_at=c.get("created_at"),
+        attachments=files,
+    )
+
+
 def _submission_detail(r: dict[str, Any], assignment_id: str) -> SubmissionDetail:
+    user_id = _text(r.get("user_id"))
     return SubmissionDetail(
         external_id=str(r.get("id") or assignment_id),
         raw_kind="submission",
         assignment_id=assignment_id,
         **_submission(r).model_dump(),
         comments=[
-            SubmissionComment(
-                id=_text(_dict(c).get("id")),
-                author=_text(_dict(c).get("author_name")),
-                comment=_text(_dict(c).get("comment")) or "",
-                created_at=_dict(c).get("created_at"),
-            )
-            for c in cast(list[Any], r.get("submission_comments") or [])
+            _comment(_dict(c), user_id) for c in cast(list[Any], r.get("submission_comments") or [])
         ],
         rubric_scores=[
             RubricScore(

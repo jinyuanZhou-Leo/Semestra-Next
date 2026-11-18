@@ -148,13 +148,13 @@ lms_cache  key, user_id, connection_id, scope, payload, expires_at
 - **偏离计划**：同步写入不经过 M08 导入会话（原计划生成更新 session 再审核）。自动跟随的字段直接写，留下可撤销的变更记录；需要用户决定的在状态行面板里逐项回答，不打开导入审核。M08 的 `assessment_patch`/`task_patch` 随之删除。
 
 ### 4.3 评语与评分细则（2026-11-18，迁移 0057）
-- **保存**：同步阶段 `feedback`（`sync_feedback.py`，order 30，provider 有 `assignments` 与 `submissions` 时）把每个已导入或已绑定的考核在平台上的老师反馈存进 `lms_feedback`：评语、评分细则本身（作业的 `rubric`，含各项名称、分值与等级，离线也能完整显示）和每项得分，以及平台上的得分、提交次数、评分时间、作业地址与分值。评语是平台给的纯文本，按文本显示，不渲染 HTML；附件不保存。待办（没有分值的作业）在成绩册里没有行，不保存。
+- **保存**：同步阶段 `feedback`（`sync_feedback.py`，order 30，provider 有 `assignments` 与 `submissions` 时）把每个已导入或已绑定的考核在平台上的老师反馈存进 `lms_feedback`：评语、评分细则本身（作业的 `rubric`，含各项名称、分值与等级，离线也能完整显示）和每项得分，以及平台上的得分、提交次数、评分时间、作业地址与分值。评语是平台给的纯文本，按文本显示，不渲染 HTML。评语的附件和录音录像评语只存名称与平台上的地址（`SubmissionComment.attachments`，`media` 区分音视频），对话框里显示成链接，到平台上打开。学生本人在自己提交下写的评论标为 `own`（Canvas：评论的 `author_id` 等于提交的 `user_id`），对话框照常显示以保留来回的上下文，但不算反馈：不让成绩册出现反馈图标，也不算新评语。待办（没有分值的作业）在成绩册里没有行，不保存。
 - **省请求**：每次同步对整门课只读一次提交（provider 契约 `submissions(course_id)`，Canvas 是 `GET /courses/:id/students/submissions?include[]=submission_comments&include[]=rubric_assessment`，不带 `student_ids` 就是本人的），不按作业逐个读。评分细则取自同一次同步里 `assignments` 阶段读过的作业列表（进程内缓存）。提交列表被截断时，没出现的作业保留原来的反馈。
 - **跟随**：每次同步都用平台的当前内容覆盖，平台上改了或删了评语，本地也跟着改或删。
-- **最近更新**：有新评语（按评语 id 判断；平台没有 id 时按时间与内容），或评分细则第一次有得分时，记一条 `lms_sync_changes`（`field = feedback`，`new = {comments: 新评语条数, rubric: 是否第一次按评分细则评分}`），出现在状态行面板的“最近更新”里，点开跳到成绩册并打开这项考核的反馈（`?feedback=<考核 id>`）。它不能撤销（`toggleable` 恒为假），也不进 `lms.course.synced` 的 `applied`，所以不发通知（是否通知以后再定）。第一次读到某个考核时（新导入、新绑定、迁移后的第一次同步）已有的反馈不报。
-- **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有评语或评分细则得分的考核；平台连不上、课程在平台上关闭后照常显示。`lms.submission.get` 仍实时读平台，只给 Canvas Tab 的作业详情用（那里的作业不一定已导入）。数据变化时发 `lms.feedback.updated {course_id}`（可合并）。
-- **解绑与取消关联**：反馈随作业的对应关系（`lms_imported_refs`）一起删除（外键级联）：解绑或取消关联后考核和成绩保留，评语不留；重新导入或绑定后下次同步再读回来。
-- **导出**：每条导入记录带上它的反馈（`RefRow.feedback`，可省略），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
+- **最近更新**：有别人写的新评语（按评语 id 判断；平台没有 id 时按时间与内容），或评分细则第一次有得分时，记一条 `lms_sync_changes`（`field = feedback`，状态里的 `SyncChange.kind` 为 `feedback`，字段改动为 `field`，前端按 `kind` 区分，`new = {comments: 新评语条数, rubric: 是否第一次按评分细则评分}`），出现在状态行面板的“最近更新”里，点开跳到成绩册并打开这项考核的反馈（`?feedback=<考核 id>`）。它不能撤销（`toggleable` 恒为假），也不进 `lms.course.synced` 的 `applied`，所以不发通知（是否通知以后再定）。第一次读到某个考核时（新导入、新绑定、迁移后的第一次同步）已有的反馈不报。
+- **读取**：成绩册读 `lms.feedback.list`（`GET /courses/{course_id}/lms/feedback`，只读库，只开放 HTTP），只返回有别人写的评语或评分细则得分的考核（本人的评论随之返回）；平台连不上、课程在平台上关闭后照常显示。`lms.submission.get` 仍实时读平台，只给 Canvas Tab 的作业详情用（那里的作业不一定已导入）。数据变化时发 `lms.feedback.updated {course_id}`（可合并）。
+- **解绑与取消关联**：反馈随作业的对应关系（`lms_imported_refs`）一起删除（外键级联）：解绑或取消关联后考核和成绩保留，评语不留；重新导入或绑定后下次同步再读回来。解绑、取消关联、更换关联的课程和删除使用中的连接的确认文字都写明保存的评语会被移除，文档同样说明。
+- **导出**：每条导入记录带上它的反馈（`RefRow.feedback`，可省略；评语、评分细则与得分用与接口相同的模型校验，格式不对的备份在导入时就被拒绝），备份格式版本不变；没有这一项的备份导入后，下次同步再读回来。
 
 ### 4.2 课程资料进入文件（2026-11-16，迁移 0053）
 - **范围**：同步阶段 `files`（`sync_files.py`，order 60）把平台上课程的文件（`course_files`，feature `folders`）、页面（`pages`）和单元里的文件、页面、外部链接与外部工具（`modules`）带进 M07 的课程文件。只看 provider 的 `features`，不写平台名。按课程开关 `lms_course_links.files_sync`（默认开，课程设置“同步课程资料”；`sync_enabled=false` 时整个同步不跑）。打开开关时把 `synced_at` 清空，下一轮就同步。

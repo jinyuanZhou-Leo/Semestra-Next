@@ -323,7 +323,7 @@ function Panel({
                 {...groupProps(group.courseId)}
               >
                 {group.items.map((change) =>
-                  change.field === 'feedback' ? (
+                  change.kind === 'feedback' ? (
                     <FeedbackRow
                       key={change.id}
                       change={change}

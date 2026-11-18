@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
 from semestra.modules.academics import service as academics
-from semestra.modules.lms import service, sync
+from semestra.modules.lms import service, sync, sync_feedback
 from semestra.modules.lms.models import LmsImportedRef, LmsSyncChange
 from semestra.modules.lms.schemas.sync import (
     SyncChange,
@@ -170,6 +170,7 @@ async def status(ctx: Ctx, program_id: str) -> SyncStatus:
     recent = [
         SyncChange(
             id=change.id,
+            kind="feedback" if change.field == sync_feedback.FIELD else "field",
             course_id=by_link[ref.link_id].course_id,
             course=label(by_link[ref.link_id].course_id),
             title=str(ref.snapshot.get("title") or ""),

@@ -198,12 +198,25 @@ class Assignment(Dto):
     rubric: list[RubricCriterion] = Field(default_factory=list)
 
 
+class CommentAttachment(BaseModel):
+    """A file attached to a comment, or a recorded audio/video comment (`media`); opened on the
+    platform."""
+
+    name: str | None = None
+    url: str | None = None
+    media: bool = False
+
+
 class SubmissionComment(BaseModel):
     # The platform's id of the comment, when it has one: how the sync tells a new comment.
     id: str | None = None
     author: str | None = None
+    # Written by the user themselves (under their own submission): shown with the others, but
+    # not feedback, so it is never news and never makes a gradebook row show feedback.
+    own: bool = False
     comment: str = ""
     created_at: datetime | None = None
+    attachments: list[CommentAttachment] = []
 
 
 class RubricScore(BaseModel):

@@ -55,10 +55,12 @@ class SyncItem(BaseModel):
 
 
 class SyncChange(BaseModel):
-    """A field the sync changed on an imported item, or new feedback on it (`field` feedback:
-    `new` is `{comments: <how many new>, rubric: <assessed for the first time>}`)."""
+    """A recent update of an imported item: a field the sync changed (`kind` field: `old` and
+    `new` are its values) or new feedback on it (`kind` feedback: `new` is
+    `{comments: <how many new>, rubric: <assessed for the first time>}`, never put back)."""
 
     id: str
+    kind: Literal["field", "feedback"]
     course_id: str
     course: str
     title: str

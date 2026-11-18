@@ -2244,6 +2244,27 @@ export type Cleared = {
 };
 
 /**
+ * CommentAttachment
+ *
+ * A file attached to a comment, or a recorded audio/video comment (`media`); opened on the
+ * platform.
+ */
+export type CommentAttachment = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Url
+     */
+    url?: string | null;
+    /**
+     * Media
+     */
+    media?: boolean;
+};
+
+/**
  * CommitInputBody
  */
 export type CommitInputBody = {
@@ -10629,6 +10650,10 @@ export type SubmissionComment = {
      */
     author?: string | null;
     /**
+     * Own
+     */
+    own?: boolean;
+    /**
      * Comment
      */
     comment?: string;
@@ -10636,6 +10661,10 @@ export type SubmissionComment = {
      * Created At
      */
     created_at?: string | null;
+    /**
+     * Attachments
+     */
+    attachments?: Array<CommentAttachment>;
 };
 
 /**
@@ -10778,14 +10807,19 @@ export type SuggestionList = {
 /**
  * SyncChange
  *
- * A field the sync changed on an imported item, or new feedback on it (`field` feedback:
- * `new` is `{comments: <how many new>, rubric: <assessed for the first time>}`).
+ * A recent update of an imported item: a field the sync changed (`kind` field: `old` and
+ * `new` are its values) or new feedback on it (`kind` feedback: `new` is
+ * `{comments: <how many new>, rubric: <assessed for the first time>}`, never put back).
  */
 export type SyncChange = {
     /**
      * Id
      */
     id: string;
+    /**
+     * Kind
+     */
+    kind: 'field' | 'feedback';
     /**
      * Course Id
      */

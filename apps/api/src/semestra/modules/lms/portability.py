@@ -37,6 +37,7 @@ from semestra.modules.lms.models import (
     LmsProgramBinding,
     LmsSyncChange,
 )
+from semestra.modules.lms.schemas.dto import RubricCriterion, RubricScore, SubmissionComment
 from semestra.modules.portability import register_portability
 from semestra.modules.portability.registry import OlderArchive
 
@@ -119,9 +120,13 @@ class FeedbackRow(BaseModel):
     grade: str | None = None
     attempt: int | None = None
     graded_at: datetime | None = None
-    comments: list[dict[str, Any]] = []
-    rubric: list[dict[str, Any]] = []
-    rubric_scores: list[dict[str, Any]] = []
+    comments: list[SubmissionComment] = []
+    rubric: list[RubricCriterion] = []
+    rubric_scores: list[RubricScore] = []
+
+
+# The JSON columns of `LmsFeedback`, kept as JSON (the others keep their Python types).
+FEEDBACK_JSON = {"comments", "rubric", "rubric_scores"}
 
 
 class RefRow(BaseModel):
@@ -354,8 +359,14 @@ async def import_(
         )
         ctx.db.add(ref)
         if r.feedback is not None and target_id is not None:
+            f = r.feedback
             feedback.append(
-                LmsFeedback(**r.feedback.model_dump(), user_id=ctx.user_id, ref_id=ref.id)
+                LmsFeedback(
+                    **f.model_dump(exclude=FEEDBACK_JSON),
+                    **f.model_dump(mode="json", include=FEEDBACK_JSON),
+                    user_id=ctx.user_id,
+                    ref_id=ref.id,
+                )
             )
         report.imported["refs"] += 1
     await ctx.db.flush()  # the refs first: the feedback rows point at them

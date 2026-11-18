@@ -147,6 +147,7 @@ test('a value changed on both sides is settled from the panel', async () => {
 test('a change the sync made is undone from the panel, and so is undoing it', async () => {
   const change = {
     id: 'ch1',
+    kind: 'field' as const,
     course_id: 'c1',
     course: 'CSC148',
     title: 'A3',
@@ -259,6 +260,7 @@ test('editing an assessment puts the platform value of a field that differs into
 test('new feedback opens the assessment in the gradebook', async () => {
   const change = {
     id: 'ch2',
+    kind: 'feedback' as const,
     course_id: 'c1',
     course: 'CSC148',
     title: 'A3',
