@@ -61,12 +61,13 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
     e?.preventDefault()
     if (!EMAIL_RE.test(trimmed)) return setEmailError(m.auth_email_invalid())
     setEmailError(null)
+    // A new code is on its way: errors about the old one no longer apply.
+    verify.reset()
+    reset.reset()
     start.mutate(
       { body: { email: trimmed, purpose: 'reset_password' } },
       {
         onSuccess: (data) => {
-          verify.reset()
-          reset.reset()
           setCode('')
           setStep({ name: 'code', resendAt: Date.now() + data.resend_in_seconds * 1000 })
         },
@@ -148,6 +149,19 @@ export function ResetPasswordFlow({ initialEmail = '', onSignedIn }: Props) {
               onClick={() => sendCode()}
             >
               {resendIn > 0 ? m.auth_code_resend_in({ seconds: resendIn }) : m.auth_code_resend()}
+            </Button>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              disabled={verify.isPending}
+              onClick={() => {
+                verify.reset()
+                start.reset()
+                setStep({ name: 'email' })
+              }}
+            >
+              {m.auth_code_other_email()}
             </Button>
             {back}
           </div>

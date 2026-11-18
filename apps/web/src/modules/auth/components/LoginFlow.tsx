@@ -100,13 +100,13 @@ export function LoginFlow({ onSignedIn, initialEmail = '', compact = false }: Pr
       return
     }
     setEmailError(null)
+    // A new code is on its way: errors about the old one no longer apply.
+    verify.reset()
+    register.reset()
     start.mutate(
       { body: { email: trimmedEmail, purpose: 'continue' } },
       {
         onSuccess: (data) => {
-          // A new code replaces the old one, and with it any error about the old one.
-          verify.reset()
-          register.reset()
           setCode('')
           setStep({ name: 'code', resendAt: Date.now() + data.resend_in_seconds * 1000 })
           onSent?.()

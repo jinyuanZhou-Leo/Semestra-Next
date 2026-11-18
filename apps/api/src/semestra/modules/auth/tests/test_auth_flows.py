@@ -369,6 +369,29 @@ async def test_a_rejected_new_password_keeps_the_verified_code(
     assert again.json()["error"]["code"] == "auth.reset_expired"
 
 
+async def test_sign_up_and_reset_tokens_only_work_for_their_own_step(
+    client: AsyncClient, mailer: MemoryMailer, make_user: MakeUser
+) -> None:
+    await start(client, "new@example.com")
+    r = await client.post(
+        "/auth/email/verify",
+        json={"email": "new@example.com", "code": last_code(mailer, "new@example.com")},
+    )
+    sign_up = r.json()["registration_token"]
+    await make_user(email="old@example.com", password=PASSWORD)
+    await start(client, "old@example.com", "reset_password")
+    reset = await reset_token(client, mailer, "old@example.com")
+
+    r = await client.post(
+        "/auth/password/reset", json={"reset_token": sign_up, "new_password": "brand new pass 42"}
+    )
+    assert r.json()["error"]["code"] == "auth.reset_expired"
+    r = await client.post(
+        "/auth/register/complete", json={"registration_token": reset, "display_name": "Eve"}
+    )
+    assert r.json()["error"]["code"] == "auth.registration_expired"
+
+
 async def test_reset_for_an_address_without_an_account_sends_no_code(
     client: AsyncClient, mailer: MemoryMailer
 ) -> None:
