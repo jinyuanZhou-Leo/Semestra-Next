@@ -63,6 +63,8 @@ class ImportOptions:
     program_ids: frozenset[str] | None
     include_preferences: bool
     files: FileSource | None = None
+    # The other modules' payloads, for reading an older shape that needs them.
+    archive: OlderArchive | None = None
 
 
 class IdMap(dict[str, str]):

@@ -117,6 +117,7 @@ export const assistantFieldMessages = {
   assistant_field_text: m.assistant_field_text,
   assistant_field_timezone: m.assistant_field_timezone,
   assistant_field_title: m.assistant_field_title,
+  assistant_field_top_level: m.assistant_field_top_level,
   assistant_field_type: m.assistant_field_type,
   assistant_field_type_code: m.assistant_field_type_code,
   assistant_field_types: m.assistant_field_types,

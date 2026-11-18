@@ -1,11 +1,13 @@
 """Folders that stand for places on a source (M07 §8): a source module (M09's sync of course
 materials) puts each item in the folder of its place on the source, a module, a folder of the
-files area or the page that links it, given as folder names from the top (`folder_at`).
+files area or the page that links it, given from the top as (id on the source, name) pairs
+(`folder_at`).
 
 The folders are made on first need (or the course's own folder of that name is used), and
-remembered by their place (`files_source_folders`): renamed or moved by the user, they keep being
-used. The user's choices win: once they deleted one, its place's new items go to the folder
-above it, and nothing is made again under it.
+remembered by the ids of their place (`files_source_folders`), not its names: renamed on the
+source, a place keeps its folder, which follows the new name unless the user renamed it; renamed
+or moved by the user, it keeps being used. The user's choices win: once they deleted one, its
+place's new items go to the folder above it, and nothing is made again under it.
 """
 
 import json
@@ -24,20 +26,27 @@ from semestra.modules.files.schemas import MAX_FOLDER_DEPTH
 MAX_NAME = 120
 _UNSAFE = re.compile(r"[\x00-\x1f\x7f]")
 
+# A level of a place: its id on the source and its name there.
+Segment = tuple[str, str]
 
-def clean_path(path: Sequence[str]) -> list[str]:
-    """The folder names a place makes: slashes turned to dashes, blank names left out, at most
-    `MAX_FOLDER_DEPTH` levels (the deeper ones are kept in the last)."""
-    names = [
-        cleaned[:MAX_NAME].strip()
-        for name in path
+
+def clean_place(place: Sequence[Sequence[str]]) -> list[Segment]:
+    """The levels a place makes folders for: slashes in names turned to dashes, levels without a
+    name left out, at most `MAX_FOLDER_DEPTH` (the deeper ones are left out)."""
+    levels = [
+        (str(key), cleaned[:MAX_NAME].strip())
+        for key, name in place
         if (cleaned := _UNSAFE.sub("", name.replace("/", "-").replace("\\", "-")).strip())
     ]
-    return names[:MAX_FOLDER_DEPTH]
+    return levels[:MAX_FOLDER_DEPTH]
 
 
-def path_key(path: Sequence[str]) -> str:
-    return json.dumps(list(path), ensure_ascii=False)
+def place_names(place: Sequence[Sequence[str]]) -> list[str]:
+    return [name for _, name in clean_place(place)]
+
+
+def _key(levels: Sequence[Segment]) -> str:
+    return json.dumps([key for key, _ in levels], ensure_ascii=False)
 
 
 class SourceFolders:
@@ -48,6 +57,8 @@ class SourceFolders:
         self.source_kind, self.source_name = source_kind, source_name
         self._rows: dict[str, FilesSourceFolder] | None = None
         self._found: dict[str, str] = {}
+        self._looked: dict[str, tuple[str | None, bool]] = {}
+        self._named: set[str] = set()
 
     async def _known(self) -> dict[str, FilesSourceFolder]:
         if self._rows is None:
@@ -61,20 +72,43 @@ class SourceFolders:
             self._rows = {r.path: r for r in rows}
         return self._rows
 
-    async def existing(self, path: Sequence[str]) -> tuple[str | None, bool]:
+    async def existing(self, place: Sequence[Sequence[str]]) -> tuple[str | None, bool]:
         """The folder the place's items would go in now, without making any (None: the top
         level), and whether `folder_at` would make none (False: some are still to make)."""
-        return await self._walk(clean_path(path), make=False)
+        levels = clean_place(place)
+        key = _key(levels)
+        if key not in self._looked:
+            self._looked[key] = await self._walk(levels, make=False)
+        return self._looked[key]
 
-    async def folder_at(self, path: Sequence[str]) -> str | None:
+    async def folder_at(self, place: Sequence[Sequence[str]]) -> str | None:
         """The folder of the place, made where missing (None: the top level)."""
-        return (await self._walk(clean_path(path), make=True))[0]
+        self._looked.clear()
+        return (await self._walk(clean_place(place), make=True))[0]
 
-    async def _walk(self, names: list[str], *, make: bool) -> tuple[str | None, bool]:
+    async def follow_names(self, place: Sequence[Sequence[str]]) -> None:
+        """The place's folders made before take the names the source has for them now (see
+        `_follow_name`); none is made."""
+        known = await self._known()
+        levels = clean_place(place)
+        for depth in range(1, len(levels) + 1):
+            key = _key(levels[:depth])
+            if key in self._named:
+                continue
+            self._named.add(key)
+            row = known.get(key)
+            if row is None or row.folder_id is None:
+                return
+            folder = await folders.find_folder(self.ctx, self.course_id, row.folder_id)
+            if folder is None:
+                return
+            await self._follow_name(row, folder, levels[depth - 1][1])
+
+    async def _walk(self, levels: list[Segment], *, make: bool) -> tuple[str | None, bool]:
         known = await self._known()
         parent: str | None = None
-        for depth in range(1, len(names) + 1):
-            key = path_key(names[:depth])
+        for depth in range(1, len(levels) + 1):
+            key, name = _key(levels[:depth]), levels[depth - 1][1]
             if (cached := self._found.get(key)) is not None:
                 parent = cached
                 continue
@@ -85,18 +119,18 @@ class SourceFolders:
                 )
                 if not there:
                     return parent, True  # the user deleted it: its items go to the folder above
+                if make:
+                    await self._follow_name(row, there, name)
                 parent = row.folder_id
                 if make and parent is not None:
                     self._found[key] = parent
                 continue
-            folder = await _child_named(self.ctx, self.course_id, parent, names[depth - 1])
+            folder = await _child_named(self.ctx, self.course_id, parent, name)
             if folder is None:
                 if not make:
                     return parent, False
                 try:
-                    made = await folders.create_folder(
-                        self.ctx, self.course_id, names[depth - 1], parent
-                    )
+                    made = await folders.create_folder(self.ctx, self.course_id, name, parent)
                 except AppError as exc:
                     if exc.code != "files.folder_depth":
                         raise
@@ -110,6 +144,7 @@ class SourceFolders:
                     course_id=self.course_id,
                     source_kind=self.source_kind,
                     path=key,
+                    name=name,
                     source_name=self.source_name,
                     folder_id=folder_id,
                 )
@@ -118,6 +153,19 @@ class SourceFolders:
                 self._found[key] = folder_id
             parent = folder_id
         return parent, True
+
+    async def _follow_name(self, row: FilesSourceFolder, folder: FilesFolder, name: str) -> None:
+        """The place was renamed on the source: its folder takes the new name, unless the user
+        renamed it (or another folder there has that name)."""
+        if name == row.name or folder.name != row.name:
+            return
+        try:
+            await folders.update_folder(self.ctx, folder.id, {"name"}, name, None)
+        except AppError as exc:
+            if exc.code != "common.conflict":
+                raise
+            return
+        row.name = name
 
 
 async def _child_named(

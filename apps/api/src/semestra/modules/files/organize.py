@@ -39,7 +39,7 @@ from semestra.modules.files.schemas import (
     PlannedMove,
 )
 from semestra.modules.files.sorting import Clues
-from semestra.modules.files.source_folders import SourceFolders, clean_path
+from semestra.modules.files.source_folders import SourceFolders, place_names
 
 KIND = "files.organize"
 UPDATED = "files.organization.updated"
@@ -136,7 +136,7 @@ async def plan(ctx: JobCtx, payload: OrganizeInput) -> OrganizeDone:
                 "from_folder_id": row.folder_id,
                 "source": home.source_kind,
                 "source_name": home.source_name,
-                "path": list(home.path),
+                "path": [list(level) for level in home.path],
             }
         )
     # The user's own files at the top level.
@@ -194,11 +194,11 @@ class _Targets:
     async def shown(self, move: dict[str, Any]) -> tuple[str | None, list[str], bool] | None:
         """(folder id, its path, whether it is still to make); None: the folder is gone."""
         if "source" in move:
-            path = clean_path(move.get("path") or [])
-            folder_id, complete = await self._source(move).existing(path)
+            place = move.get("path") or []
+            folder_id, complete = await self._source(move).existing(place)
             if complete:
                 return folder_id, self.paths.get(folder_id, []) if folder_id else [], False
-            return None, path, True
+            return None, place_names(place), True
         if "folder_id" in move:
             folder_id = move["folder_id"]
             return (folder_id, self.paths[folder_id], False) if folder_id in self.paths else None
@@ -378,7 +378,10 @@ async def preview_apply(ctx: Ctx, inp: OrganizeApplyInput) -> dict[str, Any]:
     return {
         "target": f"{course.code} {course.title}" if course.code else course.title,
         "changes": [
+            # The top level has no name: the card names it from the field.
             {"field": "folder", "label": folder, "after": names[:SHOWN], "count": len(names)}
+            if folder
+            else {"field": "top_level", "after": names[:SHOWN], "count": len(names)}
             for folder, names in by_folder.items()
         ],
         "link": {"to": f"/p/{course.program_id}/c/{course.id}/files", "page": "files"},

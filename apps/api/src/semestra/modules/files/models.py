@@ -98,9 +98,11 @@ class FilesSourceFolder(Base, OwnedMixin):
     """A folder of a course that stands for a folder of its source (`sources.folder_at`): a
     module, a folder or a page of the LMS course its materials come from. Made by the source's
     sync where the course had none of that name (or the user's own of that name, which it then
-    uses), and remembered by its place on the source (`path`, the folder names from the top as a
-    JSON list), so a folder the user renamed or moved keeps being used. Its `folder_id` is
-    emptied when the user deletes it: new items of that place then go to the folder above."""
+    uses), and remembered by its place on the source (`path`, the ids of its levels from the top
+    as a JSON list), so a folder the user renamed or moved keeps being used, and one renamed on
+    the source too. `name` is the source's name the folder last took: while the folder still has
+    it, a rename on the source renames the folder. Its `folder_id` is emptied when the user
+    deletes it: new items of that place then go to the folder above."""
 
     __tablename__ = "files_source_folders"
     __table_args__ = (UniqueConstraint("course_id", "source_kind", "path"),)
@@ -111,6 +113,7 @@ class FilesSourceFolder(Base, OwnedMixin):
     )
     source_kind: Mapped[str] = mapped_column(String)
     path: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)
     # The source's name as the files page shows it ("Canvas").
     source_name: Mapped[str] = mapped_column(String)
     folder_id: Mapped[str | None] = mapped_column(

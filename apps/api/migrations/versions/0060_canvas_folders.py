@@ -8,8 +8,8 @@
   untouched items back to their platform folders. Items filed under a type folder get that
   folder here, from the type folders being dropped.
 - `files.synced_scans` goes: synced files are read like any other, as `auto_index` says. The
-  materials settings move from the Program to the account and the course: a Program's choice is
-  copied to each of its courses that has none of its own, then the Program rows go.
+  materials settings move from the Program to the account and the course: what every Program had
+  alike becomes the account's, what they had apart goes to their courses that set none.
 
 Revision ID: 0060
 Revises: 0059
@@ -25,6 +25,7 @@ import sqlalchemy as sa
 from alembic import op
 
 from semestra.core.db import new_id
+from semestra.modules.lms.settings import materials_from_programs
 
 revision: str = "0060"
 down_revision: str | Sequence[str] | None = "0059"
@@ -32,34 +33,48 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def _move_program_settings(conn: sa.Connection, namespace: str, keys: set[str] | None) -> None:
-    """Copies the `keys` (all when None) of each Program's row of `namespace` to its courses
-    that do not set them, then drops them from the Program row (the row goes when empty)."""
+def _move_materials_settings(conn: sa.Connection) -> None:
+    """The materials settings move from the Program to the account and the course: what every
+    Program of a user had alike becomes the account's, what they had apart goes to their courses
+    (`materials_from_programs`, shared with the reading of older backups); the Program rows go."""
     rows = conn.execute(
         sa.text(
             "SELECT id, user_id, scope_id, data FROM settings_values "
-            "WHERE namespace = :ns AND scope_type = 'program'"
-        ),
-        {"ns": namespace},
+            "WHERE namespace = 'lms.materials' AND scope_type = 'program'"
+        )
     ).all()
+    users: dict[str, dict[str, dict[str, object]]] = {}
     for row_id, user_id, program_id, raw in rows:
-        data = _load(raw)
-        moved = {k: v for k, v in data.items() if keys is None or k in keys}
-        if moved:
-            courses = conn.execute(
-                sa.text("SELECT id FROM academics_courses WHERE user_id = :u AND program_id = :p"),
-                {"u": user_id, "p": program_id},
+        users.setdefault(user_id, {})[program_id] = _load(raw)
+        conn.execute(sa.text("DELETE FROM settings_values WHERE id = :id"), {"id": row_id})
+    for user_id, set_ in users.items():
+        programs: dict[str, dict[str, object]] = {
+            p: set_.get(p, {})
+            for p in conn.execute(
+                sa.text("SELECT id FROM academics_programs WHERE user_id = :u"), {"u": user_id}
             ).scalars()
-            for course_id in list(courses):
-                _merge(conn, user_id, namespace, "course", course_id, moved)
-        left = {k: v for k, v in data.items() if k not in moved}
-        if left:
-            conn.execute(
-                sa.text("UPDATE settings_values SET data = :d WHERE id = :id"),
-                {"d": json.dumps(left), "id": row_id},
-            )
-        else:
-            conn.execute(sa.text("DELETE FROM settings_values WHERE id = :id"), {"id": row_id})
+        }
+        courses: dict[str, list[str]] = {}
+        for course_id, program_id in conn.execute(
+            sa.text("SELECT id, program_id FROM academics_courses WHERE user_id = :u"),
+            {"u": user_id},
+        ).all():
+            courses.setdefault(program_id, []).append(course_id)
+        own = {
+            scope_id: _load(raw)
+            for scope_id, raw in conn.execute(
+                sa.text(
+                    "SELECT scope_id, data FROM settings_values WHERE user_id = :u "
+                    "AND namespace = 'lms.materials' AND scope_type = 'course'"
+                ),
+                {"u": user_id},
+            ).all()
+        }
+        account, per_course = materials_from_programs(programs, courses, own)
+        if account:
+            _merge(conn, user_id, "lms.materials", "account", "", account)
+        for course_id, values in per_course.items():
+            _merge(conn, user_id, "lms.materials", "course", course_id, values)
 
 
 def _load(raw: object) -> dict[str, object]:
@@ -131,6 +146,7 @@ def upgrade() -> None:
         sa.Column("course_id", sa.String(), nullable=False),
         sa.Column("source_kind", sa.String(), nullable=False),
         sa.Column("path", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
         sa.Column("source_name", sa.String(), nullable=False),
         sa.Column("folder_id", sa.String(), nullable=True),
         sa.Column("user_id", sa.String(), nullable=False),
@@ -178,7 +194,7 @@ def upgrade() -> None:
     op.drop_table("files_type_folders")
 
     _drop_synced_scans(conn)
-    _move_program_settings(conn, "lms.materials", None)
+    _move_materials_settings(conn)
 
 
 def downgrade() -> None:

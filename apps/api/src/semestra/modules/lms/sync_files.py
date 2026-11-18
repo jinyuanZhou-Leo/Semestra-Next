@@ -50,7 +50,7 @@ from semestra.core.errors import AppError, not_found
 from semestra.core.events import Event, events
 from semestra.modules.files import register_content_source, sources
 from semestra.modules.files.models import FilesItem
-from semestra.modules.files.source_folders import SourceFolders
+from semestra.modules.files.source_folders import Segment, SourceFolders
 from semestra.modules.lms import reads, service
 from semestra.modules.lms.errors import lms_error
 from semestra.modules.lms.materials import page_shape
@@ -93,11 +93,12 @@ class Material:
     modified_at: datetime | None = None
     # A link's address.
     url: str | None = None
-    # A module it is in, or its folder in the files area.
-    module: str | None = None
+    # A module it is in (id, name), or its folder in the files area (names and ids).
+    module: Segment | None = None
     folder_path: str | None = None
-    # Its place on the platform, folder names from the top (`_place`).
-    path: list[str] = field(default_factory=lambda: [])
+    folder_ids: list[str] = field(default_factory=lambda: [])
+    # Its place on the platform, (id, name) pairs from the top (`_place`).
+    path: list[Segment] = field(default_factory=lambda: [])
     # A page that only lists other things: remembered (so it is read again only when it
     # changes), never an item.
     is_list: bool = False
@@ -118,8 +119,8 @@ class _Found:
     materials: dict[Key, Material] = field(default_factory=lambda: {})
     # Pages to look at: slug → (title, version known from the list or None, web address).
     pages: dict[str, tuple[str, str | None, str | None]] = field(default_factory=lambda: {})
-    # The module a page or file was first seen in.
-    placed: dict[Key, str] = field(default_factory=lambda: {})
+    # The module a page or file was first seen in (id, name).
+    placed: dict[Key, Segment] = field(default_factory=lambda: {})
     # Pages linking to files and pages, in the order they were read: (page slug, target).
     linked_from: list[tuple[str, Key]] = field(default_factory=lambda: [])
     # The front page: it links to everything, so it is no item's place.
@@ -193,10 +194,10 @@ async def _modules(ctx: Ctx, link: LmsCourseLink, found: _Found) -> None:
             )
             items = got.items if got is not None else []
         for item in sorted(items, key=lambda i: i.position):
-            _module_item(item, module.name, found)
+            _module_item(item, (f"module:{module.external_id}", module.name), found)
 
 
-def _module_item(item: ModuleItem, module: str, found: _Found) -> None:
+def _module_item(item: ModuleItem, module: Segment, found: _Found) -> None:
     if item.locked:
         return
     target = item.target.ref if item.target is not None else None
@@ -252,6 +253,7 @@ async def _files(ctx: Ctx, link: LmsCourseLink, b: Bound, found: _Found) -> None
                 mime=meta.mime_type,
                 web_url=meta.web_url,
                 folder_path=meta.folder_path,
+                folder_ids=meta.folder_ids,
                 modified_at=meta.content_at or meta.updated_at,
                 checked_at=found.now if meta.external_id in checked else None,
             )
@@ -363,9 +365,9 @@ def _place(found: _Found) -> None:
         for key, page in parent.items()
         if key in found.materials and not found.materials[key].is_list
     }
-    memo: dict[Key, list[str]] = {}
+    memo: dict[Key, list[Segment]] = {}
 
-    def own(key: Key, seen: frozenset[Key]) -> list[str]:
+    def own(key: Key, seen: frozenset[Key]) -> list[Segment]:
         """Where the item's folder is (the place of its parent page's folder)."""
         if key in memo:
             return memo[key]
@@ -374,9 +376,10 @@ def _place(found: _Found) -> None:
         if module:
             path = [module]
         elif m is not None and m.folder_path:
-            path = [p for p in m.folder_path.split("/") if p]
+            path = _folder_place(m.folder_path, m.folder_ids)
         elif (page := parent.get(key)) is not None and ("page", page) not in seen:
-            path = [*own(("page", page), seen | {key}), found.pages.get(page, (page,))[0]]
+            title = found.pages.get(page, (page,))[0]
+            path = [*own(("page", page), seen | {key}), (f"page:{page}", title)]
         else:
             path = []
         memo[key] = path
@@ -385,8 +388,17 @@ def _place(found: _Found) -> None:
     for key, material in found.materials.items():
         path = own(key, frozenset())
         if key[0] == "page" and key[1] in holders and not material.is_list:
-            path = [*path, material.title]
+            path = [*path, (f"page:{key[1]}", material.title)]
         material.path = path
+
+
+def _folder_place(folder_path: str, ids: list[str]) -> list[Segment]:
+    """A files-area folder's levels, by the platform's folder ids (by the path's names when the
+    provider gives none)."""
+    names = folder_path.split("/")
+    if len(ids) != len(names):
+        ids = ["/".join(names[: i + 1]) for i in range(len(names))]
+    return [(f"folder:{i}", n) for i, n in zip(ids, names, strict=True) if n]
 
 
 # --- writing --------------------------------------------------------------------------------
@@ -469,7 +481,7 @@ def _note(mat: LmsMaterial, change: MaterialChange, now: datetime) -> None:
 
 def _seen(mat: LmsMaterial, m: Material) -> None:
     """What this run saw of the platform's item; what it did not read again stays."""
-    mat.title, mat.version, mat.path = m.title, m.version, m.path
+    mat.title, mat.version, mat.path = m.title, m.version, [list(level) for level in m.path]
     if m.links is not None:
         mat.links = m.links
     if m.checked_at is not None:
@@ -557,6 +569,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                 _note(mat, "updated", now)
             _seen(mat, m)
             mat.name = row.display_name
+            await places.follow_names(m.path)
             continue
         # New, back on the platform, or a list page that has become a page.
         if len(added) >= PER_RUN:
@@ -671,7 +684,8 @@ async def homes(ctx: Ctx, course_id: str) -> list[sources.Home]:
         folder_id, complete = await places.existing(mat.path or [])
         if complete and folder_id == row.folder_id:
             continue
-        found.append(sources.Home(row.id, tuple(mat.path or []), "lms", name))
+        place = tuple((str(key), str(n)) for key, n in mat.path or [])
+        found.append(sources.Home(row.id, place, "lms", name))
     return found
 
 
