@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type MouseEvent, type ReactNode, useId, useState } from 'react'
 import { useUiPref } from '@/app/ui-pref'
 import { useDialogTarget } from '@/lib/dialog-target'
 import { m } from '@/paraglide/messages'
@@ -28,12 +28,19 @@ function openInNewTab(url: string) {
 }
 
 /**
- * Opens saved links in a new tab, after "You're leaving Semestra" unless the user chose to trust
- * the site (M07 §6.1). Render `dialog` once; call `open(url)` from any link.
+ * Opens a link to another site in a new tab, after "Open an external site?" unless the user chose
+ * to trust the site (M00 §4.8). Every link whose address someone wrote (a link saved in course
+ * files, the course website, a course's tools, links in a teacher's text) opens through it, so
+ * they all behave alike; the app's own "Open in …" buttons do not. Render `dialog` once; call
+ * `open(url)` from any link, or `onClick` on an `<a href>` (it keeps the address for copying).
  */
-export function useExternalLink(): { open: (url: string) => void; dialog: ReactNode } {
+export function useExternalLink(): {
+  open: (url: string) => void
+  onClick: (event: MouseEvent<HTMLAnchorElement>) => void
+  dialog: ReactNode
+} {
   const id = useId()
-  const [trusted, setTrusted] = useUiPref<string[]>('files.trusted_domains', [])
+  const [trusted, setTrusted] = useUiPref<string[]>('links.trusted_sites', [])
   const pending = useDialogTarget<string>()
   const [remember, setRemember] = useState(false)
   const shown = pending.target ?? ''
@@ -45,6 +52,10 @@ export function useExternalLink(): { open: (url: string) => void; dialog: ReactN
       setRemember(false)
       pending.show(url)
     }
+  }
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    open(event.currentTarget.href)
   }
   const confirm = () => {
     if (!pending.target) return
@@ -58,23 +69,23 @@ export function useExternalLink(): { open: (url: string) => void; dialog: ReactN
     <AlertDialog {...pending.props}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{m.files_link_leave_title()}</AlertDialogTitle>
+          <AlertDialogTitle>{m.link_leave_title()}</AlertDialogTitle>
           <AlertDialogDescription className="break-all">
-            {m.files_link_leave_description({ url: shown })}
+            {m.link_leave_description({ url: shown })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Field orientation="horizontal">
           <Checkbox id={`${id}-trust`} checked={remember} onCheckedChange={setRemember} />
           <FieldLabel htmlFor={`${id}-trust`} className="font-normal">
-            {m.files_link_trust_domain({ host })}
+            {m.link_trust_site({ host })}
           </FieldLabel>
         </Field>
         <AlertDialogFooter>
           <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-          <AlertDialogAction onClick={confirm}>{m.files_link_open()}</AlertDialogAction>
+          <AlertDialogAction onClick={confirm}>{m.link_open()}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   )
-  return { open, dialog }
+  return { open, onClick, dialog }
 }

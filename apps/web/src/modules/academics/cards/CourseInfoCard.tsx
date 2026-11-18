@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { CardSkeleton } from '@/app/board/CardSkeleton'
+import { useExternalLink } from '@/components/ExternalLink'
 import type { CardProps } from '@/app/extensions'
 import { useExtensions } from '@/app/registry'
 import { formatCredits } from '@/lib/format'
@@ -32,6 +33,26 @@ function CompactRow({ label, children }: { label: string; children: ReactNode })
  * A course's basic facts (M02 §5.5): code, title, instructors, credits, terms, website. At m the
  * page header already names the course, so the card leaves out code, title and description.
  */
+/** The course's own site, opened after the usual question about leaving for another site. */
+function Website({ url }: { url: string }) {
+  const link = useExternalLink()
+  return (
+    <>
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={link.onClick}
+        className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+      >
+        <span className="truncate">{url.replace(/^https?:\/\//, '')}</span>
+        <ExternalLink aria-hidden className="size-3 shrink-0" />
+      </a>
+      {link.dialog}
+    </>
+  )
+}
+
 export default function CourseInfoCard({ scope, size }: CardProps) {
   const courseId = scope.kind === 'course' ? scope.courseId : ''
   const course = useCourse(courseId).data
@@ -50,15 +71,7 @@ export default function CourseInfoCard({ scope, size }: CardProps) {
     .join(' → ')
   const website =
     course.website_url && /^https?:\/\//i.test(course.website_url) ? (
-      <a
-        href={course.website_url}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
-      >
-        <span className="truncate">{course.website_url.replace(/^https?:\/\//, '')}</span>
-        <ExternalLink aria-hidden className="size-3 shrink-0" />
-      </a>
+      <Website url={course.website_url} />
     ) : null
   const extras = (row: typeof Row) =>
     extraRows.map((extra) => (

@@ -368,7 +368,7 @@ test('links ask before leaving, and can remember the site', async () => {
   )
   await waitFor(() =>
     expect(prefs).toContainEqual({
-      key: 'files.trusted_domains',
+      key: 'links.trusted_sites',
       body: { value: ['piazza.com'] },
     }),
   )

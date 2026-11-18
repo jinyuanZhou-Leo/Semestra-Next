@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify'
 import type { MouseEvent } from 'react'
+import { useExternalLink } from '@/components/ExternalLink'
 import { cn } from '@/lib/utils'
 import './safe-html.css'
 
@@ -190,29 +191,41 @@ export function SafeHtml({
   className?: string
 }) {
   const clean = sanitize(html, original)
+  const link = useExternalLink()
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (!onInternalLink || event.defaultPrevented || event.button !== 0) return
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-    const anchor = (event.target as Element).closest('a[data-lms-kind]')
-    const kind = anchor?.getAttribute('data-lms-kind')
-    const ref = anchor?.getAttribute('data-lms-ref')
-    if (!kind || !ref) return
-    if (onInternalLink({ kind, ref }) !== false) event.preventDefault()
+    if (event.defaultPrevented || event.button !== 0) return
+    const anchor = (event.target as Element).closest('a[href]')
+    if (!(anchor instanceof HTMLAnchorElement)) return
+    const kind = anchor.getAttribute('data-lms-kind')
+    const ref = anchor.getAttribute('data-lms-ref')
+    const modified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (onInternalLink && kind && ref && !modified && onInternalLink({ kind, ref }) !== false) {
+      event.preventDefault()
+      return
+    }
+    // Any other link leads to another site: asked first, like links elsewhere in the app.
+    if (/^https?:$/.test(anchor.protocol)) {
+      event.preventDefault()
+      link.open(anchor.href)
+    }
   }
   return (
-    // Clicks on the links inside are delegated here; the links themselves stay focusable.
-    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
-    <div
-      className={cn(
-        original
-          ? 'lms-original min-w-0 overflow-x-auto rounded-2xl border p-6 break-words'
-          : SIMPLIFIED,
-        className,
-      )}
-      onClick={onClick}
-      ref={imageSrc ? fallBackToOriginal : undefined}
-      // oxlint-disable-next-line react/no-danger -- sanitized just above
-      dangerouslySetInnerHTML={{ __html: prepare(clean, original, imageSrc) }}
-    />
+    <>
+      {/* Clicks on the links inside are delegated here; the links themselves stay focusable. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div
+        className={cn(
+          original
+            ? 'lms-original min-w-0 overflow-x-auto rounded-2xl border p-6 break-words'
+            : SIMPLIFIED,
+          className,
+        )}
+        onClick={onClick}
+        ref={imageSrc ? fallBackToOriginal : undefined}
+        // oxlint-disable-next-line react/no-danger -- sanitized just above
+        dangerouslySetInnerHTML={{ __html: prepare(clean, original, imageSrc) }}
+      />
+      {link.dialog}
+    </>
   )
 }

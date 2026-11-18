@@ -47,7 +47,7 @@ import { RowSelectionContext, useRowSelection } from '@/components/row-selection
 import { SelectionToolbar } from '@/components/SelectionToolbar'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/ui/input-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip'
-import { useExternalLink } from '../components/ExternalLink'
+import { useExternalLink } from '@/components/ExternalLink'
 import { FileDragArea, useDropFolder } from '../components/FileDrag'
 import { FileBrowser, SortMenu, ViewToggle } from '../components/FileBrowser'
 import { type ItemAction, ItemDialogs } from '../components/ItemDialogs'
