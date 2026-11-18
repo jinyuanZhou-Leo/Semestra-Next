@@ -5,6 +5,7 @@ import { Link, useCanGoBack, useNavigate, useRouter, useSearch } from '@tanstack
 import { ArrowLeft, CircleAlert, Megaphone, SearchX } from 'lucide-react'
 import type { PageProps } from '@/app/extensions'
 import type { InternalLink } from '@/components/SafeHtml'
+import { useNow } from '@/hooks/use-now'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { toastError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -83,6 +84,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
   useMarkRead(open?.course.id, open?.item.external_id, open?.item.unread ?? false)
   // Kept here, not in the reading view: a display picked stays for the next announcement.
   const { display, setDisplay } = useLmsDisplay()
+  const now = useNow()
 
   if (posts.failed && posts.rows.length === 0) {
     return (
@@ -160,6 +162,7 @@ export default function AnnouncementsPage({ scope }: PageProps) {
                 withCourse={term}
                 unread={p.item.unread}
                 selected={p === open}
+                now={now}
                 onOpen={() => go({ post: keyOf(p) })}
               />
             ))}
@@ -247,12 +250,14 @@ function PostRow({
   withCourse,
   unread,
   selected,
+  now,
   onOpen,
 }: {
   post: Post
   withCourse: boolean
   unread: boolean
   selected: boolean
+  now: number
   onOpen: () => void
 }) {
   return (
@@ -286,7 +291,7 @@ function PostRow({
           </ItemTitle>
           {a.posted_at ? (
             <span className="shrink-0 text-xs text-muted-foreground">
-              {postedLabel(a.posted_at)}
+              {postedLabel(a.posted_at, now)}
             </span>
           ) : null}
         </div>
@@ -351,8 +356,9 @@ function Reading({
   const content: LmsContent = { courseId: course.id, provider, display, setDisplay, openLink }
   return (
     <LmsContentContext value={content}>
-      <article className="min-h-0 min-w-0 overflow-y-auto overscroll-contain @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border @page-lg/main:p-6">
-        <div className="flex flex-col gap-4">
+      {/* The back button and the header stay put; only the text and the attachments scroll. */}
+      <article className="flex min-h-0 min-w-0 flex-col @page-lg/main:rounded-2xl @page-lg/main:border @page-lg/main:border-border">
+        <div className="flex flex-col gap-4 pb-4 @page-lg/main:px-6 @page-lg/main:pt-6">
           <Button
             variant="ghost"
             size="sm"
@@ -374,6 +380,8 @@ function Reading({
             withDisplay={Boolean(a.html)}
             webUrl={a.web_url}
           />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain @page-lg/main:px-6 @page-lg/main:pb-6">
           {a.html ? <LmsHtml html={a.html} /> : null}
           <Attachments files={a.attachments ?? []} course={course} />
         </div>

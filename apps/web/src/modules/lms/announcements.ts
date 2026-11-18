@@ -23,9 +23,10 @@ export function announcementPath(scope: Scope, courseId: string, announcementId:
 
 /**
  * When an announcement was posted, as a mail list shows it: the time for today's, the day for this
- * year's, the full date for older ones.
+ * year's, the full date for older ones. `now` comes from `useNow`, so a list left open past midnight
+ * turns today's times into dates.
  */
-export function postedLabel(at: string, now: Date = new Date()): string {
+export function postedLabel(at: string, now: number): string {
   const date = new Date(at)
   if (isSameDay(date, now)) return formatTime(date)
   return formatDate(date, { short: isSameYear(date, now) })
