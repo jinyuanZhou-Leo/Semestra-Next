@@ -58,15 +58,22 @@ async def _process_failed(ctx: Ctx, payload: ProcessPayload, job: CoreJob) -> No
     await pipeline.mark_failed(ctx, payload.item_id, job)
 
 
-@job_handler("files.process", stages=PROCESS_STAGES, max_attempts=1, on_failure=_process_failed)
+# Shown in the status bar by the files module's own line (`files.processing.list`), with the
+# synced ones below.
+@job_handler(
+    "files.process",
+    stages=PROCESS_STAGES,
+    max_attempts=1,
+    on_failure=_process_failed,
+    listed=False,
+)
 async def process(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id))
 
 
 # The same work for files another module keeps in step with its source (M09's course materials):
 # behind what the user is waiting on and behind the source's own sync (one run can bring hundreds
-# of files; a course sync queued meanwhile goes first), and only shown on the file itself, not in
-# the status bar.
+# of files; a course sync queued meanwhile goes first).
 @job_handler(
     "files.process_synced",
     stages=PROCESS_STAGES,

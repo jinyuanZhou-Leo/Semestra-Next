@@ -14,6 +14,7 @@ from semestra.modules.files import (
     items,
     listing,
     organize,
+    processing,
     quota,
     search,
     service,
@@ -516,3 +517,30 @@ async def organization_apply(ctx: Ctx, inp: OrganizeApplyInput) -> OrganizeAppli
 async def organization_discard(ctx: Ctx, inp: OrganizeInput) -> Deleted:
     await organize.discard(ctx, inp.course_id)
     return Deleted()
+
+
+@capability(
+    name="files.processing.list",
+    summary="List the files being read in the background.",
+    description="""Every file whose text is being read or waits to be (uploads and synced course
+materials), with its job, plus the ones that ended in the last days.""",
+    effect="read",
+    http=Http("GET", "/me/files/processing"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def processing_list(ctx: Ctx, inp: NoInput) -> processing.ProcessingList:
+    return await processing.list_processing(ctx)
+
+
+@capability(
+    name="files.processing.cancel_all",
+    summary="Stop reading every file that is being read or waits to be.",
+    description="""Each file is left as not read and can be read again later.""",
+    effect="write",
+    http=Http("POST", "/me/files/processing:cancel"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def processing_cancel_all(ctx: Ctx, inp: NoInput) -> processing.CancelledAll:
+    return await processing.cancel_all(ctx)

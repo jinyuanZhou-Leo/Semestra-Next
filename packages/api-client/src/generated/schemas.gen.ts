@@ -3433,6 +3433,20 @@ export const CalendarWeekSchema = {
     title: 'CalendarWeek'
 } as const;
 
+export const CancelledAllSchema = {
+    properties: {
+        cancelled: {
+            type: 'integer',
+            title: 'Cancelled'
+        }
+    },
+    type: 'object',
+    required: [
+        'cancelled'
+    ],
+    title: 'CancelledAll'
+} as const;
+
 export const CardAddInputBodySchema = {
     properties: {
         card_id: {
@@ -15363,6 +15377,124 @@ export const PreferencesUpdateInputBodySchema = {
     },
     type: 'object',
     title: 'PreferencesUpdateInputBody'
+} as const;
+
+export const ProcessingFileSchema = {
+    properties: {
+        job: {
+            $ref: '#/components/schemas/JobOut'
+        },
+        item_id: {
+            type: 'string',
+            title: 'Item Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        mime_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mime Type'
+        },
+        course_id: {
+            type: 'string',
+            title: 'Course Id'
+        },
+        folder_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Folder Id'
+        },
+        program_id: {
+            type: 'string',
+            title: 'Program Id'
+        },
+        course_code: {
+            type: 'string',
+            title: 'Course Code',
+            description: 'The course\'s code, or its title when it has none'
+        },
+        course_color: {
+            type: 'string',
+            title: 'Course Color'
+        },
+        synced: {
+            type: 'boolean',
+            title: 'Synced',
+            description: 'Kept in step with its source (M09\'s course materials)'
+        }
+    },
+    type: 'object',
+    required: [
+        'job',
+        'item_id',
+        'name',
+        'mime_type',
+        'course_id',
+        'folder_id',
+        'program_id',
+        'course_code',
+        'course_color',
+        'synced'
+    ],
+    title: 'ProcessingFile'
+} as const;
+
+export const ProcessingListSchema = {
+    properties: {
+        files: {
+            items: {
+                $ref: '#/components/schemas/ProcessingFile'
+            },
+            type: 'array',
+            title: 'Files',
+            description: 'Running files, then queued ones in the order they will run (at most 100), then files that ended in the last 7 days, newest first'
+        },
+        active: {
+            type: 'integer',
+            title: 'Active',
+            description: 'Files running or queued, all of them'
+        },
+        done: {
+            type: 'integer',
+            title: 'Done',
+            description: 'Files that ended since the oldest active one was queued: with `active`, how far the current round is'
+        },
+        since: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Since',
+            description: 'When the oldest active file was queued: the start of the current round'
+        }
+    },
+    type: 'object',
+    required: [
+        'files',
+        'active',
+        'done',
+        'since'
+    ],
+    title: 'ProcessingList'
 } as const;
 
 export const ProfileUpdateInputBodySchema = {

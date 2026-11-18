@@ -1902,6 +1902,16 @@ export type CalendarWeek = {
 };
 
 /**
+ * CancelledAll
+ */
+export type CancelledAll = {
+    /**
+     * Cancelled
+     */
+    cancelled: number;
+};
+
+/**
  * CardAddInputBody
  */
 export type CardAddInputBody = {
@@ -8708,6 +8718,83 @@ export type PreferencesUpdateInputBody = {
      * The Program currently being viewed, or null
      */
     active_program_id?: string | null;
+};
+
+/**
+ * ProcessingFile
+ */
+export type ProcessingFile = {
+    job: JobOut;
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string | null;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Program Id
+     */
+    program_id: string;
+    /**
+     * Course Code
+     *
+     * The course's code, or its title when it has none
+     */
+    course_code: string;
+    /**
+     * Course Color
+     */
+    course_color: string;
+    /**
+     * Synced
+     *
+     * Kept in step with its source (M09's course materials)
+     */
+    synced: boolean;
+};
+
+/**
+ * ProcessingList
+ */
+export type ProcessingList = {
+    /**
+     * Files
+     *
+     * Running files, then queued ones in the order they will run (at most 100), then files that ended in the last 7 days, newest first
+     */
+    files: Array<ProcessingFile>;
+    /**
+     * Active
+     *
+     * Files running or queued, all of them
+     */
+    active: number;
+    /**
+     * Done
+     *
+     * Files that ended since the oldest active one was queued: with `active`, how far the current round is
+     */
+    done: number;
+    /**
+     * Since
+     *
+     * When the oldest active file was queued: the start of the current round
+     */
+    since: string | null;
 };
 
 /**
@@ -17973,6 +18060,56 @@ export type FilesOrganizationListResponses = {
 };
 
 export type FilesOrganizationListResponse = FilesOrganizationListResponses[keyof FilesOrganizationListResponses];
+
+export type FilesProcessingCancelAllData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing:cancel';
+};
+
+export type FilesProcessingCancelAllErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingCancelAllError = FilesProcessingCancelAllErrors[keyof FilesProcessingCancelAllErrors];
+
+export type FilesProcessingCancelAllResponses = {
+    /**
+     * Successful Response
+     */
+    200: CancelledAll;
+};
+
+export type FilesProcessingCancelAllResponse = FilesProcessingCancelAllResponses[keyof FilesProcessingCancelAllResponses];
+
+export type FilesProcessingListData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me/files/processing';
+};
+
+export type FilesProcessingListErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesProcessingListError = FilesProcessingListErrors[keyof FilesProcessingListErrors];
+
+export type FilesProcessingListResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProcessingList;
+};
+
+export type FilesProcessingListResponse = FilesProcessingListResponses[keyof FilesProcessingListResponses];
 
 export type FilesUsageBreakdownData = {
     body?: never;
