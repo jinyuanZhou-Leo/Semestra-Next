@@ -3,4 +3,4 @@ Title: Your account has been deleted
 
 Your Semestra account and all of its data have been deleted, as you requested. This can't be undone.
 ---
-If you didn't request this, reply to this email.
+If you didn't request this, contact the administrator of this Semestra site right away.

@@ -7,7 +7,8 @@ Templates live in `modules/<module>/templates/<locale>/<name>.txt`:
     Button: ...          (optional, the label for a block that is only a `$..._url`)
 
     Paragraphs separated by blank lines. A block that is only `$code` becomes the code box,
-    one that is only a `$..._url` placeholder becomes the button.
+    one that is only a `$..._url` placeholder becomes the button. Elsewhere a `$..._url`
+    placeholder becomes a link; no other value is ever linked.
     ---
     Small print under the divider (optional).
 
@@ -22,10 +23,10 @@ from string import Template
 from typing import Any
 
 from semestra.core.context import DEFAULT_LOCALE, SUPPORTED_LOCALES
-from semestra.core.email_layout import Block, Button, Code, render_html
+from semestra.core.email_layout import Block, Button, Code, Link, Paragraph, render_html
 
 _MODULES_DIR = Path(__file__).resolve().parent.parent / "modules"
-_URL_PLACEHOLDER = re.compile(r"\$\w+_url")
+_URL_PLACEHOLDER = re.compile(r"(\$\w+_url)")
 _FOOTER = {
     "en": "This is an automated message from Semestra.",
     "zh-CN": "此邮件由 Semestra 自动发送。",
@@ -61,33 +62,43 @@ def render_email(
     values = {k: str(v) for k, v in params.items()}
 
     def fill(s: str) -> str:
-        return Template(s.strip()).safe_substitute(values)
+        return Template(s).safe_substitute(values)
 
-    title = fill(meta["Title"])
+    def paragraph(raw: str) -> Paragraph:
+        # Only `$..._url` placeholders become links; every other value stays plain text.
+        return tuple(
+            Link(fill(part)) if _URL_PLACEHOLDER.fullmatch(part) else fill(part)
+            for part in _URL_PLACEHOLDER.split(raw)
+            if part
+        )
+
+    def plain(p: Paragraph) -> str:
+        return "".join(part.url if isinstance(part, Link) else part for part in p)
+
+    title = fill(meta["Title"].strip())
     main, _, small_print = body.partition("\n---\n")
     blocks: list[Block] = []
+    texts = [title]
     for raw in _blocks(main):
         if raw == "$code":
             blocks.append(Code(fill(raw)))
+            texts.append(fill(raw))
         elif _URL_PLACEHOLDER.fullmatch(raw):
-            blocks.append(Button(fill(meta["Button"]), fill(raw)))
+            blocks.append(Button(fill(meta["Button"].strip()), fill(raw)))
+            texts.append(fill(raw))
         else:
-            blocks.append(fill(raw))
-    notes = [fill(n) for n in _blocks(small_print)]
-    texts = [
-        title,
-        *(
-            b.value if isinstance(b, Code) else b.url if isinstance(b, Button) else b
-            for b in blocks
-        ),
-        *notes,
-    ]
+            p = paragraph(raw)
+            blocks.append(p)
+            texts.append(plain(p))
+    notes = [paragraph(n) for n in _blocks(small_print)]
+    texts += [plain(n) for n in notes]
     html = render_html(
         lang=loc,
         title=title,
         body=blocks,
         notes=notes,
         footer=_FOOTER.get(loc, _FOOTER[DEFAULT_LOCALE]),
-        logo_url=f"{web_origin}/icons/icon-192.png",
+        # Mail clients block images over plain http, and a local origin is unreachable anyway.
+        logo_url=f"{web_origin}/icons/icon-192.png" if web_origin.startswith("https://") else None,
     )
-    return RenderedEmail(fill(meta["Subject"]), "\n\n".join(texts), html)
+    return RenderedEmail(fill(meta["Subject"].strip()), "\n\n".join(texts), html)

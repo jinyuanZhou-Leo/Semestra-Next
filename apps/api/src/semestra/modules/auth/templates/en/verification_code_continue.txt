@@ -7,4 +7,4 @@ $code
 
 This code expires in $minutes minutes.
 ---
-If you didn't request this code, you can ignore this email. No one can sign in without it.
+If you didn't request this code, you can ignore this email. Nothing on your account will change.
