@@ -8440,6 +8440,14 @@ export const FileMetaSchema = {
             ],
             title: 'Folder Path',
             description: 'Its folder below the course\'s root folder (course_files)'
+        },
+        folder_ids: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Folder Ids',
+            description: 'The ids of the folders of `folder_path`, from the top (course_files)'
         }
     },
     type: 'object',

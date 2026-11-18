@@ -405,6 +405,10 @@ class FileMeta(Dto):
     folder_path: str | None = Field(
         default=None, description="Its folder below the course's root folder (course_files)"
     )
+    folder_ids: list[str] = Field(
+        default_factory=lambda: [],
+        description="The ids of the folders of `folder_path`, from the top (course_files)",
+    )
     # Provider-internal download location; never sent to clients.
     download_url: str | None = Field(default=None, exclude=True)
 

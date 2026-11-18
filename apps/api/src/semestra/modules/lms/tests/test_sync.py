@@ -411,7 +411,9 @@ async def test_the_scheduler_syncs_what_is_due(api: Api, app: FastAPI, clock: Cl
         assert await queued_while_away()
 
 
-async def test_a_sync_the_user_asks_for_counts_its_courses(api: Api, app: FastAPI):
+async def test_a_sync_the_user_asks_for_counts_its_courses(
+    api: Api, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+):
     program_id, term_id, _ = await setup_program(api)
     for external_id in ("101", "102"):
         await api.link(await api.course(program_id, term_id), external_id)
@@ -420,6 +422,10 @@ async def test_a_sync_the_user_asks_for_counts_its_courses(api: Api, app: FastAP
     assert (await api.call("GET", path))["round"] == {"done": 0, "total": 2}
     assert await app.state.jobs.run_one(BACKGROUND) is True
     assert (await api.call("GET", path))["round"] == {"done": 1, "total": 2}
+    # Asked again meanwhile: the course synced again is still one of the two.
+    monkeypatch.setattr(sync, "COOLDOWN", timedelta(0))
+    await api.call("POST", path, json={"force": True})
+    assert (await api.call("GET", path))["round"]["total"] == 2
     await api.run_jobs()
     assert (await api.call("GET", path))["round"] is None
 

@@ -459,11 +459,11 @@ async def update_link(ctx: Ctx, row: FilesItem, *, url: str, name: str | None) -
 
 @dataclass(frozen=True)
 class Home:
-    """Where an item of a source belongs on it (folder names from the top), for an item the
-    user has not moved since the source put it somewhere else."""
+    """Where an item of a source belongs on it ((id, name) of each level from the top), for an
+    item the user has not moved since the source put it somewhere else."""
 
     item_id: str
-    path: tuple[str, ...]
+    path: tuple[tuple[str, str], ...]
     source_kind: str
     source_name: str
 

@@ -674,11 +674,81 @@ async def test_a_2_0_0_backup_keeps_the_materials_in_step(api: Api, fake: FakePr
     assert sorted((await _files(api, course))[1]) == before
 
 
+def _as_2_1(archive: bytes, program_id: str, folder_id: str) -> bytes:
+    """The backup as 2.1 wrote it: materials filed by type (`type`, the files' `type_folders`),
+    no places, and the materials settings per Program."""
+    source = zipfile.ZipFile(io.BytesIO(archive))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name in source.namelist():
+            data = source.read(name)
+            payload: dict[str, Any] = json.loads(data) if name.startswith("data/") else {}
+            if name == "data/lms.json":
+                for m in payload["materials"]:
+                    del m["path"], m["placed_folder_id"]
+                    m["type"] = "lecture" if m["title"] == "Lecture 1.pdf" else "other"
+                [link] = payload["links"]
+                course = link["course_id"]
+            elif name == "data/files.json":
+                continue  # below, with the type folders
+            elif name == "data/settings.json":
+                for row in payload["values"]:
+                    if row["namespace"] == "lms.materials":
+                        row |= {"scope_type": "program", "scope_id": program_id}
+            if payload:
+                data = json.dumps(payload).encode()
+            z.writestr(name, data)
+        files = json.loads(source.read("data/files.json"))
+        files.pop("source_folders")
+        files["type_folders"] = [{"course_id": course, "type": "lecture", "folder_id": folder_id}]
+        z.writestr("data/files.json", json.dumps(files))
+    return out.getvalue()
+
+
+async def test_a_2_1_backup_keeps_where_the_sync_filed_and_its_settings(
+    api: Api, fake: FakeProvider
+):
+    """Restored from a backup of 2.1, a material the sync had filed by type is offered back to
+    its platform folder, as after the upgrade, and the Program's materials settings hold."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await _materials_setting(api, course, store="local")
+    await api.sync(program_id)
+    _, items = await _files(api, course)
+    old = await api.call("POST", f"/courses/{course}/folders", json={"name": "Lecture notes"})
+    lecture = items["Lecture 1.pdf"]["id"]
+    await api.call("PATCH", f"/files/{lecture}", json={"folder_id": old["id"]})
+
+    started = await api.call("POST", "/me/exports", json={"include_files": False})
+    await api.run_jobs()
+    archive = (await api.client.get(f"/me/exports/{started['id']}/download")).content
+    backup = _as_2_1(archive, program_id, old["id"])
+    uploaded = await api.client.post(
+        "/me/imports", files={"file": ("backup.zip", backup, "application/zip")}
+    )
+    body = {"mode": "replace", "confirmation": "Replace my data", "include_preferences": True}
+    await api.call("POST", f"/me/imports/{uploaded.json()['id']}:start", json=body)
+    await api.run_jobs()
+
+    settings = await api.call("GET", "/me/settings/lms.materials", params={"scope_type": "account"})
+    assert settings["values"]["store"] == "local"
+    [connection] = (await api.call("GET", "/lms/connections"))["items"]
+    token = {"credentials": {"token": "good-token-1"}}
+    await api.call("PATCH", f"/lms/connections/{connection['id']}", json=token)
+    [program] = (await api.call("GET", "/programs"))["items"]
+    [course] = [
+        c["id"] for c in (await api.call("GET", f"/programs/{program['id']}/courses"))["items"]
+    ]
+    await api.sync(program["id"])
+    plan = await _organize(api, course)
+    assert [(m["name"], m["folder_name"]) for m in plan["moves"]] == [("Lecture 1.pdf", "Lectures")]
+
+
 async def test_a_restored_copy_stored_for_the_sync_is_read_as_the_sync_reads_it(
     api: Api, fake: FakeProvider, app: FastAPI
 ):
-    """With its bytes in the backup, it is read again in the background, like a synced file
-    (so its scanned pages follow the course's setting), not as a file the user is waiting on."""
+    """With its bytes in the backup, it is read again in the background, like a synced file,
+    not as a file the user is waiting on."""
     _materials(fake)
     program_id, course = await _course(api)
     await _materials_setting(api, course, store="local")
@@ -766,6 +836,51 @@ async def test_organize_moves_back_what_moved_on_the_platform(
     assert [(m["name"], m["folder_name"], m["new_folder"]) for m in plan["moves"]] == [
         ("Lecture 1.pdf", "Lectures", False)
     ]
+
+
+async def test_a_folder_renamed_on_the_platform_keeps_its_folder(
+    api: Api, fake: FakeProvider, clock: Clock
+):
+    """Folders follow the platform's ids: renamed there, a module or a folder of the files area
+    keeps its folder, which takes the new name unless the user renamed it."""
+    _materials(fake)
+    fake.course_file_list[0] = fake.course_file_list[0].model_copy(update={"folder_ids": ["f1"]})
+    fake.course_file_list[2] = fake.course_file_list[2].model_copy(update={"folder_ids": ["f3"]})
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    exams = items["Midterm 2025.pdf"]["folder_id"]
+    await api.call("PATCH", f"/folders/{exams}", json={"name": "Old exams"})
+
+    modules = fake.module_list
+    assert modules is not None
+    modules[0] = modules[0].model_copy(update={"name": "Week 1: Intro"})
+    files = fake.course_file_list
+    files[0] = files[0].model_copy(update={"folder_path": "Slides", "updated_at": FEB})
+    files[2] = files[2].model_copy(update={"folder_path": "Past exams", "updated_at": FEB})
+    files.append(_file("206", "Midterm 2024.pdf", "Past exams", folder_ids=["f3"]))
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    folders, items = await _files(api, course)
+    names = sorted(f["name"] for f in folders.values() if f["parent_id"] is None)
+    assert names == ["Misc", "Old exams", "Problem sets", "Slides", "Week 1: Intro"]
+    assert _where(folders, items["Midterm 2024.pdf"]) == "Old exams"
+    assert (await _organize(api, course))["moves"] == []
+
+
+async def test_organize_moves_back_to_the_top_level(api: Api, fake: FakeProvider, clock: Clock):
+    """A file whose place on the platform is the top of its files area goes back there."""
+    _materials(fake)
+    program_id, course = await _course(api)
+    await api.sync(program_id)
+    files = fake.course_file_list
+    files[4] = files[4].model_copy(update={"folder_path": None, "updated_at": FEB})
+    clock.advance(minutes=1)
+    await api.sync(program_id)
+    plan = await _organize(api, course)
+    assert [
+        (m["name"], m["folder_id"], m["folder_name"], m["new_folder"]) for m in plan["moves"]
+    ] == [("data.zip", None, "", False)]
 
 
 async def test_reading_the_files_waits_for_a_course_sync_queued_since(

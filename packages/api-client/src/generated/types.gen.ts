@@ -4807,6 +4807,12 @@ export type FileMeta = {
      * Its folder below the course's root folder (course_files)
      */
     folder_path?: string | null;
+    /**
+     * Folder Ids
+     *
+     * The ids of the folders of `folder_path`, from the top (course_files)
+     */
+    folder_ids?: Array<string>;
 };
 
 /**

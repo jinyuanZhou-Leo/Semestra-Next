@@ -986,6 +986,16 @@ class CanvasProvider:
             for f in folders
             if not f.get("hidden_for_user")
         }
+        parents = {str(f.get("id")): _text(f.get("parent_folder_id")) for f in folders}
+
+        def chain(folder: str) -> list[str]:
+            """The folder's ids below the root, from the top (as `folder_path` names them)."""
+            ids: list[str] = []
+            while folder and (up := parents.get(folder)) and folder not in ids:
+                ids.insert(0, folder)
+                folder = up
+            return ids
+
         files = await self._list(io, cfg, creds, f"/courses/{course}/files", [("sort", "name")])
         out: list[FileMeta] = []
         for r in files:
@@ -995,6 +1005,7 @@ class CanvasProvider:
                 continue
             meta = self._file_meta(cfg, course_id, r)
             meta.folder_path = paths.get(folder) or None
+            meta.folder_ids = chain(folder) if meta.folder_path else []
             out.append(meta)
         return out
 

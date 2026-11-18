@@ -4,14 +4,36 @@ Preferences, UI state and account-level settings are imported only when the user
 preferences; settings of a Program, term or course go with that scope.
 
 Version 2 only drops settings that no longer exist: `_v1_to_v2` removes the tasks setting
-`auto_tasks_from_assessments` (assessment tasks always exist since 2.0, migration 0033).
+`auto_tasks_from_assessments` (assessment tasks always exist since 2.0, migration 0033). A
+namespace whose levels changed since (`register_levels_moved`) is read at import as its module
+reads it, the version staying (owner 2026-11-18): M09's materials settings were per Program.
 """
 
+from collections.abc import Callable, Mapping
 from typing import Any
 
-from semestra.modules.portability import Table, table_adapter
-from semestra.modules.portability.registry import OlderArchive
+from semestra.core.context import Ctx
+from semestra.modules.portability import Table
+from semestra.modules.portability.registry import (
+    ImportOptions,
+    OlderArchive,
+    register_portability,
+)
+from semestra.modules.portability.tables import ImportReport, TableAdapter
 from semestra.modules.settings.models import SettingsPreferences, SettingsUiState, SettingsValue
+
+SCHEMA_VERSION = 2
+
+# Namespace → reads its rows of an older backup (each `{scope_type, scope_id, data, ...}`) as
+# the levels it has now, given the archive's other payloads and whether account-level rows are
+# imported (the user asked for preferences).
+LevelsMoved = Callable[[list[dict[str, Any]], OlderArchive, bool], list[dict[str, Any]]]
+_moved: dict[str, LevelsMoved] = {}
+
+
+def register_levels_moved(namespace: str, read: LevelsMoved) -> None:
+    _moved[namespace] = read
+
 
 # Settings removed since version 1, by namespace.
 _REMOVED = {"tasks": ("auto_tasks_from_assessments",)}
@@ -28,12 +50,33 @@ def _v1_to_v2(payload: dict[str, Any], archive: OlderArchive) -> dict[str, Any]:
     return {**payload, "values": values}
 
 
-ADAPTER = table_adapter(
-    module="settings",
-    schema_version=2,
-    upgrades={1: _v1_to_v2},
-    depends_on=("academics",),
-    tables=(
+def _current(
+    payload: dict[str, Any], archive: OlderArchive | None, account: bool
+) -> dict[str, Any]:
+    if archive is None or not _moved:
+        return payload
+    rows = [r for r in payload.get("values") or [] if isinstance(r, dict)]
+    for namespace, read in _moved.items():
+        own = [r for r in rows if r.get("namespace") == namespace]
+        if own:
+            rest = [r for r in rows if r.get("namespace") != namespace]
+            rows = [*rest, *read(own, archive, account)]
+    return {**payload, "values": rows}
+
+
+class SettingsAdapter(TableAdapter):
+    async def import_(
+        self, ctx: Ctx, payload: dict[str, Any], id_map: Mapping[str, str], options: Any
+    ) -> ImportReport:
+        opts: ImportOptions = options
+        current = _current(payload, opts.archive, opts.include_preferences)
+        return await super().import_(ctx, current, id_map, options)
+
+
+ADAPTER = SettingsAdapter(
+    "settings",
+    SCHEMA_VERSION,
+    (
         Table(
             SettingsPreferences,
             "preferences",
@@ -51,4 +94,18 @@ ADAPTER = table_adapter(
             upsert_on=("namespace", "scope_type", "scope_id"),
         ),
     ),
+)
+
+register_portability(
+    module="settings",
+    schema_version=SCHEMA_VERSION,
+    depends_on=("academics",),
+    export=ADAPTER.export,
+    import_=ADAPTER.import_,
+    preview=ADAPTER.preview,
+    purge=ADAPTER.purge,
+    purge_content=ADAPTER.purge_content,
+    tables=tuple(t.model.__tablename__ for t in ADAPTER.tables),
+    limits={t.model.__tablename__: t.limit for t in ADAPTER.tables if t.limit is not None},
+    upgrades={1: _v1_to_v2},
 )

@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Folder, FolderInput, FolderSync } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { useProviderProblem } from '@/components/AiRequired'
+import { useAiGate, useProviderProblem } from '@/components/AiRequired'
 import { JobProgress } from '@/components/JobProgress'
 import { useElementHeight } from '@/hooks/use-element-size'
 import { useJob } from '@/hooks/use-job'
@@ -236,6 +236,31 @@ function Failed({
   )
 }
 
+/**
+ * The user's own files the plan leaves where they are; without a model to place them, that is
+ * why, with where to add one.
+ */
+function Left({ count }: { count: number }) {
+  const gate = useAiGate('title')
+  if (count === 0) return null
+  if (!gate) {
+    return <p className="text-sm text-muted-foreground">{m.files_organize_left({ count })}</p>
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      {m.files_organize_left_needs_model({ count })}{' '}
+      <Button variant="link" className="h-auto p-0" onClick={gate.fix}>
+        {gate.action}
+      </Button>
+    </p>
+  )
+}
+
+/** A plan's moves go in groups by folder: an existing one, one to make, or the top level. */
+function groupKey(move: PlannedMove) {
+  return move.folder_id ?? (move.new_folder ? `new:${move.folder_name}` : 'top')
+}
+
 function Review({
   courseId,
   list,
@@ -260,7 +285,7 @@ function Review({
   const shown = moves.filter((move) => items.has(move.item_id))
   const groups = new Map<string, PlannedMove[]>()
   for (const move of shown) {
-    const key = move.folder_id ?? `new:${move.folder_name}`
+    const key = groupKey(move)
     groups.set(key, [...(groups.get(key) ?? []), move])
   }
   const kept = shown.filter((move) => !skipped.has(move.item_id))
@@ -307,6 +332,7 @@ function Review({
             <EmptyTitle>{m.files_organize_nothing()}</EmptyTitle>
           </EmptyHeader>
         </Empty>
+        <Left count={left} />
         <DialogFooter>{discardButton}</DialogFooter>
       </>
     )
@@ -320,8 +346,8 @@ function Review({
           if (!first) return null
           return (
             <section
-              key={first.folder_id ?? `new:${first.folder_name}`}
-              aria-label={first.folder_name}
+              key={groupKey(first)}
+              aria-label={first.folder_name || m.files_organize_top_level()}
               className="not-first:border-t"
             >
               <h3 className="flex items-center gap-2 bg-muted/50 px-3 py-2 text-sm font-medium">
@@ -341,7 +367,9 @@ function Review({
                 ) : (
                   <Folder aria-hidden className="size-4 text-muted-foreground" />
                 )}
-                <span className="min-w-0 truncate">{first.folder_name}</span>
+                <span className="min-w-0 truncate">
+                  {first.folder_name || m.files_organize_top_level()}
+                </span>
                 <span className="font-normal text-muted-foreground tabular-nums">
                   {group.length}
                 </span>
@@ -388,9 +416,7 @@ function Review({
           )
         })}
       </div>
-      {left > 0 ? (
-        <p className="text-sm text-muted-foreground">{m.files_organize_left({ count: left })}</p>
-      ) : null}
+      <Left count={left} />
       <DialogFooter>
         {/* The plan is as it was when read: files added since are not in it. */}
         <Button

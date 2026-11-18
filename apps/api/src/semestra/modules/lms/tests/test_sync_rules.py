@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from semestra.modules.lms.rules import Action, diverged, merge, platform_value, same
+from semestra.modules.lms.settings import materials_from_programs
 
 A, B, C = "A1", "A1 (revised)", "A1 (final)"
 
@@ -90,3 +91,13 @@ def test_due_times_are_kept_to_the_minute_in_the_programs_zone():
     due = platform_value("due_at", "2026-11-05T04:59:59Z", toronto)
     assert due == {"date": "2026-11-04", "time": "23:59:00"}
     assert same("due_at", due, {"date": "2026-11-04", "time": "23:59:00"})
+
+
+def test_materials_settings_per_program_become_the_accounts_or_the_courses():
+    """What every Program had alike becomes the account's; the rest goes to the courses of the
+    Programs that differ from the default, where a course does not set it itself."""
+    courses = {"p1": ["c1", "c2"], "p2": ["c3"]}
+    alike = {"p1": {"store": "local", "sync": False}, "p2": {"store": "local"}}
+    account, per_course = materials_from_programs(alike, courses, {"c2": {"sync": True}})
+    assert account == {"store": "local"}
+    assert per_course == {"c1": {"sync": False}}

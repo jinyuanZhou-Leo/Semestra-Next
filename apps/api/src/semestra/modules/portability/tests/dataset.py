@@ -166,7 +166,8 @@ async def populate(
             **u,
             course_id=course.id,
             source_kind="lms",
-            path='["Week 1"]',
+            path='["module:1"]',
+            name="Week 1",
             source_name="Quercus",
             folder_id=folder.id,
         )
@@ -323,7 +324,7 @@ async def populate(
                 title="Syllabus",
                 version="https://example.com/syllabus",
                 name="Syllabus",
-                path=["Week 1"],
+                path=[["module:1", "Week 1"]],
                 placed_folder_id=folder.id,
                 imported_at=NOW,
             ),

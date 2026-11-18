@@ -135,6 +135,7 @@ beforeEach(() => {
   prefs = []
   searches = []
   server.use(
+    http.get(`${API}/ai/status`, () => HttpResponse.json({ items: [] })),
     http.post(`${API}/me/ui-state\\:get`, () => HttpResponse.json({ items: {} })),
     http.get(`${API}/courses/c1/files\\:organize`, () =>
       HttpResponse.json({ job: null, plan: null }),
@@ -777,6 +778,7 @@ test('a plan waiting for review moves only the files kept', async () => {
               type: 'lectures',
               folder_id: null,
               folder_name: 'Lectures',
+              new_folder: true,
               from_folder_id: null,
             },
             {
@@ -784,6 +786,7 @@ test('a plan waiting for review moves only the files kept', async () => {
               type: 'exams',
               folder_id: null,
               folder_name: 'Past exams',
+              new_folder: true,
               from_folder_id: null,
             },
           ],

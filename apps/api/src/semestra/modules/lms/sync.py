@@ -336,7 +336,8 @@ async def syncing_courses(ctx: Ctx, course_ids: Sequence[str]) -> set[str]:
 async def sync_round(ctx: Ctx, course_ids: Sequence[str]) -> tuple[int, int] | None:
     """(done, total) courses of the sync running now when the user asked for it; None when
     none runs or it is the background's own. The round is every course sync queued since the
-    oldest one still to finish: one the user asked for while another round ran joins it."""
+    oldest one still to finish, counted by course: one the user asked for while another round
+    ran joins it."""
     keys = [_dedupe(c) for c in course_ids]
     if not keys:
         return None
@@ -362,8 +363,10 @@ async def sync_round(ctx: Ctx, course_ids: Sequence[str]) -> tuple[int, int] | N
             )
         )
     )
-    total = sum(1 for p in since if (p or {}).get("course_id") in wanted)
-    return total - len(active), total
+    # By course: one asked for again while the round runs counts once.
+    courses = {c for p in since if (c := (p or {}).get("course_id")) in wanted}
+    running = {(r.payload or {}).get("course_id") for r in active}
+    return len(courses - running), len(courses)
 
 
 @periodic("lms.sync_due", every=TICK, first_after=timedelta(minutes=1))
