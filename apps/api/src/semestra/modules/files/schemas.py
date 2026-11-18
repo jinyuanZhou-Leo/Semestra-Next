@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from semestra.core.jobs import JobOut
+
 Id = Annotated[str, Field(min_length=1, max_length=64)]
 ItemKind = Literal["file", "link"]
 DocStatus = Literal["none", "pending", "processing", "ready", "failed", "unsupported"]
@@ -385,3 +387,73 @@ class FilesUsageBreakdown(BaseModel):
 
     by_course: list[CourseUsage]
     by_type: list[TypeUsage]
+
+
+# --- organizing (`organize.py`) ----------------------------------------------------------
+
+# The type folders (`sorting.FOLDER_TYPES`).
+TypeName = Literal[
+    "lectures", "tutorials", "problems", "exams", "recordings", "readings", "general"
+]  # fmt: skip
+
+
+class OrganizeInput(BaseModel):
+    course_id: str = Field(description="The course whose files to organize.")
+
+
+class OrganizeDone(BaseModel):
+    """The job's result: where the plan is."""
+
+    course_id: str
+    program_id: str
+
+
+class PlannedMove(BaseModel):
+    item_id: str
+    type: TypeName
+    # The folder it goes in; None: made when the move is applied.
+    folder_id: str | None
+    folder_name: str
+    # Where it is now (None: the top level).
+    from_folder_id: str | None
+
+
+class OrganizePlan(BaseModel):
+    moves: list[PlannedMove]
+    # Files looked at and left where they are.
+    left: int
+
+
+class OrganizeState(BaseModel):
+    """The course's organizing: its job (while reading, or when it failed; None once the job
+    record is gone), and its plan once read. Both None: nothing waits."""
+
+    job: JobOut | None
+    plan: OrganizePlan | None
+
+
+class OrganizeApplyInput(BaseModel):
+    course_id: str = Field(description="The course whose plan to apply.")
+    item_ids: list[str] = Field(
+        max_length=5000, description="The files of the plan the user kept; the rest stay."
+    )
+
+
+class OrganizeApplied(BaseModel):
+    moved: int
+
+
+class PendingOrganize(BaseModel):
+    course_id: str
+    # While reading, or when it failed (None once read).
+    job: JobOut | None
+    # Files the plan would still move (None until read).
+    count: int | None
+
+
+class PendingOrganizeList(BaseModel):
+    items: list[PendingOrganize]
+
+
+class ProgramInput(BaseModel):
+    program_id: str = Field(description="The Program whose courses to look at.")

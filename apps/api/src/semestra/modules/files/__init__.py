@@ -2,8 +2,8 @@
 
 Other modules save files with `save_bytes_as_file` and read parsed text through the
 `files.document.read` / `files.document.search` capabilities. A module that keeps files of its
-own (M09's LMS materials) registers a content source and adds unstored items
-(`service.add_remote_file`), which take no storage quota.
+own in step with its source (M09's LMS materials) uses `sources` (its items, some stored
+nowhere and taking no storage quota) and `sorting` (the type folders), nothing else.
 """
 
 from fastapi import FastAPI

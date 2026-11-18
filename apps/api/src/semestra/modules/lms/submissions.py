@@ -37,7 +37,6 @@ async def complete(ctx: Ctx, link_id: str, submitted: set[str]) -> None:
         await ctx.db.scalars(
             select(LmsImportedRef).where(
                 LmsImportedRef.link_id == link_id,
-                LmsImportedRef.external_kind == "assignment",
                 LmsImportedRef.submitted_at.is_(None),
                 LmsImportedRef.target_id.is_not(None),
                 LmsImportedRef.external_id.in_(submitted),

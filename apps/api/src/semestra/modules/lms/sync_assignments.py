@@ -38,7 +38,6 @@ from semestra.modules.lms.service import Bound
 from semestra.modules.lms.sync import UPDATED, Applied, StageResult, hold, register_sync_stage
 from semestra.modules.tasks.models import TasksItem
 
-KIND = "assignment"
 FIELDS: dict[str, tuple[SyncField, ...]] = {
     "assessment": ("title", "due_at", "weight", "score"),
     "task": ("title", "due_at"),
@@ -221,11 +220,7 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
     program = await academics.get_program_row(ctx, link.program_id)
     tz = ZoneInfo(program.timezone)
     refs = list(
-        await ctx.db.scalars(
-            select(LmsImportedRef).where(
-                LmsImportedRef.link_id == link.id, LmsImportedRef.external_kind == KIND
-            )
-        )
+        await ctx.db.scalars(select(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
     )
     imported = [r for r in refs if r.target_id is not None]
     follow = lms_settings.followed(await lms_settings.account(ctx))
@@ -265,7 +260,6 @@ async def run(ctx: Ctx, link: LmsCourseLink, b: Bound) -> StageResult:
                 LmsImportedRef(
                     user_id=ctx.user_id,
                     link_id=link.id,
-                    external_kind=KIND,
                     external_id=external_id,
                     snapshot=snapshot(a, weights.get(external_id)),
                 )

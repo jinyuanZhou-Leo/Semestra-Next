@@ -5,7 +5,7 @@ from sqlalchemy import select
 from semestra.core.context import Ctx
 from semestra.core.events import Event, events
 from semestra.core.jobs import enqueue
-from semestra.modules.files import content, service
+from semestra.modules.files import content, service, sources
 from semestra.modules.files.jobs import ReindexPayload
 from semestra.modules.files.models import FilesDocument, FilesItem
 from semestra.modules.files.settings import synced_scans
@@ -62,4 +62,4 @@ async def on_synced_scans_changed(ctx: Ctx, event: Event) -> None:
         if row.course_id not in reading:
             reading[row.course_id] = await synced_scans(ctx, row.course_id)
         if reading[row.course_id]:
-            await service.read_again_synced(ctx, row)
+            await sources.read_again_synced(ctx, row)

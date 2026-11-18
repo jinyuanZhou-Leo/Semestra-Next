@@ -32,6 +32,7 @@ from semestra.modules.lms.models import (
     LmsConnection,
     LmsCourseLink,
     LmsImportedRef,
+    LmsMaterial,
     LmsProgramBinding,
 )
 from semestra.modules.lms.providers import (
@@ -1037,11 +1038,17 @@ async def refresh_link(ctx: Ctx, link: LmsCourseLink, b: Bound) -> None:
     await events.publish(ctx, "lms.course.link_updated", {"course_id": link.course_id})
 
 
+async def _forget_tracked(ctx: Ctx, link: LmsCourseLink) -> None:
+    """The assignments and materials the sync kept track of for the link."""
+    for model in (LmsImportedRef, LmsMaterial):
+        await ctx.db.execute(delete(model).where(model.link_id == link.id))
+
+
 async def _remove_link(ctx: Ctx, link: LmsCourseLink) -> None:
     data = {"course_id": link.course_id, "program_id": link.program_id, "link_id": link.id}
     # While the refs are still there: what was only read from the platform course goes too.
     await events.publish_in_transaction(ctx, "lms.course.unlinking", data)
-    await ctx.db.execute(delete(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
+    await _forget_tracked(ctx, link)
     await ctx.db.delete(link)
     await ctx.db.flush()
     await events.publish(ctx, "lms.course.unlinked", data)
@@ -1060,14 +1067,14 @@ async def delete_link(ctx: Ctx, course_id: str) -> CourseLinkState:
 async def forget_course(ctx: Ctx, course_id: str) -> None:
     link = await link_row(ctx, course_id)
     if link is not None:
-        await ctx.db.execute(delete(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
+        await _forget_tracked(ctx, link)
         await ctx.db.delete(link)
         await ctx.db.flush()
 
 
 async def forget_program(ctx: Ctx, program_id: str) -> None:
     for link in await program_links(ctx, program_id):
-        await ctx.db.execute(delete(LmsImportedRef).where(LmsImportedRef.link_id == link.id))
+        await _forget_tracked(ctx, link)
         await ctx.db.delete(link)
     row = await binding_row(ctx, program_id)
     if row is not None:

@@ -4,8 +4,9 @@ from semestra.core.agent_output import CHANGED
 from semestra.core.capability import Http, NoInput, capability
 from semestra.core.context import Ctx
 from semestra.core.errors import agent_hints
+from semestra.core.jobs import JobOut
 from semestra.core.labels import owned_row
-from semestra.modules.files import documents, search, service
+from semestra.modules.files import documents, organize, search, service, sources
 from semestra.modules.files.models import FilesFolder, FilesItem
 from semestra.modules.files.schemas import (
     Deleted,
@@ -29,8 +30,14 @@ from semestra.modules.files.schemas import (
     ItemRef,
     ItemUpdateInput,
     LinkCreateInput,
+    OrganizeApplied,
+    OrganizeApplyInput,
+    OrganizeInput,
+    OrganizeState,
+    PendingOrganizeList,
     PinnedFiles,
     PinnedInput,
+    ProgramInput,
     SearchInput,
     SearchResult,
 )
@@ -256,7 +263,7 @@ too large or beyond the quota left is refused.""",
 )
 async def keep_offline(ctx: Ctx, inp: ItemRef) -> ItemOut:
     row = await service.get_item(ctx, inp.item_id)
-    await service.keep_offline(ctx, row)
+    await sources.keep_offline(ctx, row)
     return await service.item_out(ctx, row)
 
 
@@ -363,3 +370,76 @@ menu.""",
 )
 async def search_names(ctx: Ctx, inp: FileSearchInput) -> FileMatches:
     return FileMatches(items=await service.search_names(ctx, inp))
+
+
+@capability(
+    name="files.organization.start",
+    summary="Work out how to sort a course's unsorted files into type folders.",
+    description="""Starts a job that gives each file at the top level or in "Course materials" a
+type (lectures, past exams...) and the folder it would go in, and keeps that as the course's plan
+(replacing one not yet applied). Nothing is moved: the user reviews the plan
+(`files.organization.get`) and applies it (`files.organization.apply`).""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/files:organize"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def organization_start(ctx: Ctx, inp: OrganizeInput) -> JobOut:
+    return await organize.start(ctx, inp.course_id)
+
+
+@capability(
+    name="files.organization.get",
+    summary="Where a course's organizing stands.",
+    description="""The course's organizing: its job while it reads (or when it failed), and the
+plan once read, with the files the user has moved or deleted since left out.""",
+    effect="read",
+    http=Http("GET", "/courses/{course_id}/files:organize"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def organization_get(ctx: Ctx, inp: OrganizeInput) -> OrganizeState:
+    return await organize.state(ctx, inp.course_id)
+
+
+@capability(
+    name="files.organization.list",
+    summary="The organizing under way in a Program's courses.",
+    description="""Each course whose organizing is reading, failed (not yet seen), or waits for
+review, with how many files its plan would still move.""",
+    effect="read",
+    http=Http("GET", "/programs/{program_id}/file-organizations"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def organization_list(ctx: Ctx, inp: ProgramInput) -> PendingOrganizeList:
+    return await organize.pending(ctx, inp.program_id)
+
+
+@capability(
+    name="files.organization.apply",
+    summary="Move a course's files into their type folders, as its plan says.",
+    description="""Applies the course's plan to the files the user kept: each goes in its type's
+folder, made when the course has none. Files moved or deleted since the plan stay as they are.
+The plan is done with afterwards.""",
+    effect="write",
+    http=Http("POST", "/courses/{course_id}/files:organize-apply"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def organization_apply(ctx: Ctx, inp: OrganizeApplyInput) -> OrganizeApplied:
+    return await organize.apply(ctx, inp.course_id, inp.item_ids)
+
+
+@capability(
+    name="files.organization.discard",
+    summary="Discard a course's organizing plan without moving anything.",
+    description="The plan is done with; the files stay where they are.",
+    effect="write",
+    http=Http("DELETE", "/courses/{course_id}/files:organize"),
+    expose=("http",),
+    tags=TAGS,
+)
+async def organization_discard(ctx: Ctx, inp: OrganizeInput) -> Deleted:
+    await organize.discard(ctx, inp.course_id)
+    return Deleted()
