@@ -8090,7 +8090,7 @@ export const FeedbackOutSchema = {
         'assignment_id'
     ],
     title: 'FeedbackOut',
-    description: 'The teacher\'s feedback on an imported assessment, as the last sync kept it (M09 §4.7).'
+    description: 'The teacher\'s feedback on an imported assessment, as the last sync kept it (M09 §4.3).'
 } as const;
 
 export const FileListSchema = {

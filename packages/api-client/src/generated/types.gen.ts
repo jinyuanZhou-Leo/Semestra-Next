@@ -4556,7 +4556,7 @@ export type FeedbackList = {
 /**
  * FeedbackOut
  *
- * The teacher's feedback on an imported assessment, as the last sync kept it (M09 §4.7).
+ * The teacher's feedback on an imported assessment, as the last sync kept it (M09 §4.3).
  */
 export type FeedbackOut = {
     /**
