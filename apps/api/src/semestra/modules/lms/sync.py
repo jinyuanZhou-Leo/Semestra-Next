@@ -75,11 +75,13 @@ class Applied:
 
 @dataclass
 class Notice:
-    """Something new on the platform worth telling (an announcement)."""
+    """Something new on the platform worth telling (an announcement, a course material)."""
 
     kind: str
     external_id: str
     title: str
+    # The course file it came in as (a material).
+    item_id: str | None = None
 
 
 @dataclass
@@ -225,7 +227,12 @@ async def sync_course(
                     for a in r.applied
                 ],
                 "notices": [
-                    {"kind": x.kind, "external_id": x.external_id, "title": x.title}
+                    {
+                        "kind": x.kind,
+                        "external_id": x.external_id,
+                        "title": x.title,
+                        "item_id": x.item_id,
+                    }
                     for r in results
                     for x in r.notices
                 ],

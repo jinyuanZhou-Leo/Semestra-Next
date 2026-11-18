@@ -46,6 +46,8 @@ CATEGORY: dict[str, str] = {
     "lms_changes_other": "lms",
     "lms_announcements_one": "lms",
     "lms_announcements_other": "lms",
+    "lms_materials_one": "lms",
+    "lms_materials_other": "lms",
     "approval": "assistant",
     "sign_in": "sign_in",
 }

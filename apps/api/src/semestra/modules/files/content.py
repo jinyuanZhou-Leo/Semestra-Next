@@ -42,9 +42,9 @@ def remote(row: FilesItem) -> bool:
 
 
 def follows_source(row: FilesItem) -> bool:
-    """A file its source keeps in step (updates, removes), stored here or not: not one the
-    user keeps as their own copy."""
-    return row.kind == "file" and not row.kept_offline and _source(row) is not None
+    """A file its source keeps in step (updates, removes), with a local copy or not: not one
+    the user made their own (`sources.make_own`)."""
+    return row.kind == "file" and _source(row) is not None
 
 
 def has_content(row: FilesItem) -> bool:
@@ -58,6 +58,11 @@ async def open_content(
     whole). Not found: a link, or a file whose source is gone."""
     if row.storage_key:
         return get_storage(ctx).open(row.storage_key, start=start, length=length)
+    return await open_source(ctx, row)
+
+
+async def open_source(ctx: Ctx, row: FilesItem) -> AsyncIterator[bytes]:
+    """The current bytes of a file at its source, whatever copy is stored here."""
     opener = _source(row) if row.kind == "file" else None
     if opener is None:
         raise not_found()

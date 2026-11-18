@@ -10,6 +10,7 @@ from semestra.modules.lms import (
     service,
     sync,
     sync_assignments,
+    sync_files,
     sync_status,
 )
 from semestra.modules.lms.schemas.dto import (
@@ -77,6 +78,7 @@ from semestra.modules.lms.schemas.io import (
     TermAnnouncementsInput,
 )
 from semestra.modules.lms.schemas.sync import (
+    MaterialRef,
     SyncChangeRef,
     SyncDismissInput,
     SyncFieldResolveInput,
@@ -100,7 +102,7 @@ _BINDING_FIELDS = (
 )  # fmt: skip
 _LINK = (
     "id", "connection_id", "external_course_id", "external_code", "external_name",
-    "external_term", "sync_enabled", "files_sync", "files_offline", "synced_at", "sync_errors",
+    "external_term", "sync_enabled", "synced_at", "sync_errors",
 )  # fmt: skip
 _LINK_FIELDS = ("course_id", "program_connection_id", *(f"link.{f}" for f in _LINK))
 
@@ -336,11 +338,9 @@ async def link_set(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
 
 @capability(
     name="lms.course.link.update",
-    summary="Turn LMS sync of a linked course, or of its materials, on or off.",
+    summary="Turn LMS sync of a linked course on or off.",
     description="""`sync_enabled` off: no calendar overlay and no update checks; reading still
-works. `files_sync` off: the course's files, pages and links no longer come in or follow the
-LMS (those there stay). `files_offline` on: they are stored here (taking storage quota) rather
-than read from the LMS when opened.
+works. Whether its materials come in, and how they are kept, are the settings `lms.materials`.
 To remove the link altogether use lms.course.link.delete.""",
     effect="write",
     http=Http("PATCH", "/courses/{course_id}/lms-link"),
@@ -348,9 +348,7 @@ To remove the link altogether use lms.course.link.delete.""",
     tags=TAGS,
 )
 async def link_update(ctx: Ctx, inp: LinkUpdateInput) -> CourseLinkState:
-    return await service.update_link(
-        ctx, inp.course_id, inp.sync_enabled, inp.files_sync, inp.files_offline
-    )
+    return await service.update_link(ctx, inp.course_id, inp.sync_enabled)
 
 
 @capability(
@@ -821,6 +819,20 @@ A value taken from the platform is logged as a recent change, so it can be put b
 )
 async def sync_field_resolve(ctx: Ctx, inp: SyncFieldResolveInput) -> SyncStatus:
     program_id = await sync_assignments.answer(ctx, inp.item_id, inp.field, inp.choice)
+    return await sync_status.status(ctx, program_id)
+
+
+@capability(
+    name="lms.sync.material.restore",
+    summary="Bring back a course material the user deleted.",
+    description="""It comes in again with a sync of its course, queued now.""",
+    effect="write",
+    http=Http("POST", "/lms/sync/materials/{material_id}:restore"),
+    expose=HTTP_ONLY,
+    tags=TAGS,
+)
+async def sync_material_restore(ctx: Ctx, inp: MaterialRef) -> SyncStatus:
+    program_id = await sync_files.restore(ctx, inp.material_id)
     return await sync_status.status(ctx, program_id)
 
 

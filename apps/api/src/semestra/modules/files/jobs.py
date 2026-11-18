@@ -35,6 +35,8 @@ class ProcessResult(BaseModel):
 
 class KeepPayload(BaseModel):
     item_ids: list[str]
+    # Then the file becomes the user's own (`sources.make_own`).
+    own: bool = False
 
 
 class KeepResult(BaseModel):
@@ -79,26 +81,27 @@ async def process_synced(ctx: JobCtx, payload: ProcessPayload) -> ProcessResult:
     return ProcessResult(page_count=await pipeline.run(ctx, payload.item_id, synced=True))
 
 
-@job_handler("files.keep_offline", stages=[("storing", 1)], max_attempts=1)
-async def keep_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
-    """An offline copy the user asked for; a failure shows in the status bar."""
+@job_handler("files.store_copy", stages=[("storing", 1)], max_attempts=1)
+async def store_copy(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
+    """A local copy the user asked for (or one to make their own); a failure shows in the status
+    bar."""
     for item_id in payload.item_ids:
         await ctx.stage("storing")
-        await sources.store_from_source(ctx, item_id, quiet=False)
+        await sources.store_from_source(ctx, item_id, quiet=False, own=payload.own)
     return KeepResult(kept=len(payload.item_ids), left=0)
 
 
 @job_handler(
-    "files.keep_offline_synced",
+    "files.store_synced_copies",
     stages=[("storing", 1)],
     lane="background",
     listed=False,
-    labels="files.keep_offline",
+    labels="files.store_copy",
     priority=-1,
 )
-async def keep_synced_offline(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
-    """Files read from their source, stored here one by one until the quota is full; one that
-    can't be stored (too large, unreadable now) is left read from its source."""
+async def store_synced_copies(ctx: JobCtx, payload: KeepPayload) -> KeepResult:
+    """Local copies the source's setting asks for, stored one by one until the quota is full;
+    one that can't be stored (too large, unreadable now) is left read from its source."""
     kept = 0
     for index, item_id in enumerate(payload.item_ids):
         await ctx.stage("storing", current=index, total=len(payload.item_ids))

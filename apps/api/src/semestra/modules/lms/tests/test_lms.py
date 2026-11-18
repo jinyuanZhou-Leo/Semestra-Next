@@ -121,7 +121,12 @@ async def test_binding_and_link_rules(api: Api):
 
     # No binding yet: links are refused and the state says so.
     state = await api.call("GET", f"/courses/{course_a}/lms-link")
-    assert state == {"course_id": course_a, "link": None, "program_connection_id": None}
+    assert state == {
+        "course_id": course_a,
+        "link": None,
+        "program_connection_id": None,
+        "materials": None,
+    }
     err = await api.link(course_a, "101", 409)
     assert err["error"]["code"] == "lms.program_not_configured"
 

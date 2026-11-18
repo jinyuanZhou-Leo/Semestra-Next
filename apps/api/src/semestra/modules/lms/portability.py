@@ -11,9 +11,12 @@ with M13's `register_portability`.
 
 Version 2 imports a platform item once (one ref per item); `_v1_to_v2` keeps the assessment's ref
 where a version 1 backup (up to 1.15) has both an assessment and a to-do for the same item, as
-migration 0035 did. A version 2 backup written before migration 0056 (2.0.0) keeps the materials
-among the refs (`external_kind` file, page or link); `LmsPayload` reads them into `materials` the
-way that migration moved them, so both shapes restore under the same version.
+migration 0035 did. Later changes kept version 2 (owner 2026-11-18) and are read at import by
+`_current`: a 2.0.0 backup keeps the materials among the refs (`external_kind`
+file, page or link), moved into `materials` as migration 0056 did; materials without a `state`
+(before migration 0057) take it from `deleted_at`, and pages that only list others are left
+out. The course's materials settings left the link for M11 (`lms.materials`), which the
+settings' own backup carries.
 """
 
 from collections.abc import Mapping
@@ -21,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 from sqlalchemy import delete, select
 
 from semestra.core.context import Ctx
@@ -76,6 +79,29 @@ def _material_row(ref: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _current(data: dict[str, Any]) -> dict[str, Any]:
+    """An older shape of version 2 as it is now (see the module docstring)."""
+    refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
+    moved = [_material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")]
+    kept = [
+        {k: v for k, v in r.items() if k != "external_kind"}
+        for r in refs
+        if r.get("external_kind", "assignment") == "assignment"
+    ]
+    materials = [
+        r
+        if "state" in r
+        else {
+            **{k: v for k, v in r.items() if k not in ("deleted_at", "is_list")},
+            "state": "dismissed" if r.get("deleted_at") else "synced",
+            "state_at": r.get("deleted_at"),
+        }
+        for r in [*(data.get("materials") or []), *moved]
+        if isinstance(r, dict) and not r.get("is_list")
+    ]
+    return {**data, "refs": kept, "materials": materials}
+
+
 class Writer(Protocol):
     def write_json(self, obj: Any) -> None: ...
 
@@ -104,8 +130,6 @@ class LinkRow(BaseModel):
     external_term: str | None = None
     web_url: str | None = None
     sync_enabled: bool = True
-    files_sync: bool = True
-    files_offline: bool = False
 
 
 class RefRow(BaseModel):
@@ -124,18 +148,19 @@ class MaterialRow(BaseModel):
     link_id: str
     kind: str
     external_id: str
-    # None: an item the user deleted (`deleted_at`).
+    # `synced`, `dismissed` (the user deleted its item) or `handed_over` (its item is the user's
+    # own file now).
+    state: str = "synced"
+    state_at: datetime | None = None
     item_id: str | None = None
     title: str | None = None
     version: str | None = None
     name: str | None = None
     type: str | None = None
     sorted_by_model: bool = False
-    is_list: bool = False
     links: list[list[str]] = []
     checked_at: datetime | None = None
     imported_at: datetime | None = None
-    deleted_at: datetime | None = None
 
 
 class LmsPayload(BaseModel):
@@ -145,25 +170,6 @@ class LmsPayload(BaseModel):
     links: list[LinkRow] = []
     refs: list[RefRow] = []
     materials: list[MaterialRow] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def _materials_among_refs(cls, data: Any) -> Any:
-        """A 2.0.0 backup keeps the materials among the refs, told apart by `external_kind`."""
-        if not isinstance(data, dict):
-            return data
-        refs = [r for r in data.get("refs") or [] if isinstance(r, dict)]
-        if not any("external_kind" in r for r in refs):
-            return data
-        kept = [r for r in refs if r.get("external_kind", "assignment") == "assignment"]
-        moved = [
-            _material_row(r) for r in refs if r.get("external_kind") in ("file", "page", "link")
-        ]
-        return {
-            **data,
-            "refs": [{k: v for k, v in r.items() if k != "external_kind"} for r in kept],
-            "materials": [*(data.get("materials") or []), *moved],
-        }
 
 
 @dataclass
@@ -186,7 +192,7 @@ async def export(ctx: Ctx, writer: Writer) -> None:
     materials = await ctx.db.scalars(
         select(LmsMaterial).where(
             LmsMaterial.user_id == uid,
-            LmsMaterial.item_id.is_not(None) | LmsMaterial.deleted_at.is_not(None),
+            LmsMaterial.state.in_(("synced", "dismissed", "handed_over")),
         )
     )
     writer.write_json(
@@ -225,7 +231,7 @@ async def import_(
     """Adds the archive's connections (without credentials) and, where their Programs, courses
     and targets came along (`id_map`), the bindings, links and imported refs."""
     del options
-    data = LmsPayload.model_validate(payload)
+    data = LmsPayload.model_validate(_current(payload))
     report = ImportReport(
         {"connections": 0, "bindings": 0, "links": 0, "refs": 0, "materials": 0}, {}
     )
@@ -290,8 +296,6 @@ async def import_(
             external_term=li.external_term,
             web_url=li.web_url,
             sync_enabled=li.sync_enabled,
-            files_sync=li.files_sync,
-            files_offline=li.files_offline,
             created_at=ctx.now,
             updated_at=ctx.now,
         )
@@ -345,7 +349,7 @@ async def import_(
 
 
 async def preview(payload: dict[str, Any]) -> dict[str, int]:
-    data = LmsPayload.model_validate(payload)
+    data = LmsPayload.model_validate(_current(payload))
     return {
         "connections": len(data.connections),
         "bindings": len(data.bindings),

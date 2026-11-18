@@ -3158,18 +3158,6 @@ export type CourseLink = {
      */
     sync_enabled: boolean;
     /**
-     * Files Sync
-     *
-     * The sync brings the course's files, pages and links in
-     */
-    files_sync: boolean;
-    /**
-     * Files Offline
-     *
-     * They are stored here, not read when opened
-     */
-    files_offline: boolean;
-    /**
      * Synced At
      *
      * Last background sync of the course
@@ -3214,6 +3202,10 @@ export type CourseLinkState = {
      */
     course_id: string;
     link: CourseLink | null;
+    /**
+     * Of the linked course; null when not linked
+     */
+    materials?: MaterialCounts | null;
     /**
      * Program Connection Id
      *
@@ -5895,6 +5887,18 @@ export type ItemOut = {
      */
     source_ref: string | null;
     /**
+     * Source Name
+     *
+     * The name of the source it came from and follows (an LMS platform), for files and links alike; null for the user's own
+     */
+    source_name: string | null;
+    /**
+     * Unseen
+     *
+     * Brought in by its source and not opened yet
+     */
+    unseen: boolean;
+    /**
      * Doc Status
      */
     doc_status: 'none' | 'pending' | 'processing' | 'ready' | 'failed' | 'unsupported';
@@ -5922,6 +5926,12 @@ export type ItemOut = {
      * Updated At
      */
     updated_at: string;
+    /**
+     * Modified At
+     *
+     * When its contents last changed: on its source for a file that follows one (not when the sync saw it), else updated_at
+     */
+    modified_at: string;
 };
 
 /**
@@ -6129,18 +6139,6 @@ export type LinkUpdateInputBody = {
      * Show in the calendar, check updates
      */
     sync_enabled?: boolean | null;
-    /**
-     * Files Sync
-     *
-     * Bring the course's files, pages and links into its files
-     */
-    files_sync?: boolean | null;
-    /**
-     * Files Offline
-     *
-     * Store them here (taking quota) instead of reading when opened
-     */
-    files_offline?: boolean | null;
 };
 
 /**
@@ -6679,6 +6677,27 @@ export type LocalModels = {
      * Custom
      */
     custom?: boolean;
+};
+
+/**
+ * MaterialCounts
+ *
+ * The course files that follow the linked course's materials, by what unlinking does to
+ * them.
+ */
+export type MaterialCounts = {
+    /**
+     * Local
+     *
+     * With a local copy: they become the user's own files
+     */
+    local: number;
+    /**
+     * Online
+     *
+     * Read online (and links): they leave the course's files
+     */
+    online: number;
 };
 
 /**
@@ -10929,6 +10948,60 @@ export type SyncItem = {
 };
 
 /**
+ * SyncMaterialChange
+ *
+ * What the platform did lately to a course material (the files stage).
+ */
+export type SyncMaterialChange = {
+    /**
+     * Id
+     *
+     * The material's id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     *
+     * Its name on the platform
+     */
+    title: string;
+    /**
+     * Change
+     *
+     * added: new in the course's files; updated: its contents changed; gone: deleted on the platform, so removed here (it was read online); handed_over: deleted on the platform, kept as the user's own file (it had a local copy)
+     */
+    change: 'added' | 'updated' | 'gone' | 'handed_over';
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Item Id
+     *
+     * The course file it is now, if any
+     */
+    item_id: string | null;
+    /**
+     * Folder Id
+     */
+    folder_id: string | null;
+    /**
+     * Folder
+     *
+     * The name of the folder it is in
+     */
+    folder: string | null;
+};
+
+/**
  * SyncQueued
  */
 export type SyncQueued = {
@@ -10938,6 +11011,38 @@ export type SyncQueued = {
      * How many courses were queued
      */
     queued: number;
+};
+
+/**
+ * SyncRemovedMaterial
+ *
+ * A material the user deleted from the course's files: not brought back until restored.
+ */
+export type SyncRemovedMaterial = {
+    /**
+     * Id
+     *
+     * The material's id
+     */
+    id: string;
+    /**
+     * Course Id
+     */
+    course_id: string;
+    /**
+     * Course
+     */
+    course: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     *
+     * When the user deleted it
+     */
+    at: string;
 };
 
 /**
@@ -11038,6 +11143,24 @@ export type SyncStatus = {
      * Fields the user set apart from the platform, by course and title
      */
     different: Array<SyncDifference>;
+    /**
+     * Materials
+     *
+     * What the platform did lately to the course materials, newest first
+     */
+    materials: Array<SyncMaterialChange>;
+    /**
+     * Removed Materials
+     *
+     * Materials the user deleted, newest first (at most 50), where the course's materials sync
+     */
+    removed_materials: Array<SyncRemovedMaterial>;
+    /**
+     * Removed Count
+     *
+     * How many materials the user deleted, all told
+     */
+    removed_count: number;
     /**
      * Errors
      */
@@ -13620,7 +13743,7 @@ export type FilesItemListData = {
          *
          * Agent/MCP only: return just these fields of each item (and its id)
          */
-        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at'> | null;
+        fields?: Array<'course_id' | 'folder_id' | 'kind' | 'display_name' | 'original_name' | 'mime_type' | 'size_bytes' | 'sha256' | 'url' | 'stored' | 'follows_source' | 'pinned' | 'source_kind' | 'source_ref' | 'source_name' | 'unseen' | 'doc_status' | 'doc_error_code' | 'page_count' | 'ocr_skipped_pages' | 'job_id' | 'created_at' | 'updated_at' | 'modified_at'> | null;
         /**
          * Cursor
          *
@@ -17121,7 +17244,7 @@ export type FilesItemUpdateResponses = {
 
 export type FilesItemUpdateResponse = FilesItemUpdateResponses[keyof FilesItemUpdateResponses];
 
-export type FilesItemKeepOfflineData = {
+export type FilesItemDropCopyData = {
     body?: never;
     path: {
         /**
@@ -17132,26 +17255,58 @@ export type FilesItemKeepOfflineData = {
         item_id: string;
     };
     query?: never;
-    url: '/files/{item_id}:keep-offline';
+    url: '/files/{item_id}:drop-copy';
 };
 
-export type FilesItemKeepOfflineErrors = {
+export type FilesItemDropCopyErrors = {
     /**
      * Default Response
      */
     default: ErrorResponse;
 };
 
-export type FilesItemKeepOfflineError = FilesItemKeepOfflineErrors[keyof FilesItemKeepOfflineErrors];
+export type FilesItemDropCopyError = FilesItemDropCopyErrors[keyof FilesItemDropCopyErrors];
 
-export type FilesItemKeepOfflineResponses = {
+export type FilesItemDropCopyResponses = {
     /**
      * Successful Response
      */
     200: ItemOut;
 };
 
-export type FilesItemKeepOfflineResponse = FilesItemKeepOfflineResponses[keyof FilesItemKeepOfflineResponses];
+export type FilesItemDropCopyResponse = FilesItemDropCopyResponses[keyof FilesItemDropCopyResponses];
+
+export type FilesItemKeepCopyData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:keep-copy';
+};
+
+export type FilesItemKeepCopyErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemKeepCopyError = FilesItemKeepCopyErrors[keyof FilesItemKeepCopyErrors];
+
+export type FilesItemKeepCopyResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemKeepCopyResponse = FilesItemKeepCopyResponses[keyof FilesItemKeepCopyResponses];
 
 export type FilesItemListPinnedData = {
     body?: never;
@@ -17184,6 +17339,70 @@ export type FilesItemListPinnedResponses = {
 };
 
 export type FilesItemListPinnedResponse = FilesItemListPinnedResponses[keyof FilesItemListPinnedResponses];
+
+export type FilesItemMakeOwnData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:make-own';
+};
+
+export type FilesItemMakeOwnErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemMakeOwnError = FilesItemMakeOwnErrors[keyof FilesItemMakeOwnErrors];
+
+export type FilesItemMakeOwnResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemMakeOwnResponse = FilesItemMakeOwnResponses[keyof FilesItemMakeOwnResponses];
+
+export type FilesItemMarkSeenData = {
+    body?: never;
+    path: {
+        /**
+         * Item Id
+         *
+         * File or link id, from files.item.list
+         */
+        item_id: string;
+    };
+    query?: never;
+    url: '/files/{item_id}:seen';
+};
+
+export type FilesItemMarkSeenErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type FilesItemMarkSeenError = FilesItemMarkSeenErrors[keyof FilesItemMarkSeenErrors];
+
+export type FilesItemMarkSeenResponses = {
+    /**
+     * Successful Response
+     */
+    200: ItemOut;
+};
+
+export type FilesItemMarkSeenResponse = FilesItemMarkSeenResponses[keyof FilesItemMarkSeenResponses];
 
 export type FilesItemReprocessData = {
     body?: never;
@@ -20884,6 +21103,38 @@ export type LmsSyncFieldResolveResponses = {
 };
 
 export type LmsSyncFieldResolveResponse = LmsSyncFieldResolveResponses[keyof LmsSyncFieldResolveResponses];
+
+export type LmsSyncMaterialRestoreData = {
+    body?: never;
+    path: {
+        /**
+         * Material Id
+         *
+         * A removed material's id (lms.sync.status)
+         */
+        material_id: string;
+    };
+    query?: never;
+    url: '/lms/sync/materials/{material_id}:restore';
+};
+
+export type LmsSyncMaterialRestoreErrors = {
+    /**
+     * Default Response
+     */
+    default: ErrorResponse;
+};
+
+export type LmsSyncMaterialRestoreError = LmsSyncMaterialRestoreErrors[keyof LmsSyncMaterialRestoreErrors];
+
+export type LmsSyncMaterialRestoreResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStatus;
+};
+
+export type LmsSyncMaterialRestoreResponse = LmsSyncMaterialRestoreResponses[keyof LmsSyncMaterialRestoreResponses];
 
 export type LmsSyncStatusData = {
     body?: never;

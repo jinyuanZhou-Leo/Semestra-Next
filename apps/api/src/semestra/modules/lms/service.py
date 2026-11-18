@@ -63,6 +63,7 @@ from semestra.modules.lms.schemas.io import (
     ExternalCourse,
     ExternalCourseList,
     LinkSetInput,
+    MaterialCounts,
     ProgramBinding,
     ProviderInfo,
     SignInStart,
@@ -760,8 +761,6 @@ def link_out(row: LmsCourseLink, provider: str) -> CourseLink:
         external_term=row.external_term,
         web_url=row.web_url,
         sync_enabled=row.sync_enabled,
-        files_sync=row.files_sync,
-        files_offline=row.files_offline,
         synced_at=row.synced_at,
         sync_errors=row.sync_errors,
         features=provider_features(provider),
@@ -879,14 +878,20 @@ async def link_state(ctx: Ctx, course_id: str) -> CourseLinkState:
     course = await academics.get_course_row(ctx, course_id)
     link = await link_row(ctx, course_id)
     binding = await binding_row(ctx, course.program_id)
-    out = None
+    out = counts = None
     if link is not None:
+        from semestra.modules.lms.sync_files import has_copy, synced_items  # imports this module
+
         conn = await get_connection_row(ctx, link.connection_id)
         out = link_out(link, conn.provider)
+        rows = await synced_items(ctx, link.id)
+        local = sum(1 for r in rows if has_copy(r))
+        counts = MaterialCounts(local=local, online=len(rows) - local)
     return CourseLinkState(
         course_id=course_id,
         link=out,
         program_connection_id=binding.connection_id if binding else None,
+        materials=counts,
     )
 
 
@@ -993,31 +998,12 @@ async def set_link(ctx: Ctx, inp: LinkSetInput) -> CourseLinkState:
     return await link_state(ctx, inp.course_id)
 
 
-async def update_link(
-    ctx: Ctx,
-    course_id: str,
-    sync_enabled: bool | None,
-    files_sync: bool | None,
-    files_offline: bool | None = None,
-) -> CourseLinkState:
+async def update_link(ctx: Ctx, course_id: str, sync_enabled: bool | None) -> CourseLinkState:
     link, _ = await require_link(ctx, course_id)
     if sync_enabled is not None and link.sync_enabled != sync_enabled:
         link.sync_enabled = sync_enabled
         link.updated_at = ctx.now
         await events.publish(ctx, "calendar.changed", {"program_id": link.program_id})
-        await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
-    if files_sync is not None and link.files_sync != files_sync:
-        link.files_sync = files_sync
-        link.updated_at = ctx.now
-        if files_sync:
-            # The materials come in with the next sync, not hours later.
-            link.synced_at = None
-        await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
-    if files_offline is not None and link.files_offline != files_offline:
-        link.files_offline = files_offline
-        link.updated_at = ctx.now
-        if files_offline:
-            link.synced_at = None  # stored with the next sync
         await events.publish(ctx, "lms.course.link_updated", {"course_id": course_id})
     return await link_state(ctx, course_id)
 
