@@ -204,7 +204,7 @@ export function SafeHtml({
       return
     }
     // Any other link leads to another site: asked first, like links elsewhere in the app.
-    if (/^https?:$/.test(anchor.protocol)) {
+    if (/^https?:\/\//i.test(anchor.getAttribute('href') ?? '')) {
       event.preventDefault()
       link.open(anchor.href)
     }

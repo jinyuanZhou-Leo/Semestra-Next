@@ -308,7 +308,7 @@ export function keptQueries(modules: readonly ModuleManifest[] = builtInModules)
 }
 
 /** UI state the host itself keeps (sidebar, status bar, command palette). */
-const HOST_UI_PREF_PREFIXES = ['layout.', 'commands.', 'links.']
+const HOST_UI_PREF_PREFIXES = ['layout.', 'commands.']
 
 /** What the signed-in layout prefetches: the host's prefixes and every module's own. */
 export function uiPrefPrefixes(modules: readonly ModuleManifest[] = builtInModules): string[] {

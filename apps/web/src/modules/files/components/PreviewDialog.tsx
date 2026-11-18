@@ -450,8 +450,9 @@ export function PreviewDialog({
 
 /**
  * Where else the previewed file opens: a new tab (what the browser can show) and what other
- * modules add (`files.itemActions`, e.g. the file on its platform). One entry is a button; more
- * are one menu, so two look-alike "open" icons never sit side by side.
+ * modules add (`files.itemActions`, e.g. the file on its platform). Always one icon button in the
+ * same place: one entry opens directly (named in its tooltip), more are its menu, so two
+ * look-alike "open" icons never sit side by side.
  */
 function OpenElsewhere({
   item,
@@ -465,12 +466,33 @@ function OpenElsewhere({
   inBrowser: boolean
 }) {
   const [only] = actions
-  if (inBrowser ? actions.length > 0 : actions.length > 1) {
+  if ((inBrowser ? 1 : 0) + actions.length > 1) {
     return <OpenMenu item={item} actions={actions} programId={programId} inBrowser={inBrowser} />
   }
-  if (!inBrowser) {
-    return only ? <ItemActionButton action={only} item={item} programId={programId} /> : null
+  if (only) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void only.run({ programId, item })}
+            />
+          }
+        >
+          <only.icon aria-hidden />
+          <span className="sr-only">
+            <only.Label programId={programId} item={item} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <only.Label programId={programId} item={item} />
+        </TooltipContent>
+      </Tooltip>
+    )
   }
+  if (!inBrowser) return null
   return (
     <Tooltip>
       <TooltipTrigger

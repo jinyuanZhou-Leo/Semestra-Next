@@ -45,7 +45,12 @@ vi.mock('react-pdf', () => ({
     }, [file, onLoadSuccess, onLoadError])
     return <div>{children}</div>
   },
-  Page: ({ pageNumber }: { pageNumber: number }) => <p>PDF page {pageNumber}</p>,
+  Page: ({ pageNumber }: { pageNumber: number }) => (
+    <p>
+      PDF page {pageNumber}{' '}
+      <a href={`https://example.com/notes/${pageNumber}`}>notes {pageNumber}</a>
+    </p>
+  ),
 }))
 
 beforeAll(async () => {
@@ -387,7 +392,7 @@ test('links ask before leaving, and can remember the site', async () => {
   )
   await waitFor(() =>
     expect(prefs).toContainEqual({
-      key: 'links.trusted_sites',
+      key: 'files.trusted_domains',
       body: { value: ['piazza.com'] },
     }),
   )
@@ -472,6 +477,17 @@ test('the preview goes to a heading of the contents or a match of its search', a
   expect(searches.at(-1)).toMatchObject({ query: 'midterm', item_ids: ['i1'] })
   await userEvent.click(hit)
   expect(await within(dialog).findByText('PDF page 3')).toBeInTheDocument()
+})
+
+test("a link in a PDF asks before leaving, like the course's other links", async () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  const dialog = await openPreview()
+  await userEvent.click(await within(dialog).findByRole('link', { name: 'notes 1' }))
+  const leave = await screen.findByRole('alertdialog', { name: 'Open an external site?' })
+  expect(leave).toHaveTextContent('https://example.com/notes/1')
+  await userEvent.click(within(leave).getByRole('button', { name: 'Open' }))
+  expect(open).toHaveBeenCalledWith('https://example.com/notes/1', '_blank', 'noopener,noreferrer')
+  open.mockRestore()
 })
 
 test('a PDF can be read as the text Semestra recognized in it', async () => {
@@ -660,29 +676,24 @@ test('chosen files and folders download together as one archive, links left out,
   await user.click(
     screen.getByRole('button', { name: 'Labs' }).closest('tr')!.querySelector('[role=checkbox]')!,
   )
-  // More than one: an archive, saved once it has arrived whole.
+  // More than one: an archive. The server is asked first (so a refusal can be shown), then the
+  // browser downloads it.
   const saved: string[] = []
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
     this: HTMLAnchorElement,
   ) {
-    saved.push(this.download)
+    saved.push(this.href)
   })
-  URL.createObjectURL ??= () => 'blob:x'
-  URL.revokeObjectURL ??= () => {}
   const asked: string[] = []
   server.use(
     http.get(`${API}/courses/c1/files:download`, ({ request }) => {
       asked.push(new URL(request.url).search)
-      return new HttpResponse('PK', {
-        headers: {
-          'content-type': 'application/zip',
-          'content-disposition': `attachment; filename="APS105.zip"; filename*=UTF-8''APS105.zip`,
-        },
-      })
+      return new HttpResponse('PK', { headers: { 'content-type': 'application/zip' } })
     }),
   )
+  const archive = `${API}/courses/c1/files:download?item_ids=i1&folder_ids=f1`
   await user.click(screen.getByRole('button', { name: 'Download' }))
-  await waitFor(() => expect(saved).toEqual(['APS105.zip']))
+  await waitFor(() => expect(saved).toEqual([archive]))
   expect(asked).toEqual(['?item_ids=i1&folder_ids=f1'])
 
   // None of them could be read: an error, nothing saved.
@@ -698,7 +709,7 @@ test('chosen files and folders download together as one archive, links left out,
   expect(
     await screen.findByText("The files couldn't be read from where they're kept. Try again later."),
   ).toBeInTheDocument()
-  expect(saved).toEqual(['APS105.zip'])
+  expect(saved).toEqual([archive])
 })
 
 const job = (status: string, step: string | null) => ({

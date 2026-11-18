@@ -40,7 +40,8 @@ export function useExternalLink(): {
   dialog: ReactNode
 } {
   const id = useId()
-  const [trusted, setTrusted] = useUiPref<string[]>('links.trusted_sites', [])
+  // Named after the files module, where it began: kept so the sites users already trust count.
+  const [trusted, setTrusted] = useUiPref<string[]>('files.trusted_domains', [])
   const pending = useDialogTarget<string>()
   const [remember, setRemember] = useState(false)
   const shown = pending.target ?? ''

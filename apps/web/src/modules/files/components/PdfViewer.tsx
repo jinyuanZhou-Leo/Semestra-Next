@@ -3,6 +3,7 @@ import 'react-pdf/dist/Page/AnnotationLayer.css'
 import { observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
+import { useExternalLink } from '@/components/ExternalLink'
 import { m } from '@/paraglide/messages'
 import { Alert, AlertDescription } from '@/ui/alert'
 import { Spinner } from '@/ui/spinner'
@@ -65,6 +66,7 @@ export function PdfViewer({
   const [width, setWidth] = useState<number>()
   const [zoom, setZoom] = useState(1)
   const scroller = useRef<HTMLDivElement>(null)
+  const link = useExternalLink()
   // The page at the top of the view and how far into it, as of the last scroll.
   const anchor = useRef<{ index: number; fraction: number } | null>(null)
   const fit = Math.min(Math.max((width ?? 0) - 2 * PADDING, 240), MAX_WIDTH)
@@ -192,9 +194,20 @@ export function PdfViewer({
 
   return (
     <>
+      {/* Links in the document (pdf.js's link layer) open after the usual question about leaving
+      for another site; links within the document are left to pdf.js. */}
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-auto"
+        onClick={(event) => {
+          if (event.defaultPrevented || event.button !== 0) return
+          const clicked = (event.target as Element).closest('a[href]')
+          const href = clicked?.getAttribute('href') ?? ''
+          if (!/^https?:\/\//i.test(href)) return
+          event.preventDefault()
+          link.open(href)
+        }}
         onScroll={(event) => {
           const top = event.currentTarget.scrollTop
           const index = Math.max(
@@ -289,6 +302,7 @@ export function PdfViewer({
           onZoom={setZoom}
         />
       ) : null}
+      {link.dialog}
     </>
   )
 }

@@ -96,9 +96,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        # The name of a download fetched by the app (a zip of course files) when it is served
-        # from another origin.
-        expose_headers=["Content-Disposition"],
     )
 
     app.add_middleware(RequestId)  # outermost: the upload limits use its id
